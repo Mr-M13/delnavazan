@@ -6711,3 +6711,113 @@ a.dzn-nav-action:focus-visible {
       1.6rem;
   }
 }
+
+
+/* =========================================================
+   AUTHENTICATION / ROUTE STATES
+   ========================================================= */
+
+@layer components {
+  .dzn-route {
+    display: grid;
+    place-items: center;
+    min-block-size: min(72vh, 46rem);
+    padding-block: clamp(3rem, 8vw, 7rem);
+  }
+
+  .dzn-route__state {
+    inline-size: min(100%, 34rem);
+    padding: clamp(1.5rem, 4vw, 2.75rem);
+    border: 1px solid var(--dzn-color-border);
+    border-radius: 1.5rem;
+    background: var(--dzn-color-surface-elevated);
+    box-shadow: 0 1.25rem 3rem rgb(37 39 38 / 8%);
+  }
+
+  .dzn-route__state h1 {
+    margin-block: .35rem .75rem;
+    font-size: var(--dzn-heading-page);
+    line-height: 1.35;
+  }
+
+  .dzn-route__state > p {
+    color: var(--dzn-color-text-muted);
+    line-height: 1.9;
+  }
+
+  .dzn-route__state > p:last-child {
+    margin-block-end: 0;
+  }
+
+  .dzn-route--login #loginform {
+    display: grid;
+    gap: 1rem;
+    margin-block-start: 1.75rem;
+  }
+
+  .dzn-route--login #loginform p {
+    margin: 0;
+  }
+
+  .dzn-route--login #loginform label {
+    display: grid;
+    gap: .45rem;
+    color: var(--dzn-color-text-primary);
+    font-weight: 700;
+  }
+
+  .dzn-route--login #loginform input[type="text"],
+  .dzn-route--login #loginform input[type="password"] {
+    inline-size: 100%;
+    min-block-size: 3rem;
+    padding: .7rem .9rem;
+    border: 1px solid var(--dzn-color-border);
+    border-radius: .75rem;
+    background: #fff;
+    color: var(--dzn-color-text-primary);
+    font: inherit;
+    direction: ltr;
+  }
+
+  .dzn-route--login #loginform input:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--dzn-color-focus) 28%, transparent);
+    outline-offset: 2px;
+    border-color: var(--dzn-color-focus);
+  }
+
+  .dzn-route--login .login-remember label {
+    display: flex !important;
+    align-items: center;
+    gap: .55rem !important;
+    font-weight: 500 !important;
+  }
+
+  .dzn-route--login #wp-submit {
+    min-block-size: 3rem;
+    padding-inline: 1.35rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--dzn-color-action-primary);
+    color: var(--dzn-color-on-action);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .dzn-route--login #wp-submit:hover,
+  .dzn-route--login #wp-submit:focus-visible {
+    background: var(--dzn-color-action-primary-hover);
+  }
+
+  @media (max-width: 40rem) {
+    .dzn-route {
+      min-block-size: 60vh;
+      padding-block: 2rem 4rem;
+    }
+
+    .dzn-route__state {
+      padding: 1.25rem;
+      border-radius: 1rem;
+    }
+  }
+}

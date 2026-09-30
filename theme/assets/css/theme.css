@@ -6887,3 +6887,11 @@ a.dzn-nav-action:focus-visible {
     font-weight: 800;
   }
 }
+
+
+/* Instrument tiles are full-card entry points into the booking flow. */
+.dzn-instrument-tile { position: relative; }
+.dzn-instrument-tile__booking-link { position: absolute; z-index: 2; inset: 0; overflow: hidden; border-radius: inherit; color: transparent; font-size: 0; text-decoration: none; }
+.dzn-instrument-tile__booking-link::after { position: absolute; inset-inline-start: .75rem; inset-block-end: .75rem; border-radius: 999px; background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); content: "درخواست جلسهٔ معارفه"; padding: .35rem .7rem; font-size: .85rem; font-weight: 700; }
+.dzn-instrument-tile__booking-link:hover::after { background: var(--dzn-color-action-primary-hover); }
+.dzn-instrument-tile__booking-link:focus-visible { outline: .1875rem solid var(--dzn-color-focus); outline-offset: .15rem; }

@@ -65,6 +65,20 @@
   rails.forEach((rail, railIndex) => {
     const originals = Array.from(rail.querySelectorAll('.dzn-instrument-tile'));
 
+    originals.forEach((card) => {
+      const heading = card.querySelector('.dzn-instrument-tile__copy');
+      if (!heading || card.querySelector('.dzn-instrument-tile__booking-link')) return;
+      const name = heading.textContent.trim();
+      const instrumentClass = Array.from(card.classList).find((className) => className.indexOf('dzn-instrument-tile--') === 0);
+      const slug = instrumentClass ? instrumentClass.slice('dzn-instrument-tile--'.length) : '';
+      const link = document.createElement('a');
+      link.className = 'dzn-instrument-tile__booking-link';
+      link.href = '/booking/?instrument=' + encodeURIComponent(slug) + '&instrument_name=' + encodeURIComponent(name);
+      link.textContent = 'درخواست جلسهٔ معارفه برای ' + name;
+      link.setAttribute('aria-label', link.textContent);
+      card.append(link);
+    });
+
     if (originals.length < 2) {
       return;
     }

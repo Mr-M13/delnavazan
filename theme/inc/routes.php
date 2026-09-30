@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 function dzn_theme_route() {
 	$path = wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH );
 	$path = trim( (string) $path, '/' );
-	$routes = array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'admin-operations' );
+	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'admin-operations' );
 	return in_array( $path, $routes, true ) ? $path : '';
 }
 
@@ -150,6 +150,7 @@ function dzn_theme_render_virtual_route() {
 	nocache_headers();
 	get_header();
 	switch ( $route ) {
+		case 'booking': dzn_theme_render_booking_route(); break;
 		case 'login': dzn_theme_render_login_route(); break;
 		case 'dashboard': dzn_theme_render_dashboard_route(); break;
 		case 'teacher-portal': dzn_theme_render_portal_route( 'teacher' ); break;
@@ -162,6 +163,7 @@ function dzn_theme_render_virtual_route() {
 add_action( 'template_redirect', 'dzn_theme_render_virtual_route', 1 );
 
 function dzn_theme_route_assets() {
+	if ( dzn_theme_is_route( 'booking' ) ) { dzn_theme_enqueue_booking_assets(); }
 	if ( dzn_theme_is_route( 'student-portal' ) || dzn_theme_is_route( 'dashboard' ) ) { dzn_theme_enqueue_portal_assets(); }
 	if ( dzn_theme_is_route( 'teacher-portal' ) ) { dzn_theme_enqueue_teacher_portal_assets(); }
 }

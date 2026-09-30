@@ -24,7 +24,7 @@
 
 <!-- wp:buttons {"className":"dzn-home-hero__actions"} -->
 <div class="wp-block-buttons dzn-home-hero__actions"><!-- wp:button -->
-<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( home_url( '/enrol/' ) ); ?>">ثبت‌نام</a></div>
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( home_url( '/booking/' ) ); ?>">ثبت‌نام</a></div>
 <!-- /wp:button -->
 
 <!-- wp:button {"className":"is-style-outline"} -->

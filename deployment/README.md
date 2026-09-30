@@ -26,7 +26,7 @@ The current hosting account has SSH disabled. DirectAdmin supports HTTPS remotes
 DirectAdmin staging repositories track those mirror branches and deploy to:
 
 - `domains/staging.delnavazan.com/public_html/wp-content/plugins/delnavazan-platform`
-- `domains/staging.delnavazan.com/public_html/wp-content/themes/delnavazan`
+- `domains/staging.delnavazan.com/public_html/wp-content/themes/delnavazan-theme`
 
 Do not develop directly in the mirror branches. Generate them from the monorepo using `deployment/sync-mirrors.sh`.
 

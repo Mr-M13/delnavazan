@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/theme.json",
+  "version": 3,
+  "settings": {
+    "appearanceTools": true,
+    "layout": {
+      "contentSize": "760px",
+      "wideSize": "1180px"
+    },
+    "color": {
+      "custom": false,
+      "customDuotone": false,
+      "defaultDuotone": false,
+      "palette": [
+        { "slug": "background", "name": "Background", "color": "#FBF8F2" },
+        { "slug": "surface", "name": "Surface", "color": "#F2ECE1" },
+        { "slug": "surface-elevated", "name": "Elevated Surface", "color": "#FFFFFF" },
+        { "slug": "text-primary", "name": "Primary Text", "color": "#252726" },
+        { "slug": "text-secondary", "name": "Secondary Text", "color": "#104A4D" },
+        { "slug": "text-muted", "name": "Muted Text", "color": "#5F625F" },
+        { "slug": "action-primary", "name": "Primary Action", "color": "#1E7B70" },
+        { "slug": "action-primary-hover", "name": "Primary Action Hover", "color": "#104A4D" },
+        { "slug": "action-secondary", "name": "Secondary Action", "color": "#315C82" },
+        { "slug": "border", "name": "Border", "color": "#DDD6CA" },
+        { "slug": "accent", "name": "Pomegranate Accent", "color": "#A33E48" },
+        { "slug": "highlight", "name": "Saffron Highlight", "color": "#D4AB4F" },
+        { "slug": "success", "name": "Success", "color": "#2F6B4F" },
+        { "slug": "warning", "name": "Warning", "color": "#945B16" },
+        { "slug": "error", "name": "Error", "color": "#A33A3A" },
+        { "slug": "information", "name": "Information", "color": "#315C82" },
+        { "slug": "focus", "name": "Focus Indication", "color": "#315C82" },
+        { "slug": "on-action", "name": "Text on Action", "color": "#FFFFFF" }
+      ]
+    },
+    "spacing": {
+      "spacingSizes": [
+        { "slug": "10", "name": "2XS", "size": "0.25rem" },
+        { "slug": "20", "name": "XS", "size": "0.5rem" },
+        { "slug": "30", "name": "S", "size": "0.75rem" },
+        { "slug": "40", "name": "M", "size": "1rem" },
+        { "slug": "50", "name": "L", "size": "1.5rem" },
+        { "slug": "60", "name": "XL", "size": "2rem" },
+        { "slug": "70", "name": "2XL", "size": "3rem" },
+        { "slug": "80", "name": "3XL", "size": "4.5rem" }
+      ],
+      "units": ["px", "rem", "em", "%", "vw"]
+    },
+    "typography": {
+      "dropCap": false,
+      "fluid": true,
+      "fontFamilies": [
+        {
+          "fontFamily": "Vazirmatn, Tahoma, Arial, sans-serif",
+          "name": "Vazirmatn",
+          "slug": "body"
+        },
+        {
+          "fontFamily": "Vazirmatn, Tahoma, Arial, sans-serif",
+          "name": "Vazirmatn Display",
+          "slug": "display"
+        }
+      ],
+      "fontSizes": [
+        { "slug": "small", "name": "Small", "size": "0.9rem" },
+        { "slug": "medium", "name": "Medium", "size": "1rem" },
+        { "slug": "large", "name": "Large", "size": "clamp(1.125rem, 1rem + 0.5vw, 1.375rem)" },
+        { "slug": "x-large", "name": "X Large", "size": "clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem)" },
+        { "slug": "display", "name": "Display", "size": "clamp(2rem, 1.45rem + 2.75vw, 3.75rem)" }
+      ]
+    }
+  },
+  "styles": {
+    "color": {
+      "background": "var:preset|color|background",
+      "text": "var:preset|color|text-primary"
+    },
+    "spacing": {
+      "blockGap": "var:preset|spacing|50"
+    },
+    "typography": {
+      "fontFamily": "var:preset|font-family|body",
+      "fontSize": "var:preset|font-size|medium",
+      "lineHeight": "1.8"
+    },
+    "elements": {
+      "heading": {
+        "typography": {
+          "fontFamily": "var:preset|font-family|display",
+          "fontWeight": "700",
+          "lineHeight": "1.45"
+        }
+      },
+      "link": {
+        "color": { "text": "var:preset|color|action-secondary" },
+        ":hover": { "color": { "text": "var:preset|color|action-primary-hover" } }
+      }
+    }
+  }
+}

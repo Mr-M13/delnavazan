@@ -1,0 +1,99 @@
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("../fonts/Vazirmatn-Variable.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+body {
+  direction: rtl;
+  font-family: Vazirmatn, Tahoma, Arial, sans-serif;
+  line-height: 1.8;
+  font-synthesis-weight: none;
+}
+
+.editor-styles-wrapper .dzn-home-section {
+  padding-block: clamp(3.75rem, 8vw, 7.5rem);
+}
+
+.editor-styles-wrapper .dzn-home-section > .alignwide {
+  inline-size: calc(100% - clamp(2.5rem, 8vw, 5rem));
+  max-inline-size: 73.75rem;
+  margin-inline: auto;
+}
+
+.editor-styles-wrapper .dzn-eyebrow {
+  color: var(--wp--preset--color--accent);
+  font-size: .875rem;
+  font-weight: 750;
+}
+
+.editor-styles-wrapper .dzn-home-hero,
+.editor-styles-wrapper .dzn-courses,
+.editor-styles-wrapper .dzn-hamnavaz,
+.editor-styles-wrapper .dzn-editorial {
+  background: var(--wp--preset--color--background);
+}
+
+.editor-styles-wrapper .dzn-home-hero__grid,
+.editor-styles-wrapper .dzn-hamnavaz__grid {
+  display: grid;
+  gap: 2rem;
+}
+
+.editor-styles-wrapper .dzn-owned-media-slot--pending {
+  min-block-size: 12rem;
+  border: 1px solid var(--wp--preset--color--border);
+  background: var(--wp--preset--color--surface);
+}
+
+.editor-styles-wrapper .dzn-home-hero__media img,
+.editor-styles-wrapper .dzn-instrument-tile__media img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.editor-styles-wrapper .dzn-home-hero__media img { object-fit: cover; }
+
+.editor-styles-wrapper .dzn-instrument-folio {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.editor-styles-wrapper .dzn-instrument-tile {
+  position: relative;
+  min-block-size: 9rem;
+  overflow: hidden;
+  border-block-start: 1px solid var(--wp--preset--color--border);
+  background: var(--wp--preset--color--surface);
+  padding: 1rem;
+}
+
+.editor-styles-wrapper .dzn-instrument-tile__media { margin: 0; }
+
+.editor-styles-wrapper .dzn-process {
+  background: var(--wp--preset--color--surface);
+}
+
+.editor-styles-wrapper .dzn-pricing {
+  background: var(--wp--preset--color--text-secondary);
+  color: var(--wp--preset--color--on-action);
+}
+
+.editor-styles-wrapper {
+  color: var(--wp--preset--color--text-primary);
+  background: var(--wp--preset--color--background);
+}
+
+.editor-styles-wrapper a {
+  color: var(--wp--preset--color--action-secondary);
+  text-underline-offset: .2em;
+}
+
+.editor-styles-wrapper :where(code, kbd, samp, var, [dir="ltr"]) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

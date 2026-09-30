@@ -1,0 +1,1 @@
+<?php /** Template Name: Teacher Portal — Home */ get_header(); while ( have_posts() ) { the_post(); dzn_theme_render_teacher_portal( 'home', dzn_theme_teacher_portal_view_model( 'home' ) ); } get_footer();

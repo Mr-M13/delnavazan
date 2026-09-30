@@ -46,7 +46,7 @@ function dzn_theme_render_booking_route(): void {
                     <div class="dzn-booking__error" data-error role="alert" hidden></div>
                     <section class="dzn-booking__step is-active" data-step="instrument" aria-labelledby="dzn-booking-instrument-title">
                         <p class="dzn-booking__kicker">مرحلهٔ اول</p>
-                        <h2 id="dzn-booking-instrument-title">ساز و زمان‌های پیشنهادی را انتخاب کنید</h2>
+                        <h2 id="dzn-booking-instrument-title" tabindex="-1">ساز و زمان‌های پیشنهادی را انتخاب کنید</h2>
                         <label for="dzn-booking-instrument">ساز موردنظر</label>
                         <select id="dzn-booking-instrument" data-instrument required>
                             <option value="">انتخاب ساز</option>
@@ -88,7 +88,7 @@ function dzn_theme_render_booking_route(): void {
                     </section>
                     <section class="dzn-booking__step" data-step="contact" aria-labelledby="dzn-booking-contact-title" hidden>
                         <p class="dzn-booking__kicker">مرحلهٔ دوم</p>
-                        <h2 id="dzn-booking-contact-title">چطور با شما در تماس باشیم؟</h2>
+                        <h2 id="dzn-booking-contact-title" tabindex="-1">چطور با شما در تماس باشیم؟</h2>
                         <div class="dzn-booking__fields">
                             <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" required></div>
                             <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required></div>
@@ -110,7 +110,7 @@ function dzn_theme_render_booking_route(): void {
                     </section>
                     <section class="dzn-booking__step" data-step="review" aria-labelledby="dzn-booking-review-title" hidden>
                         <p class="dzn-booking__kicker">مرحلهٔ سوم</p>
-                        <h2 id="dzn-booking-review-title">درخواست خود را بازبینی کنید</h2>
+                        <h2 id="dzn-booking-review-title" tabindex="-1">درخواست خود را بازبینی کنید</h2>
                         <div data-review class="dzn-booking__review"></div>
                         <aside class="dzn-booking__notice">
                             <h3>جلسهٔ معارفه رایگان است</h3>
@@ -123,7 +123,7 @@ function dzn_theme_render_booking_route(): void {
                     </section>
                     <section class="dzn-booking__step dzn-booking__success" data-step="success" aria-labelledby="dzn-booking-success-title" hidden>
                         <p class="dzn-booking__kicker">درخواست ثبت شد</p>
-                        <h2 id="dzn-booking-success-title">درخواست شما برای بررسی ارسال شد</h2>
+                        <h2 id="dzn-booking-success-title" tabindex="-1">درخواست شما برای بررسی ارسال شد</h2>
                         <p>این شماره را برای پیگیری نگه دارید:</p>
                         <p class="dzn-booking__reference" data-reference dir="ltr"></p>
                         <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان پس از بررسی گزینه‌های زمانی با شما تماس می‌گیرد.</p>
@@ -141,5 +141,5 @@ function dzn_theme_enqueue_booking_assets(): void {
     $style_path = get_theme_file_path( 'assets/css/booking.css' );
     wp_enqueue_style( 'delnavazan-booking', get_theme_file_uri( 'assets/css/booking.css' ), array( 'delnavazan-theme' ), file_exists( $style_path ) ? (string) filemtime( $style_path ) : wp_get_theme()->get( 'Version' ) );
     wp_enqueue_script( 'delnavazan-booking', get_theme_file_uri( 'assets/js/booking.js' ), array(), file_exists( $script_path ) ? (string) filemtime( $script_path ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
-    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'options' => dzn_theme_booking_options(), 'privacyVersion' => '2026-09-05' ) );
+    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05' ) );
 }

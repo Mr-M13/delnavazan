@@ -13,6 +13,7 @@
   const whatsapp = root.querySelector('[data-whatsapp]');
   const slots = [];
   let idempotencyKey = '';
+  let availabilityRequestId = 0;
 
   const showError = (message) => {
     errorBox.textContent = message || '';
@@ -70,7 +71,9 @@
     });
   };
   const assessSlots = async () => {
+    const requestId = ++availabilityRequestId;
     if (!activeInstrument() || !slots.length || !timezone.value) return;
+    const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
     slots.forEach((slot) => { slot.status = 'checking'; });
     renderSlots();
     try {
@@ -80,15 +83,17 @@
         body: JSON.stringify({
           instrument_id: Number(instrument.value),
           course_id: Number(selectedOption().dataset.course),
-          requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
+          requested_times: requestedSlots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
         })
       });
       const result = await response.json();
       if (!response.ok || !Array.isArray(result.times)) throw new Error('unavailable');
+      if (requestId !== availabilityRequestId) return;
       result.times.forEach((row, index) => {
         if (slots[index]) slots[index].status = ['strong', 'possible', 'none'].includes(row.status) ? row.status : 'unavailable';
       });
     } catch {
+      if (requestId !== availabilityRequestId) return;
       slots.forEach((slot) => { slot.status = 'unavailable'; });
     }
     renderSlots();
@@ -106,6 +111,7 @@
     assessSlots();
   });
   instrument.addEventListener('change', () => {
+    availabilityRequestId += 1;
     idempotencyKey = '';
     slots.splice(0);
     renderSlots();

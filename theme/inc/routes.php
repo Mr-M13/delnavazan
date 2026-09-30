@@ -44,7 +44,7 @@ function dzn_theme_render_login_route() {
 			<p class="dzn-eyebrow">ورود امن</p>
 			<h1 id="dzn-route-title">ورود به دلنوازان</h1>
 			<p>هنرجویان و مدرسان با همان حساب ثبت‌شده در دلنوازان وارد می‌شوند.</p>
-			<?php wp_login_form( array( 'redirect' => home_url( '/dashboard/' ), 'label_username' => 'ایمیل یا نام کاربری', 'label_password' => 'رمز عبور', 'label_log_in' => 'ورود', 'remember' => true ) ); ?>
+			<?php wp_login_form( array( 'redirect' => home_url( '/dashboard/' ), 'label_username' => 'ایمیل یا نام کاربری', 'label_password' => 'رمز عبور', 'label_log_in' => 'ورود', 'label_remember' => 'مرا به خاطر بسپار', 'remember' => true ) ); ?>
 			<p><a href="<?php echo esc_url( wp_lostpassword_url( home_url( '/login/' ) ) ); ?>">رمز عبور را فراموش کرده‌اید؟</a></p>
 		</section>
 	</main>
@@ -57,20 +57,23 @@ function dzn_theme_portal_principal_available( $kind ) {
 	try { ( new $class() )->resolve( $kind ); return true; } catch ( Throwable $e ) { return false; }
 }
 
-function dzn_theme_render_dashboard_route() {
-	if ( ! is_user_logged_in() ) {
-		wp_safe_redirect( home_url( '/login/' ) );
-		exit;
-	}
+function dzn_theme_dashboard_destination() {
+	if ( ! is_user_logged_in() ) { return home_url( '/login/' ); }
 	$student = dzn_theme_portal_principal_available( 'student' );
 	$teacher = dzn_theme_portal_principal_available( 'teacher' );
-	if ( $student && ! $teacher ) { wp_safe_redirect( home_url( '/student-portal/' ) ); exit; }
-	if ( $teacher && ! $student ) { wp_safe_redirect( home_url( '/teacher-portal/' ) ); exit; }
+	if ( $student && ! $teacher ) { return home_url( '/student-portal/' ); }
+	if ( $teacher && ! $student ) { return home_url( '/teacher-portal/' ); }
+	if ( ! $student && ! $teacher && current_user_can( 'manage_options' ) ) { return home_url( '/admin-operations/' ); }
+	return '';
+}
+
+function dzn_theme_render_dashboard_route() {
+	$student = dzn_theme_portal_principal_available( 'student' );
+	$teacher = dzn_theme_portal_principal_available( 'teacher' );
 	if ( $student && $teacher ) {
 		dzn_theme_render_route_state( 'داشبورد شما', 'این حساب به بیش از یک نقش متصل است. بخش موردنظر را انتخاب کنید.', 'پرتال هنرجو', home_url( '/student-portal/' ), 'پرتال مدرس', home_url( '/teacher-portal/' ) );
 		return;
 	}
-	if ( current_user_can( 'manage_options' ) ) { wp_safe_redirect( home_url( '/admin-operations/' ) ); exit; }
 	dzn_theme_render_route_state( 'حساب هنوز به پرتال متصل نیست', 'ورود شما موفق بود، اما هنوز پیوند معتبر هنرجو یا مدرس برای این حساب پیدا نشد.', 'بازگشت به خانه', home_url( '/' ), 'خروج از حساب', wp_logout_url( home_url( '/' ) ) );
 }
 
@@ -105,6 +108,10 @@ function dzn_theme_render_admin_route() {
 function dzn_theme_render_virtual_route() {
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
+	if ( 'dashboard' === $route ) {
+		$destination = dzn_theme_dashboard_destination();
+		if ( $destination ) { wp_safe_redirect( $destination ); exit; }
+	}
 	status_header( 200 );
 	nocache_headers();
 	get_header();

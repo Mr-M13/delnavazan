@@ -114,6 +114,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'time' => dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'H:i' ) . '–' . dzn_theme_platform_local_time( $next['ends_at_utc'] ?? '', 'H:i' ),
 		'timezone_label' => wp_timezone_string() ?: 'UTC',
 		'join_url' => '',
+		'absence_available' => false,
 		'notice' => ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '',
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
@@ -163,7 +164,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
 		$classes[] = array(
 			'ref' => (string) ( $lesson['reference_code'] ?? 'lesson-' . $index ),
-			'start_available' => ! empty( $lesson['join_available'] ),
+			'start_available' => false,
 			'details_available' => true,
 			'student_summary' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'schedule_summary' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F، H:i' ),

@@ -114,7 +114,7 @@ function dzn_theme_primary_menu_link_attributes( $attributes, $item, $args ) {
 		$classes[] = 'dzn-nav-action';
 	}
 
-	if ( in_array( $path, array( '/honarjo/', '/ostad/' ), true ) ) {
+	if ( in_array( $path, array( '/honarjo/', '/ostad/', '/student-portal/', '/teacher-portal/' ), true ) ) {
 		$classes[] = 'dzn-nav-portal';
 	}
 
@@ -125,3 +125,31 @@ function dzn_theme_primary_menu_link_attributes( $attributes, $item, $args ) {
 	return $attributes;
 }
 add_filter( 'nav_menu_link_attributes', 'dzn_theme_primary_menu_link_attributes', 10, 3 );
+
+/**
+ * Render the recovered final primary navigation when a migrated environment
+ * does not yet have the original WordPress menu assignment.
+ *
+ * The labels/order match the captured NIU 0.4.6 menu. Portal destinations use
+ * the canonical routes on the rebuilt platform.
+ */
+function dzn_theme_primary_menu_fallback() {
+	$items = array(
+		array( 'خانه', home_url( '/' ), '' ),
+		array( 'ورود هنرجویان', home_url( '/student-portal/' ), 'dzn-nav-portal' ),
+		array( 'ورود اساتید', home_url( '/teacher-portal/' ), 'dzn-nav-portal' ),
+		array( 'مقالات', home_url( '/articles/' ), '' ),
+		array( 'ثبت نام', home_url( '/enrol/' ), 'dzn-nav-action' ),
+	);
+
+	echo '<ul class="primary-navigation__list">';
+	foreach ( $items as $item ) {
+		printf(
+			'<li><a class="%3$s" href="%2$s">%1$s</a></li>',
+			esc_html( $item[0] ),
+			esc_url( $item[1] ),
+			esc_attr( $item[2] )
+		);
+	}
+	echo '</ul>';
+}

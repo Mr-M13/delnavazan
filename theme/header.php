@@ -50,17 +50,9 @@
 				'theme_location' => 'primary',
 				'container'      => false,
 				'menu_class'     => 'primary-navigation__list',
-				'fallback_cb'    => false,
+				'fallback_cb'    => 'dzn_theme_primary_menu_fallback',
 			) );
 			?>
 		</nav>
-		<div class="site-header__account">
-			<?php if ( is_user_logged_in() ) : ?>
-				<a href="<?php echo esc_url( home_url( '/dashboard/' ) ); ?>">داشبورد</a>
-				<a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">خروج</a>
-			<?php else : ?>
-				<a href="<?php echo esc_url( home_url( '/login/' ) ); ?>">ورود به پرتال</a>
-			<?php endif; ?>
-		</div>
 	</div>
 </header>

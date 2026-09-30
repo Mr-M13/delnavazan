@@ -39,10 +39,10 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 	}
 	if ( 'account' === $screen ) {
 		return dzn_theme_teacher_portal_profile_valid( $model['profile'] ?? null )
-			&& dzn_theme_teacher_portal_availability_valid( $model['availability'] ?? null, $model['exceptions'] ?? null )
+			&& ( false === ( $model['availability_available'] ?? true ) || dzn_theme_teacher_portal_availability_valid( $model['availability'] ?? null, $model['exceptions'] ?? null ) )
 			&& dzn_theme_teacher_portal_statistics_valid( $model['statistics'] ?? null )
-			&& in_array( $model['google_state'] ?? null, array( 'not_connected', 'connected', 'needs_attention' ), true )
-			&& in_array( $model['payment_state'] ?? null, array( 'pending_verification', 'confirmed', 'paid' ), true );
+			&& in_array( $model['google_state'] ?? null, array( 'not_connected', 'connected', 'needs_attention', 'unavailable' ), true )
+			&& in_array( $model['payment_state'] ?? null, array( 'pending_verification', 'confirmed', 'paid', 'unavailable' ), true );
 	}
 	return 'onboarding' === $screen && is_int( $model['current_step'] ?? null ) && $model['current_step'] >= 1 && $model['current_step'] <= 7;
 }
@@ -65,7 +65,7 @@ function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
 }
 function dzn_theme_teacher_portal_profile_valid( $profile ) {
 	if ( ! is_array( $profile ) ) { return false; }
-	foreach ( array( 'name', 'email', 'mobile', 'timezone', 'timezone_label' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $profile[ $field ] ?? null ) ) { return false; } }
+	foreach ( array( 'name', 'email', 'timezone', 'timezone_label' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $profile[ $field ] ?? null ) ) { return false; } }
 	return in_array( $profile['calendar'] ?? null, array( 'gregorian', 'persian' ), true )
 		&& in_array( $profile['timezone'], timezone_identifiers_list(), true );
 }

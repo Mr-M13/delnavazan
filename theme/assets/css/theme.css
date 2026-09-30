@@ -6821,3 +6821,69 @@ a.dzn-nav-action:focus-visible {
     }
   }
 }
+
+
+@layer components {
+  .dzn-operations {
+    padding-block: clamp(2.5rem, 6vw, 5rem);
+  }
+
+  .dzn-operations__header {
+    max-inline-size: 44rem;
+    margin-block-end: 2rem;
+  }
+
+  .dzn-operations__header h1 {
+    margin-block: .35rem .65rem;
+    font-size: var(--dzn-heading-page);
+  }
+
+  .dzn-operations__header > p:last-child {
+    color: var(--dzn-color-text-muted);
+  }
+
+  .dzn-operations__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem;
+  }
+
+  .dzn-operations__card,
+  .dzn-operations__card:visited {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 11rem;
+    padding: 1.25rem;
+    border: 1px solid var(--dzn-color-border);
+    border-radius: 1rem;
+    background: var(--dzn-color-surface-elevated);
+    color: var(--dzn-color-text-primary);
+    text-decoration: none;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+
+  .dzn-operations__card:hover,
+  .dzn-operations__card:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--dzn-color-action-primary);
+    box-shadow: 0 .75rem 2rem rgb(37 39 38 / 8%);
+  }
+
+  .dzn-operations__card h2 {
+    margin: 0 0 .45rem;
+    font-size: 1.05rem;
+  }
+
+  .dzn-operations__card p {
+    margin: 0;
+    color: var(--dzn-color-text-muted);
+    line-height: 1.75;
+  }
+
+  .dzn-operations__card span {
+    margin-block-start: auto;
+    padding-block-start: 1rem;
+    color: var(--dzn-color-action-primary);
+    font-weight: 800;
+  }
+}

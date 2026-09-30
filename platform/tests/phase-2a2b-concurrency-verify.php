@@ -1,0 +1,3 @@
+<?php
+if ( getenv( 'DZN_PHASE_2A2B_RUNTIME_TEST' ) !== 'isolated' || ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_get_environment_type(), array( 'local', 'development' ), true ) ) { fwrite( STDERR, "Phase 2A.2-B concurrency verification refused.\n" ); exit( 1 ); }
+global $wpdb; $candidate = absint( get_option( 'dzn_phase_2a2b_race_candidate' ) ); $row = $wpdb->get_row( $wpdb->prepare( "SELECT status,version FROM {$wpdb->prefix}dzn_coordination_case_candidates WHERE id=%d", $candidate ) ); if ( ! $row || $row->status !== 'under_discussion' || (int) $row->version !== 2 ) throw new RuntimeException( 'Candidate concurrency final state failed' ); echo "Phase 2A.2-B candidate concurrency passed.\n";

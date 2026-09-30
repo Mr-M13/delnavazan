@@ -1,0 +1,22 @@
+<?php
+/** Protected canonical lifecycle read corruption regression; requires the production-authoritative Phase-J fixture. */
+if(getenv('DZN_PHASE_2A2M0_RUNTIME_TEST')!=='protected-read'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Phase 2A.2-M0 protected-read runtime refused.\n");exit(1);}
+use Delnavazan\Platform\Core\Application\CoreReadService;
+use Delnavazan\Platform\Admin\Controller\ScreenController;
+use Delnavazan\Platform\Core\Infrastructure\Repository\EnrolmentRepository;
+global$wpdb;$p=$wpdb->prefix.'dzn_';$fixture=get_option('dzn_phase_2a2j_fixture');if(!is_array($fixture)||empty($fixture['sources'][0]['enrolment_id']))throw new RuntimeException('Run the Phase-J production-authoritative fixture first');$id=(int)$fixture['sources'][0]['enrolment_id'];$read=new CoreReadService();
+function dzn_m0_read_assert(bool$v,string$m):void{if(!$v)throw new RuntimeException($m);}function dzn_m0_read_reject(CoreReadService$read,int$id):void{$rejected=false;try{$read->enrolmentLifecycle($id);}catch(InvalidArgumentException$e){$rejected=$e->getMessage()==='data_integrity_conflict';}dzn_m0_read_assert($rejected,'Corrupt canonical lifecycle read succeeded');}
+$valid=$read->enrolmentLifecycle($id);dzn_m0_read_assert(count($valid)===1&&(int)$valid[0]->event_sequence===1&&$valid[0]->to_state==='authorised','Valid ordered history read failed');$event=(int)$valid[0]->id;$now=gmdate('Y-m-d H:i:s');$actor=get_current_user_id();
+$cases=array(
+    'illegal_edge'=>function()use($wpdb,$p,$id,$event){$wpdb->update($p.'enrolments',array('lifecycle_state'=>'paused'),array('id'=>$id));$wpdb->update($p.'enrolment_lifecycle_events',array('from_state'=>'authorised','to_state'=>'paused'),array('id'=>$event));},
+    'sequence_gap'=>function()use($wpdb,$p,$event){$wpdb->update($p.'enrolment_lifecycle_events',array('event_sequence'=>2),array('id'=>$event));},
+    'from_state_mismatch'=>function()use($wpdb,$p,$event){$wpdb->update($p.'enrolment_lifecycle_events',array('from_state'=>'paused'),array('id'=>$event));},
+    'projection_history_mismatch'=>function()use($wpdb,$p,$id){$wpdb->update($p.'enrolments',array('lifecycle_state'=>'current'),array('id'=>$id));},
+    'slot_mismatch'=>function()use($wpdb,$p,$id){$wpdb->update($p.'enrolments',array('applicable_slot'=>null),array('id'=>$id));},
+    'audit_evidence_corruption'=>function()use($wpdb,$p,$event){$wpdb->update($p.'enrolment_lifecycle_events',array('recorded_by'=>0,'evidence_reference'=>''),array('id'=>$event));},
+);
+foreach($cases as$name=>$corrupt){$wpdb->query('START TRANSACTION');try{$corrupt();dzn_m0_read_reject($read,$id);}finally{$wpdb->query('ROLLBACK');}echo $name."=pass\n";}
+$legacy=(new EnrolmentRepository())->insertLegacyBootstrap(array('student_id'=>(int)$fixture['sources'][0]['student_id'],'teacher_id'=>(int)$fixture['sources'][0]['teacher_id'],'course_id'=>(int)$fixture['sources'][1]['course_id'],'status'=>'draft','record_model'=>'legacy_phase1','created_at'=>$now,'updated_at'=>$now,'created_by'=>$actor,'updated_by'=>$actor));dzn_m0_read_assert($read->enrolmentLifecycle($legacy)===array(),'Legacy lifecycle read compatibility failed');
+$_GET=array();ob_start();ScreenController::screen('enrolment');$validList=(string)ob_get_clean();dzn_m0_read_assert(str_contains($validList,'Recent records')&&!str_contains($validList,'failed integrity validation'),'Valid canonical/legacy list failed');
+$wpdb->query('START TRANSACTION');try{$wpdb->update($p.'enrolment_lifecycle_events',array('event_sequence'=>2),array('id'=>$event));ob_start();$escaped=false;try{ScreenController::screen('enrolment');}catch(Throwable){$escaped=true;}$corruptList=(string)ob_get_clean();dzn_m0_read_assert(!$escaped&&str_contains($corruptList,'Canonical lifecycle history failed integrity validation.')&&!str_contains($corruptList,'Recent records'),'Corrupt list was rendered or exception escaped');$_GET=array('id'=>$id);ob_start();$escaped=false;try{ScreenController::screen('enrolment');}catch(Throwable){$escaped=true;}$corruptDetail=(string)ob_get_clean();dzn_m0_read_assert(!$escaped&&str_contains($corruptDetail,'Canonical lifecycle history failed integrity validation.'),'Corrupt detail exception escaped');}finally{$wpdb->query('ROLLBACK');$_GET=array();}
+echo "valid_history=pass\nlegacy_compatibility=pass\nvalid_list=pass\ncorrupt_list_safe=pass\ncorrupt_detail_safe=pass\nPhase 2A.2-M0 protected-read runtime passed\n";

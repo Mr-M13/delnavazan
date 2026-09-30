@@ -1,0 +1,33 @@
+# macOS metadata
+.DS_Store
+
+# Editors and local workspace state
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local environment and secret-bearing files
+.env
+.env.*
+!.env.example
+*.local
+
+# Dependencies, build output, archives, and logs
+vendor/
+node_modules/
+build/
+dist/
+coverage/
+*.log
+*.zip
+
+# Local exports and backups
+*.sql
+*.sqlite
+*.sqlite3
+*.bak
+*.backup
+*.tar
+*.tar.gz

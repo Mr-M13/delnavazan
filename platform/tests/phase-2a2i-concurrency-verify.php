@@ -1,0 +1,13 @@
+<?php
+if(getenv('DZN_PHASE_2A2I_RUNTIME_TEST')!=='concurrency'||!defined('WP_CLI')||!WP_CLI){fwrite(STDERR,"Phase 2A.2-I verifier refused.\n");exit(1);}
+global$wpdb;$p=$wpdb->prefix.'dzn_';$s=get_option('dzn_phase_2a2i_race_state');$mode=$s['mode'];$one=$s['one'];$two=$s['two'];$linked=static fn(array$t):int=>(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolments WHERE accepted_service_arrangement_id=%d",$t['arrangement_id']));
+$sourceIds=array_values(array_unique(array((int)$one['arrangement_id'],(int)$two['arrangement_id'])));$marks=implode(',',array_fill(0,count($sourceIds),'%d'));
+$events=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolment_lifecycle_events e JOIN {$p}enrolments n ON n.id=e.enrolment_id WHERE n.accepted_service_arrangement_id IN ({$marks})",...$sourceIds));
+$commands=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolment_conversion_commands WHERE accepted_service_arrangement_id IN ({$marks})",...$sourceIds));
+$orphans=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolment_conversion_commands c LEFT JOIN {$p}enrolments n ON n.id=c.enrolment_id LEFT JOIN {$p}enrolment_lifecycle_events e ON e.enrolment_id=n.id AND e.event_sequence=1 WHERE c.accepted_service_arrangement_id IN ({$marks}) AND (n.id IS NULL OR e.id IS NULL)",...$sourceIds));
+if($orphans!==0)throw new RuntimeException('Partial conversion evidence survived');
+if($mode==='a'){if($linked($one)+$linked($two)!==1||$events!==1||$commands!==1||(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolments WHERE student_id=%d AND course_id=%d AND applicable_slot=1",$one['student_id'],$one['course_id']))!==1)throw new RuntimeException('Race A final state invalid');}
+if($mode==='b'&&($linked($one)!==1||$events!==1||$commands!==1))throw new RuntimeException('Race B final state invalid');
+if(($mode==='u1'||$mode==='u2')&&($linked($one)!==1||$linked($two)!==1||$events!==2||$commands!==2))throw new RuntimeException('Unrelated-root final state invalid');
+if($mode==='p1'||$mode==='p2'){$request=$wpdb->get_row($wpdb->prepare("SELECT privacy_erased_at FROM {$p}booking_requests WHERE id=%d",$one['request_id']));$contact=$wpdb->get_row($wpdb->prepare("SELECT full_name,email,mobile FROM {$p}booking_request_contact_snapshots WHERE booking_request_id=%d",$one['request_id']));if($linked($one)!==1||$events!==1||$commands!==1||!$request||$request->privacy_erased_at===null||!$contact||$contact->full_name!==null||$contact->email!==null||$contact->mobile!==null)throw new RuntimeException('Privacy race final state invalid');}
+delete_option('dzn_phase_2a2i_race_state');echo"race={$mode} verifier=pass source_one={$linked($one)} source_two={$linked($two)}\n";

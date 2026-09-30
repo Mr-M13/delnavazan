@@ -1,0 +1,12 @@
+{
+  "offline_only": true,
+  "image_pull": "never",
+  "historical_suites": {
+    "s":  {"ref": "63f6b5b2eeaeebc194b07103d4a622d3fecf52ca", "schema": 32},
+    "r2": {"ref": "559b1736621c9ed32e41dd2b785dd0f040dcb647", "schema": 26},
+    "v":  {"ref": "1cb9d16b0beb5bec293b41a065b63ffa5f1318f6", "schema": 27},
+    "t":  {"ref": "b36561dc6bb6e87fd142a28ae67fbc4f2fdc9279", "schema": 29},
+    "u":  {"ref": "773e13e2bf148f6e9ff250b58c7bd6ee4b135f48", "schema": 30}
+  },
+  "boundary": "Each suite runs from its declared immutable commit in a fresh disposable worktree and database; the Schema-32 S suite is not retargeted to the current Schema-33 candidate."
+}

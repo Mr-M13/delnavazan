@@ -1,0 +1,2 @@
+<?php
+$root=dirname(__DIR__);$paths=array_merge(glob($root.'/src/Portals/*.php'),glob($root.'/src/Core/Application/Portal*.php'),glob($root.'/src/Admin/Controller/PortalCapabilityController.php'));foreach($paths as $path){$s=file_get_contents($path);foreach(array('wp_set_current_user','wp_remote_','curl_','platform_outbox','shortcode_','register_block_type','Amelia') as $needle)if(stripos($s,$needle)!==false)throw new RuntimeException('Phase-W isolation violation: '.$needle.' in '.$path);}echo "Phase-W Theme/provider isolation contract passed\n";

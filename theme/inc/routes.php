@@ -145,30 +145,9 @@ function dzn_theme_render_portal_route( $kind ) {
 }
 
 function dzn_theme_render_admin_route() {
-	if ( ! is_user_logged_in() ) {
-		dzn_theme_render_route_state( 'ورود لازم است', 'برای دسترسی به عملیات آموزشگاه، ابتدا وارد شوید.', 'ورود به حساب', home_url( '/login/' ) );
-		return;
-	}
-	$items = dzn_theme_operations_items();
-	if ( ! $items ) {
-		dzn_theme_render_route_state( 'دسترسی محدود است', 'این بخش فقط برای کاربران مجاز آموزشگاه در دسترس است.', 'بازگشت به داشبورد', home_url( '/dashboard/' ) );
-		return;
-	}
-	?>
-	<main id="main-content" class="site-main dzn-container dzn-operations" tabindex="-1">
-		<header class="dzn-operations__header">
-			<p class="dzn-eyebrow">دلنوازان</p><h1>عملیات آموزشگاه</h1>
-			<p>دسترسی‌های شما بر اساس مجوزهای فعلی Platform نمایش داده می‌شوند.</p>
-		</header>
-		<div class="dzn-operations__grid">
-			<?php foreach ( $items as $item ) : ?>
-				<a class="dzn-operations__card" href="<?php echo esc_url( admin_url( 'admin.php?page=' . $item['slug'] ) ); ?>">
-					<h2><?php echo esc_html( $item['title'] ); ?></h2><p><?php echo esc_html( $item['description'] ); ?></p><span>باز کردن ←</span>
-				</a>
-			<?php endforeach; ?>
-		</div>
-	</main>
-	<?php
+	// The operations portal owns its own shell, navigation and states in
+	// theme/inc/operations.php; this route only guarantees the canonical URL.
+	dzn_theme_render_operations_portal();
 }
 
 function dzn_theme_render_virtual_route() {

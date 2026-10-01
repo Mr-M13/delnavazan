@@ -35,9 +35,11 @@ final class BookingAvailabilityPreviewService {
             if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' );
             $seen[$key] = true;
         }
-        $teachers = $this->repo->eligibleTeachers( $courseId, gmdate( 'Y-m-d H:i:s' ) );
+        $teachers = null;
         $result = array();
         foreach ( $normalized as $index => $time ) {
+            if ( RequestedTimeNormalizer::overlapsIranQuietHours( $time ) ) { $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked' ); continue; }
+            if ( $teachers === null ) $teachers = $this->repo->eligibleTeachers( $courseId, gmdate( 'Y-m-d H:i:s' ) );
             $best = 'none';
             foreach ( $teachers as $teacher ) {
                 $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );

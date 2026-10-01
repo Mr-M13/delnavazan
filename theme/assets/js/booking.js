@@ -53,6 +53,7 @@
     strong: ['تناسب زمانی خوب', 'is-strong'],
     possible: ['امکان محدود یا احتمالی', 'is-possible'],
     none: ['تطابق فعلی ندارد؛ همچنان قابل درخواست', 'is-none'],
+    blocked: ['بازهٔ بسته · ۰۱:۰۰ تا ۰۶:۰۰ به وقت ایران', 'is-blocked'],
     checking: ['در حال بررسی زمان', 'is-checking'],
     unavailable: ['وضعیت در دسترس نیست؛ زمان همچنان قابل درخواست است', 'is-none']
   };
@@ -61,7 +62,10 @@
   const phoneExamples = { AU: '+61', BR: '+55', IR: '+98', CA: '+1', US: '+1', GB: '+44', NZ: '+64', DE: '+49', FR: '+33', TR: '+90', AE: '+971', SE: '+46' };
   const updatePhoneHint = () => {
     const hint = root.querySelector('[data-phone-hint]');
-    if (hint) hint.textContent = 'کد تماس بین‌المللی را هم وارد کنید؛ برای این کشور معمولاً ' + (phoneExamples[country.value] || '+…') + '.';
+    const mobile = root.querySelector('[data-contact="mobile"]');
+    const prefix = phoneExamples[country.value] || '+…';
+    if (hint) hint.textContent = 'کد تماس بین‌المللی را وارد کنید؛ برای این کشور معمولاً ' + prefix + '.';
+    if (mobile) mobile.placeholder = prefix + ' …';
   };
 
   const countryCodes = 'AF AL DZ AD AO AG AR AM AU AT AZ BS BH BD BB BY BE BZ BJ BT BO BA BW BR BN BG BF BI CV KH CM CA CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI XK KW KG LA LV LB LS LR LY LI LT LU MG MW MY MV ML MT MH MR MU MX FM MD MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG KP MK NO OM PK PW PA PG PY PE PH PL PT QA RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA KR SS ES LK SD SR SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TV UG UA AE GB US UY UZ VU VA VE VN YE ZM ZW'.split(' ');
@@ -115,7 +119,7 @@
       if (key === selectedDate) button.classList.add('is-selected');
       const sameDay = slots.filter((slot) => slot.local_date === key);
       if (sameDay.length) {
-        const best = sameDay.some((slot) => slot.status === 'strong') ? 'strong' : sameDay.some((slot) => slot.status === 'possible') ? 'possible' : sameDay.every((slot) => slot.status === 'none') ? 'none' : '';
+        const best = sameDay.every((slot) => slot.status === 'blocked') ? 'blocked' : sameDay.some((slot) => slot.status === 'strong') ? 'strong' : sameDay.some((slot) => slot.status === 'possible') ? 'possible' : sameDay.every((slot) => slot.status === 'none') ? 'none' : '';
         if (best) button.classList.add('has-' + best);
         button.title = sameDay.length + ' زمان پیشنهادی؛ وضعیت بر پایهٔ بررسی سامانه';
       }
@@ -137,7 +141,10 @@
   const timesByPeriod = [
     ['صبح', ['08:00', '09:00', '10:00', '11:00']],
     ['بعدازظهر', ['12:00', '13:00', '14:00', '15:00', '16:00', '17:00']],
-    ['عصر', ['18:00', '19:00', '20:00', '21:00', '22:00']]
+    ['نیمه‌شب', ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00']],
+    ['صبح', ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00']],
+    ['بعدازظهر', ['12:00', '13:00', '14:00', '15:00', '16:00', '17:00']],
+    ['عصر', ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00']]
   ];
   const renderTimeOptions = () => {
     timeOptions.replaceChildren();
@@ -213,7 +220,7 @@
       if (!response.ok || !Array.isArray(result.times)) throw new Error('unavailable');
       if (requestId !== availabilityRequestId) return;
       result.times.forEach((row, index) => {
-        if (slots[index]) slots[index].status = ['strong', 'possible', 'none'].includes(row.status) ? row.status : 'unavailable';
+        if (slots[index]) slots[index].status = ['strong', 'possible', 'none', 'blocked'].includes(row.status) ? row.status : 'unavailable';
       });
     } catch {
       if (requestId !== availabilityRequestId) return;
@@ -336,6 +343,9 @@
     }
     if (currentStep() === 'availability') {
       if (!slots.length) { showError('برای ادامه دست‌کم یک زمان پیشنهادی انتخاب کنید.'); root.querySelector('[data-calendar]')?.focus(); return; }
+      if (slots.some((slot) => slot.status === 'checking')) { showError('لطفاً تا پایان بررسی زمان‌ها صبر کنید.'); return; }
+      if (slots.some((slot) => slot.status === 'blocked')) { showError('زمان‌های قرمز در بازهٔ بستهٔ ۰۱:۰۰ تا ۰۶:۰۰ ایران هستند. آن‌ها را حذف کنید یا زمان دیگری پیشنهاد دهید.'); const blockedIndex = slots.findIndex((slot) => slot.status === 'blocked');
+        timesList.children[blockedIndex]?.querySelector('.dzn-booking__remove')?.focus(); return; }
       if (!timezone.value.trim()) { showError('منطقهٔ زمانی را وارد کنید.'); timezone.focus(); return; }
     }
     goTo(next);
@@ -382,6 +392,7 @@
     } catch (error) {
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
+        blocked_time: 'زمان انتخاب‌شده در بازهٔ بستهٔ ۰۱:۰۰ تا ۰۶:۰۰ به وقت ایران قرار دارد. زمان دیگری انتخاب کنید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
         submission_unavailable: 'سامانه نتوانست ثبت درخواست را تأیید کند. اطلاعات این فرم باقی مانده است؛ همین صفحه را با همین اطلاعات دوباره ارسال کنید.'

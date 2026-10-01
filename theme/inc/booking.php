@@ -101,6 +101,7 @@ function dzn_theme_render_booking_route(): void {
                             <span><i class="is-strong"></i>تناسب زمانی خوب</span>
                             <span><i class="is-possible"></i>امکان محدود یا احتمالی</span>
                             <span><i class="is-none"></i>تطابق فعلی ندارد؛ قابل درخواست</span>
+                            <span><i class="is-blocked"></i>بازهٔ بستهٔ ۰۱:۰۰ تا ۰۶:۰۰ ایران</span>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="instrument">بازگشت به انتخاب ساز</button>
@@ -112,7 +113,7 @@ function dzn_theme_render_booking_route(): void {
                         <h2 id="dzn-booking-contact-title" tabindex="-1">چطور با شما در تماس باشیم؟</h2>
                         <div class="dzn-booking__fields">
                             <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" required></div>
-                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">برای پیگیری درخواست و ادامهٔ مسیر هنرجویی از این ایمیل استفاده می‌کنیم.</p></div>
+                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">این ایمیل برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد.</p></div>
                             <div><label for="dzn-booking-country">کشور محل زندگی</label><select id="dzn-booking-country" data-contact="country" autocomplete="country" required>
                                 <option value="">انتخاب کشور</option>
                                 <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
@@ -123,13 +124,13 @@ function dzn_theme_render_booking_route(): void {
                         <fieldset class="dzn-booking__whatsapp">
                             <legend>واتساپ</legend>
                             <label><input type="checkbox" data-whatsapp-same checked> همین شماره برای واتساپ هم استفاده می‌شود</label>
-                            <p class="dzn-booking__field-help">برای هماهنگی و اطلاع‌رسانی مربوط به کلاس‌ها از واتساپ شما استفاده می‌کنیم.</p>
+                            <p class="dzn-booking__field-help">اعلان‌های کلاس‌ها را به این شمارهٔ واتساپ می‌فرستیم. پیوند ورود به هر کلاس نیز در حساب هنرجویی شما در دسترس خواهد بود.</p>
                             <div data-whatsapp-extra hidden><label for="dzn-booking-whatsapp">شمارهٔ واتساپ با کد کشور</label><input id="dzn-booking-whatsapp" data-whatsapp type="tel" maxlength="32" placeholder="+61 ..."></div>
                         </fieldset>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
-                            <aside class="dzn-booking__notice"><h4>پرداختی برای جلسهٔ معارفه ندارید</h4><p>این جلسه رایگان است و اکنون پرداختی انجام نمی‌شود. اگر پس از جلسه ادامه دهید، هزینه و کلاس‌های منظم با شما هماهنگ می‌شود. این درخواست هنوز زمان را تأیید یا حساب هنرجویی ایجاد نمی‌کند.</p></aside>
+                            <aside class="dzn-booking__notice"><h4>پرداختی برای جلسهٔ معارفه ندارید</h4><p>این جلسه رایگان است و اکنون پرداختی انجام نمی‌شود. اگر پس از جلسه ادامه دهید، هزینه و کلاس‌های منظم با شما هماهنگ می‌شود. این درخواست هنوز زمان جلسه را تأیید یا رزرو نمی‌کند. پس از هماهنگی، همین ایمیل برای دسترسی به حساب هنرجویی استفاده می‌شود و اعلان‌های کلاس به واتساپ می‌رسند.</p></aside>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
@@ -137,3 +138,25 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                     </section>
                     
+<section class="dzn-booking__step dzn-booking__success" data-step="success" aria-labelledby="dzn-booking-success-title" hidden>
+                        <p class="dzn-booking__kicker">درخواست ثبت شد</p>
+                        <h2 id="dzn-booking-success-title" tabindex="-1">درخواست شما برای بررسی ارسال شد</h2>
+                        <p>این شماره را برای پیگیری نگه دارید:</p>
+                        <p class="dzn-booking__reference" data-reference dir="ltr"></p>
+                        <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان برای هماهنگی با شما تماس می‌گیرد. در ادامهٔ مسیر هنرجویی، همین ایمیل برای ورود به حساب شما استفاده می‌شود. اعلان‌های کلاس را از طریق واتساپ دریافت می‌کنید و پیوند هر کلاس در حساب هنرجویی‌تان در دسترس خواهد بود.</p>
+                        <a class="dzn-booking__button" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
+                    </section>
+                </section>
+            <?php endif; ?>
+        </div>
+    </main>
+    <?php
+}
+
+function dzn_theme_enqueue_booking_assets(): void {
+    $script_path = get_theme_file_path( 'assets/js/booking.js' );
+    $style_path = get_theme_file_path( 'assets/css/booking.css' );
+    wp_enqueue_style( 'delnavazan-booking', get_theme_file_uri( 'assets/css/booking.css' ), array( 'delnavazan-theme' ), file_exists( $style_path ) ? (string) filemtime( $style_path ) : wp_get_theme()->get( 'Version' ) );
+    wp_enqueue_script( 'delnavazan-booking', get_theme_file_uri( 'assets/js/booking.js' ), array(), file_exists( $script_path ) ? (string) filemtime( $script_path ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
+    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05' ) );
+}

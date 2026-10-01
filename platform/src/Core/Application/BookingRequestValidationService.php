@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Core\Application;
 /** Normalizes public facts before locking, then resolves catalogue authority only while locked. */
 final class BookingRequestValidationService {
     public const MAX_REQUESTED_TIMES = 8;
+    public const BLOCKED_TIME_MESSAGE = 'Requested interval overlaps Iran quiet hours';
 
     public function normalizePublic(array $input): array {
         $allowed = array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version', 'requested_times' );
@@ -29,7 +30,7 @@ final class BookingRequestValidationService {
         if ( ! $instrument || $instrument->status !== 'active' || $instrument->archived_at !== null ) throw new \InvalidArgumentException( 'Active Instrument required' );
         $duration = 30; $buffer = 15;
         if ( $data['course_id'] ) { if ( ! $course || $course->status !== 'active' || $course->archived_at !== null || $course->course_type !== 'introductory' || (int) $course->instrument_id !== (int) $instrument->id ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' ); $duration = Normalizer::count( $course->default_duration_minutes, 5, 480 ); $buffer = Normalizer::count( $course->default_buffer_minutes, 0, 240 ); }
-        $times = array(); $seen = array(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
+        $times = array(); $seen = array(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); if ( RequestedTimeNormalizer::overlapsIranQuietHours( $item ) ) throw new \InvalidArgumentException( self::BLOCKED_TIME_MESSAGE ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
         usort( $times, static fn( array $a, array $b ): int => array( $a['starts_at_utc'], $a['local_date'], $a['local_start_time'], $a['timezone'] ) <=> array( $b['starts_at_utc'], $b['local_date'], $b['local_start_time'], $b['timezone'] ) );
         $data['times'] = $times; unset( $data['requested_times'] ); return $data;
     }

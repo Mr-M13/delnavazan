@@ -3241,7 +3241,9 @@
 
     transition:
       transform .32s ease,
-      opacity .32s ease;
+      opacity .32s ease,
+      border-color .18s ease,
+      box-shadow .18s ease;
   }
 
   .dzn-instrument-folio.is-wheel-ready
@@ -4918,6 +4920,23 @@
 
     align-self:
       start;
+
+    border:
+      1px solid
+      rgb(185 142 55 / .32);
+
+    border-radius:
+      .45rem;
+
+    padding:
+      clamp(.75rem, .6rem + .55vw, 1.1rem);
+
+    background:
+      rgb(251 248 242 / .9);
+
+    box-shadow:
+      0 .55rem 1.45rem
+      rgb(185 142 55 / .2);
 
     color:
       var(--dzn-color-accent);
@@ -6909,7 +6928,10 @@ a.dzn-nav-action:focus-visible {
 
 .dzn-instrument-tile:hover,
 .dzn-instrument-tile:focus-within {
-  filter: drop-shadow(0 .35rem .9rem rgb(185 142 55 / .24));
+  border-color: rgb(185 142 55 / .58);
+  box-shadow:
+    0 .65rem 1.45rem rgb(185 142 55 / .3),
+    0 0 0 1px rgb(185 142 55 / .16);
 }
 
 .dzn-instrument-tile__booking-link {

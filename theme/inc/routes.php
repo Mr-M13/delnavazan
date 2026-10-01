@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 function dzn_theme_route() {
 	$path = wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH );
 	$path = trim( (string) $path, '/' );
+	// Preserve the recovered public enrolment URL while the booking experience uses one canonical renderer.
+	if ( 'enrol' === $path ) { $path = 'booking'; }
 	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'admin-operations' );
 	return in_array( $path, $routes, true ) ? $path : '';
 }

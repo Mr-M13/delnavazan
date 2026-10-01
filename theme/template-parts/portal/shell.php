@@ -7,12 +7,14 @@
 
 $screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'account' ), true ) ? $args['screen'] : 'home';
 $model  = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
-$state  = isset( $model['state'] ) && in_array( (string) $model['state'], array( 'ok', 'not_linked', 'error', 'no_data' ), true )
+$state  = isset( $model['state'] ) && in_array( (string) $model['state'], array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data' ), true )
 	? (string) $model['state']
 	: ( ! empty( $model['available'] ) ? 'ok' : 'error' );
 $available = 'ok' === $state;
 $student = isset( $model['student'] ) && is_array( $model['student'] ) ? $model['student'] : array();
-$first_name = isset( $student['first_name'] ) ? (string) $student['first_name'] : '';
+// Identity is only ever read for a working portal, so a non-ok state can never
+// greet the visitor with a name from another principal.
+$first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) $student['first_name'] : '';
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 ?>
 <main id="main-content" class="site-main dzn-portal dzn-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1">
@@ -50,7 +52,21 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			<p class="dzn-portal__demo-label" role="status"><?php esc_html_e( 'پیش‌نمایش نمایشی — اطلاعات ساختگی و غیرقابل ذخیره', 'delnavazan-theme' ); ?></p>
 		<?php endif; ?>
 
-		<?php if ( 'not_linked' === $state ) : ?>
+		<?php if ( 'signed_out' === $state ) : ?>
+			<?php
+			dzn_theme_component(
+				'state',
+				array(
+					'state'   => 'empty',
+					'title'   => 'برای دیدن پرتال هنرجو وارد شوید',
+					'message' => 'این صفحه اطلاعات حساب هنرجو را نشان می‌دهد. با حساب خود وارد شوید تا کلاس‌ها، مسیر ترم و مشخصات شما نمایش داده شود.',
+				)
+			);
+			?>
+			<p class="dzn-portal__state-actions">
+				<a class="dzn-button" href="<?php echo esc_url( wp_login_url( home_url( '/student-portal/' ) ) ); ?>"><?php esc_html_e( 'ورود به حساب', 'delnavazan-theme' ); ?></a>
+			</p>
+		<?php elseif ( 'not_linked' === $state ) : ?>
 			<?php
 			dzn_theme_component(
 				'state',

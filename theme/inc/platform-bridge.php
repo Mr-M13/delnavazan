@@ -104,15 +104,22 @@ function dzn_theme_platform_student_state_model( $screen, $state ) {
  * @return array{state:string,data?:array,reason?:string}
  */
 function dzn_theme_platform_student_read() {
+	// Anonymous access is its own state: it must never be reported as an
+	// unlinked-but-authenticated learner.
+	if ( ! is_user_logged_in() ) { return array( 'state' => 'signed_out', 'reason' => 'portal_principal_required' ); }
 	$service = dzn_theme_platform_portal_service();
 	if ( ! $service ) { return array( 'state' => 'error', 'reason' => 'platform_unavailable' ); }
 	try {
 		return array( 'state' => 'ok', 'data' => $service->student() );
 	} catch ( Throwable $e ) {
 		$reason = (string) $e->getMessage();
-		$unlinked = array( 'portal_principal_required', 'portal_principal_unresolved', 'portal_principal_ambiguous', 'portal_principal_kind_not_permitted' );
+		$signed_out = array( 'portal_principal_required' );
+		$unlinked = array( 'portal_principal_unresolved', 'portal_principal_ambiguous', 'portal_principal_kind_not_permitted' );
+		$state = in_array( $reason, $signed_out, true )
+			? 'signed_out'
+			: ( in_array( $reason, $unlinked, true ) ? 'not_linked' : 'error' );
 		return array(
-			'state'  => in_array( $reason, $unlinked, true ) ? 'not_linked' : 'error',
+			'state'  => $state,
 			'reason' => $reason,
 		);
 	}

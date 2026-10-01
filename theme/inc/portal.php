@@ -95,18 +95,19 @@ function dzn_theme_student_portal_view_model( $screen ) {
 	}
 
 	$state = isset( $model['state'] ) && is_string( $model['state'] ) ? $model['state'] : '';
-	if ( ! in_array( $state, array( 'ok', 'not_linked', 'error', 'no_data' ), true ) ) {
+	if ( ! in_array( $state, array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data' ), true ) ) {
 		$state = ! empty( $model['available'] ) ? 'ok' : 'error';
 	}
 
-	$model['state']     = $state;
-	$model['screen']    = $screen;
-	$model['available'] = ( 'ok' === $state );
-
-	if ( ! $model['available'] ) {
-		// Fail closed: a state carrying no student truth must not leak partial data.
-		unset( $model['profile'], $model['history'], $model['payments'], $model['notifications'], $model['upcoming_lesson'], $model['term'] );
+	// Fail closed by rebuilding, not by removing keys: an adapter can supply any
+	// shape, so no partial student payload may survive a non-ok state.
+	if ( 'ok' !== $state ) {
+		return dzn_theme_student_portal_state_model( $screen, $state );
 	}
+
+	$model['state']     = 'ok';
+	$model['screen']    = $screen;
+	$model['available'] = true;
 
 	return $model;
 }
@@ -119,11 +120,11 @@ function dzn_theme_student_portal_view_model( $screen ) {
  * available rather than rendering an empty-but-working shell.
  *
  * @param string $screen home|account.
- * @param string $state  not_linked|error|no_data.
+ * @param string $state  signed_out|not_linked|error|no_data.
  * @return array
  */
 function dzn_theme_student_portal_state_model( $screen, $state ) {
-	if ( ! in_array( $state, array( 'not_linked', 'error', 'no_data' ), true ) ) {
+	if ( ! in_array( $state, array( 'signed_out', 'not_linked', 'error', 'no_data' ), true ) ) {
 		$state = 'error';
 	}
 

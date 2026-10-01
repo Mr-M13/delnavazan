@@ -55,16 +55,6 @@
 <!-- /wp:heading --></article>
 <!-- /wp:group -->
 
-<!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dbaghlama","layout":{"type":"constrained"}} -->
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--baghlama"><!-- wp:image {"id":1314,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Baghlama.webp" alt="تصویر آبرنگی ساز باغلاما" class="wp-image-1314" style="aspect-ratio:1;object-fit:contain"/></figure>
-<!-- /wp:image -->
-
-<!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
-<h3 class="wp-block-heading dzn-instrument-tile__copy">باغلاما</h3>
-<!-- /wp:heading --></article>
-<!-- /wp:group -->
-
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dtanboor","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tanboor"><!-- wp:image {"id":1322,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
 <figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Tanboor.webp" alt="تصویر آبرنگی ساز تنبور" class="wp-image-1322" style="aspect-ratio:1;object-fit:contain"/></figure>

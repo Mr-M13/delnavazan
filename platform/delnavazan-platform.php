@@ -29,7 +29,6 @@ Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
 add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
-	try { Delnavazan\Platform\Core\Application\StagingBookingCatalogueBootstrap::maybeRun(); } catch ( \Throwable $e ) { update_option( 'dzn_staging_booking_catalogue_seed_20261001_error', get_class( $e ) . ': ' . $e->getMessage(), false ); }
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();
@@ -48,16 +47,3 @@ add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingOption
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingAvailabilityPreviewRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );
-
-// Temporary staging-only bootstrap diagnostic; removed immediately after catalogue seed verification.
-add_action( 'rest_api_init', static function () {
-	if ( wp_parse_url( home_url( '/' ), PHP_URL_HOST ) !== 'staging.delnavazan.com' ) return;
-	register_rest_route( 'delnavazan-platform/v1', '/staging-seed-status', array(
-		'methods' => 'GET',
-		'permission_callback' => '__return_true',
-		'callback' => static function () { return new WP_REST_Response( array(
-			'status' => get_option( 'dzn_staging_booking_catalogue_seed_20261001', 'pending' ),
-			'error' => get_option( 'dzn_staging_booking_catalogue_seed_20261001_error', '' ),
-		), 200 ); },
-	) );
-} );

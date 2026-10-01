@@ -45,35 +45,8 @@
 <section class="wp-block-group alignfull dzn-home-section dzn-courses" id="courses"><!-- wp:columns -->
 <div class="wp-block-columns"><!-- wp:column {"width":"100%"} -->
 <div class="wp-block-column" style="flex-basis:100%"><!-- wp:group {"align":"wide","className":"dzn-instrument-folio","layout":{"type":"constrained"}} -->
-<div class="wp-block-group alignwide dzn-instrument-folio"><!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002davaz","layout":{"type":"constrained"}} -->
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--avaz"><!-- wp:image {"id":1313,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Avaz.webp" alt="تصویر آبرنگی آواز" class="wp-image-1313" style="aspect-ratio:1;object-fit:contain"/></figure>
-<!-- /wp:image -->
+<div class="wp-block-group alignwide dzn-instrument-folio">
 
-<!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
-<h3 class="wp-block-heading dzn-instrument-tile__copy">آواز</h3>
-<!-- /wp:heading --></article>
-<!-- /wp:group -->
-
-<!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dtanboor","layout":{"type":"constrained"}} -->
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tanboor"><!-- wp:image {"id":1322,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Tanboor.webp" alt="تصویر آبرنگی ساز تنبور" class="wp-image-1322" style="aspect-ratio:1;object-fit:contain"/></figure>
-<!-- /wp:image -->
-
-<!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
-<h3 class="wp-block-heading dzn-instrument-tile__copy">تنبور</h3>
-<!-- /wp:heading --></article>
-<!-- /wp:group -->
-
-<!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dguitar","layout":{"type":"constrained"}} -->
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--guitar"><!-- wp:image {"id":1316,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Guitar.webp" alt="تصویر آبرنگی گیتار" class="wp-image-1316" style="aspect-ratio:1;object-fit:contain"/></figure>
-<!-- /wp:image -->
-
-<!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
-<h3 class="wp-block-heading dzn-instrument-tile__copy">گیتار</h3>
-<!-- /wp:heading --></article>
-<!-- /wp:group -->
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dpiano","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--piano"><!-- wp:image {"id":1319,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
@@ -145,25 +118,8 @@
 <!-- /wp:heading --></article>
 <!-- /wp:group -->
 
-<!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dney","layout":{"type":"constrained"}} -->
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--ney"><!-- wp:image {"id":1318,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Ney.webp" alt="تصویر آبرنگی ساز نی" class="wp-image-1318" style="aspect-ratio:1;object-fit:contain"/></figure>
-<!-- /wp:image -->
 
-<!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
-<h3 class="wp-block-heading dzn-instrument-tile__copy">نی</h3>
-<!-- /wp:heading --></article>
-<!-- /wp:group -->
-
-<!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dviolin","layout":{"type":"constrained"}} -->
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--violin"><!-- wp:image {"id":1325,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="https://niu-nailhouse.com/wp-content/uploads/2026/09/C-Violin.webp" alt="تصویر آبرنگی ویولن" class="wp-image-1325" style="aspect-ratio:1;object-fit:contain"/></figure>
-<!-- /wp:image -->
-
-<!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
-<h3 class="wp-block-heading dzn-instrument-tile__copy">ویولن</h3>
-<!-- /wp:heading --></article>
-<!-- /wp:group --></div>
+</div>
 <!-- /wp:group --></div>
 <!-- /wp:column --></div>
 <!-- /wp:columns --></section>

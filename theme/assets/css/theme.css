@@ -637,17 +637,29 @@
   }
 
   .site-branding__name {
+    display: inline-grid;
+    gap: .08rem;
     color:
       var(--dzn-color-text-primary);
-
     font-size:
       1.4rem;
-
     font-weight:
       900;
-
+    line-height: 1.1;
     text-decoration:
       none;
+  }
+
+  .site-branding__title {
+    display: block;
+  }
+
+  .site-branding__tagline {
+    display: block;
+    color: var(--dzn-color-text-muted);
+    font-size: .57em;
+    font-weight: 600;
+    line-height: 1.35;
   }
 
 
@@ -6889,9 +6901,29 @@ a.dzn-nav-action:focus-visible {
 }
 
 
-/* Instrument tiles are full-card entry points into the booking flow. */
-.dzn-instrument-tile { position: relative; }
-.dzn-instrument-tile__booking-link { position: absolute; z-index: 2; inset: 0; overflow: hidden; border-radius: inherit; color: transparent; font-size: 0; text-decoration: none; }
-.dzn-instrument-tile__booking-link::after { position: absolute; inset-inline-start: .75rem; inset-block-end: .75rem; border-radius: 999px; background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); content: "درخواست جلسهٔ معارفه"; padding: .35rem .7rem; font-size: .85rem; font-weight: 700; }
-.dzn-instrument-tile__booking-link:hover::after { background: var(--dzn-color-action-primary-hover); }
-.dzn-instrument-tile__booking-link:focus-visible { outline: .1875rem solid var(--dzn-color-focus); outline-offset: .15rem; }
+/* Instrument tiles remain clean, full-card entry points into the booking flow. */
+.dzn-instrument-tile {
+  position: relative;
+  transition: filter .18s ease;
+}
+
+.dzn-instrument-tile:hover,
+.dzn-instrument-tile:focus-within {
+  filter: drop-shadow(0 .35rem .9rem rgb(185 142 55 / .24));
+}
+
+.dzn-instrument-tile__booking-link {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  color: transparent;
+  font-size: 0;
+  text-decoration: none;
+}
+
+.dzn-instrument-tile__booking-link:focus-visible {
+  outline: .1875rem solid var(--dzn-color-focus);
+  outline-offset: .15rem;
+}

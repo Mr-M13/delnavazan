@@ -31,8 +31,15 @@
 					}
 					echo $custom_logo; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated logo HTML with one escaped attribute.
 					?>
+				<?php elseif ( file_exists( get_theme_file_path( 'assets/images/delnavazan-logo.png' ) ) ) : ?>
+					<a class="custom-logo-link" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home" aria-label="<?php esc_attr_e( 'خانهٔ دلنوازان', 'delnavazan-theme' ); ?>">
+						<img class="custom-logo" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/delnavazan-logo.png' ) ); ?>" alt="<?php esc_attr_e( 'دلنوازان', 'delnavazan-theme' ); ?>">
+					</a>
 				<?php else : ?>
-					<a class="site-branding__name" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home"><?php bloginfo( 'name' ); ?></a>
+					<a class="site-branding__name" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home" aria-label="<?php esc_attr_e( 'خانهٔ دلنوازان', 'delnavazan-theme' ); ?>">
+						<span class="site-branding__title">دلنوازان</span>
+						<span class="site-branding__tagline">آکادمی آموزش موسیقی ایران</span>
+					</a>
 				<?php endif; ?>
 			</div>
 		</div>

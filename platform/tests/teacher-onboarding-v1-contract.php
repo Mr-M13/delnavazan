@@ -11,6 +11,7 @@ $files = array(
     'repository' => file_get_contents( $root . '/src/Core/Infrastructure/Repository/TeacherOnboardingRepository.php' ),
     'availability' => file_get_contents( $root . '/src/Core/Application/TeacherAvailabilityService.php' ),
     'controller' => file_get_contents( $root . '/src/Portals/TeacherOnboardingController.php' ),
+    'claim_controller' => file_get_contents( $root . '/src/Portals/TeacherInvitationController.php' ),
     'admin' => file_get_contents( $root . '/src/Admin/Controller/OnboardingController.php' ),
     'portal' => file_get_contents( $root . '/src/Portals/PortalAuthenticatedReadService.php' ),
     'theme_bridge' => file_get_contents( dirname( $root ) . '/theme/inc/platform-bridge.php' ),
@@ -37,6 +38,9 @@ foreach ( array( 'setOwnProfile', 'setOwnRecurringRule', 'onboardingTeacherIdFor
     if ( strpos( $files['availability'], $fragment ) === false ) throw new RuntimeException( 'Canonical availability self-scope missing: ' . $fragment );
 foreach ( array( 'admin_post_dzn_teacher_onboarding_profile', 'admin_post_dzn_teacher_onboarding_availability_rule', 'admin_post_dzn_teacher_onboarding_submit', 'check_admin_referer' ) as $fragment )
     if ( strpos( $files['controller'], $fragment ) === false ) throw new RuntimeException( 'Teacher form boundary missing: ' . $fragment );
+foreach ( array( 'admin_post_dzn_teacher_invitation_claim', 'admin_post_nopriv_dzn_teacher_invitation_claim', 'beginExistingClaim', 'beginProvisioning', 'recordProvisioningResult', 'finalizeClaim', 'check_admin_referer' ) as $fragment )
+    if ( strpos( $files['claim_controller'], $fragment ) === false ) throw new RuntimeException( 'Invitation claim boundary missing: ' . $fragment );
+if ( strpos( $files['claim_controller'], "$_GET['invitation_code']" ) !== false || strpos( $files['claim_controller'], 'add_query_arg( array( \'invitation_code\'' ) !== false ) throw new RuntimeException( 'Invitation secret must not be accepted or emitted in a URL.' );
 foreach ( array( 'approve', 'return', 'reject', 'dzn_manage_onboarding', 'review_teacher_onboarding' ) as $fragment )
     if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
 

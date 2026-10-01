@@ -158,22 +158,19 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
       const step = cards.length > 1
         ? Math.max(1, Math.abs(cardCenters[1] - cardCenters[0]))
         : Math.max(1, cards[0].getBoundingClientRect().width);
+      const maxDistance = mobileQuery.matches ? 2.8 : 3.4;
+      const minimumScale = mobileQuery.matches ? .84 : .78;
+      const minimumOpacity = mobileQuery.matches ? .7 : .58;
       let closestDistance = Infinity;
 
       cards.forEach((card, index) => {
         const distance = Math.abs(cardCenters[index] - railCenter) / step;
-        const centerLimit = mobileQuery.matches ? .56 : 1.16;
-        const nearLimit = mobileQuery.matches ? 1.56 : 2.16;
+        const progress = Math.min(1, distance / maxDistance);
+        const scale = 1 - ((1 - minimumScale) * progress);
+        const opacity = 1 - ((1 - minimumOpacity) * progress);
 
-        card.classList.toggle('is-center', distance <= centerLimit);
-        card.classList.toggle('is-near', distance > centerLimit && distance <= nearLimit);
-        const edgeLimit = mobileQuery.matches ? 2.35 : 2.65;
-
-        card.classList.toggle(
-          'is-far',
-          distance > nearLimit && distance <= edgeLimit
-        );
-        card.classList.toggle('is-edge', distance > edgeLimit);
+        card.style.setProperty('--dzn-wheel-scale', scale.toFixed(3));
+        card.style.setProperty('--dzn-wheel-opacity', opacity.toFixed(3));
 
         if (distance < closestDistance) {
           closestDistance = distance;

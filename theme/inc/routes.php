@@ -148,8 +148,11 @@ function dzn_theme_render_virtual_route() {
 		$destination = dzn_theme_dashboard_destination();
 		if ( $destination ) { wp_safe_redirect( $destination ); exit; }
 	}
+	global $wp_query;
+	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );
 	nocache_headers();
+	if ( 'booking' === $route ) { add_filter( 'pre_get_document_title', static fn() => 'درخواست جلسهٔ معارفه – Delnavazan' ); }
 	get_header();
 	switch ( $route ) {
 		case 'booking': dzn_theme_render_booking_route(); break;

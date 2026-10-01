@@ -6949,3 +6949,126 @@ a.dzn-nav-action:focus-visible {
   outline: .1875rem solid var(--dzn-color-focus);
   outline-offset: .15rem;
 }
+
+/* =========================================================
+   HOMEPAGE VISUAL POLISH
+   ========================================================= */
+
+@layer content {
+  /*
+   * The rail owns each card's layout size. JavaScript continuously supplies
+   * only visual emphasis values, preventing step changes between edge/near/
+   * centre classes while a native scroll is in progress.
+   */
+  .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile,
+  .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-edge,
+  .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-far,
+  .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-near,
+  .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-center {
+    opacity: var(--dzn-wheel-opacity, 1);
+    transform: translateZ(0) scale(var(--dzn-wheel-scale, 1));
+    transition:
+      border-color .18s ease,
+      box-shadow .18s ease;
+    will-change: transform, opacity;
+  }
+
+  /* Keep the primary homepage CTA within the existing button system. */
+  .dzn-home-hero__actions
+  .wp-block-button:not(.is-style-outline)
+  .wp-block-button__link {
+    min-block-size: 3rem;
+    border-radius: .35rem;
+    box-shadow: 0 .35rem .8rem rgb(16 74 77 / .12);
+    font-size: .9rem;
+    font-weight: 800;
+    padding: .78rem 1.4rem;
+  }
+
+  .dzn-home-hero__actions
+  .wp-block-button:not(.is-style-outline)
+  .wp-block-button__link:hover,
+  .dzn-home-hero__actions
+  .wp-block-button:not(.is-style-outline)
+  .wp-block-button__link:focus-visible {
+    box-shadow: 0 .55rem 1.25rem rgb(16 74 77 / .2);
+  }
+
+  .dzn-home-hero__actions
+  .wp-block-button:not(.is-style-outline)
+  .wp-block-button__link:active {
+    box-shadow: 0 .2rem .45rem rgb(16 74 77 / .16);
+    transform: translateY(0);
+  }
+
+  /*
+   * The two sticky chapter labels use a contained text column with a
+   * full-viewport accent band. The pseudo-element is visual only, so it does
+   * not alter document width or the content grid.
+   */
+  .dzn-story {
+    overflow-x: clip;
+  }
+
+  .dzn-story__chapter {
+    isolation: isolate;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #fffdf8;
+  }
+
+  .dzn-story__chapter::before {
+    position: absolute;
+    z-index: -1;
+    inset-block: -.65rem;
+    inset-inline-start: 50%;
+    inline-size: 100vw;
+    background: var(--dzn-color-accent);
+    box-shadow: 0 .5rem 1.15rem rgb(147 55 42 / .14);
+    content: "";
+    transform: translateX(-50%);
+  }
+
+  .dzn-story__chapter-title {
+    color: #fffdf8;
+  }
+
+  .dzn-story__chapter-note {
+    color: rgb(255 253 248 / .82);
+  }
+
+  @media (max-width: 47.99rem) {
+    .dzn-story__chapter {
+      margin-inline: 0;
+      border-block-end: 0;
+      background: transparent;
+      backdrop-filter: none;
+    }
+
+    .dzn-story__chapter::before {
+      inset-block: -.5rem;
+    }
+
+    .dzn-home-hero__actions
+    .wp-block-button:not(.is-style-outline),
+    .dzn-home-hero__actions
+    .wp-block-button:not(.is-style-outline)
+    .wp-block-button__link {
+      inline-size: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile,
+    .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-edge,
+    .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-far,
+    .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-near,
+    .dzn-instrument-folio.is-wheel-ready .dzn-instrument-tile.is-center {
+      opacity: 1;
+      transform: none;
+      will-change: auto;
+    }
+  }
+}

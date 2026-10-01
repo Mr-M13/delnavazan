@@ -36,7 +36,7 @@ final class TeacherInvitationController {
                 $service->finalizeClaim( $command, $userId );
                 wp_set_current_user( $userId ); wp_set_auth_cookie( $userId, true, is_ssl() );
             }
-            $user = get_userdata( $userId ); if ( $user && get_role( 'dzn_teacher' ) ) $user->set_role( 'dzn_teacher' );
+            $user = get_userdata( $userId ); if ( $user && get_role( 'dzn_teacher' ) ) $user->add_role( 'dzn_teacher' );
             unset( $secret, $password, $confirmation );
             wp_safe_redirect( add_query_arg( 'teacher-view', 'onboarding', home_url( '/teacher-portal/' ) ) ); exit;
         } catch ( \Throwable $e ) {

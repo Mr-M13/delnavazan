@@ -20,6 +20,7 @@
   const slots = [];
   let idempotencyKey = '';
   let availabilityRequestId = 0;
+  let availabilityPreviewFailed = false;
   let selectedDate = '';
   let dateCursor;
 
@@ -53,9 +54,8 @@
     strong: ['تناسب زمانی خوب', 'is-strong'],
     possible: ['امکان محدود یا احتمالی', 'is-possible'],
     none: ['تطابق فعلی ندارد؛ همچنان قابل درخواست', 'is-none'],
-    blocked: ['بازهٔ بسته · ۰۱:۰۰ تا ۰۶:۰۰ به وقت ایران', 'is-blocked'],
-    checking: ['در حال بررسی زمان', 'is-checking'],
-    unavailable: ['وضعیت در دسترس نیست؛ زمان همچنان قابل درخواست است', 'is-none']
+    blocked: ['این زمان طبق سیاست دلنوازان قابل درخواست نیست', 'is-blocked'],
+    checking: ['در حال بررسی زمان', 'is-checking']
   };
   const faDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
   const selectedDateLabel = (value) => new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T12:00:00Z'));
@@ -188,11 +188,14 @@
       const details = document.createElement('div');
       const heading = document.createElement('strong');
       heading.textContent = 'اولویت ' + faDigits(index + 1) + ' · ' + selectedDateLabel(slot.local_date) + '، ساعت ' + slot.local_start_time;
-      const badge = document.createElement('span');
-      const state = copy[slot.status] || copy.unavailable;
-      badge.className = 'dzn-booking__badge ' + state[1];
-      badge.textContent = state[0];
-      details.append(heading, badge);
+      const state = copy[slot.status];
+      details.append(heading);
+      if (state) {
+        const badge = document.createElement('span');
+        badge.className = 'dzn-booking__badge ' + state[1];
+        badge.textContent = state[0];
+        details.append(badge);
+      }
       const teacherTime = teacherTimeText(slot);
       if (teacherTime) {
         const note = document.createElement('small');
@@ -219,6 +222,7 @@
   };
   const assessSlots = async () => {
     const requestId = ++availabilityRequestId;
+    availabilityPreviewFailed = false;
     if (!activeInstrument() || !slots.length || !timezone.value) return;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
     slots.forEach((slot) => { slot.status = 'checking'; slot.teacher_times = []; });
@@ -234,17 +238,18 @@
         })
       });
       const result = await response.json();
-      if (!response.ok || !Array.isArray(result.times)) throw new Error('unavailable');
+      if (!response.ok || !Array.isArray(result.times) || result.times.length !== slots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
       if (requestId !== availabilityRequestId) return;
       result.times.forEach((row, index) => {
         if (slots[index]) {
-          slots[index].status = ['strong', 'possible', 'none', 'blocked'].includes(row.status) ? row.status : 'unavailable';
+          slots[index].status = ['strong', 'possible', 'none', 'blocked'].includes(row.status) ? row.status : null;
           slots[index].teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times.filter((time) => time && typeof time.timezone === 'string' && typeof time.starts_at_utc === 'string') : [];
         }
       });
     } catch {
       if (requestId !== availabilityRequestId) return;
-      slots.forEach((slot) => { slot.status = 'unavailable'; });
+      availabilityPreviewFailed = true;
+      slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
     }
     renderSlots();
     renderCalendar();
@@ -348,7 +353,7 @@
     const list = document.createElement('ol');
     slots.forEach((slot) => {
       const li = document.createElement('li');
-      const state = copy[slot.status] || copy.unavailable;
+      const state = copy[slot.status];
       li.textContent = selectedDateLabel(slot.local_date) + '، ' + slot.local_start_time + ' (' + state[0] + ')';
       const teacherTime = teacherTimeText(slot);
       if (teacherTime) {
@@ -370,8 +375,9 @@
     }
     if (currentStep() === 'availability') {
       if (!slots.length) { showError('برای ادامه دست‌کم یک زمان پیشنهادی انتخاب کنید.'); root.querySelector('[data-calendar]')?.focus(); return; }
+      if (availabilityPreviewFailed) { showError('بررسی زمان‌ها انجام نشد. دوباره تلاش می‌کنیم…'); assessSlots(); return; }
       if (slots.some((slot) => slot.status === 'checking')) { showError('لطفاً تا پایان بررسی زمان‌ها صبر کنید.'); return; }
-      if (slots.some((slot) => slot.status === 'blocked')) { showError('زمان‌های قرمز در بازهٔ بستهٔ ۰۱:۰۰ تا ۰۶:۰۰ ایران هستند. آن‌ها را حذف کنید یا زمان دیگری پیشنهاد دهید.'); const blockedIndex = slots.findIndex((slot) => slot.status === 'blocked');
+      if (slots.some((slot) => slot.status === 'blocked')) { showError('برخی از زمان‌های پیشنهادی طبق سیاست دلنوازان قابل درخواست نیستند. آن‌ها را حذف کنید یا زمان دیگری پیشنهاد دهید.'); const blockedIndex = slots.findIndex((slot) => slot.status === 'blocked');
         timesList.children[blockedIndex]?.querySelector('.dzn-booking__remove')?.focus(); return; }
       if (!timezone.value.trim()) { showError('منطقهٔ زمانی را وارد کنید.'); timezone.focus(); return; }
     }
@@ -433,7 +439,7 @@
     } catch (error) {
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
-        blocked_time: 'زمان انتخاب‌شده در بازهٔ بستهٔ ۰۱:۰۰ تا ۰۶:۰۰ به وقت ایران قرار دارد. زمان دیگری انتخاب کنید.',
+        blocked_time: 'زمان انتخاب‌شده طبق سیاست دلنوازان قابل درخواست نیست. زمان دیگری انتخاب کنید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
         submission_unavailable: 'سامانه نتوانست ثبت درخواست را تأیید کند. اطلاعات این فرم باقی مانده است؛ همین صفحه را با همین اطلاعات دوباره ارسال کنید.'

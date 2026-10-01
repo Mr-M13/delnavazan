@@ -128,9 +128,9 @@
   .dzn-booking__instrument { transition: none; }
 }
 
-.dzn-booking__badge.is-blocked { color: var(--dzn-color-error); font-weight: 800; }
-.dzn-booking__availability-key i.is-blocked { background: var(--dzn-color-error); }
-.dzn-booking__calendar-day.has-blocked:not(.is-selected)::after { background: var(--dzn-color-error); }
+.dzn-booking__badge.is-blocked { color: var(--dzn-color-text-muted); font-weight: 800; }
+.dzn-booking__availability-key i.is-blocked { background: var(--dzn-color-text-muted); }
+.dzn-booking__calendar-day.has-blocked:not(.is-selected)::after { background: var(--dzn-color-text-muted); }
 
 .dzn-booking__teacher-time { display: block; margin-top: .3rem; color: var(--dzn-color-text-muted); font-size: .84rem; font-weight: 400; line-height: 1.5; }
 .dzn-booking__success-times { margin-block: .5rem 1.25rem; padding-inline-start: 1.4rem; }

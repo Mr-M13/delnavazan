@@ -29,7 +29,7 @@ Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
 add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
-	Delnavazan\Platform\Core\Application\StagingBookingCatalogueBootstrap::maybeRun();
+	try { Delnavazan\Platform\Core\Application\StagingBookingCatalogueBootstrap::maybeRun(); } catch ( \Throwable $e ) { update_option( 'dzn_staging_booking_catalogue_seed_20261001_error', get_class( $e ) . ': ' . $e->getMessage(), false ); }
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();

@@ -26,7 +26,7 @@ final class OnboardingController {
 
     public static function screen(): void {
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) { echo '<div class="wrap"><p>Access denied.</p></div>'; return; }
-        echo '<div class="wrap"><h1>Teacher onboarding</h1><p>Invitation-only lifecycle. Issuing creates a secure delivery intent. Raw invitation secrets are never rendered, retained, logged, or placed in URLs. Until a delivery worker is configured, operators must treat delivery as pending rather than copying a token from this screen.</p>';
+        echo '<div class="wrap"><h1>Teacher onboarding</h1><p>Invitation-only lifecycle. Issuing creates a secure delivery intent. Raw invitation secrets are never rendered, retained, logged, or placed in URLs. Until a delivery worker is configured, operators must treat delivery as pending rather than copying a token from this screen. The manual code-entry destination is <code>' . esc_html( home_url( '/teacher-invitation/' ) ) . '</code>.</p>';
         if ( isset( $_GET['dzn_notice'] ) ) echo '<div class="notice ' . ( ( $_GET['dzn_error'] ?? '' ) === '1' ? 'notice-error' : 'notice-success' ) . '"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ) . '</p></div>';
         echo '<h2>Issue invitation</h2><form method="post">'; wp_nonce_field( 'dzn_platform_issue_teacher_invitation' );
         echo '<input type="hidden" name="dzn_action" value="issue_teacher_invitation"><p><label>Teacher ID <input required type="number" min="1" name="teacher_id"></label></p><p><label>Recipient email <input required type="email" name="recipient"></label></p>';

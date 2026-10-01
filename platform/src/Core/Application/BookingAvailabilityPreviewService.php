@@ -10,7 +10,7 @@ final class BookingAvailabilityPreviewService {
         $this->availability ??= new TeacherAvailabilityService();
     }
 
-    /** @return array{times:list<array{sequence:int,status:string}>} */
+    /** @return array{times:list<array{sequence:int,status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>}>} */
     public function assess( array $input ): array {
         if ( array_diff( array_keys( $input ), array( 'instrument_id', 'course_id', 'requested_times' ) ) ) throw new \InvalidArgumentException( 'Unsupported preview field' );
         $instrumentId = Normalizer::id( $input['instrument_id'] ?? null );
@@ -38,15 +38,26 @@ final class BookingAvailabilityPreviewService {
         $teachers = null;
         $result = array();
         foreach ( $normalized as $index => $time ) {
-            if ( RequestedTimeNormalizer::overlapsIranQuietHours( $time ) ) { $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked' ); continue; }
+            if ( RequestedTimeNormalizer::overlapsIranQuietHours( $time ) ) { $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked', 'teacher_times' => array() ); continue; }
             if ( $teachers === null ) $teachers = $this->repo->eligibleTeachers( $courseId, gmdate( 'Y-m-d H:i:s' ) );
             $best = 'none';
+            $timezones = array();
             foreach ( $teachers as $teacher ) {
                 $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
-                if ( $match === 'strong' && $teacher->accepting_state === 'accepting' ) { $best = 'strong'; break; }
-                if ( $match !== null && $best === 'none' ) $best = 'possible';
+                if ( $match === null ) continue;
+                $teacherTimezone = $this->availability->profileTimezone( (int) $teacher->teacher_id );
+                if ( $match === 'strong' && $teacher->accepting_state === 'accepting' ) {
+                    if ( $best !== 'strong' ) { $best = 'strong'; $timezones = array(); }
+                    if ( $teacherTimezone ) $timezones[$teacherTimezone] = true;
+                    continue;
+                }
+                if ( $best === 'strong' ) continue;
+                $best = 'possible';
+                if ( $teacherTimezone ) $timezones[$teacherTimezone] = true;
             }
-            $result[] = array( 'sequence' => $index + 1, 'status' => $best );
+            $teacherTimes = array();
+            foreach ( array_keys( $timezones ) as $teacherTimezone ) $teacherTimes[] = array( 'timezone' => $teacherTimezone, 'starts_at_utc' => $time['starts_at_utc'] );
+            $result[] = array( 'sequence' => $index + 1, 'status' => $best, 'teacher_times' => $teacherTimes );
         }
         return array( 'times' => $result );
     }

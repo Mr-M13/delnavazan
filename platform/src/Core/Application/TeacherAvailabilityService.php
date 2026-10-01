@@ -37,6 +37,15 @@ final class TeacherAvailabilityService {
         return $this->resolve( $facts, $from, $until );
     }
 
+    /** Returns an active, evaluable Teacher's IANA availability timezone without exposing identity or availability facts. */
+    public function profileTimezone(int $teacherId): ?string {
+        $teacher = Normalizer::id( $teacherId );
+        if ( ! $this->repo->evaluableTeacher( $teacher ) ) return null;
+        $profile = $this->repo->profile( $teacher );
+        if ( ! $profile || $profile->status !== 'active' ) return null;
+        return (string) $profile->timezone;
+    }
+
     private function rule(array $input): array {
         $teacher = Normalizer::id( $input['teacher_id'] ?? null ); $weekday = Normalizer::count( $input['weekday'] ?? null, 1, 7 ); $timezone = $this->timezone( $input['timezone'] ?? null ); $start = $this->time( $input['local_start_time'] ?? null ); $end = $this->time( $input['local_end_time'] ?? null );
         // Validate a representative date as well as same-day half-open ordering.

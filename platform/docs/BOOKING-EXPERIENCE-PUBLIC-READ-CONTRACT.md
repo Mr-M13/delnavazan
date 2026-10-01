@@ -17,7 +17,7 @@ Each time is labelled:
 - none: no currently matching eligible Teacher coverage exists; the request may still be submitted.
 - blocked: the requested occupied interval overlaps the academy-wide Iran-time blackout (01:00–06:00 in `Asia/Tehran`); it cannot be submitted.
 
-The response contains only the submitted sequence number and one status. It never contains Teacher identities, availability facts, candidate lists, contact data or a reservation. It is a non-persisting read and exposes no Teacher identities. Teacher matching remains advisory, while the fixed blackout is enforced again by the existing public Booking Request submission validator. `none` remains requestable; `blocked` is rejected at submission.
+The response contains the submitted sequence number, one status, and, where current matching coverage exists, the requested UTC start paired with each distinct matching Teacher availability timezone. This is only enough for the Theme to show the student the corresponding local clock time and weekday for a potential Teacher. It never contains Teacher identities, availability facts, candidate lists, contact data or a reservation. A `none` result returns no Teacher time because no matching Teacher timezone is known. It is a non-persisting read and exposes no Teacher identities. Teacher matching remains advisory, while the fixed blackout is enforced again by the existing public Booking Request submission validator. `none` remains requestable; `blocked` is rejected at submission.
 
 ## Existing booking request submission
 

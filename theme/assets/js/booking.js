@@ -59,6 +59,16 @@
   };
   const faDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
   const selectedDateLabel = (value) => new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T12:00:00Z'));
+  const teacherTimeText = (slot) => {
+    const times = Array.isArray(slot.teacher_times) ? slot.teacher_times : [];
+    if (!times.length) return slot.status === 'none' ? 'برای این زمان هنوز مدرس منطبق پیدا نشده است؛ زمان محلی مدرس پس از هماهنگی مشخص می‌شود.' : '';
+    const labels = times.map((time) => {
+      try {
+        return new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZoneName: 'long', timeZone: time.timezone }).format(new Date(time.starts_at_utc.replace(' ', 'T') + 'Z'));
+      } catch { return ''; }
+    }).filter(Boolean);
+    return labels.length ? 'به وقت مدرس: ' + labels.join(' · ') : '';
+  };
   const phoneExamples = { AU: '+61', BR: '+55', IR: '+98', CA: '+1', US: '+1', GB: '+44', NZ: '+64', DE: '+49', FR: '+33', TR: '+90', AE: '+971', SE: '+46' };
   const updatePhoneHint = () => {
     const hint = root.querySelector('[data-phone-hint]');
@@ -183,6 +193,13 @@
       badge.className = 'dzn-booking__badge ' + state[1];
       badge.textContent = state[0];
       details.append(heading, badge);
+      const teacherTime = teacherTimeText(slot);
+      if (teacherTime) {
+        const note = document.createElement('small');
+        note.className = 'dzn-booking__teacher-time';
+        note.textContent = teacherTime;
+        details.append(note);
+      }
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'dzn-booking__remove';
@@ -204,7 +221,7 @@
     const requestId = ++availabilityRequestId;
     if (!activeInstrument() || !slots.length || !timezone.value) return;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
-    slots.forEach((slot) => { slot.status = 'checking'; });
+    slots.forEach((slot) => { slot.status = 'checking'; slot.teacher_times = []; });
     renderSlots();
     try {
       const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
@@ -220,7 +237,10 @@
       if (!response.ok || !Array.isArray(result.times)) throw new Error('unavailable');
       if (requestId !== availabilityRequestId) return;
       result.times.forEach((row, index) => {
-        if (slots[index]) slots[index].status = ['strong', 'possible', 'none', 'blocked'].includes(row.status) ? row.status : 'unavailable';
+        if (slots[index]) {
+          slots[index].status = ['strong', 'possible', 'none', 'blocked'].includes(row.status) ? row.status : 'unavailable';
+          slots[index].teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times.filter((time) => time && typeof time.timezone === 'string' && typeof time.starts_at_utc === 'string') : [];
+        }
       });
     } catch {
       if (requestId !== availabilityRequestId) return;
@@ -330,6 +350,13 @@
       const li = document.createElement('li');
       const state = copy[slot.status] || copy.unavailable;
       li.textContent = selectedDateLabel(slot.local_date) + '، ' + slot.local_start_time + ' (' + state[0] + ')';
+      const teacherTime = teacherTimeText(slot);
+      if (teacherTime) {
+        const note = document.createElement('small');
+        note.className = 'dzn-booking__teacher-time';
+        note.textContent = teacherTime;
+        li.append(note);
+      }
       list.append(li);
     });
     panel.append(dl, scheduleTitle, list);
@@ -388,6 +415,20 @@
         throw new Error(result.code || 'submission_unavailable');
       }
       root.querySelector('[data-reference]').textContent = result.request_reference;
+      const successTimes = root.querySelector('[data-success-times]');
+      successTimes.replaceChildren();
+      slots.forEach((slot, index) => {
+        const item = document.createElement('li');
+        item.textContent = 'اولویت ' + faDigits(index + 1) + ' · ' + selectedDateLabel(slot.local_date) + '، ساعت ' + slot.local_start_time;
+        const teacherTime = teacherTimeText(slot);
+        if (teacherTime) {
+          const note = document.createElement('small');
+          note.className = 'dzn-booking__teacher-time';
+          note.textContent = teacherTime;
+          item.append(note);
+        }
+        successTimes.append(item);
+      });
       goTo('success');
     } catch (error) {
       const messages = {

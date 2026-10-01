@@ -143,6 +143,8 @@ function dzn_theme_render_booking_route(): void {
                         <h2 id="dzn-booking-success-title" tabindex="-1">درخواست شما برای بررسی ارسال شد</h2>
                         <p>این شماره را برای پیگیری نگه دارید:</p>
                         <p class="dzn-booking__reference" data-reference dir="ltr"></p>
+                        <p>زمان‌های پیشنهادی شما:</p>
+                        <ul class="dzn-booking__success-times" data-success-times></ul>
                         <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان برای هماهنگی با شما تماس می‌گیرد. در ادامهٔ مسیر هنرجویی، همین ایمیل برای ورود به حساب شما استفاده می‌شود. اعلان‌های کلاس را از طریق واتساپ دریافت می‌کنید و پیوند هر کلاس در حساب هنرجویی‌تان در دسترس خواهد بود.</p>
                         <a class="dzn-booking__button" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                     </section>

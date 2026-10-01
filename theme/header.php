@@ -32,7 +32,10 @@
 					echo $custom_logo; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated logo HTML with one escaped attribute.
 					?>
 				<?php else : ?>
-					<a class="site-branding__name" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home"><?php bloginfo( 'name' ); ?></a>
+					<a class="site-branding__name" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home" aria-label="<?php esc_attr_e( 'خانهٔ دلنوازان', 'delnavazan-theme' ); ?>">
+						<span class="site-branding__title">دلنوازان</span>
+						<span class="site-branding__tagline">آکادمی آموزش موسیقی ایران</span>
+					</a>
 				<?php endif; ?>
 			</div>
 		</div>

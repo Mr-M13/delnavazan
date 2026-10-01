@@ -55,8 +55,44 @@ foreach ( array( 'portal_principal_required', 'portal_principal_unresolved', 'po
 if ( ! str_contains( $bridge, "'state'  => in_array( \$reason, \$unlinked, true ) ? 'not_linked' : 'error'," ) ) {
 	$fail( 'bridge must map only declared principal refusals to not_linked' );
 }
-if ( ! str_contains( $bridge, "dzn_theme_platform_student_state_model( \$screen, 'no_data' )" ) ) {
-	$fail( 'bridge must report a not-yet-enrolled state when nothing canonical exists' );
+if ( ! str_contains( $bridge, "if ( 'ok' !== \$state ) { return dzn_theme_platform_student_state_model( \$screen, \$state ); }" ) ) {
+	$fail( 'bridge must route every non-ok state through the no-data state model' );
+}
+
+/*
+ * 3b. An enrolment with zero lessons stays a working portal.
+ *
+ * A newly enrolled student may legitimately have no lesson scheduled yet, so
+ * only the absence of BOTH collections is not-yet-enrolled. The decision is a
+ * named function so this distinction cannot drift unnoticed.
+ */
+$decision_start = strpos( $bridge, 'function dzn_theme_platform_student_portal_state(' );
+if ( false === $decision_start ) {
+	$fail( 'the portal state decision must be an explicit, assertable function' );
+}
+$decision = substr( $bridge, $decision_start, 500 );
+if ( ! str_contains( $decision, 'if ( ! $lessons && ! $enrolments ) {' ) ) {
+	$fail( 'no_data must require both collections to be empty' );
+}
+if ( 2 !== substr_count( $decision, "return '" ) ) {
+	$fail( 'the state decision must have exactly two outcomes: no_data and ok' );
+}
+if ( ! str_contains( $bridge, '$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments );' ) ) {
+	$fail( 'the model builder must use the asserted state decision' );
+}
+if ( str_contains( $bridge, 'if ( ! $lessons && ! $enrolments ) { return dzn_theme_platform_student_state_model' ) ) {
+	$fail( 'an inline guard must not bypass the asserted state decision' );
+}
+
+$term = $read( $theme . '/template-parts/portal/term-timeline.php' );
+if ( ! str_contains( $term, '$recorded < 1' ) ) {
+	$fail( 'an enrolment with no recorded lessons must render an awaiting-schedule state' );
+}
+if ( ! str_contains( $term, 'برنامهٔ جلسه‌ها هنوز' ) ) {
+	$fail( 'the awaiting-schedule state must carry its own honest copy' );
+}
+if ( ! str_contains( $term, 'if ( ! $term ) {' ) ) {
+	$fail( 'the term timeline may only skip the section when the term itself is absent' );
 }
 
 /* 4. The shell renders each state distinctly and keeps a logout route. */

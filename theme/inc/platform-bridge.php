@@ -155,7 +155,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! $onboarding ) { return null; }
 		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
 		$parts = preg_split( '/\\s+/u', trim( $name ) );
-		$step = 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : ( 'pending_review' === $onboarding['state'] ? 3 : 4 ) );
+		$step = 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : ( 'active' === $onboarding['state'] && 'ready' === $onboarding['readiness_state'] ? 4 : 3 ) );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),

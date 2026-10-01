@@ -71,6 +71,11 @@ jobs:
           else
             echo 'Student Portal state contract not present on this PR base yet.'
           fi
+          if [[ -f platform/tests/teacher-onboarding-v1-contract.php ]]; then
+            php platform/tests/teacher-onboarding-v1-contract.php
+          else
+            echo 'Teacher onboarding v1 contract not present on this PR base yet.'
+          fi
 
       - name: Check staging smoke runner syntax
         run: bash -n deployment/qa/staging-smoke.sh

@@ -35,7 +35,8 @@ final class StagingBookingCatalogueBootstrap {
         $courseRepo = new CourseRepository();
         $eligibilityRepo = new TeachingEligibilityRepository();
 
-        foreach ( self::INSTRUMENTS as array( $slug, $nameFa, $nameEn ) ) {
+        foreach ( self::INSTRUMENTS as $instrumentData ) {
+            [ $slug, $nameFa, $nameEn ] = $instrumentData;
             $instrument = self::instrumentBySlug( $instrumentRepo, $slug );
             if ( ! $instrument ) {
                 $instrumentId = Creator::create( $instrumentRepo, array(

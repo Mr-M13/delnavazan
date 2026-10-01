@@ -29,7 +29,7 @@ final class StagingBookingCatalogueBootstrap {
 
     public static function maybeRun(): void {
         if ( wp_parse_url( home_url( '/' ), PHP_URL_HOST ) !== 'staging.delnavazan.com' ) return;
-        if ( get_option( self::OPTION ) === 'complete' ) return;
+        if ( get_option( self::OPTION ) === 'complete' ) { delete_option( 'dzn_staging_booking_catalogue_seed_20261001_error' ); return; }
 
         $instrumentRepo = new InstrumentRepository();
         $courseRepo = new CourseRepository();

@@ -40,7 +40,7 @@ foreach ( array( 'admin_post_dzn_teacher_onboarding_profile', 'admin_post_dzn_te
     if ( strpos( $files['controller'], $fragment ) === false ) throw new RuntimeException( 'Teacher form boundary missing: ' . $fragment );
 foreach ( array( 'admin_post_dzn_teacher_invitation_claim', 'admin_post_nopriv_dzn_teacher_invitation_claim', 'beginExistingClaim', 'beginProvisioning', 'recordProvisioningResult', 'finalizeClaim', 'check_admin_referer' ) as $fragment )
     if ( strpos( $files['claim_controller'], $fragment ) === false ) throw new RuntimeException( 'Invitation claim boundary missing: ' . $fragment );
-if ( strpos( $files['claim_controller'], "$_GET['invitation_code']" ) !== false || strpos( $files['claim_controller'], 'add_query_arg( array( \'invitation_code\'' ) !== false ) throw new RuntimeException( 'Invitation secret must not be accepted or emitted in a URL.' );
+if ( strpos( $files['claim_controller'], "\$_GET['invitation_code']" ) !== false || strpos( $files['claim_controller'], 'add_query_arg( array( \'invitation_code\'' ) !== false ) throw new RuntimeException( 'Invitation secret must not be accepted or emitted in a URL.' );
 foreach ( array( 'approve', 'return', 'reject', 'dzn_manage_onboarding', 'review_teacher_onboarding' ) as $fragment )
     if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
 

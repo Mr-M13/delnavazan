@@ -68,7 +68,6 @@
 
 
 .dzn-booking__heading { position: relative; padding-block: 1rem 1.5rem; }
-.dzn-booking__heading::before { display: block; width: 4.5rem; height: .25rem; margin: 0 auto 1rem; background: var(--dzn-color-action-primary); content: ""; }
 .dzn-booking__card { max-width: 62rem; margin-inline: auto; }
 .dzn-booking__progress { margin-inline: calc(clamp(1rem, 4vw, 2.5rem) * -1); border-block-end: 1px solid var(--dzn-color-border); padding-inline: clamp(1rem, 4vw, 2.5rem); }
 .dzn-booking__progress ol { justify-content: space-between; max-width: 40rem; margin-inline: auto; }
@@ -93,10 +92,6 @@
 .dzn-booking__calendar-day { position: relative; display: grid; min-width: 0; min-height: clamp(2.4rem, 8vw, 3.5rem); place-items: center; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--dzn-color-text-primary); font: inherit; font-size: .95rem; cursor: pointer; }
 .dzn-booking__calendar-day:hover:not(:disabled), .dzn-booking__calendar-day.is-selected { border-color: var(--dzn-color-action-primary); background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); }
 .dzn-booking__calendar-day:disabled { color: #aaa; opacity: .48; cursor: default; }
-.dzn-booking__calendar-day.has-strong:not(.is-selected)::after, .dzn-booking__calendar-day.has-possible:not(.is-selected)::after, .dzn-booking__calendar-day.has-none:not(.is-selected)::after { position: absolute; inset-block-end: .12rem; width: .32rem; height: .32rem; border-radius: 50%; background: var(--dzn-color-information); content: ""; }
-.dzn-booking__calendar-day.has-strong:not(.is-selected)::after { background: var(--dzn-color-success); }
-.dzn-booking__calendar-day.has-possible:not(.is-selected)::after { background: var(--dzn-color-warning); }
-.dzn-booking__calendar-day.has-none:not(.is-selected)::after { background: var(--dzn-color-information); }
 .dzn-booking__day-times { max-width: 38rem; margin: 1.5rem auto; border-radius: var(--dzn-radius-md); background: var(--dzn-color-surface); padding: 1rem; }
 .dzn-booking__day-times h3, .dzn-booking__preference-heading h3 { margin-bottom: .25rem; font-size: 1.15rem; }
 .dzn-booking__time-group + .dzn-booking__time-group { margin-top: 1rem; }
@@ -134,3 +129,14 @@
 
 .dzn-booking__teacher-time { display: block; margin-top: .3rem; color: var(--dzn-color-text-muted); font-size: .84rem; font-weight: 400; line-height: 1.5; }
 .dzn-booking__success-times { margin-block: .5rem 1.25rem; padding-inline-start: 1.4rem; }
+
+.dzn-booking__progress li::before { display: none; }
+.dzn-booking__progress li { padding: .5rem .75rem; border-radius: 999px; }
+.dzn-booking__instrument-image { width: 100%; height: 5rem; object-fit: contain; }
+.dzn-booking__timezone { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .6rem; margin-block: 1rem; border: 0; background: transparent; padding: 0; font-size: .88rem; }
+.dzn-booking__timezone input { order: 3; width: min(100%, 15rem); min-height: 2.4rem; font-size: .9rem; }
+.dzn-booking__timezone p { display: none; }
+.dzn-booking__timezone-copy { color: var(--dzn-color-text-muted); }
+.dzn-booking__time-option.is-strong { border-color: var(--dzn-color-success); box-shadow: 0 0 0 .12rem color-mix(in srgb, var(--dzn-color-success) 20%, transparent); }
+.dzn-booking__time-option.is-possible { border-color: var(--dzn-color-warning); background: color-mix(in srgb, var(--dzn-color-warning) 10%, var(--dzn-color-surface-elevated)); }
+.dzn-booking__time-option.is-none { border-color: var(--dzn-color-border); background: var(--dzn-color-surface); }

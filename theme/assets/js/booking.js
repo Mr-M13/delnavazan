@@ -58,7 +58,7 @@
     checking: ['در حال بررسی زمان', 'is-checking']
   };
   const faDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
-  const selectedDateLabel = (value) => new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T12:00:00Z'));
+  const selectedDateLabel = (value) => new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T12:00:00Z'));
   const teacherTimeText = (slot) => {
     const times = Array.isArray(slot.teacher_times) ? slot.teacher_times : [];
     if (!times.length) return slot.status === 'none' ? 'برای این زمان هنوز مدرس منطبق پیدا نشده است؛ زمان محلی مدرس پس از هماهنگی مشخص می‌شود.' : '';
@@ -101,7 +101,7 @@
 
   const renderCalendar = () => {
     calendar.replaceChildren();
-    calendarLabel.textContent = new Intl.DateTimeFormat('fa-IR', { month: 'long', year: 'numeric' }).format(dateCursor);
+    calendarLabel.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { month: 'long', year: 'numeric' }).format(dateCursor);
     const weekdays = root.querySelector('[data-calendar-weekdays]');
     if (!weekdays.children.length) {
       ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'].forEach((name) => {
@@ -127,12 +127,7 @@
       button.setAttribute('aria-pressed', key === selectedDate ? 'true' : 'false');
       if (value.getMonth() !== dateCursor.getMonth()) button.classList.add('is-outside');
       if (key === selectedDate) button.classList.add('is-selected');
-      const sameDay = slots.filter((slot) => slot.local_date === key);
-      if (sameDay.length) {
-        const best = sameDay.every((slot) => slot.status === 'blocked') ? 'blocked' : sameDay.some((slot) => slot.status === 'strong') ? 'strong' : sameDay.some((slot) => slot.status === 'possible') ? 'possible' : sameDay.every((slot) => slot.status === 'none') ? 'none' : '';
-        if (best) button.classList.add('has-' + best);
-        button.title = sameDay.length + ' زمان پیشنهادی؛ وضعیت بر پایهٔ بررسی سامانه';
-      }
+
       button.addEventListener('click', () => {
         selectedDate = key;
         dayTitle.textContent = selectedDateLabel(key);
@@ -168,8 +163,9 @@
       times.forEach((value) => {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = value;
-        button.className = 'dzn-booking__time-option';
+        button.textContent = faDigits(value);
+        const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
+        button.className = 'dzn-booking__time-option' + (existing && ['strong', 'possible', 'none'].includes(existing.status) ? ' is-' + existing.status : '');
         button.setAttribute('dir', 'ltr');
         button.disabled = slots.length >= 3 || slots.some((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
         button.addEventListener('click', () => addPreference(value));
@@ -242,16 +238,22 @@
       if (requestId !== availabilityRequestId) return;
       result.times.forEach((row, index) => {
         if (slots[index]) {
-          slots[index].status = ['strong', 'possible', 'none', 'blocked'].includes(row.status) ? row.status : null;
+          slots[index].status = row.status;
           slots[index].teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times.filter((time) => time && typeof time.timezone === 'string' && typeof time.starts_at_utc === 'string') : [];
         }
       });
+      const blocked = slots.filter((slot) => slot.status === 'blocked');
+      if (blocked.length) {
+        blocked.forEach((slot) => slots.splice(slots.indexOf(slot), 1));
+        showError('این ساعت در دسترس نیست. زمان دیگری را انتخاب کنید.');
+      }
     } catch {
       if (requestId !== availabilityRequestId) return;
       availabilityPreviewFailed = true;
       slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
     }
     renderSlots();
+    renderTimeOptions();
     renderCalendar();
   };
 

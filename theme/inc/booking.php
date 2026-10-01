@@ -20,13 +20,14 @@ function dzn_theme_render_booking_route(): void {
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
+    $instrument_images = array( 'piano' => 'instrument-piano.webp', 'tar' => 'instrument-tar.webp', 'setar' => 'instrument-setar.webp', 'santur' => 'instrument-santur.webp', 'tombak' => 'instrument-tombak.webp', 'kamancheh' => 'instrument-kamancheh.webp', 'daf' => 'instrument-daf.webp' );
     ?>
     <main id="main-content" class="site-main dzn-booking" tabindex="-1">
         <div class="dzn-container dzn-booking__container">
             <header class="dzn-booking__heading">
                 <p class="dzn-eyebrow">شروع مسیر موسیقی شما</p>
                 <h1>درخواست جلسهٔ معارفه</h1>
-                <p>ساز و زمان‌های پیشنهادی‌تان را انتخاب کنید. تیم دلنوازان درخواست شما را بررسی می‌کند و برای هماهنگی با شما تماس می‌گیرد.</p>
+                <p>پس از انتخاب دورهٔ آموزشی و زمان‌های پیشنهادی، تیم دلنوازان درخواست شما را بررسی می‌کند، مدرس کلاس را هماهنگ می‌کند و نتیجه را به شما اطلاع می‌دهد.</p>
             </header>
             <?php if ( ! $options ) : ?>
                 <section class="dzn-booking__notice" role="status">
@@ -38,21 +39,21 @@ function dzn_theme_render_booking_route(): void {
                 <section class="dzn-booking__card" data-dzn-booking>
                     <nav class="dzn-booking__progress" aria-label="مراحل درخواست">
                         <ol>
-                            <li class="is-current" data-progress="instrument">ساز</li>
-                            <li data-progress="availability">زمان</li>
-                            <li data-progress="contact">اطلاعات</li>
+                            <li class="is-current" data-progress="instrument">انتخاب دوره</li>
+                            <li data-progress="availability">انتخاب زمان</li>
+                            <li data-progress="contact">اطلاعات کاربری</li>
                         </ol>
                     </nav>
                     <div class="dzn-booking__error" data-error role="alert" hidden></div>
                     <section class="dzn-booking__step is-active" data-step="instrument" aria-labelledby="dzn-booking-instrument-title">
-                        <p class="dzn-booking__kicker">مرحلهٔ اول · انتخاب ساز</p>
-                        <h2 id="dzn-booking-instrument-title" tabindex="-1">با چه سازی می‌خواهید شروع کنید؟</h2>
+                        <p class="dzn-booking__kicker">مرحلهٔ اول</p>
+                        <h2 id="dzn-booking-instrument-title" tabindex="-1">دورهٔ آموزشی خود را انتخاب کنید</h2>
                         <div class="dzn-booking__instrument-grid" role="group" aria-label="انتخاب ساز">
                             <?php foreach ( $options as $option ) : ?>
                                 <button class="dzn-booking__instrument<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? ' is-selected' : ''; ?>" type="button" data-instrument-choice="<?php echo esc_attr( (string) $option['id'] ); ?>" aria-pressed="<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? 'true' : 'false'; ?>">
-                                    <span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span>
+                                    <?php if ( isset( $instrument_images[ $option['slug'] ] ) ) : ?><img class="dzn-booking__instrument-image" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/' . $instrument_images[ $option['slug'] ] ) ); ?>" alt=""><?php else : ?><span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span><?php endif; ?>
                                     <span class="dzn-booking__instrument-name"><?php echo esc_html( $option['name_fa'] ?: $option['name_en'] ); ?></span>
-                                    <span class="dzn-booking__instrument-action">انتخاب ساز</span>
+                                    <span class="dzn-booking__instrument-action">انتخاب دوره</span>
                                 </button>
                             <?php endforeach; ?>
                         </div>
@@ -74,10 +75,10 @@ function dzn_theme_render_booking_route(): void {
                         <p class="dzn-booking__kicker">مرحلهٔ دوم · زمان جلسه</p>
                         <h2 id="dzn-booking-availability-title" tabindex="-1">چه زمانی برای شما مناسب است؟</h2>
                         <div class="dzn-booking__timezone" data-timezone-note>
-                            <strong>منطقهٔ زمانی شما</strong>
+                            <strong>منطقهٔ زمانی شما</strong><span class="dzn-booking__timezone-copy">بر اساس دستگاه شما تشخیص داده شد؛ ساعت‌ها خودکار با مدرس هماهنگ می‌شوند.</span>
                             <label class="screen-reader-text" for="dzn-booking-timezone">منطقهٔ زمانی (نام IANA)</label>
                             <input id="dzn-booking-timezone" data-timezone type="text" value="<?php echo esc_attr( $default_timezone ); ?>" autocomplete="off" required>
-                            <p>منطقهٔ زمانی دستگاه شما به‌طور خودکار تشخیص داده شد. همهٔ ساعت‌ها در همین منطقه نمایش داده می‌شوند و برای مدرس خودکار تبدیل خواهند شد. در صورت نیاز می‌توانید آن را ویرایش کنید.</p>
+                            <p>در صورت نیاز می‌توانید آن را تغییر دهید.</p>
                         </div>
                         <div class="dzn-booking__calendar">
                             <div class="dzn-booking__calendar-heading">
@@ -90,7 +91,7 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
-                            <p class="dzn-booking__help">یک ساعت را انتخاب کنید تا به فهرست اولویت‌ها اضافه شود. رنگ‌ها پس از بررسی سامانهٔ زمان‌بندی نمایش داده می‌شوند.</p>
+                            <p class="dzn-booking__help">سبز: زمان مناسب برای استاد. طلایی: امکان محدود. سفید: هنوز استادی منطبق نیست، اما قابل درخواست است.</p>
                             <div class="dzn-booking__time-options" data-time-options></div>
                         </section>
                         <div class="dzn-booking__preference-heading">
@@ -100,8 +101,7 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__availability-key" aria-label="راهنمای وضعیت پیشنهادی زمان‌ها">
                             <span><i class="is-strong"></i>تناسب زمانی خوب</span>
                             <span><i class="is-possible"></i>امکان محدود یا احتمالی</span>
-                            <span><i class="is-none"></i>تطابق فعلی ندارد؛ قابل درخواست</span>
-                            <span><i class="is-blocked"></i>بازهٔ بستهٔ ۰۱:۰۰ تا ۰۶:۰۰ ایران</span>
+                            <span><i class="is-none"></i>هنوز استادی منطبق نیست؛ قابل درخواست</span>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="instrument">بازگشت به انتخاب ساز</button>
@@ -109,8 +109,8 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                     </section>
                     <section class="dzn-booking__step" data-step="contact" aria-labelledby="dzn-booking-contact-title" hidden>
-                        <p class="dzn-booking__kicker">مرحلهٔ سوم · اطلاعات شما</p>
-                        <h2 id="dzn-booking-contact-title" tabindex="-1">چطور با شما در تماس باشیم؟</h2>
+                        <p class="dzn-booking__kicker">مرحلهٔ سوم</p>
+                        <h2 id="dzn-booking-contact-title" tabindex="-1">اطلاعات کاربری خود را وارد کنید</h2>
                         <div class="dzn-booking__fields">
                             <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" required></div>
                             <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">این ایمیل برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد.</p></div>

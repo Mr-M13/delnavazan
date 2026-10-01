@@ -1,0 +1,61 @@
+name: PR runtime gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-runtime-gate-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  source-contracts:
+    name: PHP source contracts
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Report PHP version
+        run: php --version
+
+      - name: Lint tracked PHP
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS= read -r -d '' file; do
+            php -l "$file"
+          done < <(git ls-files -z '*.php')
+
+      - name: Run source-level Platform contracts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t contracts < <(
+            find platform/tests -maxdepth 1 -type f -name '*-contract.php'               ! -name 'phase-student-portal-state-contract.php' -print | sort
+          )
+          test "${#contracts[@]}" -gt 0
+          for contract in "${contracts[@]}"; do
+            php "$contract"
+          done
+          php platform/tests/phase-2a3-iran-quiet-hours.php
+          if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
+            php platform/tests/phase-student-portal-state-contract.php
+          else
+            echo 'Student Portal state contract not present on this PR base yet.'
+          fi
+
+      - name: Check staging smoke runner syntax
+        run: bash -n deployment/qa/staging-smoke.sh

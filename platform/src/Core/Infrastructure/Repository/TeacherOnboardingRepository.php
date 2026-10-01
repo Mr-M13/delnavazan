@@ -26,6 +26,7 @@ final class TeacherOnboardingRepository {
     public function stateForUpdate(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_onboarding_states WHERE teacher_id=%d FOR UPDATE", $teacherId ) ); }
     public function state(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_onboarding_states WHERE teacher_id=%d", $teacherId ) ); }
     public function availabilityProfile(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_availability_profiles WHERE teacher_id=%d", $teacherId ) ); }
+    public function availabilityHasFacts(int $profileId): bool { global $wpdb; return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$this->prefix}teacher_availability_rules WHERE profile_id=%d LIMIT 1", $profileId ) ) || (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$this->prefix}teacher_availability_exceptions WHERE profile_id=%d LIMIT 1", $profileId ) ); }
     public function availabilityRules(int $teacherId): array { global $wpdb; return $wpdb->get_results( $wpdb->prepare( "SELECT id,weekday,local_start_time,local_end_time,state,timezone,status FROM {$this->prefix}teacher_availability_rules WHERE teacher_id=%d AND status='active' ORDER BY weekday,local_start_time,id", $teacherId ) ); }
     public function hasUsableAvailability(int $teacherId, string $timezone): bool {
         global $wpdb;

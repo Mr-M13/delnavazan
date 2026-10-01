@@ -62,7 +62,6 @@
       remove.setAttribute('aria-label', 'حذف زمان اولویت ' + (index + 1));
       remove.addEventListener('click', () => {
         slots.splice(index, 1);
-        idempotencyKey = '';
         renderSlots();
         assessSlots();
       });
@@ -106,17 +105,15 @@
     if (slots.length >= 3) { showError('حداکثر سه زمان پیشنهادی می‌توانید اضافه کنید.'); return; }
     if (slots.some((slot) => slot.local_date === date.value && slot.local_start_time === time.value)) { showError('این زمان را قبلاً اضافه کرده‌اید.'); return; }
     slots.push({ local_date: date.value, local_start_time: time.value, status: 'checking' });
-    idempotencyKey = '';
     renderSlots();
     assessSlots();
   });
   instrument.addEventListener('change', () => {
     availabilityRequestId += 1;
-    idempotencyKey = '';
     slots.splice(0);
     renderSlots();
   });
-  timezone.addEventListener('change', () => { idempotencyKey = ''; assessSlots(); });
+  timezone.addEventListener('change', () => { assessSlots(); });
   whatsappSame.addEventListener('change', () => {
     whatsappExtra.hidden = whatsappSame.checked;
     whatsapp.required = !whatsappSame.checked;
@@ -228,15 +225,20 @@
       });
       const result = await response.json();
       if (!response.ok || !result.success || !result.request_reference) {
-        if (response.status === 400 || response.status === 409) idempotencyKey = '';
+        if (response.status === 400) idempotencyKey = '';
         throw new Error(result.code || 'submission_unavailable');
       }
       root.querySelector('[data-reference]').textContent = result.request_reference;
       goTo('success');
     } catch (error) {
-      showError(error.message === 'rate_limited'
-        ? 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.'
-        : 'درخواست ثبت نشد. اطلاعات را بررسی کنید و دوباره تلاش کنید.');
+      const messages = {
+        invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
+        rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
+        idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
+        submission_unavailable: 'سامانه نتوانست ثبت درخواست را تأیید کند. اطلاعات این فرم باقی مانده است؛ همین صفحه را با همین اطلاعات دوباره ارسال کنید.',
+      };
+      const code = error instanceof Error ? error.message : '';
+      showError(messages[code] || 'پاسخ سامانه دریافت نشد. فرم را نبندید؛ با همین صفحه و همان اطلاعات دوباره تلاش کنید. ارسال مجدد با همان کلید از ثبت تکراری جلوگیری می‌کند.');
     } finally {
       button.disabled = false;
       button.textContent = 'ثبت درخواست جلسهٔ معارفه';

@@ -139,17 +139,39 @@ add_filter( 'dzn_theme_student_portal_view_model', function( $model, $screen ) {
 }, 10, 2 );
 
 function dzn_theme_platform_teacher_model( $screen ) {
-	if ( 'onboarding' === $screen ) { return null; }
-	$service = dzn_theme_platform_portal_service();
-	if ( ! $service ) { return null; }
-	try { $data = $service->teacher(); } catch ( Throwable $e ) { return null; }
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/teacher-portal/' );
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'خانهٔ مدرس', 'url' => $base_url, 'current' => true ),
-		array( 'screen' => 'account', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'account', $base_url ), 'current' => false ),
-		array( 'screen' => 'onboarding', 'label' => 'شروع همکاری', 'url' => add_query_arg( 'teacher-view', 'onboarding', $base_url ), 'current' => false ),
+		array( 'screen' => 'home', 'label' => 'خانهٔ مدرس', 'url' => $base_url, 'current' => 'home' === $screen ),
+		array( 'screen' => 'account', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'account', $base_url ), 'current' => 'account' === $screen ),
+		array( 'screen' => 'onboarding', 'label' => 'شروع همکاری', 'url' => add_query_arg( 'teacher-view', 'onboarding', $base_url ), 'current' => 'onboarding' === $screen ),
 	);
+	$onboarding_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOnboardingService';
+	$onboarding = null;
+	if ( class_exists( $onboarding_class ) ) {
+		try { $onboarding = ( new $onboarding_class() )->currentForUser(); } catch ( Throwable $e ) { $onboarding = null; }
+	}
+	if ( 'onboarding' === $screen ) {
+		if ( ! $onboarding ) { return null; }
+		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
+		$parts = preg_split( '/\\s+/u', trim( $name ) );
+		$step = 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : ( 'pending_review' === $onboarding['state'] ? 3 : 4 ) );
+		return array(
+			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
+			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
+			'navigation' => $nav, 'current_step' => $step, 'onboarding' => $onboarding,
+			'actions' => array(
+				'profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
+				'availability_profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_profile' ),
+				'availability_rule' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_rule' ),
+				'submit' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_submit' ),
+			),
+		);
+	}
+	if ( ! $onboarding || 'active' !== $onboarding['state'] || 'ready' !== $onboarding['readiness_state'] ) { return null; }
+	$service = dzn_theme_platform_portal_service();
+	if ( ! $service ) { return null; }
+	try { $data = $service->teacher(); } catch ( Throwable $e ) { return null; }
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
 	if ( 'account' === $screen ) {

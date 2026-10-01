@@ -60,6 +60,13 @@ function dzn_theme_portal_principal_available( $kind ) {
 }
 
 
+function dzn_theme_teacher_requires_onboarding() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOnboardingService';
+	if ( ! class_exists( $class ) ) { return true; }
+	try { return ( new $class() )->requiresOnboarding(); } catch ( Throwable $e ) { return true; }
+}
+
+
 function dzn_theme_operations_items() {
 	$items = array(
 		array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-platform', 'title' => 'وضعیت هسته', 'description' => 'سلامت و آمادگی Delnavazan Platform' ),
@@ -106,6 +113,7 @@ function dzn_theme_render_portal_route( $kind ) {
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
 		$screen = in_array( $screen, array( 'home', 'account', 'onboarding' ), true ) ? $screen : 'home';
+		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;
 	}

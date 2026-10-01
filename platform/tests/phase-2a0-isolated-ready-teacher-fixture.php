@@ -52,7 +52,11 @@ function dzn_phase_2a0_create_ready_teacher_fixture(): array {
         $onboarding->refreshOwnProgress();
         $onboarding->submitOwn();
         wp_set_current_user( $admin );
-        $onboarding->review( $teacher, 'approve' );
+        $onboarding->review( $teacher, 'return', 'isolated_fixture_changes_requested' );
+        wp_set_current_user( $user ); $onboarding->submitOwn();
+        wp_set_current_user( $admin ); $onboarding->review( $teacher, 'reject', 'isolated_fixture_rejected' );
+        wp_set_current_user( $user ); $onboarding->submitOwn();
+        wp_set_current_user( $admin ); $onboarding->review( $teacher, 'approve' );
         if ( ! ( new PrincipalInvitationRepository() )->hasActiveTeacherAuthority( $user, $teacher ) ) throw new RuntimeException( 'Ready-teacher fixture failed.' );
         unset( $payload, $secret, $recipient );
         return array( 'teacher_id' => $teacher, 'wordpress_user_id' => $user, 'admin_user_id' => $admin );

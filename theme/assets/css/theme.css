@@ -637,17 +637,29 @@
   }
 
   .site-branding__name {
+    display: inline-grid;
+    gap: .08rem;
     color:
       var(--dzn-color-text-primary);
-
     font-size:
       1.4rem;
-
     font-weight:
       900;
-
+    line-height: 1.1;
     text-decoration:
       none;
+  }
+
+  .site-branding__title {
+    display: block;
+  }
+
+  .site-branding__tagline {
+    display: block;
+    color: var(--dzn-color-text-muted);
+    font-size: .57em;
+    font-weight: 600;
+    line-height: 1.35;
   }
 
 

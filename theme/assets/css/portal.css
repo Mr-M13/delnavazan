@@ -42,6 +42,45 @@
     color: var(--dzn-color-text-muted);
   }
 
+  .dzn-portal__account {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dzn-space-3);
+    margin: 0;
+    font-size: .85rem;
+  }
+
+  .dzn-portal__account a {
+    color: var(--dzn-color-accent);
+    text-decoration: none;
+  }
+
+  .dzn-portal__account a:hover,
+  .dzn-portal__account a:focus-visible {
+    text-decoration: underline;
+  }
+
+  .dzn-portal__state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dzn-space-3);
+    margin-block: var(--dzn-space-4);
+  }
+
+  .dzn-portal-control__label {
+    margin: 0 0 var(--dzn-space-1);
+    color: var(--dzn-color-text-muted);
+    font-size: .85rem;
+  }
+
+  .dzn-portal-value {
+    margin: 0;
+    padding: .55rem .75rem;
+    border: 1px solid var(--dzn-color-border);
+    border-radius: .5rem;
+    background: var(--dzn-color-surface);
+  }
+
   .dzn-portal__content {
     padding-block: var(--dzn-space-6) var(--dzn-space-8);
   }

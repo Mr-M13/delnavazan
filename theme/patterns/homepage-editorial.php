@@ -27,9 +27,7 @@
 <div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( home_url( '/booking/' ) ); ?>">ثبت‌نام</a></div>
 <!-- /wp:button -->
 
-<!-- wp:button {"className":"is-style-outline"} -->
-<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="#courses">دوره ها</a></div>
-<!-- /wp:button --></div>
+</div>
 <!-- /wp:buttons --></div>
 <!-- /wp:group -->
 

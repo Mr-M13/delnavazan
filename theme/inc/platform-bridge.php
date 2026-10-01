@@ -159,14 +159,18 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$year_lessons = array_filter( $all_lessons, static fn( $row ) => dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y' ) === $year );
 		$seconds = 0; foreach ( $month_lessons as $row ) { $a = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ); $b = strtotime( (string) ( $row['ends_at_utc'] ?? '' ) . ' UTC' ); if ( $a && $b && $b > $a ) { $seconds += $b - $a; } }
 		$students = array_unique( array_filter( array_map( static fn( $row ) => (string) ( $row['student_display_reference'] ?? '' ), $all_lessons ) ) );
+		$assigned = array_unique( array_filter( array_map( static fn( $row ) => is_array( $row ) ? (string) ( $row['student_display_reference'] ?? '' ) : '', (array) ( $data['assignments'] ?? array() ) ) ) );
 		$upcoming_count = count( array_filter( $all_lessons, static fn( $row ) => strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ) >= time() ) );
 		$nav[0]['current'] = false; $nav[1]['current'] = true;
 		return array(
 			'available' => true, 'screen' => 'account', 'source' => 'platform',
 			'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ), 'navigation' => $nav,
 			'profile' => array( 'name' => $identity['full_name'], 'email' => $identity['email'], 'mobile' => '', 'timezone' => wp_timezone_string() ?: 'UTC', 'timezone_label' => wp_timezone_string() ?: 'UTC', 'calendar' => 'gregorian' ),
+			// PortalAuthenticatedReadService::teacher() exposes only principal, lessons and assignments today.
+			// No availability, Google or payment read exists, so those sections stay explicitly unavailable
+			// rather than the Theme inferring or fabricating a value.
 			'google_state' => 'unavailable', 'availability_available' => false, 'availability' => array(), 'exceptions' => array(), 'payment_state' => 'unavailable',
-			'statistics' => array( 'active_students' => (string) count( $students ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
+			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}
 	$future = array_values( array_filter( (array) ( $data['lessons'] ?? array() ), static function( $row ) use ( $now ) {

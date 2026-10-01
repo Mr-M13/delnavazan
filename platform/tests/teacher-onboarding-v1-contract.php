@@ -28,8 +28,11 @@ foreach ( array( "'state'=>'linked_pending'", "'readiness_state'=>'not_ready'", 
     if ( strpos( $finalize, $fragment ) === false ) throw new RuntimeException( 'Claim does not produce linked-pending onboarding: ' . $fragment );
 if ( strpos( $finalize, "'state'=>'active','readiness_state'=>'ready'" ) !== false ) throw new RuntimeException( 'Claim must not activate a Teacher.' );
 
-foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'offboarded', 'submitOwn', 'review(', "current_user_can( 'dzn_manage_onboarding' )", 'hasUsableAvailability', "'agreement_state' => 'not_required'", "'readiness_state' => 'ready'" ) as $fragment )
+foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'review(', "current_user_can( 'dzn_manage_onboarding' )", 'hasUsableAvailability', "'agreement_state' => 'not_required'", "'readiness_state' => 'ready'" ) as $fragment )
     if ( strpos( $files['service'], $fragment ) === false ) throw new RuntimeException( 'Missing lifecycle contract: ' . $fragment );
+foreach ( array( "'state'=>'offboarded'", 'appendOnboardingEvent' ) as $fragment )
+    if ( strpos( $files['claim'], $fragment ) === false ) throw new RuntimeException( 'Canonical teacher offboarding contract missing: ' . $fragment );
+
 foreach ( array( 'display_name', 'email', 'country_code', 'city', 'timezone', 'locale', 'calendar_preference' ) as $field )
     if ( strpos( $files['service'], "'" . $field . "'" ) === false ) throw new RuntimeException( 'Missing canonical profile field: ' . $field );
 if ( strpos( $files['service'], 'weekly_hours' ) !== false || strpos( $files['service'], 'document_upload' ) !== false ) throw new RuntimeException( 'Speculative onboarding requirement introduced.' );

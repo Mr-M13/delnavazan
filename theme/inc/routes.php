@@ -12,7 +12,7 @@ function dzn_theme_route() {
 	$path = trim( (string) $path, '/' );
 	// Preserve the recovered public enrolment URL while the booking experience uses one canonical renderer.
 	if ( 'enrol' === $path ) { $path = 'booking'; }
-	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'admin-operations' );
+	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'admin-operations' );
 	return in_array( $path, $routes, true ) ? $path : '';
 }
 
@@ -60,6 +60,13 @@ function dzn_theme_portal_principal_available( $kind ) {
 }
 
 
+function dzn_theme_teacher_requires_onboarding() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOnboardingService';
+	if ( ! class_exists( $class ) ) { return true; }
+	try { return ( new $class() )->requiresOnboarding(); } catch ( Throwable $e ) { return true; }
+}
+
+
 function dzn_theme_operations_items() {
 	$items = array(
 		array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-platform', 'title' => 'وضعیت هسته', 'description' => 'سلامت و آمادگی Delnavazan Platform' ),
@@ -88,6 +95,28 @@ function dzn_theme_dashboard_destination() {
 	return '';
 }
 
+function dzn_theme_render_teacher_invitation_route() {
+	?>
+	<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1">
+		<section class="dzn-route__state" aria-labelledby="dzn-route-title">
+			<p class="dzn-eyebrow">دعوت مدرس</p><h1 id="dzn-route-title">اتصال حساب مدرس</h1>
+			<p>کد یک‌بارمصرفی را که از دلنوازان دریافت کرده‌اید وارد کنید. کد در نشانی صفحه ذخیره نمی‌شود.</p>
+			<?php if ( isset( $_GET['dzn_notice'] ) ) : ?><p role="status"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ); ?></p><?php endif; ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="dzn_teacher_invitation_claim"><?php wp_nonce_field( 'dzn_teacher_invitation_claim' ); ?>
+				<p><label>کد دعوت<br><input required autocomplete="one-time-code" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label></p>
+				<?php if ( ! is_user_logged_in() ) : ?>
+					<p><label>رمز عبور جدید (حداقل ۱۲ نویسه)<br><input required type="password" autocomplete="new-password" minlength="12" name="password"></label></p>
+					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="12" name="password_confirmation"></label></p>
+				<?php else : ?><p>این دعوت به حساب واردشدهٔ فعلی متصل می‌شود.</p><?php endif; ?>
+				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به حساب' : 'ساخت حساب و ادامه'; ?></button></p>
+			</form>
+			<?php if ( ! is_user_logged_in() ) : ?><p><a href="<?php echo esc_url( home_url( '/login/' ) ); ?>">قبلاً حساب دارید؟ ابتدا وارد شوید</a></p><?php endif; ?>
+		</section>
+	</main>
+	<?php
+}
+
 function dzn_theme_render_dashboard_route() {
 	$student = dzn_theme_portal_principal_available( 'student' );
 	$teacher = dzn_theme_portal_principal_available( 'teacher' );
@@ -106,6 +135,7 @@ function dzn_theme_render_portal_route( $kind ) {
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
 		$screen = in_array( $screen, array( 'home', 'account', 'onboarding' ), true ) ? $screen : 'home';
+		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;
 	}
@@ -159,6 +189,7 @@ function dzn_theme_render_virtual_route() {
 		case 'login': dzn_theme_render_login_route(); break;
 		case 'dashboard': dzn_theme_render_dashboard_route(); break;
 		case 'teacher-portal': dzn_theme_render_portal_route( 'teacher' ); break;
+		case 'teacher-invitation': dzn_theme_render_teacher_invitation_route(); break;
 		case 'student-portal': dzn_theme_render_portal_route( 'student' ); break;
 		case 'admin-operations': dzn_theme_render_admin_route(); break;
 	}

@@ -13,8 +13,20 @@ final class TeacherAvailabilityService {
         $this->repo->begin(); try { $teacherRow = $this->usableTeacher( $teacher ); $current = $this->repo->profileForUpdate( $teacher ); if ( $current && $current->timezone !== $timezone && $this->repo->childrenExist( (int) $current->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' ); $id = $this->repo->saveProfile( $teacher, $timezone, $status, $reason, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
+    public function setOwnProfile(array $input): int {
+        $teacher = $this->ownTeacher(); $input['teacher_id'] = $teacher; $input['status'] = 'active'; $input['reason_code'] = 'teacher_onboarding';
+        $timezone = $this->timezone( $input['timezone'] ?? null ); $now = current_time( 'mysql', true );
+        $this->repo->begin(); try { $this->usableTeacher( $teacher ); $current = $this->repo->profileForUpdate( $teacher ); if ( $current && $current->timezone !== $timezone && $this->repo->childrenExist( (int) $current->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' ); $id = $this->repo->saveProfile( $teacher, $timezone, 'active', 'teacher_onboarding', $now, get_current_user_id() ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+
     public function setRecurringRule(array $input): int {
         $this->admin(); $d = $this->rule( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveRule( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+
+    public function setOwnRecurringRule(array $input): int {
+        $teacher = $this->ownTeacher(); $input['teacher_id'] = $teacher; $input['status'] = 'active'; $input['reason_code'] = 'teacher_onboarding';
+        $d = $this->rule( $input ); $now = current_time( 'mysql', true );
+        $this->repo->begin(); try { $profile = $this->profileForMutation( $teacher, $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveRule( $d, $now, get_current_user_id() ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
     public function setDatedException(array $input): int {
@@ -59,6 +71,7 @@ final class TeacherAvailabilityService {
     }
     private function profileForMutation(int $teacher, string $timezone): object { $this->usableTeacher( $teacher ); $profile = $this->repo->profileForUpdate( $teacher ); if ( ! $profile || $profile->status !== 'active' || $profile->timezone !== $timezone ) throw new \InvalidArgumentException( 'Active Teacher availability profile with matching timezone required' ); return $profile; }
     private function usableTeacher(int $teacher): object { $row = $this->repo->teacherForUpdate( $teacher ); if ( ! $row || $row->status !== 'active' || $row->archived_at !== null ) throw new \InvalidArgumentException( 'Active Teacher required' ); return $row; }
+    private function ownTeacher(): int { $user = (int) get_current_user_id(); if ( $user < 1 ) throw new \RuntimeException( 'Unauthorized' ); $teacher = $this->repo->onboardingTeacherIdForUser( $user ); if ( ! $teacher ) throw new \RuntimeException( 'Teacher onboarding is not editable' ); return $teacher; }
     private function admin(): void { if ( ! current_user_can( 'dzn_manage_teacher_availability' ) ) throw new \RuntimeException( 'Unauthorized' ); }
     private function timezone(mixed $value): string { $timezone = Normalizer::timezone( $value ); if ( ! $timezone ) throw new \InvalidArgumentException( 'IANA timezone required' ); return $timezone; }
     private function time(mixed $value): string { $time = Normalizer::time( $value ); if ( ! $time ) throw new \InvalidArgumentException( 'Local time required' ); return $time; }

@@ -56,17 +56,109 @@ function dzn_theme_platform_history_item( array $lesson ) {
 	);
 }
 
-function dzn_theme_platform_student_model( $screen ) {
-	$service = dzn_theme_platform_portal_service();
-	if ( ! $service ) { return null; }
-	try { $data = $service->student(); } catch ( Throwable $e ) { return null; }
-	$identity = dzn_theme_platform_user_identity();
+/**
+ * Student Portal navigation, available for every presentation state.
+ *
+ * @param string $screen home|account.
+ * @return array
+ */
+function dzn_theme_platform_student_navigation( $screen ) {
 	$base_url = home_url( '/student-portal/' );
-	$navigation = array(
+
+	return array(
 		array( 'label' => 'خانه', 'url' => $base_url, 'current' => 'home' === $screen ),
 		array( 'label' => 'حساب کاربری', 'url' => add_query_arg( 'portal-view', 'account', $base_url ), 'current' => 'account' === $screen ),
 	);
+}
+
+/**
+ * A Portal model for a state that carries no student data.
+ *
+ * Used when the session is authenticated but not linked to a student principal,
+ * when the Platform read fails, or when the student has no enrolled data yet.
+ * The Theme must never present one of these as an empty-but-working portal.
+ *
+ * @param string $screen home|account.
+ * @param string $state  not_linked|error|no_data.
+ * @return array
+ */
+function dzn_theme_platform_student_state_model( $screen, $state ) {
+	return array(
+		'available'  => false,
+		'state'      => $state,
+		'screen'     => $screen,
+		'source'     => 'platform',
+		'student'    => array(),
+		'navigation' => dzn_theme_platform_student_navigation( $screen ),
+	);
+}
+
+/**
+ * Resolve the current session's canonical student read.
+ *
+ * Distinguishes "this session is not linked to a student" from "the read failed"
+ * so the portal can tell the learner the truth instead of showing one generic
+ * not-ready message. Only the declared principal-resolution refusals count as
+ * not-linked; anything else is an error.
+ *
+ * @return array{state:string,data?:array,reason?:string}
+ */
+function dzn_theme_platform_student_read() {
+	// Anonymous access is its own state: it must never be reported as an
+	// unlinked-but-authenticated learner.
+	if ( ! is_user_logged_in() ) { return array( 'state' => 'signed_out', 'reason' => 'portal_principal_required' ); }
+	$service = dzn_theme_platform_portal_service();
+	if ( ! $service ) { return array( 'state' => 'error', 'reason' => 'platform_unavailable' ); }
+	try {
+		return array( 'state' => 'ok', 'data' => $service->student() );
+	} catch ( Throwable $e ) {
+		$reason = (string) $e->getMessage();
+		$signed_out = array( 'portal_principal_required' );
+		$unlinked = array( 'portal_principal_unresolved', 'portal_principal_ambiguous', 'portal_principal_kind_not_permitted' );
+		$state = in_array( $reason, $signed_out, true )
+			? 'signed_out'
+			: ( in_array( $reason, $unlinked, true ) ? 'not_linked' : 'error' );
+		return array(
+			'state'  => $state,
+			'reason' => $reason,
+		);
+	}
+}
+
+/**
+ * Decide the portal state for a successful, canonical student read.
+ *
+ * An account with neither enrolments nor lessons has nothing canonical to show
+ * yet, so the portal says so rather than rendering an empty shell.
+ *
+ * An enrolment with zero lessons is deliberately a **different** case and stays
+ * a working portal: a newly enrolled learner may legitimately have no lesson
+ * scheduled yet, and the schedule arrives later from the Platform. Only the
+ * absence of both collections is a not-yet-enrolled state.
+ *
+ * @param array $lessons    Canonical lesson read models.
+ * @param array $enrolments Canonical enrolment read models.
+ * @return string ok|no_data
+ */
+function dzn_theme_platform_student_portal_state( array $lessons, array $enrolments ) {
+	if ( ! $lessons && ! $enrolments ) {
+		return 'no_data';
+	}
+
+	return 'ok';
+}
+
+function dzn_theme_platform_student_model( $screen ) {
+	$read = dzn_theme_platform_student_read();
+	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
+	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
+	$identity = dzn_theme_platform_user_identity();
+	$base_url = home_url( '/student-portal/' );
+	$navigation = dzn_theme_platform_student_navigation( $screen );
 	$lessons = is_array( $data['lessons'] ?? null ) ? $data['lessons'] : array();
+	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
+	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments );
+	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$past = array();
 	$future = array();
@@ -78,6 +170,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	usort( $past, static fn( $a, $b ) => strcmp( (string) $b['starts_at_utc'], (string) $a['starts_at_utc'] ) );
 	$model = array(
 		'available' => true,
+		'state' => 'ok',
 		'screen' => $screen,
 		'source' => 'platform',
 		'student' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ),
@@ -99,7 +192,6 @@ function dzn_theme_platform_student_model( $screen ) {
 		return $model;
 	}
 	$next = $future[0] ?? null;
-	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
 	$enrolment = $next ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
 	$model['announcement'] = array();
 	$model['upcoming_lesson'] = $next ? array(
@@ -139,17 +231,39 @@ add_filter( 'dzn_theme_student_portal_view_model', function( $model, $screen ) {
 }, 10, 2 );
 
 function dzn_theme_platform_teacher_model( $screen ) {
-	if ( 'onboarding' === $screen ) { return null; }
-	$service = dzn_theme_platform_portal_service();
-	if ( ! $service ) { return null; }
-	try { $data = $service->teacher(); } catch ( Throwable $e ) { return null; }
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/teacher-portal/' );
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'خانهٔ مدرس', 'url' => $base_url, 'current' => true ),
-		array( 'screen' => 'account', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'account', $base_url ), 'current' => false ),
-		array( 'screen' => 'onboarding', 'label' => 'شروع همکاری', 'url' => add_query_arg( 'teacher-view', 'onboarding', $base_url ), 'current' => false ),
+		array( 'screen' => 'home', 'label' => 'خانهٔ مدرس', 'url' => $base_url, 'current' => 'home' === $screen ),
+		array( 'screen' => 'account', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'account', $base_url ), 'current' => 'account' === $screen ),
+		array( 'screen' => 'onboarding', 'label' => 'شروع همکاری', 'url' => add_query_arg( 'teacher-view', 'onboarding', $base_url ), 'current' => 'onboarding' === $screen ),
 	);
+	$onboarding_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOnboardingService';
+	$onboarding = null;
+	if ( class_exists( $onboarding_class ) ) {
+		try { $onboarding = ( new $onboarding_class() )->currentForUser(); } catch ( Throwable $e ) { $onboarding = null; }
+	}
+	if ( 'onboarding' === $screen ) {
+		if ( ! $onboarding ) { return null; }
+		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
+		$parts = preg_split( '/\\s+/u', trim( $name ) );
+		$step = 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : ( 'active' === $onboarding['state'] && 'ready' === $onboarding['readiness_state'] ? 4 : 3 ) );
+		return array(
+			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
+			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
+			'navigation' => $nav, 'current_step' => $step, 'onboarding' => $onboarding,
+			'actions' => array(
+				'profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
+				'availability_profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_profile' ),
+				'availability_rule' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_rule' ),
+				'submit' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_submit' ),
+			),
+		);
+	}
+	if ( ! $onboarding || 'active' !== $onboarding['state'] || 'ready' !== $onboarding['readiness_state'] ) { return null; }
+	$service = dzn_theme_platform_portal_service();
+	if ( ! $service ) { return null; }
+	try { $data = $service->teacher(); } catch ( Throwable $e ) { return null; }
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
 	if ( 'account' === $screen ) {

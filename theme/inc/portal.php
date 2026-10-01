@@ -91,16 +91,52 @@ function dzn_theme_student_portal_view_model( $screen ) {
 	);
 
 	if ( ! is_array( $model ) ) {
-		return array(
-			'available' => false,
-			'screen'    => $screen,
-		);
+		return dzn_theme_student_portal_state_model( $screen, 'error' );
 	}
 
-	$model['available'] = true;
+	$state = isset( $model['state'] ) && is_string( $model['state'] ) ? $model['state'] : '';
+	if ( ! in_array( $state, array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data' ), true ) ) {
+		$state = ! empty( $model['available'] ) ? 'ok' : 'error';
+	}
+
+	// Fail closed by rebuilding, not by removing keys: an adapter can supply any
+	// shape, so no partial student payload may survive a non-ok state.
+	if ( 'ok' !== $state ) {
+		return dzn_theme_student_portal_state_model( $screen, $state );
+	}
+
+	$model['state']     = 'ok';
 	$model['screen']    = $screen;
+	$model['available'] = true;
 
 	return $model;
+}
+
+/**
+ * A Student Portal model for a state that carries no student data.
+ *
+ * The Theme fails closed on its own: if no adapter supplies a model at all, or
+ * the supplied state is not a recognised one, the portal reports that it is not
+ * available rather than rendering an empty-but-working shell.
+ *
+ * @param string $screen home|account.
+ * @param string $state  signed_out|not_linked|error|no_data.
+ * @return array
+ */
+function dzn_theme_student_portal_state_model( $screen, $state ) {
+	if ( ! in_array( $state, array( 'signed_out', 'not_linked', 'error', 'no_data' ), true ) ) {
+		$state = 'error';
+	}
+
+	return array(
+		'available'  => false,
+		'state'      => $state,
+		'screen'     => $screen,
+		'student'    => array(),
+		'navigation' => function_exists( 'dzn_theme_platform_student_navigation' )
+			? dzn_theme_platform_student_navigation( $screen )
+			: array(),
+	);
 }
 
 /**

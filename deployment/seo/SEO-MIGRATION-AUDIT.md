@@ -5,6 +5,18 @@ or staging. No deployment, no merge, no production access.
 **Date:** 2026-10-01 (Australia/Brisbane).
 **Owner of next steps:** CD (import, staging settings, Rank Math configuration), Hamed (booking URL decision).
 
+## Decisions recorded (CD, 2026-10-01)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| R1 | Staging must be explicitly non-indexable, and this is the only urgent item | **Implemented in this branch** as a fail-safe Theme crawl guard, plus the WordPress "Discourage search engines" setting as the primary control — see §3 |
+| R2 | Do not import the WXR yet; import deliberately when the rebuilt site is ready to reconcile old content | Deferred by CD |
+| R3 | Export Rank Math global settings from production **before cutover** (the WXR does not carry them) | Scheduled for pre-cutover |
+| R4 | `/enrol/` is the canonical booking URL: it exists in production, is referenced by the recovered homepage and preserves SEO continuity. `/booking/` may remain as an internal/compatibility alias but must canonicalise to `/enrol/` | Decided; implementation belongs to the booking surface (Hamed) and is **not** part of this branch |
+| R5 | Keep the recovered visual homepage. Do not revert to the old production page. Restore the useful SEO metadata/title/canonical behaviour separately; the H1 wording remains a product/content decision | Decided; mechanism is Rank Math homepage settings, not Theme code |
+| R6 | Restore the `Sitemap:` directive in `robots.txt` at cutover | Scheduled for cutover |
+| R7 | The four pending landing pages and the 94 single-use tags need a conscious content decision, but they do not block booking, student or teacher work | Deferred by CD |
+
 ## 1. Sources and method
 
 | Source | Detail |
@@ -102,12 +114,26 @@ an authoring task. Four further pending Persian landing pages carry focus keywor
 
 ## 3. Implemented changes in this branch
 
-Documentation only — no Theme, Platform, booking, portal or SEO-emission code was changed:
+The crawl guard (§R1) plus documentation. No Platform, booking, portal or SEO-emission code was
+changed, and production behaviour is untouched:
 
+- `theme/inc/crawl-guard.php` — off the public site (`delnavazan.com`, `www.delnavazan.com`) it forces
+  `noindex, nofollow, noarchive` through `wp_robots` and an `X-Robots-Tag` header, withholds the
+  WordPress core sitemap and drops `Sitemap:` lines from `robots.txt`. On the public site every filter
+  returns its input unchanged. It writes no settings and emits no SEO metadata of its own. A blanket
+  `Disallow: /` is deliberately not used, because crawlers must still be able to read the `noindex`.
+- `theme/functions.php` — loads `inc/crawl-guard.php`.
 - `deployment/seo/SEO-MIGRATION-AUDIT.md` (this file).
 - `deployment/seo/production-seo-baseline.csv` — the preservation baseline for titles, descriptions and
   focus keywords per URL.
 - `deployment/seo/url-migration-map.csv` — old URL → staging status today → target → action → owner.
+
+**Placement note (supersedes §6 R1's earlier suggestion):** this guard sits in the Theme rather than the
+Platform plugin because it must run on every request that renders a page, and the Theme is always active
+whereas the Platform plugin may not be. It is not SEO authority: it never writes titles, descriptions,
+canonicals, schema or a sitemap, and it is inert on the public host. The host list is filterable
+(`dzn_theme_public_site_hosts`) for a future domain change, and an unreadable host fails safe to
+non-indexable. If CD prefers Platform ownership, the file moves as a unit.
 
 No redirects were implemented. No URL was changed. Redirects are only required where a URL decision
 changes a path (see §4), and every such case is flagged for CD rather than assumed.
@@ -138,7 +164,7 @@ truth and must be exported before it can be reproduced.
 | --- | --- | --- |
 | `/`, 19 articles, `/articles/`, `/ostad/`, `/honarjo/`, `/pay/`, `/how/`, `/info/`, `/در-مورد-ما/`, teacher profile | index | Rank Math post/page defaults |
 | `/enrol/` | index (conversion landing page) | page-level Rank Math meta; requires the page object to be reachable (see S3) |
-| `/booking/` | canonical to `/enrol/`, or noindex | decision required |
+| `/booking/` | compatibility alias; canonicalises to `/enrol/` | **decided** (CD, 2026-10-01) — implementation belongs to the booking surface |
 | `/terms/`, `/privacy-policy/`, `/refund_returns/` | index once published | publish + Rank Math defaults |
 | `/payment-success/`, `/booking-received/`, `/booking-cancelled/`, `/cancellation-help/` | noindex | transactional pages; needs an explicit Rank Math noindex |
 | `/login/`, `/dashboard/`, `/student-portal/`, `/teacher-portal/`, `/admin-operations/` | noindex | not currently enforced (S4) |
@@ -150,11 +176,11 @@ truth and must be exported before it can be reproduced.
 
 | # | Recommendation | Owner |
 | --- | --- | --- |
-| R1 | Make staging non-indexable before it is linked anywhere: WordPress Settings → Reading → discourage search engines, or HTTP authentication, and stop advertising the core sitemap. If a code guard is preferred it belongs in the Platform plugin, not the Theme. | CD |
+| R1 | Make staging non-indexable before it is linked anywhere. **Implemented in this branch** (`theme/inc/crawl-guard.php`); the Dashboard → Settings → Reading "discourage search engines" switch and/or HTTP authentication remain the primary controls to set as well. | CD (setting) + this branch (guard) |
 | R2 | Import the export with "download and import file attachments" enabled, map author `delnavazan` to an administrator, and verify every slug against `production-seo-baseline.csv`. | CD |
 | R3 | Export Rank Math settings from production (Status & Tools → Import/Export) and import them on the target: titles/descriptions defaults, noindex rules for auth/tag/search, schema, sitemap. Per-post meta already travels in the WXR; global settings do not. | CD |
-| R4 | Decide the canonical booking URL (`/enrol/` vs `/booking/`) and render the booking experience through the real page object so Rank Math owns its title, description and canonical. Touches booking behaviour, so it is not part of this branch. | Hamed + CD |
-| R5 | Decide homepage parity: adopt production's H1/keyword framing inside the Theme composition, or render the imported page content. | CD + Ina |
+| R4 | **Decided: `/enrol/` is canonical**; `/booking/` stays a compatibility alias that must canonicalise to `/enrol/`, and the booking experience should render through the real page object so Rank Math owns its title, description and canonical. Touches booking behaviour, so it is not part of this branch. | Hamed + CD |
+| R5 | **Decided: keep the recovered visual homepage** and restore SEO metadata/title/canonical separately (Rank Math homepage settings); H1 wording stays a product/content decision. | CD + Ina |
 | R6 | Restore the `Sitemap:` directive in `robots.txt` on the public site after cutover. | CD |
 | R7 | Decide the fate of the four pending Persian landing pages and the 94 single-use tags before they become indexable. | CD |
 

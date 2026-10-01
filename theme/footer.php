@@ -5,69 +5,29 @@
  * @package DelnavazanTheme
  */
 
-$footer_logo_id      = 1308;
-$footer_instagram_id = 1341;
-$footer_whatsapp_id  = 1342;
-$footer_email_id     = 1340;
+$footer_logo_uri      = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
+$footer_instagram_uri = get_theme_file_uri( 'assets/images/contact-instagram.webp' );
+$footer_whatsapp_uri  = get_theme_file_uri( 'assets/images/contact-whatsapp.svg' );
+$footer_email_uri     = get_theme_file_uri( 'assets/images/contact-email.webp' );
 ?>
 <footer class="site-footer" role="contentinfo">
 	<div class="dzn-container site-footer__top">
 		<div class="site-footer__identity">
 			<div class="site-footer__logo-frame">
 				<a href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php esc_attr_e( 'خانهٔ دلنوازان', 'delnavazan-theme' ); ?>">
-					<?php
-					echo wp_get_attachment_image(
-						$footer_logo_id,
-						'full',
-						false,
-						array(
-							'class' => 'site-footer__logo-image',
-							'alt'   => '',
-						)
-					); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated attachment HTML.
-					?>
+					<img class="site-footer__logo-image" src="<?php echo esc_url( $footer_logo_uri ); ?>" alt="<?php esc_attr_e( 'دلنوازان', 'delnavazan-theme' ); ?>">
 				</a>
 			</div>
 		</div>
 		<div class="site-footer__actions" aria-label="<?php esc_attr_e( 'راه‌های تماس با دلنوازان', 'delnavazan-theme' ); ?>">
 			<a class="site-footer__action site-footer__action--whatsapp" href="https://wa.me/61413413004" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'گفت‌وگو با دلنوازان در واتساپ', 'delnavazan-theme' ); ?>">
-				<?php
-				echo wp_get_attachment_image(
-					$footer_whatsapp_id,
-					'full',
-					false,
-					array(
-						'class' => 'site-footer__action-icon',
-						'alt'   => '',
-					)
-				); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated attachment HTML.
-				?>
+				<img class="site-footer__action-icon" src="<?php echo esc_url( $footer_whatsapp_uri ); ?>" alt="">
 			</a>
 			<a class="site-footer__action site-footer__action--email" href="mailto:delnavazan@mail.com" aria-label="<?php esc_attr_e( 'ارسال ایمیل به دلنوازان', 'delnavazan-theme' ); ?>">
-				<?php
-				echo wp_get_attachment_image(
-					$footer_email_id,
-					'full',
-					false,
-					array(
-						'class' => 'site-footer__action-icon',
-						'alt'   => '',
-					)
-				); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated attachment HTML.
-				?>
+				<img class="site-footer__action-icon" src="<?php echo esc_url( $footer_email_uri ); ?>" alt="">
 			</a>
 			<a class="site-footer__action site-footer__action--instagram" href="https://www.instagram.com/insta.delnavazan/" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'اینستاگرام دلنوازان', 'delnavazan-theme' ); ?>">
-				<?php
-				echo wp_get_attachment_image(
-					$footer_instagram_id,
-					'full',
-					false,
-					array(
-						'class' => 'site-footer__action-icon',
-						'alt'   => '',
-					)
-				); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated attachment HTML.
-				?>
+				<img class="site-footer__action-icon" src="<?php echo esc_url( $footer_instagram_uri ); ?>" alt="">
 			</a>
 		</div>
 		
@@ -90,17 +50,7 @@ $footer_email_id     = 1340;
 </footer>
 <?php if ( is_front_page() ) : ?>
 	<a class="dzn-floating-whatsapp" href="https://wa.me/61413413004" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'گفت‌وگو با دلنوازان در واتساپ', 'delnavazan-theme' ); ?>">
-		<?php
-		echo wp_get_attachment_image(
-			$footer_whatsapp_id,
-			'full',
-			false,
-			array(
-				'class' => 'dzn-floating-whatsapp__icon',
-				'alt'   => '',
-			)
-		); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core-generated attachment HTML.
-		?>
+		<img class="dzn-floating-whatsapp__icon" src="<?php echo esc_url( $footer_whatsapp_uri ); ?>" alt="">
 		<span class="dzn-floating-whatsapp__label"><?php esc_html_e( 'پیام در واتساپ', 'delnavazan-theme' ); ?></span>
 	</a>
 <?php endif; ?>

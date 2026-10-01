@@ -49,7 +49,7 @@ function dzn_theme_render_booking_route(): void {
                         <h2 id="dzn-booking-instrument-title" tabindex="-1">با چه سازی می‌خواهید شروع کنید؟</h2>
                         <div class="dzn-booking__instrument-grid" role="group" aria-label="انتخاب ساز">
                             <?php foreach ( $options as $option ) : ?>
-                                <button class="dzn-booking__instrument" type="button" data-instrument-choice="<?php echo esc_attr( (string) $option['id'] ); ?>" aria-pressed="<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? 'true' : 'false'; ?>">
+                                <button class="dzn-booking__instrument<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? ' is-selected' : ''; ?>" type="button" data-instrument-choice="<?php echo esc_attr( (string) $option['id'] ); ?>" aria-pressed="<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? 'true' : 'false'; ?>">
                                     <span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span>
                                     <span class="dzn-booking__instrument-name"><?php echo esc_html( $option['name_fa'] ?: $option['name_en'] ); ?></span>
                                     <span class="dzn-booking__instrument-action">انتخاب ساز</span>

@@ -75,8 +75,9 @@
     let region = '';
     try { region = new Intl.Locale(navigator.language).region || ''; } catch { /* browser language has no region */ }
     if (!region) {
-      const zoneRegion = (detectedZone || '').split('/')[0];
-      region = ({ Australia: 'AU', Pacific: 'NZ', Asia: 'IR', Europe: 'GB', America: 'US' })[zoneRegion] || '';
+      if ((detectedZone || '').startsWith('Australia/')) region = 'AU';
+      else if ((detectedZone || '').startsWith('Pacific/')) region = 'NZ';
+      else if (detectedZone === 'Asia/Tehran') region = 'IR';
     }
     if (region && country.querySelector('option[value="' + region + '"]')) country.value = region;
     updatePhoneHint();

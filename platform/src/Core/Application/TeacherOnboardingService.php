@@ -59,7 +59,6 @@ final class TeacherOnboardingService {
                 'country_code' => Normalizer::country( $input['country_code'] ?? null ),
                 'city' => Normalizer::text( $input['city'] ?? null ),
                 'timezone' => Normalizer::timezone( $input['timezone'] ?? null ),
-                'timezone_source' => 'student_selected',
                 'locale' => Normalizer::locale( $input['locale'] ?? null ),
                 'calendar_preference' => Normalizer::one( $input['calendar_preference'] ?? '', array( 'auto', 'gregorian', 'persian' ), 'calendar' ),
             );

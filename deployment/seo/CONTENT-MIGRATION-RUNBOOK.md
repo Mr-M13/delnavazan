@@ -131,14 +131,22 @@ curl -sSI https://staging.delnavazan.com/ | grep -i x-robots-tag
 curl -sS -o /dev/null -w '%{http_code}\n' https://staging.delnavazan.com/wp-sitemap.xml   # expect 404
 ```
 
-## 7. Decisions required from CD
+## 7. Decisions confirmed by CD (2026-10-01)
 
-1. Confirm the `enrol` page should stay a `draft` in the imported site (R-1).
-2. Confirm whether the six overlapping media files (R-3) should be excluded from the package, which would
-   avoid duplicate logo derivatives at the cost of dropping two retired-site images.
-3. Confirm that excluding the retired presentation objects (global styles, fonts, navigation, custom CSS,
-   menus) is correct — this protects the rebuilt design and is the conservative reading of "preserve the
-   new homepage and navigation".
+1. The `enrol` page **stays `draft`** in the imported site (R-1 confirmed).
+2. The six overlapping media files **stay in the package**; the duplicate attachment objects are accepted
+   for now (R-3 confirmed).
+3. All retired presentation objects **remain excluded** — global styles, font faces/families, the
+   navigation block, the old theme's Additional CSS and the old `پانویس` menu (R-5 confirmed).
+
+The next controlled step is therefore: **staging import → immediate runbook verification** (§5, §6).
+
+### Merge timing for this branch
+
+This branch is tooling and documentation only. `deployment/sync-mirrors.sh` splits the deployable trees
+with `git subtree split --prefix=platform` and `--prefix=theme`, so `deployment/` is not part of either
+mirror and merging this branch cannot change what staging receives. The import remains a manual
+WordPress-admin action independent of the merge.
 
 ## 8. Explicit non-actions
 

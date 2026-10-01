@@ -24,6 +24,7 @@ final class PortalAuthenticatedReadService {
 
     public function teacher(): array {
         $principal = (new PortalPrincipalResolver())->resolve('teacher');
+        if ( ! ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository() )->hasActiveTeacherAuthority( (int) get_current_user_id(), (int) $principal['id'] ) ) throw new \InvalidArgumentException( 'teacher_onboarding_required' );
         $lessons = $this->lessonsFor('teacher', (int) $principal['id'], $principal);
         $assignments = $this->teacherAssignments((int) $principal['id'], $principal);
         return array(

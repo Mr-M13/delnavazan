@@ -48,3 +48,16 @@ add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingOption
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingAvailabilityPreviewRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );
+
+// Temporary staging-only bootstrap diagnostic; removed immediately after catalogue seed verification.
+add_action( 'rest_api_init', static function () {
+	if ( wp_parse_url( home_url( '/' ), PHP_URL_HOST ) !== 'staging.delnavazan.com' ) return;
+	register_rest_route( 'delnavazan-platform/v1', '/staging-seed-status', array(
+		'methods' => 'GET',
+		'permission_callback' => '__return_true',
+		'callback' => static function () { return new WP_REST_Response( array(
+			'status' => get_option( 'dzn_staging_booking_catalogue_seed_20261001', 'pending' ),
+			'error' => get_option( 'dzn_staging_booking_catalogue_seed_20261001_error', '' ),
+		), 200 ); },
+	) );
+} );

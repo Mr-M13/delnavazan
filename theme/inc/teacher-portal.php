@@ -44,7 +44,13 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 			&& in_array( $model['google_state'] ?? null, array( 'not_connected', 'connected', 'needs_attention', 'unavailable' ), true )
 			&& in_array( $model['payment_state'] ?? null, array( 'pending_verification', 'confirmed', 'paid', 'unavailable' ), true );
 	}
-	return 'onboarding' === $screen && is_int( $model['current_step'] ?? null ) && $model['current_step'] >= 1 && $model['current_step'] <= 7;
+	if ( 'onboarding' !== $screen || ! is_int( $model['current_step'] ?? null ) || $model['current_step'] < 1 || $model['current_step'] > 4 ) { return false; }
+	$onboarding = $model['onboarding'] ?? null; $actions = $model['actions'] ?? null;
+	return is_array( $onboarding ) && is_array( $actions ) && is_array( $onboarding['profile'] ?? null ) && is_array( $onboarding['availability_rules'] ?? null )
+		&& in_array( $onboarding['state'] ?? null, array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'offboarded' ), true )
+		&& in_array( $onboarding['readiness_state'] ?? null, array( 'not_ready', 'ready' ), true )
+		&& is_bool( $onboarding['can_edit'] ?? null ) && is_bool( $onboarding['can_submit'] ?? null )
+		&& ! array_filter( array( 'profile', 'availability_profile', 'availability_rule', 'submit' ), static fn( $key ) => ! dzn_theme_teacher_portal_text( $actions[ $key ] ?? null ) );
 }
 function dzn_theme_teacher_portal_text( $value ) { return is_string( $value ) && '' !== trim( $value ); }
 function dzn_theme_teacher_portal_teacher_valid( $teacher ) {

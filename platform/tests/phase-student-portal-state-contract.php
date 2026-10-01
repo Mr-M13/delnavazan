@@ -28,22 +28,39 @@ $bridge  = $read( $theme . '/inc/platform-bridge.php' );
 $shell   = $read( $theme . '/template-parts/portal/shell.php' );
 $profile = $read( $theme . '/template-parts/portal/profile.php' );
 
-/* 1. The view model never promotes an arbitrary model to "available". */
-if ( str_contains( $portal, '$model[\'available\'] = true;' ) ) {
-	$fail( 'portal view model still forces available=true' );
+/*
+ * 1. The view model never promotes an arbitrary model to "available".
+ *
+ * Availability is only granted after every non-ok state has been rebuilt from
+ * the safe state model, so an adapter cannot reach the working-portal path with
+ * a model the contract did not accept.
+ */
+$rebuild_at   = strpos( $portal, 'return dzn_theme_student_portal_state_model( $screen, $state );' );
+$available_at = strpos( $portal, '$model[\'available\'] = true;' );
+if ( false === $rebuild_at || false === $available_at || $available_at < $rebuild_at ) {
+	$fail( 'availability may only be granted after the non-ok states have been rebuilt' );
 }
-if ( ! str_contains( $portal, '$model[\'available\'] = ( \'ok\' === $state );' ) ) {
-	$fail( 'portal view model must derive availability from the declared state' );
-}
-foreach ( array( "'ok'", "'not_linked'", "'error'", "'no_data'" ) as $state ) {
+foreach ( array( "'ok'", "'signed_out'", "'not_linked'", "'error'", "'no_data'" ) as $state ) {
 	if ( ! str_contains( $portal, $state ) ) {
 		$fail( 'portal view model does not recognise state ' . $state );
 	}
 }
 
-/* 2. A non-ok state must not leak partial student data. */
-if ( ! str_contains( $portal, 'unset( $model[\'profile\']' ) ) {
-	$fail( 'non-ok portal states must clear student payloads' );
+/*
+ * 2. A non-ok state must not leak partial student data.
+ *
+ * The model is rebuilt from the safe state model rather than trimmed with a key
+ * denylist, so an adapter that supplies any payload shape cannot leave student
+ * identity behind.
+ */
+if ( str_contains( $portal, 'unset( $model[' ) ) {
+	$fail( 'non-ok states must be rebuilt, not trimmed by a key denylist' );
+}
+if ( ! str_contains( $portal, 'return dzn_theme_student_portal_state_model( $screen, $state );' ) ) {
+	$fail( 'every non-ok state must return the safe state model' );
+}
+if ( 1 !== preg_match( "/'student'\\s*=> array\\(\\),/", $portal ) ) {
+	$fail( 'the safe state model must clear student identity' );
 }
 
 /* 3. Principal refusals are distinguished from read failures. */
@@ -52,8 +69,24 @@ foreach ( array( 'portal_principal_required', 'portal_principal_unresolved', 'po
 		$fail( 'bridge does not classify ' . $reason );
 	}
 }
-if ( ! str_contains( $bridge, "'state'  => in_array( \$reason, \$unlinked, true ) ? 'not_linked' : 'error'," ) ) {
-	$fail( 'bridge must map only declared principal refusals to not_linked' );
+/*
+ * 3a. Anonymous access is not an unlinked account.
+ *
+ * `portal_principal_required` means "there is no authenticated user", which is a
+ * login-required state; only a resolved-but-missing or ambiguous link is
+ * not_linked.
+ */
+if ( ! str_contains( $bridge, "if ( ! is_user_logged_in() ) { return array( 'state' => 'signed_out', 'reason' => 'portal_principal_required' ); }" ) ) {
+	$fail( 'the bridge must resolve anonymous access before reading the Platform' );
+}
+if ( ! str_contains( $bridge, '$state = in_array( $reason, $signed_out, true )' ) ) {
+	$fail( 'bridge must separate anonymous access from principal-link failures' );
+}
+if ( ! str_contains( $bridge, "'signed_out'" ) || ! str_contains( $bridge, "'not_linked'" ) ) {
+	$fail( 'bridge must expose distinct signed_out and not_linked states' );
+}
+if ( ! str_contains( $bridge, "? 'signed_out'" ) || ! str_contains( $bridge, ": ( in_array( \$reason, \$unlinked, true ) ? 'not_linked' : 'error' );" ) ) {
+	$fail( 'portal_principal_required must map to signed_out and link failures to not_linked' );
 }
 if ( ! str_contains( $bridge, "if ( 'ok' !== \$state ) { return dzn_theme_platform_student_state_model( \$screen, \$state ); }" ) ) {
 	$fail( 'bridge must route every non-ok state through the no-data state model' );
@@ -101,8 +134,17 @@ foreach ( array( "'not_linked' === \$state", "'no_data' === \$state", "'error' =
 		$fail( 'portal shell is missing state branch: ' . $branch );
 	}
 }
+if ( ! str_contains( $shell, "'signed_out' === \$state" ) ) {
+	$fail( 'portal shell is missing the signed-out branch' );
+}
+if ( ! str_contains( $shell, 'wp_login_url' ) ) {
+	$fail( 'the signed-out state must offer a login action' );
+}
 if ( ! str_contains( $shell, 'wp_logout_url' ) ) {
 	$fail( 'portal shell must offer a logout route' );
+}
+if ( ! str_contains( $shell, "\$first_name = ( 'ok' === \$state && isset( \$student['first_name'] ) )" ) ) {
+	$fail( 'portal shell must only read identity for a working portal' );
 }
 
 /* 5. Authorization and canonical reads stay in the Platform. */

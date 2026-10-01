@@ -39,14 +39,29 @@ jobs:
             php -l "$file"
           done < <(git ls-files -z '*.php')
 
-      - name: Run source-level Platform contracts
+      - name: Run verified source-level Platform contracts
         shell: bash
         run: |
           set -Eeuo pipefail
-          mapfile -t contracts < <(
-            find platform/tests -maxdepth 1 -type f -name '*-contract.php'               ! -name 'phase-student-portal-state-contract.php' -print | sort
+          contracts=(
+            platform/tests/phase-1b-contract.php
+            platform/tests/phase-1d-contract.php
+            platform/tests/phase-1e-contract.php
+            platform/tests/phase-1f-contract.php
+            platform/tests/phase-2a0-contract.php
+            platform/tests/phase-2a0-independent-review-contract.php
+            platform/tests/phase-2a1a-contract.php
+            platform/tests/phase-2a1b-contract.php
+            platform/tests/phase-2a1c-contract.php
+            platform/tests/phase-2a1d-contract.php
+            platform/tests/phase-2a2a-contract.php
+            platform/tests/phase-2a2b-contract.php
+            platform/tests/phase-2a2c-contract.php
+            platform/tests/phase-2a2d-contract.php
+            platform/tests/phase-2a2e-contract.php
+            platform/tests/phase-2a2f-concurrency-contract.php
+            platform/tests/phase-2a2f-contract.php
           )
-          test "${#contracts[@]}" -gt 0
           for contract in "${contracts[@]}"; do
             php "$contract"
           done

@@ -8,6 +8,7 @@ final class TeacherAvailabilityRepository {
     public function begin(): void { global $wpdb; if ( $wpdb->query( 'START TRANSACTION' ) === false ) throw new \RuntimeException( 'Transaction start failed' ); }
     public function commit(): void { global $wpdb; if ( $wpdb->query( 'COMMIT' ) === false ) throw new \RuntimeException( 'Transaction commit failed' ); }
     public function rollback(): void { global $wpdb; $wpdb->query( 'ROLLBACK' ); }
+    public function onboardingTeacherIdForUser(int $userId): ?int { global $wpdb; $id = $wpdb->get_var( $wpdb->prepare( "SELECT l.teacher_id FROM {$this->prefix}teacher_principal_links l INNER JOIN {$this->prefix}teacher_onboarding_states o ON o.teacher_id=l.teacher_id WHERE l.wordpress_user_id=%d AND l.status='active' AND l.revoked_at IS NULL AND o.state IN ('linked_pending','in_progress','returned','rejected') LIMIT 1", $userId ) ); return $id ? (int) $id : null; }
     public function teacherForUpdate(int $id): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teachers WHERE id=%d FOR UPDATE", $id ) ); }
     public function acceptingForUpdate(int $teacher): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_accepting_states WHERE teacher_id=%d FOR UPDATE", $teacher ) ); }
     public function profileForUpdate(int $teacher): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_availability_profiles WHERE teacher_id=%d FOR UPDATE", $teacher ) ); }

@@ -61,5 +61,13 @@
 			) );
 			?>
 		</nav>
+		<div class="site-header__account" aria-label="<?php esc_attr_e( 'حساب کاربری', 'delnavazan-theme' ); ?>">
+			<?php if ( is_user_logged_in() ) : ?>
+				<a class="site-header__account-link" href="<?php echo esc_url( home_url( '/dashboard/' ) ); ?>"><?php esc_html_e( 'حساب من', 'delnavazan-theme' ); ?></a>
+				<a class="site-header__account-link site-header__logout" href="<?php echo esc_url( wp_logout_url( home_url( '/login/?auth=loggedout' ) ) ); ?>"><?php esc_html_e( 'خروج', 'delnavazan-theme' ); ?></a>
+			<?php else : ?>
+				<a class="site-header__account-link site-header__login" href="<?php echo esc_url( home_url( '/login/' ) ); ?>"><?php esc_html_e( 'ورود', 'delnavazan-theme' ); ?></a>
+			<?php endif; ?>
+		</div>
 	</div>
 </header>

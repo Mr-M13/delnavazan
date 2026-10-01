@@ -7,6 +7,8 @@ defined( 'ABSPATH' ) || exit( 1 );
 
 use Delnavazan\Platform\Core\Application\PrincipalInvitationService;
 use Delnavazan\Platform\Core\Application\TeacherService;
+use Delnavazan\Platform\Core\Application\TeacherAvailabilityService;
+use Delnavazan\Platform\Core\Application\TeacherOnboardingService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
 
 function dzn_phase_2a0_ready_teacher_guard(): int {
@@ -42,7 +44,19 @@ function dzn_phase_2a0_create_ready_teacher_fixture(): array {
         $service->beginExistingClaim( $secret, $user, $command );
         $service->finalizeClaim( $command, $user );
         $finalized = true;
+        if ( ( new PrincipalInvitationRepository() )->hasActiveTeacherAuthority( $user, $teacher ) ) throw new RuntimeException( 'Claim must remain onboarding-pending.' );
+        $availability = new TeacherAvailabilityService();
+        $availability->setOwnProfile( array( 'timezone' => 'Asia/Tehran' ) );
+        $availability->setOwnRecurringRule( array( 'weekday' => 6, 'local_start_time' => '10:00:00', 'local_end_time' => '11:00:00', 'state' => 'requestable', 'timezone' => 'Asia/Tehran' ) );
+        $onboarding = new TeacherOnboardingService();
+        $onboarding->refreshOwnProgress();
+        $onboarding->submitOwn();
         wp_set_current_user( $admin );
+        $onboarding->review( $teacher, 'return', 'isolated_fixture_changes_requested' );
+        wp_set_current_user( $user ); $onboarding->submitOwn();
+        wp_set_current_user( $admin ); $onboarding->review( $teacher, 'reject', 'isolated_fixture_rejected' );
+        wp_set_current_user( $user ); $onboarding->submitOwn();
+        wp_set_current_user( $admin ); $onboarding->review( $teacher, 'approve' );
         if ( ! ( new PrincipalInvitationRepository() )->hasActiveTeacherAuthority( $user, $teacher ) ) throw new RuntimeException( 'Ready-teacher fixture failed.' );
         unset( $payload, $secret, $recipient );
         return array( 'teacher_id' => $teacher, 'wordpress_user_id' => $user, 'admin_user_id' => $admin );

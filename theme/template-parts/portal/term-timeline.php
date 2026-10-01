@@ -12,7 +12,8 @@ if ( ! $term ) {
 }
 
 $completed = isset( $term['completed'] ) ? max( 0, (int) $term['completed'] ) : 0;
-$total = isset( $term['total'] ) ? max( 1, (int) $term['total'] ) : 1;
+$recorded = isset( $term['total'] ) ? max( 0, (int) $term['total'] ) : 0;
+$total = max( 1, $recorded );
 $completed = min( $completed, $total );
 ?>
 <section class="dzn-portal-section dzn-term" aria-labelledby="dzn-term-title">
@@ -23,6 +24,9 @@ $completed = min( $completed, $total );
 		</div>
 		<p class="dzn-term__count"><?php echo esc_html( $term['current_label'] ?? '' ); ?></p>
 	</div>
+	<?php if ( $recorded < 1 ) : ?>
+		<p class="dzn-portal-empty"><?php esc_html_e( 'ثبت‌نام شما فعال است، اما برنامهٔ جلسه‌ها هنوز از سوی دلنوازان اعلام نشده است. به‌محض نهایی‌شدن زمان‌ها، همین‌جا نمایش داده می‌شود.', 'delnavazan-theme' ); ?></p>
+	<?php else : ?>
 	<progress class="dzn-term__progress" value="<?php echo esc_attr( $completed ); ?>" max="<?php echo esc_attr( $total ); ?>"><?php echo esc_html( sprintf( '%1$d از %2$d', $completed, $total ) ); ?></progress>
 	<ol class="dzn-term__markers" aria-label="<?php esc_attr_e( 'جلسه‌های ترم', 'delnavazan-theme' ); ?>">
 		<?php for ( $session = 1; $session <= $total; $session++ ) : ?>
@@ -41,4 +45,5 @@ $completed = min( $completed, $total );
 			<p><?php echo esc_html( $term['academy_owed_remedial'] ?? 'اطلاعاتی ثبت نشده است' ); ?></p>
 		</div>
 	</div>
+	<?php endif; ?>
 </section>

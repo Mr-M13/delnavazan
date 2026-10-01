@@ -8,10 +8,10 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '33' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '34' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'phase2a3-booking-experience-read-contract-20260930.1' );
+define( 'DZN_PLATFORM_BUILD_ID', 'teacher-onboarding-v1-20261001.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', true );
@@ -38,6 +38,8 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\FinanceReconciliationController::register();
 	Delnavazan\Platform\Admin\Controller\CoreDatasetReadinessController::register();
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
+	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
+	Delnavazan\Platform\Portals\TeacherInvitationController::register();
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureCapability(new Delnavazan\Platform\Core\Application\CanonicalLessonPortalCapabilityOwner());
 	require_once DZN_PLATFORM_DIR . 'src/Core/Application/PortalOwnerReadPorts.php';
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureReadPorts(new Delnavazan\Platform\Core\Application\CanonicalTeacherAssignmentPortalReadPort(),new Delnavazan\Platform\Core\Application\CanonicalLessonSchedulePortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryPortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalAttendancePortalReadPortImpl());

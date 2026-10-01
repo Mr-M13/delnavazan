@@ -29,6 +29,7 @@ Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
 add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
+	Delnavazan\Platform\Core\Application\StagingBookingCatalogueBootstrap::maybeRun();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();

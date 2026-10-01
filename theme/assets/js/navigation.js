@@ -8,17 +8,17 @@
     return;
   }
 
-  button.hidden = false;
-
   const desktopQuery = window.matchMedia('(min-width: 64rem)');
 
   const syncNavigation = () => {
     if (desktopQuery.matches) {
+      button.hidden = true;
       navigation.hidden = false;
       button.setAttribute('aria-expanded', 'false');
       return;
     }
 
+    button.hidden = false;
     navigation.hidden = button.getAttribute('aria-expanded') !== 'true';
   };
 

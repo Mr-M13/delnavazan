@@ -118,6 +118,29 @@ function dzn_theme_platform_student_read() {
 	}
 }
 
+/**
+ * Decide the portal state for a successful, canonical student read.
+ *
+ * An account with neither enrolments nor lessons has nothing canonical to show
+ * yet, so the portal says so rather than rendering an empty shell.
+ *
+ * An enrolment with zero lessons is deliberately a **different** case and stays
+ * a working portal: a newly enrolled learner may legitimately have no lesson
+ * scheduled yet, and the schedule arrives later from the Platform. Only the
+ * absence of both collections is a not-yet-enrolled state.
+ *
+ * @param array $lessons    Canonical lesson read models.
+ * @param array $enrolments Canonical enrolment read models.
+ * @return string ok|no_data
+ */
+function dzn_theme_platform_student_portal_state( array $lessons, array $enrolments ) {
+	if ( ! $lessons && ! $enrolments ) {
+		return 'no_data';
+	}
+
+	return 'ok';
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -127,8 +150,8 @@ function dzn_theme_platform_student_model( $screen ) {
 	$navigation = dzn_theme_platform_student_navigation( $screen );
 	$lessons = is_array( $data['lessons'] ?? null ) ? $data['lessons'] : array();
 	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
-	// Linked, authorised, but nothing canonical to show yet: an honest not-yet-enrolled state.
-	if ( ! $lessons && ! $enrolments ) { return dzn_theme_platform_student_state_model( $screen, 'no_data' ); }
+	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments );
+	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$past = array();
 	$future = array();

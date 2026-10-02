@@ -354,7 +354,7 @@
     return false;
   };
 
-  const addPreference = (value, status) => {
+  const addPreference = async (value, status) => {
     showError('');
     if (!activeInstrument()) { showError('ابتدا ساز موردنظر را انتخاب کنید.'); goTo('instrument'); return; }
     if (!selectedDate || !timezone.value) { showError('روز و منطقهٔ زمانی را انتخاب کنید.'); return; }
@@ -365,6 +365,7 @@
     renderSlots();
     renderTimeOptions();
     renderCalendar();
+    await assessSlots();
   };
 
   root.querySelector('[data-calendar-prev]').addEventListener('click', () => {

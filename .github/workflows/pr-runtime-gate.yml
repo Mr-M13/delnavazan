@@ -70,6 +70,8 @@ jobs:
             php "$contract"
           done
           php platform/tests/phase-2a3-iran-quiet-hours.php
+          php platform/tests/phase-2a3-day-availability-contract.php
+          php platform/tests/booking-day-grid-theme-contract.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php
           else

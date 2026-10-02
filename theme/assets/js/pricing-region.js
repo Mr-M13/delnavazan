@@ -40,7 +40,7 @@
     manuallySelected = true;
     showRegion(stored, 'manual');
   } else {
-    showNeutral('منطقهٔ قیمت‌گذاری را انتخاب کنید.');
+    showNeutral('واحد پول بر اساس موقعیت تقریبی دستگاه شما پیشنهاد می‌شود. اگر نادرست است، منطقه را تغییر دهید یا با ما تماس بگیرید.');
   }
 
   if (select) select.addEventListener('change', () => {

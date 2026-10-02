@@ -2,7 +2,9 @@
 use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
 use Delnavazan\Platform\Core\Application\RequestedTimeNormalizer;
 
+require dirname( __DIR__ ) . '/src/Core/Application/Normalizer.php';
 require dirname( __DIR__ ) . '/src/Core/Application/AvailabilityLocalTime.php';
+require dirname( __DIR__ ) . '/src/Core/Application/BookingAvailabilityPolicy.php';
 require dirname( __DIR__ ) . '/src/Core/Application/RequestedTimeNormalizer.php';
 
 $occupiedInterval = static function ( string $date, string $time, string $timezone ): array {

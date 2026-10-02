@@ -12,6 +12,11 @@ function dzn_theme_booking_options(): array {
 
 function dzn_theme_render_booking_route(): void {
     $options = dzn_theme_booking_options();
+    $belt_order = array( 'پیانو', 'تار', 'سه‌تار', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
+    $belt_rank = array_flip( $belt_order );
+    usort( $options, static function ( $a, $b ) use ( $belt_rank ) {
+        return ( $belt_rank[ $a['name_fa'] ] ?? PHP_INT_MAX ) <=> ( $belt_rank[ $b['name_fa'] ] ?? PHP_INT_MAX );
+    } );
     $default_timezone = wp_timezone_string();
     if ( ! $default_timezone || ! in_array( $default_timezone, timezone_identifiers_list(), true ) ) { $default_timezone = 'UTC'; }
     $requested = isset( $_GET['instrument'] ) && is_string( $_GET['instrument'] ) ? sanitize_text_field( wp_unslash( $_GET['instrument'] ) ) : '';
@@ -21,6 +26,7 @@ function dzn_theme_render_booking_route(): void {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
     $instrument_images = array( 'avaz' => 'C-Avaz.webp', 'vocal' => 'C-Avaz.webp', 'piano' => 'C-Piano.webp', 'tar' => 'C-Tar.webp', 'setar' => 'C-Setar.webp', 'santur' => 'C-santour.webp', 'tombak' => 'C-Tombak.webp', 'kamancheh' => 'C-Kamancheh.webp', 'daf' => 'C-Daf.webp', 'tanboor' => 'C-Tanboor.webp', 'tanbur' => 'C-Tanboor.webp', 'ney' => 'C-Ney.webp', 'violin' => 'C-Violin.webp', 'guitar' => 'C-Guitar.webp' );
+    $instrument_images_fa = array( 'آواز' => 'C-Avaz.webp', 'پیانو' => 'C-Piano.webp', 'تار' => 'C-Tar.webp', 'سه‌تار' => 'C-Setar.webp', 'سنتور' => 'C-santour.webp', 'تنبک' => 'C-Tombak.webp', 'کمانچه' => 'C-Kamancheh.webp', 'دف' => 'C-Daf.webp', 'تنبور' => 'C-Tanboor.webp', 'نی' => 'C-Ney.webp', 'ویولن' => 'C-Violin.webp', 'گیتار' => 'C-Guitar.webp' );
     ?>
     <main id="main-content" class="site-main dzn-booking" tabindex="-1">
         <div class="dzn-container dzn-booking__container">
@@ -51,7 +57,7 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__instrument-grid" role="group" aria-label="انتخاب ساز">
                             <?php foreach ( $options as $option ) : ?>
                                 <button class="dzn-booking__instrument<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? ' is-selected' : ''; ?>" type="button" data-instrument-choice="<?php echo esc_attr( (string) $option['id'] ); ?>" aria-pressed="<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? 'true' : 'false'; ?>">
-                                    <?php if ( isset( $instrument_images[ $option['slug'] ] ) ) : ?><img class="dzn-booking__instrument-image" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/' . $instrument_images[ $option['slug'] ] ) ); ?>" alt=""><?php else : ?><span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span><?php endif; ?>
+                                    <?php $instrument_image = $instrument_images[ $option['slug'] ] ?? $instrument_images_fa[ $option['name_fa'] ] ?? null; if ( $instrument_image ) : ?><img class="dzn-booking__instrument-image" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/' . $instrument_image ) ); ?>" alt=""><?php else : ?><span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span><?php endif; ?>
                                     <span class="dzn-booking__instrument-name"><?php echo esc_html( $option['name_fa'] ?: $option['name_en'] ); ?></span>
                                     <span class="dzn-booking__instrument-action">انتخاب دوره</span>
                                 </button>

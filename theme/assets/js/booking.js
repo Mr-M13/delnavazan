@@ -199,20 +199,25 @@
     blockedTimes.clear();
     renderTimeOptions();
     try {
-      const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instrument_id: Number(instrument.value),
-          course_id: Number(selectedOption().dataset.course),
-          requested_times: candidateTimes.map((time) => ({ local_date: selectedDate, local_start_time: time, timezone: timezone.value }))
-        })
-      });
-      const result = await response.json();
-      if (!response.ok || !Array.isArray(result.times) || result.times.length !== candidateTimes.length) throw new Error('availability_grid_failed');
+      const batches = [];
+      for (let index = 0; index < candidateTimes.length; index += 3) batches.push(candidateTimes.slice(index, index + 3));
+      const batchResults = [];
+      for (const batch of batches) {
+        const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instrument_id: Number(instrument.value),
+            course_id: Number(selectedOption().dataset.course),
+            requested_times: batch.map((time) => ({ local_date: selectedDate, local_start_time: time, timezone: timezone.value }))
+          })
+        });
+        const result = await response.json();
+        if (!response.ok || !Array.isArray(result.times) || result.times.length !== batch.length) throw new Error('availability_grid_failed');
+        batchResults.push(...result.times.map((row, index) => ({ time: batch[index], row })));
+      }
       if (requestId !== gridAvailabilityRequestId) return;
-      result.times.forEach((row, index) => {
-        const time = candidateTimes[index];
+      batchResults.forEach(({ time, row }) => {
         if (!row || !['strong', 'possible', 'none', 'blocked'].includes(row.status)) return;
         availabilityByTime.set(selectedDate + '|' + time, row);
         if (row.status === 'blocked') blockedTimes.add(selectedDate + '|' + time);
@@ -235,7 +240,6 @@
       renderTimeOptions();
     }
   };
-
   const renderSlots = () => {
     timesList.replaceChildren();
     slots.forEach((slot, index) => {

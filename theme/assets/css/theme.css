@@ -3601,11 +3601,34 @@
      ======================================================= */
 
   .dzn-pricing {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+
     background:
       var(--dzn-color-text-secondary);
 
     color:
       var(--dzn-color-on-action);
+  }
+
+  /* The supplied motif is already softly washed; keep most of its native presence. */
+  .dzn-pricing::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background-image: url("../images/Motif.webp");
+    background-position: center;
+    background-repeat: repeat;
+    background-size: clamp(18rem, 34vw, 30rem) auto;
+    content: "";
+    opacity: .78;
+    pointer-events: none;
+  }
+
+  .dzn-pricing > * {
+    position: relative;
+    z-index: 1;
   }
 
   .dzn-pricing__grid {
@@ -7028,6 +7051,23 @@ a.dzn-nav-action:focus-visible {
     background: var(--dzn-color-accent);
     box-shadow: 0 .5rem 1.15rem rgb(147 55 42 / .14);
     content: "";
+    transform: translateX(-50%);
+  }
+
+  /* Smaller motif texture keeps the sticky red chapter bands visually distinct while scrolling. */
+  .dzn-story__chapter::after {
+    position: absolute;
+    z-index: -1;
+    inset-block: -.65rem;
+    inset-inline-start: 50%;
+    inline-size: 100vw;
+    background-image: url("../images/Motif.webp");
+    background-position: center;
+    background-repeat: repeat;
+    background-size: clamp(7rem, 13vw, 11rem) auto;
+    content: "";
+    opacity: .72;
+    pointer-events: none;
     transform: translateX(-50%);
   }
 

@@ -36,6 +36,8 @@ function dzn_theme_render_route_state( $title, $message, $action_label = '', $ac
 }
 
 function dzn_theme_render_login_route() {
+	$requested_redirect = isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] ) ? wp_unslash( $_GET['redirect_to'] ) : '';
+	$redirect_to = $requested_redirect ? wp_validate_redirect( $requested_redirect, home_url( '/dashboard/' ) ) : home_url( '/dashboard/' );
 	if ( is_user_logged_in() ) {
 		dzn_theme_render_route_state( 'شما وارد شده‌اید', 'برای ادامه، داشبورد حساب خود را باز کنید.', 'رفتن به داشبورد', home_url( '/dashboard/' ), 'خروج از حساب', wp_logout_url( home_url( '/' ) ) );
 		return;
@@ -46,7 +48,7 @@ function dzn_theme_render_login_route() {
 			<p class="dzn-eyebrow">ورود امن</p>
 			<h1 id="dzn-route-title">ورود به دلنوازان</h1>
 			<p>هنرجویان و مدرسان با همان حساب ثبت‌شده در دلنوازان وارد می‌شوند.</p>
-			<?php wp_login_form( array( 'redirect' => home_url( '/dashboard/' ), 'label_username' => 'ایمیل یا نام کاربری', 'label_password' => 'رمز عبور', 'label_log_in' => 'ورود', 'label_remember' => 'مرا به خاطر بسپار', 'remember' => true ) ); ?>
+			<?php wp_login_form( array( 'redirect' => $redirect_to, 'label_username' => 'ایمیل یا نام کاربری', 'label_password' => 'رمز عبور', 'label_log_in' => 'ورود', 'label_remember' => 'مرا به خاطر بسپار', 'remember' => true ) ); ?>
 			<p><a href="<?php echo esc_url( wp_lostpassword_url( home_url( '/login/' ) ) ); ?>">رمز عبور را فراموش کرده‌اید؟</a></p>
 		</section>
 	</main>
@@ -129,8 +131,9 @@ function dzn_theme_render_dashboard_route() {
 
 function dzn_theme_render_portal_route( $kind ) {
 	if ( ! is_user_logged_in() ) {
-		dzn_theme_render_route_state( 'ورود لازم است', 'برای دیدن اطلاعات پرتال، ابتدا با حساب خود وارد شوید.', 'ورود به حساب', home_url( '/login/' ) );
-		return;
+		$portal_url = home_url( 'teacher' === $kind ? '/teacher-portal/' : '/student-portal/' );
+		wp_safe_redirect( add_query_arg( 'redirect_to', $portal_url, home_url( '/login/' ) ) );
+		exit;
 	}
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';

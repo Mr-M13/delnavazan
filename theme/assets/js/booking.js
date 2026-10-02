@@ -13,9 +13,6 @@
   const timesList = root.querySelector('[data-times]');
   const preferenceCount = root.querySelector('[data-preference-count]');
   const errorBox = root.querySelector('[data-error]');
-  const whatsappSame = root.querySelector('[data-whatsapp-same]');
-  const whatsappExtra = root.querySelector('[data-whatsapp-extra]');
-  const whatsapp = root.querySelector('[data-whatsapp]');
   const country = root.querySelector('[data-contact="country"]');
   const slots = [];
   let idempotencyKey = '';
@@ -143,37 +140,26 @@
     const maxMonth = new Date(latest.getFullYear(), latest.getMonth(), 1);
     next.disabled = dateCursor >= maxMonth;
   };
-  const timesByPeriod = [
-    ['صبح', ['08:00', '09:00', '10:00', '11:00']],
-    ['بعدازظهر', ['12:00', '13:00', '14:00', '15:00', '16:00', '17:00']],
-    ['نیمه‌شب', ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00']],
-    ['صبح', ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00']],
-    ['بعدازظهر', ['12:00', '13:00', '14:00', '15:00', '16:00', '17:00']],
-    ['عصر', ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00']]
-  ];
+  const candidateTimes = Array.from({ length: 32 }, (_, index) => {
+    const minutes = index * 45;
+    return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
+  });
   const renderTimeOptions = () => {
     timeOptions.replaceChildren();
-    timesByPeriod.forEach(([period, times]) => {
-      const group = document.createElement('div');
-      group.className = 'dzn-booking__time-group';
-      const title = document.createElement('h4');
-      title.textContent = period;
-      const buttons = document.createElement('div');
-      buttons.className = 'dzn-booking__time-buttons';
-      times.forEach((value) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = faDigits(value);
-        const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
-        button.className = 'dzn-booking__time-option' + (existing && ['strong', 'possible', 'none'].includes(existing.status) ? ' is-' + existing.status : '');
-        button.setAttribute('dir', 'ltr');
-        button.disabled = slots.length >= 3 || slots.some((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
-        button.addEventListener('click', () => addPreference(value));
-        buttons.append(button);
-      });
-      group.append(title, buttons);
-      timeOptions.append(group);
+    const buttons = document.createElement('div');
+    buttons.className = 'dzn-booking__time-buttons';
+    candidateTimes.forEach((value) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = faDigits(value);
+      const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
+      button.className = 'dzn-booking__time-option' + (existing && ['strong', 'possible', 'none'].includes(existing.status) ? ' is-' + existing.status : '');
+      button.setAttribute('dir', 'ltr');
+      button.disabled = slots.length >= 3 || Boolean(existing);
+      button.addEventListener('click', () => addPreference(value));
+      buttons.append(button);
     });
+    timeOptions.append(buttons);
   };
 
   const renderSlots = () => {
@@ -209,7 +195,6 @@
         renderSlots();
         renderTimeOptions();
         renderCalendar();
-        assessSlots();
       });
       item.append(details, remove);
       timesList.append(item);
@@ -219,7 +204,7 @@
   const assessSlots = async () => {
     const requestId = ++availabilityRequestId;
     availabilityPreviewFailed = false;
-    if (!activeInstrument() || !slots.length || !timezone.value) return;
+    if (!activeInstrument() || !slots.length || !timezone.value) return false;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
     slots.forEach((slot) => { slot.status = 'checking'; slot.teacher_times = []; });
     renderSlots();
@@ -235,7 +220,7 @@
       });
       const result = await response.json();
       if (!response.ok || !Array.isArray(result.times) || result.times.length !== slots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
-      if (requestId !== availabilityRequestId) return;
+      if (requestId !== availabilityRequestId) return false;
       result.times.forEach((row, index) => {
         if (slots[index]) {
           slots[index].status = row.status;
@@ -245,16 +230,21 @@
       const blocked = slots.filter((slot) => slot.status === 'blocked');
       if (blocked.length) {
         blocked.forEach((slot) => slots.splice(slots.indexOf(slot), 1));
-        showError('این ساعت در دسترس نیست. زمان دیگری را انتخاب کنید.');
+        renderSlots();
+        renderTimeOptions();
+        renderCalendar();
+        return false;
       }
+      return true;
     } catch {
-      if (requestId !== availabilityRequestId) return;
+      if (requestId !== availabilityRequestId) return false;
       availabilityPreviewFailed = true;
       slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
     }
     renderSlots();
     renderTimeOptions();
     renderCalendar();
+    return false;
   };
 
   const addPreference = (value) => {
@@ -263,11 +253,10 @@
     if (!selectedDate || !timezone.value) { showError('روز و منطقهٔ زمانی را انتخاب کنید.'); return; }
     if (slots.length >= 3) { showError('حداکثر سه زمان پیشنهادی می‌توانید اضافه کنید.'); return; }
     if (slots.some((slot) => slot.local_date === selectedDate && slot.local_start_time === value)) { showError('این زمان را قبلاً اضافه کرده‌اید.'); return; }
-    slots.push({ local_date: selectedDate, local_start_time: value, status: 'checking' });
+    slots.push({ local_date: selectedDate, local_start_time: value, status: null, teacher_times: [] });
     renderSlots();
     renderTimeOptions();
     renderCalendar();
-    assessSlots();
   };
 
   root.querySelector('[data-calendar-prev]').addEventListener('click', () => {
@@ -296,13 +285,6 @@
       instrument.dispatchEvent(new Event('change', { bubbles: true }));
     });
   });
-  timezone.addEventListener('change', assessSlots);
-  whatsappSame.addEventListener('change', () => {
-    whatsappExtra.hidden = whatsappSame.checked;
-    whatsapp.required = !whatsappSame.checked;
-  });
-  whatsappExtra.hidden = whatsappSame.checked;
-
   const currentStep = () => root.querySelector('.dzn-booking__step.is-active')?.dataset.step || 'instrument';
   const goTo = (name) => {
     showError('');
@@ -340,7 +322,7 @@
       ['ایمیل', fieldValue('email')],
       ['موبایل', fieldValue('mobile')],
       ['کشور و شهر', fieldValue('country').toUpperCase() + ' · ' + fieldValue('city')],
-      ['واتساپ', whatsappSame.checked ? fieldValue('mobile') : whatsapp.value.trim()]
+      ['واتساپ', fieldValue('mobile')]
     ];
     const dl = document.createElement('dl');
     rows.forEach(([label, text]) => {
@@ -377,10 +359,6 @@
     }
     if (currentStep() === 'availability') {
       if (!slots.length) { showError('برای ادامه دست‌کم یک زمان پیشنهادی انتخاب کنید.'); root.querySelector('[data-calendar]')?.focus(); return; }
-      if (availabilityPreviewFailed) { showError('بررسی زمان‌ها انجام نشد. دوباره تلاش می‌کنیم…'); assessSlots(); return; }
-      if (slots.some((slot) => slot.status === 'checking')) { showError('لطفاً تا پایان بررسی زمان‌ها صبر کنید.'); return; }
-      if (slots.some((slot) => slot.status === 'blocked')) { showError('برخی از زمان‌های پیشنهادی طبق سیاست دلنوازان قابل درخواست نیستند. آن‌ها را حذف کنید یا زمان دیگری پیشنهاد دهید.'); const blockedIndex = slots.findIndex((slot) => slot.status === 'blocked');
-        timesList.children[blockedIndex]?.querySelector('.dzn-booking__remove')?.focus(); return; }
       if (!timezone.value) { showError('منطقهٔ زمانی را انتخاب کنید.'); timezone.focus(); return; }
     }
     goTo(next);
@@ -390,6 +368,12 @@
   root.querySelector('[data-submit]').addEventListener('click', async (event) => {
     showError('');
     if (!validateSection('contact')) return;
+    const availabilityOk = await assessSlots();
+    if (!availabilityOk) {
+      showError(availabilityPreviewFailed ? 'بررسی زمان‌ها انجام نشد. لطفاً دوباره تلاش کنید.' : 'یکی از زمان‌های انتخابی در دسترس نیست. زمان دیگری را انتخاب کنید.');
+      goTo('availability');
+      return;
+    }
     buildReview();
     const button = event.currentTarget;
     button.disabled = true;
@@ -405,8 +389,8 @@
       city: fieldValue('city'),
       timezone: timezone.value,
       communication_language: 'fa',
-      whatsapp_same_as_mobile: whatsappSame.checked,
-      whatsapp_number: whatsappSame.checked ? fieldValue('mobile') : whatsapp.value.trim(),
+      whatsapp_same_as_mobile: true,
+      whatsapp_number: fieldValue('mobile'),
       privacy_notice_accepted: true,
       privacy_notice_version: dznBooking.privacyVersion,
       requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))

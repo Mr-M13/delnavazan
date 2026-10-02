@@ -35,43 +35,13 @@ final class BookingAvailabilityPreviewService {
             if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' );
             $seen[$key] = true;
         }
-        $teachers = null;
+        $assessment = new BookingAvailabilityAssessmentService( $courseId, $this->repo, $this->availability );
         $result = array();
         foreach ( $normalized as $index => $time ) {
-            if ( RequestedTimeNormalizer::overlapsIranQuietHours( $time ) ) { $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked', 'teacher_times' => array() ); continue; }
-            if ( $teachers === null ) $teachers = $this->repo->eligibleTeachers( $courseId, gmdate( 'Y-m-d H:i:s' ) );
-            $best = 'none';
-            $timezones = array();
-            foreach ( $teachers as $teacher ) {
-                $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
-                if ( $match === null ) continue;
-                $teacherTimezone = $this->availability->profileTimezone( (int) $teacher->teacher_id );
-                if ( $match === 'strong' && $teacher->accepting_state === 'accepting' ) {
-                    if ( $best !== 'strong' ) { $best = 'strong'; $timezones = array(); }
-                    if ( $teacherTimezone ) $timezones[$teacherTimezone] = true;
-                    continue;
-                }
-                if ( $best === 'strong' ) continue;
-                $best = 'possible';
-                if ( $teacherTimezone ) $timezones[$teacherTimezone] = true;
-            }
-            $teacherTimes = array();
-            foreach ( array_keys( $timezones ) as $teacherTimezone ) $teacherTimes[] = array( 'timezone' => $teacherTimezone, 'starts_at_utc' => $time['starts_at_utc'] );
-            $result[] = array( 'sequence' => $index + 1, 'status' => $best, 'teacher_times' => $teacherTimes );
+            $scored = $assessment->assess( $time );
+            $result[] = array( 'sequence' => $index + 1, 'status' => $scored['status'], 'teacher_times' => $scored['teacher_times'] );
         }
         return array( 'times' => $result );
     }
 
-    /** Returns strong for preferred coverage, possible for requestable coverage, null for no coverage. */
-    private function coverageState( int $teacherId, string $start, string $end ): ?string {
-        $cursor = $start;
-        $state = 'strong';
-        foreach ( $this->availability->effective( $teacherId, $start, $end ) as $segment ) {
-            if ( $segment['starts_at_utc'] > $cursor || ! in_array( $segment['state'], array( 'preferred', 'requestable' ), true ) ) return null;
-            if ( $segment['state'] === 'requestable' ) $state = 'possible';
-            if ( $segment['ends_at_utc'] > $cursor ) $cursor = min( $end, $segment['ends_at_utc'] );
-            if ( $cursor === $end ) return $state;
-        }
-        return null;
-    }
 }

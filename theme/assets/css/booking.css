@@ -194,3 +194,49 @@
 .dzn-booking__summary-note { border-radius:1rem; padding:1rem 1.15rem; background:var(--dzn-color-surface); }
 .dzn-booking__summary-note h4 { margin-top:0; }
 .dzn-booking__summary-note ul { margin:.65rem 0 0; padding-inline-start:1.25rem; display:grid; gap:.45rem; }
+
+/* Precision pass: centre-to-centre progress line and calm calendar interaction. */
+.dzn-booking__progress ol::before {
+  top:1.05rem;
+  inset-inline:calc(16.6667% + 1.05rem);
+  height:2px;
+}
+.dzn-booking__progress ol::after {
+  content:"";
+  position:absolute;
+  top:1.05rem;
+  inset-inline-start:calc(16.6667% + 1.05rem);
+  width:0;
+  height:2px;
+  background:var(--dzn-color-action-primary);
+  z-index:0;
+  transition:width .28s ease;
+}
+.dzn-booking__progress:has([data-progress="availability"].is-current) ol::after { width:calc(33.3333% - 2.1rem); }
+.dzn-booking__progress:has([data-progress="contact"].is-current) ol::after,
+.dzn-booking__progress:has([data-progress="contact"].is-done) ol::after { width:calc(66.6667% - 2.1rem); }
+
+.dzn-booking__calendar button {
+  inline-size:2.65rem;
+  block-size:2.65rem;
+  min-inline-size:2.65rem;
+  padding:0;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease;
+  transform:none !important;
+}
+.dzn-booking__calendar button:hover:not(:disabled):not(.is-selected),
+.dzn-booking__calendar button:focus-visible:not(:disabled):not(.is-selected) {
+  background:#fff3d6;
+  border-color:#c89228;
+  color:var(--dzn-color-text-primary);
+  box-shadow:0 0 0 3px rgb(200 146 40 / .10);
+}
+.dzn-booking__calendar button.is-selected {
+  background:var(--dzn-color-action-primary);
+  border-color:var(--dzn-color-action-primary);
+  color:#fff;
+  box-shadow:0 0 0 3px rgb(16 120 110 / .12);
+}

@@ -12,7 +12,7 @@ function dzn_theme_booking_options(): array {
 
 function dzn_theme_render_booking_route(): void {
     $options = dzn_theme_booking_options();
-    $belt_order = array( 'پیانو', 'تار', 'سه‌تار', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
+    $belt_order = array( 'سه‌تار', 'تار', 'پیانو', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
     $belt_rank = array_flip( $belt_order );
     usort( $options, static function ( $a, $b ) use ( $belt_rank ) {
         return ( $belt_rank[ $a['name_fa'] ] ?? PHP_INT_MAX ) <=> ( $belt_rank[ $b['name_fa'] ] ?? PHP_INT_MAX );
@@ -110,6 +110,7 @@ function dzn_theme_render_booking_route(): void {
                             <div class="dzn-booking__calendar-grid" data-calendar-weekdays aria-hidden="true"></div>
                             <div class="dzn-booking__calendar-grid" data-calendar role="group" aria-label="انتخاب روز" tabindex="-1"></div>
                         </div>
+                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفهٔ رایگان انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. در این مرحله هیچ پرداختی انجام نمی‌دهید.</p>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
                                                         <div class="dzn-booking__time-options" data-time-options></div>

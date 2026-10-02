@@ -178,3 +178,19 @@
   padding: .5rem .75rem;
   font-size: .9rem;
 }
+
+/* Guided booking progress and clearer availability states. */
+.dzn-booking__progress ol { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
+.dzn-booking__progress ol::before { content:""; position:absolute; top:1.05rem; left:16%; right:16%; height:2px; background:var(--dzn-color-border); z-index:0; }
+.dzn-booking__progress li { position:relative; z-index:1; }
+.dzn-booking__progress button { width:100%; border:0; background:transparent; color:var(--dzn-color-text-muted); cursor:pointer; display:grid; justify-items:center; gap:.35rem; font:inherit; }
+.dzn-booking__progress button span { display:grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:50%; background:var(--dzn-color-surface-elevated); border:2px solid var(--dzn-color-border); font-weight:800; }
+.dzn-booking__progress li.is-current button span,.dzn-booking__progress li.is-done button span { border-color:var(--dzn-color-action-primary); background:var(--dzn-color-action-primary); color:#fff; }
+.dzn-booking__progress li.is-current button { color:var(--dzn-color-text-primary); font-weight:800; }
+.dzn-booking__time-option:hover:not(:disabled),.dzn-booking__time-option:focus-visible:not(:disabled) { border-color:#c89228; background:#fff3d6; color:var(--dzn-color-text-primary); }
+.dzn-booking__time-option.is-strong,.dzn-booking__time-option.is-strong:hover { background:var(--dzn-color-success); color:#fff; border-color:var(--dzn-color-success); }
+.dzn-booking__time-option.is-possible,.dzn-booking__time-option.is-possible:hover { background:var(--dzn-color-warning); color:var(--dzn-color-text-primary); border-color:var(--dzn-color-warning); }
+.dzn-booking__time-option.is-none,.dzn-booking__time-option.is-none:hover { background:#fff; color:var(--dzn-color-text-primary); border-color:var(--dzn-color-border); }
+.dzn-booking__summary-note { border-radius:1rem; padding:1rem 1.15rem; background:var(--dzn-color-surface); }
+.dzn-booking__summary-note h4 { margin-top:0; }
+.dzn-booking__summary-note ul { margin:.65rem 0 0; padding-inline-start:1.25rem; display:grid; gap:.45rem; }

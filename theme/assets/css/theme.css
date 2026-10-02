@@ -7117,3 +7117,9 @@ a.dzn-nav-action:focus-visible {
     }
   }
 }
+/* Staging correction: keep chapter motif legible without washing out headings. */
+.dzn-story__chapter::before { background:#104a4d; box-shadow:0 .5rem 1.15rem rgb(16 74 77 / .16); }
+.dzn-story__chapter::after { background-image:url("../images/Motif.webp"); background-size:clamp(9rem,16vw,14rem) auto; opacity:1; mix-blend-mode:screen; }
+.dzn-story__chapter-title { color:#fffdf8 !important; text-shadow:0 1px 2px rgb(0 0 0 / .18); }
+.dzn-story__chapter-note { color:rgb(255 253 248 / .86) !important; }
+.dzn-instrument-carousel__controls { display:none !important; }

@@ -20,7 +20,7 @@ function dzn_theme_render_booking_route(): void {
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
-    $instrument_images = array( 'piano' => 'C-Piano.webp', 'tar' => 'C-Tar.webp', 'setar' => 'C-Setar.webp', 'santur' => 'C-santour.webp', 'tombak' => 'C-Tombak.webp', 'kamancheh' => 'C-Kamancheh.webp', 'daf' => 'C-Daf.webp' );
+    $instrument_images = array( 'avaz' => 'C-Avaz.webp', 'vocal' => 'C-Avaz.webp', 'piano' => 'C-Piano.webp', 'tar' => 'C-Tar.webp', 'setar' => 'C-Setar.webp', 'santur' => 'C-santour.webp', 'tombak' => 'C-Tombak.webp', 'kamancheh' => 'C-Kamancheh.webp', 'daf' => 'C-Daf.webp', 'tanboor' => 'C-Tanboor.webp', 'tanbur' => 'C-Tanboor.webp', 'ney' => 'C-Ney.webp', 'violin' => 'C-Violin.webp', 'guitar' => 'C-Guitar.webp' );
     ?>
     <main id="main-content" class="site-main dzn-booking" tabindex="-1">
         <div class="dzn-container dzn-booking__container">
@@ -39,9 +39,9 @@ function dzn_theme_render_booking_route(): void {
                 <section class="dzn-booking__card" data-dzn-booking>
                     <nav class="dzn-booking__progress" aria-label="مراحل درخواست">
                         <ol>
-                            <li class="is-current" data-progress="instrument">انتخاب دوره</li>
-                            <li data-progress="availability">انتخاب زمان</li>
-                            <li data-progress="contact">اطلاعات کاربری</li>
+                            <li class="is-current" data-progress="instrument"><button type="button" data-progress-target="instrument"><span>۱</span>انتخاب دوره</button></li>
+                            <li data-progress="availability"><button type="button" data-progress-target="availability"><span>۲</span>انتخاب زمان</button></li>
+                            <li data-progress="contact"><button type="button" data-progress-target="contact"><span>۳</span>اطلاعات کاربری</button></li>
                         </ol>
                     </nav>
                     <div class="dzn-booking__error" data-error role="alert" hidden></div>
@@ -78,7 +78,20 @@ function dzn_theme_render_booking_route(): void {
                             <strong>منطقهٔ زمانی شما</strong><span class="dzn-booking__timezone-copy">بر اساس دستگاه شما تشخیص داده شد؛ ساعت‌ها خودکار با مدرس هماهنگ می‌شوند.</span>
                             <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
                             <select id="dzn-booking-timezone" data-timezone required>
+                                <optgroup label="مناطق پرکاربرد دلنوازان">
+                                    <option value="Australia/Brisbane">استرالیا — بریزبن</option>
+                                    <option value="Australia/Sydney">استرالیا — سیدنی / ملبورن</option>
+                                    <option value="Pacific/Auckland">نیوزیلند — اوکلند</option>
+                                    <option value="America/Los_Angeles">آمریکا / کانادا — غرب</option>
+                                    <option value="America/New_York">آمریکا / کانادا — شرق</option>
+                                    <option value="Europe/London">بریتانیا — لندن</option>
+                                    <option value="Europe/Berlin">اروپای مرکزی</option>
+                                    <option value="Asia/Dubai">امارات — دبی</option>
+                                    <option value="Asia/Tehran">ایران — تهران</option>
+                                </optgroup>
+                                <optgroup label="همهٔ مناطق زمانی">
                                 <?php echo wp_timezone_choice( $default_timezone, get_user_locale() ); ?>
+                                </optgroup>
                             </select>
                             <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
                         </div>
@@ -119,14 +132,14 @@ function dzn_theme_render_booking_route(): void {
                                 <option value="">انتخاب کشور</option>
                                 <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
                             </select></div>
-                            <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" maxlength="191" required></div>
+                            <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" list="dzn-booking-city-list" maxlength="191" required><datalist id="dzn-booking-city-list" data-city-list></datalist></div>
                             <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" required><p class="dzn-booking__field-help">کد کشور را هم وارد کنید؛ نمونه برای استرالیا ‎+61.</p></div>
                         </div>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما راه اصلی ارتباط دلنوازان در واتساپ برای اعلان‌ها و هماهنگی کلاس‌هاست. لطفاً شماره‌ای را وارد کنید که به حساب واتساپ شما متصل است.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
-                            <aside class="dzn-booking__notice"><h4>پرداختی برای جلسهٔ معارفه ندارید</h4><p>این جلسه رایگان است و اکنون پرداختی انجام نمی‌شود. اگر پس از جلسه ادامه دهید، هزینه و کلاس‌های منظم با شما هماهنگ می‌شود. این درخواست هنوز زمان جلسه را تأیید یا رزرو نمی‌کند. پس از هماهنگی، همین ایمیل برای دسترسی به حساب هنرجویی استفاده می‌شود و اعلان‌های کلاس به واتساپ می‌رسند.</p></aside>
+                            <aside class="dzn-booking__notice dzn-booking__summary-note"><h4>پرداختی برای جلسهٔ معارفه ندارید</h4><ul><li>جلسهٔ معارفه رایگان است و اکنون پرداختی انجام نمی‌شود.</li><li>این درخواست هنوز زمان جلسه را تأیید یا رزرو نمی‌کند.</li><li>اگر پس از جلسه ادامه دهید، هزینه و کلاس‌های منظم با شما هماهنگ می‌شود.</li><li>همین ایمیل برای حساب هنرجویی و شمارهٔ موبایل برای اعلان‌های واتساپ استفاده می‌شود.</li></ul></aside>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>

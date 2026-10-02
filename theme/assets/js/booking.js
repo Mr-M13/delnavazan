@@ -14,6 +14,9 @@
   const preferenceCount = root.querySelector('[data-preference-count]');
   const errorBox = root.querySelector('[data-error]');
   const country = root.querySelector('[data-contact="country"]');
+  const city = root.querySelector('[data-contact="city"]');
+  const cityList = root.querySelector('[data-city-list]');
+  const blockedTimes = new Set();
   const slots = [];
   let idempotencyKey = '';
   let availabilityRequestId = 0;
@@ -76,6 +79,27 @@
   };
 
   const countryCodes = 'AF AL DZ AD AO AG AR AM AU AT AZ BS BH BD BB BY BE BZ BJ BT BO BA BW BR BN BG BF BI CV KH CM CA CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI XK KW KG LA LV LB LS LR LY LI LT LU MG MW MY MV ML MT MH MR MU MX FM MD MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG KP MK NO OM PK PW PA PG PY PE PH PL PT QA RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA KR SS ES LK SD SR SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TV UG UA AE GB US UY UZ VU VA VE VN YE ZM ZW'.split(' ');
+  const citiesByCountry = {
+    AU: ['Brisbane','Sydney','Melbourne','Perth','Adelaide','Gold Coast','Canberra','Hobart','Darwin'],
+    NZ: ['Auckland','Wellington','Christchurch','Hamilton','Tauranga','Dunedin'],
+    US: ['New York','Los Angeles','Chicago','Houston','San Francisco','Seattle','Boston','Washington'],
+    CA: ['Toronto','Vancouver','Montreal','Calgary','Ottawa','Edmonton'],
+    GB: ['London','Manchester','Birmingham','Glasgow','Edinburgh','Liverpool'],
+    DE: ['Berlin','Hamburg','Munich','Frankfurt','Cologne'],
+    FR: ['Paris','Lyon','Marseille','Toulouse','Nice'],
+    SE: ['Stockholm','Gothenburg','Malmo','Uppsala'],
+    TR: ['Istanbul','Ankara','Izmir','Antalya'],
+    AE: ['Dubai','Abu Dhabi','Sharjah','Ajman'],
+    BR: ['Sao Paulo','Rio de Janeiro','Brasilia','Curitiba'],
+    IR: ['Tehran','Mashhad','Isfahan','Shiraz','Tabriz']
+  };
+  const populateCities = () => {
+    if (!cityList) return;
+    cityList.replaceChildren();
+    (citiesByCountry[country.value] || []).forEach((name) => cityList.append(new Option(name)));
+    city.placeholder = (citiesByCountry[country.value] || []).length ? 'انتخاب یا تایپ شهر' : 'نام شهر';
+  };
+
   const populateCountries = () => {
     const keep = country.querySelector('option[value=""]');
     country.replaceChildren(keep || new Option('انتخاب کشور', ''));
@@ -92,9 +116,10 @@
     }
     if (region && country.querySelector('option[value="' + region + '"]')) country.value = region;
     updatePhoneHint();
+    populateCities();
   };
   populateCountries();
-  country.addEventListener('change', updatePhoneHint);
+  country.addEventListener('change', () => { updatePhoneHint(); city.value = ''; populateCities(); });
 
   const renderCalendar = () => {
     calendar.replaceChildren();
@@ -155,7 +180,7 @@
       const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
       button.className = 'dzn-booking__time-option' + (existing && ['strong', 'possible', 'none'].includes(existing.status) ? ' is-' + existing.status : '');
       button.setAttribute('dir', 'ltr');
-      button.disabled = slots.length >= 3 || Boolean(existing);
+      button.disabled = slots.length >= 3 || Boolean(existing) || blockedTimes.has(selectedDate + '|' + value);
       button.addEventListener('click', () => addPreference(value));
       buttons.append(button);
     });
@@ -228,6 +253,7 @@
         }
       });
       const blocked = slots.filter((slot) => slot.status === 'blocked');
+      blocked.forEach((slot) => blockedTimes.add(slot.local_date + '|' + slot.local_start_time));
       if (blocked.length) {
         blocked.forEach((slot) => slots.splice(slots.indexOf(slot), 1));
         renderSlots();
@@ -364,6 +390,18 @@
     goTo(next);
   }));
   root.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', () => goTo(button.dataset.back)));
+  root.querySelectorAll('[data-progress-target]').forEach((button) => button.addEventListener('click', () => {
+    const target = button.dataset.progressTarget;
+    const order = ['instrument', 'availability', 'contact'];
+    if (order.indexOf(target) <= order.indexOf(currentStep())) goTo(target);
+    else if (target === 'availability' && activeInstrument()) goTo(target);
+    else if (target === 'contact' && activeInstrument() && slots.length && timezone.value) goTo(target);
+  }));
+  timezone.addEventListener('change', async () => {
+    blockedTimes.clear();
+    if (slots.length) await assessSlots();
+    renderTimeOptions();
+  });
 
   root.querySelector('[data-submit]').addEventListener('click', async (event) => {
     showError('');

@@ -2,7 +2,9 @@
 use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
 use Delnavazan\Platform\Core\Application\RequestedTimeNormalizer;
 
+require dirname( __DIR__ ) . '/src/Core/Application/Normalizer.php';
 require dirname( __DIR__ ) . '/src/Core/Application/AvailabilityLocalTime.php';
+require dirname( __DIR__ ) . '/src/Core/Application/BookingAvailabilityPolicy.php';
 require dirname( __DIR__ ) . '/src/Core/Application/RequestedTimeNormalizer.php';
 
 $occupiedInterval = static function ( string $date, string $time, string $timezone ): array {
@@ -27,8 +29,9 @@ foreach ( $cases as [ $date, $time, $timezone, $expected, $label ] ) {
 }
 $root = dirname( __DIR__ );
 $preview = file_get_contents( $root . '/src/Core/Application/BookingAvailabilityPreviewService.php' );
+$assessment = file_get_contents( $root . '/src/Core/Application/BookingAvailabilityAssessmentService.php' );
 $validation = file_get_contents( $root . '/src/Core/Application/BookingRequestValidationService.php' );
-if ( strpos( $preview, "'status' => 'blocked'" ) === false || strpos( $validation, 'overlapsIranQuietHours' ) === false ) {
+if ( strpos( $assessment, "'status' => 'blocked'" ) === false || strpos( $preview, 'BookingAvailabilityAssessmentService' ) === false || ( strpos( $validation, 'overlapsIranQuietHours' ) === false && strpos( $validation, 'overlapsAcademyQuietHours' ) === false ) ) {
     throw new RuntimeException( 'Quiet-hours preview and submission enforcement must both use Platform authority' );
 }
 echo "Iran quiet-hours preview/submission policy passed\n";

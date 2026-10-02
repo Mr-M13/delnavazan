@@ -24,22 +24,29 @@ final class RequestedTimeNormalizer {
      * The academy is closed to introductory lessons from 01:00 to 06:00 Tehran time.
      * Compare the full occupied interval (lesson plus buffer) after timezone conversion.
      */
-    public static function overlapsIranQuietHours(array $interval): bool {
+    public static function overlapsAcademyQuietHours(array $interval, ?array $policy = null): bool {
         if ( ! isset( $interval['starts_at_utc'], $interval['occupied_ends_at_utc'] ) ) throw new \InvalidArgumentException( 'Normalized requested interval required' );
+        $policy = BookingAvailabilityPolicy::validate( $policy ?? BookingAvailabilityPolicy::current() );
         $utc = new \DateTimeZone( 'UTC' );
-        $iran = new \DateTimeZone( 'Asia/Tehran' );
+        $academy = new \DateTimeZone( $policy['academy_timezone'] );
         $start = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', (string) $interval['starts_at_utc'], $utc );
         $end = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', (string) $interval['occupied_ends_at_utc'], $utc );
         if ( ! $start || ! $end || $end <= $start ) throw new \InvalidArgumentException( 'Invalid normalized requested interval' );
 
-        $firstDay = $start->setTimezone( $iran )->setTime( 0, 0 )->modify( '-1 day' );
-        $lastDay = $end->setTimezone( $iran )->setTime( 0, 0 )->modify( '+1 day' );
+        $firstDay = $start->setTimezone( $academy )->setTime( 0, 0 )->modify( '-1 day' );
+        $lastDay = $end->setTimezone( $academy )->setTime( 0, 0 )->modify( '+1 day' );
         for ( $day = $firstDay; $day <= $lastDay; $day = $day->modify( '+1 day' ) ) {
             $date = $day->format( 'Y-m-d' );
-            $blockedStart = AvailabilityLocalTime::wall( $date, '01:00:00', 'Asia/Tehran' )->setTimezone( $utc );
-            $blockedEnd = AvailabilityLocalTime::wall( $date, '06:00:00', 'Asia/Tehran' )->setTimezone( $utc );
+            $blockedStart = AvailabilityLocalTime::wall( $date, $policy['quiet_start'], $policy['academy_timezone'] )->setTimezone( $utc );
+            $blockedEndDate = $policy['quiet_end'] > $policy['quiet_start'] ? $date : $day->modify( '+1 day' )->format( 'Y-m-d' );
+            $blockedEnd = AvailabilityLocalTime::wall( $blockedEndDate, $policy['quiet_end'], $policy['academy_timezone'] )->setTimezone( $utc );
             if ( $start < $blockedEnd && $end > $blockedStart ) return true;
         }
         return false;
+    }
+
+    /** Backward-compatible name for callers created while the academy timezone was fixed to Iran. */
+    public static function overlapsIranQuietHours(array $interval): bool {
+        return self::overlapsAcademyQuietHours( $interval );
     }
 }

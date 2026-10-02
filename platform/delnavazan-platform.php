@@ -47,5 +47,6 @@ add_action( 'plugins_loaded', static function () {
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingRequestRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingOptionsRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingAvailabilityPreviewRestController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingDayAvailabilityRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );

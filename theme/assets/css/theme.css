@@ -4824,18 +4824,14 @@
       0;
 
     inline-size:
-      clamp(
-        12rem,
-        55vw,
-        17rem
-      );
+      clamp(18rem, 72vw, 26rem);
 
     aspect-ratio:
       1;
 
     background:
       url(
-        "https://niu-nailhouse.com/wp-content/uploads/2026/09/BG-Ornoments.webp"
+        "../images/Motif-web.png"
       )
       center / contain no-repeat;
 
@@ -4843,7 +4839,7 @@
       "";
 
     opacity:
-      .9;
+      .11;
 
     pointer-events:
       none;
@@ -4854,7 +4850,7 @@
       10%;
 
     inset-inline-start:
-      -3rem;
+      -9rem;
 
     transform:
       rotate(-8deg);
@@ -4865,7 +4861,7 @@
       58%;
 
     inset-inline-end:
-      -3rem;
+      -9rem;
 
     transform:
       scaleX(-1)
@@ -5173,14 +5169,14 @@
       0;
 
     inline-size:
-      clamp(15rem, 42vw, 26rem);
+      clamp(28rem, 46vw, 44rem);
 
     aspect-ratio:
       1;
 
     background:
       url(
-        "https://niu-nailhouse.com/wp-content/uploads/2026/09/BG-Ornoments.webp"
+        "../images/Motif-web.png"
       )
       center / contain no-repeat;
 
@@ -5188,7 +5184,7 @@
       "";
 
     opacity:
-      1;
+      .10;
 
     pointer-events:
       none;
@@ -5199,7 +5195,7 @@
       6%;
 
     inset-inline-start:
-      -5rem;
+      -14rem;
 
     transform:
       rotate(-8deg);
@@ -5210,7 +5206,7 @@
       4%;
 
     inset-inline-end:
-      -5rem;
+      -14rem;
 
     transform:
       scaleX(-1)
@@ -5502,10 +5498,10 @@
     .dzn-story {
       background-image:
         url(
-          "https://niu-nailhouse.com/wp-content/uploads/2026/09/BG-Ornoments.webp"
+          "../images/Motif-web.png"
         ),
         url(
-          "https://niu-nailhouse.com/wp-content/uploads/2026/09/BG-Ornoments.webp"
+          "../images/Motif-web.png"
         ),
         radial-gradient(
           circle at 86% 12%,
@@ -5525,22 +5521,14 @@
         no-repeat;
 
       background-size:
-        clamp(
-          19rem,
-          24vw,
-          28rem
-        ),
-        clamp(
-          17rem,
-          22vw,
-          25rem
-        ),
+        clamp(28rem, 42vw, 42rem),
+        clamp(28rem, 42vw, 42rem),
         auto,
         auto;
 
       background-position:
-        left -4vw top 24vh,
-        right -3vw bottom 12vh,
+        left -14rem top 22%,
+        right -14rem bottom 12%,
         center,
         center;
 
@@ -5682,20 +5670,20 @@
     .dzn-story__finale::before,
     .dzn-story__finale::after {
       inline-size:
-        clamp(13rem, 62vw, 19rem);
+        clamp(18rem, 78vw, 25rem);
 
       opacity:
-        .085;
+        .08;
     }
 
     .dzn-story__finale::before {
       inset-inline-start:
-        -6rem;
+        -9rem;
     }
 
     .dzn-story__finale::after {
       inset-inline-end:
-        -6rem;
+        -9rem;
     }
 
     .dzn-story {
@@ -5713,14 +5701,10 @@
         block;
 
       inline-size:
-        clamp(
-          12rem,
-          55vw,
-          17rem
-        );
+        clamp(18rem, 76vw, 25rem);
 
       opacity:
-        .16;
+        .09;
     }
 
     .dzn-story::before {
@@ -5728,7 +5712,7 @@
         10%;
 
       inset-inline-start:
-        -3rem;
+        -9rem;
     }
 
     .dzn-story::after {
@@ -5736,7 +5720,7 @@
         58%;
 
       inset-inline-end:
-        -3rem;
+        -9rem;
     }
 
     .dzn-story__track {
@@ -7024,78 +7008,7 @@ a.dzn-nav-action:focus-visible {
     transform: translateY(0);
   }
 
-  /*
-   * The two sticky chapter labels use a contained text column with a
-   * full-viewport accent band. The pseudo-element is visual only, so it does
-   * not alter document width or the content grid.
-   */
-  .dzn-story {
-    overflow-x: clip;
-  }
-
-  .dzn-story__chapter {
-    isolation: isolate;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    color: #fffdf8;
-  }
-
-  .dzn-story__chapter::before {
-    position: absolute;
-    z-index: 0;
-    inset-block: -.65rem;
-    inset-inline-start: 50%;
-    inline-size: 100vw;
-    background: var(--dzn-color-accent);
-    box-shadow: 0 .5rem 1.15rem rgb(147 55 42 / .14);
-    content: "";
-    transform: translateX(-50%);
-  }
-
-  /* Smaller motif texture keeps the sticky red chapter bands visually distinct while scrolling. */
-  .dzn-story__chapter::after {
-    position: absolute;
-    z-index: 0;
-    inset-block: -.65rem;
-    inset-inline-start: 50%;
-    inline-size: 100vw;
-    background-image: url("../images/Motif.webp");
-    background-position: center;
-    background-repeat: repeat;
-    background-size: clamp(7rem, 13vw, 11rem) auto;
-    content: "";
-    opacity: .72;
-    pointer-events: none;
-    transform: translateX(-50%);
-  }
-
-  .dzn-story__chapter > * {
-    position: relative;
-    z-index: 1;
-  }
-
-  .dzn-story__chapter-title {
-    color: #fffdf8;
-  }
-
-  .dzn-story__chapter-note {
-    color: rgb(255 253 248 / .82);
-  }
-
   @media (max-width: 47.99rem) {
-    .dzn-story__chapter {
-      margin-inline: 0;
-      border-block-end: 0;
-      background: transparent;
-      backdrop-filter: none;
-    }
-
-    .dzn-story__chapter::before {
-      inset-block: -.5rem;
-    }
-
     .dzn-home-hero__actions
     .wp-block-button:not(.is-style-outline),
     .dzn-home-hero__actions
@@ -7117,70 +7030,4 @@ a.dzn-nav-action:focus-visible {
     }
   }
 }
-/* Canonical Navaz story treatment. The base layout owns sticky positioning; this block owns only the visual layer. */
 .dzn-instrument-carousel__controls { display:none !important; }
-
-.dzn-story__chapter {
-  border:0;
-  border-radius:0;
-  background:transparent;
-  backdrop-filter:none;
-  box-shadow:none;
-  isolation:isolate;
-  overflow:visible;
-}
-.dzn-story__chapter::before {
-  content:"";
-  position:absolute;
-  z-index:-2;
-  inset:50% auto auto 50%;
-  inline-size:min(58rem,155vw);
-  block-size:10rem;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  background:radial-gradient(ellipse at center, rgb(201 155 66 / .24) 0%, rgb(201 155 66 / .10) 42%, rgb(201 155 66 / .03) 62%, transparent 78%);
-  pointer-events:none;
-}
-.dzn-story__chapter::after {
-  content:"";
-  position:absolute;
-  z-index:-1;
-  inset:50% auto auto 50%;
-  inline-size:clamp(12rem,22vw,18rem);
-  aspect-ratio:1;
-  transform:translate(-50%,-50%);
-  background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
-  opacity:.34;
-  pointer-events:none;
-}
-.dzn-story__chapter-title {
-  color:var(--dzn-color-accent) !important;
-  text-shadow:0 0 20px rgb(201 155 66 / .20);
-}
-.dzn-story__chapter-note { color:var(--dzn-color-text-secondary) !important; }
-
-.dzn-story__finale::before,
-.dzn-story__finale::after {
-  content:"";
-  position:absolute;
-  z-index:0;
-  top:50%;
-  inline-size:clamp(18rem,42vw,32rem);
-  aspect-ratio:1;
-  background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
-  opacity:.38;
-  pointer-events:none;
-}
-.dzn-story__finale::before { left:-7rem; transform:translateY(-50%) rotate(-8deg); }
-.dzn-story__finale::after { right:-7rem; transform:translateY(-50%) rotate(172deg); }
-.dzn-story__finale > * { position:relative; z-index:1; }
-
-@media (max-width:47.99rem) {
-  .dzn-story__chapter { margin-inline:0; }
-  .dzn-story__chapter::before { inline-size:170vw; block-size:8.5rem; }
-  .dzn-story__chapter::after { inline-size:11rem; opacity:.29; }
-  .dzn-story__finale::before,
-  .dzn-story__finale::after { inline-size:clamp(14rem,68vw,20rem); opacity:.30; }
-  .dzn-story__finale::before { left:-6rem; }
-  .dzn-story__finale::after { right:-6rem; }
-}

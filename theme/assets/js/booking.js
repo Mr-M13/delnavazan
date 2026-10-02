@@ -204,7 +204,7 @@
   const assessSlots = async () => {
     const requestId = ++availabilityRequestId;
     availabilityPreviewFailed = false;
-    if (!activeInstrument() || !slots.length || !timezone.value) return;
+    if (!activeInstrument() || !slots.length || !timezone.value) return false;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
     slots.forEach((slot) => { slot.status = 'checking'; slot.teacher_times = []; });
     renderSlots();
@@ -220,7 +220,7 @@
       });
       const result = await response.json();
       if (!response.ok || !Array.isArray(result.times) || result.times.length !== slots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
-      if (requestId !== availabilityRequestId) return;
+      if (requestId !== availabilityRequestId) return false;
       result.times.forEach((row, index) => {
         if (slots[index]) {
           slots[index].status = row.status;
@@ -285,10 +285,6 @@
       instrument.dispatchEvent(new Event('change', { bubbles: true }));
     });
   });
-    whatsapp.required = !whatsappSame.checked;
-  });
-  whatsappExtra.hidden = whatsappSame.checked;
-
   const currentStep = () => root.querySelector('.dzn-booking__step.is-active')?.dataset.step || 'instrument';
   const goTo = (name) => {
     showError('');

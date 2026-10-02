@@ -240,3 +240,27 @@
   color:#fff;
   box-shadow:0 0 0 3px rgb(16 120 110 / .12);
 }
+
+.dzn-booking__summary-note {
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgb(201 155 66 / .34);
+  background:linear-gradient(145deg,#fffdf8,#fbf5e8);
+  box-shadow:0 .7rem 1.8rem rgb(16 74 77 / .07);
+}
+.dzn-booking__summary-note::before {
+  content:"";
+  position:absolute;
+  inset-block:0;
+  inset-inline-start:0;
+  inline-size:.25rem;
+  background:var(--dzn-color-accent);
+}
+.dzn-booking__summary-kicker {
+  margin:0 0 .25rem;
+  color:var(--dzn-color-accent);
+  font-size:.72rem;
+  font-weight:800;
+}
+.dzn-booking__summary-note li::marker { color:var(--dzn-color-accent); }
+.dzn-booking__summary-note li strong { color:var(--dzn-color-text-secondary); }

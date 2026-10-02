@@ -7182,3 +7182,52 @@ a.dzn-nav-action:focus-visible {
   mix-blend-mode:normal;
   filter:brightness(0) saturate(100%) invert(73%) sepia(63%) saturate(780%) hue-rotate(356deg) brightness(96%) contrast(90%);
 }
+
+/* Navaz motif master: one full-circle asset, cropped contextually in CSS. */
+.dzn-pricing::before {
+  inset:-18% -8%;
+  background-image:url("../images/Motif-Navaz-FULL.webp");
+  background-position:left bottom;
+  background-repeat:no-repeat;
+  background-size:clamp(22rem,44vw,42rem) auto;
+  opacity:.34;
+  filter:none;
+  mix-blend-mode:normal;
+}
+.dzn-story__finale::before,
+.dzn-story__finale::after {
+  background-image:url("../images/Motif-Navaz-FULL.webp");
+  opacity:.30;
+  filter:none;
+  mix-blend-mode:normal;
+}
+.dzn-story__finale::before { inset-inline-start:-14rem; }
+.dzn-story__finale::after { inset-inline-end:-14rem; transform:rotate(180deg); }
+
+/* Sticky title depth: original typography, small local halo only behind the fixed title. */
+.dzn-story__chapter { box-shadow:none; isolation:isolate; }
+.dzn-story__chapter::before {
+  inset:50% auto auto 50%;
+  inline-size:min(34rem,110%);
+  block-size:10rem;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(ellipse, rgb(201 155 66 / .20) 0%, rgb(201 155 66 / .08) 42%, transparent 72%);
+  filter:blur(10px);
+}
+.dzn-story__chapter::after {
+  inset:50% auto auto -5.5rem;
+  inline-size:13rem;
+  block-size:13rem;
+  transform:translateY(-50%);
+  background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
+  opacity:.18;
+  filter:none;
+  mix-blend-mode:normal;
+}
+.dzn-story__chapter-title {
+  position:relative;
+  z-index:2;
+  color:var(--dzn-color-accent) !important;
+  text-shadow:0 0 18px rgb(201 155 66 / .20);
+}

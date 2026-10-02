@@ -48,7 +48,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dpiano","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--piano"><!-- wp:image {"id":1319,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-piano.webp' ) ); ?>" alt="تصویر آبرنگی پیانو" class="wp-image-1319" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Piano.webp' ) ); ?>" alt="تصویر آبرنگی پیانو" class="wp-image-1319" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
@@ -58,7 +58,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dtar","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tar"><!-- wp:image {"id":1323,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-tar.webp' ) ); ?>" alt="تصویر آبرنگی ساز تار" class="wp-image-1323" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tar.webp' ) ); ?>" alt="تصویر آبرنگی ساز تار" class="wp-image-1323" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
@@ -68,7 +68,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dsetar","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--setar"><!-- wp:image {"id":1321,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-setar.webp' ) ); ?>" alt="تصویر آبرنگی ساز سه‌تار" class="wp-image-1321" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Setar.webp' ) ); ?>" alt="تصویر آبرنگی ساز سه‌تار" class="wp-image-1321" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
@@ -78,7 +78,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dsantur","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--santur"><!-- wp:image {"id":1320,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-santur.webp' ) ); ?>" alt="تصویر آبرنگی ساز سنتور" class="wp-image-1320" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-santour.webp' ) ); ?>" alt="تصویر آبرنگی ساز سنتور" class="wp-image-1320" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
@@ -88,7 +88,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dtombak","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tombak"><!-- wp:image {"id":1324,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-tombak.webp' ) ); ?>" alt="تصویر آبرنگی ساز تنبک" class="wp-image-1324" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tombak.webp' ) ); ?>" alt="تصویر آبرنگی ساز تنبک" class="wp-image-1324" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
@@ -98,7 +98,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002dkamancheh","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--kamancheh"><!-- wp:image {"id":1317,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-kamancheh.webp' ) ); ?>" alt="تصویر آبرنگی ساز کمانچه" class="wp-image-1317" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Kamancheh.webp' ) ); ?>" alt="تصویر آبرنگی ساز کمانچه" class="wp-image-1317" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->
@@ -108,7 +108,7 @@
 
 <!-- wp:group {"tagName":"article","className":"dzn-instrument-tile dzn-instrument-tile\u002d\u002ddaf","layout":{"type":"constrained"}} -->
 <article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--daf"><!-- wp:image {"id":1315,"aspectRatio":"1","scale":"contain","sizeSlug":"full","linkDestination":"none","className":"dzn-instrument-tile__media"} -->
-<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/instrument-daf.webp' ) ); ?>" alt="تصویر آبرنگی ساز دف" class="wp-image-1315" style="aspect-ratio:1;object-fit:contain"/></figure>
+<figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Daf.webp' ) ); ?>" alt="تصویر آبرنگی ساز دف" class="wp-image-1315" style="aspect-ratio:1;object-fit:contain"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:heading {"level":3,"className":"dzn-instrument-tile__copy"} -->

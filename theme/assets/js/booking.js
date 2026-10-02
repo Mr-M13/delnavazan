@@ -16,8 +16,8 @@
   const country = root.querySelector('[data-contact="country"]');
   const city = root.querySelector('[data-contact="city"]');
   const cityList = root.querySelector('[data-city-list]');
-  const blockedTimes = new Set();
-  const availabilityByTime = new Map();
+  let availableTimes = [];
+  let availabilityGridState = 'idle';
   let gridAvailabilityRequestId = 0;
   const slots = [];
   let idempotencyKey = '';
@@ -177,76 +177,95 @@
     const maxMonth = new Date(latest.getFullYear(), latest.getMonth(), 1);
     next.disabled = dateCursor >= maxMonth;
   };
-  const candidateTimes = Array.from({ length: 32 }, (_, index) => {
-    const minutes = index * 45;
-    return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
-  });
   const renderTimeOptions = () => {
     timeOptions.replaceChildren();
+    if (!selectedDate) return;
+    if (availabilityGridState === 'loading') {
+      const status = document.createElement('p');
+      status.className = 'dzn-booking__availability-status';
+      status.textContent = 'در حال دریافت زمان‌های قابل درخواست…';
+      timeOptions.append(status);
+      return;
+    }
+    if (availabilityGridState === 'error') {
+      const status = document.createElement('p');
+      status.className = 'dzn-booking__availability-status is-error';
+      status.textContent = 'زمان‌های قابل درخواست دریافت نشد. لطفاً دوباره تلاش کنید.';
+      timeOptions.append(status);
+      return;
+    }
+    if (!availableTimes.length) {
+      const status = document.createElement('p');
+      status.className = 'dzn-booking__availability-status';
+      status.textContent = 'برای این روز زمان قابل درخواستی وجود ندارد.';
+      timeOptions.append(status);
+      return;
+    }
     const buttons = document.createElement('div');
     buttons.className = 'dzn-booking__time-buttons';
-    candidateTimes.forEach((value) => {
+    availableTimes.forEach((row) => {
+      const value = row.local_start_time;
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = faDigits(value);
       const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
-      const preview = availabilityByTime.get(selectedDate + '|' + value);
-      button.className = 'dzn-booking__time-option' + (preview && ['strong', 'possible', 'none'].includes(preview.status) ? ' is-' + preview.status : '');
+      button.className = 'dzn-booking__time-option is-' + row.status;
       button.setAttribute('dir', 'ltr');
-      button.disabled = slots.length >= 3 || Boolean(existing) || blockedTimes.has(selectedDate + '|' + value);
-      if (blockedTimes.has(selectedDate + '|' + value)) return;
-      button.addEventListener('click', () => addPreference(value));
+      button.disabled = slots.length >= 3 || Boolean(existing);
+      button.addEventListener('click', () => addPreference(value, row.status));
       buttons.append(button);
     });
     timeOptions.append(buttons);
   };
 
   const refreshAvailabilityGrid = async () => {
-    if (!activeInstrument() || !selectedDate || !timezone.value) return;
     const requestId = ++gridAvailabilityRequestId;
-    availabilityByTime.clear();
-    blockedTimes.clear();
+    availableTimes = [];
+    if (!activeInstrument() || !selectedDate || !timezone.value) {
+      availabilityGridState = 'idle';
+      renderTimeOptions();
+      return false;
+    }
+    availabilityGridState = 'loading';
     renderTimeOptions();
     try {
-      const batches = [];
-      for (let index = 0; index < candidateTimes.length; index += 3) batches.push(candidateTimes.slice(index, index + 3));
-      const batchResults = [];
-      for (const batch of batches) {
-        const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            instrument_id: Number(instrument.value),
-            course_id: Number(selectedOption().dataset.course),
-            requested_times: batch.map((time) => ({ local_date: selectedDate, local_start_time: time, timezone: timezone.value }))
-          })
-        });
-        const result = await response.json();
-        if (!response.ok || !Array.isArray(result.times) || result.times.length !== batch.length) throw new Error('availability_grid_failed');
-        batchResults.push(...result.times.map((row, index) => ({ time: batch[index], row })));
+      const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/day'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instrument_id: Number(instrument.value),
+          course_id: Number(selectedOption().dataset.course),
+          local_date: selectedDate,
+          timezone: timezone.value
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !Array.isArray(result.times) || result.local_date !== selectedDate || result.timezone !== timezone.value) throw new Error('availability_grid_failed');
+      if (requestId !== gridAvailabilityRequestId) return false;
+      const seen = new Set();
+      availableTimes = result.times.filter((row) => {
+        if (!row || typeof row.local_start_time !== 'string' || !['strong', 'possible', 'none'].includes(row.status)) return false;
+        if (seen.has(row.local_start_time)) return false;
+        seen.add(row.local_start_time);
+        return true;
+      });
+      availabilityGridState = 'ready';
+      const allowed = new Map(availableTimes.map((row) => [row.local_start_time, row.status]));
+      for (let index = slots.length - 1; index >= 0; index -= 1) {
+        const slot = slots[index];
+        if (slot.local_date !== selectedDate) continue;
+        if (!allowed.has(slot.local_start_time)) slots.splice(index, 1);
+        else slot.status = allowed.get(slot.local_start_time);
       }
-      if (requestId !== gridAvailabilityRequestId) return;
-      batchResults.forEach(({ time, row }) => {
-        if (!row || !['strong', 'possible', 'none', 'blocked'].includes(row.status)) return;
-        availabilityByTime.set(selectedDate + '|' + time, row);
-        if (row.status === 'blocked') blockedTimes.add(selectedDate + '|' + time);
-      });
-      slots.slice().forEach((slot) => {
-        if (slot.local_date !== selectedDate) return;
-        const row = availabilityByTime.get(slot.local_date + '|' + slot.local_start_time);
-        if (row && row.status === 'blocked') slots.splice(slots.indexOf(slot), 1);
-        else if (row) {
-          slot.status = row.status;
-          slot.teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times : [];
-        }
-      });
       renderSlots();
       renderTimeOptions();
+      return true;
     } catch {
-      if (requestId !== gridAvailabilityRequestId) return;
-      availabilityByTime.clear();
-      blockedTimes.clear();
+      if (requestId !== gridAvailabilityRequestId) return false;
+      availableTimes = [];
+      availabilityGridState = 'error';
       renderTimeOptions();
+      return false;
     }
   };
   const renderSlots = () => {
@@ -315,10 +334,10 @@
         }
       });
       const blocked = slots.filter((slot) => slot.status === 'blocked');
-      blocked.forEach((slot) => blockedTimes.add(slot.local_date + '|' + slot.local_start_time));
       if (blocked.length) {
         blocked.forEach((slot) => slots.splice(slots.indexOf(slot), 1));
         renderSlots();
+        await refreshAvailabilityGrid();
         renderTimeOptions();
         renderCalendar();
         return false;
@@ -335,16 +354,18 @@
     return false;
   };
 
-  const addPreference = (value) => {
+  const addPreference = async (value, status) => {
     showError('');
     if (!activeInstrument()) { showError('ابتدا ساز موردنظر را انتخاب کنید.'); goTo('instrument'); return; }
     if (!selectedDate || !timezone.value) { showError('روز و منطقهٔ زمانی را انتخاب کنید.'); return; }
     if (slots.length >= 3) { showError('حداکثر سه زمان پیشنهادی می‌توانید اضافه کنید.'); return; }
     if (slots.some((slot) => slot.local_date === selectedDate && slot.local_start_time === value)) { showError('این زمان را قبلاً اضافه کرده‌اید.'); return; }
-    slots.push({ local_date: selectedDate, local_start_time: value, status: null, teacher_times: [] });
+    if (availabilityGridState !== 'ready' || !availableTimes.some((row) => row.local_start_time === value)) { showError('این زمان در فهرست قابل درخواست فعلی نیست.'); return; }
+    slots.push({ local_date: selectedDate, local_start_time: value, status: status || 'none', teacher_times: [] });
     renderSlots();
     renderTimeOptions();
     renderCalendar();
+    await assessSlots();
   };
 
   root.querySelector('[data-calendar-prev]').addEventListener('click', () => {
@@ -358,6 +379,8 @@
   instrument.addEventListener('change', () => {
     availabilityRequestId += 1;
     slots.splice(0);
+    availableTimes = [];
+    availabilityGridState = 'idle';
     renderSlots();
     renderTimeOptions();
     renderCalendar();
@@ -462,8 +485,6 @@
     else if (target === 'contact' && activeInstrument() && slots.length && timezone.value) goTo(target);
   }));
   timezone.addEventListener('change', async () => {
-    availabilityByTime.clear();
-    blockedTimes.clear();
     slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
     await refreshAvailabilityGrid();
     if (slots.length) await assessSlots();

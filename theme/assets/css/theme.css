@@ -7117,117 +7117,71 @@ a.dzn-nav-action:focus-visible {
     }
   }
 }
-/* Staging correction: keep chapter motif legible without washing out headings. */
-.dzn-story__chapter::before { background:#104a4d; box-shadow:0 .5rem 1.15rem rgb(16 74 77 / .16); }
-.dzn-story__chapter::after { background-image:url("../images/Motif.webp"); background-size:clamp(9rem,16vw,14rem) auto; opacity:1; mix-blend-mode:screen; }
-.dzn-story__chapter-title { color:#fffdf8 !important; text-shadow:0 1px 2px rgb(0 0 0 / .18); }
-.dzn-story__chapter-note { color:rgb(255 253 248 / .86) !important; }
+/* Final story treatment: one Navaz master asset, no stacked staging overrides. */
 .dzn-instrument-carousel__controls { display:none !important; }
 
-/* Staging visual correction: original sticky heading treatment with container-only glow. */
 .dzn-story__chapter {
   background:transparent;
-  box-shadow:0 0 3.25rem 1.35rem rgb(16 74 77 / .16);
-}
-.dzn-story__chapter::before { background:transparent; box-shadow:none; }
-.dzn-story__chapter::after {
-  background-image:url("../images/Motif.webp");
-  background-repeat:repeat;
-  background-position:center;
-  background-size:clamp(9rem,16vw,14rem) auto;
-  opacity:1;
-  mix-blend-mode:normal;
-}
-.dzn-story__chapter-title {
-  color:var(--dzn-color-accent) !important;
-  text-shadow:none;
-}
-.dzn-story__chapter-note { color:var(--dzn-color-text-secondary) !important; }
-
-/* Use the owned motif asset for the full price finale rather than the retired external ornament. */
-.dzn-story__finale::before,
-.dzn-story__finale::after {
-  inline-size:clamp(15rem,42vw,30rem);
-  background:url("../images/Motif.webp") center / contain no-repeat;
-  opacity:1;
-  mix-blend-mode:screen;
-}
-
-/* Contextual motif palette: teal on cream, warm gold on the pricing panel. */
-.dzn-story__chapter {
   box-shadow:none;
   isolation:isolate;
 }
 .dzn-story__chapter::before {
   content:"";
   position:absolute;
-  inset:-2rem -3rem;
   z-index:0;
-  pointer-events:none;
-  background:radial-gradient(ellipse at center, rgb(16 74 77 / .13) 0%, rgb(16 74 77 / .055) 38%, transparent 72%);
+  inset:50% auto auto 50%;
+  inline-size:min(56rem,150%);
+  block-size:11rem;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(ellipse at center, rgb(201 155 66 / .24) 0%, rgb(201 155 66 / .11) 38%, rgb(201 155 66 / .035) 58%, transparent 76%);
+  filter:blur(9px);
   box-shadow:none;
+  pointer-events:none;
 }
 .dzn-story__chapter::after {
-  background:url("../images/Motif.webp") center / min(15rem,72%) auto no-repeat;
-  opacity:1;
-  mix-blend-mode:normal;
-  filter:brightness(0) saturate(100%) invert(25%) sepia(20%) saturate(1180%) hue-rotate(134deg) brightness(86%) contrast(92%);
-}
-.dzn-story__chapter > * { position:relative; z-index:1; }
-
-.dzn-story__finale::before,
-.dzn-story__finale::after {
-  background:url("../images/Motif.webp") center / contain no-repeat;
-  opacity:1;
-  mix-blend-mode:normal;
-  filter:brightness(0) saturate(100%) invert(73%) sepia(63%) saturate(780%) hue-rotate(356deg) brightness(96%) contrast(90%);
-}
-
-/* Navaz motif master: one full-circle asset, cropped contextually in CSS. */
-.dzn-pricing::before {
-  inset:-18% -8%;
-  background-image:url("../images/Motif-Navaz-FULL.webp");
-  background-position:left bottom;
-  background-repeat:no-repeat;
-  background-size:clamp(22rem,44vw,42rem) auto;
-  opacity:.34;
-  filter:none;
-  mix-blend-mode:normal;
-}
-.dzn-story__finale::before,
-.dzn-story__finale::after {
-  background-image:url("../images/Motif-Navaz-FULL.webp");
+  content:"";
+  position:absolute;
+  z-index:0;
+  inset:50% auto auto 50%;
+  inline-size:clamp(13rem,24vw,19rem);
+  block-size:clamp(13rem,24vw,19rem);
+  transform:translate(-50%,-50%);
+  background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
   opacity:.30;
   filter:none;
   mix-blend-mode:normal;
+  pointer-events:none;
 }
-.dzn-story__finale::before { inset-inline-start:-14rem; }
-.dzn-story__finale::after { inset-inline-end:-14rem; transform:rotate(180deg); }
+.dzn-story__chapter > * { position:relative; z-index:1; }
+.dzn-story__chapter-title {
+  color:var(--dzn-color-accent) !important;
+  text-shadow:0 0 20px rgb(201 155 66 / .22);
+}
+.dzn-story__chapter-note { color:var(--dzn-color-text-secondary) !important; }
 
-/* Sticky title depth: original typography, small local halo only behind the fixed title. */
-.dzn-story__chapter { box-shadow:none; isolation:isolate; }
-.dzn-story__chapter::before {
-  inset:50% auto auto 50%;
-  inline-size:min(34rem,110%);
-  block-size:10rem;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  background:radial-gradient(ellipse, rgb(201 155 66 / .20) 0%, rgb(201 155 66 / .08) 42%, transparent 72%);
-  filter:blur(10px);
-}
-.dzn-story__chapter::after {
-  inset:50% auto auto -5.5rem;
-  inline-size:13rem;
-  block-size:13rem;
-  transform:translateY(-50%);
+.dzn-story__finale::before,
+.dzn-story__finale::after {
+  inline-size:clamp(18rem,44vw,34rem);
   background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
-  opacity:.18;
+  opacity:.42;
   filter:none;
   mix-blend-mode:normal;
 }
-.dzn-story__chapter-title {
-  position:relative;
-  z-index:2;
-  color:var(--dzn-color-accent) !important;
-  text-shadow:0 0 18px rgb(201 155 66 / .20);
+.dzn-story__finale::before {
+  inset-inline-start:-7rem;
+  transform:rotate(-8deg);
+}
+.dzn-story__finale::after {
+  inset-inline-end:-7rem;
+  transform:rotate(172deg);
+}
+
+@media (max-width:47.99rem) {
+  .dzn-story__chapter::before { inline-size:165%; block-size:9rem; }
+  .dzn-story__chapter::after { inline-size:12rem; block-size:12rem; opacity:.25; }
+  .dzn-story__finale::before,
+  .dzn-story__finale::after { inline-size:clamp(14rem,68vw,20rem); opacity:.32; }
+  .dzn-story__finale::before { inset-inline-start:-6rem; }
+  .dzn-story__finale::after { inset-inline-end:-6rem; }
 }

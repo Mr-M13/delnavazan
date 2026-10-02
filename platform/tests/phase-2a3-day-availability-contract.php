@@ -1,5 +1,6 @@
 <?php
 use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
+use Delnavazan\Platform\Core\Application\BookingAvailabilityPolicy;
 use Delnavazan\Platform\Core\Application\RequestedTimeNormalizer;
 
 require dirname( __DIR__ ) . '/src/Core/Application/Normalizer.php';

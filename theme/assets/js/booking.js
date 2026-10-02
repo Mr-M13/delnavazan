@@ -23,6 +23,7 @@
   let idempotencyKey = '';
   let availabilityRequestId = 0;
   let availabilityPreviewFailed = false;
+  let availabilityPreviewPending = false;
   let selectedDate = '';
   let dateCursor;
 
@@ -275,8 +276,8 @@
       item.className = 'dzn-booking__time';
       const details = document.createElement('div');
       const heading = document.createElement('strong');
-      heading.textContent = 'اولویت ' + faDigits(index + 1) + ' · ' + selectedDateLabel(slot.local_date) + '، ساعت ' + slot.local_start_time;
-      const state = copy[slot.status];
+      heading.textContent = 'اولویت ' + faDigits(index + 1) + ' · ' + selectedDateLabel(slot.local_date) + '، ساعت ' + faDigits(slot.local_start_time);
+      const state = availabilityPreviewPending ? copy.checking : copy[slot.status];
       details.append(heading);
       if (state) {
         const badge = document.createElement('span');
@@ -311,8 +312,8 @@
     const requestId = ++availabilityRequestId;
     availabilityPreviewFailed = false;
     if (!activeInstrument() || !slots.length || !timezone.value) return false;
+    availabilityPreviewPending = true;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
-    slots.forEach((slot) => { slot.status = 'checking'; slot.teacher_times = []; });
     renderSlots();
     try {
       const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
@@ -326,7 +327,8 @@
       });
       const result = await response.json();
       if (!response.ok || !Array.isArray(result.times) || result.times.length !== slots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
-      if (requestId !== availabilityRequestId) return false;
+      if (requestId !== availabilityRequestId) { availabilityPreviewPending = false; return false; }
+      availabilityPreviewPending = false;
       result.times.forEach((row, index) => {
         if (slots[index]) {
           slots[index].status = row.status;
@@ -344,9 +346,10 @@
       }
       return true;
     } catch {
-      if (requestId !== availabilityRequestId) return false;
+      if (requestId !== availabilityRequestId) { availabilityPreviewPending = false; return false; }
+      availabilityPreviewPending = false;
       availabilityPreviewFailed = true;
-      slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
+      slots.forEach((slot) => { slot.teacher_times = []; });
     }
     renderSlots();
     renderTimeOptions();
@@ -451,7 +454,7 @@
     slots.forEach((slot) => {
       const li = document.createElement('li');
       const state = copy[slot.status];
-      li.textContent = selectedDateLabel(slot.local_date) + '، ' + slot.local_start_time + ' (' + state[0] + ')';
+      li.textContent = selectedDateLabel(slot.local_date) + '، ' + faDigits(slot.local_start_time) + ' (' + state[0] + ')';
       const teacherTime = teacherTimeText(slot);
       if (teacherTime) {
         const note = document.createElement('small');
@@ -476,7 +479,11 @@
     }
     goTo(next);
   }));
-  root.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', () => goTo(button.dataset.back)));
+  root.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', async () => {
+    const target = button.dataset.back;
+    goTo(target);
+    if (target === 'availability' && slots.length) await assessSlots();
+  }));
   root.querySelectorAll('[data-progress-target]').forEach((button) => button.addEventListener('click', () => {
     const target = button.dataset.progressTarget;
     const order = ['instrument', 'availability', 'contact'];

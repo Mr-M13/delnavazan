@@ -13,6 +13,8 @@ final class BookingAvailabilityPolicy {
         'academy_timezone' => 'Asia/Tehran',
         'quiet_start' => '01:00:00',
         'quiet_end' => '06:00:00',
+        'student_quiet_start' => '01:00:00',
+        'student_quiet_end' => '06:00:00',
         'candidate_interval_minutes' => 45,
         'version' => 1,
     );
@@ -32,6 +34,8 @@ final class BookingAvailabilityPolicy {
             'academy_timezone' => $input['academy_timezone'] ?? $current['academy_timezone'],
             'quiet_start' => $input['quiet_start'] ?? $current['quiet_start'],
             'quiet_end' => $input['quiet_end'] ?? $current['quiet_end'],
+            'student_quiet_start' => $input['student_quiet_start'] ?? $current['student_quiet_start'],
+            'student_quiet_end' => $input['student_quiet_end'] ?? $current['student_quiet_end'],
             'candidate_interval_minutes' => $input['candidate_interval_minutes'] ?? $current['candidate_interval_minutes'],
             'version' => (int) $current['version'] + 1,
         ) );
@@ -48,12 +52,14 @@ final class BookingAvailabilityPolicy {
         catch ( \Throwable ) { throw new \InvalidArgumentException( 'Valid academy IANA timezone required' ); }
         $start = self::time( (string) ( $policy['quiet_start'] ?? '' ) );
         $end = self::time( (string) ( $policy['quiet_end'] ?? '' ) );
+        $studentStart = self::time( (string) ( $policy['student_quiet_start'] ?? '' ) );
+        $studentEnd = self::time( (string) ( $policy['student_quiet_end'] ?? '' ) );
         $interval = filter_var( $policy['candidate_interval_minutes'] ?? null, FILTER_VALIDATE_INT );
         $version = filter_var( $policy['version'] ?? 1, FILTER_VALIDATE_INT );
-        if ( $start === $end ) throw new \InvalidArgumentException( 'Non-zero quiet-hours window required' );
+        if ( $start === $end || $studentStart === $studentEnd ) throw new \InvalidArgumentException( 'Non-zero quiet-hours window required' );
         if ( $interval === false || $interval < 15 || $interval > 120 || 1440 % $interval !== 0 ) throw new \InvalidArgumentException( 'Candidate interval must evenly divide a civil day' );
         if ( $version === false || $version < 1 ) throw new \InvalidArgumentException( 'Policy version required' );
-        return array( 'academy_timezone' => $timezone, 'quiet_start' => $start, 'quiet_end' => $end, 'candidate_interval_minutes' => $interval, 'version' => $version );
+        return array( 'academy_timezone' => $timezone, 'quiet_start' => $start, 'quiet_end' => $end, 'student_quiet_start' => $studentStart, 'student_quiet_end' => $studentEnd, 'candidate_interval_minutes' => $interval, 'version' => $version );
     }
 
     private static function time( string $value ): string {

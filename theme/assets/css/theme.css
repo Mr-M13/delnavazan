@@ -7039,16 +7039,6 @@ a.dzn-nav-action:focus-visible {
     color: rgb(255 253 248 / .82);
   }
 
-  /*
-   * The approved SVG is loaded as an external image, so its currentColor does
-   * not inherit from its link. Normalize it to the existing light icon
-   * treatment in both contact surfaces.
-   */
-  .site-footer__action--whatsapp .site-footer__action-icon,
-  .dzn-floating-whatsapp__icon {
-    filter: brightness(0) invert(1);
-  }
-
   @media (max-width: 47.99rem) {
     .dzn-story__chapter {
       margin-inline: 0;

@@ -80,6 +80,11 @@ jobs:
           else
             echo 'Teacher onboarding v1 contract not present on this PR base yet.'
           fi
+          if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
+            php platform/tests/phase-operations-portal-contract.php
+          else
+            echo 'Operations portal contract not present on this PR base yet.'
+          fi
 
       - name: Check staging smoke runner syntax
         run: bash -n deployment/qa/staging-smoke.sh

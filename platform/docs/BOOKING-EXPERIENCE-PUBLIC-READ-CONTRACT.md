@@ -24,3 +24,12 @@ The response contains the submitted sequence number, one status, and, where curr
 POST /wp-json/delnavazan-platform/v1/booking-requests remains the only public intake write. Its strict field allowlist, IANA wall-time conversion, DST checks, 24-month private contact snapshot retention, idempotency, rate limit and opaque REQ-* reference remain authoritative. A successful request is submitted / unresolved; it does not create a Student, Lesson, Teacher assignment, payment, notification or reserved slot.
 
 The free introductory meeting carries no payment choice at this stage. The 01:00–06:00 Iran-time blackout is an application rule in the existing normalization and validation paths; it adds no database table, migration, new route or booking authority. Later continuation/payment flows remain governed by their separate Platform authorities.
+
+
+## Planned day-availability read contract
+
+The booking UI requires a distinct read model from the one-to-three preference preview above. The Platform will own generation of the selectable local-day grid. For an active introductory Instrument/Course, one local date and one IANA timezone, it will generate 45-minute candidate starts, normalize each candidate using the Course duration and buffer, omit invalid DST gap/fold wall times, apply the academy-wide Iran quiet-hours rule after UTC conversion, and assess remaining candidates against current eligible Teacher coverage.
+
+The day-grid response is presentation authority only. It will expose local start time and aggregate status (strong, possible, none) for selectable candidates. Blocked candidates are not selectable and should not be returned as selectable slots. It must not expose Teacher identity, raw Teacher availability, contact data, reservation state, or create persistence. A none slot remains requestable. The existing POST booking-availability/preview retains its strict one-to-three preference contract and remains suitable for final preference confirmation; POST booking-requests remains the only intake write and re-enforces blackout policy.
+
+The Theme must not synthesize a 24-hour availability grid, infer blackout offsets, or batch the one-to-three preview endpoint to emulate this read model.

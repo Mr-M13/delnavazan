@@ -76,9 +76,11 @@ function dzn_theme_render_booking_route(): void {
                         <h2 id="dzn-booking-availability-title" tabindex="-1">چه زمانی برای شما مناسب است؟</h2>
                         <div class="dzn-booking__timezone" data-timezone-note>
                             <strong>منطقهٔ زمانی شما</strong><span class="dzn-booking__timezone-copy">بر اساس دستگاه شما تشخیص داده شد؛ ساعت‌ها خودکار با مدرس هماهنگ می‌شوند.</span>
-                            <label class="screen-reader-text" for="dzn-booking-timezone">منطقهٔ زمانی (نام IANA)</label>
-                            <input id="dzn-booking-timezone" data-timezone type="text" value="<?php echo esc_attr( $default_timezone ); ?>" autocomplete="off" required>
-                            <p>در صورت نیاز می‌توانید آن را تغییر دهید.</p>
+                            <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
+                            <select id="dzn-booking-timezone" data-timezone required>
+                                <?php echo wp_timezone_choice( $default_timezone, get_user_locale() ); ?>
+                            </select>
+                            <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
                         </div>
                         <div class="dzn-booking__calendar">
                             <div class="dzn-booking__calendar-heading">

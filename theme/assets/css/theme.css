@@ -7123,3 +7123,32 @@ a.dzn-nav-action:focus-visible {
 .dzn-story__chapter-title { color:#fffdf8 !important; text-shadow:0 1px 2px rgb(0 0 0 / .18); }
 .dzn-story__chapter-note { color:rgb(255 253 248 / .86) !important; }
 .dzn-instrument-carousel__controls { display:none !important; }
+
+/* Staging visual correction: original sticky heading treatment with container-only glow. */
+.dzn-story__chapter {
+  background:transparent;
+  box-shadow:0 0 3.25rem 1.35rem rgb(16 74 77 / .16);
+}
+.dzn-story__chapter::before { background:transparent; box-shadow:none; }
+.dzn-story__chapter::after {
+  background-image:url("../images/Motif.webp");
+  background-repeat:repeat;
+  background-position:center;
+  background-size:clamp(9rem,16vw,14rem) auto;
+  opacity:1;
+  mix-blend-mode:normal;
+}
+.dzn-story__chapter-title {
+  color:var(--dzn-color-accent) !important;
+  text-shadow:none;
+}
+.dzn-story__chapter-note { color:var(--dzn-color-text-secondary) !important; }
+
+/* Use the owned motif asset for the full price finale rather than the retired external ornament. */
+.dzn-story__finale::before,
+.dzn-story__finale::after {
+  inline-size:clamp(15rem,42vw,30rem);
+  background:url("../images/Motif.webp") center / contain no-repeat;
+  opacity:1;
+  mix-blend-mode:screen;
+}

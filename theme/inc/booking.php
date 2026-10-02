@@ -20,7 +20,7 @@ function dzn_theme_render_booking_route(): void {
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
-    $instrument_images = array( 'piano' => 'instrument-piano.webp', 'tar' => 'instrument-tar.webp', 'setar' => 'instrument-setar.webp', 'santur' => 'instrument-santur.webp', 'tombak' => 'instrument-tombak.webp', 'kamancheh' => 'instrument-kamancheh.webp', 'daf' => 'instrument-daf.webp' );
+    $instrument_images = array( 'piano' => 'C-Piano.webp', 'tar' => 'C-Tar.webp', 'setar' => 'C-Setar.webp', 'santur' => 'C-santour.webp', 'tombak' => 'C-Tombak.webp', 'kamancheh' => 'C-Kamancheh.webp', 'daf' => 'C-Daf.webp' );
     ?>
     <main id="main-content" class="site-main dzn-booking" tabindex="-1">
         <div class="dzn-container dzn-booking__container">
@@ -93,8 +93,7 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
-                            <p class="dzn-booking__help">سبز: زمان مناسب برای استاد. طلایی: امکان محدود. سفید: هنوز استادی منطبق نیست، اما قابل درخواست است.</p>
-                            <div class="dzn-booking__time-options" data-time-options></div>
+                                                        <div class="dzn-booking__time-options" data-time-options></div>
                         </section>
                         <div class="dzn-booking__preference-heading">
                             <h3>اولویت‌های شما</h3><span data-preference-count>۰ از ۳</span>
@@ -123,12 +122,7 @@ function dzn_theme_render_booking_route(): void {
                             <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" maxlength="191" required></div>
                             <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" required><p class="dzn-booking__field-help">کد کشور را هم وارد کنید؛ نمونه برای استرالیا ‎+61.</p></div>
                         </div>
-                        <fieldset class="dzn-booking__whatsapp">
-                            <legend>واتساپ</legend>
-                            <label><input type="checkbox" data-whatsapp-same checked> همین شماره برای واتساپ هم استفاده می‌شود</label>
-                            <p class="dzn-booking__field-help">اعلان‌های کلاس‌ها را به این شمارهٔ واتساپ می‌فرستیم. پیوند ورود به هر کلاس نیز در حساب هنرجویی شما در دسترس خواهد بود.</p>
-                            <div data-whatsapp-extra hidden><label for="dzn-booking-whatsapp">شمارهٔ واتساپ با کد کشور</label><input id="dzn-booking-whatsapp" data-whatsapp type="tel" maxlength="32" placeholder="+61 ..."></div>
-                        </fieldset>
+                        <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما راه اصلی ارتباط دلنوازان در واتساپ برای اعلان‌ها و هماهنگی کلاس‌هاست. لطفاً شماره‌ای را وارد کنید که به حساب واتساپ شما متصل است.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>

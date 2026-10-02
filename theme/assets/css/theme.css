@@ -3620,9 +3620,9 @@
     background-image: url("../images/Motif.webp");
     background-position: center;
     background-repeat: repeat;
-    background-size: clamp(18rem, 34vw, 30rem) auto;
+    background-size: clamp(12rem, 24vw, 20rem) auto;
     content: "";
-    opacity: .78;
+    opacity: 1;
     pointer-events: none;
   }
 
@@ -7044,7 +7044,7 @@ a.dzn-nav-action:focus-visible {
 
   .dzn-story__chapter::before {
     position: absolute;
-    z-index: -1;
+    z-index: 0;
     inset-block: -.65rem;
     inset-inline-start: 50%;
     inline-size: 100vw;
@@ -7057,7 +7057,7 @@ a.dzn-nav-action:focus-visible {
   /* Smaller motif texture keeps the sticky red chapter bands visually distinct while scrolling. */
   .dzn-story__chapter::after {
     position: absolute;
-    z-index: -1;
+    z-index: 0;
     inset-block: -.65rem;
     inset-inline-start: 50%;
     inline-size: 100vw;
@@ -7069,6 +7069,11 @@ a.dzn-nav-action:focus-visible {
     opacity: .72;
     pointer-events: none;
     transform: translateX(-50%);
+  }
+
+  .dzn-story__chapter > * {
+    position: relative;
+    z-index: 1;
   }
 
   .dzn-story__chapter-title {

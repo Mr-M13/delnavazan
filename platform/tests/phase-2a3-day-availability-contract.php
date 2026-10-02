@@ -87,4 +87,14 @@ if ( strpos( $preview, 'count( $times ) > 3' ) === false ) {
     throw new RuntimeException( 'Existing 1-3 preference preview contract must remain unchanged' );
 }
 
+$dayService = file_get_contents( $root . '/src/Core/Application/BookingDayAvailabilityService.php' );
+$dayController = file_get_contents( $root . '/src/Public/BookingDayAvailabilityRestController.php' );
+$plugin = file_get_contents( $root . '/delnavazan-platform.php' );
+if ( strpos( $dayService, 'BookingAvailabilityAssessmentService' ) === false || strpos( $dayService, "status'] === 'blocked'" ) === false ) {
+    throw new RuntimeException( 'Day grid must use shared scorer and omit blocked candidates' );
+}
+if ( strpos( $dayController, '/booking-availability/day' ) === false || strpos( $plugin, 'BookingDayAvailabilityRestController' ) === false ) {
+    throw new RuntimeException( 'Day availability REST contract is not registered' );
+}
+
 echo "Day-availability foundation contract passed\n";

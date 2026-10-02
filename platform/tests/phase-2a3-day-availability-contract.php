@@ -68,6 +68,19 @@ if ( in_array( '01:30:00', array_column( $newYorkFold, 'local_start_time' ), tru
     throw new RuntimeException( 'DST-fold candidate must be omitted rather than guessed' );
 }
 
+$customPolicy = BookingAvailabilityPolicy::validate( array(
+    'academy_timezone' => 'Australia/Brisbane',
+    'quiet_start' => '22:00:00',
+    'quiet_end' => '07:00:00',
+    'candidate_interval_minutes' => 45,
+    'version' => 2,
+) );
+$customBlocked = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '23:30', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
+$customAllowed = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '12:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
+if ( ! RequestedTimeNormalizer::overlapsAcademyQuietHours( $customBlocked, $customPolicy ) || RequestedTimeNormalizer::overlapsAcademyQuietHours( $customAllowed, $customPolicy ) ) {
+    throw new RuntimeException( 'Adjustable cross-midnight academy quiet-hours policy failed' );
+}
+
 $root = dirname( __DIR__ );
 $preview = file_get_contents( $root . '/src/Core/Application/BookingAvailabilityPreviewService.php' );
 if ( strpos( $preview, 'count( $times ) > 3' ) === false ) {

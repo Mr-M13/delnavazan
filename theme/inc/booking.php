@@ -145,7 +145,17 @@ function dzn_theme_render_booking_route(): void {
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
-                            <aside class="dzn-booking__notice dzn-booking__summary-note"><h4>پرداختی برای جلسهٔ معارفه ندارید</h4><ul><li>جلسهٔ معارفه رایگان است و اکنون پرداختی انجام نمی‌شود.</li><li>این درخواست هنوز زمان جلسه را تأیید یا رزرو نمی‌کند.</li><li>اگر پس از جلسه ادامه دهید، هزینه و کلاس‌های منظم با شما هماهنگ می‌شود.</li><li>همین ایمیل برای حساب هنرجویی و شمارهٔ موبایل برای اعلان‌های واتساپ استفاده می‌شود.</li></ul></aside>
+                            <aside class="dzn-booking__notice dzn-booking__summary-note">
+                                <p class="dzn-booking__summary-kicker">پیش از ارسال درخواست</p>
+                                <h4>جلسهٔ معارفه رایگان است</h4>
+                                <ul>
+                                    <li><strong>بدون پرداخت:</strong> در این مرحله هیچ هزینه‌ای دریافت نمی‌شود.</li>
+                                    <li><strong>زمان پیشنهادی:</strong> زمان‌هایی که انتخاب کرده‌اید اولویت شما هستند و هنوز رزرو قطعی نیستند.</li>
+                                    <li><strong>هماهنگی نهایی:</strong> دلنوازان پس از بررسی استاد و زمان مناسب، نتیجه را با شما هماهنگ می‌کند.</li>
+                                    <li><strong>ادامهٔ دوره:</strong> در صورت تمایل پس از جلسهٔ معارفه، برنامه و شهریهٔ کلاس‌های منظم با شما هماهنگ می‌شود.</li>
+                                    <li><strong>ارتباط:</strong> ایمیل برای حساب هنرجویی و شمارهٔ موبایل برای پیام‌های واتساپ و اعلان‌های کلاس استفاده می‌شود.</li>
+                                </ul>
+                            </aside>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>

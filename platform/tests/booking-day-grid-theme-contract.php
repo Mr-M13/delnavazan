@@ -8,9 +8,11 @@ $required = array(
     "booking-availability/preview",
     "await assessSlots();",
     "teacherTimeText(slot)",
+    "faDigits(slot.local_start_time)",
+    "availabilityPreviewPending = true",
 );
 foreach ( $required as $needle ) if ( strpos( $js, $needle ) === false ) throw new RuntimeException( 'Missing authoritative-grid contract: ' . $needle );
-$forbidden = array( 'candidateTimes', 'blockedTimes', 'availabilityByTime', "slice(index, index + 3)" );
+$forbidden = array( 'candidateTimes', 'blockedTimes', 'availabilityByTime', "slice(index, index + 3)", "slot.status = 'checking'" );
 foreach ( $forbidden as $needle ) if ( strpos( $js, $needle ) !== false ) throw new RuntimeException( 'Superseded client-grid mechanism remains: ' . $needle );
 if ( substr_count( $js, 'booking-availability/day' ) !== 1 ) throw new RuntimeException( 'Day grid must use one endpoint path' );
 if ( substr_count( $js, 'booking-availability/preview' ) !== 1 ) throw new RuntimeException( 'Preview must remain only for final selected-slot validation' );

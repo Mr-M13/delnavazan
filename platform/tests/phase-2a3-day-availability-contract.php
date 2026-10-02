@@ -73,6 +73,8 @@ $customPolicy = BookingAvailabilityPolicy::validate( array(
     'academy_timezone' => 'Australia/Brisbane',
     'quiet_start' => '22:00:00',
     'quiet_end' => '07:00:00',
+    'student_quiet_start' => '01:00:00',
+    'student_quiet_end' => '06:00:00',
     'candidate_interval_minutes' => 45,
     'version' => 2,
 ) );
@@ -80,6 +82,22 @@ $customBlocked = RequestedTimeNormalizer::normalize( array( 'local_date' => '202
 $customAllowed = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '12:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
 if ( ! RequestedTimeNormalizer::overlapsAcademyQuietHours( $customBlocked, $customPolicy ) || RequestedTimeNormalizer::overlapsAcademyQuietHours( $customAllowed, $customPolicy ) ) {
     throw new RuntimeException( 'Adjustable cross-midnight academy quiet-hours policy failed' );
+}
+
+
+$studentPolicy = BookingAvailabilityPolicy::validate( array(
+    'academy_timezone' => 'Asia/Tehran',
+    'quiet_start' => '01:00:00',
+    'quiet_end' => '06:00:00',
+    'student_quiet_start' => '01:00:00',
+    'student_quiet_end' => '06:00:00',
+    'candidate_interval_minutes' => 45,
+    'version' => 3,
+) );
+$studentFourAm = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '04:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
+$studentNoon = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '12:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
+if ( ! RequestedTimeNormalizer::overlapsStudentQuietHours( $studentFourAm, $studentPolicy ) || RequestedTimeNormalizer::overlapsStudentQuietHours( $studentNoon, $studentPolicy ) ) {
+    throw new RuntimeException( 'Student-local quiet-hours policy failed' );
 }
 
 $root = dirname( __DIR__ );

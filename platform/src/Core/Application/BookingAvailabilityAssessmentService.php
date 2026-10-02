@@ -17,7 +17,7 @@ final class BookingAvailabilityAssessmentService {
 
     /** @return array{status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>} */
     public function assess( array $time ): array {
-        if ( RequestedTimeNormalizer::overlapsAcademyQuietHours( $time ) ) return array( 'status' => 'blocked', 'teacher_times' => array() );
+        if ( RequestedTimeNormalizer::overlapsAcademyQuietHours( $time ) || RequestedTimeNormalizer::overlapsStudentQuietHours( $time ) ) return array( 'status' => 'blocked', 'teacher_times' => array() );
         $this->teachers ??= $this->repo->eligibleTeachers( $this->courseId, gmdate( 'Y-m-d H:i:s' ) );
         $best = 'none';
         $timezones = array();

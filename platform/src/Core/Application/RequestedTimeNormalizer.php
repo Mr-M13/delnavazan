@@ -45,6 +45,27 @@ final class RequestedTimeNormalizer {
         return false;
     }
 
+    /** Student-facing quiet hours are evaluated in the student's selected IANA timezone. */
+    public static function overlapsStudentQuietHours(array $interval, ?array $policy = null): bool {
+        if ( ! isset( $interval['local_date'], $interval['timezone'], $interval['starts_at_utc'], $interval['occupied_ends_at_utc'] ) ) throw new \InvalidArgumentException( 'Normalized requested interval required' );
+        $policy = BookingAvailabilityPolicy::validate( $policy ?? BookingAvailabilityPolicy::current() );
+        $utc = new \DateTimeZone( 'UTC' );
+        $zone = new \DateTimeZone( (string) $interval['timezone'] );
+        $start = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', (string) $interval['starts_at_utc'], $utc );
+        $end = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', (string) $interval['occupied_ends_at_utc'], $utc );
+        if ( ! $start || ! $end || $end <= $start ) throw new \InvalidArgumentException( 'Invalid normalized requested interval' );
+        $firstDay = $start->setTimezone( $zone )->setTime( 0, 0 )->modify( '-1 day' );
+        $lastDay = $end->setTimezone( $zone )->setTime( 0, 0 )->modify( '+1 day' );
+        for ( $day = $firstDay; $day <= $lastDay; $day = $day->modify( '+1 day' ) ) {
+            $date = $day->format( 'Y-m-d' );
+            $blockedStart = AvailabilityLocalTime::wall( $date, $policy['student_quiet_start'], (string) $interval['timezone'] )->setTimezone( $utc );
+            $blockedEndDate = $policy['student_quiet_end'] > $policy['student_quiet_start'] ? $date : $day->modify( '+1 day' )->format( 'Y-m-d' );
+            $blockedEnd = AvailabilityLocalTime::wall( $blockedEndDate, $policy['student_quiet_end'], (string) $interval['timezone'] )->setTimezone( $utc );
+            if ( $start < $blockedEnd && $end > $blockedStart ) return true;
+        }
+        return false;
+    }
+
     /** Backward-compatible name for callers created while the academy timezone was fixed to Iran. */
     public static function overlapsIranQuietHours(array $interval): bool {
         return self::overlapsAcademyQuietHours( $interval );

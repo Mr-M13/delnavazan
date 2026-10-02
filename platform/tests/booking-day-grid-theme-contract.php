@@ -6,6 +6,8 @@ $required = array(
     "availabilityGridState = 'error'",
     "availableTimes = []",
     "booking-availability/preview",
+    "await assessSlots();",
+    "teacherTimeText(slot)",
 );
 foreach ( $required as $needle ) if ( strpos( $js, $needle ) === false ) throw new RuntimeException( 'Missing authoritative-grid contract: ' . $needle );
 $forbidden = array( 'candidateTimes', 'blockedTimes', 'availabilityByTime', "slice(index, index + 3)" );

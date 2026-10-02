@@ -7117,44 +7117,70 @@ a.dzn-nav-action:focus-visible {
     }
   }
 }
-/* Final story treatment: explicit container backgrounds avoid pseudo-element stacking failures. */
+/* Canonical Navaz story treatment. The base layout owns sticky positioning; this block owns only the visual layer. */
 .dzn-instrument-carousel__controls { display:none !important; }
 
 .dzn-story__chapter {
-  background-image:
-    radial-gradient(ellipse at center, rgb(201 155 66 / .22) 0%, rgb(201 155 66 / .10) 38%, transparent 72%),
-    url("../images/Motif-Navaz-FULL.webp");
-  background-position:center, center;
-  background-repeat:no-repeat, no-repeat;
-  background-size:min(56rem,150%) 11rem, clamp(13rem,24vw,19rem) auto;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  backdrop-filter:none;
   box-shadow:none;
   isolation:isolate;
+  overflow:visible;
 }
-.dzn-story__chapter::before,
-.dzn-story__chapter::after { content:none !important; }
+.dzn-story__chapter::before {
+  content:"";
+  position:absolute;
+  z-index:-2;
+  inset:50% auto auto 50%;
+  inline-size:min(58rem,155vw);
+  block-size:10rem;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(ellipse at center, rgb(201 155 66 / .24) 0%, rgb(201 155 66 / .10) 42%, rgb(201 155 66 / .03) 62%, transparent 78%);
+  pointer-events:none;
+}
+.dzn-story__chapter::after {
+  content:"";
+  position:absolute;
+  z-index:-1;
+  inset:50% auto auto 50%;
+  inline-size:clamp(12rem,22vw,18rem);
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
+  opacity:.34;
+  pointer-events:none;
+}
 .dzn-story__chapter-title {
   color:var(--dzn-color-accent) !important;
-  text-shadow:0 0 20px rgb(201 155 66 / .22);
+  text-shadow:0 0 20px rgb(201 155 66 / .20);
 }
 .dzn-story__chapter-note { color:var(--dzn-color-text-secondary) !important; }
 
-.dzn-story__finale {
-  background-image:
-    url("../images/Motif-Navaz-FULL.webp"),
-    url("../images/Motif-Navaz-FULL.webp");
-  background-position:left -7rem center, right -7rem center;
-  background-repeat:no-repeat;
-  background-size:clamp(18rem,44vw,34rem) auto;
-}
 .dzn-story__finale::before,
-.dzn-story__finale::after { content:none !important; }
+.dzn-story__finale::after {
+  content:"";
+  position:absolute;
+  z-index:0;
+  top:50%;
+  inline-size:clamp(18rem,42vw,32rem);
+  aspect-ratio:1;
+  background:url("../images/Motif-Navaz-FULL.webp") center / contain no-repeat;
+  opacity:.38;
+  pointer-events:none;
+}
+.dzn-story__finale::before { left:-7rem; transform:translateY(-50%) rotate(-8deg); }
+.dzn-story__finale::after { right:-7rem; transform:translateY(-50%) rotate(172deg); }
+.dzn-story__finale > * { position:relative; z-index:1; }
 
 @media (max-width:47.99rem) {
-  .dzn-story__chapter {
-    background-size:165% 9rem, 12rem auto;
-  }
-  .dzn-story__finale {
-    background-position:left -6rem center, right -6rem center;
-    background-size:clamp(14rem,68vw,20rem) auto;
-  }
+  .dzn-story__chapter { margin-inline:0; }
+  .dzn-story__chapter::before { inline-size:170vw; block-size:8.5rem; }
+  .dzn-story__chapter::after { inline-size:11rem; opacity:.29; }
+  .dzn-story__finale::before,
+  .dzn-story__finale::after { inline-size:clamp(14rem,68vw,20rem); opacity:.30; }
+  .dzn-story__finale::before { left:-6rem; }
+  .dzn-story__finale::after { right:-6rem; }
 }

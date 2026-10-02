@@ -179,11 +179,16 @@
   font-size: .9rem;
 }
 
-/* Guided booking progress and clearer availability states. */
-.dzn-booking__progress ol { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
-.dzn-booking__progress ol::before { content:""; position:absolute; top:1.05rem; left:16%; right:16%; height:2px; background:var(--dzn-color-border); z-index:0; }
-.dzn-booking__progress li { position:relative; z-index:1; }
-.dzn-booking__progress button { width:100%; border:0; background:transparent; color:var(--dzn-color-text-muted); cursor:pointer; display:grid; justify-items:center; gap:.35rem; font:inherit; }
+/* Canonical booking progress: equal columns with a centre-to-centre connector. */
+.dzn-booking__progress ol { position:relative; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; }
+.dzn-booking__progress ol::before,.dzn-booking__progress ol::after { content:""; position:absolute; top:1.05rem; inset-inline-start:16.6667%; block-size:2px; z-index:0; }
+.dzn-booking__progress ol::before { inset-inline-end:16.6667%; background:var(--dzn-color-border); }
+.dzn-booking__progress ol::after { inline-size:0; background:var(--dzn-color-action-primary); transition:inline-size .28s ease; }
+.dzn-booking__progress:has([data-progress="availability"].is-current) ol::after { inline-size:33.3333%; }
+.dzn-booking__progress:has([data-progress="contact"].is-current) ol::after,.dzn-booking__progress:has([data-progress="contact"].is-done) ol::after { inline-size:66.6667%; }
+.dzn-booking__progress li { position:relative; z-index:1; min-width:0; padding:.5rem .25rem; }
+.dzn-booking__progress li::before { display:none; }
+.dzn-booking__progress button { width:100%; border:0; background:transparent; color:var(--dzn-color-text-muted); cursor:pointer; display:grid; justify-items:center; gap:.35rem; padding:0; text-align:center; font:inherit; }
 .dzn-booking__progress button span { display:grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:50%; background:var(--dzn-color-surface-elevated); border:2px solid var(--dzn-color-border); font-weight:800; }
 .dzn-booking__progress li.is-current button span,.dzn-booking__progress li.is-done button span { border-color:var(--dzn-color-action-primary); background:var(--dzn-color-action-primary); color:#fff; }
 .dzn-booking__progress li.is-current button { color:var(--dzn-color-text-primary); font-weight:800; }
@@ -195,27 +200,7 @@
 .dzn-booking__summary-note h4 { margin-top:0; }
 .dzn-booking__summary-note ul { margin:.65rem 0 0; padding-inline-start:1.25rem; display:grid; gap:.45rem; }
 
-/* Precision pass: centre-to-centre progress line and calm calendar interaction. */
-.dzn-booking__progress ol::before {
-  top:1.05rem;
-  inset-inline:calc(16.6667% + 1.05rem);
-  height:2px;
-}
-.dzn-booking__progress ol::after {
-  content:"";
-  position:absolute;
-  top:1.05rem;
-  inset-inline-start:calc(16.6667% + 1.05rem);
-  width:0;
-  height:2px;
-  background:var(--dzn-color-action-primary);
-  z-index:0;
-  transition:width .28s ease;
-}
-.dzn-booking__progress:has([data-progress="availability"].is-current) ol::after { width:calc(33.3333% - 2.1rem); }
-.dzn-booking__progress:has([data-progress="contact"].is-current) ol::after,
-.dzn-booking__progress:has([data-progress="contact"].is-done) ol::after { width:calc(66.6667% - 2.1rem); }
-
+/* Calendar interaction. */
 .dzn-booking__calendar button {
   inline-size:2.65rem;
   block-size:2.65rem;
@@ -269,3 +254,5 @@
 }
 .dzn-booking__availability-status { margin:.5rem 0; color:var(--dzn-color-text-muted); font-size:.9rem; }
 .dzn-booking__availability-status.is-error { color:var(--dzn-color-error); }
+
+.dzn-booking__time-guidance { max-width:38rem; margin:0 auto 1rem; border-inline-start:.2rem solid var(--dzn-color-highlight); color:var(--dzn-color-text-muted); padding:.65rem .8rem; font-size:.9rem; line-height:1.8; }

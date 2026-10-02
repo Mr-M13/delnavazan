@@ -6,9 +6,9 @@
  */
 
 $footer_logo_uri      = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
-$footer_instagram_uri = get_theme_file_uri( 'assets/images/contact-instagram.webp' );
-$footer_whatsapp_uri  = get_theme_file_uri( 'assets/images/contact-whatsapp.svg' );
-$footer_email_uri     = get_theme_file_uri( 'assets/images/contact-email.webp' );
+$footer_instagram_uri = get_theme_file_uri( 'assets/images/Insta-gold.webp' );
+$footer_whatsapp_uri  = get_theme_file_uri( 'assets/images/WhatsApp-gold.webp' );
+$footer_email_uri     = get_theme_file_uri( 'assets/images/Mail-gold.webp' );
 ?>
 <footer class="site-footer" role="contentinfo">
 	<div class="dzn-container site-footer__top">

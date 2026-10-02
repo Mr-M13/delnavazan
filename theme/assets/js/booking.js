@@ -47,7 +47,7 @@
   const minDate = localDate(tomorrow);
   const maxDate = localDate(latest);
   const detectedZone = detectZone();
-  if (detectedZone) timezone.value = detectedZone;
+  if (detectedZone && Array.from(timezone.options).some((option) => option.value === detectedZone)) timezone.value = detectedZone;
   dateCursor = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), 1);
 
   const copy = {
@@ -260,7 +260,7 @@
   const addPreference = (value) => {
     showError('');
     if (!activeInstrument()) { showError('ابتدا ساز موردنظر را انتخاب کنید.'); goTo('instrument'); return; }
-    if (!selectedDate || !timezone.value.trim()) { showError('روز و منطقهٔ زمانی را انتخاب کنید.'); return; }
+    if (!selectedDate || !timezone.value) { showError('روز و منطقهٔ زمانی را انتخاب کنید.'); return; }
     if (slots.length >= 3) { showError('حداکثر سه زمان پیشنهادی می‌توانید اضافه کنید.'); return; }
     if (slots.some((slot) => slot.local_date === selectedDate && slot.local_start_time === value)) { showError('این زمان را قبلاً اضافه کرده‌اید.'); return; }
     slots.push({ local_date: selectedDate, local_start_time: value, status: 'checking' });
@@ -335,7 +335,7 @@
     panel.replaceChildren();
     const rows = [
       ['ساز', selectedOption().textContent.trim()],
-      ['منطقهٔ زمانی شما', timezone.value.trim()],
+      ['منطقهٔ زمانی شما', timezone.value],
       ['نام', fieldValue('full_name')],
       ['ایمیل', fieldValue('email')],
       ['موبایل', fieldValue('mobile')],
@@ -381,7 +381,7 @@
       if (slots.some((slot) => slot.status === 'checking')) { showError('لطفاً تا پایان بررسی زمان‌ها صبر کنید.'); return; }
       if (slots.some((slot) => slot.status === 'blocked')) { showError('برخی از زمان‌های پیشنهادی طبق سیاست دلنوازان قابل درخواست نیستند. آن‌ها را حذف کنید یا زمان دیگری پیشنهاد دهید.'); const blockedIndex = slots.findIndex((slot) => slot.status === 'blocked');
         timesList.children[blockedIndex]?.querySelector('.dzn-booking__remove')?.focus(); return; }
-      if (!timezone.value.trim()) { showError('منطقهٔ زمانی را وارد کنید.'); timezone.focus(); return; }
+      if (!timezone.value) { showError('منطقهٔ زمانی را انتخاب کنید.'); timezone.focus(); return; }
     }
     goTo(next);
   }));
@@ -403,13 +403,13 @@
       mobile: fieldValue('mobile'),
       country: fieldValue('country').toUpperCase(),
       city: fieldValue('city'),
-      timezone: timezone.value.trim(),
+      timezone: timezone.value,
       communication_language: 'fa',
       whatsapp_same_as_mobile: whatsappSame.checked,
       whatsapp_number: whatsappSame.checked ? fieldValue('mobile') : whatsapp.value.trim(),
       privacy_notice_accepted: true,
       privacy_notice_version: dznBooking.privacyVersion,
-      requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value.trim() }))
+      requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
     };
     try {
       const response = await fetch(apiUrl('delnavazan-platform/v1/booking-requests'), {

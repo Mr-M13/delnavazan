@@ -3601,11 +3601,34 @@
      ======================================================= */
 
   .dzn-pricing {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+
     background:
       var(--dzn-color-text-secondary);
 
     color:
       var(--dzn-color-on-action);
+  }
+
+  /* The supplied motif is already softly washed; keep most of its native presence. */
+  .dzn-pricing::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background-image: url("../images/Motif.webp");
+    background-position: center;
+    background-repeat: repeat;
+    background-size: clamp(18rem, 34vw, 30rem) auto;
+    content: "";
+    opacity: .78;
+    pointer-events: none;
+  }
+
+  .dzn-pricing > * {
+    position: relative;
+    z-index: 1;
   }
 
   .dzn-pricing__grid {
@@ -7031,22 +7054,29 @@ a.dzn-nav-action:focus-visible {
     transform: translateX(-50%);
   }
 
+  /* Smaller motif texture keeps the sticky red chapter bands visually distinct while scrolling. */
+  .dzn-story__chapter::after {
+    position: absolute;
+    z-index: -1;
+    inset-block: -.65rem;
+    inset-inline-start: 50%;
+    inline-size: 100vw;
+    background-image: url("../images/Motif.webp");
+    background-position: center;
+    background-repeat: repeat;
+    background-size: clamp(7rem, 13vw, 11rem) auto;
+    content: "";
+    opacity: .72;
+    pointer-events: none;
+    transform: translateX(-50%);
+  }
+
   .dzn-story__chapter-title {
     color: #fffdf8;
   }
 
   .dzn-story__chapter-note {
     color: rgb(255 253 248 / .82);
-  }
-
-  /*
-   * The approved SVG is loaded as an external image, so its currentColor does
-   * not inherit from its link. Normalize it to the existing light icon
-   * treatment in both contact surfaces.
-   */
-  .site-footer__action--whatsapp .site-footer__action-icon,
-  .dzn-floating-whatsapp__icon {
-    filter: brightness(0) invert(1);
   }
 
   @media (max-width: 47.99rem) {

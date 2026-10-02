@@ -17,6 +17,8 @@
   const city = root.querySelector('[data-contact="city"]');
   const cityList = root.querySelector('[data-city-list]');
   const blockedTimes = new Set();
+  const availabilityByTime = new Map();
+  let gridAvailabilityRequestId = 0;
   const slots = [];
   let idempotencyKey = '';
   let availabilityRequestId = 0;
@@ -156,6 +158,7 @@
         dayTimes.hidden = false;
         renderTimeOptions();
         renderCalendar();
+        refreshAvailabilityGrid();
       });
       calendar.append(button);
     }
@@ -178,13 +181,59 @@
       button.type = 'button';
       button.textContent = faDigits(value);
       const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
-      button.className = 'dzn-booking__time-option' + (existing && ['strong', 'possible', 'none'].includes(existing.status) ? ' is-' + existing.status : '');
+      const preview = availabilityByTime.get(selectedDate + '|' + value);
+      button.className = 'dzn-booking__time-option' + (preview && ['strong', 'possible', 'none'].includes(preview.status) ? ' is-' + preview.status : '');
       button.setAttribute('dir', 'ltr');
       button.disabled = slots.length >= 3 || Boolean(existing) || blockedTimes.has(selectedDate + '|' + value);
+      if (blockedTimes.has(selectedDate + '|' + value)) return;
       button.addEventListener('click', () => addPreference(value));
       buttons.append(button);
     });
     timeOptions.append(buttons);
+  };
+
+  const refreshAvailabilityGrid = async () => {
+    if (!activeInstrument() || !selectedDate || !timezone.value) return;
+    const requestId = ++gridAvailabilityRequestId;
+    availabilityByTime.clear();
+    blockedTimes.clear();
+    renderTimeOptions();
+    try {
+      const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instrument_id: Number(instrument.value),
+          course_id: Number(selectedOption().dataset.course),
+          requested_times: candidateTimes.map((time) => ({ local_date: selectedDate, local_start_time: time, timezone: timezone.value }))
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !Array.isArray(result.times) || result.times.length !== candidateTimes.length) throw new Error('availability_grid_failed');
+      if (requestId !== gridAvailabilityRequestId) return;
+      result.times.forEach((row, index) => {
+        const time = candidateTimes[index];
+        if (!row || !['strong', 'possible', 'none', 'blocked'].includes(row.status)) return;
+        availabilityByTime.set(selectedDate + '|' + time, row);
+        if (row.status === 'blocked') blockedTimes.add(selectedDate + '|' + time);
+      });
+      slots.slice().forEach((slot) => {
+        if (slot.local_date !== selectedDate) return;
+        const row = availabilityByTime.get(slot.local_date + '|' + slot.local_start_time);
+        if (row && row.status === 'blocked') slots.splice(slots.indexOf(slot), 1);
+        else if (row) {
+          slot.status = row.status;
+          slot.teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times : [];
+        }
+      });
+      renderSlots();
+      renderTimeOptions();
+    } catch {
+      if (requestId !== gridAvailabilityRequestId) return;
+      availabilityByTime.clear();
+      blockedTimes.clear();
+      renderTimeOptions();
+    }
   };
 
   const renderSlots = () => {
@@ -309,6 +358,8 @@
     button.addEventListener('click', () => {
       instrument.value = button.dataset.instrumentChoice;
       instrument.dispatchEvent(new Event('change', { bubbles: true }));
+      goTo('availability');
+      refreshAvailabilityGrid();
     });
   });
   const currentStep = () => root.querySelector('.dzn-booking__step.is-active')?.dataset.step || 'instrument';
@@ -398,7 +449,10 @@
     else if (target === 'contact' && activeInstrument() && slots.length && timezone.value) goTo(target);
   }));
   timezone.addEventListener('change', async () => {
+    availabilityByTime.clear();
     blockedTimes.clear();
+    slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
+    await refreshAvailabilityGrid();
     if (slots.length) await assessSlots();
     renderTimeOptions();
   });

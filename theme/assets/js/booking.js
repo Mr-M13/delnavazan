@@ -106,9 +106,18 @@
     const keep = country.querySelector('option[value=""]');
     country.replaceChildren(keep || new Option('انتخاب کشور', ''));
     const names = new Intl.DisplayNames(['fa'], { type: 'region' });
-    countryCodes.map((code) => ({ code, name: names.of(code) || code }))
+    const serviceCodes = ['AU','NZ','US','CA','GB','DE','FR','SE','TR','AE','IR','BR'];
+    const serviceGroup = document.createElement('optgroup');
+    serviceGroup.label = 'مناطق اصلی خدمات دلنوازان';
+    serviceCodes.forEach((code) => serviceGroup.append(new Option(names.of(code) || code, code)));
+    country.append(serviceGroup);
+    const allGroup = document.createElement('optgroup');
+    allGroup.label = 'همهٔ کشورها';
+    countryCodes.filter((code) => !serviceCodes.includes(code))
+      .map((code) => ({ code, name: names.of(code) || code }))
       .sort((left, right) => left.name.localeCompare(right.name, 'fa'))
-      .forEach(({ code, name }) => country.add(new Option(name, code)));
+      .forEach(({ code, name }) => allGroup.append(new Option(name, code)));
+    country.append(allGroup);
     let region = '';
     try { region = new Intl.Locale(navigator.language).region || ''; } catch { /* browser language has no region */ }
     if (!region) {

@@ -7152,3 +7152,33 @@ a.dzn-nav-action:focus-visible {
   opacity:1;
   mix-blend-mode:screen;
 }
+
+/* Contextual motif palette: teal on cream, warm gold on the pricing panel. */
+.dzn-story__chapter {
+  box-shadow:none;
+  isolation:isolate;
+}
+.dzn-story__chapter::before {
+  content:"";
+  position:absolute;
+  inset:-2rem -3rem;
+  z-index:0;
+  pointer-events:none;
+  background:radial-gradient(ellipse at center, rgb(16 74 77 / .13) 0%, rgb(16 74 77 / .055) 38%, transparent 72%);
+  box-shadow:none;
+}
+.dzn-story__chapter::after {
+  background:url("../images/Motif.webp") center / min(15rem,72%) auto no-repeat;
+  opacity:1;
+  mix-blend-mode:normal;
+  filter:brightness(0) saturate(100%) invert(25%) sepia(20%) saturate(1180%) hue-rotate(134deg) brightness(86%) contrast(92%);
+}
+.dzn-story__chapter > * { position:relative; z-index:1; }
+
+.dzn-story__finale::before,
+.dzn-story__finale::after {
+  background:url("../images/Motif.webp") center / contain no-repeat;
+  opacity:1;
+  mix-blend-mode:normal;
+  filter:brightness(0) saturate(100%) invert(73%) sepia(63%) saturate(780%) hue-rotate(356deg) brightness(96%) contrast(90%);
+}

@@ -44,6 +44,8 @@ final class Menu {
 		if ($hook) add_action('load-' . $hook, [CoordinationCaseController::class, 'handlePost']);
 		$hook = add_submenu_page('dzn-platform', 'Student identity & authority', 'Student identity & authority', 'dzn_view_student_acceptance_eligibility', 'dzn-student-identity-authority', [StudentIdentityAuthorityController::class, 'screen']);
 		if ($hook) add_action('load-' . $hook, [StudentIdentityAuthorityController::class, 'handlePost']);
+        $hook = add_submenu_page('dzn-platform', 'Attendance review', 'Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen']);
+        if ($hook) add_action('load-' . $hook, [AttendanceReviewController::class, 'handlePost']);
         $hook = add_submenu_page('dzn-platform', 'Teacher onboarding', 'Teacher onboarding', 'dzn_manage_onboarding', 'dzn-onboarding', [OnboardingController::class, 'screen']);
         if ($hook) add_action('load-' . $hook, [OnboardingController::class, 'handlePost']);
     }

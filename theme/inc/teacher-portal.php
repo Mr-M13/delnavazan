@@ -25,7 +25,10 @@ function dzn_theme_teacher_portal_view_model( $screen ) {
 	$allowed = array( 'home', 'account', 'onboarding' );
 	$screen = in_array( $screen, $allowed, true ) ? $screen : 'home';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
-	return dzn_theme_teacher_portal_validate_model( $model, $screen ) ? $model : array( 'available' => false, 'screen' => $screen );
+	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
+		return $model;
+	}
+	return dzn_theme_teacher_portal_validate_model( $model, $screen ) ? $model : array( 'available' => false, 'state' => 'error', 'screen' => $screen );
 }
 /** Validate only the display contract; this establishes no domain truth. */
 function dzn_theme_teacher_portal_validate_model( $model, $screen ) {

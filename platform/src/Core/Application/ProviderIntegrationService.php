@@ -43,12 +43,14 @@ final class ProviderIntegrationService {
         private ?ProviderCalendarPort $calendar=null,
         private ?ProviderMeetingPort $meeting=null,
         private ?CanonicalLessonScheduleRepository $schedules=null,
-        private ?CanonicalLessonAuthorityRepository $lessons=null
+        private ?CanonicalLessonAuthorityRepository $lessons=null,
+        private ?ProviderReferenceVault $references=null
     ){
         $this->repository??=new ProviderIntegrationRepository();
         $this->secrets??=new IntegrationSecretService();
         $this->schedules??=new CanonicalLessonScheduleRepository();
         $this->lessons??=new CanonicalLessonAuthorityRepository();
+        $this->references??=new ProviderReferenceVault();
         if($this->oauth===null||$this->calendar===null||$this->meeting===null)throw new \RuntimeException('Provider adapter ports must be supplied by the Integrations module');
     }
 
@@ -558,6 +560,15 @@ final class ProviderIntegrationService {
                 $mapping['event_digest']=ProviderIntegrationIdempotency::subject($objectReference,'calendar_event');
                 $mappingId=$this->repository->insertCalendarMapping($mapping);
             }
+            $sealed=$this->references->seal($providerCode==='google_meet'?'meeting_conference':'calendar_event',$mappingId,array(
+                'provider_object_reference'=>$objectReference,
+                'join_uri_reference'=>$providerCode==='google_meet'?(string)($result['join_uri_reference']??$objectReference):'',
+            ));
+            $this->repository->insertProjectionSecret(array_merge(array(
+                'uid'=>Identifier::uid(),'mapping_kind'=>$providerCode==='google_meet'?'meeting_conference':'calendar_event',
+                'mapping_id'=>$mappingId,'state'=>'active','active_slot'=>1,'created_at'=>$now,'created_by'=>$actor,
+                'retired_at'=>null,'retired_by'=>null,
+            ),$sealed));
             $this->recordCommand($digest,$payload,$operation,$providerCode,(int)$connection->teacher_id,(int)$connection->id,$lessonId,$scheduleVersionId,$mappingId,'verified',$now,$actor);
             // Deterministic gated boundary: the integration reference is written and the provider
             // write has already returned, while the transaction is still open.
@@ -697,6 +708,14 @@ final class ProviderIntegrationService {
                 $update['event_digest']=$objectDigest;
                 $this->repository->updateCalendarMapping($mappingId,$update,array('projection_state'=>'pending'));
             }
+            $sealed=$this->references->seal($purpose,$mappingId,array(
+                'provider_object_reference'=>$reference,
+                'join_uri_reference'=>$purpose==='meeting_conference'?(string)($input['join_uri_reference']??$reference):'',
+            ));
+            $this->repository->insertProjectionSecret(array_merge(array(
+                'uid'=>Identifier::uid(),'mapping_kind'=>$purpose,'mapping_id'=>$mappingId,'state'=>'active','active_slot'=>1,
+                'created_at'=>$now,'created_by'=>$actor,'retired_at'=>null,'retired_by'=>null,
+            ),$sealed));
             $this->recordCommand($digest,$payload,$operation,(string)$mapping->provider_code,null,(int)$mapping->connection_id,(int)$mapping->lesson_id,(int)$mapping->schedule_version_id,$mappingId,'verified',$now,$actor);
             $this->repository->commit();
             return array('mapping_id'=>$mappingId,'mapping_state'=>'verified','provider_code'=>(string)$mapping->provider_code,'lesson_id'=>(int)$mapping->lesson_id,'schedule_version_id'=>(int)$mapping->schedule_version_id,'evidence'=>$evidence,'operation'=>$operation,'created'=>true);

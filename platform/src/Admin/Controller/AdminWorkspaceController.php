@@ -1,8 +1,15 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 final class AdminWorkspaceController {
- public static function register():void{add_action('admin_menu',[self::class,'menu'],99);}
+ public static function register():void{add_action('admin_menu',[self::class,'menu'],99);add_action('admin_menu',[self::class,'simplifySidebar'],999);}
  public static function menu():void{add_submenu_page('dzn-platform','Workspace','Workspace','dzn_view_diagnostics','dzn-workspace',[self::class,'screen']);}
+ public static function simplifySidebar():void{
+  // Keep authority screens registered and directly reachable, but remove implementation-level
+  // entries from the everyday sidebar. Workspace remains the human navigation layer.
+  global $submenu;if(empty($submenu['dzn-platform']))return;
+  $keep=['dzn-workspace','dzn-academy-operations','dzn-staff-access','dzn-platform'];
+  $submenu['dzn-platform']=array_values(array_filter($submenu['dzn-platform'],static fn($item)=>isset($item[2])&&in_array((string)$item[2],$keep,true)));
+ }
  public static function screen():void{
   if(!current_user_can('dzn_view_diagnostics'))wp_die('Forbidden',403);
   $groups=[

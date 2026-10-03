@@ -8,7 +8,7 @@ This is read-only and never sends credentials, writes data or submits a booking.
 
 - Public: HTTPS homepage, booking, enrol, login, 404, noindex and protected WordPress and Rank Math sitemaps.
 - Redirect safety: followed redirects must finish on the supplied staging origin; dashboard must redirect to that origin's `/login/`.
-- Logged-out access: student, teacher and operations portal controlled login-required pages.
+- Logged-out access: student and teacher portals redirect to `/login/` with a return target; operations keeps its controlled login-required page.
 - Visible PHP errors on every fetched HTML route.
 
 ## Launch checklist
@@ -16,8 +16,11 @@ This is read-only and never sends credentials, writes data or submits a booking.
 - [ ] Smoke runner passes after final staging deployment.
 - [ ] Browser review at 375px, 768px and 1440px for homepage, booking and login.
 - [ ] No console errors, failed assets, PHP errors or unexpected 404/500 responses.
-- [ ] Disposable staging account verifies login, dashboard routing and logout.
-- [ ] Booking instrument, time and contact validation tested without real submission.
+- [ ] Disposable staging accounts verify student, teacher and staff login, role routing and logout.
+- [ ] Teacher onboarding is exercised from invitation claim through readiness/review with disposable staging data.
+- [ ] Booking instrument, timezone, availability, contact validation and summary are tested without a real enrolment/submission unless an explicitly disposable test path is used.
+- [ ] Teacher canonical availability add/remove behaviour is verified with a disposable approved teacher.
+- [ ] Academy Operations and staff Workspace are verified with least-privilege operator roles.
+- [ ] Notification diagnostics and provider integration surfaces fail closed when credentials/transports are unavailable.
 - [ ] Staging noindex, X-Robots-Tag and both sitemap protections pass.
-- [ ] Teacher onboarding and content migration have their owners' QA results.
 - [ ] Production remains unchanged.

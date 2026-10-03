@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
+use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleService;
 use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CoreDatasetReadinessService;
 use Delnavazan\Platform\Core\Application\EnrolmentConversionService;
@@ -23,6 +24,7 @@ final class CoreDatasetReadinessController {
         'create_canonical_term' => 'dzn_manage_canonical_terms',
         'activate_canonical_term' => 'dzn_manage_canonical_terms',
         'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
+        'schedule_canonical_lesson' => 'dzn_manage_canonical_lesson_schedules',
     );
 
     public static function register(): void {
@@ -120,6 +122,20 @@ final class CoreDatasetReadinessController {
                 ),
                 self::text( $post, 'operator_key' )
             ),
+            'schedule_canonical_lesson' => self::scheduleCanonicalLesson(
+                self::positiveInt( $post, 'lesson_id' ),
+                self::positiveInt( $post, 'teacher_assignment_id' ),
+                array(
+                    'schedule_timezone' => self::text( $post, 'schedule_timezone' ),
+                    'local_wall_date' => self::text( $post, 'local_wall_date' ),
+                    'local_wall_time' => self::text( $post, 'local_wall_time' ),
+                    'reason_code' => self::text( $post, 'reason_code' ),
+                    'evidence_channel' => self::text( $post, 'evidence_channel' ),
+                    'evidence_reference' => self::text( $post, 'evidence_reference' ),
+                    'evidence_at' => self::text( $post, 'evidence_at' ),
+                ),
+                self::text( $post, 'operator_key' )
+            ),
         };
     }
 
@@ -180,6 +196,21 @@ final class CoreDatasetReadinessController {
         );
     }
 
+    public static function scheduleCanonicalLesson( int $lessonId, int $assignmentId, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['schedule_canonical_lesson'] );
+        $result = ( new CanonicalLessonScheduleService() )->schedule( $lessonId, $assignmentId, $evidence, $key );
+        return self::withOperatorEvidence(
+            $result,
+            'canonical_lesson_schedule',
+            'lesson',
+            $lessonId,
+            (string) ( $evidence['evidence_channel'] ?? '' ),
+            (string) ( $evidence['evidence_reference'] ?? '' ),
+            $key,
+            'schedule_version_id'
+        );
+    }
+
     /** Corrections remain append-only evidence and are deliberately not a substitute for a domain command. */
     public static function recordCorrection( string $kind, int $id, string $prior, string $corrected, string $reason, string $channel, string $reference, string $note = '' ): int {
         return ( new CoreDatasetReadinessService() )->recordCorrection( $kind, $id, $prior, $corrected, $reason, $channel, $reference, $note );
@@ -224,6 +255,20 @@ final class CoreDatasetReadinessController {
             self::form( 'issue_canonical_lesson', 'Issue canonical standard Lesson', array(
                 array( 'term_id', 'Canonical Term ID' ),
                 array( 'teacher_assignment_id', 'Expected current Teacher Assignment ID' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
+        if ( current_user_can( self::ACTIONS['schedule_canonical_lesson'] ) ) {
+            self::form( 'schedule_canonical_lesson', 'Schedule canonical Lesson', array(
+                array( 'lesson_id', 'Canonical Lesson ID' ),
+                array( 'teacher_assignment_id', 'Expected current Teacher Assignment ID' ),
+                array( 'schedule_timezone', 'IANA timezone, e.g. Australia/Brisbane' ),
+                array( 'local_wall_date', 'Local date: YYYY-MM-DD' ),
+                array( 'local_wall_time', 'Local time: HH:MM' ),
+                array( 'reason_code', 'Reason code, e.g. initial_schedule' ),
                 array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
                 array( 'evidence_reference', 'Operator evidence reference' ),
                 array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),

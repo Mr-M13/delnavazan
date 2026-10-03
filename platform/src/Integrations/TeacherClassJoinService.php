@@ -6,8 +6,6 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\ProviderIntegrationReposi
 use Delnavazan\Platform\Portals\{PortalAccessPolicy,PortalPrincipalResolver};
 
 final class TeacherClassJoinService {
-    private const EARLY_SECONDS=3600;
-    private const LATE_SECONDS=7200;
     public function __construct(private ?ProviderIntegrationRepository $repository=null,private ?ProviderReferenceVault $vault=null){
         $this->repository??=new ProviderIntegrationRepository();$this->vault??=new ProviderReferenceVault();
     }
@@ -20,8 +18,7 @@ final class TeacherClassJoinService {
         $schedule=$wpdb->get_row($wpdb->prepare("SELECT id,lesson_id,starts_at_utc,ends_at_utc,applicable_slot FROM {$p}canonical_lesson_schedule_versions WHERE uid=%s LIMIT 1",$scheduleUid));
         if(!$lesson||!$schedule||(int)$schedule->lesson_id!==(int)$lesson->id||(int)$schedule->applicable_slot!==1)throw new \InvalidArgumentException('portal_object_not_portal_visible');
         PortalAccessPolicy::assertObject('teacher_portal','lesson',(int)$lesson->id,$principal);
-        $start=strtotime((string)$schedule->starts_at_utc.' UTC');$end=strtotime((string)$schedule->ends_at_utc.' UTC');$now=time();
-        if(!$start||!$end||$now<$start-self::EARLY_SECONDS||$now>$end+self::LATE_SECONDS)throw new \InvalidArgumentException('portal_action_outside_window');
+        if(!TeacherClassJoinPolicy::available((string)$schedule->starts_at_utc,(string)$schedule->ends_at_utc))throw new \InvalidArgumentException('portal_action_outside_window');
         $mapping=$this->repository->activeCalendarMapping((int)$lesson->id,(int)$schedule->id,false);
         if(!$mapping||(string)$mapping->provider_code!=='google_calendar'||(string)$mapping->projection_state!=='verified')throw new \InvalidArgumentException('portal_capability_unknown');
         $secret=$this->repository->projectionSecret('calendar_event',(int)$mapping->id,false);

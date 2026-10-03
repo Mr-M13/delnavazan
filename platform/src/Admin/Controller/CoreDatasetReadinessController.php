@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
+use Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleService;
 use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CoreDatasetReadinessService;
@@ -24,6 +25,8 @@ final class CoreDatasetReadinessController {
         'create_canonical_term' => 'dzn_manage_canonical_terms',
         'activate_canonical_term' => 'dzn_manage_canonical_terms',
         'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
+        'complete_canonical_lesson' => 'dzn_manage_canonical_lessons',
+        'record_delivery_outcome' => 'dzn_manage_canonical_lesson_delivery',
         'schedule_canonical_lesson' => 'dzn_manage_canonical_lesson_schedules',
         'revise_canonical_lesson_schedule' => 'dzn_manage_canonical_lesson_schedules',
         'release_canonical_lesson_schedule' => 'dzn_manage_canonical_lesson_schedules',
@@ -124,6 +127,16 @@ final class CoreDatasetReadinessController {
                 ),
                 self::text( $post, 'operator_key' )
             ),
+            'complete_canonical_lesson' => self::completeCanonicalLesson(
+                self::positiveInt( $post, 'lesson_id' ),
+                array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
+            'record_delivery_outcome' => self::recordDeliveryOutcome(
+                self::positiveInt( $post, 'lesson_id' ), self::text( $post, 'expected_lesson_state' ),
+                array( 'outcome_code' => self::text( $post, 'outcome_code' ), 'reason_code' => self::text( $post, 'reason_code' ), 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
             'schedule_canonical_lesson' => self::scheduleCanonicalLesson(
                 self::positiveInt( $post, 'lesson_id' ),
                 self::positiveInt( $post, 'teacher_assignment_id' ),
@@ -208,6 +221,18 @@ final class CoreDatasetReadinessController {
         );
     }
 
+    public static function completeCanonicalLesson( int $lessonId, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['complete_canonical_lesson'] );
+        $result = ( new CanonicalLessonAuthorityService() )->complete( $lessonId, 'authorised', $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_lesson_completion', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'lesson_id' );
+    }
+
+    public static function recordDeliveryOutcome( int $lessonId, string $expectedState, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['record_delivery_outcome'] );
+        $result = ( new CanonicalLessonDeliveryService() )->record( $lessonId, $expectedState, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_lesson_delivery_outcome', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'outcome_id' );
+    }
+
     public static function scheduleCanonicalLesson( int $lessonId, int $assignmentId, array $evidence, string $key ): array {
         self::requireCapability( self::ACTIONS['schedule_canonical_lesson'] );
         $result = ( new CanonicalLessonScheduleService() )->schedule( $lessonId, $assignmentId, $evidence, $key );
@@ -279,6 +304,27 @@ final class CoreDatasetReadinessController {
             self::form( 'issue_canonical_lesson', 'Issue canonical standard Lesson', array(
                 array( 'term_id', 'Canonical Term ID' ),
                 array( 'teacher_assignment_id', 'Expected current Teacher Assignment ID' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
+        if ( current_user_can( self::ACTIONS['record_delivery_outcome'] ) ) {
+            self::form( 'record_delivery_outcome', 'Record material Lesson delivery outcome', array(
+                array( 'lesson_id', 'Canonical Lesson ID' ),
+                array( 'expected_lesson_state', 'Expected Lesson state: authorised or completed' ),
+                array( 'outcome_code', 'Outcome: student_no_show, teacher_non_delivery, interruption, or review_required' ),
+                array( 'reason_code', 'Controlled reason code (lowercase_with_underscores)' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
+        if ( current_user_can( self::ACTIONS['complete_canonical_lesson'] ) ) {
+            self::form( 'complete_canonical_lesson', 'Complete canonical Lesson', array(
+                array( 'lesson_id', 'Canonical Lesson ID' ),
                 array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
                 array( 'evidence_reference', 'Operator evidence reference' ),
                 array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),

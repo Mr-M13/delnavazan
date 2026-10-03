@@ -35,6 +35,9 @@ add_action( 'plugins_loaded', static function () {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
 	Delnavazan\Platform\Admin\Controller\Menu::register();
+	Delnavazan\Platform\Admin\Controller\AdminDashboardController::register();
+	Delnavazan\Platform\Admin\Controller\AdminWorkspaceController::register();
+	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\CommercialCatalogueController::register();
 	Delnavazan\Platform\Admin\Controller\AcademyOperationsController::register();

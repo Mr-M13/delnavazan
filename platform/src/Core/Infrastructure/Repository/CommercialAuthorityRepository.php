@@ -60,6 +60,8 @@ final class CommercialAuthorityRepository {
     // --------------------------------------------------------------------------- sellable product
 
     public function product(int $productId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_products WHERE id=%d".($lock?' FOR UPDATE':''),$productId);}
+    public function products(int $limit=100):array{global $wpdb;$limit=max(1,min(250,$limit));return $wpdb->get_results("SELECT * FROM {$this->p}commercial_products WHERE archived_at IS NULL ORDER BY id DESC LIMIT {$limit}")?:array();}
+    public function pricesForProduct(int $productId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_prices WHERE product_id=%d AND archived_at IS NULL ORDER BY region_code,id DESC",$productId))?:array();}
     public function productsForCourse(int $courseId):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_products WHERE course_id=%d ORDER BY id",$courseId))?:array();

@@ -563,7 +563,7 @@ final class ProviderIntegrationService {
             }
             $sealed=$this->references->seal($providerCode==='google_meet'?'meeting_conference':'calendar_event',$mappingId,array(
                 'provider_object_reference'=>$objectReference,
-                'join_uri_reference'=>$providerCode==='google_meet'?(string)($result['join_uri_reference']??$objectReference):'',
+                'join_uri_reference'=>(string)($result['join_uri_reference']??''),
             ));
             $this->repository->insertProjectionSecret(array_merge(array(
                 'uid'=>Identifier::uid(),'mapping_kind'=>$providerCode==='google_meet'?'meeting_conference':'calendar_event',
@@ -712,7 +712,7 @@ final class ProviderIntegrationService {
             }
             $sealed=$this->references->seal($purpose,$mappingId,array(
                 'provider_object_reference'=>$reference,
-                'join_uri_reference'=>$purpose==='meeting_conference'?(string)($input['join_uri_reference']??$reference):'',
+                'join_uri_reference'=>(string)($input['join_uri_reference']??($purpose==='meeting_conference'?$reference:'')),
             ));
             $this->repository->insertProjectionSecret(array_merge(array(
                 'uid'=>Identifier::uid(),'mapping_kind'=>$purpose,'mapping_id'=>$mappingId,'state'=>'active','active_slot'=>1,

@@ -27,11 +27,11 @@ final class AcademyOperationsController {
     private static function next(object $r):string{
         if(!$r->case_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Open coordination');
         if($r->case_id&&!$r->arrangement_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Continue coordination',['case_id'=>(int)$r->case_id]);
-        if($r->arrangement_id&&!$r->enrolment_id)return self::link('dzn-core-dataset-readiness','Convert accepted arrangement');
-        if($r->enrolment_id&&!$r->assignment_id)return self::link('dzn-core-dataset-readiness','Assign teacher');
-        if($r->assignment_id&&!$r->term_id)return self::link('dzn-core-dataset-readiness','Create canonical Term');
-        if($r->term_id&&(int)$r->lesson_count===0)return self::link('dzn-core-dataset-readiness','Issue first Lesson');
-        return self::link('dzn-core-dataset-readiness','Manage canonical lessons');
+        if($r->arrangement_id&&!$r->enrolment_id)return current_user_can('dzn_convert_service_arrangements_to_enrolments')?self::link('dzn-core-dataset-readiness','Convert accepted arrangement'):'Await authorised enrolment conversion';
+        if($r->enrolment_id&&!$r->assignment_id)return current_user_can('dzn_manage_teacher_assignments')?self::link('dzn-core-dataset-readiness','Assign teacher'):'Await authorised teacher assignment';
+        if($r->assignment_id&&!$r->term_id)return current_user_can('dzn_manage_canonical_terms')?self::link('dzn-core-dataset-readiness','Create canonical Term'):'Await authorised Term creation';
+        if($r->term_id&&(int)$r->lesson_count===0)return current_user_can('dzn_manage_canonical_lessons')?self::link('dzn-core-dataset-readiness','Issue first Lesson'):'Await authorised Lesson issuance';
+        return current_user_can('dzn_manage_canonical_lessons')?self::link('dzn-core-dataset-readiness','Manage canonical lessons'):'Read-only';
     }
     private static function link(string $page,string $label,array $args=[]):string{$url=add_query_arg(['page'=>$page]+$args,admin_url('admin.php'));return '<a class="button" href="'.esc_url($url).'">'.esc_html($label).'</a>';}
 }

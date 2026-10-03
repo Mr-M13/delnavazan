@@ -61,6 +61,7 @@ function dzn_theme_operations_groups() {
 				array( 'cap' => 'dzn_manage_terms', 'slug' => 'dzn-term', 'title' => 'ترم‌ها', 'description' => 'ترم‌های آموزشی' ),
 				array( 'cap' => 'dzn_manage_lessons', 'slug' => 'dzn-lesson', 'title' => 'کلاس‌ها', 'description' => 'کلاس‌ها و چرخهٔ آموزشی' ),
 				array( 'cap' => 'dzn_manage_exceptions', 'slug' => 'dzn-exception', 'title' => 'استثناها', 'description' => 'استثناهای عملیاتی' ),
+				array( 'cap' => 'dzn_manage_canonical_attendance_review', 'slug' => 'dzn-attendance-review', 'title' => 'بازبینی حضور', 'description' => 'شواهد حضور، غیبت و تصمیم نهایی اپراتور' ),
 			),
 		),
 		'requests' => array(
@@ -68,6 +69,13 @@ function dzn_theme_operations_groups() {
 			'items' => array(
 				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-booking-requests', 'title' => 'درخواست‌های کلاس', 'description' => 'درخواست‌های ورودی هنرجویان' ),
 				array( 'cap' => 'dzn_manage_booking_request_coordination', 'slug' => 'dzn-booking-request-coordination', 'title' => 'هماهنگی درخواست‌ها', 'description' => 'هماهنگی مدرس و زمان' ),
+			),
+		),
+		'commercial' => array(
+			'label' => 'ارتباطات و فروش',
+			'items' => array(
+				array( 'cap' => 'dzn_view_notification_authority', 'slug' => 'dzn-communications', 'title' => 'سلامت ارتباطات', 'description' => 'صف، تلاش‌ها و گردش‌کارهای بدون مسیر' ),
+				array( 'cap' => 'dzn_manage_commercial_catalogue', 'slug' => 'dzn-commercial-catalogue', 'title' => 'کاتالوگ و قیمت‌ها', 'description' => 'محصول دوره و قیمت منطقه‌ای' ),
 			),
 		),
 		'finance' => array(

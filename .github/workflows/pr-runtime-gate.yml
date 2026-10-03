@@ -82,7 +82,7 @@ jobs:
           else
             echo 'Teacher onboarding v1 contract not present on this PR base yet.'
           fi
-          php platform/tests/teacher-class-join-theme-contract.php
+          php platform/tests/teacher-class-window-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

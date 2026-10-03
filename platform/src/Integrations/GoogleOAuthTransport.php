@@ -35,6 +35,7 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
             'granted_scope_snapshot'=>$scope,
             'provider_subject_reference'=>$subject,
             'credential_material'=>$this->encodeCredential($access,$refresh,$response),
+            'access_valid_until_utc'=>gmdate('Y-m-d H:i:s',time()+max(60,(int)($response['expires_in']??3600))),
             'consent_version'=>'google-oauth2-v2',
         );
     }

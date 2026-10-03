@@ -213,7 +213,7 @@ final class ProviderIntegrationService {
             $sealed=$this->secrets->seal($connection->id,$providerCode,$material);
             $credentialId=$this->repository->insertCredential(array_merge($sealed,array(
                 'uid'=>Identifier::uid(),'connection_id'=>$connection->id,'state'=>'active',
-                'valid_until_utc'=>null,'quarantined_at'=>null,'quarantine_reason_code'=>null,'revoked_at'=>null,
+                'valid_until_utc'=>$exchanged['access_valid_until_utc']??null,'quarantined_at'=>null,'quarantine_reason_code'=>null,'revoked_at'=>null,
                 'created_at'=>$now,'created_by'=>$actor,
             )));
             $mappingId=$this->mintIdentityMapping($connection->id,$providerCode,$teacherId,$subjectDigest,$now,$actor,$subjectReference,'connection_identity');
@@ -340,10 +340,11 @@ final class ProviderIntegrationService {
             if(!$connection)throw new \InvalidArgumentException('provider_connection_required');
             if(!in_array((string)$connection->connection_state,array('connected','refresh_failed','revoking','revoke_failed'),true))throw new \InvalidArgumentException('provider_connection_transition_refused');
             $credential=$this->repository->credential($connectionId,true);
+            $credentialMaterial=$credential?$this->secrets->open($connectionId,(string)$connection->provider_code,$credential):'';
             if($credential)$this->repository->updateCredential((int)$credential->id,array('state'=>'quarantined','quarantined_at'=>$now,'quarantine_reason_code'=>'revoking'),array('state'=>'active'));
             $this->quarantineIdentityMappings((string)$connection->provider_code,(int)$connection->teacher_id,$now,$actor,'revoking');
             $this->repository->updateConnection($connectionId,array('connection_state'=>'revoking','active_slot'=>null,'connection_version'=>(int)$connection->connection_version+1,'updated_at'=>$now,'updated_by'=>$actor),array());
-            $revoked=$this->oauth->revoke(array('credential_material'=>$credential?'[sealed]':'','now_utc'=>$now));
+            $revoked=$this->oauth->revoke(array('credential_material'=>$credentialMaterial,'now_utc'=>$now));
             if(!empty($revoked['revoked'])){
                 $state='revoked';
                 $this->repository->updateConnection($connectionId,array('connection_state'=>'revoked','revoked_at'=>$now,'failure_reason_code'=>null,'updated_at'=>$now,'updated_by'=>$actor),array());

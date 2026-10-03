@@ -15,7 +15,7 @@ check_dashboard_redirect(){ local result location redirect_code; if ! result="$(
 check_sitemap(){ local path="$1"; if ! fetch "$path"; then return; fi; if [[ "$code" =~ ^(401|403|404)$ ]]; then pass "$path protected/unavailable ($code)"; else fail "$path expected protected 401/403/404, got $code"; fi; }
 check_html "/" "^(200)$"
 if grep -Eqi "^x-robots-tag:.*noindex" "$headers"; then pass "X-Robots-Tag noindex"; else fail "X-Robots-Tag noindex missing"; fi
-if grep -Eqi "<meta[^>]+name=[\"\047]robots[\"\047][^>]+content=[\"\047][^\"\047>]*noindex|<meta[^>]+content=[\"\047][^\"\047>]*noindex[^\"\047>]*[\"\047][^>]+name=[\"\047]robots[\"\047]" "$body"; then pass "robots meta noindex"; else fail "robots meta noindex missing"; fi
+if grep -Eqi "<meta[^>]+name=[\"\047]robots[\"\047][^>]+content=[\"\047][^\"\047>]*noindex[^\"\047>]*[\"\047]|<meta[^>]+content=[\"\047][^\"\047>]*noindex[^\"\047>]*[\"\047][^>]+name=[\"\047]robots[\"\047]" "$body"; then pass "robots meta noindex"; else fail "robots meta noindex missing"; fi
 check_html "/booking/" "^(200)$"
 check_html "/enrol/" "^(200|301|302)$"
 check_html "/login/" "^(200|301|302)$"

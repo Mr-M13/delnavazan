@@ -184,6 +184,15 @@ final class ProviderIntegrationRepository {
     public function insertMeetingMapping(array $data):int{return $this->insert('provider_meeting_mappings',$data);}
     public function updateMeetingMapping(int $id,array $data,array $where):int{return $this->update('provider_meeting_mappings',$data,array_merge(array('id'=>$id),$where));}
 
+    // ---- Reversible provider projection references -------------------------------------------
+    public function projectionSecret(string $kind,int $mappingId,bool $lock=false):?object{
+        return $this->row("SELECT * FROM {$this->p}provider_projection_secrets WHERE mapping_kind=%s AND mapping_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$kind,$mappingId);
+    }
+    public function insertProjectionSecret(array $data):int{return $this->insert('provider_projection_secrets',$data);}
+    public function retireProjectionSecret(int $id,int $actor,string $now):int{
+        return $this->update('provider_projection_secrets',array('state'=>'retired','active_slot'=>null,'retired_at'=>$now,'retired_by'=>$actor),array('id'=>$id,'state'=>'active'));
+    }
+
     // ---- Provider ingest events --------------------------------------------------------------
     public function ingestEvent(string $providerCode,string $eventKeyDigest,bool $lock=false):?object{
         return $this->row("SELECT * FROM {$this->p}provider_ingest_events WHERE provider_code=%s AND provider_event_key_digest=%s".($lock?' FOR UPDATE':''),$providerCode,$eventKeyDigest);

@@ -10,6 +10,7 @@ final class AcceptedServiceArrangementRepository {
     public function arrangementForCommand(string $digest): ?object { global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}accepted_service_arrangements WHERE command_key_digest=%s", $digest)); }
     public function arrangementForFamily(int $familyId): ?object { global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}accepted_service_arrangements WHERE proposal_family_id=%d", $familyId)); }
     public function arrangementById(int $id): ?object { global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}accepted_service_arrangements WHERE id=%d", $id)); }
+    public function arrangementForCase(int $caseId): ?object { global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT a.* FROM {$this->prefix}accepted_service_arrangements a INNER JOIN {$this->prefix}proposal_families f ON f.id=a.proposal_family_id WHERE f.coordination_case_id=%d", $caseId)); }
 
     public function familyOptionsForUpdate(int $familyId): array {
         global $wpdb;

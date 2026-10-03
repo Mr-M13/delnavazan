@@ -505,6 +505,7 @@ final class Migrator {
 		if(!$teacherVCheck||!$teacherVCheck->has_cap('dzn_connect_own_provider_calendar')||!$teacherVCheck->has_cap('dzn_view_provider_integrations'))throw new \RuntimeException('Provider integration capability installation failed: Teacher self-connect grant');
 		foreach(array('dzn_manage_provider_integrations','dzn_dispatch_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events')as$reserved)if($teacherVCheck->has_cap($reserved))throw new \RuntimeException('Provider integration capability installation failed: Teacher least privilege');
 		$providerWorker=get_role('dzn_provider_worker');if(!$providerWorker)$providerWorker=add_role('dzn_provider_worker','Delnavazan Provider Worker',array('read'=>true,'dzn_dispatch_provider_integrations'=>true));
+		if($providerWorker&&!$providerWorker->has_cap('dzn_dispatch_provider_integrations')){$providerWorker->add_cap('dzn_dispatch_provider_integrations');$phaseVRepair=true;}
 		if(!$providerWorker||!$providerWorker->has_cap('dzn_dispatch_provider_integrations'))throw new \RuntimeException('Provider integration capability installation failed: worker dispatch grant');
 		foreach(array('manage_options','dzn_manage_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events','dzn_connect_own_provider_calendar')as$forbidden)if($providerWorker->has_cap($forbidden)){$providerWorker->remove_cap($forbidden);$phaseVRepair=true;}
 		// Phase 2A.2-T payment-execution capabilities are repaired per capability. Payment execution is

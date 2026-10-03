@@ -67,6 +67,7 @@ function dzn_theme_operations_groups() {
 		'requests' => array(
 			'label' => 'درخواست‌ها',
 			'items' => array(
+				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-operations', 'title' => 'صف عملیات آموزشگاه', 'description' => 'نمای یکپارچه از درخواست تا ثبت‌نام، ترم و جلسه' ),
 				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-booking-requests', 'title' => 'درخواست‌های کلاس', 'description' => 'درخواست‌های ورودی هنرجویان' ),
 				array( 'cap' => 'dzn_manage_booking_request_coordination', 'slug' => 'dzn-booking-request-coordination', 'title' => 'هماهنگی درخواست‌ها', 'description' => 'هماهنگی مدرس و زمان' ),
 			),

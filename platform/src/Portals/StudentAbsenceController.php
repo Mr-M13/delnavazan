@@ -8,7 +8,10 @@ final class StudentAbsenceController {
     public static function submit():never{
         if(!is_user_logged_in())auth_redirect();
         check_admin_referer('dzn_student_report_absence');
-        $lesson=max(0,(int)($_POST['lesson_id']??0));$schedule=max(0,(int)($_POST['schedule_version_id']??0));
+        $lessonUid=trim((string)($_POST['lesson_uid']??''));$scheduleUid=trim((string)($_POST['schedule_version_uid']??''));
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $lesson=max(0,(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}lessons WHERE uid=%s AND archived_at IS NULL LIMIT 1",$lessonUid)));
+        $schedule=max(0,(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}canonical_lesson_schedule_versions WHERE uid=%s AND lesson_id=%d AND applicable_slot=1 LIMIT 1",$scheduleUid,$lesson)));
         try{
             if($lesson<1||$schedule<1)throw new \InvalidArgumentException('portal_object_not_portal_visible');
             // The canonical intake service re-resolves the current student principal and exact occurrence.

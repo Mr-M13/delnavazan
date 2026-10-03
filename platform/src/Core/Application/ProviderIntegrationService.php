@@ -615,6 +615,7 @@ final class ProviderIntegrationService {
             $update=array('projection_state'=>'revoked','active_slot'=>null,'mapping_version'=>(int)$mapping->mapping_version+1,'revoked_at'=>$now,'updated_at'=>$now,'updated_by'=>$actor);
             if($purpose==='meeting_conference')$this->repository->updateMeetingMapping($mappingId,$update,array('projection_state'=>$state));
             else $this->repository->updateCalendarMapping($mappingId,$update,array('projection_state'=>$state));
+            if($secret=$this->repository->projectionSecret($purpose,$mappingId,true))$this->repository->retireProjectionSecret((int)$secret->id,$actor,$now);
             $this->recordCommand($digest,$payload,$operation,(string)$mapping->provider_code,null,(int)$mapping->connection_id,(int)$mapping->lesson_id,(int)$mapping->schedule_version_id,$mappingId,'revoked',$now,$actor);
             $this->repository->commit();
             return array('mapping_id'=>$mappingId,'mapping_state'=>'revoked','evidence'=>$evidence,'operation'=>$operation,'created'=>true);

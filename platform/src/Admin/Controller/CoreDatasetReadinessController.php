@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
+use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CoreDatasetReadinessService;
 use Delnavazan\Platform\Core\Application\EnrolmentConversionService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
@@ -19,6 +20,8 @@ final class CoreDatasetReadinessController {
     private const ACTIONS = array(
         'convert_enrolment' => 'dzn_convert_service_arrangements_to_enrolments',
         'assign_initial_teacher' => 'dzn_manage_teacher_assignments',
+        'create_canonical_term' => 'dzn_manage_canonical_terms',
+        'activate_canonical_term' => 'dzn_manage_canonical_terms',
         'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
     );
 
@@ -97,6 +100,16 @@ final class CoreDatasetReadinessController {
                 self::text( $post, 'operator_key' ),
                 self::text( $post, 'evidence_reference' )
             ),
+            'create_canonical_term' => self::createCanonicalTerm(
+                self::positiveInt( $post, 'enrolment_id' ),
+                array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
+            'activate_canonical_term' => self::activateCanonicalTerm(
+                self::positiveInt( $post, 'term_id' ),
+                array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
             'issue_canonical_lesson' => self::issueCanonicalLesson(
                 self::positiveInt( $post, 'term_id' ),
                 self::positiveInt( $post, 'teacher_assignment_id' ),
@@ -140,6 +153,18 @@ final class CoreDatasetReadinessController {
         );
     }
 
+    public static function createCanonicalTerm( int $enrolmentId, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['create_canonical_term'] );
+        $result = ( new CanonicalTermAuthorityService() )->create( $enrolmentId, null, null, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_term_creation', 'enrolment', $enrolmentId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'term_id' );
+    }
+
+    public static function activateCanonicalTerm( int $termId, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['activate_canonical_term'] );
+        $result = ( new CanonicalTermAuthorityService() )->activate( $termId, 'authorised', $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_term_activation', 'term', $termId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'term_id' );
+    }
+
     public static function issueCanonicalLesson( int $termId, int $assignmentId, array $evidence, string $key ): array {
         self::requireCapability( self::ACTIONS['issue_canonical_lesson'] );
         $result = ( new CanonicalLessonAuthorityService() )->createStandard( $termId, $assignmentId, $evidence, $key );
@@ -176,6 +201,22 @@ final class CoreDatasetReadinessController {
             self::form( 'assign_initial_teacher', 'Assign initial Teacher', array(
                 array( 'enrolment_id', 'Canonical Enrolment ID' ),
                 array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
+        if ( current_user_can( self::ACTIONS['create_canonical_term'] ) ) {
+            self::form( 'create_canonical_term', 'Create first canonical Term', array(
+                array( 'enrolment_id', 'Canonical Enrolment ID' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+            self::form( 'activate_canonical_term', 'Activate authorised canonical Term', array(
+                array( 'term_id', 'Canonical Term ID' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
                 array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
             ) );
         }

@@ -206,7 +206,11 @@ function dzn_theme_platform_student_model( $screen ) {
 		'time' => dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'H:i' ) . '–' . dzn_theme_platform_local_time( $next['ends_at_utc'] ?? '', 'H:i' ),
 		'timezone_label' => wp_timezone_string() ?: 'UTC',
 		'join_url' => '',
-		'absence_available' => false,
+		'absence_available' => 'authorised' === (string) ( $next['lifecycle_state'] ?? '' ) && $start >= $now,
+		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
+		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
+		'lesson_uid' => (string) ( $next['lesson_uid'] ?? '' ),
+		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
 		'notice' => ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '',
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );

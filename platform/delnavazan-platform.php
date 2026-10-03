@@ -45,6 +45,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
 	Delnavazan\Platform\Portals\TeacherInvitationController::register();
+	Delnavazan\Platform\Portals\TeacherDeliveryClaimController::register();
 	Delnavazan\Platform\Portals\StudentAbsenceController::register();
 	Delnavazan\Platform\Integrations\GoogleOAuthController::register();
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();

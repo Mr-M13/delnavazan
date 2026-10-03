@@ -329,7 +329,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
 			'google_disconnect_url' => admin_url( 'admin-post.php?action=dzn_google_disconnect' ),
 			'google_disconnect_nonce' => wp_create_nonce( 'dzn_google_disconnect' ),
-			'availability_available' => false, 'availability' => array(), 'exceptions' => array(), 'payment_state' => 'unavailable',
+			'availability_available' => true,
+			'availability' => array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},(array)($onboarding['availability_rules']??[])),
+			'availability_action_url' => admin_url('admin-post.php?action=dzn_teacher_availability_rule'),
+			'availability_nonce' => wp_create_nonce('dzn_teacher_availability_rule'),
+			'exceptions' => array(), 'payment_state' => 'unavailable',
 			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}

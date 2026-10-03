@@ -254,6 +254,20 @@ function dzn_theme_platform_teacher_read_state() {
 	}
 }
 
+
+function dzn_theme_platform_google_state( $teacher_id ) {
+	$controller = '\\Delnavazan\\Platform\\Integrations\\GoogleOAuthController';
+	$reader = '\\Delnavazan\\Platform\\Core\\Application\\ProviderIntegrationReadService';
+	if ( $teacher_id < 1 || ! class_exists( $controller ) || ! class_exists( $reader ) || ! $controller::configured() ) { return 'unavailable'; }
+	try {
+		$rows = ( new $reader() )->connections( 'google_calendar', $teacher_id );
+		if ( ! $rows ) { return 'not_connected'; }
+		$latest = end( $rows );
+		$state = (string) ( $latest['connection_state'] ?? '' );
+		return 'connected' === $state ? 'connected' : ( in_array( $state, array( 'authorizing', 'refresh_failed', 'revoke_failed' ), true ) ? 'needs_attention' : 'not_connected' );
+	} catch ( Throwable $e ) { return 'unavailable'; }
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/teacher-portal/' );
@@ -305,10 +319,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'available' => true, 'screen' => 'account', 'source' => 'platform',
 			'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ), 'navigation' => $nav,
 			'profile' => array( 'name' => $identity['full_name'], 'email' => $identity['email'], 'mobile' => '', 'timezone' => wp_timezone_string() ?: 'UTC', 'timezone_label' => wp_timezone_string() ?: 'UTC', 'calendar' => 'gregorian' ),
-			// PortalAuthenticatedReadService::teacher() exposes only principal, lessons and assignments today.
-			// No availability, Google or payment read exists, so those sections stay explicitly unavailable
-			// rather than the Theme inferring or fabricating a value.
-			'google_state' => 'unavailable', 'availability_available' => false, 'availability' => array(), 'exceptions' => array(), 'payment_state' => 'unavailable',
+			'google_state' => dzn_theme_platform_google_state( (int) ( $data['principal']['principal_id'] ?? 0 ) ),
+			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
+			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
+			'availability_available' => false, 'availability' => array(), 'exceptions' => array(), 'payment_state' => 'unavailable',
 			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}

@@ -330,18 +330,20 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	}
 	$future = array_values( array_filter( (array) ( $data['lessons'] ?? array() ), static function( $row ) use ( $now ) {
 		$start = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' );
-		return $start && $start >= $now;
+		return $start && ( $start >= $now || ! empty( $row['join_window_open'] ) );
 	} ) );
 	usort( $future, static fn( $a, $b ) => strcmp( (string) $a['starts_at_utc'], (string) $b['starts_at_utc'] ) );
 	$classes = array();
 	$calendar = array();
 	foreach ( array_slice( $future, 0, 12 ) as $index => $lesson ) {
 		$start = strtotime( (string) $lesson['starts_at_utc'] . ' UTC' );
-		$soon = $start - $now <= HOUR_IN_SECONDS;
-		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
+		$started = $start <= $now;
+		$window_open = ! empty( $lesson['join_window_open'] );
+		$soon = ! $started && $start - $now <= HOUR_IN_SECONDS;
+		$state = $started && $window_open ? 'starting_soon' : ( $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) ) );
 		$classes[] = array(
 			'ref' => (string) ( $lesson['reference_code'] ?? 'lesson-' . $index ),
-			'start_available' => ! empty( $lesson['join_available'] ) && $soon,
+			'start_available' => ! empty( $lesson['join_available'] ),
 			'join_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_join_class' ),
 			'join_nonce' => wp_create_nonce( 'dzn_teacher_join_class' ),
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
@@ -355,7 +357,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'course' => (string) ( $lesson['course_reference'] ?? '' ),
 			'progress' => (string) ( $lesson['term_reference'] ?? '' ),
-			'status' => $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو',
+			'status' => $started && $window_open ? 'در حال برگزاری' : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ),
 		);
 		$calendar[] = array(
 			'day' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F' ),

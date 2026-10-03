@@ -352,6 +352,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
 			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
 			'details_available' => true,
+			'delivery_issue_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery_issue' ),
+			'delivery_issue_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery_issue' ),
 			'student_summary' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'schedule_summary' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F، H:i' ),
 			'previous_private_note' => 'یادداشت خصوصی در این نمای خواندنی ارائه نشده است.',

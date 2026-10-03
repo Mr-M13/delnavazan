@@ -41,4 +41,11 @@ foreach ( [
 	"array('account_claim_attempts','generation_owner',true)",
 ] as $fragment ) if ( strpos( $migrator, $fragment ) === false ) throw new RuntimeException( 'Missing strict current-schema verification contract: ' . $fragment );
 
+
+$plugin = file_get_contents( $root . '/delnavazan-platform.php' );
+foreach ( [
+	"get_option( 'dzn_platform_schema_version' ) !== (string) DZN_PLATFORM_SCHEMA_VERSION",
+	'Delnavazan\\\\Platform\\\\Core\\\\Infrastructure\\\\Migration\\\\Migrator::maybe_upgrade();',
+] as $fragment ) if ( strpos( $plugin, $fragment ) === false ) throw new RuntimeException( 'Missing request-boundary migration gate contract: ' . $fragment );
+
 echo "Phase 2A.0 independent-review source contract passed\n";

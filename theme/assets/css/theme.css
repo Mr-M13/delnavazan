@@ -5497,12 +5497,6 @@
 
     .dzn-story {
       background-image:
-        url(
-          "../images/Motif-web.png"
-        ),
-        url(
-          "../images/Motif-web.png"
-        ),
         radial-gradient(
           circle at 86% 12%,
           rgb(16 74 77 / .04),
@@ -5516,33 +5510,52 @@
 
       background-repeat:
         no-repeat,
-        no-repeat,
-        no-repeat,
         no-repeat;
 
-      background-size:
-        clamp(28rem, 42vw, 42rem),
-        clamp(28rem, 42vw, 42rem),
-        auto,
-        auto;
-
       background-position:
-        left -14rem top 22%,
-        right -14rem bottom 12%,
         center,
         center;
-
-      background-attachment:
-        fixed,
-        fixed,
-        scroll,
-        scroll;
     }
 
     .dzn-story::before,
     .dzn-story::after {
       display:
-        none;
+        block;
+
+      position:
+        fixed;
+
+      inline-size:
+        clamp(28rem, 42vw, 42rem);
+
+      opacity:
+        .11;
+    }
+
+    .dzn-story::before {
+      inset-block-start:
+        22%;
+
+      inset-inline-start:
+        -14rem;
+
+      transform:
+        rotate(-8deg);
+    }
+
+    .dzn-story::after {
+      inset-block-start:
+        auto;
+
+      inset-block-end:
+        12%;
+
+      inset-inline-end:
+        -14rem;
+
+      transform:
+        scaleX(-1)
+        rotate(7deg);
     }
   }
 

@@ -7,9 +7,9 @@ $editable = ! empty( $onboarding['can_edit'] ); $timezone = (string) ( $profile[
 $profile_complete = 'complete' === ( $onboarding['profile_state'] ?? '' ); $availability_complete = 'complete' === ( $onboarding['availability_state'] ?? '' );
 $country_options = array( 'IR' => 'ایران', 'AU' => 'استرالیا', 'CA' => 'کانادا', 'US' => 'آمریکا', 'GB' => 'بریتانیا', 'DE' => 'آلمان', 'FR' => 'فرانسه', 'NL' => 'هلند', 'SE' => 'سوئد', 'NZ' => 'نیوزیلند' );
 $golden = array(
-	array( 'region' => 'استرالیا و نیوزیلند', 'student' => 'بعدازظهر و اوایل شب دانشجو', 'iran' => 'تقریباً صبح تا اوایل بعدازظهر ایران' ),
-	array( 'region' => 'اروپا و بریتانیا', 'student' => 'بعدازظهر و شب دانشجو', 'iran' => 'تقریباً عصر تا نیمه‌شب ایران' ),
-	array( 'region' => 'کانادا و آمریکا', 'student' => 'بعدازظهر و شب دانشجو', 'iran' => 'اغلب نیمه‌شب تا صبح ایران' ),
+	array( 'region' => 'استرالیا و نیوزیلند', 'student' => '۱۶:۰۰ تا ۲۱:۰۰ به وقت منطقهٔ دانشجو' ),
+	array( 'region' => 'اروپا و بریتانیا', 'student' => '۱۶:۰۰ تا ۲۱:۰۰ به وقت منطقهٔ دانشجو' ),
+	array( 'region' => 'کانادا و آمریکا', 'student' => '۱۶:۰۰ تا ۲۱:۰۰ به وقت منطقهٔ دانشجو' ),
 );
 ?>
 <section class="dzn-tp-section" aria-labelledby="tp-onboarding">
@@ -46,7 +46,7 @@ $golden = array(
 <section class="dzn-tp-section" aria-labelledby="tp-availability">
 	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">گام ۲</p><h2 id="tp-availability">منطقهٔ زمانی و دسترسی هفتگی</h2></div><span><?php echo esc_html( 'complete' === ( $onboarding['availability_state'] ?? '' ) ? 'کامل' : 'حداقل یک بازه لازم است' ); ?></span></div>
 	<p class="dzn-tp-help">فقط زمان‌هایی را وارد کنید که واقعاً می‌توانید تدریس کنید. «ترجیحی» یعنی دوست دارید در آن ساعت کلاس بگیرید؛ «قابل درخواست» یعنی در صورت نیاز می‌توانیم آن ساعت را پیشنهاد کنیم.</p>
-	<div class="dzn-tp-review-note"><strong>ساعت‌های طلایی دلنوازان</strong><p>این‌ها راهنما هستند، نه الزام. ساعت دقیق برای هر دانشجو با منطقهٔ زمانی خودش محاسبه می‌شود.</p><ul><?php foreach ( $golden as $window ) : ?><li><strong><?php echo esc_html( $window['region'] ); ?>:</strong> <?php echo esc_html( $window['student'] ); ?> — <?php echo esc_html( $window['iran'] ); ?></li><?php endforeach; ?></ul><p>اگر بخشی از دسترسی واقعی شما با این بازه‌ها هم‌پوشانی دارد، ثبت آن به ما کمک می‌کند دانشجوی مناسب‌تری به شما پیشنهاد کنیم.</p></div>
+	<div class="dzn-tp-review-note"><strong>ساعت‌های طلایی دلنوازان</strong><p>این‌ها راهنما هستند، نه الزام. ساعت دقیق با توجه به منطقهٔ زمانی و تغییرات ساعت تابستانی محاسبه می‌شود؛ بنابراین از تبدیل ثابت به وقت ایران استفاده نمی‌کنیم.</p><ul><?php foreach ( $golden as $window ) : ?><li><strong><?php echo esc_html( $window['region'] ); ?>:</strong> <?php echo esc_html( $window['student'] ); ?></li><?php endforeach; ?></ul><p>اگر بخشی از دسترسی واقعی شما با این بازه‌ها هم‌پوشانی دارد، ثبت آن به ما کمک می‌کند دانشجوی مناسب‌تری به شما پیشنهاد کنیم.</p></div>
 	<?php if ( $editable ) : ?>
 	<form class="dzn-tp-inline-form" method="post" action="<?php echo esc_url( $model['actions']['availability_profile'] ?? '' ); ?>"><?php wp_nonce_field( 'dzn_teacher_onboarding_availability_profile' ); ?><input type="hidden" name="timezone" value="<?php echo esc_attr( $timezone ); ?>"><button class="dzn-button dzn-button--secondary" type="submit">هماهنگ‌سازی منطقهٔ زمانی با پروفایل</button></form>
 	<form class="dzn-tp-form" method="post" action="<?php echo esc_url( $model['actions']['availability_rule'] ?? '' ); ?>">

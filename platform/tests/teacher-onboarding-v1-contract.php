@@ -17,6 +17,7 @@ $files = array(
     'theme_bridge' => file_get_contents( dirname( $root ) . '/theme/inc/platform-bridge.php' ),
     'theme_route' => file_get_contents( dirname( $root ) . '/theme/inc/routes.php' ),
     'theme_view' => file_get_contents( dirname( $root ) . '/theme/template-parts/teacher-portal/onboarding.php' ),
+    'theme_shell' => file_get_contents( dirname( $root ) . '/theme/template-parts/teacher-portal/shell.php' ),
 );
 foreach ( $files as $name => $source ) if ( ! is_string( $source ) || $source === '' ) throw new RuntimeException( 'Missing onboarding source: ' . $name );
 
@@ -51,6 +52,10 @@ if ( strpos( $files['portal'], 'hasActiveTeacherAuthority' ) === false || strpos
 foreach ( array( 'currentForUser', "'onboarding' === $screen", 'dzn_teacher_onboarding_profile' ) as $fragment )
     if ( strpos( $files['theme_bridge'], $fragment ) === false ) throw new RuntimeException( 'Theme onboarding projection missing: ' . $fragment );
 if ( strpos( $files['theme_route'], 'dzn_theme_teacher_requires_onboarding' ) === false ) throw new RuntimeException( 'Incomplete Teacher routing missing.' );
+foreach ( array( 'dzn_theme_platform_teacher_state_model', 'dzn_theme_platform_teacher_read_state', "'not_linked'", "'onboarding_required'", "'error'" ) as $fragment )
+    if ( strpos( $files['theme_bridge'], $fragment ) === false ) throw new RuntimeException( 'Teacher honest-state projection missing: ' . $fragment );
+foreach ( array( "'not_linked'", "'onboarding_required'", "'error'", 'این حساب هنوز به پرتال مدرس متصل نیست', 'شروع همکاری هنوز کامل نشده است' ) as $fragment )
+    if ( strpos( $files['theme_shell'], $fragment ) === false ) throw new RuntimeException( 'Teacher honest-state presentation missing: ' . $fragment );
 foreach ( array( 'dzn_teacher_onboarding_profile', 'dzn_teacher_onboarding_availability_profile', 'dzn_teacher_onboarding_availability_rule', 'dzn_teacher_onboarding_submit' ) as $fragment )
     if ( strpos( $files['theme_view'], $fragment ) === false ) throw new RuntimeException( 'Live onboarding form missing: ' . $fragment );
 if ( strpos( $files['theme_view'], 'data-dzn-tp-presentation' ) !== false ) throw new RuntimeException( 'Presentation-only onboarding control remains.' );

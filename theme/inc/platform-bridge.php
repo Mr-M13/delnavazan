@@ -230,6 +230,30 @@ add_filter( 'dzn_theme_student_portal_view_model', function( $model, $screen ) {
 	return $model ?? dzn_theme_platform_student_model( $screen );
 }, 10, 2 );
 
+function dzn_theme_platform_teacher_state_model( $screen, $state ) {
+	return array(
+		'available'  => false,
+		'state'      => $state,
+		'screen'     => $screen,
+		'source'     => 'platform',
+		'teacher'    => array(),
+		'navigation' => array(),
+	);
+}
+
+function dzn_theme_platform_teacher_read_state() {
+	if ( ! is_user_logged_in() ) { return array( 'state' => 'signed_out', 'reason' => 'portal_principal_required' ); }
+	$service = dzn_theme_platform_portal_service();
+	if ( ! $service ) { return array( 'state' => 'error', 'reason' => 'platform_unavailable' ); }
+	try {
+		return array( 'state' => 'ok', 'data' => $service->teacher() );
+	} catch ( Throwable $e ) {
+		$reason = (string) $e->getMessage();
+		$unlinked = array( 'portal_principal_unresolved', 'portal_principal_ambiguous', 'portal_principal_kind_not_permitted' );
+		return array( 'state' => in_array( $reason, $unlinked, true ) ? 'not_linked' : 'error', 'reason' => $reason );
+	}
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/teacher-portal/' );
@@ -244,7 +268,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		try { $onboarding = ( new $onboarding_class() )->currentForUser(); } catch ( Throwable $e ) { $onboarding = null; }
 	}
 	if ( 'onboarding' === $screen ) {
-		if ( ! $onboarding ) { return null; }
+		if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
 		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
 		$parts = preg_split( '/\\s+/u', trim( $name ) );
 		$step = 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : ( 'active' === $onboarding['state'] && 'ready' === $onboarding['readiness_state'] ? 4 : 3 ) );
@@ -260,10 +284,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			),
 		);
 	}
-	if ( ! $onboarding || 'active' !== $onboarding['state'] || 'ready' !== $onboarding['readiness_state'] ) { return null; }
-	$service = dzn_theme_platform_portal_service();
-	if ( ! $service ) { return null; }
-	try { $data = $service->teacher(); } catch ( Throwable $e ) { return null; }
+	if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
+	if ( 'active' !== $onboarding['state'] || 'ready' !== $onboarding['readiness_state'] ) { return dzn_theme_platform_teacher_state_model( $screen, 'onboarding_required' ); }
+	$read = dzn_theme_platform_teacher_read_state();
+	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_teacher_state_model( $screen, (string) $read['state'] ); }
+	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
 	if ( 'account' === $screen ) {

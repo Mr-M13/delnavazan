@@ -8,7 +8,16 @@ $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model[
  <nav aria-label="پیمایش پرتال مدرس"><ul><?php foreach ( $model['navigation'] ?? array() as $item ) : ?><li><a href="<?php echo esc_url( $item['url'] ?? '' ); ?>"<?php if ( ! empty( $item['current'] ) ) : ?> aria-current="page"<?php endif; ?>><?php echo esc_html( $item['label'] ?? '' ); ?></a></li><?php endforeach; ?></ul></nav></div></header>
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
- <?php if ( empty( $model['available'] ) ) : ?><section class="dzn-tp-section dzn-tp-unavailable"><h2>اطلاعات مدرس در دسترس نیست</h2><p>اطلاعات معتبر این حساب مدرس در حال حاضر در دسترس نیست.</p></section>
+ <?php if ( empty( $model['available'] ) ) :
+  $state = (string) ( $model['state'] ?? 'error' );
+  $messages = array(
+   'not_linked' => array( 'این حساب هنوز به پرتال مدرس متصل نیست', 'برای این حساب، پیوند معتبر مدرس پیدا نشد. اگر دعوت‌نامهٔ همکاری دارید، فرایند دعوت را کامل کنید.' ),
+   'onboarding_required' => array( 'شروع همکاری هنوز کامل نشده است', 'پیش از دسترسی به خانهٔ مدرس، مراحل شروع همکاری باید تکمیل و تأیید شوند.' ),
+   'signed_out' => array( 'برای ادامه وارد شوید', 'برای دسترسی به پرتال مدرس ابتدا وارد حساب خود شوید.' ),
+   'error' => array( 'اطلاعات مدرس در دسترس نیست', 'در حال حاضر نتوانستیم اطلاعات معتبر مدرس را از سامانه دریافت کنیم. لطفاً بعداً دوباره تلاش کنید.' ),
+  );
+  $message = $messages[ $state ] ?? $messages['error'];
+ ?><section class="dzn-tp-section dzn-tp-unavailable"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p></section>
  <?php elseif ( 'account' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );
  else : dzn_theme_teacher_portal_component( 'home', array( 'model' => $model ) ); endif; ?>

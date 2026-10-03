@@ -162,6 +162,10 @@ final class ProviderIntegrationRepository {
     public function calendarMappingByEvent(string $providerCode,string $eventDigest,bool $lock=false):?object{
         return $this->row("SELECT * FROM {$this->p}provider_calendar_event_mappings WHERE provider_code=%s AND event_digest=%s AND active_slot=1".($lock?' FOR UPDATE':''),$providerCode,$eventDigest);
     }
+    public function pendingCalendarMappings(int $limit=10):array{
+        $limit=max(1,min(50,$limit));global $wpdb;
+        return (array)$wpdb->get_results("SELECT * FROM {$this->p}provider_calendar_event_mappings WHERE provider_code='google_calendar' AND projection_state='pending' ORDER BY id ASC LIMIT ".$limit);
+    }
     public function calendarMappings(int $lessonId):array{
         return $this->rows("SELECT * FROM {$this->p}provider_calendar_event_mappings WHERE lesson_id=%d ORDER BY id",$lessonId);
     }

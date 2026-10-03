@@ -9,8 +9,9 @@ final class Menu {
     }
 
     public static function menu(): void {
-        add_menu_page('Delnavazan', 'Delnavazan', 'dzn_view_diagnostics', 'dzn-platform', [ScreenController::class, 'status'], 'dashicons-networking', 58);
-        add_submenu_page('dzn-platform', 'Core Status', 'Core Status', 'dzn_view_diagnostics', 'dzn-platform', [ScreenController::class, 'status']);
+        add_menu_page('Delnavazan', 'Delnavazan', 'read', 'dzn-platform', [AdminWorkspaceController::class, 'screen'], 'dashicons-networking', 58);
+        add_submenu_page('dzn-platform', 'Workspace', 'Workspace', 'read', 'dzn-platform', [AdminWorkspaceController::class, 'screen']);
+        add_submenu_page('dzn-platform', 'System health', 'System health', 'dzn_view_diagnostics', 'dzn-system-health', [ScreenController::class, 'status']);
         foreach ([
             'Teachers' => ['teacher', 'dzn_manage_teachers'],
             'Students' => ['student', 'dzn_manage_students'],

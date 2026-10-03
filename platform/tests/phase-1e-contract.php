@@ -9,7 +9,7 @@ function phase_1e_require(string $source, array $fragments, string $label): void
 }
 
 $menu = file_get_contents("{$root}/src/Admin/Controller/Menu.php");
-phase_1e_require($menu, ['dzn-platform', 'Core Status', 'Teachers', 'Students', 'Instruments', 'Courses', 'Enrolments', 'Terms', 'Lessons', 'Exceptions', 'ScreenController'], 'menu');
+phase_1e_require($menu, ['dzn-platform', 'System health', 'Teachers', 'Students', 'Instruments', 'Courses', 'Enrolments', 'Terms', 'Lessons', 'Exceptions', 'ScreenController'], 'menu');
 
 $screen = file_get_contents("{$root}/src/Admin/Controller/ScreenController.php");
 phase_1e_require($screen, [

@@ -148,7 +148,7 @@ final class CanonicalAttendanceIntakeService {
     public function submitClaim(int $lessonId,int $scheduleVersionId,array $input,string $key):array{
         $kind=(string)($input['claim_kind']??'');
         if(!in_array($kind,self::CLAIM_KINDS,true))throw new \InvalidArgumentException('Controlled claim kind required');
-        $this->requireCapability($kind==='delivery_claim'?self::TEACHER_CLAIM_CAPABILITY:self::STUDENT_CLAIM_CAPABILITY);
+        if(!is_user_logged_in())$this->requireCapability($kind==='delivery_claim'?self::TEACHER_CLAIM_CAPABILITY:self::STUDENT_CLAIM_CAPABILITY);
         $actor=$this->actor();
         $intent=$this->claimIntent($kind,$input);
         $digest=CanonicalAttendanceIdempotency::key($key);

@@ -12,6 +12,7 @@ $state_is_valid = in_array( $state, $approved_states, true );
 $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course'] );
 ?>
 <section class="dzn-portal-section dzn-upcoming" aria-labelledby="dzn-upcoming-title">
+	<?php $absence_status = sanitize_key( (string) ( $_GET['absence_status'] ?? '' ) ); if ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'ثبت غیبت برای این جلسه در حال حاضر امکان‌پذیر نیست.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 	<div class="dzn-upcoming__heading">
 		<div>
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مهم‌ترین قرار شما', 'delnavazan-theme' ); ?></p>
@@ -66,13 +67,13 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 		<div class="dzn-portal-dialog__body">
 			<button class="dzn-portal-icon-button dzn-portal-dialog__close" type="button" data-dzn-dialog-close aria-label="<?php esc_attr_e( 'بستن', 'delnavazan-theme' ); ?>">×</button>
 			<h2 id="dzn-absence-title"><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></h2>
-			<p><?php esc_html_e( 'این مرحله فقط شکل آیندهٔ درخواست را نشان می‌دهد و چیزی ثبت نمی‌کند.', 'delnavazan-theme' ); ?></p>
-			<div class="dzn-portal-control" role="group" aria-labelledby="dzn-absence-reason-label">
-				<label id="dzn-absence-reason-label" for="dzn-absence-reason"><?php esc_html_e( 'توضیح کوتاه (اختیاری)', 'delnavazan-theme' ); ?></label>
-				<textarea id="dzn-absence-reason" rows="3"></textarea>
-				<button class="dzn-button" type="button" data-dzn-presentation-action aria-describedby="dzn-absence-status"><?php esc_html_e( 'ثبت در آینده', 'delnavazan-theme' ); ?></button>
-				<p id="dzn-absence-status" class="dzn-portal-action-status" aria-live="polite"></p>
-			</div>
+			<p><?php esc_html_e( 'با ثبت این اطلاع، غیبت شما به‌عنوان ادعای دانش‌آموز برای همین جلسه ثبت می‌شود. این اقدام به‌تنهایی وضعیت نهایی حضور یا اعتبار جلسه را تعیین نمی‌کند.', 'delnavazan-theme' ); ?></p>
+			<form method="post" action="<?php echo esc_url( (string) ( $lesson['absence_action_url'] ?? '' ) ); ?>">
+				<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $lesson['absence_nonce'] ?? '' ) ); ?>">
+				<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $lesson['lesson_uid'] ?? '' ) ); ?>">
+				<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $lesson['schedule_version_uid'] ?? '' ) ); ?>">
+				<button class="dzn-button" type="submit"><?php esc_html_e( 'ثبت اطلاع غیبت', 'delnavazan-theme' ); ?></button>
+			</form>
 		</div>
 	</dialog>
 

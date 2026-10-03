@@ -340,7 +340,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$started = $start <= $now;
 		$window_open = ! empty( $lesson['join_window_open'] );
 		$soon = ! $started && $start - $now <= HOUR_IN_SECONDS;
-		$state = $started && $window_open ? 'starting_soon' : ( $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) ) );
+		$state = $started && $window_open ? 'in_progress' : ( $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) ) );
 		$classes[] = array(
 			'ref' => (string) ( $lesson['reference_code'] ?? 'lesson-' . $index ),
 			'start_available' => ! empty( $lesson['join_available'] ),

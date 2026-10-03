@@ -29,6 +29,17 @@
     panel.hidden = !panel.hidden;
     button.setAttribute('aria-expanded', String(!panel.hidden));
   }));
+  const tour = document.querySelector('[data-dzn-tp-tour-auto="1"]');
+  if (tour) {
+    const key = 'dznTeacherPortalTourV1';
+    let seen = false;
+    try { seen = window.localStorage.getItem(key) === 'seen'; } catch (e) {}
+    if (!seen) {
+      try { window.localStorage.setItem(key, 'seen'); } catch (e) {}
+      if (typeof tour.showModal === 'function') tour.showModal();
+      else { tour.dataset.dznTpFallback = 'disclosure'; tour.setAttribute('open', ''); }
+    }
+  }
   document.querySelectorAll('[data-dzn-tp-presentation]').forEach((button) => button.addEventListener('click', () => {
     const scope = button.closest('section, dialog') || document;
     const status = scope.querySelector('.dzn-tp-action-status');

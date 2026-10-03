@@ -55,6 +55,8 @@
 .dzn-booking__timezone p { display: none; }
 .dzn-booking__timezone-copy { color: var(--dzn-color-text-muted); }
 
+.dzn-booking__slot-picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 1rem; margin-block: 1.25rem .75rem; }
+
 /* Actions */
 .dzn-booking__button { display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; border: 1px solid var(--dzn-color-action-primary); border-radius: var(--dzn-radius-sm); background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); padding: .65rem 1.2rem; font: inherit; font-size: 1rem; font-weight: 700; text-decoration: none; cursor: pointer; }
 .dzn-booking__button:hover { background: var(--dzn-color-action-primary-hover); color: var(--dzn-color-on-action); }

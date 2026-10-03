@@ -5522,18 +5522,18 @@
         fixed;
 
       inline-size:
-        clamp(28rem, 42vw, 42rem);
+        clamp(23.8rem, 35.7vw, 35.7rem);
 
       opacity:
-        .11;
+        .10;
     }
 
     .dzn-story::before {
       inset-block-start:
-        22%;
+        15%;
 
       inset-inline-start:
-        -14rem;
+        -18rem;
 
       transform:
         rotate(-8deg);
@@ -5544,10 +5544,10 @@
         auto;
 
       inset-block-end:
-        12%;
+        5%;
 
       inset-inline-end:
-        -14rem;
+        -18rem;
 
       transform:
         scaleX(-1)

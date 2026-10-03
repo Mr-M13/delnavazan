@@ -30,6 +30,7 @@ use Delnavazan\Platform\Core\Support\Identifier;
 final class ProviderIntegrationService {
     public const CONNECT_CAPABILITY='dzn_connect_own_provider_calendar';
     public const MANAGE_CAPABILITY='dzn_manage_provider_integrations';
+    public const DISPATCH_CAPABILITY='dzn_dispatch_provider_integrations';
     public const REVOKE_CAPABILITY='dzn_revoke_provider_integrations';
     public const VIEW_CAPABILITY='dzn_view_provider_integrations';
     public const INGEST_CAPABILITY='dzn_ingest_provider_events';
@@ -671,7 +672,7 @@ final class ProviderIntegrationService {
      */
     private function acknowledge(int $mappingId,string $purpose,string $operation,array $input,string $key):array{
         $actor=$this->actor();
-        $this->requireCapability(self::MANAGE_CAPABILITY);
+        if(!current_user_can(self::MANAGE_CAPABILITY)&&!current_user_can(self::DISPATCH_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $reference=trim((string)($input['provider_object_reference']??''));
         if($reference==='')throw new \InvalidArgumentException('Acknowledged provider reference required');
         $objectDigest=ProviderIntegrationIdempotency::subject($reference,$purpose);

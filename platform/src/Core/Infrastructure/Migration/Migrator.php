@@ -196,7 +196,7 @@ final class Migrator {
 	private const CAPABILITY_OPTION_Q = 'dzn_platform_capability_version_2a2q'; private const CAPABILITY_VERSION_Q = '2a2q';
 	private const CAPABILITY_OPTION_R1 = 'dzn_platform_capability_version_2a2r1'; private const CAPABILITY_VERSION_R1 = '2a2r1';
 	private const CAPABILITY_OPTION_R2 = 'dzn_platform_capability_version_2a2r2'; private const CAPABILITY_VERSION_R2 = '2a2r2';
-	private const CAPABILITY_OPTION_V = 'dzn_platform_capability_version_2a2v'; private const CAPABILITY_VERSION_V = '2a2v';
+	private const CAPABILITY_OPTION_V = 'dzn_platform_capability_version_2a2v'; private const CAPABILITY_VERSION_V = '2a2v2';
 	private const CAPABILITY_OPTION_T = 'dzn_platform_capability_version_2a2t'; private const CAPABILITY_VERSION_T = '2a2t';
 	private const CAPABILITY_OPTION_U = 'dzn_platform_capability_version_2a2u'; private const CAPABILITY_VERSION_U = '2a2u';
 	private const CAPABILITY_OPTION_W = 'dzn_platform_capability_version_2a2w'; private const CAPABILITY_VERSION_W = '2a2w';
@@ -492,18 +492,22 @@ final class Migrator {
 		// to connect and view its own calendar connection, and the bounded provider-event ingestion grant
 		// is never held by a Teacher or Student role.
 		$phaseVMarker=(string)get_option(self::CAPABILITY_OPTION_V);
-		$phaseVGrants=array('dzn_connect_own_provider_calendar','dzn_manage_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events','dzn_view_provider_integrations');
+		$phaseVGrants=array('dzn_connect_own_provider_calendar','dzn_manage_provider_integrations','dzn_dispatch_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events','dzn_view_provider_integrations');
 		$phaseVRepair=false;
 		foreach($phaseVGrants as$capability)if(!$role->has_cap($capability)){$role->add_cap($capability);$phaseVRepair=true;}
 		$teacherVRole=get_role('dzn_teacher');
 		foreach(array('dzn_connect_own_provider_calendar','dzn_view_provider_integrations')as$capability)if($teacherVRole&&!$teacherVRole->has_cap($capability)){$teacherVRole->add_cap($capability);$phaseVRepair=true;}
-		foreach(array('dzn_manage_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events')as$reserved)if($teacherVRole&&$teacherVRole->has_cap($reserved)){$teacherVRole->remove_cap($reserved);$phaseVRepair=true;}
+		foreach(array('dzn_manage_provider_integrations','dzn_dispatch_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events')as$reserved)if($teacherVRole&&$teacherVRole->has_cap($reserved)){$teacherVRole->remove_cap($reserved);$phaseVRepair=true;}
 		if($phaseVRepair||$phaseVMarker!==self::CAPABILITY_VERSION_V)update_option(self::CAPABILITY_OPTION_V,self::CAPABILITY_VERSION_V,false);
 		foreach($phaseVGrants as$capability)if(!$role->has_cap($capability))throw new \RuntimeException('Provider integration capability installation failed: '.$capability);
 		if((string)get_option(self::CAPABILITY_OPTION_V)!==self::CAPABILITY_VERSION_V)throw new \RuntimeException('Provider integration capability installation failed: version marker');
 		$teacherVCheck=get_role('dzn_teacher');
 		if(!$teacherVCheck||!$teacherVCheck->has_cap('dzn_connect_own_provider_calendar')||!$teacherVCheck->has_cap('dzn_view_provider_integrations'))throw new \RuntimeException('Provider integration capability installation failed: Teacher self-connect grant');
-		foreach(array('dzn_manage_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events')as$reserved)if($teacherVCheck->has_cap($reserved))throw new \RuntimeException('Provider integration capability installation failed: Teacher least privilege');
+		foreach(array('dzn_manage_provider_integrations','dzn_dispatch_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events')as$reserved)if($teacherVCheck->has_cap($reserved))throw new \RuntimeException('Provider integration capability installation failed: Teacher least privilege');
+		$providerWorker=get_role('dzn_provider_worker');if(!$providerWorker)$providerWorker=add_role('dzn_provider_worker','Delnavazan Provider Worker',array('read'=>true,'dzn_dispatch_provider_integrations'=>true));
+		if($providerWorker&&!$providerWorker->has_cap('dzn_dispatch_provider_integrations')){$providerWorker->add_cap('dzn_dispatch_provider_integrations');$phaseVRepair=true;}
+		if(!$providerWorker||!$providerWorker->has_cap('dzn_dispatch_provider_integrations'))throw new \RuntimeException('Provider integration capability installation failed: worker dispatch grant');
+		foreach(array('manage_options','dzn_manage_provider_integrations','dzn_revoke_provider_integrations','dzn_ingest_provider_events','dzn_connect_own_provider_calendar')as$forbidden)if($providerWorker->has_cap($forbidden)){$providerWorker->remove_cap($forbidden);$phaseVRepair=true;}
 		// Phase 2A.2-T payment-execution capabilities are repaired per capability. Payment execution is
 		// administrative only: no Teacher or Student role holds one, and the bounded provider-event
 		// ingestion grant is never held by a Teacher.

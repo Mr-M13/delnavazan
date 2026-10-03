@@ -25,6 +25,8 @@ final class CoreDatasetReadinessController {
         'activate_canonical_term' => 'dzn_manage_canonical_terms',
         'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
         'schedule_canonical_lesson' => 'dzn_manage_canonical_lesson_schedules',
+        'revise_canonical_lesson_schedule' => 'dzn_manage_canonical_lesson_schedules',
+        'release_canonical_lesson_schedule' => 'dzn_manage_canonical_lesson_schedules',
     );
 
     public static function register(): void {
@@ -136,6 +138,16 @@ final class CoreDatasetReadinessController {
                 ),
                 self::text( $post, 'operator_key' )
             ),
+            'revise_canonical_lesson_schedule' => self::reviseCanonicalLessonSchedule(
+                self::positiveInt( $post, 'lesson_id' ), self::positiveInt( $post, 'teacher_assignment_id' ),
+                array( 'expected_schedule_version_id' => self::positiveInt( $post, 'expected_schedule_version_id' ), 'schedule_timezone' => self::text( $post, 'schedule_timezone' ), 'local_wall_date' => self::text( $post, 'local_wall_date' ), 'local_wall_time' => self::text( $post, 'local_wall_time' ), 'reason_code' => self::text( $post, 'reason_code' ), 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
+            'release_canonical_lesson_schedule' => self::releaseCanonicalLessonSchedule(
+                self::positiveInt( $post, 'lesson_id' ),
+                array( 'expected_schedule_version_id' => self::positiveInt( $post, 'expected_schedule_version_id' ), 'reason_code' => self::text( $post, 'reason_code' ), 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
         };
     }
 
@@ -211,6 +223,18 @@ final class CoreDatasetReadinessController {
         );
     }
 
+    public static function reviseCanonicalLessonSchedule( int $lessonId, int $assignmentId, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['revise_canonical_lesson_schedule'] );
+        $result = ( new CanonicalLessonScheduleService() )->revise( $lessonId, $assignmentId, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_lesson_schedule_revision', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'schedule_version_id' );
+    }
+
+    public static function releaseCanonicalLessonSchedule( int $lessonId, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['release_canonical_lesson_schedule'] );
+        $result = ( new CanonicalLessonScheduleService() )->release( $lessonId, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_lesson_schedule_release', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'schedule_version_id' );
+    }
+
     /** Corrections remain append-only evidence and are deliberately not a substitute for a domain command. */
     public static function recordCorrection( string $kind, int $id, string $prior, string $corrected, string $reason, string $channel, string $reference, string $note = '' ): int {
         return ( new CoreDatasetReadinessService() )->recordCorrection( $kind, $id, $prior, $corrected, $reason, $channel, $reference, $note );
@@ -273,6 +297,17 @@ final class CoreDatasetReadinessController {
                 array( 'evidence_reference', 'Operator evidence reference' ),
                 array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
                 array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
+        if ( current_user_can( self::ACTIONS['revise_canonical_lesson_schedule'] ) ) {
+            self::form( 'revise_canonical_lesson_schedule', 'Revise canonical Lesson schedule', array(
+                array( 'lesson_id', 'Canonical Lesson ID' ), array( 'teacher_assignment_id', 'Expected current Teacher Assignment ID' ), array( 'expected_schedule_version_id', 'Current applicable Schedule Version ID' ),
+                array( 'schedule_timezone', 'IANA timezone' ), array( 'local_wall_date', 'New local date: YYYY-MM-DD' ), array( 'local_wall_time', 'New local time: HH:MM' ), array( 'reason_code', 'Controlled reason code' ),
+                array( 'evidence_channel', 'Evidence channel' ), array( 'evidence_reference', 'Operator evidence reference' ), array( 'evidence_at', 'Evidence time UTC' ), array( 'operator_key', 'Idempotency key' ),
+            ) );
+            self::form( 'release_canonical_lesson_schedule', 'Release canonical Lesson schedule', array(
+                array( 'lesson_id', 'Canonical Lesson ID' ), array( 'expected_schedule_version_id', 'Current applicable Schedule Version ID' ), array( 'reason_code', 'Controlled reason code' ),
+                array( 'evidence_channel', 'Evidence channel' ), array( 'evidence_reference', 'Operator evidence reference' ), array( 'evidence_at', 'Evidence time UTC' ), array( 'operator_key', 'Idempotency key' ),
             ) );
         }
         echo '<p>Corrections remain append-only evidence for a separately executed, audited domain command; this screen cannot create a correction in place of that command.</p></div>';

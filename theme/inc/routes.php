@@ -189,12 +189,17 @@ function dzn_theme_render_dashboard_route() {
 	dzn_theme_render_route_state( 'حساب هنوز به پرتال متصل نیست', 'ورود شما موفق بود، اما هنوز پیوند معتبر هنرجو یا مدرس برای این حساب پیدا نشد.', 'بازگشت به خانه', home_url( '/' ), 'خروج از حساب', wp_logout_url( home_url( '/login/?auth=loggedout' ) ) );
 }
 
+function dzn_theme_redirect_signed_out_portal( $kind ) {
+	if ( is_user_logged_in() ) { return false; }
+	$portal_url = home_url( 'teacher' === $kind ? '/teacher-portal/' : '/student-portal/' );
+	wp_safe_redirect( add_query_arg( 'redirect_to', $portal_url, home_url( '/login/' ) ) );
+	exit;
+}
+
 function dzn_theme_render_portal_route( $kind ) {
-	if ( ! is_user_logged_in() ) {
-		$portal_url = home_url( 'teacher' === $kind ? '/teacher-portal/' : '/student-portal/' );
-		wp_safe_redirect( add_query_arg( 'redirect_to', $portal_url, home_url( '/login/' ) ) );
-		exit;
-	}
+	// Authentication is gated before get_header() in dzn_theme_render_virtual_route().
+	// Keep this guard fail-closed if the renderer is ever called from another entrypoint.
+	if ( ! is_user_logged_in() ) { return; }
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
 		$screen = in_array( $screen, array( 'home', 'account', 'onboarding' ), true ) ? $screen : 'home';
@@ -220,6 +225,8 @@ function dzn_theme_render_virtual_route() {
 		$destination = dzn_theme_dashboard_destination();
 		if ( $destination ) { wp_safe_redirect( $destination ); exit; }
 	}
+	if ( 'student-portal' === $route ) { dzn_theme_redirect_signed_out_portal( 'student' ); }
+	if ( 'teacher-portal' === $route ) { dzn_theme_redirect_signed_out_portal( 'teacher' ); }
 	global $wp_query;
 	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );

@@ -664,7 +664,7 @@ final class ProviderIntegrationService {
      */
     private function acknowledge(int $mappingId,string $purpose,string $operation,array $input,string $key):array{
         $actor=$this->actor();
-        if(!current_user_can(self::MANAGE_CAPABILITY)&&!current_user_can(self::DISPATCH_CAPABILITY))throw new \\RuntimeException('Unauthorized');
+        if(!current_user_can(self::MANAGE_CAPABILITY)&&!current_user_can(self::DISPATCH_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $reference=trim((string)($input['provider_object_reference']??''));
         if($reference==='')throw new \InvalidArgumentException('Acknowledged provider reference required');
         $objectDigest=ProviderIntegrationIdempotency::subject($reference,$purpose);

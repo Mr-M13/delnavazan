@@ -28,7 +28,12 @@ spl_autoload_register( static function ( $class ) {
 Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
 add_action( 'plugins_loaded', static function () {
-	Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
+	// Full schema verification is intentionally expensive and belongs to the
+	// activation/upgrade boundary, not the request hot path. maybe_upgrade()
+	// remains the strict fail-closed verifier when explicitly invoked.
+	if ( (string) get_option( 'dzn_platform_schema_version' ) !== (string) DZN_PLATFORM_SCHEMA_VERSION ) {
+		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
+	}
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();

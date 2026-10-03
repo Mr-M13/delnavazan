@@ -149,9 +149,16 @@ final class GoogleCalendarMeetAdapter implements ProviderCalendarPort,ProviderMe
                 'path'=>'/calendar/v3/calendars/primary/events',
                 'query'=>array('conferenceDataVersion'=>1,'sendUpdates'=>'none'),
                 'body'=>array(
+                    // Google accepts caller-supplied event ids. A stable id makes a retry after an
+                    // ambiguous transport failure converge on the same provider object.
+                    'id'=>substr(hash('sha256','dzn:'.$facts['lesson_id'].':'.$facts['schedule_version_id']),0,32),
                     'summary'=>$summary,
                     'start'=>array('dateTime'=>$this->rfc3339($facts['starts_at_utc']),'timeZone'=>$facts['schedule_timezone']),
                     'end'=>array('dateTime'=>$this->rfc3339($facts['ends_at_utc']),'timeZone'=>$facts['schedule_timezone']),
+                    'conferenceData'=>array('createRequest'=>array(
+                        'requestId'=>substr(hash('sha256','dzn-meet:'.$facts['lesson_id'].':'.$facts['schedule_version_id']),0,40),
+                        'conferenceSolutionKey'=>array('type'=>'hangoutsMeet'),
+                    )),
                     'extendedProperties'=>array('private'=>array(
                         'dzn_lesson_id'=>(string)$facts['lesson_id'],
                         'dzn_schedule_version_id'=>(string)$facts['schedule_version_id'],

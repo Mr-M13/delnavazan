@@ -341,7 +341,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
 		$classes[] = array(
 			'ref' => (string) ( $lesson['reference_code'] ?? 'lesson-' . $index ),
-			'start_available' => false,
+			'start_available' => ! empty( $lesson['join_available'] ) && $soon,
+			'join_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_join_class' ),
+			'join_nonce' => wp_create_nonce( 'dzn_teacher_join_class' ),
+			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
+			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
 			'details_available' => true,
 			'student_summary' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'schedule_summary' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F، H:i' ),

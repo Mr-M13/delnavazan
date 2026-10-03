@@ -3,7 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Core\Infrastructure\Repository\ProviderIntegrationRepository;
-use Delnavazan\Platform\Portals\{PortalAccessPolicy,PortalPrincipalResolver};
+use Delnavazan\Platform\Portals\{PortalAccessPolicy,PortalPrincipalResolver,TeacherClassJoinPolicy};
 
 final class TeacherClassJoinService {
     public function __construct(private ?ProviderIntegrationRepository $repository=null,private ?ProviderReferenceVault $vault=null){

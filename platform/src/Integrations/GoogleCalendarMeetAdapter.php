@@ -142,21 +142,33 @@ final class GoogleCalendarMeetAdapter implements ProviderCalendarPort,ProviderMe
     /** The literal Google request shape; a transport maps it to HTTP and nothing else consumes it. */
     private function requestShape(array $facts):array{
         $summary='Lesson '.$facts['lesson_id'].' (schedule version '.$facts['schedule_version_id'].')';
+        if($facts['provider_code']===self::PROVIDER_CODE){
+            return array(
+                'method'=>$facts['operation']==='retract'?'DELETE':'POST',
+                'origin'=>'https://www.googleapis.com',
+                'path'=>'/calendar/v3/calendars/primary/events',
+                'query'=>array('conferenceDataVersion'=>1,'sendUpdates'=>'none'),
+                'body'=>array(
+                    'summary'=>$summary,
+                    'start'=>array('dateTime'=>$this->rfc3339($facts['starts_at_utc']),'timeZone'=>$facts['schedule_timezone']),
+                    'end'=>array('dateTime'=>$this->rfc3339($facts['ends_at_utc']),'timeZone'=>$facts['schedule_timezone']),
+                    'extendedProperties'=>array('private'=>array(
+                        'dzn_lesson_id'=>(string)$facts['lesson_id'],
+                        'dzn_schedule_version_id'=>(string)$facts['schedule_version_id'],
+                        'dzn_local_wall_date'=>$facts['local_wall_date'],
+                        'dzn_local_wall_time'=>$facts['local_wall_time'],
+                    )),
+                ),
+            );
+        }
+        // Meet spaces are their own resource. Schedule metadata belongs to canonical Delnavazan
+        // authority and is never invented as unsupported fields on Google's Space resource.
         return array(
             'method'=>$facts['operation']==='retract'?'DELETE':'POST',
-            'path'=>$facts['provider_code']===self::PROVIDER_CODE?'/calendar/v3/calendars/primary/events':'/v2/spaces',
-            'body'=>array(
-                'summary'=>$summary,
-                'start'=>array('dateTime'=>$this->rfc3339($facts['starts_at_utc']),'timeZone'=>$facts['schedule_timezone']),
-                'end'=>array('dateTime'=>$this->rfc3339($facts['ends_at_utc']),'timeZone'=>$facts['schedule_timezone']),
-                'conferenceDataVersion'=>1,
-                'privateExtendedProperties'=>array(
-                    'dzn_lesson_id'=>(string)$facts['lesson_id'],
-                    'dzn_schedule_version_id'=>(string)$facts['schedule_version_id'],
-                    'dzn_local_wall_date'=>$facts['local_wall_date'],
-                    'dzn_local_wall_time'=>$facts['local_wall_time'],
-                ),
-            ),
+            'origin'=>'https://meet.googleapis.com',
+            'path'=>'/v2/spaces',
+            'query'=>array(),
+            'body'=>array(),
         );
     }
 

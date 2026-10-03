@@ -293,7 +293,11 @@ final class ProviderIntegrationService {
      */
     public function disconnectConnection(int $connectionId,array $input,string $key):array{
         $actor=$this->actor();
-        $this->requireCapability(self::MANAGE_CAPABILITY);
+        $authorizationConnection=$this->repository->connection($connectionId);
+        if(!$authorizationConnection)throw new \InvalidArgumentException('provider_connection_required');
+        $own=$this->resolvesOwnTeacher($actor,(int)$authorizationConnection->teacher_id);
+        if(!$own)$this->requireCapability(self::MANAGE_CAPABILITY);
+        elseif(!current_user_can(self::CONNECT_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $evidence=ProviderIntegrationRule::evidenceFacts($input);
         $digest=ProviderIntegrationIdempotency::key($key);
         $facts=array('domain'=>ProviderIntegrationRule::COMMAND_DOMAIN,'operation'=>'disconnect_connection','connection_id'=>$connectionId);
@@ -327,7 +331,11 @@ final class ProviderIntegrationService {
      */
     public function revokeConnection(int $connectionId,array $input,string $key):array{
         $actor=$this->actor();
-        $this->requireCapability(self::REVOKE_CAPABILITY);
+        $authorizationConnection=$this->repository->connection($connectionId);
+        if(!$authorizationConnection)throw new \InvalidArgumentException('provider_connection_required');
+        $own=$this->resolvesOwnTeacher($actor,(int)$authorizationConnection->teacher_id);
+        if(!$own)$this->requireCapability(self::REVOKE_CAPABILITY);
+        elseif(!current_user_can(self::CONNECT_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $evidence=ProviderIntegrationRule::evidenceFacts($input);
         $digest=ProviderIntegrationIdempotency::key($key);
         $facts=array('domain'=>ProviderIntegrationRule::COMMAND_DOMAIN,'operation'=>'revoke_connection','connection_id'=>$connectionId);

@@ -330,7 +330,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	}
 	$future = array_values( array_filter( (array) ( $data['lessons'] ?? array() ), static function( $row ) use ( $now ) {
 		$start = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' );
-		return $start && $start >= $now;
+		$end = strtotime( (string) ( $row['ends_at_utc'] ?? '' ) . ' UTC' );
+		return $start && $end && $end >= $now;
 	} ) );
 	usort( $future, static fn( $a, $b ) => strcmp( (string) $a['starts_at_utc'], (string) $b['starts_at_utc'] ) );
 	$classes = array();

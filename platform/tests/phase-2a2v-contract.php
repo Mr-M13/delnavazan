@@ -205,3 +205,9 @@ $guardedConflict=strpos($ingest,'return $this->conflictReceipt(');
 if($guard===false||$guardedConflict===false||$guardedConflict<$guard)throw new RuntimeException('A changed winner of the provider-event key race must be recorded as a durable conflict');
 if(str_contains($ingest,"throw new IdempotencyConflictException('Idempotency conflict');"))throw new RuntimeException('A materially changed provider-event context must never be reduced to a bare idempotency conflict');
 echo "Phase 2A.2-V contract static test passed\n";
+
+// Live OAuth transport must remain deployment-configured and fail closed without credentials.
+$liveOAuth=file_get_contents($root.'/src/Integrations/GoogleOAuthTransport.php');
+if(!str_contains($liveOAuth,'implements ProviderOAuthPort'))throw new RuntimeException('Live Google OAuth transport must implement ProviderOAuthPort');
+if(!str_contains($liveOAuth,"DZN_GOOGLE_OAUTH_CLIENT_ID")||!str_contains($liveOAuth,"DZN_GOOGLE_OAUTH_CLIENT_SECRET"))throw new RuntimeException('Live Google OAuth transport must use deployment configuration');
+if(str_contains($liveOAuth,'update_option(')||str_contains($liveOAuth,'error_log('))throw new RuntimeException('Live Google OAuth transport must not persist or log provider secrets');

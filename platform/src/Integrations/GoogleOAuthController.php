@@ -10,6 +10,7 @@ final class GoogleOAuthController {
     public static function register():void{
         add_action('admin_post_dzn_google_connect',array(__CLASS__,'start'));
         add_action('admin_post_dzn_google_oauth_callback',array(__CLASS__,'callback'));
+        add_action('admin_post_dzn_google_disconnect',array(__CLASS__,'disconnect'));
     }
     public static function configured():bool{
         return defined('DZN_GOOGLE_OAUTH_CLIENT_ID')&&trim((string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'))!==''
@@ -49,6 +50,40 @@ final class GoogleOAuthController {
             if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='accounts.google.com')throw new \RuntimeException('oauth_authorization_target_untrusted');
             wp_redirect($uri,302,'Delnavazan');exit;
         }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
+    }
+    public static function disconnect():void{
+        if(!is_user_logged_in())auth_redirect();
+        check_admin_referer('dzn_google_disconnect');
+        $repository=new ProviderIntegrationRepository();
+        $teacher=$repository->teacherForPrincipalUser((int)get_current_user_id(),false);
+        if(!$teacher)self::returnToPortal('teacher_not_linked');
+        try{
+            $rows=$repository->connections(GoogleCalendarMeetAdapter::PROVIDER_CODE,(int)$teacher->id);
+            $connection=null;
+            foreach(array_reverse($rows) as $row){
+                if(in_array((string)$row->connection_state,array('connected','refresh_failed','revoking','revoke_failed'),true)){$connection=$row;break;}
+            }
+            if(!$connection)self::returnToPortal('google_not_connected');
+            if(self::configured()){
+                $adapter=new GoogleCalendarMeetAdapter();$oauth=new GoogleOAuthTransport();
+                $service=new ProviderIntegrationService(null,null,$oauth,$adapter,$adapter);
+                $result=$service->revokeConnection((int)$connection->id,array(
+                    'evidence_channel'=>'authenticated_platform',
+                    'evidence_reference'=>'teacher-google-disconnect:'.(int)$teacher->id,
+                    'evidence_at'=>gmdate('Y-m-d H:i:s'),
+                ),'teacher-google-revoke:'.(int)$connection->id.':'.wp_generate_uuid4());
+                self::returnToPortal(($result['connection_state']??'')==='revoked'?'google_disconnected':'google_disconnect_failed');
+            }
+            // Configuration can disappear after a connection was established. Fail closed locally
+            // rather than leaving a credential usable merely because provider revocation is unavailable.
+            $service=new ProviderIntegrationService(null,null,new GoogleOAuthTransport(),new GoogleCalendarMeetAdapter(),new GoogleCalendarMeetAdapter());
+            $service->disconnectConnection((int)$connection->id,array(
+                'evidence_channel'=>'authenticated_platform',
+                'evidence_reference'=>'teacher-google-local-disconnect:'.(int)$teacher->id,
+                'evidence_at'=>gmdate('Y-m-d H:i:s'),
+            ),'teacher-google-disconnect-local:'.(int)$connection->id.':'.wp_generate_uuid4());
+            self::returnToPortal('google_disconnected');
+        }catch(\Throwable){self::returnToPortal('google_disconnect_failed');}
     }
     public static function callback():void{
         if(!is_user_logged_in())auth_redirect();

@@ -68,7 +68,7 @@ final class GoogleOAuthController {
         }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
     }
     private static function returnToPortal(string $status):never{
-        wp_safe_redirect(add_query_arg('google_status',rawurlencode($status),home_url('/teacher-portal/account/')));exit;
+        wp_safe_redirect(add_query_arg(array('teacher-view'=>'account','google_status'=>$status),home_url('/teacher-portal/')));exit;
     }
     private static function setCookie(string $value,int $expires):void{
         setcookie(self::COOKIE,$value,array('expires'=>$expires,'path'=>'/','secure'=>true,'httponly'=>true,'samesite'=>'Lax'));

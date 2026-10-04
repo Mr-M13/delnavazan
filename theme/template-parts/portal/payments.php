@@ -7,6 +7,7 @@
 
 $payments = isset( $args['payments'] ) && is_array( $args['payments'] ) ? $args['payments'] : array();
 $items = isset( $payments['items'] ) && is_array( $payments['items'] ) ? $payments['items'] : array();
+$checkout_enabled = ! empty( $payments['checkout_enabled'] );
 ?>
 <section class="dzn-portal-section dzn-payments" aria-labelledby="dzn-payments-title">
 	<div class="dzn-portal-section__heading">
@@ -14,12 +15,18 @@ $items = isset( $payments['items'] ) && is_array( $payments['items'] ) ? $paymen
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مالی', 'delnavazan-theme' ); ?></p>
 			<h2 id="dzn-payments-title"><?php esc_html_e( 'پرداخت و اشتراک', 'delnavazan-theme' ); ?></h2>
 		</div>
-		<span class="dzn-status dzn-status--muted"><?php esc_html_e( 'نمایش آزمایشی', 'delnavazan-theme' ); ?></span>
+		<span class="dzn-status dzn-status--muted"><?php echo $checkout_enabled ? esc_html__( 'وضعیت اقساط', 'delnavazan-theme' ) : esc_html__( 'نمایش آزمایشی', 'delnavazan-theme' ); ?></span>
 	</div>
 	<div class="dzn-payments__summary">
 		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت اشتراک', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ); ?></p></div>
 		<div><p class="dzn-status-row__label"><?php esc_html_e( 'تمدید بعدی', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['renewal_date'] ?? 'از منبع معتبر دریافت نشده' ); ?></p></div>
 	</div>
+	<?php if ( $checkout_enabled ) : ?>
+		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">
+			<p class="dzn-checkout__status" data-checkout-status aria-live="polite"><?php esc_html_e( 'در حال دریافت وضعیت پرداخت…', 'delnavazan-theme' ); ?></p>
+			<div class="dzn-checkout__list" data-checkout-list></div>
+		</div>
+	<?php endif; ?>
 	<?php if ( $items ) : ?>
 		<div class="dzn-payment-list">
 			<?php foreach ( $items as $item ) : ?>

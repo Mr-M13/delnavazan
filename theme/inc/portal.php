@@ -53,6 +53,7 @@ function dzn_theme_enqueue_portal_assets() {
 
 	$style_path = get_theme_file_path( 'assets/css/portal.css' );
 	$script_path = get_theme_file_path( 'assets/js/portal.js' );
+	$checkout_script_path = get_theme_file_path( 'assets/js/checkout.js' );
 	$version = wp_get_theme()->get( 'Version' );
 
 	wp_enqueue_style(
@@ -69,6 +70,24 @@ function dzn_theme_enqueue_portal_assets() {
 		file_exists( $script_path ) ? (string) filemtime( $script_path ) : $version,
 		array( 'strategy' => 'defer', 'in_footer' => true )
 	);
+
+	if ( is_user_logged_in() ) {
+		wp_enqueue_script(
+			'delnavazan-student-checkout',
+			get_theme_file_uri( 'assets/js/checkout.js' ),
+			array(),
+			file_exists( $checkout_script_path ) ? (string) filemtime( $checkout_script_path ) : $version,
+			array( 'strategy' => 'defer', 'in_footer' => true )
+		);
+		wp_localize_script(
+			'delnavazan-student-checkout',
+			'dznStudentCheckout',
+			array(
+				'apiRoot' => esc_url_raw( rest_url( 'delnavazan-platform/v1/' ) ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
+			)
+		);
+	}
 }
 add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_portal_assets', 20 );
 

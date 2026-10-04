@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Portals;
 
-use Delnavazan\Platform\Core\Application\Checkout\{StudentCheckoutInitiationService,StudentCheckoutReturnReadService};
+use Delnavazan\Platform\Core\Application\Checkout\{StudentCheckoutInitiationService,StudentCheckoutReturnReadService,StudentCommercialCheckoutReadService};
 
 /** Narrow authenticated customer-checkout initiation surface. */
 final class StudentCheckoutController {
@@ -15,6 +15,11 @@ final class StudentCheckoutController {
             'methods' => 'GET',
             'permission_callback' => array(__CLASS__, 'permitted'),
             'callback' => array(__CLASS__, 'status'),
+        ));
+        register_rest_route('delnavazan-platform/v1', '/student/commercial-checkout', array(
+            'methods' => 'GET',
+            'permission_callback' => array(__CLASS__, 'permitted'),
+            'callback' => array(__CLASS__, 'commercialCheckout'),
         ));
     }
 
@@ -50,6 +55,21 @@ final class StudentCheckoutController {
             return new \WP_REST_Response(array('payment_state' => 'unavailable', 'checkout_state' => 'unavailable', 'action' => null, 'retry_allowed' => false, 'obligation_uid' => null), 404);
         } catch (\Throwable) {
             return new \WP_REST_Response(array('payment_state' => 'unavailable', 'checkout_state' => 'unavailable', 'action' => null, 'retry_allowed' => false, 'obligation_uid' => null), 503);
+        }
+    }
+
+    public static function commercialCheckout(\WP_REST_Request $request): \WP_REST_Response {
+        try {
+            if ($request->get_body() !== '' || $request->get_file_params() !== array()
+                || $request->get_url_params() !== array() || $request->get_json_params() !== null
+                || $request->get_query_params() !== array()) {
+                throw new \InvalidArgumentException('checkout_unavailable');
+            }
+            return new \WP_REST_Response((new StudentCommercialCheckoutReadService())->read(), 200);
+        } catch (\InvalidArgumentException) {
+            return new \WP_REST_Response(array('state' => 'unavailable', 'obligations' => array()), 404);
+        } catch (\Throwable) {
+            return new \WP_REST_Response(array('state' => 'unavailable', 'obligations' => array()), 503);
         }
     }
 }

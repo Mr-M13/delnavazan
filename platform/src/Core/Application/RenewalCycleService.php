@@ -314,7 +314,7 @@ final class RenewalCycleService {
         $lastInterval=null;
         if($lessonIds){
             $in=implode(',',array_map('intval',$lessonIds));
-            $lastInterval=$wpdb->get_var("SELECT MAX(occupied_ends_at_utc) FROM {$p}canonical_lesson_schedule_versions WHERE lesson_id IN ({$in})");
+            $lastInterval=$wpdb->get_var("SELECT MAX(occupied_ends_at_utc) FROM {$p}canonical_lesson_schedule_versions WHERE lesson_id IN ({$in}) AND applicable_slot=1");
         }
         if($lastInterval===null)throw new \InvalidArgumentException('boundary_facts_required');
         $pattern=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_recurring_patterns WHERE student_id=%d AND course_id=%d ORDER BY (state='active') DESC,id DESC LIMIT 1",(int)$recurring->student_id,(int)$recurring->course_id));

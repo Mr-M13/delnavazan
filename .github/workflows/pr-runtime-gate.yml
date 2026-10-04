@@ -87,7 +87,7 @@ jobs:
           php platform/tests/notification-transport-recipient-resolver-contract.php
           php platform/tests/notification-runtime-factory-contract.php
           php platform/tests/notification-worker-bootstrap-contract.php
-          php platform/tests/notification-delivery-evidence-contract.php
+          php platform/tests/notification-delivery-evidence-contract.php\n          php platform/tests/notification-delivery-state-contract.php
           php platform/tests/notification-handoff-reconciliation-contract.php
           php platform/tests/student-notification-recipient-authority-contract.php
           php platform/tests/notification-copy-integrity-contract.php

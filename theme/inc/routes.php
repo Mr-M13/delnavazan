@@ -211,6 +211,8 @@ function dzn_theme_render_admin_route() {
 }
 
 function dzn_theme_render_virtual_route() {
+	$raw_path = trim( (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH ), '/' );
+	if ( 'booking' === $raw_path ) { wp_safe_redirect( home_url( '/enrol/' ), 301 ); exit; }
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
 	if ( 'dashboard' === $route ) {

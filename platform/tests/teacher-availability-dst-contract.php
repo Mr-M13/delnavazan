@@ -16,7 +16,7 @@ $needle = "catch ( \\InvalidArgumentException ) { continue; }";
 if ( strpos( $service, $needle ) === false ) {
     throw new RuntimeException( 'Recurring availability must fail closed per invalid DST occurrence' );
 }
-if ( strpos( $service, "AvailabilityLocalTime::interval( \\$date, (string) \\$rule->local_start_time, (string) \\$rule->local_end_time" ) === false ) {
+if ( strpos( $service, 'AvailabilityLocalTime::interval( $date, (string) $rule->local_start_time, (string) $rule->local_end_time' ) === false ) {
     throw new RuntimeException( 'Recurring availability must continue using canonical local-time conversion' );
 }
 

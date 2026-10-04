@@ -10,7 +10,7 @@ $checkoutUi = file_get_contents($themeRoot . '/assets/js/checkout.js');
 $checkoutTemplate = file_get_contents($themeRoot . '/template-parts/portal/payments.php');
 $checkoutTheme = file_get_contents($themeRoot . '/inc/checkout.php');
 $stripeAdapter = file_get_contents($root . '/src/Integrations/Payment/Stripe/StripeCheckoutAdapter.php');
-foreach (array("resolve('student')", 'byUid($uid)', '$session->student_id !== $studentId', 'settlementForObligation', "'payment_state' => 'paid'", "'retry_allowed' => false", "'action' => 'retry'", "'obligation_uid' => (string) $obligation->uid") as $needle) {
+foreach (array("resolve('student')", 'byUid($uid)', '$session->student_id !== $studentId', 'settlementForObligation', "'payment_state' => 'paid'", "'retry_allowed' => false", "'action' => 'retry'", "'obligation_uid' => (string) \$obligation->uid") as $needle) {
     if (strpos($service, $needle) === false) throw new RuntimeException('Student Checkout return authority contract missing ' . $needle);
 }
 foreach (array("'/student/checkout-status'", "'methods' => 'GET'", 'wp_verify_nonce', 'get_query_params', 'StudentCheckoutReturnReadService', "'payment_state' => 'unavailable'") as $needle) {
@@ -34,7 +34,7 @@ foreach (array('source', 'platform', "'account'", 'checkout_enabled') as $needle
 foreach (array('data-dzn-student-checkout', 'aria-live', 'checkout_enabled') as $needle) {
     if (strpos($checkoutTemplate, $needle) === false) throw new RuntimeException('Student checkout account template missing ' . $needle);
 }
-foreach (array('student/commercial-checkout', 'student/checkout-status', 'student/checkout', 'X-WP-Nonce', 'obligation_uid: row.obligation_uid', 'checkout.stripe.com', "data.payment_state === 'paid'") as $needle) {
+foreach (array('student/commercial-checkout', 'student/checkout-status', 'student/checkout', 'X-WP-Nonce', 'obligation_uid: row.obligation_uid', 'checkout\\.stripe\\.com', "data.payment_state === 'paid'") as $needle) {
     if (strpos($checkoutUi, $needle) === false) throw new RuntimeException('Student checkout browser contract missing ' . $needle);
 }
 if (strpos($checkoutUi, 'CommercialPaymentService') !== false || strpos($checkoutUi, 'payment_state:') !== false || strpos($checkoutUi, 'innerHTML') !== false) {

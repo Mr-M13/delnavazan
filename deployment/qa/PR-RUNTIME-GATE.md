@@ -12,10 +12,9 @@ The workflow uses PHP 8.3 and runs:
 2. `git diff --check HEAD^1 HEAD` for the proposed pull-request patch whitespace.
 3. A curated list of verified, WordPress/MySQL-free Platform source contracts:
    Phase 1B, 1D–1F, 2A.0, 2A.1A–D, 2A.2A–F and the 2A.2F concurrency contract.
-4. `platform/tests/phase-2a3-iran-quiet-hours.php`, which is a pure PHP policy test.
-5. `platform/tests/phase-student-portal-state-contract.php` when that file is present.
-6. `platform/tests/teacher-onboarding-v1-contract.php` when present. Its `offboarded`
-   transition assertion checks the canonical owner, `PrincipalInvitationService`.
+4. The pure/source-level Phase 2A.3 quiet-hours and day-availability contracts.
+5. Teacher DST, booking preference-order/public-window/day-grid, operations-dashboard-source and launch-portal-hardening contracts.
+6. Student Portal state, teacher onboarding v1 and operations portal contracts when those files are present.
 7. `bash -n deployment/qa/staging-smoke.sh`.
 
 Obsolete runs for the same PR are cancelled. This workflow deliberately uses
@@ -56,10 +55,19 @@ for contract in \
   php "$contract"
 done
 php platform/tests/phase-2a3-iran-quiet-hours.php
+php platform/tests/phase-2a3-day-availability-contract.php
+php platform/tests/teacher-availability-dst-contract.php
+php platform/tests/booking-preference-order-contract.php
+php platform/tests/booking-public-window-contract.php
+php platform/tests/operations-dashboard-source-contract.php
+php platform/tests/launch-portal-hardening-contract.php
+php platform/tests/booking-day-grid-theme-contract.php
 test ! -f platform/tests/phase-student-portal-state-contract.php || \
   php platform/tests/phase-student-portal-state-contract.php
 test ! -f platform/tests/teacher-onboarding-v1-contract.php || \
   php platform/tests/teacher-onboarding-v1-contract.php
+test ! -f platform/tests/phase-operations-portal-contract.php || \
+  php platform/tests/phase-operations-portal-contract.php
 git diff --check HEAD^1 HEAD
 bash -n deployment/qa/staging-smoke.sh
 ```

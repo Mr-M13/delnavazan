@@ -48,7 +48,11 @@ final class TeacherAvailabilityService {
         $facts = array(); $rules = $this->repo->activeRules( $teacher ); $exceptions = $this->repo->activeExceptions( $teacher, $startDate, $endDate );
         for ( $day = new \DateTimeImmutable( $startDate, $zone ); $day->format( 'Y-m-d' ) <= $endDate; $day = $day->modify( '+1 day' ) ) {
             $date = $day->format( 'Y-m-d' ); $weekday = (int) $day->format( 'N' );
-            foreach ( $rules as $rule ) if ( (int) $rule->weekday === $weekday ) $this->append( $facts, AvailabilityLocalTime::interval( $date, (string) $rule->local_start_time, (string) $rule->local_end_time, (string) $rule->timezone ), (string) $rule->state, 'recurring', (int) $rule->id );
+            foreach ( $rules as $rule ) if ( (int) $rule->weekday === $weekday ) {
+                try { $interval = AvailabilityLocalTime::interval( $date, (string) $rule->local_start_time, (string) $rule->local_end_time, (string) $rule->timezone ); }
+                catch ( \InvalidArgumentException ) { continue; }
+                $this->append( $facts, $interval, (string) $rule->state, 'recurring', (int) $rule->id );
+            }
         }
         foreach ( $exceptions as $exception ) { $interval = (int) $exception->all_day === 1 ? AvailabilityLocalTime::fullDay( (string) $exception->local_date, (string) $exception->timezone ) : AvailabilityLocalTime::interval( (string) $exception->local_date, (string) $exception->local_start_time, (string) $exception->local_end_time, (string) $exception->timezone ); $this->append( $facts, $interval, (string) $exception->state, 'exception', (int) $exception->id ); }
         return $this->resolve( $facts, $from, $until );

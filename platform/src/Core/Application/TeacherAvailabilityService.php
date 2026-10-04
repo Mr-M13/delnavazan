@@ -43,18 +43,19 @@ final class TeacherAvailabilityService {
         $teacher = Normalizer::id( $teacherId ); $from = $this->utc( $fromUtc ); $until = $this->utc( $untilUtc ); if ( $until <= $from ) throw new \InvalidArgumentException( 'Availability range end must follow start' );
         if ( ! $this->repo->evaluableTeacher( $teacher ) ) return array();
         $profile = $this->repo->profile( $teacher ); if ( ! $profile || $profile->status !== 'active' ) return array();
-        try { $zone = new \DateTimeZone( (string) $profile->timezone ); } catch ( \Throwable ) { throw new \RuntimeException( 'teacher_timezone_invalid' ); } $utc = new \DateTimeZone( 'UTC' ); $fromLocal = ( new \DateTimeImmutable( $from, $utc ) )->setTimezone( $zone ); $untilLocal = ( new \DateTimeImmutable( $until, $utc ) )->setTimezone( $zone );
+        $zone = new \DateTimeZone( $this->authorityTimezone( $profile->timezone ) ); $utc = new \DateTimeZone( 'UTC' ); $fromLocal = ( new \DateTimeImmutable( $from, $utc ) )->setTimezone( $zone ); $untilLocal = ( new \DateTimeImmutable( $until, $utc ) )->setTimezone( $zone );
         $startDate = $fromLocal->modify( '-1 day' )->format( 'Y-m-d' ); $endDate = $untilLocal->modify( '+1 day' )->format( 'Y-m-d' );
         $facts = array(); $rules = $this->repo->activeRules( $teacher ); $exceptions = $this->repo->activeExceptions( $teacher, $startDate, $endDate );
         for ( $day = new \DateTimeImmutable( $startDate, $zone ); $day->format( 'Y-m-d' ) <= $endDate; $day = $day->modify( '+1 day' ) ) {
             $date = $day->format( 'Y-m-d' ); $weekday = (int) $day->format( 'N' );
             foreach ( $rules as $rule ) if ( (int) $rule->weekday === $weekday ) {
-                try { $interval = AvailabilityLocalTime::interval( $date, (string) $rule->local_start_time, (string) $rule->local_end_time, (string) $rule->timezone ); }
+                $ruleTimezone = $this->authorityTimezone( $rule->timezone ?? null );
+                try { $interval = AvailabilityLocalTime::interval( $date, (string) $rule->local_start_time, (string) $rule->local_end_time, $ruleTimezone ); }
                 catch ( UnavailableLocalTimeException ) { continue; }
                 $this->append( $facts, $interval, (string) $rule->state, 'recurring', (int) $rule->id );
             }
         }
-        foreach ( $exceptions as $exception ) { $interval = (int) $exception->all_day === 1 ? AvailabilityLocalTime::fullDay( (string) $exception->local_date, (string) $exception->timezone ) : AvailabilityLocalTime::interval( (string) $exception->local_date, (string) $exception->local_start_time, (string) $exception->local_end_time, (string) $exception->timezone ); $this->append( $facts, $interval, (string) $exception->state, 'exception', (int) $exception->id ); }
+        foreach ( $exceptions as $exception ) { $exceptionTimezone = $this->authorityTimezone( $exception->timezone ?? null ); $interval = (int) $exception->all_day === 1 ? AvailabilityLocalTime::fullDay( (string) $exception->local_date, $exceptionTimezone ) : AvailabilityLocalTime::interval( (string) $exception->local_date, (string) $exception->local_start_time, (string) $exception->local_end_time, $exceptionTimezone ); $this->append( $facts, $interval, (string) $exception->state, 'exception', (int) $exception->id ); }
         return $this->resolve( $facts, $from, $until );
     }
 
@@ -64,8 +65,14 @@ final class TeacherAvailabilityService {
         if ( ! $this->repo->evaluableTeacher( $teacher ) ) return null;
         $profile = $this->repo->profile( $teacher );
         if ( ! $profile || $profile->status !== 'active' ) return null;
-        try { new \DateTimeZone( (string) $profile->timezone ); } catch ( \Throwable ) { throw new \RuntimeException( 'teacher_timezone_invalid' ); }
-        return (string) $profile->timezone;
+        $timezone = $this->authorityTimezone( $profile->timezone );
+        return $timezone;
+    }
+
+    private function authorityTimezone(mixed $value): string {
+        try { $timezone = Normalizer::timezone( $value ); } catch ( \Throwable ) { throw new \RuntimeException( 'teacher_timezone_invalid' ); }
+        if ( ! $timezone ) throw new \RuntimeException( 'teacher_timezone_invalid' );
+        return $timezone;
     }
 
     private function rule(array $input): array {

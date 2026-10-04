@@ -29,7 +29,7 @@ $credentialSource=new CheckoutFakeCredentialSource();
 $adapter=new \Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdapter($credentialSource,$transport);
 $request=new \Delnavazan\Platform\Core\Application\Checkout\CheckoutRequest(7,8,9,15000,'AUD','OFFERUID:1','stable-server-key',str_repeat('A',26));
 $response=array(
-    'object'=>'checkout.session','id'=>'cs_test_'.str_repeat('C',30),'mode'=>'payment','status'=>'open','livemode'=>false,
+    'object'=>'checkout.session','id'=>'cs_test_'.str_repeat('C',30),'mode'=>'payment','status'=>'open','payment_status'=>'unpaid','livemode'=>false,
     'amount_total'=>15000,'currency'=>'aud','expires_at'=>time()+3600,'url'=>'https://checkout.stripe.com/c/pay/session',
     'metadata'=>array('checkout_attempt_uid'=>$request->attemptUid(),'obligation_reference'=>$request->obligationReference(),'provider_account_reference'=>'test_account_41'),
 );

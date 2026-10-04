@@ -1,9 +1,10 @@
 <?php
 $s=file_get_contents(dirname(__DIR__).'/src/Core/Application/NotificationDeliveryEvidenceService.php');
 $r=file_get_contents(dirname(__DIR__).'/src/Core/Infrastructure/Repository/NotificationDeliveryRepository.php');
-foreach(array("NotificationRule::deliveryRank","delivery_regression_attempt","delivery_event_stale","hash_hmac", "NotificationSupport::salt", "NotificationSupport::seconds","provider_event_reference_digest","DELIVERY_NOT_APPLIED","handed_off","acknowledged") as$n)if(strpos($s,$n)===false)throw new RuntimeException('Delivery evidence service missing '.$n);
+foreach(array("submit(array \$normalisedFacts)","NotificationRule::deliveryRank","delivery_regression_attempt","delivery_event_stale","NotificationSupport::seconds","provider_fact_digest","provider_event_reference_digest","DELIVERY_NOT_APPLIED","handed_off","acknowledged") as$n)if(strpos($s,$n)===false)throw new RuntimeException('Delivery evidence service missing '.$n);
 foreach(array("notification_deliveries","applied=1","provider_event_reference_digest","appliedRank") as$n)if(strpos($r,$n)===false)throw new RuntimeException('Delivery repository missing '.$n);
-foreach(array("'delivery_rank'=>\$rank","'provider_fact_digest'=>\$factDigest","'occurred_at'=>\$observedAt","'recorded_at'=>NotificationSupport::now()") as $n)if(strpos($s,$n)===false)throw new RuntimeException('Delivery evidence schema write missing '.$n);
-foreach(array('provider_message_reference_digest','observed_at','created_at') as $n)if(strpos($s,"'".$n."'=>")!==false)throw new RuntimeException('Delivery evidence must not write non-schema column '.$n);
-if(strpos($s,"'provider_event_reference'=>$providerEventReference")!==false||strpos($s,"'provider_message_reference'=>$providerMessageReference")!==false)throw new RuntimeException('Raw provider references must not be persisted');
+foreach(array("'delivery_rank'=>\$rank","'provider_fact_digest'=>\$factDigest","'occurred_at'=>\$occurredAt","'recorded_at'=>NotificationSupport::now()") as$n)if(strpos($s,$n)===false)throw new RuntimeException('Delivery evidence schema write missing '.$n);
+foreach(array('provider_message_reference_digest','observed_at','created_at') as$n)if(strpos($s,"'".$n."'=>")!==false)throw new RuntimeException('Delivery evidence must not write non-schema column '.$n);
+foreach(array('providerEventReference','providerMessageReference','hash_hmac','NotificationSupport::salt') as$n)if(strpos($s,$n)!==false)throw new RuntimeException('Core delivery intake must receive normalised digests, not raw provider references: '.$n);
+if(strpos($s,"(int)\$attempt->notification_id!==\$notificationId")===false)throw new RuntimeException('Delivery fact must be bound to its persisted attempt notification');
 echo "Notification delivery evidence source contract passed\n";

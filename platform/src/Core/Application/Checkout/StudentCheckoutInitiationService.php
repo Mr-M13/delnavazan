@@ -179,7 +179,10 @@ final class StudentCheckoutInitiationService {
         if (!$offer || (int) $offer->beneficiary_student_id !== $studentId || (int) $offer->id !== (int) $obligation->offer_id) {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
-        if ((string) $offer->state !== 'issued' || ($offer->expires_at !== null && (string) $offer->expires_at <= gmdate('Y-m-d H:i:s'))) {
+        // R1 allows an accepted offer to fund later unpaid instalments; checkout must follow that
+        // same canonical state rule instead of making the second obligation unreachable.
+        if (!in_array((string) $offer->state, array('issued', 'accepted'), true)
+            || ($offer->expires_at !== null && (string) $offer->expires_at <= gmdate('Y-m-d H:i:s'))) {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
         if ((int) $obligation->amount_minor < 1 || preg_match('/^[A-Z]{3}$/D', (string) $obligation->currency) !== 1) {

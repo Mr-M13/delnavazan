@@ -94,13 +94,13 @@ final class StudentCheckoutInitiationService {
                 // timeout may have created the provider session without returning its response.
                 $sessionId = (int) $active->id;
                 $key = $this->providerIdempotencyKey((string) $obligation->uid, (string) $active->uid);
-                $request = $this->request($studentId, $offer, $obligation, $key);
+                $request = $this->request($studentId, $offer, $obligation, $key, (string) $active->uid);
                 $this->authority->commit();
             } else {
                 // The attempt UID is the stable generation identity used for every provider retry.
                 $attemptUid = Identifier::uid();
                 $key = $this->providerIdempotencyKey((string) $obligation->uid, $attemptUid);
-                $request = $this->request($studentId, $offer, $obligation, $key);
+                $request = $this->request($studentId, $offer, $obligation, $key, $attemptUid);
                 $sessionId = $this->sessions->insert(array(
                     'uid' => $attemptUid, 'student_id' => $studentId, 'offer_id' => (int) $offer->id,
                     'obligation_id' => (int) $obligation->id, 'amount_minor' => $request->amountMinor(),
@@ -185,7 +185,7 @@ final class StudentCheckoutInitiationService {
         return hash('sha256', 'student_checkout_v1:' . $obligationUid . ':' . $attemptUid);
     }
 
-    private function request(int $studentId, object $offer, object $obligation, string $key): CheckoutRequest {
+    private function request(int $studentId, object $offer, object $obligation, string $key, string $attemptUid): CheckoutRequest {
         return new CheckoutRequest(
             $studentId,
             (int) $offer->id,
@@ -193,7 +193,8 @@ final class StudentCheckoutInitiationService {
             (int) $obligation->amount_minor,
             (string) $obligation->currency,
             CommercialSupport::obligationReference((string) $offer->uid, (int) $obligation->obligation_sequence),
-            $key
+            $key,
+            $attemptUid
         );
     }
 

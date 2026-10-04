@@ -13,12 +13,18 @@ check_portal_redirect(){ local path="$1"; local result location redirect_code ex
 check_login_required(){ local path="$1"; if ! fetch "$path"; then return; fi; if [[ "$code" == 200 ]] && grep -Eq "ورود لازم است" "$body"; then pass "$path controlled login-required page"; else fail "$path expected HTTP 200 login-required page, got $code"; fi; if grep -Eqi "(PHP[[:space:]]+(Fatal error|Parse error|Warning|Notice):|<b>[[:space:]]*(Fatal error|Parse error|Warning|Notice)[[:space:]]*</b>)" "$body"; then fail "$path contains visible PHP error marker"; else pass "$path has no visible PHP error marker"; fi; }
 check_dashboard_redirect(){ local result location redirect_code; if ! result="$(curl --silent --show-error --max-time 20 --proto "=https" --dump-header "$headers" --output /dev/null --write-out "%{http_code}" "$BASE_URL/dashboard/")"; then fail "/dashboard/ transfer failed"; return; fi; redirect_code="$result"; location="$(grep -Ei "^location:" "$headers" | tail -1 | sed -E "s/^[Ll]ocation:[[:space:]]*//; s/\\r$//")"; if [[ "$redirect_code" =~ ^(301|302|303)$ ]] && { [[ "$location" == "/login/" ]] || [[ "$location" == "$BASE_URL/login/" ]]; }; then pass "/dashboard/ redirects to /login/"; else fail "/dashboard/ expected redirect to staging /login/, got $redirect_code ${location:-no-location}"; fi; }
 check_sitemap(){ local path="$1"; if ! fetch "$path"; then return; fi; if [[ "$code" =~ ^(401|403|404)$ ]]; then pass "$path protected/unavailable ($code)"; else fail "$path expected protected 401/403/404, got $code"; fi; }
+check_platform_rest(){
+  if ! fetch "/wp-json/"; then return; fi
+  if [[ "$code" == 200 ]] && grep -Eq 'delnavazan-platform.{0,4}v1' "$body"; then pass 'WordPress REST index advertises Delnavazan Platform routes'; else fail "WordPress REST index missing Delnavazan Platform routes (HTTP $code)"; fi
+  if ! fetch "/wp-json/delnavazan-platform/v1/booking-options"; then return; fi
+  if [[ "$code" == 200 ]] && grep -Eiq '^content-type:[[:space:]]*application/(json|[^;[:space:]]+\+json)' "$headers"; then pass 'public booking-options REST route responds with JSON'; else fail "booking-options REST route expected JSON HTTP 200, got $code"; fi
+}
 check_html "/" "^(200)$"
 if grep -Eqi "^x-robots-tag:.*noindex" "$headers"; then pass "X-Robots-Tag noindex"; else fail "X-Robots-Tag noindex missing"; fi
 robots_meta="$(grep -Eio '<meta[^>]+>' "$body" | grep -Ei 'name=(["'\''"]robots["'\''"]|robots)' | head -1 || true)"
 if [[ -n "$robots_meta" ]] && grep -Eqi "noindex" <<<"$robots_meta"; then pass "robots meta noindex"; else fail "robots meta noindex missing"; fi
 if result="$(curl --silent --show-error --max-time 20 --proto "=https" --dump-header "$headers" --output /dev/null --write-out "%{http_code}" "$BASE_URL/booking/")"; then
-  location="$(grep -Ei "^location:" "$headers" | tail -1 | sed -E "s/^[Ll]ocation:[[:space:]]*//; s/\\r$//")"
+  location="$(grep -Ei "^location:" "$headers" | tail -1 | sed -E "s/^[Ll]ocation:[[:space:]]*//; s/\\r$//" || true)"
   if [[ "$result" == 301 ]] && { [[ "$location" == "/enrol/" ]] || [[ "$location" == "$BASE_URL/enrol/" ]]; }; then pass "/booking/ permanently redirects to canonical /enrol/"; else fail "/booking/ expected 301 to /enrol/, got $result ${location:-no-location}"; fi
 else fail "/booking/ transfer failed"; fi
 check_html "/enrol/" "^(200)$"
@@ -27,6 +33,7 @@ check_html "/this-route-must-not-exist-qa/" "^(404)$"
 check_dashboard_redirect
 for route in /student-portal/ /teacher-portal/; do check_portal_redirect "$route"; done
 check_login_required "/admin-operations/"
+check_platform_rest
 check_sitemap "/wp-sitemap.xml"
 check_sitemap "/sitemap_index.xml"
 if [[ "$failures" == 0 ]]; then echo "RESULT: PASS"; exit 0; fi

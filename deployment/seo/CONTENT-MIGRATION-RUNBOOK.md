@@ -155,3 +155,17 @@ WordPress-admin action independent of the merge.
 - Nothing was merged, deployed or published; the package exists only as a local file.
 - No Theme, Platform, booking, portal or SEO-emission code was changed by this branch.
 - No second SEO plugin was installed or activated, and no Rank Math global setting was guessed or created.
+
+## 9. Live preflight refresh — 2026-10-04
+
+Read-only/reversible staging checks refreshed before import:
+
+- WordPress content remains empty: 0 posts and 0 pages, so the documented content-collision assumptions still hold.
+- WordPress `blog_public` is now `0` on staging, in addition to the Theme crawl guard. Keep both protections until production cutover.
+- Delnavazan Platform schema is `35`; migrations 001–035 are recorded complete.
+- Teacher invitation delivery and Google calendar projection cron hooks are scheduled every five minutes.
+- Rank Math is **not installed/active on staging**. The WXR preserves per-object Rank Math metadata, but those values will not emit titles/descriptions/canonicals/sitemaps until the chosen SEO authority is installed/configured.
+- Google OAuth is **not configured on staging** (`DZN_GOOGLE_OAUTH_CLIENT_ID` is absent). This is unrelated to the content import, but remains a launch configuration dependency for teacher calendar integration.
+- The previously generated local WXR package was not found at its documented Downloads path during this refresh. Recreate it from the production export with the committed deterministic builder and verify its counts/digest before import; do not substitute an unverified XML file.
+
+The content import remains intentionally unexecuted until the source export/package is recovered or freshly exported and verified.

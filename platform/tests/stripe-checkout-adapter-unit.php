@@ -29,7 +29,7 @@ $credentialSource=new CheckoutFakeCredentialSource();
 $adapter=new \Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdapter($credentialSource,$transport);
 $request=new \Delnavazan\Platform\Core\Application\Checkout\CheckoutRequest(7,8,9,15000,'AUD','OFFERUID:1','stable-server-key',str_repeat('A',26));
 $response=array(
-    'object'=>'checkout.session','id'=>'cs_test_'.str_repeat('C',30),'mode'=>'payment','status'=>'open','livemode'=>false,
+    'object'=>'checkout.session','id'=>'cs_test_'.str_repeat('C',30),'mode'=>'payment','status'=>'open','payment_status'=>'unpaid','livemode'=>false,
     'amount_total'=>15000,'currency'=>'aud','expires_at'=>time()+3600,'url'=>'https://checkout.stripe.com/c/pay/session',
     'metadata'=>array('checkout_attempt_uid'=>$request->attemptUid(),'obligation_reference'=>$request->obligationReference(),'provider_account_reference'=>'test_account_41'),
 );
@@ -45,6 +45,21 @@ checkout_assert(($options['body']['line_items[0][price_data][unit_amount]']??nul
 checkout_assert(($options['body']['metadata[checkout_attempt_uid]']??'')===$request->attemptUid(),'Attempt correlation metadata missing');
 checkout_assert(($options['body']['metadata[obligation_reference]']??'')===$request->obligationReference(),'Obligation correlation metadata missing');
 checkout_assert(($options['body']['metadata[provider_account_reference]']??'')==='test_account_41','Provider account correlation metadata missing');
+
+$retrieved=$adapter->retrieve($response['id']);
+checkout_assert($retrieved['state']==='open'&&$retrieved['payment_state']==='unpaid','Exact test Checkout Session was not retrieved: '.json_encode($retrieved));
+checkout_assert($retrieved['provider_reference']===$response['id']&&$retrieved['attempt_uid']===$request->attemptUid(),'Retrieved Checkout Session identity/correlation changed');
+[$retrieveUrl,$retrieveOptions]=$GLOBALS['checkout_fake_calls'][1];
+checkout_assert($retrieveUrl==='https://api.stripe.com/v1/checkout/sessions/'.$response['id'],'Adapter did not retrieve the exact fixed Stripe Checkout Session endpoint');
+checkout_assert(($retrieveOptions['sslverify']??false)===true&&($retrieveOptions['redirection']??-1)===0,'Checkout Session retrieval transport protections missing');
+$callsBeforeInvalid=count($GLOBALS['checkout_fake_calls']);
+checkout_assert($adapter->retrieve('cs_live_'.str_repeat('X',20))['state']==='unavailable','Live Checkout Session id reached test retrieval');
+checkout_assert(count($GLOBALS['checkout_fake_calls'])===$callsBeforeInvalid,'Invalid session reference reached Stripe transport');
+
+$GLOBALS['checkout_fake_response']=array('response'=>array('code'=>404),'body'=>'{}');
+checkout_assert($adapter->retrieve($response['id'])['state']==='not_found','Authoritative Stripe session 404 was not distinguished');
+$GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode(array_merge($response,array('livemode'=>true))));
+checkout_assert($adapter->retrieve($response['id'])['state']==='unavailable','Live-mode Checkout Session retrieval response was accepted');
 
 $response['livemode']=true;
 $GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode($response));

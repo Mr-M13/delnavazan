@@ -30,5 +30,6 @@ $read=file_get_contents($root.'/src/Core/Application/CanonicalTeacherOccupancyRe
 $assessment=file_get_contents($root.'/src/Core/Application/BookingAvailabilityAssessmentService.php');
 foreach(array('applicable_slot=1','ORDER BY starts_at_utc,id') as $fact)$expect(str_contains($repo,$fact),'occupancy source must select current versions deterministically: '.$fact);
 foreach(array('CanonicalLessonScheduleValidator::validForLesson','CanonicalLessonAuthorityValidator::valid','canonical_schedule_integrity_conflict','canonical_lesson_integrity_conflict','Cancellation/completion state alone does not release Teacher capacity') as $fact)$expect(str_contains($read,$fact),'canonical occupancy read must validate fail-closed authority: '.$fact);
+$expect(str_contains($repo,"if(\$wpdb->last_error!=='')throw new \\RuntimeException('Canonical Teacher occupancy read failed"),'a failed canonical occupancy query must not masquerade as an empty schedule');
 $expect(str_contains($assessment,'CanonicalTeacherOccupancyReadService')&&str_contains($assessment,"'status' => 'blocked'"),'booking assessment must consume occupancy and fail closed');
 echo "Booking canonical occupancy contract passed\n";

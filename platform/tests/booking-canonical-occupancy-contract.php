@@ -21,7 +21,14 @@ $expect(!$overlap($existingStart,$existingOccupiedEnd,'2026-10-02 02:45:01','202
 
 $utc=static function(string $date,string $time,string $zone):string{$wall=\Delnavazan\Platform\Core\Application\AvailabilityLocalTime::wall($date,$time,$zone);return $wall->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');};
 $expect($utc('2026-10-02','12:00:00','Australia/Brisbane')===$utc('2026-10-02','07:45:00','Asia/Kathmandu'),'same UTC instant in different display zones must share collision identity');
-foreach(array(array('2026-10-04','02:15:00','Australia/Sydney'),array('2026-11-01','01:30:00','America/New_York')) as [$date,$time,$zone]){
+$expect($utc('2026-10-02','12:00:00','Asia/Tehran')==='2026-10-02 08:30:00','Iran wall time must follow IANA offset data');
+$expect($utc('2026-10-02','23:30:00','America/New_York')==='2026-10-03 03:30:00','UTC date rollover must remain explicit in canonical identity');
+foreach(array(
+    array('2026-10-04','02:15:00','Australia/Sydney'),
+    array('2026-11-01','01:30:00','America/New_York'),
+    array('2026-09-27','02:15:00','Pacific/Auckland'),
+    array('2026-03-29','01:30:00','Europe/London'),
+) as [$date,$time,$zone]){
     try{$utc($date,$time,$zone);$expect(false,'DST gaps and folds must not create occupancy identities');}catch(\InvalidArgumentException $expected){}
 }
 

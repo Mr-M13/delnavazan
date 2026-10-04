@@ -28,8 +28,8 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
         if(!is_array($credentials)||!is_string($credentials['api_key']??null)||!is_string($credentials['account_reference']??null))return $this->unavailable('checkout_provider_unconfigured');
         if(preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$credentials['api_key'])!==1||preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$credentials['account_reference'])!==1)return $this->unavailable('checkout_provider_unconfigured');
         if($this->http===null&&(!function_exists('wp_remote_post')||!function_exists('is_wp_error')||!function_exists('wp_remote_retrieve_response_code')||!function_exists('wp_remote_retrieve_body')))return $this->unavailable('checkout_provider_unconfigured');
-        $success=home_url('/student-portal/?checkout=return&attempt='.rawurlencode($request->attemptUid()));
-        $cancel=home_url('/student-portal/?checkout=cancel&attempt='.rawurlencode($request->attemptUid()));
+        $success=home_url('/student-portal/?portal-view=account&checkout=return&attempt='.rawurlencode($request->attemptUid()));
+        $cancel=home_url('/student-portal/?portal-view=account&checkout=cancel&attempt='.rawurlencode($request->attemptUid()));
         $url='https://api.stripe.com/v1/checkout/sessions';
         $options=array(
             'timeout'=>15,'redirection'=>0,'sslverify'=>true,

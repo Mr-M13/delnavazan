@@ -677,6 +677,50 @@
     padding-block: var(--dzn-space-3);
   }
 
+  .dzn-checkout {
+    display: grid;
+    gap: 1rem;
+    margin-block: 1.5rem;
+  }
+
+  .dzn-checkout__list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .dzn-checkout__row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid var(--dzn-border, #d8d6d1);
+    border-radius: 0.75rem;
+    background: var(--dzn-surface, #fff);
+  }
+
+  .dzn-checkout__row-status {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .dzn-checkout__button {
+    grid-column: 1 / -1;
+    justify-self: start;
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    border: 0;
+    border-radius: 0.5rem;
+    color: #fff;
+    background: var(--dzn-accent, #315f57);
+    cursor: pointer;
+  }
+
+  .dzn-checkout__button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+
   .dzn-payment-row div,
   .dzn-payment-row div span {
     display: block;

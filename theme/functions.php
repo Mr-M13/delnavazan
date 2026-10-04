@@ -20,6 +20,7 @@ require_once get_template_directory() . '/inc/patterns.php';
 require_once get_template_directory() . '/inc/portal.php';
 require_once get_template_directory() . '/inc/teacher-portal.php';
 require_once get_template_directory() . '/inc/platform-bridge.php';
+require_once get_template_directory() . '/inc/checkout.php';
 require_once get_template_directory() . '/inc/content-page.php';
 require_once get_template_directory() . '/inc/home.php';
 require_once get_template_directory() . '/inc/booking.php';

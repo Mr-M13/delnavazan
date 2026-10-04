@@ -117,19 +117,11 @@ function dzn_theme_teacher_requires_onboarding() {
 
 
 function dzn_theme_operations_items() {
-	$items = array(
-		array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-platform', 'title' => 'وضعیت هسته', 'description' => 'سلامت و آمادگی Delnavazan Platform' ),
-		array( 'cap' => 'dzn_manage_teachers', 'slug' => 'dzn-teacher', 'title' => 'مدرسان', 'description' => 'مدیریت رکوردهای مدرس' ),
-		array( 'cap' => 'dzn_manage_students', 'slug' => 'dzn-student', 'title' => 'هنرجویان', 'description' => 'مدیریت رکوردهای هنرجو' ),
-		array( 'cap' => 'dzn_manage_enrolments', 'slug' => 'dzn-enrolment', 'title' => 'ثبت‌نام‌ها', 'description' => 'ثبت‌نام و وضعیت آموزشی' ),
-		array( 'cap' => 'dzn_manage_terms', 'slug' => 'dzn-term', 'title' => 'ترم‌ها', 'description' => 'ترم‌های آموزشی معتبر' ),
-		array( 'cap' => 'dzn_manage_lessons', 'slug' => 'dzn-lesson', 'title' => 'کلاس‌ها', 'description' => 'کلاس‌ها و چرخهٔ آموزشی' ),
-		array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-booking-requests', 'title' => 'درخواست‌های کلاس', 'description' => 'درخواست‌های ورودی هنرجویان' ),
-		array( 'cap' => 'dzn_manage_booking_request_coordination', 'slug' => 'dzn-booking-request-coordination', 'title' => 'هماهنگی درخواست‌ها', 'description' => 'هماهنگی مدرس و زمان' ),
-		array( 'cap' => 'dzn_manage_onboarding', 'slug' => 'dzn-onboarding', 'title' => 'شروع همکاری مدرس', 'description' => 'فرایند onboarding مدرسان' ),
-		array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teacher-availability', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی' ),
-	);
-	return array_values( array_filter( $items, static fn( $item ) => current_user_can( $item['cap'] ) ) );
+	$items = array();
+	foreach ( dzn_theme_operations_available_groups() as $group ) {
+		foreach ( (array) ( $group['items'] ?? array() ) as $item ) { $items[] = $item; }
+	}
+	return $items;
 }
 
 function dzn_theme_has_operations_access() { return (bool) dzn_theme_operations_items(); }

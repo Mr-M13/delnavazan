@@ -30,7 +30,7 @@ $adapter=new \Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdap
 $request=new \Delnavazan\Platform\Core\Application\Checkout\CheckoutRequest(7,8,9,15000,'AUD','OFFERUID:1','stable-server-key',str_repeat('A',26));
 $response=array(
     'object'=>'checkout.session','id'=>'cs_test_'.str_repeat('C',30),'mode'=>'payment','status'=>'open','payment_status'=>'unpaid','livemode'=>false,
-    'amount_total'=>15000,'currency'=>'aud','expires_at'=>time()+3600,'url'=>'https://checkout.stripe.com/c/pay/session',
+    'amount_total'=>15000,'currency'=>'aud','created'=>time()-120,'expires_at'=>time()+3600,'url'=>'https://checkout.stripe.com/c/pay/session',
     'metadata'=>array('checkout_attempt_uid'=>$request->attemptUid(),'obligation_reference'=>$request->obligationReference(),'provider_account_reference'=>'test_account_41'),
 );
 $GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode($response));
@@ -52,6 +52,15 @@ checkout_assert($retrieved['provider_reference']===$response['id']&&$retrieved['
 [$retrieveUrl,$retrieveOptions]=$GLOBALS['checkout_fake_calls'][1];
 checkout_assert($retrieveUrl==='https://api.stripe.com/v1/checkout/sessions/'.$response['id'],'Adapter did not retrieve the exact fixed Stripe Checkout Session endpoint');
 checkout_assert(($retrieveOptions['sslverify']??false)===true&&($retrieveOptions['redirection']??-1)===0,'Checkout Session retrieval transport protections missing');
+$checkoutEvent=array('id'=>'evt_CheckoutPaid123','object'=>'event','type'=>'checkout.session.completed','created'=>time()-30,'livemode'=>false,
+    'data'=>array('object'=>array('object'=>'checkout.session','id'=>$response['id'],'livemode'=>false,'mode'=>'payment','status'=>'complete','payment_status'=>'paid',
+        'amount_total'=>15000,'currency'=>'aud','metadata'=>$response['metadata'])));
+$GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode(array('object'=>'list','data'=>array($checkoutEvent),'has_more'=>false)));
+$paidEvent=$adapter->completionEvent($response['id'],$response['created']);
+checkout_assert($paidEvent['state']==='found'&&$paidEvent['provider_reference']==='evt_CheckoutPaid123','Exact successful Checkout event was not found');
+checkout_assert($paidEvent['provider_occurred_at']===gmdate('Y-m-d H:i:s',$checkoutEvent['created']),'Provider event occurrence time was not retained');
+$GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode(array('object'=>'list','data'=>array(),'has_more'=>false)));
+checkout_assert($adapter->completionEvent($response['id'],$response['created'])['reason_code']==='provider_success_event_not_found','Missing provider completion event was not left unresolved');
 $callsBeforeInvalid=count($GLOBALS['checkout_fake_calls']);
 checkout_assert($adapter->retrieve('cs_live_'.str_repeat('X',20))['state']==='unavailable','Live Checkout Session id reached test retrieval');
 checkout_assert(count($GLOBALS['checkout_fake_calls'])===$callsBeforeInvalid,'Invalid session reference reached Stripe transport');

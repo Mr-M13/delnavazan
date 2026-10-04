@@ -22,6 +22,14 @@ final class NotificationAttemptRepository {
     /** The highest-sequence attempt, which is the row that closed the notification. */
     public function lastAttempt(int $notificationId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notification_attempts WHERE notification_id=%d ORDER BY attempt_sequence DESC LIMIT 1".($lock?' FOR UPDATE':''),$notificationId);}
     /** Expired leases with a persisted row to account against: recovery never re-arms without one. */
+    /** Open handed-off attempts are never auto-retried: expose them for provider/operator reconciliation. */
+    public function unresolvedHandOffs(string $before,int $limit=50):array{
+        global $wpdb;$limit=max(1,min($limit,200));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->p}notification_attempts WHERE state='handed_off' AND finished_at IS NULL AND updated_at<=%s ORDER BY updated_at ASC LIMIT %d",
+            $before,$limit
+        ))?:array();
+    }
     public function expiredLeases(string $now,int $limit=50):array{
         global $wpdb;$limit=max(1,min($limit,200));
         return $wpdb->get_results($wpdb->prepare(

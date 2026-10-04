@@ -42,6 +42,10 @@ final class StudentCheckoutInitiationService {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
 
+        if ($this->checkout->key() !== self::PROVIDER_KEY) {
+            throw new \InvalidArgumentException('checkout_unavailable');
+        }
+
         $request = null;
         $sessionId = 0;
         $this->authority->begin();

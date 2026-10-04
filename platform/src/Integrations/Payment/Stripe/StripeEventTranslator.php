@@ -16,8 +16,8 @@ final class StripeEventTranslator implements ProviderEventTranslator {
     public const PROVIDER_KEY='stripe';
     /** Normalised type → the raw Stripe types that carry it. */
     private const TYPE_MAP=array(
-        'payment_succeeded'=>array('payment_intent.succeeded','charge.succeeded','invoice.paid'),
-        'payment_failed'=>array('payment_intent.payment_failed','charge.failed','invoice.payment_failed'),
+        'payment_succeeded'=>array('payment_intent.succeeded','charge.succeeded','invoice.paid','checkout.session.completed','checkout.session.async_payment_succeeded'),
+        'payment_failed'=>array('payment_intent.payment_failed','charge.failed','invoice.payment_failed','checkout.session.async_payment_failed'),
         'payment_requires_action'=>array('payment_intent.processing','payment_intent.requires_action'),
         'refund_recorded'=>array('charge.refunded','refund.created','refund.updated'),
         'mandate_recorded'=>array('setup_intent.succeeded','payment_method.attached','mandate.updated'),
@@ -42,9 +42,13 @@ final class StripeEventTranslator implements ProviderEventTranslator {
         $eventReference=isset($decoded['id'])&&is_string($decoded['id'])?$decoded['id']:'';
         if($eventReference==='')return array();
         $object=isset($decoded['data']['object'])&&is_array($decoded['data']['object'])?$decoded['data']['object']:array();
+        if(str_starts_with($rawType,'checkout.session.')
+            && ($context->mode()!=='test'||($object['object']??'')!=='checkout.session'||($object['mode']??'')!=='payment'
+                ||($object['livemode']??null)!==false||preg_match('/^cs_test_[A-Za-z0-9]+$/D',(string)($object['id']??''))!==1))return array();
+        if($rawType==='checkout.session.completed'&&(string)($object['status']??'')!=='complete')return array();
         $metadata=isset($object['metadata'])&&is_array($object['metadata'])?$object['metadata']:array();
         return array(new ProviderEventEnvelope(
-            $context->providerKey(),$eventReference,$this->normaliseType($rawType),$rawType,
+            $context->providerKey(),$eventReference,$this->checkoutSessionEventType($rawType,$object),$rawType,
             PaymentExecutionIdempotency::payloadDigest($rawBody),$this->occurredAt($decoded),
             $this->amount($object),$this->currency($object),$this->reference($metadata,'obligation_reference'),
             $this->reference($metadata,'provider_account_reference'),
@@ -57,6 +61,13 @@ final class StripeEventTranslator implements ProviderEventTranslator {
         foreach(self::TYPE_MAP as $normalised=>$rawTypes)if(in_array($rawType,$rawTypes,true))return $normalised;
         foreach(self::RECURRING_UNRESOLVED_PREFIXES as $prefix)if(str_starts_with($rawType,$prefix))return 'provider_recurring_semantics_unresolved';
         return 'unrecognised_provider_event';
+    }
+
+    /** Completion alone is not payment evidence: unpaid Checkout Sessions remain attempt facts. */
+    private function checkoutSessionEventType(string $rawType,array $object):string{
+        if(in_array($rawType,array('checkout.session.completed','checkout.session.async_payment_succeeded'),true)
+            &&(string)($object['payment_status']??'')!=='paid')return 'payment_requires_action';
+        return $this->normaliseType($rawType);
     }
 
     /** Card, wallets and bank redirects are recorded as a neutral method family, never as authority. */
@@ -80,7 +91,7 @@ final class StripeEventTranslator implements ProviderEventTranslator {
         return null;
     }
     private function amount(array $object):?int{
-        foreach(array('amount','amount_received','amount_paid','amount_refunded','total') as $key)if(isset($object[$key])&&is_numeric($object[$key]))return (int)$object[$key];
+        foreach(array('amount','amount_received','amount_paid','amount_total','amount_refunded','total') as $key)if(isset($object[$key])&&is_numeric($object[$key]))return (int)$object[$key];
         return null;
     }
     private function currency(array $object):?string{

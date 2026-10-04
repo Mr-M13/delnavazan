@@ -15,7 +15,7 @@ $phaseQ=$rule.$service.$validator.$read.$repo.$capacity;
 if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$plugin,$schema)||(int)$schema[1]<24)throw new RuntimeException('Missing Phase Q schema identity');
 /* Compatibility markers are minimum-schema plus the canonical build identity shape, so a later
    phase may advance the platform build without invalidating this closed phase's contract. */
-if(!preg_match("/DZN_PLATFORM_BUILD_ID', 'phase2a2[a-z0-9]*-[a-z0-9-]+-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('Missing canonical build identity for Phase Q+');
+if(!preg_match("/DZN_PLATFORM_BUILD_ID', '[a-z0-9]+(?:-[a-z0-9]+)*-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('Missing canonical build identity for Phase Q+');
 
 // Migration, storage, verifier wiring, capabilities.
 foreach(array('024_post_intro_continuation_slot_reservation_authority','install_canonical_continuation_authority','verify_canonical_continuation_schema','canonical_continuation_cases','canonical_continuation_decisions','canonical_continuation_reservations','canonical_continuation_interventions','canonical_continuation_commands','dzn_manage_canonical_continuation','dzn_view_canonical_continuation','dzn_submit_own_continuation_match_exception')as$n)if(!str_contains($migration.$plugin,$n))throw new RuntimeException('Missing Phase Q migration contract: '.$n);

@@ -33,11 +33,22 @@ foreach(array(
 }
 
 $repo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLessonScheduleRepository.php');
+$continuations=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalContinuationRepository.php');
 $read=file_get_contents($root.'/src/Core/Application/CanonicalTeacherOccupancyReadService.php');
 $assessment=file_get_contents($root.'/src/Core/Application/BookingAvailabilityAssessmentService.php');
+$scheduleService=file_get_contents($root.'/src/Core/Application/CanonicalLessonScheduleService.php');
+$scheduleRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLessonScheduleRepository.php');
+$scheduleRaces=file_get_contents($root.'/tests/phase-2a2n-concurrency-runner.sh');
+$scheduleFailures=file_get_contents($root.'/tests/phase-2a2n-failure-runtime.php');
 foreach(array('applicable_slot=1','ORDER BY starts_at_utc,id') as $fact)$expect(str_contains($repo,$fact),'occupancy source must select current versions deterministically: '.$fact);
 foreach(array('CanonicalLessonScheduleValidator::validForLesson','CanonicalLessonAuthorityValidator::valid','canonical_schedule_integrity_conflict','canonical_lesson_integrity_conflict','Cancellation/completion state alone does not release Teacher capacity') as $fact)$expect(str_contains($read,$fact),'canonical occupancy read must validate fail-closed authority: '.$fact);
 $expect(str_contains($repo,"if(\$wpdb->last_error!=='')throw new \\RuntimeException('Canonical Teacher occupancy read failed"),'a failed canonical occupancy query must not masquerade as an empty schedule');
+$expect(str_contains($continuations,"state='active' AND expires_at>%s")&&str_contains($continuations,"starts_at_utc<%s AND occupied_ends_at_utc>%s"),'only effective overlapping continuation holds must participate in teacher capacity');
+$expect(str_contains($continuations,"if(\$wpdb->last_error!=='')throw new \\RuntimeException('Continuation capacity read failed"),'a failed continuation hold read must not masquerade as an empty schedule');
+$expect(str_contains($assessment,'CanonicalContinuationCapacityAuthority::assertNoActiveHold')&&str_contains($assessment,"getMessage() === 'teacher_slot_conflict'"),'active continuation holds must block advisory availability while authority errors fail closed');
 $expect(str_contains($assessment,'CanonicalTeacherOccupancyReadService')&&str_contains($assessment,"'status' => 'blocked'"),'booking assessment must consume occupancy and fail closed');
-$expect(str_contains($assessment,"'exception_type' => 'schedule_conflict'")&&str_contains($assessment,"'fingerprint_key' => 'booking_availability_canonical_occupancy_v1'"),'serious occupancy uncertainty must use deduplicated operational exceptions');
+$expect(str_contains($assessment,"'exception_type' => 'schedule_conflict'")&&str_contains($assessment,"'fingerprint_key' => 'booking_availability_canonical_occupancy_v1'")&&str_contains($assessment,'canonical_continuation_integrity_conflict'),'serious teacher-capacity uncertainty must use deduplicated operational exceptions');
+foreach(array('ensureAndLockTeacherRoot','assertCapacity','overlappingApplicable','begin()','commit()') as $fact)$expect(str_contains($scheduleService.$scheduleRepo,$fact),'commit-time scheduling must serialize and recheck teacher capacity: '.$fact);
+foreach(array('capacity_first','same_key','different_keys','buffer_adjacency','unrelated_teachers') as $fact)$expect(str_contains($scheduleRaces,$fact),'teacher scheduling race suite is missing case: '.$fact);
+foreach(array('dzn_phase_2a2n_after_version_supersede','dzn_phase_2a2n_after_version_insert','dzn_phase_2a2n_after_event_insert','dzn_phase_2a2n_after_command_insert','Rollback') as $fact)$expect(str_contains($scheduleFailures,$fact),'teacher scheduling failure-atomicity suite is missing case: '.$fact);
 echo "Booking canonical occupancy contract passed\n";

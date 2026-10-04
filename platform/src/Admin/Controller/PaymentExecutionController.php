@@ -1,22 +1,46 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
+use Delnavazan\Platform\Core\Application\Checkout\StripeCheckoutReconciliationService;
 use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentEventIntakeService,PaymentExecutionReadService,PaymentProviderReadService};
 
 /**
- * Administrator read/diagnostic surface for Phase 2A.2-T (contract §13).
+ * Administrator read/diagnostic surface and guarded recovery action for Phase 2A.2-T (contract §13).
  *
  * The surface is view-only: it exposes counts, states and controlled reason codes, never a provider
- * payload, a secret, a raw reference, a ciphertext, a nonce, a signature or a source address. Every read
- * re-checks `dzn_view_payment_execution_authority` server-side.
+ * payload, a secret, a raw reference, a ciphertext, a nonce, a signature or a source address. Reads use
+ * `dzn_view_payment_execution_authority`; recovery separately requires `dzn_manage_payment_execution`
+ * and a REST nonce, and accepts only a local checkout attempt UID.
  */
 final class PaymentExecutionController {
     public const CAPABILITY='dzn_view_payment_execution_authority';
+    private const RECONCILE_CAPABILITY='dzn_manage_payment_execution';
     public const MENU_SLUG='dzn-payment-execution';
     public const PARENT_SLUG='dzn-platform';
 
     public static function register():void{
         add_action('admin_menu',array(__CLASS__,'menu'));
+        add_action('rest_api_init',array(__CLASS__,'registerRestRoutes'));
+    }
+    public static function registerRestRoutes():void{
+        register_rest_route('delnavazan-platform/v1','/admin/payment-execution/checkout-reconcile',array(
+            'methods'=>'POST','permission_callback'=>array(__CLASS__,'reconciliationPermitted'),'callback'=>array(__CLASS__,'reconcileCheckout'),
+        ));
+    }
+    public static function reconciliationPermitted(\WP_REST_Request $request):bool{
+        $nonce=(string)$request->get_header('x_wp_nonce');
+        return is_user_logged_in()&&current_user_can(self::RECONCILE_CAPABILITY)&&$nonce!==''&&wp_verify_nonce($nonce,'wp_rest');
+    }
+    public static function reconcileCheckout(\WP_REST_Request $request):\WP_REST_Response{
+        try{
+            $params=$request->get_json_params();
+            if(!is_array($params)||$request->get_file_params()!==array()||$request->get_url_params()!==array()||$request->get_query_params()!==array())
+                throw new \InvalidArgumentException('checkout_reconciliation_unavailable');
+            $result=(new StripeCheckoutReconciliationService())->reconcile($params);
+            return new \WP_REST_Response($result,200);
+        }catch(\Throwable){
+            return new \WP_REST_Response(array('state'=>'unresolved','reason_code'=>'checkout_reconciliation_unavailable'),503);
+        }
     }
     public static function menu():void{
         if(!function_exists('add_submenu_page'))return;

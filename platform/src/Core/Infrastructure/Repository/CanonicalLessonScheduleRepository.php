@@ -39,6 +39,16 @@ final class CanonicalLessonScheduleRepository {
     public function applicableVersion(int $lessonId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE lesson_id=%d AND applicable_slot=1".($lock?' FOR UPDATE':''),$lessonId);}
     /** All current occupancy facts for one teacher, in stable order, for validated availability reads. */
     public function applicableForTeacher(int $teacherId):array{global $wpdb;$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE teacher_id=%d AND applicable_slot=1 ORDER BY starts_at_utc,id",$teacherId));if($wpdb->last_error!=='')throw new \RuntimeException('Canonical Teacher occupancy read failed: '.$wpdb->last_error);return is_array($rows)?$rows:array();}
+    /** Current legacy scheduled lessons remain committed Teacher occupancy; the legacy table has no stored buffer fact. */
+    public function legacyApplicableForTeacher(int $teacherId):array{
+        global $wpdb;
+        $invalid=$wpdb->get_var($wpdb->prepare("SELECT l.id FROM {$this->p}lessons l LEFT JOIN {$this->p}lesson_schedule_versions pointed ON pointed.id=l.current_schedule_version_id AND pointed.lesson_id=l.id AND pointed.superseded_at IS NULL WHERE l.teacher_id=%d AND l.record_model='legacy_phase1' AND l.status='scheduled' AND l.archived_at IS NULL AND (pointed.id IS NULL OR (SELECT COUNT(*) FROM {$this->p}lesson_schedule_versions current_version WHERE current_version.lesson_id=l.id AND current_version.superseded_at IS NULL)<>1) LIMIT 1",$teacherId));
+        if($wpdb->last_error!=='')throw new \RuntimeException('Legacy Teacher occupancy read failed: '.$wpdb->last_error);
+        if($invalid!==null)throw new \RuntimeException('legacy_schedule_integrity_conflict');
+        $rows=$wpdb->get_results($wpdb->prepare("SELECT l.id AS lesson_id,l.teacher_id,v.starts_at_utc,v.ends_at_utc,DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE) AS occupied_ends_at_utc FROM {$this->p}lessons l INNER JOIN {$this->p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.teacher_id=%d AND l.record_model='legacy_phase1' AND l.status='scheduled' AND l.archived_at IS NULL ORDER BY v.starts_at_utc,l.id",$teacherId));
+        if($wpdb->last_error!=='')throw new \RuntimeException('Legacy Teacher occupancy read failed: '.$wpdb->last_error);
+        return is_array($rows)?$rows:array();
+    }
     public function version(int $versionId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE id=%d".($lock?' FOR UPDATE':''),$versionId);}
 
     /** Lessons with any canonical schedule aggregate in the scope, ordered deterministically. */

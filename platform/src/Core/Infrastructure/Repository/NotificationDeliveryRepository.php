@@ -19,6 +19,8 @@ final class NotificationDeliveryRepository {
 
     public function deliveries(int $notificationId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_deliveries WHERE notification_id=%d ORDER BY delivery_sequence",$notificationId))?:array();}
     public function appliedDeliveries(int $notificationId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_deliveries WHERE notification_id=%d AND applied=1 ORDER BY delivery_sequence",$notificationId))?:array();}
+    /** Delivery evidence belongs to the exact hand-off attempt; evidence from an earlier retry must never reconcile a later one. */
+    public function deliveriesForAttempt(int $attemptId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_deliveries WHERE attempt_id=%d ORDER BY delivery_sequence",$attemptId))?:array();}
     public function byProviderReference(string $digest):?object{return $this->one("SELECT * FROM {$this->p}notification_deliveries WHERE provider_event_reference_digest=%s",$digest);}
     public function nextSequence(int $notificationId):int{global $wpdb;return 1+(int)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(delivery_sequence),0) FROM {$this->p}notification_deliveries WHERE notification_id=%d",$notificationId));}
     public function insertDelivery(array $data):int{return $this->insert('notification_deliveries',$data,'Notification delivery persistence failed');}

@@ -23,8 +23,11 @@ final class NotificationDeliveryEvidenceService {
         $attempt=$this->attempts->find($attemptId);
         if(!$attempt||!in_array((string)$attempt->state,array('handed_off','acknowledged'),true))throw new \RuntimeException('attempt_lifecycle_invalid');
 
-        $eventDigest=NotificationSupport::digest('delivery_event:'.$providerEventReference);
-        $messageDigest=$providerMessageReference!==null&&$providerMessageReference!==''?NotificationSupport::digest('delivery_message:'.$providerMessageReference):null;
+        $providerEventReference=trim($providerEventReference);
+        if($providerEventReference==='')throw new \InvalidArgumentException('delivery_event_reference_required');
+        if(NotificationSupport::seconds($observedAt)===null)throw new \InvalidArgumentException('delivery_event_stale');
+        $eventDigest=hash_hmac('sha256','delivery_event:'.$providerEventReference,NotificationSupport::salt());
+        $factDigest=hash_hmac('sha256','delivery_fact:'.$attemptId.':'.$state.':'.($providerMessageReference??'').':'.$observedAt,NotificationSupport::salt());
         $existing=$this->deliveries->byProviderReference($eventDigest);
         if($existing)return array('applied'=>(int)$existing->applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>'replay','delivery_id'=>(int)$existing->id);
 
@@ -39,11 +42,12 @@ final class NotificationDeliveryEvidenceService {
             'attempt_id'=>$attemptId,
             'delivery_sequence'=>$this->deliveries->nextSequence((int)$attempt->notification_id),
             'delivery_state'=>$state,
-            'provider_message_reference_digest'=>$messageDigest,
+            'delivery_rank'=>$rank,
+            'provider_fact_digest'=>$factDigest,
             'provider_event_reference_digest'=>$eventDigest,
+            'occurred_at'=>$observedAt,
+            'recorded_at'=>NotificationSupport::now(),
             'applied'=>$applied,
-            'observed_at'=>$observedAt,
-            'created_at'=>NotificationSupport::now(),
         ));
         return array('applied'=>$applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>$outcome,'delivery_id'=>$id);
     }

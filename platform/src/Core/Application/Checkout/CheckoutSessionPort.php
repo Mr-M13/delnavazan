@@ -7,6 +7,6 @@ namespace Delnavazan\Platform\Core\Application\Checkout;
  */
 interface CheckoutSessionPort {
     public function key():string;
-    /** @return array{state:string,redirect_url:?string,provider_reference:?string,reason_code:?string} */
+    /** @return array{state:string,redirect_url:?string,provider_reference:?string,expires_at:?string,reason_code:?string} */
     public function create(CheckoutRequest $request):array;
 }

@@ -12,5 +12,23 @@ final class CheckoutSessionRepository {
     /** Last immutable session gives a deterministic next server-side request generation. */
     public function latestForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d ORDER BY id DESC LIMIT 1".($lock?' FOR UPDATE':''),$obligationId));}
     public function insert(array $data):int{global $wpdb;if($wpdb->insert($this->p.'checkout_sessions',$data)===false)throw new \RuntimeException('Checkout session persistence failed');return(int)$wpdb->insert_id;}
-    public function close(int $id,string $state,string $reason,string $at):void{global $wpdb;$changed=$wpdb->update($this->p.'checkout_sessions',array('state'=>$state,'active_slot'=>null,'closed_at'=>$at,'close_reason'=>$reason),array('id'=>$id,'active_slot'=>1));if($changed!==1)throw new \RuntimeException('Stale checkout session');}
+    /** Persist only the keyed digest of the provider identity; the raw id stays in adapter memory. */
+    public function recordOpen(int $id,string $providerReferenceDigest,string $expiresAt):void{
+        global $wpdb;
+        if(preg_match('/^[a-f0-9]{64}$/D',$providerReferenceDigest)!==1)throw new \InvalidArgumentException('Invalid provider reference digest');
+        $session=$wpdb->get_row($wpdb->prepare("SELECT state,provider_reference_digest FROM {$this->p}checkout_sessions WHERE id=%d AND active_slot=1 FOR UPDATE",$id));
+        if(!$session||!in_array((string)$session->state,array('creating','open'),true))throw new \RuntimeException('Stale checkout session');
+        if((string)$session->state==='open'){
+            if(!hash_equals((string)$session->provider_reference_digest,$providerReferenceDigest))throw new \RuntimeException('Checkout provider identity conflict');
+            return;
+        }
+        $changed=$wpdb->update($this->p.'checkout_sessions',array('state'=>'open','provider_reference_digest'=>$providerReferenceDigest,'expires_at'=>$expiresAt),array('id'=>$id,'state'=>'creating','active_slot'=>1));
+        if($changed!==1)throw new \RuntimeException('Stale checkout session');
+    }
+    public function close(int $id,string $state,string $reason,string $at):void{
+        global $wpdb;
+        if(!in_array($state,array('completed','expired','failed'),true))throw new \InvalidArgumentException('Invalid checkout terminal state');
+        $changed=$wpdb->update($this->p.'checkout_sessions',array('state'=>$state,'active_slot'=>null,'closed_at'=>$at,'close_reason'=>$reason),array('id'=>$id,'active_slot'=>1));
+        if($changed!==1)throw new \RuntimeException('Stale checkout session');
+    }
 }

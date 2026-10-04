@@ -58,7 +58,8 @@ $golden = array(
 		</div><button class="dzn-button" type="submit">افزودن بازه</button>
 	</form>
 	<?php endif; ?>
-	<?php if ( $rules ) : ?><ul class="dzn-tp-rule-list"><?php foreach ( $rules as $rule ) : ?><li><strong><?php echo esc_html( (string) $rule['weekday'] ); ?></strong> — <?php echo esc_html( substr( $rule['local_start_time'], 0, 5 ) . ' تا ' . substr( $rule['local_end_time'], 0, 5 ) ); ?> · <?php echo esc_html( $rule['state'] === 'preferred' ? 'ترجیحی' : ( $rule['state'] === 'requestable' ? 'قابل درخواست' : 'مسدود' ) ); ?></li><?php endforeach; ?></ul><?php else : ?><p>هنوز بازه‌ای ثبت نشده است.</p><?php endif; ?>
+	<?php $weekday_labels = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' ); ?>
+	<?php if ( $rules ) : ?><ul class="dzn-tp-rule-list"><?php foreach ( $rules as $rule ) : ?><li><strong><?php echo esc_html( $weekday_labels[ (int) $rule['weekday'] ] ?? (string) $rule['weekday'] ); ?></strong> — <?php echo esc_html( substr( $rule['local_start_time'], 0, 5 ) . ' تا ' . substr( $rule['local_end_time'], 0, 5 ) ); ?> · <?php echo esc_html( $rule['state'] === 'preferred' ? 'ترجیحی' : ( $rule['state'] === 'requestable' ? 'قابل درخواست' : 'مسدود' ) ); ?></li><?php endforeach; ?></ul><?php else : ?><p>هنوز بازه‌ای ثبت نشده است.</p><?php endif; ?>
 </section>
 
 <section class="dzn-tp-section" aria-labelledby="tp-review">

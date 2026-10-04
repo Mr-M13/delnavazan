@@ -21,8 +21,17 @@ if ( strpos( $service, 'AvailabilityLocalTime::interval( $date, (string) $rule->
 }
 
 require $root . '/src/Core/Application/AvailabilityLocalTime.php';
+require $root . '/src/Core/Application/Normalizer.php';
 
 use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
+
+$abbreviationRejected = false;
+try {
+    \Delnavazan\Platform\Core\Application\Normalizer::timezone( 'EST' );
+} catch ( InvalidArgumentException ) {
+    $abbreviationRejected = true;
+}
+if ( ! $abbreviationRejected ) throw new RuntimeException( 'Stored scheduling zones must be IANA identifiers, not ambiguous abbreviations.' );
 
 $gapRejected = false;
 try {

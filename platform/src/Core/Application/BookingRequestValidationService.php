@@ -31,7 +31,6 @@ final class BookingRequestValidationService {
         $duration = 30; $buffer = 15;
         if ( $data['course_id'] ) { if ( ! $course || $course->status !== 'active' || $course->archived_at !== null || $course->course_type !== 'introductory' || (int) $course->instrument_id !== (int) $instrument->id ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' ); $duration = Normalizer::count( $course->default_duration_minutes, 5, 480 ); $buffer = Normalizer::count( $course->default_buffer_minutes, 0, 240 ); }
         $times = array(); $seen = array(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); if ( RequestedTimeNormalizer::overlapsIranQuietHours( $item ) ) throw new \InvalidArgumentException( self::BLOCKED_TIME_MESSAGE ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
-        usort( $times, static fn( array $a, array $b ): int => array( $a['starts_at_utc'], $a['local_date'], $a['local_start_time'], $a['timezone'] ) <=> array( $b['starts_at_utc'], $b['local_date'], $b['local_start_time'], $b['timezone'] ) );
         $data['times'] = $times; unset( $data['requested_times'] ); return $data;
     }
     /** Reject compound public values before a normalizer or PHP cast can inspect them. */

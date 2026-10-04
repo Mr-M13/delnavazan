@@ -30,9 +30,10 @@ final class CanonicalLessonScheduleService {
     private const CHANNELS=array('staff_record','authenticated_platform','document_reference');
     private const MAX_DURATION=1440;
     private const MAX_BUFFER=480;
-    public function __construct(private ?CanonicalLessonScheduleRepository $repository=null,private ?CanonicalLessonAuthorityRepository $lessons=null){
+    public function __construct(private ?CanonicalLessonScheduleRepository $repository=null,private ?CanonicalLessonAuthorityRepository $lessons=null,private ?CanonicalTeacherOccupancyReadService $occupancy=null){
         $this->repository??=new CanonicalLessonScheduleRepository();
         $this->lessons??=new CanonicalLessonAuthorityRepository();
+        $this->occupancy??=new CanonicalTeacherOccupancyReadService($this->repository,$this->lessons);
     }
     public function schedule(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_initial',$lessonId,$expectedAssignmentId,$input,$key);}
     public function revise(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_revise',$lessonId,$expectedAssignmentId,$input,$key);}
@@ -267,11 +268,7 @@ final class CanonicalLessonScheduleService {
     }
 
     private function assertCapacity(int $teacherId,string $startsAt,string $occupiedEnd,int $lessonId,?object $lesson=null,?array $schedule=null):void{
-        $conflicts=$this->repository->overlappingApplicable($teacherId,$startsAt,$occupiedEnd,$lessonId);
-        if($conflicts){
-            foreach($conflicts as$conflict)if(!CanonicalLessonScheduleValidator::validForLesson((int)$conflict->lesson_id,$this->repository,$this->lessons))throw new \InvalidArgumentException('canonical_schedule_integrity_conflict');
-            throw new \InvalidArgumentException('teacher_slot_conflict');
-        }
+        if($this->occupancy->overlapping($teacherId,$startsAt,$occupiedEnd,$lessonId))throw new \InvalidArgumentException('teacher_slot_conflict');
         // Phase 2A.2-Q: an active pre-payment continuation hold is real Teacher capacity. The hold is
         // never a Lesson schedule, but the same capacity gate must consider both authorities.
         CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId,$startsAt,$occupiedEnd);

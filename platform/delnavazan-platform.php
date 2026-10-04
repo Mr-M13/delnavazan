@@ -56,6 +56,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\Notifications\NotificationWorkerBootstrap::register();
 	Delnavazan\Platform\Portals\TeacherDeliveryClaimController::register();
 	Delnavazan\Platform\Portals\StudentAbsenceController::register();
+	Delnavazan\Platform\Portals\StudentCheckoutController::register();
 	Delnavazan\Platform\Integrations\GoogleOAuthController::register();
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();

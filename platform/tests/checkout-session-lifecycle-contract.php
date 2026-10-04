@@ -11,8 +11,8 @@ foreach(array('provider_reference_digest','active_slot','obligation_active') as 
     if(strpos($schema,$needle)===false)throw new RuntimeException('Checkout lifecycle must use existing authority schema: '.$needle);
 if(strpos($repository,'provider_reference')===false||strpos($repository,'providerReferenceDigest')===false)
     throw new RuntimeException('Raw provider session identifiers must not be persisted');
-if(strpos($adapter,"'state'=>'failed'")===false||strpos($adapter,'wp_remote_post')!==false)
-    throw new RuntimeException('Unconfigured Checkout must fail closed without outbound traffic');
+if(strpos($adapter,"'state'=>'failed'")===false||strpos($adapter,'DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')===false||strpos($adapter,'PaymentSecretVault::testVaultActive')===false)
+    throw new RuntimeException('Stripe Checkout must fail closed unless explicitly activated for test mode');
 if(strpos($service,"'checkout_state' => 'pending'")===false)
     throw new RuntimeException('Ambiguous provider outcomes must remain pending');
 echo "Checkout session lifecycle source contract passed\n";

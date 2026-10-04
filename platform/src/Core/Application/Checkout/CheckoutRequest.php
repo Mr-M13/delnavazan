@@ -15,11 +15,12 @@ final class CheckoutRequest {
         private int $amountMinor,
         private string $currency,
         private string $obligationReference,
-        private string $idempotencyKey
+        private string $idempotencyKey,
+        private string $attemptUid
     ){
         if($studentId<1||$offerId<1||$obligationId<1||$amountMinor<1)throw new \InvalidArgumentException('invalid_checkout_request');
         if(preg_match('/^[A-Z]{3}$/D',$currency)!==1)throw new \InvalidArgumentException('invalid_checkout_currency');
-        if(trim($obligationReference)===''||trim($idempotencyKey)==='')throw new \InvalidArgumentException('invalid_checkout_reference');
+        if(trim($obligationReference)===''||trim($idempotencyKey)===''||preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',$attemptUid)!==1)throw new \InvalidArgumentException('invalid_checkout_reference');
     }
     public function studentId():int{return $this->studentId;}
     public function offerId():int{return $this->offerId;}
@@ -28,4 +29,5 @@ final class CheckoutRequest {
     public function currency():string{return $this->currency;}
     public function obligationReference():string{return $this->obligationReference;}
     public function idempotencyKey():string{return $this->idempotencyKey;}
+    public function attemptUid():string{return $this->attemptUid;}
 }

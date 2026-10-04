@@ -79,9 +79,55 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
         $metadata=$session['metadata'];
         return array('state'=>(string)$session['status'],'payment_state'=>(string)$session['payment_status'],
             'provider_reference'=>(string)$session['id'],'amount_minor'=>(int)$session['amount_total'],
+            'session_created_at'=>(int)$session['created'],
             'currency'=>strtoupper((string)$session['currency']),'obligation_reference'=>(string)$metadata['obligation_reference'],
             'attempt_uid'=>(string)$metadata['checkout_attempt_uid'],'account_reference'=>(string)$metadata['provider_account_reference'],
             'reason_code'=>null);
+    }
+
+    /** Find the exact retained success event to supply Stripe's provider occurrence time. */
+    public function completionEvent(string $providerReference,int $sessionCreatedAt):array{
+        if(!self::testModeActivationAllowed())return $this->eventUnavailable('checkout_provider_unconfigured');
+        if(preg_match('/^cs_test_[A-Za-z0-9]+$/D',$providerReference)!==1||$sessionCreatedAt<1||$sessionCreatedAt>time()+300)return $this->eventUnavailable('provider_reference_invalid');
+        $credentials=$this->credentialSource->credentials();
+        if(!is_array($credentials)||!is_string($credentials['api_key']??null)||!is_string($credentials['account_reference']??null)
+            ||preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$credentials['api_key'])!==1
+            ||preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$credentials['account_reference'])!==1)return $this->eventUnavailable('checkout_provider_unconfigured');
+        if($this->http===null&&(!function_exists('wp_remote_get')||!function_exists('is_wp_error')||!function_exists('wp_remote_retrieve_response_code')||!function_exists('wp_remote_retrieve_body')))return $this->eventUnavailable('checkout_provider_unconfigured');
+        $oldest=max($sessionCreatedAt,time()-(29*86400));$cursor=null;
+        for($page=0;$page<10;$page++){
+            $query=array('types'=>array('checkout.session.completed','checkout.session.async_payment_succeeded'),'created'=>array('gte'=>$oldest),'limit'=>100);
+            if($cursor!==null)$query['starting_after']=$cursor;
+            $url='https://api.stripe.com/v1/events?'.http_build_query($query,'','&',PHP_QUERY_RFC3986);
+            $options=array('timeout'=>15,'redirection'=>0,'sslverify'=>true,'headers'=>array('Authorization'=>'Basic '.base64_encode($credentials['api_key'].':')));
+            $response=$this->http!==null?($this->http)($url,$options):wp_remote_get($url,$options);
+            if(is_wp_error($response))return $this->eventUnavailable('provider_unavailable');
+            $status=(int)wp_remote_retrieve_response_code($response);$raw=(string)wp_remote_retrieve_body($response);
+            if(strlen($raw)>1048576)return $this->eventUnavailable('provider_response_unusable');
+            if($status<200||$status>=300)return $this->eventUnavailable($status>=400&&$status<500?'provider_request_rejected':'provider_unavailable');
+            $list=json_decode($raw,true);
+            if(!is_array($list)||!is_array($list['data']??null)||!is_bool($list['has_more']??null))return $this->eventUnavailable('provider_response_unusable');
+            foreach($list['data'] as $event){
+                if(!is_array($event)||!in_array((string)($event['type']??''),array('checkout.session.completed','checkout.session.async_payment_succeeded'),true))continue;
+                $object=is_array($event['data']['object']??null)?$event['data']['object']:array();
+                if(($event['livemode']??null)!==false||($object['livemode']??null)!==false||($object['object']??'')!=='checkout.session'
+                    ||($object['mode']??'')!=='payment'||($object['status']??'')!=='complete'||($object['payment_status']??'')!=='paid'
+                    ||!hash_equals($providerReference,(string)($object['id']??'')))continue;
+                $metadata=is_array($object['metadata']??null)?$object['metadata']:array();
+                if(!is_string($event['id']??null)||preg_match('/^evt_[A-Za-z0-9]+$/D',$event['id'])!==1||!is_int($event['created']??null)
+                    ||!is_int($object['amount_total']??null)||preg_match('/^[A-Z]{3}$/Di',(string)($object['currency']??''))!==1
+                    ||preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',(string)($metadata['checkout_attempt_uid']??''))!==1
+                    ||trim((string)($metadata['obligation_reference']??''))===''||!hash_equals($credentials['account_reference'],(string)($metadata['provider_account_reference']??'')))continue;
+                return array('state'=>'found','provider_reference'=>(string)$event['id'],'provider_occurred_at'=>gmdate('Y-m-d H:i:s',(int)$event['created']),
+                    'amount_minor'=>(int)$object['amount_total'],'currency'=>strtoupper((string)$object['currency']),
+                    'obligation_reference'=>(string)$metadata['obligation_reference'],'attempt_uid'=>(string)$metadata['checkout_attempt_uid'],
+                    'account_reference'=>(string)$metadata['provider_account_reference'],'reason_code'=>null);
+            }
+            if($list['has_more']!==true)return $this->eventUnavailable('provider_success_event_not_found');
+            $last=end($list['data']);$cursor=is_array($last)&&is_string($last['id']??null)?$last['id']:null;
+            if($cursor===null)return $this->eventUnavailable('provider_response_unusable');
+        }
+        return $this->eventUnavailable('provider_event_search_incomplete');
     }
 
     /** This code path is restricted to an explicitly authorised, non-production test environment. */
@@ -130,6 +176,7 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
             ||!hash_equals($providerReference,(string)($session['id']??''))
             ||!in_array((string)($session['status']??''),array('open','complete','expired'),true)
             ||!in_array((string)($session['payment_status']??''),array('paid','unpaid','no_payment_required'),true)
+            ||!is_int($session['created']??null)||$session['created']<1||$session['created']>time()+300
             ||!is_int($session['amount_total']??null)||$session['amount_total']<0
             ||preg_match('/^[A-Z]{3}$/Di',(string)($session['currency']??''))!==1)return false;
         $metadata=is_array($session['metadata']??null)?$session['metadata']:array();
@@ -145,4 +192,5 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
 
     private function unavailable(string $reason):array{return array('state'=>'unavailable','redirect_url'=>null,'provider_reference'=>null,'expires_at'=>null,'reason_code'=>$reason);}
     private function retrievalUnavailable(string $reason):array{return array('state'=>'unavailable','payment_state'=>null,'provider_reference'=>null,'amount_minor'=>null,'currency'=>null,'obligation_reference'=>null,'attempt_uid'=>null,'account_reference'=>null,'reason_code'=>$reason);}
+    private function eventUnavailable(string $reason):array{return array('state'=>'unavailable','provider_reference'=>null,'provider_occurred_at'=>null,'amount_minor'=>null,'currency'=>null,'obligation_reference'=>null,'attempt_uid'=>null,'account_reference'=>null,'reason_code'=>$reason);}
 }

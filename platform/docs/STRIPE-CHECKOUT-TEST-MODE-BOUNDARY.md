@@ -16,6 +16,8 @@ An open Checkout Session's provider ID and hosted URL are sealed with the provid
 
 The Stripe adapter can retrieve only a supplied `cs_test_` ID through the fixed Checkout Session endpoint with redirects disabled and TLS verification enabled. It validates the returned ID, test-mode flag, payment state, amount/currency and the original attempt, obligation and account correlation metadata. A later application reconciliation service can consume these normalized facts.
 
+The adapter can also search Stripe's retained Checkout completion events by type and creation time, then accepts only an event whose exact Session ID, test-mode flags, paid state, amount/currency and metadata all match. This supplies the provider event's own occurrence timestamp for offer-window validation. Stripe retains listable Events for up to 30 days; after that, the adapter leaves the case unresolved instead of inventing a payment time.
+
 Stripe Checkout completion events enter the existing signed event intake only for a test account, a `cs_test_` identity, and `livemode: false`. The event is correlated by its keyed Checkout Session ID digest to exactly one local session and that session's canonical obligation. Unpaid completion remains an attempt fact; paid completion submits the provider facts through `CommercialPaymentService`, which alone can settle the obligation. A matching metadata value by itself is never enough.
 
 The authenticated `GET /wp-json/delnavazan-platform/v1/student/checkout-status?attempt_uid=…` read returns only the canonical payment state, checkout state, and whether the student may continue, resume, or retry. It verifies current student ownership and the offer/obligation/session relationship. Loading Stripe's return URL never changes payment state.

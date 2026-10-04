@@ -27,17 +27,28 @@ final class BookingAvailabilityPreviewService {
         foreach ( $times as $time ) {
             if ( ! is_array( $time ) || array_diff( array_keys( $time ), array( 'local_date', 'local_start_time', 'timezone' ) ) ) throw new \InvalidArgumentException( 'Malformed requested time' );
             foreach ( array( 'local_date', 'local_start_time', 'timezone' ) as $field ) if ( ! isset( $time[$field] ) || ! is_string( $time[$field] ) ) throw new \InvalidArgumentException( 'Malformed requested time' );
-            $normalized[] = RequestedTimeNormalizer::normalize( $time, (int) $option['duration_minutes'], (int) $option['buffer_minutes'] );
+            try {
+                $normalized[] = RequestedTimeNormalizer::normalize( $time, (int) $option['duration_minutes'], (int) $option['buffer_minutes'] );
+            } catch ( UnavailableLocalTimeException ) {
+                // A valid DST gap/fold wall time is not schedulable, but must not discard other preferences.
+                $normalized[] = null;
+            }
         }
         $seen = array();
         foreach ( $normalized as $time ) {
-            $key = implode( '|', array( $time['starts_at_utc'], $time['timezone'] ) );
+            if ( null === $time ) continue;
+            // Presentation timezone is not part of the canonical candidate identity.
+            $key = $time['starts_at_utc'];
             if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' );
             $seen[$key] = true;
         }
         $assessment = new BookingAvailabilityAssessmentService( $courseId, $this->repo, $this->availability );
         $result = array();
         foreach ( $normalized as $index => $time ) {
+            if ( null === $time ) {
+                $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked', 'teacher_times' => array() );
+                continue;
+            }
             $scored = $assessment->assess( $time );
             $result[] = array( 'sequence' => $index + 1, 'status' => $scored['status'], 'teacher_times' => $scored['teacher_times'] );
         }

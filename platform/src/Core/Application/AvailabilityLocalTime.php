@@ -1,6 +1,9 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+/** A syntactically valid civil time that cannot identify one UTC instant. */
+final class UnavailableLocalTimeException extends \InvalidArgumentException {}
+
 /** Pure local-wall-clock validation/conversion; offsets are derived only from PHP timezone data. */
 final class AvailabilityLocalTime {
     public static function date(string $value): string {
@@ -15,7 +18,7 @@ final class AvailabilityLocalTime {
         try { $zone = new \DateTimeZone( $timezone ); } catch ( \Throwable ) { throw new \InvalidArgumentException( 'Invalid IANA timezone' ); }
         $wall = $date . ' ' . $time;
         $local = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $wall, $zone );
-        if ( ! $local || $local->format( 'Y-m-d H:i:s' ) !== $wall ) throw new \InvalidArgumentException( 'Invalid or nonexistent local time' );
+        if ( ! $local || $local->format( 'Y-m-d H:i:s' ) !== $wall ) throw new UnavailableLocalTimeException( 'Invalid or nonexistent local time' );
         // A repeated wall time has more than one valid offset. Do not guess an occurrence.
         $wallEpoch = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $wall, new \DateTimeZone( 'UTC' ) )->getTimestamp();
         $offsets = array();
@@ -23,7 +26,7 @@ final class AvailabilityLocalTime {
             $candidate = ( new \DateTimeImmutable( '@' . ( $wallEpoch - (int) $transition['offset'] ) ) )->setTimezone( $zone );
             if ( $candidate->format( 'Y-m-d H:i:s' ) === $wall ) $offsets[(int) $transition['offset']] = true;
         }
-        if ( count( $offsets ) > 1 ) throw new \InvalidArgumentException( 'Ambiguous local time' );
+        if ( count( $offsets ) > 1 ) throw new UnavailableLocalTimeException( 'Ambiguous local time' );
         return $local;
     }
 

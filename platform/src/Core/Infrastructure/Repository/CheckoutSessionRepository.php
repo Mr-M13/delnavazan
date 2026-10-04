@@ -8,6 +8,11 @@ final class CheckoutSessionRepository {
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
     public function activeForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$obligationId));}
+    /** Exact previously recorded Stripe identity; only its keyed digest is queried or returned. */
+    public function byProviderReferenceDigest(string $providerKey,string $digest):array{
+        if(preg_match('/^[a-f0-9]{64}$/D',$digest)!==1)throw new \InvalidArgumentException('Invalid provider reference digest');
+        global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE provider_key=%s AND provider_reference_digest=%s ORDER BY id",$providerKey,$digest))?:array();
+    }
     public function byRequestDigest(string $digest,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE request_key_digest=%s".($lock?' FOR UPDATE':''),$digest));}
     /** Last immutable session gives a deterministic next server-side request generation. */
     public function latestForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d ORDER BY id DESC LIMIT 1".($lock?' FOR UPDATE':''),$obligationId));}

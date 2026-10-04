@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\PaymentExecution;
 
 use Delnavazan\Platform\Core\Application\{CollectionIntentService,CommercialExceptionService,CommercialIdempotency,CommercialPaymentService,RefundReviewService,RenewalCycleService};
-use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentExecutionRepository,PaymentProviderRepository,PaymentSecretRepository};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CheckoutSessionRepository,PaymentExecutionRepository,PaymentProviderRepository,PaymentSecretRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /**
@@ -54,7 +54,8 @@ final class PaymentEventIntakeService {
         private ?PaymentExecutionRepository $execution=null,
         private ?CommercialPaymentService $payments=null,
         private ?CommercialExceptionService $exceptions=null,
-        private ?PaymentExecutionWorkerContext $worker=null
+        private ?PaymentExecutionWorkerContext $worker=null,
+        private ?CheckoutSessionRepository $checkoutSessions=null
     ){
         $this->repository??=new PaymentProviderRepository();
         $this->accounts??=new PaymentProviderAccountService();
@@ -62,6 +63,7 @@ final class PaymentEventIntakeService {
         $this->payments??=new CommercialPaymentService();
         $this->exceptions??=new CommercialExceptionService();
         $this->worker??=new PaymentExecutionWorkerContext();
+        $this->checkoutSessions??=new CheckoutSessionRepository();
     }
 
     public static function statusFor(string $reason):int{
@@ -740,7 +742,13 @@ final class PaymentEventIntakeService {
         if($envelope->providerAccountReference()!==null&&!hash_equals($this->accountDigest((int)$event->payment_provider_account_id),PaymentExecutionIdempotency::reference((string)$envelope->providerAccountReference())))return $this->refusal('unmapped_provider_account');
         // [C8-2] Attribution is exact or refused (§10 rule 1).
         if($envelope->providerObjectReference()!==null){
-            $attribution=$this->objectAttribution((int)$event->payment_provider_account_id,(string)$envelope->providerObjectReference(),$obligationId);
+            $objectReference=(string)$envelope->providerObjectReference();
+            $isCheckoutSession=(string)$event->provider_key==='stripe'
+                && preg_match('/^cs_test_[A-Za-z0-9]+$/D',$objectReference)===1
+                && in_array($eventType,array('payment_succeeded','payment_failed','payment_requires_action'),true);
+            $attribution=$isCheckoutSession
+                ?$this->checkoutSessionAttribution($objectReference,$obligationId)
+                :$this->objectAttribution((int)$event->payment_provider_account_id,$objectReference,$obligationId);
             if($attribution!==null)return $this->refusal($attribution);
         }
         if(PaymentExecutionSupport::workerPrincipalId()<1)return $this->refusal('payment_worker_principal_required');
@@ -945,6 +953,14 @@ final class PaymentEventIntakeService {
         PaymentExecutionIntegrity::mapping($mapping);
         if((string)$mapping->state!=='linked')return 'unmapped_provider_object';
         return $this->canonicalObligation($mapping)===$obligationId?null:'ambiguous_obligation_attribution';
+    }
+    /** A Checkout Session is attributable only through the exact locally stored session digest. */
+    private function checkoutSessionAttribution(string $sessionReference,?int $obligationId):?string{
+        if($obligationId===null)return 'ambiguous_obligation_attribution';
+        $matches=$this->checkoutSessions->byProviderReferenceDigest('stripe',PaymentExecutionIdempotency::reference($sessionReference));
+        if(count($matches)!==1)return $matches===array()?'unmapped_provider_object':'ambiguous_obligation_attribution';
+        $session=$matches[0];
+        return (int)$session->obligation_id===$obligationId?null:'ambiguous_obligation_attribution';
     }
     /** The one R1 obligation an active mapping already owns, or null when it owns none ([C8-2]). */
     private function canonicalObligation(object $mapping):?int{

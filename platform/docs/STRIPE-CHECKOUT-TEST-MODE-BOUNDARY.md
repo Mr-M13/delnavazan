@@ -14,4 +14,6 @@ CI does not define either activation constant and uses source contracts/fakes on
 
 An open Checkout Session's provider ID and hosted URL are sealed with the provider-reference vault key and stored in `provider_projection_secrets`, bound to the local checkout-session row. The checkout-session table continues to hold only the keyed provider-ID digest. A repeated student checkout request reuses the stored hosted URL. The encrypted provider ID provides the exact reference for a later reconciliation retrieval instead of searching Stripe's list endpoint.
 
+Stripe Checkout completion events enter the existing signed event intake only for a test account, a `cs_test_` identity, and `livemode: false`. The event is correlated by its keyed Checkout Session ID digest to exactly one local session and that session's canonical obligation. Unpaid completion remains an attempt fact; paid completion submits the provider facts through `CommercialPaymentService`, which alone can settle the obligation. A matching metadata value by itself is never enough.
+
 The success and cancel URLs return to the Student Portal with an opaque attempt UID for display correlation. Loading either URL is not evidence of payment. Settlement continues through verified provider events and `CommercialPaymentService`.

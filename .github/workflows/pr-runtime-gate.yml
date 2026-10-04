@@ -97,6 +97,8 @@ jobs:
           php platform/tests/customer-checkout-contract.php
           php platform/tests/stripe-checkout-adapter-contract.php
           php platform/tests/stripe-checkout-adapter-unit.php
+          php platform/tests/stripe-checkout-webhook-contract.php
+          php platform/tests/stripe-checkout-webhook-unit.php
           php platform/tests/checkout-session-authority-contract.php
           php platform/tests/student-checkout-initiation-contract.php
           php platform/tests/checkout-session-lifecycle-contract.php

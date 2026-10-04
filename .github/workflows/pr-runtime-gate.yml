@@ -73,6 +73,7 @@ jobs:
           php platform/tests/phase-2a3-iran-quiet-hours.php
           php platform/tests/phase-2a3-day-availability-contract.php
           php platform/tests/booking-availability-timezone-dst-contract.php
+          php platform/tests/booking-canonical-occupancy-contract.php
           php platform/tests/teacher-availability-dst-contract.php
           php platform/tests/booking-preference-order-contract.php
           php platform/tests/booking-public-window-contract.php

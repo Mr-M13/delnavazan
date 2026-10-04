@@ -24,10 +24,12 @@ final class CanonicalContinuationService {
     private const CHANNELS=array('authenticated_platform','staff_record','phone','message_reference','email');
     public function __construct(
         private ?CanonicalContinuationRepository $repository=null,
-        private ?CanonicalLessonScheduleRepository $schedules=null
+        private ?CanonicalLessonScheduleRepository $schedules=null,
+        private ?CanonicalTeacherOccupancyReadService $occupancy=null
     ){
         $this->repository??=new CanonicalContinuationRepository();
         $this->schedules??=new CanonicalLessonScheduleRepository();
+        $this->occupancy??=new CanonicalTeacherOccupancyReadService($this->schedules);
     }
 
     /** Student (or guardian) opts to continue with the same Teacher; holds the expected first slot. */
@@ -344,7 +346,7 @@ final class CanonicalContinuationService {
         // Same per-Teacher serialization device and lock order as canonical Lesson scheduling.
         $this->schedules->ensureAndLockTeacherRoot((int)$case->teacher_id,$now,$actor);
         do_action('dzn_phase_2a2q_teacher_root_held','hold_first_regular_slot',(int)$case->teacher_id);
-        if($this->schedules->overlappingApplicable((int)$case->teacher_id,$slot['starts_at_utc'],$slot['occupied_ends_at_utc'],0))throw new \InvalidArgumentException('teacher_slot_conflict');
+        if($this->occupancy->overlapping((int)$case->teacher_id,$slot['starts_at_utc'],$slot['occupied_ends_at_utc']))throw new \InvalidArgumentException('teacher_slot_conflict');
         if($this->repository->overlappingEffectiveReservations((int)$case->teacher_id,$slot['starts_at_utc'],$slot['occupied_ends_at_utc'],$now))throw new \InvalidArgumentException('teacher_slot_conflict');
         // An interval already protected by a paid commercial commitment is not available to a new hold.
         CommercialCapacityAuthority::assertNoConflictingClaim((int)$case->teacher_id,$slot['starts_at_utc'],$slot['occupied_ends_at_utc']);

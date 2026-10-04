@@ -37,6 +37,8 @@ final class CanonicalLessonScheduleRepository {
     public function versionsForLesson(int $lessonId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE lesson_id=%d ORDER BY version_number,id{$suffix}",$lessonId))?:array();}
     public function eventsForLesson(int $lessonId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_schedule_events WHERE lesson_id=%d ORDER BY event_sequence,id{$suffix}",$lessonId))?:array();}
     public function applicableVersion(int $lessonId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE lesson_id=%d AND applicable_slot=1".($lock?' FOR UPDATE':''),$lessonId);}
+    /** All current occupancy facts for one teacher, in stable order, for validated availability reads. */
+    public function applicableForTeacher(int $teacherId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE teacher_id=%d AND applicable_slot=1 ORDER BY starts_at_utc,id",$teacherId))?:array();}
     public function version(int $versionId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE id=%d".($lock?' FOR UPDATE':''),$versionId);}
 
     /** Lessons with any canonical schedule aggregate in the scope, ordered deterministically. */

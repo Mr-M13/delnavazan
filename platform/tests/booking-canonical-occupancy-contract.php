@@ -44,7 +44,7 @@ $scheduleService=file_get_contents($root.'/src/Core/Application/CanonicalLessonS
 $scheduleRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLessonScheduleRepository.php');
 $scheduleRaces=file_get_contents($root.'/tests/phase-2a2n-concurrency-runner.sh');
 $scheduleFailures=file_get_contents($root.'/tests/phase-2a2n-failure-runtime.php');
-foreach(array('applicable_slot=1','ORDER BY starts_at_utc,id') as $fact)$expect(str_contains($repo,$fact),'occupancy source must select current versions deterministically: '.$fact);
+foreach(array('schedule_version.applicable_slot=1 OR schedule_version.superseded_at IS NULL','lesson.teacher_id=%d','ORDER BY schedule_version.starts_at_utc,schedule_version.id') as $fact)$expect(str_contains($repo,$fact),'occupancy source must select applicable facts and surface unsuperseded corruption deterministically: '.$fact);
 foreach(array('CanonicalLessonScheduleValidator::validForLesson','CanonicalLessonAuthorityValidator::valid','canonical_schedule_integrity_conflict','canonical_lesson_integrity_conflict','Cancellation/completion state alone does not release Teacher capacity') as $fact)$expect(str_contains($read,$fact),'canonical occupancy read must validate fail-closed authority: '.$fact);
 $expect(str_contains($repo,"if(\$wpdb->last_error!=='')throw new \\RuntimeException('Canonical Teacher occupancy read failed"),'a failed canonical occupancy query must not masquerade as an empty schedule');
 $expect(str_contains($repo,'legacyApplicableForTeacher')&&str_contains($repo,"l.current_schedule_version_id")&&str_contains($repo,"l.status='scheduled'")&&str_contains($repo,'INTERVAL 15 MINUTE'),'current scheduled legacy Lessons must expose validated pointer-based occupancy with the established buffer');

@@ -16,7 +16,7 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
 
     public function create(CheckoutRequest $request):array{
         // Activation is a later reviewed slice. Never silently fall through to live/test traffic.
-        return array('state'=>'unavailable','redirect_url'=>null,'provider_reference'=>null,'reason_code'=>'checkout_provider_unconfigured');
+        return array('state'=>'failed','redirect_url'=>null,'provider_reference'=>null,'expires_at'=>null,'reason_code'=>'checkout_provider_unconfigured');
     }
 
     /** Exact future Stripe Checkout fields; values come only from the authoritative request. */

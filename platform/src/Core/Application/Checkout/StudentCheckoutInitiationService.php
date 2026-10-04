@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\Checkout;
 
 use Delnavazan\Platform\Core\Application\{CommercialIdempotency,CommercialSupport};
+use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CheckoutSessionRepository,CommercialAuthorityRepository,CommercialPaymentRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
@@ -17,6 +18,8 @@ use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 final class StudentCheckoutInitiationService {
     private const PROVIDER_KEY = 'stripe';
     private const CREATION_WINDOW_SECONDS = 300;
+    // Stripe retains idempotency results for at least 24 hours; stop replaying with margin before pruning.
+    private const PROVIDER_IDEMPOTENCY_REPLAY_SECONDS = 23 * 60 * 60;
 
     public function __construct(
         private ?CommercialAuthorityRepository $authority = null,
@@ -65,53 +68,90 @@ final class StudentCheckoutInitiationService {
 
             $now = gmdate('Y-m-d H:i:s');
             $active = $this->sessions->activeForObligation((int) $obligation->id, true);
-            if ($active && $this->expired($active, $now)) {
-                $this->sessions->close((int) $active->id, 'expired', 'creation_window_elapsed', $now);
+            if ($active && (string) $active->state === 'open' && $this->expired($active, $now)) {
+                $this->sessions->close((int) $active->id, 'expired', 'provider_session_expired', $now);
                 $active = null;
             }
             if ($active) {
+                if ((int) $active->student_id !== $studentId
+                    || (int) $active->offer_id !== (int) $offer->id
+                    || (int) $active->amount_minor !== (int) $obligation->amount_minor
+                    || strtoupper((string) $active->currency) !== strtoupper((string) $obligation->currency)
+                ) {
+                    // Commercial facts changed after the attempt was made. The old payload may already
+                    // exist at Stripe, so do not reuse its key with different parameters or replace it.
+                    $this->authority->commit();
+                    return array('checkout_state' => 'unavailable', 'redirect_url' => null);
+                }
+                $createdAt = strtotime((string) $active->created_at . ' UTC');
+                if ($createdAt === false || time() - $createdAt >= self::PROVIDER_IDEMPOTENCY_REPLAY_SECONDS) {
+                    // Stripe may prune an older key. Keep the unresolved attempt active for reconciliation
+                    // rather than risk creating a second provider session with the same key.
+                    $this->authority->commit();
+                    return array('checkout_state' => 'pending', 'redirect_url' => null);
+                }
+                // Re-drive the same durable attempt with its same server-owned provider key. A prior
+                // timeout may have created the provider session without returning its response.
+                $sessionId = (int) $active->id;
+                $key = $this->providerIdempotencyKey((string) $obligation->uid, (string) $active->uid);
+                $request = $this->request($studentId, $offer, $obligation, $key);
                 $this->authority->commit();
-                return array('checkout_state' => 'pending', 'redirect_url' => null);
+            } else {
+                // The attempt UID is the stable generation identity used for every provider retry.
+                $attemptUid = Identifier::uid();
+                $key = $this->providerIdempotencyKey((string) $obligation->uid, $attemptUid);
+                $request = $this->request($studentId, $offer, $obligation, $key);
+                $sessionId = $this->sessions->insert(array(
+                    'uid' => $attemptUid, 'student_id' => $studentId, 'offer_id' => (int) $offer->id,
+                    'obligation_id' => (int) $obligation->id, 'amount_minor' => $request->amountMinor(),
+                    'currency' => $request->currency(), 'state' => 'creating', 'active_slot' => 1,
+                    'request_key_digest' => CommercialIdempotency::key($key), 'provider_key' => self::PROVIDER_KEY,
+                    'provider_reference_digest' => null, 'created_at' => $now, 'created_by' => $actor,
+                    'expires_at' => gmdate('Y-m-d H:i:s', time() + self::CREATION_WINDOW_SECONDS),
+                    'closed_at' => null, 'close_reason' => null,
+                ));
+                $this->authority->commit();
             }
-
-            $previous = $this->sessions->latestForObligation((int) $obligation->id, true);
-            $generation = $previous ? (string) $previous->uid : 'initial';
-            // The browser supplies no idempotency material.  This key is deterministically rebuilt
-            // from canonical state; a closed historical session advances the next server generation.
-            $key = hash('sha256', 'student_checkout_v1:' . (string) $obligation->uid . ':' . $generation);
-            $request = new CheckoutRequest(
-                $studentId,
-                (int) $offer->id,
-                (int) $obligation->id,
-                (int) $obligation->amount_minor,
-                (string) $obligation->currency,
-                CommercialSupport::obligationReference((string) $offer->uid, (int) $obligation->obligation_sequence),
-                $key
-            );
-            $sessionId = $this->sessions->insert(array(
-                'uid' => Identifier::uid(), 'student_id' => $studentId, 'offer_id' => (int) $offer->id,
-                'obligation_id' => (int) $obligation->id, 'amount_minor' => $request->amountMinor(),
-                'currency' => $request->currency(), 'state' => 'creating', 'active_slot' => 1,
-                'request_key_digest' => CommercialIdempotency::key($key), 'provider_key' => self::PROVIDER_KEY,
-                'provider_reference_digest' => null, 'created_at' => $now, 'created_by' => $actor,
-                'expires_at' => gmdate('Y-m-d H:i:s', time() + self::CREATION_WINDOW_SECONDS),
-                'closed_at' => null, 'close_reason' => null,
-            ));
-            $this->authority->commit();
         } catch (\Throwable $e) {
             $this->authority->rollback();
             throw $e;
         }
 
-        // The current adapter is intentionally network-inert.  When the test-mode activation slice
-        // replaces that behaviour, it must persist/reconcile provider material through the approved
-        // provider mapping and vault boundaries before returning an open hosted URL.
-        $result = $this->checkout->create($request);
-        if (($result['state'] ?? '') === 'open' && is_string($result['redirect_url'] ?? null) && $result['redirect_url'] !== '') {
-            throw new \RuntimeException('checkout_provider_persistence_required');
+        try {
+            $result = $this->checkout->create($request);
+        } catch (\Throwable) {
+            // Provider outcome is ambiguous. Keep the attempt active so the next request reuses the
+            // identical provider idempotency key instead of creating a second session.
+            return array('checkout_state' => 'pending', 'redirect_url' => null);
         }
-        $this->closeFailedCreation($sessionId, $studentId, $actor);
-        return array('checkout_state' => 'unavailable', 'redirect_url' => null);
+        if (($result['state'] ?? '') === 'open'
+            && is_string($result['redirect_url'] ?? null)
+            && $this->safeStripeUrl($result['redirect_url'])
+            && is_string($result['provider_reference'] ?? null)
+            && preg_match('/^cs_test_[A-Za-z0-9]+$/D', $result['provider_reference']) === 1
+            && is_string($result['expires_at'] ?? null)
+            && $this->validSqlUtc($result['expires_at'])
+        ) {
+            $this->authority->begin();
+            try {
+                $this->authority->lockAccountRoot($studentId, $actor);
+                $this->sessions->recordOpen($sessionId, PaymentExecutionIdempotency::reference($result['provider_reference']), $result['expires_at']);
+                $this->authority->commit();
+                return array('checkout_state' => 'open', 'redirect_url' => $result['redirect_url']);
+            } catch (\Throwable $e) {
+                $this->authority->rollback();
+                // The provider may already have created the session; leave the local attempt retryable.
+                return array('checkout_state' => 'pending', 'redirect_url' => null);
+            }
+        }
+        if (($result['state'] ?? '') === 'failed') {
+            $reason = in_array((string) ($result['reason_code'] ?? ''), array('provider_request_rejected','checkout_provider_unconfigured'), true)
+                ? (string) $result['reason_code'] : 'provider_request_rejected';
+            $this->closeFailedCreation($sessionId, $studentId, $actor, $reason);
+            return array('checkout_state' => 'unavailable', 'redirect_url' => null);
+        }
+        // `unavailable`, malformed success responses and transport ambiguity do not prove failure.
+        return array('checkout_state' => 'pending', 'redirect_url' => null);
     }
 
     private function obligationUid(array $input): string {
@@ -141,11 +181,42 @@ final class StudentCheckoutInitiationService {
         return $session->expires_at !== null && (string) $session->expires_at <= $now;
     }
 
-    private function closeFailedCreation(int $sessionId, int $studentId, int $actor): void {
+    private function providerIdempotencyKey(string $obligationUid, string $attemptUid): string {
+        return hash('sha256', 'student_checkout_v1:' . $obligationUid . ':' . $attemptUid);
+    }
+
+    private function request(int $studentId, object $offer, object $obligation, string $key): CheckoutRequest {
+        return new CheckoutRequest(
+            $studentId,
+            (int) $offer->id,
+            (int) $obligation->id,
+            (int) $obligation->amount_minor,
+            (string) $obligation->currency,
+            CommercialSupport::obligationReference((string) $offer->uid, (int) $obligation->obligation_sequence),
+            $key
+        );
+    }
+
+    private function safeStripeUrl(string $url): bool {
+        $parts = parse_url($url);
+        return is_array($parts)
+            && ($parts['scheme'] ?? '') === 'https'
+            && strtolower((string) ($parts['host'] ?? '')) === 'checkout.stripe.com'
+            && !isset($parts['user']) && !isset($parts['pass']);
+    }
+
+    private function validSqlUtc(string $value): bool {
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $value) !== 1) return false;
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC'));
+        $errors = \DateTimeImmutable::getLastErrors();
+        return $date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0));
+    }
+
+    private function closeFailedCreation(int $sessionId, int $studentId, int $actor, string $reason): void {
         $this->authority->begin();
         try {
             $this->authority->lockAccountRoot($studentId, $actor);
-            $this->sessions->close($sessionId, 'failed', 'checkout_provider_unconfigured', gmdate('Y-m-d H:i:s'));
+            $this->sessions->close($sessionId, 'failed', $reason, gmdate('Y-m-d H:i:s'));
             $this->authority->commit();
         } catch (\Throwable $e) {
             $this->authority->rollback();

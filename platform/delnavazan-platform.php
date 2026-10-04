@@ -14,7 +14,7 @@ define( 'DZN_PLATFORM_SCHEMA_VERSION', '35' );
 define( 'DZN_PLATFORM_BUILD_ID', 'teacher-onboarding-v1-20261001.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
-defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', true );
+defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );
 define( 'DZN_PLATFORM_FILE', __FILE__ );
 define( 'DZN_PLATFORM_DIR', plugin_dir_path( __FILE__ ) );
 

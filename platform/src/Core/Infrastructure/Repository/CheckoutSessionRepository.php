@@ -1,0 +1,14 @@
+<?php
+namespace Delnavazan\Platform\Core\Infrastructure\Repository;
+
+final class CheckoutSessionRepository {
+    private string $p;
+    public function __construct(){global $wpdb;$this->p=$wpdb->prefix.'dzn_';}
+    public function begin():void{global $wpdb;if($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')===false||$wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Transaction start failed');}
+    public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
+    public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
+    public function activeForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$obligationId));}
+    public function byRequestDigest(string $digest,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE request_key_digest=%s".($lock?' FOR UPDATE':''),$digest));}
+    public function insert(array $data):int{global $wpdb;if($wpdb->insert($this->p.'checkout_sessions',$data)===false)throw new \RuntimeException('Checkout session persistence failed');return(int)$wpdb->insert_id;}
+    public function close(int $id,string $state,string $reason,string $at):void{global $wpdb;$changed=$wpdb->update($this->p.'checkout_sessions',array('state'=>$state,'active_slot'=>null,'closed_at'=>$at,'close_reason'=>$reason),array('id'=>$id,'active_slot'=>1));if($changed!==1)throw new \RuntimeException('Stale checkout session');}
+}

@@ -15,5 +15,5 @@ if(($sms->seen[0]['body']??'')!=='hello ندا')throw new RuntimeException('Copy
 $retry=new P(array('acknowledged'=>false,'permanent_failure'=>null));$sms2=new P(array('acknowledged'=>true,'permanent_failure'=>null));
 $t2=new CompositeNotificationTransport(new NotificationTransportRouter(array(array('channel'=>'whatsapp','configured'=>true,'port'=>$retry),array('channel'=>'sms','configured'=>true,'port'=>$sms2))),new C(),fn($c)=>array('route'=>'mobile','locale'=>'fa-IR','whatsapp_eligible'=>true,'sms_eligible'=>true,'whatsapp'=>'+1','sms'=>'+1'));
 $r2=$t2->handoff(array('template_version_id'=>7,'parameters'=>array('name'=>'ندا')));
-if(($r2['permanent_failure']??'x')!==null||count($sms2->seen)!==0)throw new RuntimeException('Transient failure must not duplicate through SMS');
+if(!array_key_exists('permanent_failure',$r2)||$r2['permanent_failure']!==null||count($sms2->seen)!==0)throw new RuntimeException('Transient failure must not duplicate through SMS');
 echo "Composite notification transport contract passed\n";

@@ -8,6 +8,11 @@ final class CheckoutSessionRepository {
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
     public function activeForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$obligationId));}
+    /** PII- and provider-reference-free rows for guarded operator diagnostics. */
+    public function activeForDiagnostics(int $limit=50):array{
+        global $wpdb;$limit=max(1,min(100,$limit));
+        return $wpdb->get_results($wpdb->prepare("SELECT uid,state,provider_key,created_at,expires_at FROM {$this->p}checkout_sessions WHERE active_slot=1 ORDER BY id DESC LIMIT %d",$limit))?:array();
+    }
     public function byUid(string $uid):?object{return $this->row("SELECT * FROM {$this->p}checkout_sessions WHERE uid=%s",$uid);}
     /** Exact previously recorded Stripe identity; only its keyed digest is queried or returned. */
     public function byProviderReferenceDigest(string $providerKey,string $digest):array{

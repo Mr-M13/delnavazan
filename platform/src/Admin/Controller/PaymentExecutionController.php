@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\Checkout\StripeCheckoutReconciliationService;
-use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentEventIntakeService,PaymentExecutionReadService,PaymentProviderReadService};
+use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentEventIntakeService,PaymentExecutionReadService,PaymentProviderReadService,StripeTestModeReadinessService};
 
 /**
  * Administrator read/diagnostic surface and guarded recovery action for Phase 2A.2-T (contract §13).
@@ -56,8 +56,13 @@ final class PaymentExecutionController {
         $intake=new PaymentEventIntakeService();
         $consequences=$intake->outstandingConsequences();
         $decisionClaims=$intake->outstandingDecisionClaims();
+        $readiness=(new StripeTestModeReadinessService())->read();
         echo '<div class="wrap"><h1>Payment Execution</h1>';
         echo '<p>Provider-neutral execution only. No live credential, provider traffic or deployment is authorised.</p>';
+        echo '<h2>Stripe test-mode readiness</h2><p>'.esc_html($readiness['ready']?'Local preflight is ready for an explicitly authorised test-mode runtime check.':'Local preflight is not ready for Stripe test-mode runtime verification.').'</p>';
+        echo '<p>Checks cover local configuration and registered routes. Public webhook reachability, Stripe session creation, webhook delivery and settlement still require a later test-mode runtime check.</p><table class="widefat"><tbody>';
+        foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
+        echo '</tbody></table>';
         foreach(array('Commands'=>$execution,'Attempt outcomes'=>$outcomes,'Accounts'=>$accounts,'R2 consequences'=>$consequences,'Secret vault'=>$secrets) as $heading=>$values){
             echo '<h2>'.esc_html((string)$heading).'</h2><table class="widefat"><tbody>';
             foreach((array)$values as $key=>$value)echo '<tr><td>'.esc_html((string)$key).'</td><td>'.esc_html((string)$value).'</td></tr>';

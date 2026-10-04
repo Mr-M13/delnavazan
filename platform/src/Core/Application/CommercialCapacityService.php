@@ -25,12 +25,14 @@ final class CommercialCapacityService {
         private ?CanonicalContinuationRepository $continuations=null,
         private ?CanonicalLessonScheduleRepository $schedules=null,
         private ?CommercialPatternService $patterns=null,
-        private ?CommercialExceptionService $exceptions=null
+        private ?CommercialExceptionService $exceptions=null,
+        private ?CanonicalTeacherOccupancyReadService $occupancy=null
     ){
         $this->authority??=new CommercialAuthorityRepository();
         $this->capacity??=new CommercialCapacityRepository();
         $this->continuations??=new CanonicalContinuationRepository();
         $this->schedules??=new CanonicalLessonScheduleRepository();
+        $this->occupancy??=new CanonicalTeacherOccupancyReadService($this->schedules);
         $this->patterns??=new CommercialPatternService($this->capacity,$this->continuations);
         $this->exceptions??=new CommercialExceptionService($this->capacity);
     }
@@ -245,7 +247,7 @@ final class CommercialCapacityService {
 
     /** Arbitration for one successor interval: schedules, other holds and other protected claims. */
     private function assertIntervalFree(int $teacherId,array $interval,int $predecessorReservationId,string $now):void{
-        if($this->schedules->overlappingApplicable($teacherId,(string)$interval['starts_at_utc'],(string)$interval['occupied_ends_at_utc'],0))throw new \InvalidArgumentException('teacher_slot_conflict');
+        if($this->occupancy->overlapping($teacherId,(string)$interval['starts_at_utc'],(string)$interval['occupied_ends_at_utc']))throw new \InvalidArgumentException('teacher_slot_conflict');
         foreach($this->continuations->overlappingEffectiveReservations($teacherId,(string)$interval['starts_at_utc'],(string)$interval['occupied_ends_at_utc'],$now) as $hold){
             if((int)$hold->id===$predecessorReservationId)continue;
             throw new \InvalidArgumentException('teacher_slot_conflict');

@@ -37,6 +37,9 @@ if ( ! empty( $profile['full_name'] ) && preg_match( '/^./u', (string) $profile[
 		<div class="dzn-portal-control">
 			<p class="dzn-portal-control__label"><?php esc_html_e( 'منطقهٔ زمانی', 'delnavazan-theme' ); ?></p>
 			<p class="dzn-portal-value" dir="ltr"><?php echo esc_html( $profile['timezone_label'] ?? 'منطقهٔ زمانی انتخاب نشده' ); ?></p>
+			<?php if ( empty( $profile['timezone_preference_available'] ) ) : ?>
+				<p class="dzn-portal-help"><?php echo esc_html( 'منطقهٔ زمانی نمایش، مقدار پیش‌فرض دلنوازان است؛ خواندن ترجیح شخصی هنوز در این نسخه فعال نشده است.' ); ?></p>
+			<?php endif; ?>
 			<p class="dzn-portal-help"><?php esc_html_e( 'تغییر این ترجیح فقط شیوهٔ نمایش ساعت را عوض می‌کند؛ زمان کلاس را جابه‌جا نمی‌کند.', 'delnavazan-theme' ); ?></p>
 		</div>
 		<div class="dzn-profile__actions">

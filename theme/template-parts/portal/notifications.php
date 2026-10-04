@@ -7,6 +7,7 @@
 
 $items = isset( $args['items'] ) && is_array( $args['items'] ) ? array_slice( $args['items'], 0, 5 ) : array();
 $archive_url = isset( $args['archive_url'] ) ? (string) $args['archive_url'] : '';
+$available = ! empty( $args['available'] );
 ?>
 <section class="dzn-portal-section dzn-notifications" aria-labelledby="dzn-notifications-title">
 	<div class="dzn-portal-section__heading">
@@ -17,7 +18,15 @@ $archive_url = isset( $args['archive_url'] ) ? (string) $args['archive_url'] : '
 		<?php if ( $archive_url ) : ?><a class="dzn-portal-text-action" href="<?php echo esc_url( $archive_url ); ?>"><?php esc_html_e( 'مشاهدهٔ همهٔ اعلان‌ها', 'delnavazan-theme' ); ?></a><?php endif; ?>
 	</div>
 	<?php if ( ! $items ) : ?>
-		<p class="dzn-portal-empty"><?php esc_html_e( 'اعلان تازه‌ای وجود ندارد.', 'delnavazan-theme' ); ?></p>
+		<p class="dzn-portal-empty">
+			<?php
+			echo esc_html(
+				$available
+					? 'اعلان تازه‌ای وجود ندارد.'
+					: 'اعلان‌ها هنوز از منبع معتبر دلنوازان به پرتال متصل نشده‌اند؛ نبود اعلان در این نسخه به معنی نبود اعلان نیست.'
+			);
+			?>
+		</p>
 	<?php else : ?>
 		<ol class="dzn-notifications__list">
 			<?php foreach ( $items as $item ) : ?>

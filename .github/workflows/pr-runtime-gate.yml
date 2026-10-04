@@ -116,6 +116,11 @@ jobs:
           else
             echo 'Student Portal state contract not present on this PR base yet.'
           fi
+          if [[ -f platform/tests/phase-student-portal-read-model-contract.php ]]; then
+            php platform/tests/phase-student-portal-read-model-contract.php
+          else
+            echo 'Student Portal read-model contract not present on this PR base yet.'
+          fi
           if [[ -f platform/tests/teacher-onboarding-v1-contract.php ]]; then
             php platform/tests/teacher-onboarding-v1-contract.php
           else

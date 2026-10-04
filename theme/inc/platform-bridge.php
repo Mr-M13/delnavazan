@@ -31,10 +31,20 @@ function dzn_theme_platform_local_time( $utc, $format ) {
 	return $timestamp ? wp_date( $format, $timestamp, wp_timezone() ) : '';
 }
 
+/**
+ * Presentation state of a canonical lesson.
+ *
+ * The Theme may describe only what the canonical read model proves: that a
+ * lesson is upcoming, that it starts within the hour, or that no canonical
+ * upcoming lesson exists yet. It must never claim the learner reported an
+ * absence, asked for a reschedule, or was cancelled by the academy: no
+ * canonical portal read model exposes those facts today, so deriving them from
+ * an open attendance case or an available capability would assert a student
+ * decision that was never recorded.
+ */
 function dzn_theme_platform_lesson_state( array $lesson ) {
 	$start = strtotime( (string) ( $lesson['starts_at_utc'] ?? '' ) . ' UTC' );
 	$now = time();
-	if ( ! empty( $lesson['absence_available'] ) && 'open' === ( $lesson['attendance_state_summary'] ?? '' ) ) { return 'absence_notified'; }
 	if ( $start && $start >= $now && $start - $now <= HOUR_IN_SECONDS ) { return 'starting_soon'; }
 	return $start && $start >= $now ? 'upcoming' : 'none';
 }
@@ -183,11 +193,20 @@ function dzn_theme_platform_student_model( $screen ) {
 			'mobile' => '',
 			'timezone_label' => wp_timezone_string() ?: 'UTC',
 			'timezone' => wp_timezone_string() ?: 'UTC',
+			// The canonical read model exposes no student timezone preference yet, so
+			// the value shown is the academy display timezone rather than a personal
+			// choice the Theme would be inventing.
+			'timezone_source' => 'site_default',
+			'timezone_preference_available' => false,
 			'password_url' => wp_lostpassword_url(),
 		);
 		$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 20 ) );
 		$model['payments'] = array( 'status' => 'اطلاعات پرداخت در این نمای خواندنی موجود نیست.', 'renewal_date' => '', 'items' => array() );
 		$model['notifications'] = array();
+		// No canonical notification read model is exposed to the portal yet, so the
+		// Theme records that the section is unconnected instead of asserting that
+		// this learner has no notifications.
+		$model['notifications_available'] = false;
 		$model['notification_archive_url'] = '';
 		return $model;
 	}
@@ -198,9 +217,14 @@ function dzn_theme_platform_student_model( $screen ) {
 	$model['upcoming_lesson'] = $next ? array(
 		'presentation_state' => dzn_theme_platform_lesson_state( $next ),
 		'lifecycle_state' => (string) ( $next['lifecycle_state'] ?? '' ),
-		'schedule_state' => 'confirmed',
+		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
 		'attendance_state' => (string) ( $next['attendance_state_summary'] ?? '' ),
-		'entitlement_state' => 'standard',
+		'delivery_state' => (string) ( $next['delivery_state_summary'] ?? '' ),
+		// No canonical portal read model exposes an entitlement or allowance
+		// projection, so the Theme reports it as unknown rather than presenting an
+		// invented "standard" entitlement.
+		'entitlement_state' => null,
+		'entitlement_available' => false,
 		'course' => (string) ( $next['course_reference'] ?? '' ),
 		'teacher' => (string) ( $enrolment['assigned_teacher_display_reference'] ?? '' ),
 		'date' => dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'l j F Y' ),
@@ -218,9 +242,15 @@ function dzn_theme_platform_student_model( $screen ) {
 	$related = $enrolment ? array_values( array_filter( $lessons, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $enrolment['enrolment_uid'] ?? '' ) ) ) : array();
 	$completed = count( array_filter( $related, static fn( $row ) => in_array( $row['delivery_state_summary'] ?? '', array( 'completed', 'delivered' ), true ) ) );
 	$model['term'] = array(
-		'title' => (string) ( $enrolment['term_reference'] ?? ( $next['term_reference'] ?? 'ترم جاری' ) ),
+		// Only a canonical term reference may name the term; a missing reference
+		// stays empty so the timeline can say what is actually known.
+		'title' => (string) ( $enrolment['term_reference'] ?? ( $next['term_reference'] ?? '' ) ),
 		'completed' => $completed,
 		'total' => count( $related ),
+		// The read model exposes the lessons recorded against the enrolment, not the
+		// term's lesson allocation, so the Theme declares the progress scale unknown
+		// instead of implying a completed term.
+		'lesson_allocation_known' => false,
 		'current_label' => count( $related ) ? sprintf( '%d جلسه ثبت‌شده', count( $related ) ) : '',
 		'next_label' => $next ? 'کلاس بعدی: ' . dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'j F' ) : 'کلاس آینده‌ای ثبت نشده است',
 		'normal_replacement' => '',

@@ -55,11 +55,12 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 			<?php if ( ! empty( $lesson['absence_available'] ) ) : ?>
 				<button class="dzn-button dzn-button--secondary" type="button" data-dzn-dialog-open="dzn-absence-dialog"><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 			<?php else : ?>
-				<button class="dzn-button dzn-button--secondary" type="button" disabled><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
+				<button class="dzn-button dzn-button--secondary" type="button" disabled aria-describedby="dzn-absence-pending"><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 			<?php endif; ?>
 			<button class="dzn-portal-text-action" type="button" data-dzn-dialog-open="dzn-calendar-dialog"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></button>
 		</div>
 		<?php if ( empty( $lesson['join_url'] ) ) : ?><p id="dzn-join-pending" class="dzn-portal-help"><?php esc_html_e( 'پیوند معتبر کلاس هنوز از منبع امن دریافت نشده است.', 'delnavazan-theme' ); ?></p><?php endif; ?>
+		<?php if ( empty( $lesson['absence_available'] ) ) : ?><p id="dzn-absence-pending" class="dzn-portal-help"><?php esc_html_e( 'ثبت غیبت در این نسخه از پرتال فعال نیست؛ پرتال هنوز اختیار ثبت آن را از منبع معتبر دریافت نکرده است.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 	<?php endif; ?>
 
 	<?php if ( $has_lesson && ! empty( $lesson['absence_available'] ) ) : ?>
@@ -76,7 +77,12 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 			</form>
 		</div>
 	</dialog>
+	<?php endif; ?>
 
+	<?php /* The calendar control is rendered with every lesson, so its own dialog must
+	   exist for every lesson state. Only the absence dialog depends on the canonical
+	   absence capability. */ ?>
+	<?php if ( $has_lesson ) : ?>
 	<dialog id="dzn-calendar-dialog" class="dzn-portal-dialog" aria-labelledby="dzn-calendar-title">
 		<div class="dzn-portal-dialog__body">
 			<button class="dzn-portal-icon-button dzn-portal-dialog__close" type="button" data-dzn-dialog-close aria-label="<?php esc_attr_e( 'بستن', 'delnavazan-theme' ); ?>">×</button>

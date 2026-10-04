@@ -115,6 +115,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 				'notifications',
 				array(
 					'items'       => $model['notifications'] ?? array(),
+					'available'   => ! empty( $model['notifications_available'] ),
 					'archive_url' => $model['notification_archive_url'] ?? '',
 				)
 			);

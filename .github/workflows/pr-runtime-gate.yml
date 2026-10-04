@@ -85,6 +85,7 @@ jobs:
           php platform/tests/notification-dispatch-worker-contract.php
           php platform/tests/student-notification-recipient-contract.php
           php platform/tests/notification-transport-recipient-resolver-contract.php
+          php platform/tests/notification-runtime-factory-contract.php
           php platform/tests/booking-canonical-alias-contract.php
           php platform/tests/booking-day-grid-theme-contract.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then

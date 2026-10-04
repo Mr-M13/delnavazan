@@ -46,6 +46,21 @@ checkout_assert(($options['body']['metadata[checkout_attempt_uid]']??'')===$requ
 checkout_assert(($options['body']['metadata[obligation_reference]']??'')===$request->obligationReference(),'Obligation correlation metadata missing');
 checkout_assert(($options['body']['metadata[provider_account_reference]']??'')==='test_account_41','Provider account correlation metadata missing');
 
+$retrieved=$adapter->retrieve($response['id']);
+checkout_assert($retrieved['state']==='open'&&$retrieved['payment_state']==='unpaid','Exact test Checkout Session was not retrieved');
+checkout_assert($retrieved['provider_reference']===$response['id']&&$retrieved['attempt_uid']===$request->attemptUid(),'Retrieved Checkout Session identity/correlation changed');
+[$retrieveUrl,$retrieveOptions]=$GLOBALS['checkout_fake_calls'][1];
+checkout_assert($retrieveUrl==='https://api.stripe.com/v1/checkout/sessions/'.$response['id'],'Adapter did not retrieve the exact fixed Stripe Checkout Session endpoint');
+checkout_assert(($retrieveOptions['sslverify']??false)===true&&($retrieveOptions['redirection']??-1)===0,'Checkout Session retrieval transport protections missing');
+$callsBeforeInvalid=count($GLOBALS['checkout_fake_calls']);
+checkout_assert($adapter->retrieve('cs_live_'.str_repeat('X',20))['state']==='unavailable','Live Checkout Session id reached test retrieval');
+checkout_assert(count($GLOBALS['checkout_fake_calls'])===$callsBeforeInvalid,'Invalid session reference reached Stripe transport');
+
+$GLOBALS['checkout_fake_response']=array('response'=>array('code'=>404),'body'=>'{}');
+checkout_assert($adapter->retrieve($response['id'])['state']==='not_found','Authoritative Stripe session 404 was not distinguished');
+$GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode(array_merge($response,array('livemode'=>true))));
+checkout_assert($adapter->retrieve($response['id'])['state']==='unavailable','Live-mode Checkout Session retrieval response was accepted');
+
 $response['livemode']=true;
 $GLOBALS['checkout_fake_response']=array('response'=>array('code'=>200),'body'=>json_encode($response));
 checkout_assert($adapter->create($request)['state']==='unavailable','A live-mode session response was accepted');

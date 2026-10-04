@@ -57,6 +57,33 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
         );
     }
 
+    /** Retrieve only one exact locally referenced test Checkout Session. */
+    public function retrieve(string $providerReference):array{
+        if(!self::testModeActivationAllowed())return $this->retrievalUnavailable('checkout_provider_unconfigured');
+        if(preg_match('/^cs_test_[A-Za-z0-9]+$/D',$providerReference)!==1)return $this->retrievalUnavailable('provider_reference_invalid');
+        $credentials=$this->credentialSource->credentials();
+        if(!is_array($credentials)||!is_string($credentials['api_key']??null)||!is_string($credentials['account_reference']??null)
+            ||preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$credentials['api_key'])!==1
+            ||preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$credentials['account_reference'])!==1)return $this->retrievalUnavailable('checkout_provider_unconfigured');
+        if($this->http===null&&(!function_exists('wp_remote_get')||!function_exists('is_wp_error')||!function_exists('wp_remote_retrieve_response_code')||!function_exists('wp_remote_retrieve_body')))return $this->retrievalUnavailable('checkout_provider_unconfigured');
+        $url='https://api.stripe.com/v1/checkout/sessions/'.rawurlencode($providerReference);
+        $options=array('timeout'=>15,'redirection'=>0,'sslverify'=>true,'headers'=>array('Authorization'=>'Basic '.base64_encode($credentials['api_key'].':')));
+        $response=$this->http!==null?($this->http)($url,$options):wp_remote_get($url,$options);
+        if(is_wp_error($response))return $this->retrievalUnavailable('provider_unavailable');
+        $status=(int)wp_remote_retrieve_response_code($response);$raw=(string)wp_remote_retrieve_body($response);
+        if(strlen($raw)>131072)return $this->retrievalUnavailable('provider_response_unusable');
+        if($status===404)return array('state'=>'not_found','payment_state'=>null,'provider_reference'=>$providerReference,'amount_minor'=>null,'currency'=>null,'obligation_reference'=>null,'attempt_uid'=>null,'account_reference'=>null,'reason_code'=>'provider_session_not_found');
+        if($status<200||$status>=300)return $this->retrievalUnavailable($status>=400&&$status<500?'provider_request_rejected':'provider_unavailable');
+        $session=json_decode($raw,true);
+        if(!is_array($session)||!$this->validRetrievedSession($session,$providerReference,$credentials['account_reference']))return $this->retrievalUnavailable('provider_response_unusable');
+        $metadata=$session['metadata'];
+        return array('state'=>(string)$session['status'],'payment_state'=>(string)$session['payment_status'],
+            'provider_reference'=>(string)$session['id'],'amount_minor'=>(int)$session['amount_total'],
+            'currency'=>strtoupper((string)$session['currency']),'obligation_reference'=>(string)$metadata['obligation_reference'],
+            'attempt_uid'=>(string)$metadata['checkout_attempt_uid'],'account_reference'=>(string)$metadata['provider_account_reference'],
+            'reason_code'=>null);
+    }
+
     /** This code path is restricted to an explicitly authorised, non-production test environment. */
     public static function testModeActivationAllowed():bool{
         if(!defined('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')||constant('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')!==true)return false;
@@ -98,10 +125,24 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
             &&hash_equals($providerAccountReference,(string)($metadata['provider_account_reference']??''));
     }
 
+    private function validRetrievedSession(array $session,string $providerReference,string $providerAccountReference):bool{
+        if(($session['object']??'')!=='checkout.session'||($session['mode']??'')!=='payment'||($session['livemode']??null)!==false
+            ||!hash_equals($providerReference,(string)($session['id']??''))
+            ||!in_array((string)($session['status']??''),array('open','complete','expired'),true)
+            ||!in_array((string)($session['payment_status']??''),array('paid','unpaid','no_payment_required'),true)
+            ||!is_int($session['amount_total']??null)||$session['amount_total']<0
+            ||preg_match('/^[A-Z]{3}$/Di',(string)($session['currency']??''))!==1)return false;
+        $metadata=is_array($session['metadata']??null)?$session['metadata']:array();
+        return preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',(string)($metadata['checkout_attempt_uid']??''))===1
+            &&trim((string)($metadata['obligation_reference']??''))!==''
+            &&hash_equals($providerAccountReference,(string)($metadata['provider_account_reference']??''));
+    }
+
     private function safeUrl(string $url):bool{
         $parts=parse_url($url);
         return is_array($parts)&&($parts['scheme']??'')==='https'&&strtolower((string)($parts['host']??''))==='checkout.stripe.com'&&!isset($parts['user'])&&!isset($parts['pass']);
     }
 
     private function unavailable(string $reason):array{return array('state'=>'unavailable','redirect_url'=>null,'provider_reference'=>null,'expires_at'=>null,'reason_code'=>$reason);}
+    private function retrievalUnavailable(string $reason):array{return array('state'=>'unavailable','payment_state'=>null,'provider_reference'=>null,'amount_minor'=>null,'currency'=>null,'obligation_reference'=>null,'attempt_uid'=>null,'account_reference'=>null,'reason_code'=>$reason);}
 }

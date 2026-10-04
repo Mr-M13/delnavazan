@@ -56,7 +56,7 @@ final class BookingAvailabilityAssessmentService {
                 // Do not offer a candidate when authoritative availability or capacity cannot be trusted.
                 $reason = $exception->getMessage();
                 $availabilityFailure = in_array( $reason, array( 'teacher_availability_authority_unavailable', 'teacher_timezone_invalid' ), true );
-                if ( ! $availabilityFailure && ! in_array( $reason, array( 'canonical_schedule_integrity_conflict', 'canonical_lesson_integrity_conflict', 'canonical_continuation_integrity_conflict' ), true ) ) $reason = 'canonical_teacher_capacity_unavailable';
+                if ( ! $availabilityFailure && ! in_array( $reason, array( 'canonical_schedule_integrity_conflict', 'canonical_lesson_integrity_conflict', 'canonical_continuation_integrity_conflict', 'legacy_schedule_integrity_conflict' ), true ) ) $reason = 'canonical_teacher_capacity_unavailable';
                 $exceptionType = $reason === 'teacher_timezone_invalid' ? 'timezone_missing' : 'schedule_conflict';
                 $fingerprintKey = $reason === 'teacher_timezone_invalid' ? 'booking_availability_teacher_timezone_v1' : ( $availabilityFailure ? 'booking_availability_teacher_profile_v1' : 'booking_availability_canonical_occupancy_v1' );
                 $summary = $reason === 'teacher_timezone_invalid' ? 'Booking availability encountered an invalid Teacher timezone' : ( $availabilityFailure ? 'Booking availability could not read Teacher availability authority' : 'Booking availability could not validate canonical Teacher capacity' );

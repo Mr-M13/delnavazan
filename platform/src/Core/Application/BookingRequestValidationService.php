@@ -3,7 +3,8 @@ namespace Delnavazan\Platform\Core\Application;
 
 /** Normalizes public facts before locking, then resolves catalogue authority only while locked. */
 final class BookingRequestValidationService {
-    public const MAX_REQUESTED_TIMES = 8;
+    public const MAX_REQUESTED_TIMES = 3;
+    public const BOOKING_HORIZON_DAYS = 90;
     public const BLOCKED_TIME_MESSAGE = 'Requested interval overlaps Iran quiet hours';
 
     public function normalizePublic(array $input): array {
@@ -30,7 +31,7 @@ final class BookingRequestValidationService {
         if ( ! $instrument || $instrument->status !== 'active' || $instrument->archived_at !== null ) throw new \InvalidArgumentException( 'Active Instrument required' );
         $duration = 30; $buffer = 15;
         if ( $data['course_id'] ) { if ( ! $course || $course->status !== 'active' || $course->archived_at !== null || $course->course_type !== 'introductory' || (int) $course->instrument_id !== (int) $instrument->id ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' ); $duration = Normalizer::count( $course->default_duration_minutes, 5, 480 ); $buffer = Normalizer::count( $course->default_buffer_minutes, 0, 240 ); }
-        $times = array(); $seen = array(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); if ( RequestedTimeNormalizer::overlapsIranQuietHours( $item ) ) throw new \InvalidArgumentException( self::BLOCKED_TIME_MESSAGE ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
+        $times = array(); $seen = array(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); $zone = new \DateTimeZone( $item['timezone'] ); $today = new \DateTimeImmutable( 'today', $zone ); $first = $today->modify( '+1 day' ); $last = $first->modify( '+' . ( self::BOOKING_HORIZON_DAYS - 1 ) . ' days' ); $requested = new \DateTimeImmutable( $item['local_date'] . ' 00:00:00', $zone ); if ( $requested < $first || $requested > $last ) throw new \InvalidArgumentException( 'Requested time outside booking horizon' ); if ( RequestedTimeNormalizer::overlapsIranQuietHours( $item ) ) throw new \InvalidArgumentException( self::BLOCKED_TIME_MESSAGE ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
         $data['times'] = $times; unset( $data['requested_times'] ); return $data;
     }
     /** Reject compound public values before a normalizer or PHP cast can inspect them. */

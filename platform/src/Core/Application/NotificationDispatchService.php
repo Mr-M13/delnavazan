@@ -160,7 +160,7 @@ final class NotificationDispatchService {
             }
             $this->repository->insertEvent($this->eventRow($notificationId,'dispatching',(string)$notification->state,'dispatching','dispatching',$evidence,$now,$actor,$guard['bound_digest']));
             $this->repository->commit();
-            return array('eligible'=>true,'outcome'=>'pass');
+            return array('eligible'=>true,'outcome'=>'pass','recipient'=>$guard['recipient']??null);
         }catch(\Throwable $e){
             $this->repository->rollback();
             throw $e;
@@ -195,7 +195,8 @@ final class NotificationDispatchService {
         // `template_version_id`, the contract-proved variable codes and the decrypted parameter envelope —
         // never from a caller-supplied payload. It is built *before* the reservation, so an unavailable
         // cipher or an unprovable variable contract leaves the attempt `leased` and the work claimable.
-        $command=$this->authorisedCommand($notification,$attempt);
+        $recipient=$eligibility['recipient']??null;
+        $command=$this->authorisedCommand($notification,$attempt,is_array($recipient)?$recipient:null);
         // §6.6/§10: the durable hand-off reservation — the exact `leased → handed_off` transition plus its
         // digest-only command row — commits *before* the port is called, so one attempt can never be handed
         // off twice and a replay of the same key never reaches the port again.
@@ -577,6 +578,7 @@ final class NotificationDispatchService {
             'outcome'=>NotificationEligibility::evaluate($eligibility,$facts),'facts'=>$facts,
             'bound_digest'=>$bound!==null?NotificationEligibility::boundEvidenceDigest($intent,$subjectId,$bound):null,
             'suppression_id'=>$suppression!==null?(int)$suppression->id:null,
+            'recipient'=>$recipient,
         );
     }
     /**
@@ -634,7 +636,7 @@ final class NotificationDispatchService {
      * Exactly the six frozen fields cross the port boundary; nothing the caller supplied is merged in, so
      * no raw payload, provider-specific field or operator envelope can reach `NotificationTransportPort`.
      */
-    private function authorisedCommand(object $notification,object $attempt):array{
+    private function authorisedCommand(object $notification,object $attempt,?array $recipient):array{
         $snapshotId=(int)($notification->rendered_snapshot_id??0);
         if($snapshotId<1)throw new \RuntimeException('template_variable_mismatch');
         $snapshot=$this->templates->snapshot($snapshotId);
@@ -653,6 +655,9 @@ final class NotificationDispatchService {
             'template_version_id'=>(int)$notification->template_version_id,
             'variable_codes'=>$proof['contract']['variable_codes'],
             'parameters'=>$parameters,
+            'contact_envelope'=>$recipient['contact_envelope']??null,
+            'contact_cipher_version'=>$recipient['contact_cipher_version']??null,
+            'contact_expires_at'=>$recipient['contact_expires_at']??null,
         );
     }
     private function attemptEvent(int $attemptId,string $eventType,?string $from,string $to,string $reason,string $now,int $actor):array{

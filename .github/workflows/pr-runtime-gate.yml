@@ -104,6 +104,7 @@ jobs:
           php platform/tests/checkout-session-lifecycle-contract.php
           php platform/tests/checkout-session-reference-contract.php
           php platform/tests/checkout-session-reference-vault-unit.php
+          php platform/tests/student-checkout-return-contract.php
           php platform/tests/student-notification-recipient-authority-contract.php
           php platform/tests/notification-copy-integrity-contract.php
           php platform/tests/booking-canonical-alias-contract.php

@@ -16,4 +16,6 @@ An open Checkout Session's provider ID and hosted URL are sealed with the provid
 
 Stripe Checkout completion events enter the existing signed event intake only for a test account, a `cs_test_` identity, and `livemode: false`. The event is correlated by its keyed Checkout Session ID digest to exactly one local session and that session's canonical obligation. Unpaid completion remains an attempt fact; paid completion submits the provider facts through `CommercialPaymentService`, which alone can settle the obligation. A matching metadata value by itself is never enough.
 
+The authenticated `GET /wp-json/delnavazan-platform/v1/student/checkout-status?attempt_uid=…` read returns only the canonical payment state, checkout state, and whether the student may continue, resume, or retry. It verifies current student ownership and the offer/obligation/session relationship. Loading Stripe's return URL never changes payment state.
+
 The success and cancel URLs return to the Student Portal with an opaque attempt UID for display correlation. Loading either URL is not evidence of payment. Settlement continues through verified provider events and `CommercialPaymentService`.

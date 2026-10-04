@@ -1,6 +1,7 @@
 name: PR runtime gate
 
 on:
+  workflow_call:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -108,6 +109,11 @@ jobs:
           else
             echo 'Teacher onboarding v1 contract not present on this PR base yet.'
           fi
+          if [[ -f platform/tests/admin-navigation-regression-contract.php ]]; then
+            php platform/tests/admin-navigation-regression-contract.php
+          else
+            echo 'Admin navigation regression contract not present on this PR base yet.'
+          fi
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else
@@ -116,3 +122,11 @@ jobs:
 
       - name: Check staging smoke runner syntax
         run: bash -n deployment/qa/staging-smoke.sh
+
+      - name: Check staging deployment tooling
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n deployment/staging-deploy.sh
+          bash -n deployment/qa/staging-deployment-contract.sh
+          bash deployment/qa/staging-deployment-contract.sh

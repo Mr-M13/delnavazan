@@ -125,6 +125,7 @@ if(!str_contains($releaseSource,'claimReleased'))throw new RuntimeException('The
 
 // The boundary derivation is progression-derived, never `intro + 7 days`.
 foreach(array('CommercialPatternService','CanonicalContinuationRule::resolveWallClock','commercial_recurring_patterns','boundary_facts_required','guarantee_deadline_at','AUTOMATIC_RENEWAL_CHARGE_LEAD_TIME') as $needle) if(!str_contains($cycle,$needle))throw new RuntimeException('The next-Term boundary must be derived from the authorised R1 pattern facts: '.$needle);
+if(!str_contains($cycle,'MAX(occupied_ends_at_utc)')||!str_contains($cycle,'canonical_lesson_schedule_versions WHERE lesson_id IN ({$in}) AND applicable_slot=1'))throw new RuntimeException('The next-Term boundary must use only current applicable Lesson schedules');
 if(str_contains($cycle,'intro_lesson_id')||str_contains($cycle,'anchor_starts_at_utc +7')||str_contains($cycle,"strtotime((string)\$cycle->boundary_derived_at"))throw new RuntimeException('The next-Term boundary must never be inferred from the introductory occurrence');
 
 // The seven required concurrency modes exist as first-class scenarios.

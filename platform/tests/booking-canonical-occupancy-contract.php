@@ -36,6 +36,9 @@ $repo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLess
 $continuations=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalContinuationRepository.php');
 $read=file_get_contents($root.'/src/Core/Application/CanonicalTeacherOccupancyReadService.php');
 $assessment=file_get_contents($root.'/src/Core/Application/BookingAvailabilityAssessmentService.php');
+$availabilityRepository=file_get_contents($root.'/src/Core/Infrastructure/Repository/TeacherAvailabilityRepository.php');
+$eligibilityRepository=file_get_contents($root.'/src/Core/Infrastructure/Repository/BookingRequestMatchAssessmentRepository.php');
+$availabilityService=file_get_contents($root.'/src/Core/Application/TeacherAvailabilityService.php');
 $scheduleService=file_get_contents($root.'/src/Core/Application/CanonicalLessonScheduleService.php');
 $scheduleRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLessonScheduleRepository.php');
 $scheduleRaces=file_get_contents($root.'/tests/phase-2a2n-concurrency-runner.sh');
@@ -47,7 +50,11 @@ $expect(str_contains($continuations,"state='active' AND expires_at>%s")&&str_con
 $expect(str_contains($continuations,"if(\$wpdb->last_error!=='')throw new \\RuntimeException('Continuation capacity read failed"),'a failed continuation hold read must not masquerade as an empty schedule');
 $expect(str_contains($assessment,'CanonicalContinuationCapacityAuthority::assertNoActiveHold')&&str_contains($assessment,"getMessage() === 'teacher_slot_conflict'"),'active continuation holds must block advisory availability while authority errors fail closed');
 $expect(str_contains($assessment,'CanonicalTeacherOccupancyReadService')&&str_contains($assessment,"'status' => 'blocked'"),'booking assessment must consume occupancy and fail closed');
-$expect(str_contains($assessment,"'exception_type' => 'schedule_conflict'")&&str_contains($assessment,"'fingerprint_key' => 'booking_availability_canonical_occupancy_v1'")&&str_contains($assessment,'canonical_continuation_integrity_conflict'),'serious teacher-capacity uncertainty must use deduplicated operational exceptions');
+$expect(str_contains($assessment,"'exception_type' => \$exceptionType")&&str_contains($assessment,"'fingerprint_key' => \$fingerprintKey")&&str_contains($assessment,'booking_availability_canonical_occupancy_v1')&&str_contains($assessment,'canonical_continuation_integrity_conflict'),'serious teacher-capacity uncertainty must use deduplicated operational exceptions');
+foreach(array('profile','activeRules','activeExceptions','evaluableTeacher') as $method)$expect(str_contains($availabilityRepository,'function '.$method)&&str_contains($availabilityRepository,'teacher_availability_authority_unavailable'),'Teacher availability '.$method.' reads must surface database failures');
+$expect(str_contains($availabilityService,'teacher_timezone_invalid')&&str_contains($availabilityService,'catch ( UnavailableLocalTimeException )'),'availability may skip a DST gap occurrence but must fail closed on malformed timezone or rule authority');
+$expect(str_contains($assessment,'$this->coverageState(')&&str_contains($assessment,'$this->availability->profileTimezone(')&&str_contains($assessment,'teacher_timezone_invalid')&&str_contains($assessment,"\$exceptionType = \$reason === 'teacher_timezone_invalid' ? 'timezone_missing'")&&str_contains($assessment,"'exception_type' => \$exceptionType"),'booking assessment must guard availability and timezone authority and report failures');
+$expect(str_contains($eligibilityRepository,'booking_teacher_eligibility_authority_unavailable')&&str_contains($assessment,'booking_availability_teacher_eligibility_v1'),'teacher readiness and eligibility read failure must block and report booking availability');
 foreach(array('ensureAndLockTeacherRoot','assertCapacity','overlappingApplicable','begin()','commit()') as $fact)$expect(str_contains($scheduleService.$scheduleRepo,$fact),'commit-time scheduling must serialize and recheck teacher capacity: '.$fact);
 foreach(array('capacity_first','same_key','different_keys','buffer_adjacency','unrelated_teachers') as $fact)$expect(str_contains($scheduleRaces,$fact),'teacher scheduling race suite is missing case: '.$fact);
 foreach(array('dzn_phase_2a2n_after_version_supersede','dzn_phase_2a2n_after_version_insert','dzn_phase_2a2n_after_event_insert','dzn_phase_2a2n_after_command_insert','Rollback') as $fact)$expect(str_contains($scheduleFailures,$fact),'teacher scheduling failure-atomicity suite is missing case: '.$fact);

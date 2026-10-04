@@ -26,13 +26,15 @@ final class StudentCheckoutInitiationService {
         private ?CommercialPaymentRepository $payments = null,
         private ?CheckoutSessionRepository $sessions = null,
         private ?CheckoutSessionPort $checkout = null,
-        private ?PortalPrincipalResolver $principals = null
+        private ?PortalPrincipalResolver $principals = null,
+        private ?CheckoutSessionReferenceService $references = null
     ) {
         $this->authority ??= new CommercialAuthorityRepository();
         $this->payments ??= new CommercialPaymentRepository();
         $this->sessions ??= new CheckoutSessionRepository();
         $this->checkout ??= new \Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdapter();
         $this->principals ??= new PortalPrincipalResolver();
+        $this->references ??= new CheckoutSessionReferenceService();
     }
 
     /** @return array{checkout_state:string,redirect_url:?string} */
@@ -82,6 +84,13 @@ final class StudentCheckoutInitiationService {
                     // exist at Stripe, so do not reuse its key with different parameters or replace it.
                     $this->authority->commit();
                     return array('checkout_state' => 'unavailable', 'redirect_url' => null);
+                }
+                if ((string) $active->state === 'open') {
+                    $stored = $this->references->references((int) $active->id);
+                    if ($stored !== null) {
+                        $this->authority->commit();
+                        return array('checkout_state' => 'open', 'redirect_url' => (string) $stored['checkout_uri_reference']);
+                    }
                 }
                 $createdAt = strtotime((string) $active->created_at . ' UTC');
                 if ($createdAt === false || time() - $createdAt >= self::PROVIDER_IDEMPOTENCY_REPLAY_SECONDS) {
@@ -135,6 +144,7 @@ final class StudentCheckoutInitiationService {
             $this->authority->begin();
             try {
                 $this->authority->lockAccountRoot($studentId, $actor);
+                $this->references->record($sessionId, $result['provider_reference'], $result['redirect_url'], $actor, gmdate('Y-m-d H:i:s'));
                 $this->sessions->recordOpen($sessionId, PaymentExecutionIdempotency::reference($result['provider_reference']), $result['expires_at']);
                 $this->authority->commit();
                 return array('checkout_state' => 'open', 'redirect_url' => $result['redirect_url']);

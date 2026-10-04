@@ -12,7 +12,7 @@ final class CheckoutSessionRepository {
     /** Last immutable session gives a deterministic next server-side request generation. */
     public function latestForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d ORDER BY id DESC LIMIT 1".($lock?' FOR UPDATE':''),$obligationId));}
     public function insert(array $data):int{global $wpdb;if($wpdb->insert($this->p.'checkout_sessions',$data)===false)throw new \RuntimeException('Checkout session persistence failed');return(int)$wpdb->insert_id;}
-    /** Persist only the keyed digest of the provider identity; the raw id stays in adapter memory. */
+    /** Persist only the keyed digest of provider identity; reversible references live encrypted in the vault. */
     public function recordOpen(int $id,string $providerReferenceDigest,string $expiresAt):void{
         global $wpdb;
         if(preg_match('/^[a-f0-9]{64}$/D',$providerReferenceDigest)!==1)throw new \InvalidArgumentException('Invalid provider reference digest');

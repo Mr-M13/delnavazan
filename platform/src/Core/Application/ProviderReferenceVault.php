@@ -16,9 +16,10 @@ final class ProviderReferenceVault {
         if(!function_exists('sodium_crypto_secretbox'))throw new \RuntimeException('provider_reference_cipher_unavailable');
         $clean=array();
         foreach($references as $name=>$value){
-            if(!in_array($name,array('provider_object_reference','join_uri_reference'),true))continue;
+            if(!in_array($name,array('provider_object_reference','join_uri_reference','checkout_uri_reference'),true))continue;
             $value=trim((string)$value);
             if($name==='join_uri_reference'&&$value!=='')$this->assertJoinUri($value);
+            if($name==='checkout_uri_reference'&&$value!=='')$this->assertCheckoutUri($value);
             if($value!=='')$clean[$name]=$value;
         }
         if(empty($clean))throw new \InvalidArgumentException('provider_reference_required');
@@ -40,6 +41,7 @@ final class ProviderReferenceVault {
         if(!is_array($decoded)||(string)($decoded['kind']??'')!==$kind||(int)($decoded['mapping_id']??0)!==$mappingId||!is_array($decoded['references']??null))throw new \RuntimeException('provider_reference_binding_mismatch');
         $references=$decoded['references'];
         if(isset($references['join_uri_reference'])&&trim((string)$references['join_uri_reference'])!=='')$this->assertJoinUri((string)$references['join_uri_reference']);
+        if(isset($references['checkout_uri_reference'])&&trim((string)$references['checkout_uri_reference'])!=='')$this->assertCheckoutUri((string)$references['checkout_uri_reference']);
         return $references;
     }
 
@@ -47,8 +49,12 @@ final class ProviderReferenceVault {
         $parts=parse_url($uri);
         if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='meet.google.com')throw new \InvalidArgumentException('provider_join_uri_untrusted');
     }
+    private function assertCheckoutUri(string $uri):void{
+        $parts=parse_url($uri);
+        if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='checkout.stripe.com'||isset($parts['user'])||isset($parts['pass']))throw new \InvalidArgumentException('provider_checkout_uri_untrusted');
+    }
     private function binding(string $kind,int $mappingId):void{
-        if(!in_array($kind,array('calendar_event','meeting_conference'),true)||$mappingId<1)throw new \InvalidArgumentException('provider_reference_binding_required');
+        if(!in_array($kind,array('calendar_event','meeting_conference','checkout_session'),true)||$mappingId<1)throw new \InvalidArgumentException('provider_reference_binding_required');
     }
     private function key():string{
         $salt=wp_salt(self::DOMAIN);

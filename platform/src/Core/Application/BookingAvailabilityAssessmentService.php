@@ -30,6 +30,20 @@ final class BookingAvailabilityAssessmentService {
                 if ( $this->occupancy->overlapping( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] ) ) continue;
             } catch ( \Throwable ) {
                 // Do not offer a candidate when canonical current occupancy cannot be trusted.
+                try {
+                    ( new ExceptionService() )->recordTrusted( array(
+                        'exception_type' => 'schedule_conflict',
+                        'severity' => 'error',
+                        'entity_type' => 'system',
+                        'fingerprint_key' => 'booking_availability_canonical_occupancy_v1',
+                        'summary' => 'Booking availability could not validate canonical Teacher occupancy',
+                        'safe_detail' => 'source=canonical_teacher_occupancy;availability=blocked',
+                        'error_code' => 'canonical_schedule_integrity_conflict',
+                        'retry_available' => false,
+                    ) );
+                } catch ( \Throwable ) {
+                    // Health reporting must never turn a safe blocked response into an offer.
+                }
                 return array( 'status' => 'blocked', 'teacher_times' => array() );
             }
             $teacherTimezone = $this->availability->profileTimezone( (int) $teacher->teacher_id );

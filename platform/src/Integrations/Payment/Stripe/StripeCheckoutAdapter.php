@@ -3,7 +3,7 @@ namespace Delnavazan\Platform\Integrations\Payment\Stripe;
 
 use Delnavazan\Platform\Core\Application\Checkout\{CheckoutRequest,CheckoutSessionPort};
 use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentSecretVault;
-use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentProviderRepository,PaymentSecretRepository};
+use Closure;
 
 /**
  * Stripe-hosted Checkout boundary.
@@ -14,23 +14,24 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentProviderRepositor
  */
 final class StripeCheckoutAdapter implements CheckoutSessionPort {
     public const PROVIDER_KEY='stripe';
-    private PaymentProviderRepository $providers;
-    private PaymentSecretRepository $secrets;
-    private PaymentSecretVault $vault;
-    public function __construct(?PaymentProviderRepository $providers=null,?PaymentSecretRepository $secrets=null,?PaymentSecretVault $vault=null){
-        $this->providers=$providers??new PaymentProviderRepository();
-        $this->secrets=$secrets??new PaymentSecretRepository();
-        $this->vault=$vault??new PaymentSecretVault($this->secrets,$this->providers);
+    private StripeCheckoutCredentialSource $credentialSource;
+    private ?Closure $http;
+    public function __construct(?StripeCheckoutCredentialSource $credentialSource=null,?Closure $http=null){
+        $this->credentialSource=$credentialSource??new StripeVaultCheckoutCredentialSource();
+        $this->http=$http;
     }
     public function key():string{return self::PROVIDER_KEY;}
 
     public function create(CheckoutRequest $request):array{
-        $credentials=$this->testCredentials();
-        if($credentials===null)return $this->unavailable('checkout_provider_unconfigured');
-        if(!function_exists('wp_remote_post')||!function_exists('is_wp_error')||!function_exists('wp_remote_retrieve_response_code')||!function_exists('wp_remote_retrieve_body'))return $this->unavailable('checkout_provider_unconfigured');
+        if(!self::testModeActivationAllowed())return $this->unavailable('checkout_provider_unconfigured');
+        $credentials=$this->credentialSource->credentials();
+        if(!is_array($credentials)||!is_string($credentials['api_key']??null)||!is_string($credentials['account_reference']??null))return $this->unavailable('checkout_provider_unconfigured');
+        if(preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$credentials['api_key'])!==1||preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$credentials['account_reference'])!==1)return $this->unavailable('checkout_provider_unconfigured');
+        if($this->http===null&&(!function_exists('wp_remote_post')||!function_exists('is_wp_error')||!function_exists('wp_remote_retrieve_response_code')||!function_exists('wp_remote_retrieve_body')))return $this->unavailable('checkout_provider_unconfigured');
         $success=home_url('/student-portal/?checkout=return&attempt='.rawurlencode($request->attemptUid()));
         $cancel=home_url('/student-portal/?checkout=cancel&attempt='.rawurlencode($request->attemptUid()));
-        $response=wp_remote_post('https://api.stripe.com/v1/checkout/sessions',array(
+        $url='https://api.stripe.com/v1/checkout/sessions';
+        $options=array(
             'timeout'=>15,'redirection'=>0,'sslverify'=>true,
             'headers'=>array(
                 'Authorization'=>'Basic '.base64_encode($credentials['api_key'].':'),
@@ -38,7 +39,8 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
                 'Content-Type'=>'application/x-www-form-urlencoded',
             ),
             'body'=>self::providerFields($request,$success,$cancel,$credentials['account_reference']),
-        ));
+        );
+        $response=$this->http!==null?($this->http)($url,$options):wp_remote_post($url,$options);
         if(is_wp_error($response))return $this->unavailable('provider_unavailable');
         $status=(int)wp_remote_retrieve_response_code($response);
         $raw=(string)wp_remote_retrieve_body($response);
@@ -53,6 +55,14 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
             'state'=>'open','redirect_url'=>(string)$session['url'],'provider_reference'=>(string)$session['id'],
             'expires_at'=>gmdate('Y-m-d H:i:s',(int)$session['expires_at']),'reason_code'=>null,
         );
+    }
+
+    /** This code path is restricted to an explicitly authorised, non-production test environment. */
+    public static function testModeActivationAllowed():bool{
+        if(!defined('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')||constant('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')!==true)return false;
+        if(!PaymentSecretVault::testVaultActive())return false;
+        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'production';
+        return in_array($environment,array('local','development','staging'),true);
     }
 
     /** Exact future Stripe Checkout fields; values come only from the authoritative request. */
@@ -73,27 +83,6 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
             'success_url'=>$successUrl,
             'cancel_url'=>$cancelUrl,
         );
-    }
-
-    /** Return decrypted credentials only to this adapter and only under explicit test-mode activation. */
-    private function testCredentials():?array{
-        if(!defined('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')||constant('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')!==true)return null;
-        if(!PaymentSecretVault::testVaultActive())return null;
-        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'production';
-        if(!in_array($environment,array('local','development','staging'),true))return null;
-        $accounts=array_values(array_filter($this->providers->accountsForProvider(self::PROVIDER_KEY),static fn($account)=>(string)$account->mode==='test'&&(string)$account->state==='active'&&(string)$account->execution_state==='enabled'&&(string)$account->credential_state==='configured'));
-        if(count($accounts)!==1)return null;
-        $accountId=(int)$accounts[0]->id;
-        $accountReference=(string)($accounts[0]->reference_code??'');
-        if(preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$accountReference)!==1)return null;
-        $apiSecret=$this->secrets->activeSecret(self::PROVIDER_KEY,'api_key',$accountId,'test');
-        $webhookSecret=$this->secrets->activeSecret(self::PROVIDER_KEY,'webhook_signing_secret',$accountId,'test');
-        if(!$apiSecret||!$webhookSecret)return null;
-        $apiKey=$this->vault->reveal((int)$apiSecret->id,'api_key',self::PROVIDER_KEY);
-        $signingSecret=$this->vault->reveal((int)$webhookSecret->id,'webhook_signing_secret',self::PROVIDER_KEY);
-        if(!is_string($apiKey)||preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$apiKey)!==1)return null;
-        if(!is_string($signingSecret)||preg_match('/^whsec_[A-Za-z0-9]{16,}$/D',$signingSecret)!==1)return null;
-        return array('api_key'=>$apiKey,'account_reference'=>$accountReference);
     }
 
     private function validSession(array $session,CheckoutRequest $request,string $providerAccountReference):bool{

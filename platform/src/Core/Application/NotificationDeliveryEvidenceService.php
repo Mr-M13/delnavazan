@@ -5,8 +5,10 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationAttemptReposi
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationDeliveryRepository;
 
 /**
- * Provider-neutral ingestion of append-only delivery evidence.
- * Raw provider references are never persisted; only keyed digests cross into S-owned storage.
+ * S-owned intake for already verified, normalised delivery facts.
+ *
+ * Provider adapters verify signatures and derive keyed digests before crossing this boundary.
+ * Raw provider identifiers and payloads are never accepted or persisted here.
  */
 final class NotificationDeliveryEvidenceService {
     public function __construct(
@@ -17,35 +19,43 @@ final class NotificationDeliveryEvidenceService {
         $this->attempts??=new NotificationAttemptRepository();
     }
 
-    public function record(int $attemptId,string $state,string $providerEventReference,?string $providerMessageReference,string $observedAt):array{
-        $rank=NotificationRule::deliveryRank($state);
-        if($rank===null)throw new \InvalidArgumentException('delivery_event_stale');
-        $attempt=$this->attempts->find($attemptId);
-        if(!$attempt||!in_array((string)$attempt->state,array('handed_off','acknowledged'),true))throw new \RuntimeException('attempt_lifecycle_invalid');
+    /**
+     * @param array $normalisedFacts notification_id, attempt_id, delivery_state,
+     * provider_fact_digest, provider_event_reference_digest, occurred_at.
+     */
+    public function submit(array $normalisedFacts):array{
+        $notificationId=(int)($normalisedFacts['notification_id']??0);
+        $attemptId=(int)($normalisedFacts['attempt_id']??0);
+        $state=trim((string)($normalisedFacts['delivery_state']??''));
+        $factDigest=strtolower(trim((string)($normalisedFacts['provider_fact_digest']??'')));
+        $eventDigest=strtolower(trim((string)($normalisedFacts['provider_event_reference_digest']??'')));
+        $occurredAt=trim((string)($normalisedFacts['occurred_at']??''));
 
-        $providerEventReference=trim($providerEventReference);
-        if($providerEventReference==='')throw new \InvalidArgumentException('delivery_event_reference_required');
-        if(NotificationSupport::seconds($observedAt)===null)throw new \InvalidArgumentException('delivery_event_stale');
-        $eventDigest=hash_hmac('sha256','delivery_event:'.$providerEventReference,NotificationSupport::salt());
-        $factDigest=hash_hmac('sha256','delivery_fact:'.$attemptId.':'.$state.':'.($providerMessageReference??'').':'.$observedAt,NotificationSupport::salt());
+        $rank=NotificationRule::deliveryRank($state);
+        if($rank===null||NotificationSupport::seconds($occurredAt)===null)throw new \InvalidArgumentException('delivery_event_stale');
+        if($notificationId<1||$attemptId<1||!preg_match('/^[a-f0-9]{64}$/',$factDigest)||!preg_match('/^[a-f0-9]{64}$/',$eventDigest))throw new \InvalidArgumentException('delivery_event_stale');
+
+        $attempt=$this->attempts->find($attemptId);
+        if(!$attempt||!in_array((string)$attempt->state,array('handed_off','acknowledged'),true)||(int)$attempt->notification_id!==$notificationId)throw new \RuntimeException('attempt_lifecycle_invalid');
+
         $existing=$this->deliveries->byProviderReference($eventDigest);
         if($existing)return array('applied'=>(int)$existing->applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>'replay','delivery_id'=>(int)$existing->id);
 
-        $currentRank=$this->deliveries->appliedRank((int)$attempt->notification_id);
+        $currentRank=$this->deliveries->appliedRank($notificationId);
         $applied=NotificationRule::DELIVERY_APPLIED;$outcome='applied';
         if($rank<$currentRank){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_regression_attempt';}
         elseif($rank===$currentRank&&$currentRank>0){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_event_stale';}
 
         $id=$this->deliveries->insertDelivery(array(
             'uid'=>NotificationSupport::uid(),
-            'notification_id'=>(int)$attempt->notification_id,
+            'notification_id'=>$notificationId,
             'attempt_id'=>$attemptId,
-            'delivery_sequence'=>$this->deliveries->nextSequence((int)$attempt->notification_id),
+            'delivery_sequence'=>$this->deliveries->nextSequence($notificationId),
             'delivery_state'=>$state,
             'delivery_rank'=>$rank,
             'provider_fact_digest'=>$factDigest,
             'provider_event_reference_digest'=>$eventDigest,
-            'occurred_at'=>$observedAt,
+            'occurred_at'=>$occurredAt,
             'recorded_at'=>NotificationSupport::now(),
             'applied'=>$applied,
         ));

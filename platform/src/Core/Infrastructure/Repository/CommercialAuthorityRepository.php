@@ -173,6 +173,8 @@ final class CommercialAuthorityRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d ORDER BY obligation_sequence,id{$suffix}",$offerId))?:array();
     }
     public function obligation(int $obligationId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_offer_obligations WHERE id=%d".($lock?' FOR UPDATE':''),$obligationId);}
+    /** Public checkout identifies an obligation by opaque UID; ownership is enforced by the application service. */
+    public function obligationByUid(string $uid,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_offer_obligations WHERE uid=%s".($lock?' FOR UPDATE':''),$uid);}
     public function obligationByReferenceDigest(string $digest,bool $lock=false):?object{
         return $this->one("SELECT * FROM {$this->p}commercial_offer_obligations WHERE obligation_reference_digest=%s".($lock?' FOR UPDATE':''),$digest);
     }

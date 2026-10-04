@@ -1,8 +1,12 @@
 <?php
 require_once dirname(__DIR__).'/src/Core/Application/NotificationCopyPort.php';
+require_once dirname(__DIR__).'/src/Core/Application/NotificationSupport.php';
+require_once dirname(__DIR__).'/src/Core/Infrastructure/Repository/NotificationTemplateRepository.php';
 require_once dirname(__DIR__).'/src/Integrations/Notifications/ConfiguredNotificationCopy.php';
 use Delnavazan\Platform\Integrations\Notifications\ConfiguredNotificationCopy;
-$r=new ConfiguredNotificationCopy(array('7:whatsapp:fa-IR'=>array('body'=>'سلام {{name}}')));
+function wp_salt($scheme='auth'){return 'test-salt';}
+$repo=new class extends \Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository {public function __construct(){} public function version(int $id,bool $lock=false):?object{return (object)array('subject_template_digest'=>hash_hmac('sha256','template_copy:','test-salt'),'body_template_digest'=>hash_hmac('sha256','template_copy:سلام {{name}}','test-salt'));}};
+$r=new ConfiguredNotificationCopy(array('7:whatsapp:fa-IR'=>array('body'=>'سلام {{name}}')),$repo);
 $x=$r->render(7,'whatsapp','fa-IR',array('name'=>'ندا'));
 if(($x['body']??'')!=='سلام ندا')throw new RuntimeException('Configured copy must render frozen parameters');
 if($r->render(7,'sms','fa-IR',array('name'=>'ندا'))!==null)throw new RuntimeException('Missing channel copy must fail closed');

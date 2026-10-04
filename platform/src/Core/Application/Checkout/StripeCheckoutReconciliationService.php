@@ -35,7 +35,6 @@ final class StripeCheckoutReconciliationService {
         if(preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',$attemptUid)!==1)throw new \InvalidArgumentException('checkout_reconciliation_unavailable');
         $session=$this->sessions->byUid($attemptUid);
         if(!$session||(string)$session->provider_key!=='stripe'||!in_array((string)$session->state,array('creating','open','completed','expired'),true))return $this->unresolved('checkout_attempt_unavailable');
-        $alreadySettled=(bool)$this->paymentsRepository->settlementForObligation((int)$session->obligation_id);
         $stored=$this->references->references((int)$session->id);
         if(!$stored)return $this->unresolved('provider_reference_unavailable');
         $providerReference=(string)($stored['provider_object_reference']??'');
@@ -65,9 +64,6 @@ final class StripeCheckoutReconciliationService {
         // Stripe's exact paid completion Event proves this provider Session is terminal even if R1
         // later rejects the payment against current commercial authority.
         $this->markCompleted($session);
-        if($alreadySettled){
-            return array('state'=>'settled','reason_code'=>null);
-        }
 
         $eventId=$event['provider_reference'];
         $result=$this->worker->run(fn():array=>$this->payments->ingest(array(

@@ -8,6 +8,7 @@ final class CheckoutSessionRepository {
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
     public function activeForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$obligationId));}
+    public function byUid(string $uid):?object{return $this->row("SELECT * FROM {$this->p}checkout_sessions WHERE uid=%s",$uid);}
     /** Exact previously recorded Stripe identity; only its keyed digest is queried or returned. */
     public function byProviderReferenceDigest(string $providerKey,string $digest):array{
         if(preg_match('/^[a-f0-9]{64}$/D',$digest)!==1)throw new \InvalidArgumentException('Invalid provider reference digest');
@@ -36,4 +37,5 @@ final class CheckoutSessionRepository {
         $changed=$wpdb->update($this->p.'checkout_sessions',array('state'=>$state,'active_slot'=>null,'closed_at'=>$at,'close_reason'=>$reason),array('id'=>$id,'active_slot'=>1));
         if($changed!==1)throw new \RuntimeException('Stale checkout session');
     }
+    private function row(string $sql,...$args):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare($sql,...$args));}
 }

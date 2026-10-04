@@ -74,6 +74,7 @@ jobs:
           php platform/tests/teacher-availability-dst-contract.php
           php platform/tests/booking-preference-order-contract.php
           php platform/tests/booking-public-window-contract.php
+          php platform/tests/teacher-availability-lifecycle-contract.php
           php platform/tests/booking-day-grid-theme-contract.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php

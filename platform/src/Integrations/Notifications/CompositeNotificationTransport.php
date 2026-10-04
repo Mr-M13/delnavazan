@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
 use Delnavazan\Platform\Core\Application\NotificationCopyPort;
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Core\Application\NotificationTransportRouter;
+use Delnavazan\Platform\Core\Application\NotificationSupport;
 
 /**
  * Transport-side composition. Domain handoff stays channel-neutral; contact and copy are resolved only
@@ -15,8 +16,9 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
   private $contactResolver
  ){}
  public function handoff(array $command):array{
-  if(!is_callable($this->contactResolver))return array('acknowledged'=>false,'permanent_failure'=>'no_route');
-  $contact=($this->contactResolver)($command);
+  if(isset($command['contact_expires_at'])&&is_string($command['contact_expires_at'])&&$command['contact_expires_at']!==''&&$command['contact_expires_at']<=NotificationSupport::now())return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
+  $contact=NotificationSupport::decryptEnvelope($command['contact_envelope']??null,$command['contact_cipher_version']??null);
+  if($contact===null&&is_callable($this->contactResolver))$contact=($this->contactResolver)($command);
   if(!is_array($contact))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
   $route=(string)($contact['route']??'mobile');
   $bindings=$this->router->route($route,$contact);

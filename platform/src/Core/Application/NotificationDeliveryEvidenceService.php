@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationAttemptRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationDeliveryRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
 
 /**
  * S-owned intake for already verified, normalised delivery facts.
@@ -13,10 +14,12 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationDeliveryRepos
 final class NotificationDeliveryEvidenceService {
     public function __construct(
         private ?NotificationDeliveryRepository $deliveries=null,
-        private ?NotificationAttemptRepository $attempts=null
+        private ?NotificationAttemptRepository $attempts=null,
+        private ?NotificationRepository $notifications=null
     ){
         $this->deliveries??=new NotificationDeliveryRepository();
         $this->attempts??=new NotificationAttemptRepository();
+        $this->notifications??=new NotificationRepository();
     }
 
     /**
@@ -35,30 +38,49 @@ final class NotificationDeliveryEvidenceService {
         if($rank===null||NotificationSupport::seconds($occurredAt)===null)throw new \InvalidArgumentException('delivery_event_stale');
         if($notificationId<1||$attemptId<1||!preg_match('/^[a-f0-9]{64}$/',$factDigest)||!preg_match('/^[a-f0-9]{64}$/',$eventDigest))throw new \InvalidArgumentException('delivery_event_stale');
 
-        $attempt=$this->attempts->find($attemptId);
-        if(!$attempt||!in_array((string)$attempt->state,array('handed_off','acknowledged'),true)||(int)$attempt->notification_id!==$notificationId)throw new \RuntimeException('attempt_lifecycle_invalid');
+        $this->notifications->begin();
+        try{
+            // §10 serialisation root and lock order: aggregate first, then its exact attempt.
+            $notification=$this->notifications->find($notificationId,true);
+            if(!$notification)throw new \RuntimeException('attempt_lifecycle_invalid');
 
-        $existing=$this->deliveries->byProviderReference($eventDigest);
-        if($existing)return array('applied'=>(int)$existing->applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>'replay','delivery_id'=>(int)$existing->id);
+            $attempt=$this->attempts->find($attemptId,true);
+            if(!$attempt||!in_array((string)$attempt->state,array('handed_off','acknowledged'),true)||(int)$attempt->notification_id!==$notificationId)throw new \RuntimeException('attempt_lifecycle_invalid');
 
-        $currentRank=$this->deliveries->appliedRank($notificationId);
-        $applied=NotificationRule::DELIVERY_APPLIED;$outcome='applied';
-        if($rank<$currentRank){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_regression_attempt';}
-        elseif($rank===$currentRank&&$currentRank>0){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_event_stale';}
+            $existing=$this->deliveries->byProviderReference($eventDigest);
+            if($existing){
+                $this->notifications->commit();
+                return array('applied'=>(int)$existing->applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>'replay','delivery_id'=>(int)$existing->id);
+            }
 
-        $id=$this->deliveries->insertDelivery(array(
-            'uid'=>NotificationSupport::uid(),
-            'notification_id'=>$notificationId,
-            'attempt_id'=>$attemptId,
-            'delivery_sequence'=>$this->deliveries->nextSequence($notificationId),
-            'delivery_state'=>$state,
-            'delivery_rank'=>$rank,
-            'provider_fact_digest'=>$factDigest,
-            'provider_event_reference_digest'=>$eventDigest,
-            'occurred_at'=>$occurredAt,
-            'recorded_at'=>NotificationSupport::now(),
-            'applied'=>$applied,
-        ));
-        return array('applied'=>$applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>$outcome,'delivery_id'=>$id);
+            $currentRank=$this->deliveries->appliedRank($notificationId);
+            $applied=NotificationRule::DELIVERY_APPLIED;$outcome='applied';
+            if($rank<$currentRank){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_regression_attempt';}
+            elseif($rank===$currentRank&&$currentRank>0){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_event_stale';}
+
+            $id=$this->deliveries->insertDelivery(array(
+                'uid'=>NotificationSupport::uid(),
+                'notification_id'=>$notificationId,
+                'attempt_id'=>$attemptId,
+                'delivery_sequence'=>$this->deliveries->nextSequence($notificationId),
+                'delivery_state'=>$state,
+                'delivery_rank'=>$rank,
+                'provider_fact_digest'=>$factDigest,
+                'provider_event_reference_digest'=>$eventDigest,
+                'occurred_at'=>$occurredAt,
+                'recorded_at'=>NotificationSupport::now(),
+                'applied'=>$applied,
+            ));
+            $this->notifications->commit();
+            return array('applied'=>$applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>$outcome,'delivery_id'=>$id);
+        }catch(\Throwable $e){
+            $this->notifications->rollback();
+            // A concurrent replay may lose on the unique provider reference after the aggregate lock moves.
+            if($this->deliveries->duplicate($e)==='provider_reference'){
+                $existing=$this->deliveries->byProviderReference($eventDigest);
+                if($existing)return array('applied'=>(int)$existing->applied===NotificationRule::DELIVERY_APPLIED,'outcome'=>'replay','delivery_id'=>(int)$existing->id);
+            }
+            throw $e;
+        }
     }
 }

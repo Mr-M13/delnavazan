@@ -7,5 +7,5 @@ foreach(array('PortalPrincipalResolver','resolve(\'student\')','lockAccountRoot'
 foreach(array('amount_minor','currency','student_id','offer_id','obligation_reference') as $forbidden)if(strpos($controller,$forbidden)!==false)throw new RuntimeException('Student checkout controller must not accept '.$forbidden);
 foreach(array("'methods' => 'POST'",'wp_verify_nonce','get_json_params','checkout_state','redirect_url') as $needle)if(strpos($controller,$needle)===false)throw new RuntimeException('Student checkout endpoint contract missing '.$needle);
 foreach(array('obligationByUid','latestForObligation') as $needle)if(strpos($repository,$needle)===false)throw new RuntimeException('Checkout authority repository contract missing '.$needle);
-if(strpos($bootstrap,'StudentCheckoutController::register()')===false)throw new RuntimeException('Student checkout controller is not registered');
+if(strpos($bootstrap,"StudentCheckoutController', 'register'")===false)throw new RuntimeException('Student checkout controller is not registered');
 echo "Student checkout initiation contract passed\n";

@@ -1,15 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 final class AdminWorkspaceController {
- public static function register():void{add_action('admin_menu',[self::class,'menu'],99);add_action('admin_menu',[self::class,'simplifySidebar'],999);}
+ public static function register():void{add_action('admin_menu',[self::class,'menu'],99);}
  public static function menu():void{}
- public static function simplifySidebar():void{
-  // Keep authority screens registered and directly reachable, but remove implementation-level
-  // entries from the everyday sidebar. Workspace remains the human navigation layer.
-  global $submenu;if(empty($submenu['dzn-platform']))return;
-  $keep=['dzn-academy-operations','dzn-staff-access','dzn-platform','dzn-system-health'];
-  $submenu['dzn-platform']=array_values(array_filter($submenu['dzn-platform'],static fn($item)=>isset($item[2])&&in_array((string)$item[2],$keep,true)));
- }
  private static function hasAccess():bool{
   if(current_user_can('manage_options'))return true;
   foreach(['dzn_view_diagnostics','dzn_manage_students','dzn_view_student_acceptance_eligibility','dzn_manage_enrolments','dzn_manage_teachers','dzn_manage_onboarding','dzn_manage_teaching_eligibility','dzn_manage_teacher_availability','dzn_view_booking_requests','dzn_manage_booking_request_coordination','dzn_manage_terms','dzn_manage_lessons','dzn_manage_canonical_attendance_review','dzn_manage_courses','dzn_manage_commercial_catalogue','dzn_view_notification_authority','dzn_view_finance_authority','dzn_view_payment_execution_authority','dzn_manage_exceptions'] as $cap)if(current_user_can($cap))return true;

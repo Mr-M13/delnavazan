@@ -8,3 +8,7 @@ foreach(array('provider_message_reference_digest','observed_at','created_at') as
 foreach(array('providerEventReference','providerMessageReference','hash_hmac','NotificationSupport::salt') as$n)if(strpos($s,$n)!==false)throw new RuntimeException('Core delivery intake must receive normalised digests, not raw provider references: '.$n);
 if(strpos($s,"(int)\$attempt->notification_id!==\$notificationId")===false)throw new RuntimeException('Delivery fact must be bound to its persisted attempt notification');
 echo "Notification delivery evidence source contract passed\n";
+
+// Delivery intake is serialised at the §10 notification aggregate root before attempt/evidence mutation.
+foreach(array('NotificationRepository','->begin()','find($notificationId,true)','find($attemptId,true)','->commit()','->rollback()','provider_reference') as $n)if(strpos($s,$n)===false)throw new RuntimeException('Delivery evidence serialisation contract missing '.$n);
+if(strpos($s,'find($attemptId,true)')<strpos($s,'find($notificationId,true)'))throw new RuntimeException('Delivery evidence lock order must be aggregate then attempt');

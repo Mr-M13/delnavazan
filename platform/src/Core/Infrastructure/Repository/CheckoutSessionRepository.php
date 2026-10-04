@@ -7,6 +7,7 @@ final class CheckoutSessionRepository {
     public function begin():void{global $wpdb;if($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')===false||$wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Transaction start failed');}
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
+    public function byId(int $id,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE id=%d".($lock?' FOR UPDATE':''),$id));}
     public function activeForObligation(int $obligationId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE obligation_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$obligationId));}
     public function byRequestDigest(string $digest,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}checkout_sessions WHERE request_key_digest=%s".($lock?' FOR UPDATE':''),$digest));}
     public function insert(array $data):int{global $wpdb;if($wpdb->insert($this->p.'checkout_sessions',$data)===false)throw new \RuntimeException('Checkout session persistence failed');return(int)$wpdb->insert_id;}

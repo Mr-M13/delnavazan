@@ -9,12 +9,13 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepos
  * renders only allowlisted {{variable_code}} placeholders from the already-frozen snapshot.
  */
 final class ConfiguredNotificationCopy implements NotificationCopyPort {
-    public function __construct(private array $definitions,private ?NotificationTemplateRepository $templates=null){$this->templates??=new NotificationTemplateRepository();}
+    public function __construct(private array $definitions,private ?NotificationTemplateRepository $templates=null){}
     public function render(int $templateVersionId,string $channel,string $locale,array $parameters):?array{
         $key=$templateVersionId.':'.$channel.':'.$locale;
         $definition=$this->definitions[$key]??null;
         if(!is_array($definition)||!isset($definition['body']))return null;
-        $version=$this->templates->version($templateVersionId);
+        $templates=$this->templates??new NotificationTemplateRepository();
+        $version=$templates->version($templateVersionId);
         if(!$version)return null;
         $subject=(string)($definition['subject']??'');$body=(string)$definition['body'];
         $subjectDigest=hash_hmac('sha256','template_copy:'.$subject,NotificationSupport::salt());

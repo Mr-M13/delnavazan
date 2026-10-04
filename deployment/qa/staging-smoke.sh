@@ -17,8 +17,11 @@ check_html "/" "^(200)$"
 if grep -Eqi "^x-robots-tag:.*noindex" "$headers"; then pass "X-Robots-Tag noindex"; else fail "X-Robots-Tag noindex missing"; fi
 robots_meta="$(grep -Eio '<meta[^>]+>' "$body" | grep -Ei 'name=(["'\''"]robots["'\''"]|robots)' | head -1 || true)"
 if [[ -n "$robots_meta" ]] && grep -Eqi "noindex" <<<"$robots_meta"; then pass "robots meta noindex"; else fail "robots meta noindex missing"; fi
-check_html "/booking/" "^(200)$"
-check_html "/enrol/" "^(200|301|302)$"
+if result="$(curl --silent --show-error --max-time 20 --proto "=https" --dump-header "$headers" --output /dev/null --write-out "%{http_code}" "$BASE_URL/booking/")"; then
+  location="$(grep -Ei "^location:" "$headers" | tail -1 | sed -E "s/^[Ll]ocation:[[:space:]]*//; s/\\r$//")"
+  if [[ "$result" == 301 ]] && { [[ "$location" == "/enrol/" ]] || [[ "$location" == "$BASE_URL/enrol/" ]]; }; then pass "/booking/ permanently redirects to canonical /enrol/"; else fail "/booking/ expected 301 to /enrol/, got $result ${location:-no-location}"; fi
+else fail "/booking/ transfer failed"; fi
+check_html "/enrol/" "^(200)$"
 check_html "/login/" "^(200|301|302)$"
 check_html "/this-route-must-not-exist-qa/" "^(404)$"
 check_dashboard_redirect

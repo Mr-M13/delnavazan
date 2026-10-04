@@ -47,7 +47,7 @@ checkout_assert(($options['body']['metadata[obligation_reference]']??'')===$requ
 checkout_assert(($options['body']['metadata[provider_account_reference]']??'')==='test_account_41','Provider account correlation metadata missing');
 
 $retrieved=$adapter->retrieve($response['id']);
-checkout_assert($retrieved['state']==='open'&&$retrieved['payment_state']==='unpaid','Exact test Checkout Session was not retrieved');
+checkout_assert($retrieved['state']==='open'&&$retrieved['payment_state']==='unpaid','Exact test Checkout Session was not retrieved: '.json_encode($retrieved));
 checkout_assert($retrieved['provider_reference']===$response['id']&&$retrieved['attempt_uid']===$request->attemptUid(),'Retrieved Checkout Session identity/correlation changed');
 [$retrieveUrl,$retrieveOptions]=$GLOBALS['checkout_fake_calls'][1];
 checkout_assert($retrieveUrl==='https://api.stripe.com/v1/checkout/sessions/'.$response['id'],'Adapter did not retrieve the exact fixed Stripe Checkout Session endpoint');

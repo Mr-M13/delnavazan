@@ -80,6 +80,7 @@ jobs:
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-transport-routing-contract.php
+          php platform/tests/notification-system-actor-contract.php
           php platform/tests/booking-canonical-alias-contract.php
           php platform/tests/booking-day-grid-theme-contract.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then

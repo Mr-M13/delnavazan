@@ -38,6 +38,7 @@ final class LessonScheduleService {
             $occupiedEnd=(new \DateTimeImmutable($end,new \DateTimeZone('UTC')))->modify('+'.self::LEGACY_BUFFER_MINUTES.' minutes')->format('Y-m-d H:i:s');
             if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$locked->teacher_id,$start,$occupiedEnd,$id))throw new \InvalidArgumentException('teacher_slot_conflict');
             CanonicalContinuationCapacityAuthority::assertNoActiveHold((int)$locked->teacher_id,$start,$occupiedEnd);
+            CommercialCapacityAuthority::assertNoConflictingClaim((int)$locked->teacher_id,$start,$occupiedEnd);
 
             if($current)$schedules->supersede((int)$current->id,$now);
             $version=$schedules->latest($id)+1;

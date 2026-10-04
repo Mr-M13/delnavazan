@@ -77,6 +77,7 @@ jobs:
           php platform/tests/operations-dashboard-source-contract.php
           php platform/tests/teacher-availability-lifecycle-contract.php
           php platform/tests/launch-portal-hardening-contract.php
+          php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/booking-canonical-alias-contract.php
           php platform/tests/booking-day-grid-theme-contract.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then

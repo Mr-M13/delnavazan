@@ -2,20 +2,19 @@
 namespace Delnavazan\Platform\Integrations\Notifications;
 use Delnavazan\Platform\Core\Application\NotificationCopyPort;
 use Delnavazan\Platform\Core\Application\NotificationSupport;
-use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository;
 
 /**
  * Copy registry supplied by deployment/application configuration. It stores no provider credentials and
  * renders only allowlisted {{variable_code}} placeholders from the already-frozen snapshot.
  */
 final class ConfiguredNotificationCopy implements NotificationCopyPort {
-    public function __construct(private array $definitions,private ?NotificationTemplateRepository $templates=null){}
+    public function __construct(private array $definitions,private $versionResolver=null){}
     public function render(int $templateVersionId,string $channel,string $locale,array $parameters):?array{
         $key=$templateVersionId.':'.$channel.':'.$locale;
         $definition=$this->definitions[$key]??null;
         if(!is_array($definition)||!isset($definition['body']))return null;
-        $templates=$this->templates??new NotificationTemplateRepository();
-        $version=$templates->version($templateVersionId);
+        if(is_callable($this->versionResolver))$version=($this->versionResolver)($templateVersionId);
+        else{$templates=new \Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository();$version=$templates->version($templateVersionId);}
         if(!$version)return null;
         $subject=(string)($definition['subject']??'');$body=(string)$definition['body'];
         $subjectDigest=hash_hmac('sha256','template_copy:'.$subject,NotificationSupport::salt());

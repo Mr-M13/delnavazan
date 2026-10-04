@@ -90,6 +90,7 @@ jobs:
           php platform/tests/notification-delivery-evidence-contract.php
           php platform/tests/notification-delivery-state-contract.php
           php platform/tests/notification-handoff-reconciliation-contract.php
+          php platform/tests/customer-checkout-contract.php
           php platform/tests/student-notification-recipient-authority-contract.php
           php platform/tests/notification-copy-integrity-contract.php
           php platform/tests/booking-canonical-alias-contract.php

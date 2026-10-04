@@ -20,13 +20,31 @@ final class BookingAvailabilityAssessmentService {
     /** @return array{status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>} */
     public function assess( array $time ): array {
         if ( RequestedTimeNormalizer::overlapsAcademyQuietHours( $time ) || RequestedTimeNormalizer::overlapsStudentQuietHours( $time ) ) return array( 'status' => 'blocked', 'teacher_times' => array() );
-        $this->teachers ??= $this->repo->eligibleTeachers( $this->courseId, gmdate( 'Y-m-d H:i:s' ) );
+        try {
+            $this->teachers ??= $this->repo->eligibleTeachers( $this->courseId, gmdate( 'Y-m-d H:i:s' ) );
+        } catch ( \Throwable ) {
+            try {
+                ( new ExceptionService() )->recordTrusted( array(
+                    'exception_type' => 'schedule_conflict', 'severity' => 'error', 'entity_type' => 'system',
+                    'fingerprint_key' => 'booking_availability_teacher_eligibility_v1',
+                    'summary' => 'Booking availability could not read Teacher eligibility authority',
+                    'safe_detail' => 'source=teacher_course_eligibility;availability=blocked',
+                    'error_code' => 'booking_teacher_eligibility_authority_unavailable', 'retry_available' => false,
+                ) );
+            } catch ( \Throwable ) {
+                // Operational reporting must never turn a safe blocked response into an offer.
+            }
+            return array( 'status' => 'blocked', 'teacher_times' => array() );
+        }
         $best = 'none';
         $timezones = array();
         foreach ( $this->teachers as $teacher ) {
-            $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
-            if ( $match === null ) continue;
+            $teacherTimezone = null;
             try {
+                $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
+                if ( $match === null ) continue;
+                $teacherTimezone = $this->availability->profileTimezone( (int) $teacher->teacher_id );
+                if ( $teacherTimezone === null ) continue;
                 if ( $this->occupancy->overlapping( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] ) ) continue;
                 try {
                     CanonicalContinuationCapacityAuthority::assertNoActiveHold( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
@@ -35,17 +53,22 @@ final class BookingAvailabilityAssessmentService {
                     throw $exception;
                 }
             } catch ( \Throwable $exception ) {
-                // Do not offer a candidate when canonical current capacity cannot be trusted.
+                // Do not offer a candidate when authoritative availability or capacity cannot be trusted.
                 $reason = $exception->getMessage();
-                if ( ! in_array( $reason, array( 'canonical_schedule_integrity_conflict', 'canonical_lesson_integrity_conflict', 'canonical_continuation_integrity_conflict' ), true ) ) $reason = 'canonical_teacher_capacity_unavailable';
+                $availabilityFailure = in_array( $reason, array( 'teacher_availability_authority_unavailable', 'teacher_timezone_invalid' ), true );
+                if ( ! $availabilityFailure && ! in_array( $reason, array( 'canonical_schedule_integrity_conflict', 'canonical_lesson_integrity_conflict', 'canonical_continuation_integrity_conflict' ), true ) ) $reason = 'canonical_teacher_capacity_unavailable';
+                $exceptionType = $reason === 'teacher_timezone_invalid' ? 'timezone_missing' : 'schedule_conflict';
+                $fingerprintKey = $reason === 'teacher_timezone_invalid' ? 'booking_availability_teacher_timezone_v1' : ( $availabilityFailure ? 'booking_availability_teacher_profile_v1' : 'booking_availability_canonical_occupancy_v1' );
+                $summary = $reason === 'teacher_timezone_invalid' ? 'Booking availability encountered an invalid Teacher timezone' : ( $availabilityFailure ? 'Booking availability could not read Teacher availability authority' : 'Booking availability could not validate canonical Teacher capacity' );
+                $safeDetail = $availabilityFailure ? 'source=teacher_availability_profile;availability=blocked' : 'source=canonical_teacher_capacity;availability=blocked';
                 try {
                     ( new ExceptionService() )->recordTrusted( array(
-                        'exception_type' => 'schedule_conflict',
+                        'exception_type' => $exceptionType,
                         'severity' => 'error',
                         'entity_type' => 'system',
-                        'fingerprint_key' => 'booking_availability_canonical_occupancy_v1',
-                        'summary' => 'Booking availability could not validate canonical Teacher capacity',
-                        'safe_detail' => 'source=canonical_teacher_capacity;availability=blocked',
+                        'fingerprint_key' => $fingerprintKey,
+                        'summary' => $summary,
+                        'safe_detail' => $safeDetail,
                         'error_code' => $reason,
                         'retry_available' => false,
                     ) );
@@ -54,7 +77,6 @@ final class BookingAvailabilityAssessmentService {
                 }
                 return array( 'status' => 'blocked', 'teacher_times' => array() );
             }
-            $teacherTimezone = $this->availability->profileTimezone( (int) $teacher->teacher_id );
             if ( $match === 'strong' && $teacher->accepting_state === 'accepting' ) {
                 if ( $best !== 'strong' ) { $best = 'strong'; $timezones = array(); }
                 if ( $teacherTimezone ) $timezones[$teacherTimezone] = true;

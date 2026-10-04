@@ -23,7 +23,9 @@ final class BookingRequestMatchAssessmentRepository {
     public function eligibleTeachers(int $courseId, string $now): array {
         global $wpdb;
         $sql = "SELECT e.teacher_id,a.state AS accepting_state FROM {$this->prefix}teacher_course_eligibilities e INNER JOIN {$this->prefix}teachers t ON t.id=e.teacher_id INNER JOIN {$this->prefix}courses c ON c.id=e.course_id INNER JOIN {$this->prefix}teacher_onboarding_states o ON o.teacher_id=t.id INNER JOIN {$this->prefix}teacher_accepting_states a ON a.teacher_id=t.id WHERE e.course_id=%d AND e.status='active' AND (e.effective_from IS NULL OR e.effective_from<=%s) AND (e.effective_until IS NULL OR e.effective_until>%s) AND t.status='active' AND t.archived_at IS NULL AND c.status='active' AND c.archived_at IS NULL AND o.state='active' AND o.readiness_state='ready' AND a.state IN ('accepting','limited') ORDER BY e.teacher_id";
-        return $wpdb->get_results( $wpdb->prepare( $sql, $courseId, $now, $now ) );
+        $rows = $wpdb->get_results( $wpdb->prepare( $sql, $courseId, $now, $now ) );
+        if ( $wpdb->last_error !== '' ) throw new \RuntimeException( 'booking_teacher_eligibility_authority_unavailable' );
+        return is_array( $rows ) ? $rows : array();
     }
 
     /** Audit records intentionally have no candidate, contact, time, or location facts. */

@@ -12,9 +12,9 @@ if ( false === $service ) {
     throw new RuntimeException( 'Unable to read TeacherAvailabilityService' );
 }
 
-$needle = "catch ( \\InvalidArgumentException ) { continue; }";
+$needle = "catch ( UnavailableLocalTimeException ) { continue; }";
 if ( strpos( $service, $needle ) === false ) {
-    throw new RuntimeException( 'Recurring availability must fail closed per invalid DST occurrence' );
+    throw new RuntimeException( 'Recurring availability must skip only invalid DST occurrences' );
 }
 if ( strpos( $service, 'AvailabilityLocalTime::interval( $date, (string) $rule->local_start_time, (string) $rule->local_end_time' ) === false ) {
     throw new RuntimeException( 'Recurring availability must continue using canonical local-time conversion' );

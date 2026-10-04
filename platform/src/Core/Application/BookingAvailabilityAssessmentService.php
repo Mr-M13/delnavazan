@@ -28,17 +28,25 @@ final class BookingAvailabilityAssessmentService {
             if ( $match === null ) continue;
             try {
                 if ( $this->occupancy->overlapping( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] ) ) continue;
-            } catch ( \Throwable ) {
-                // Do not offer a candidate when canonical current occupancy cannot be trusted.
+                try {
+                    CanonicalContinuationCapacityAuthority::assertNoActiveHold( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
+                } catch ( \InvalidArgumentException $exception ) {
+                    if ( $exception->getMessage() === 'teacher_slot_conflict' ) continue;
+                    throw $exception;
+                }
+            } catch ( \Throwable $exception ) {
+                // Do not offer a candidate when canonical current capacity cannot be trusted.
+                $reason = $exception->getMessage();
+                if ( ! in_array( $reason, array( 'canonical_schedule_integrity_conflict', 'canonical_lesson_integrity_conflict', 'canonical_continuation_integrity_conflict' ), true ) ) $reason = 'canonical_teacher_capacity_unavailable';
                 try {
                     ( new ExceptionService() )->recordTrusted( array(
                         'exception_type' => 'schedule_conflict',
                         'severity' => 'error',
                         'entity_type' => 'system',
                         'fingerprint_key' => 'booking_availability_canonical_occupancy_v1',
-                        'summary' => 'Booking availability could not validate canonical Teacher occupancy',
-                        'safe_detail' => 'source=canonical_teacher_occupancy;availability=blocked',
-                        'error_code' => 'canonical_schedule_integrity_conflict',
+                        'summary' => 'Booking availability could not validate canonical Teacher capacity',
+                        'safe_detail' => 'source=canonical_teacher_capacity;availability=blocked',
+                        'error_code' => $reason,
                         'retry_available' => false,
                     ) );
                 } catch ( \Throwable ) {

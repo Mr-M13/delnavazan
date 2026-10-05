@@ -17,5 +17,6 @@ $expect(str_contains($screen,'lessonOperatorRecord($id)')&&str_contains($workflo
 $expect(str_contains($screen,'if($canonicalLesson){if(current_user_can(\'dzn_manage_canonical_lesson_schedules\'))self::canonicalLessonSchedule($record)')&&str_contains($screen,'else self::lessonSchedules($id,(string)$record->status)')&&str_contains($screen,"lifecycle_state!=='authorised'"),'Legacy and canonical scheduling forms must not compete, and terminal canonical classes must be read-only.');
 $expect(str_contains($workflow,"'Ready to schedule'")&&str_contains($workflow,"'Schedule class'")&&str_contains($workflow,"'Review class'"),'Class states must lead operators to a readable next action.');
 $expect(str_contains($workflow,'usort($rows')&&str_contains($workflow,"'Schedule needs review'"),'Schedule integrity issues and unscheduled classes must surface ahead of completed records.');
+$expect(str_contains($screen,"'standard'=>'Regular class'")&&str_contains($screen,"'replacement'=>'Replacement class'"),'Class type labels must read clearly on the operator detail screen.');
 
 echo "PASS lesson operator workflow, canonical authority handoff, and schedule ownership\n";

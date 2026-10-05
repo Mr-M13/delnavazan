@@ -4,7 +4,7 @@ $credentials=file_get_contents(dirname(__DIR__).'/src/Integrations/Payment/Strip
 $request=file_get_contents(dirname(__DIR__).'/src/Core/Application/Checkout/CheckoutRequest.php');
 $events=file_get_contents(dirname(__DIR__).'/src/Integrations/Payment/Stripe/StripeEventTranslator.php');
 $readiness=file_get_contents(dirname(__DIR__).'/src/Core/Application/PaymentExecution/StripeTestModeReadinessService.php');
-$controller=file_get_contents(dirname(__DIR__).'/src/Admin/Controller/PaymentExecutionController.php');
+$controller=file_get_contents(dirname(__DIR__).'/src/Admin/Controller/IntegrationControlPlaneController.php');
 foreach(array('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED','PaymentSecretVault::testVaultActive',"array('local','development','staging')",'testModeActivationAllowed') as $needle)
     if(strpos($adapter,$needle)===false)throw new RuntimeException('Stripe test activation contract missing '.$needle);
 foreach(array('(string)$account->mode===\'test\'','count($accounts)!==1',"activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'api_key'","activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'webhook_signing_secret'",'sk_test_','whsec_') as $needle)

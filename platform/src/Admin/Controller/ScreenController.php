@@ -189,7 +189,15 @@ final class ScreenController {
         if (!$record) { echo '<p>Record not found.</p>'; return; }
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>Record #' . esc_html((string) $id) . '</h2>';
         self::objectTable([$record], null);
-        if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) self::teacherMaintenanceForm( $record );
+        if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
+            self::teacherMaintenanceForm( $record );
+            $teacherId=(int)$record->id;
+            echo '<h2>Continue teacher setup</h2><p>';
+            if(current_user_can('dzn_manage_onboarding')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-onboarding','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Onboarding / invitation</a> ';
+            if(current_user_can('dzn_manage_teaching_eligibility')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-teaching-eligibility','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Course eligibility</a> ';
+            if(current_user_can('dzn_manage_teacher_availability')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-teacher-availability','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Availability</a>';
+            echo '</p>';
+        }
         if ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';

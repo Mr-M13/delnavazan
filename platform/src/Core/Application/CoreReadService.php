@@ -113,6 +113,19 @@ final class CoreReadService {
         return (new CanonicalTermReadService())->createOptions();
     }
 
+    public function lessonOperatorRows(): array {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        return (new LessonOperationsReadService())->recent();
+    }
+
+    public function canonicalLesson(int $lessonId): ?object {
+        return (new LessonOperationsReadService())->canonicalLesson($lessonId);
+    }
+
+    public function lessonOperatorRecord(int $lessonId): ?object {
+        return (new LessonOperationsReadService())->operatorRecord($lessonId);
+    }
+
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

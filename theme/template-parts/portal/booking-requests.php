@@ -23,7 +23,7 @@ $states = array(
 				<h4>سابقهٔ ارسال پیام سامانه</h4>
 				<ul>
 					<?php foreach ( $messages as $message ) : ?>
-						<li><?php echo esc_html( str_replace( '_', ' ', (string) ( $message['intent_key'] ?? 'پیام دلنوازان' ) ) ); ?> — <?php echo esc_html( dzn_theme_platform_local_time( $message['delivered_at'] ?? '', 'j F Y، H:i' ) ); ?></li>
+						<li>پیام خودکار دلنوازان — <?php echo esc_html( dzn_theme_platform_local_time( $message['delivered_at'] ?? '', 'j F Y، H:i' ) ); ?></li>
 					<?php endforeach; ?>
 				</ul>
 			<?php else : ?>

@@ -34,7 +34,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 					?>
 				</h1>
 				<p class="dzn-portal__lede">
-					<?php echo esc_html( 'account' === $screen ? 'جزئیات شخصی، سابقه و بخش‌های آیندهٔ حساب شما' : 'کلاس بعدی و مسیر ترم را یک‌جا ببینید.' ); ?>
+					<?php echo esc_html( 'pending_booking' === $state ? 'درخواست کلاس و سابقهٔ پیام‌های ثبت‌شدهٔ سامانه را پیگیری کنید.' : ( 'account' === $screen ? 'جزئیات شخصی، سابقه و بخش‌های آیندهٔ حساب شما' : 'کلاس بعدی و مسیر ترم را یک‌جا ببینید.' ) ); ?>
 				</p>
 			</div>
 			<?php dzn_theme_portal_component( 'navigation', array( 'items' => $navigation ) ); ?>

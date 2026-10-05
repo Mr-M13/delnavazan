@@ -121,11 +121,7 @@ jobs:
           else
             echo 'Teacher onboarding v1 contract not present on this PR base yet.'
           fi
-          if [[ -f platform/tests/admin-navigation-regression-contract.php ]]; then
-            php platform/tests/admin-navigation-regression-contract.php
-          else
-            echo 'Admin navigation regression contract not present on this PR base yet.'
-          fi
+          php platform/tests/admin-navigation-regression-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

@@ -53,9 +53,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          test -f platform/tests/phase-student-portal-read-model-contract.php || { echo 'PR #137 portal hardening and its source contract must be integrated into main before staging.' >&2; exit 1; }
-          test -f platform/tests/admin-navigation-regression-contract.php || { echo 'PR #138 admin navigation fix and its source contract must be integrated into main before staging.' >&2; exit 1; }
-          php platform/tests/phase-student-portal-read-model-contract.php
+          test -f platform/tests/phase-student-portal-state-contract.php || { echo 'Student portal state and term-progress contract must be integrated into main before staging.' >&2; exit 1; }
+          test -f platform/tests/admin-navigation-regression-contract.php || { echo 'Admin navigation regression contract must be integrated into main before staging.' >&2; exit 1; }
+          php platform/tests/phase-student-portal-state-contract.php
           php platform/tests/admin-navigation-regression-contract.php
 
       - name: Configure pinned staging SSH access

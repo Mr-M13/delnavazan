@@ -21,6 +21,29 @@ function dzn_theme_is_route( $route = '' ) {
 	return '' === $route ? '' !== $current : $route === $current;
 }
 
+/**
+ * Virtual routes do not have a corresponding WordPress post.  Tell the main
+ * request lifecycle that they are nevertheless resolved before it derives a
+ * 404 response (and its "Page not found" document title).
+ */
+function dzn_theme_prevent_virtual_route_404( $preempt, $wp_query ) {
+	if ( ! dzn_theme_route() ) { return $preempt; }
+	if ( $wp_query instanceof WP_Query ) { $wp_query->is_404 = false; }
+	status_header( 200 );
+	return true;
+}
+add_filter( 'pre_handle_404', 'dzn_theme_prevent_virtual_route_404', 10, 2 );
+
+/**
+ * This is paired with the resolved virtual-route state above, rather than a
+ * client-side title override: the booking URL remains a real, successful
+ * WordPress request throughout its in-page steps.
+ */
+function dzn_theme_virtual_route_document_title( $title ) {
+	return 'booking' === dzn_theme_route() ? 'درخواست جلسهٔ معارفه – Delnavazan' : $title;
+}
+add_filter( 'pre_get_document_title', 'dzn_theme_virtual_route_document_title' );
+
 function dzn_theme_render_route_state( $title, $message, $action_label = '', $action_url = '', $secondary_label = '', $secondary_url = '' ) {
 	?>
 	<main id="main-content" class="site-main dzn-container dzn-route" tabindex="-1">
@@ -225,7 +248,6 @@ function dzn_theme_render_virtual_route() {
 	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );
 	nocache_headers();
-	if ( 'booking' === $route ) { add_filter( 'pre_get_document_title', static fn() => 'درخواست جلسهٔ معارفه – Delnavazan' ); }
 	get_header();
 	switch ( $route ) {
 		case 'booking': dzn_theme_render_booking_route(); break;

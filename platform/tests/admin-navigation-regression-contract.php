@@ -14,11 +14,15 @@ $integrations = file_get_contents( $controllers . '/IntegrationControlPlaneContr
 $coverage = file_get_contents( $controllers . '/AcademyCoverageController.php' );
 $catalogue = file_get_contents( $controllers . '/CommercialCatalogueController.php' );
 $screen = file_get_contents( $controllers . '/ScreenController.php' );
+$teaching_eligibility = file_get_contents( $controllers . '/TeachingEligibilityController.php' );
+$availability = file_get_contents( $controllers . '/TeacherAvailabilityController.php' );
 $core_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CoreReadService.php' );
 $instrument_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/InstrumentRepository.php' );
+$teacher_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherRepository.php' );
+$course_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/CourseRepository.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $core_read, $instrument_repo, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
@@ -106,6 +110,24 @@ if ( ! str_contains( $screen, 'private static function instrumentSelector(): voi
     || ! str_contains( $instrument_repo, 'public function optionsForCourse(): array' )
     || ! str_contains( $instrument_repo, "status <> 'archived'" ) ) {
     throw new RuntimeException( 'Course setup must use a capability-gated human instrument choice instead of an Instrument ID text field.' );
+}
+if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )
+    || ! str_contains( $teaching_eligibility, 'private static function courseSelector(' )
+    || ! str_contains( $teaching_eligibility, 'private static function instrumentSelector(' )
+    || ! str_contains( $teaching_eligibility, 'teacherOptionsForTeachingEligibility()' )
+    || ! str_contains( $teaching_eligibility, 'courseOptionsForTeachingEligibility()' )
+    || ! str_contains( $teaching_eligibility, 'instrumentOptionsForTeachingEligibility()' )
+    || ! str_contains( $teaching_eligibility, "str_contains(strtolower(\$label),'intro')" )
+    || str_contains( $teaching_eligibility, "name='teacher_id' value=" )
+    || ! str_contains( $availability, 'private static function teacherSelector(' )
+    || ! str_contains( $availability, 'teacherOptionsForAvailability()' )
+    || ! str_contains( $core_read, "current_user_can('dzn_manage_teaching_eligibility')" )
+    || ! str_contains( $core_read, "current_user_can('dzn_manage_teacher_availability')" )
+    || ! str_contains( $teacher_repo, 'public function operatorOptions(): array' )
+    || ! str_contains( $course_repo, 'public function operatorOptions(): array' )
+    || str_contains( $teaching_eligibility, "self::redirect('Saved #'" )
+    || str_contains( $availability, "self::redirect( 'Saved #'" ) ) {
+    throw new RuntimeException( 'Eligibility and availability forms must use capability-gated human Teacher/Course selectors, limit Intro Course choices, and avoid exposing record IDs.' );
 }
 if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' )" )
     || ! str_contains( $theme_setup, "! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' )" ) ) {

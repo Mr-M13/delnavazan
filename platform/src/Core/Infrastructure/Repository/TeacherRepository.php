@@ -35,6 +35,22 @@ final class TeacherRepository extends BaseRepository {
         ));
     }
 
+    /** Human-labelled Teacher choices for capability-gated operations screens. */
+    public function operatorOptions(): array {
+        global $wpdb;
+        return $wpdb->get_results(
+            "SELECT id, display_name, persian_name, english_name, status FROM {$this->table} WHERE archived_at IS NULL AND status <> 'archived' ORDER BY COALESCE(NULLIF(display_name, ''), NULLIF(english_name, ''), persian_name), id"
+        ) ?: array();
+    }
+
+    /** Active Teacher choices for capability-gated operational selectors. */
+    public function operatorOptions(): array {
+        global $wpdb;
+        return $wpdb->get_results(
+            "SELECT id, display_name, persian_name, english_name, status FROM {$this->table} WHERE archived_at IS NULL AND status <> 'archived' ORDER BY COALESCE(NULLIF(display_name, ''), NULLIF(english_name, ''), persian_name), id"
+        ) ?: array();
+    }
+
     /** Serialize offboarding against Assignment creation/replacement on this Teacher. */
     public function archive(int $id, string $now, ?int $actor): void {
         global $wpdb;

@@ -24,4 +24,17 @@ final class CourseRepository extends BaseRepository {
             "SELECT c.id, c.name_fa, c.name_en, c.course_type, c.status, i.name_fa instrument_fa, i.name_en instrument_en FROM {$this->table} c LEFT JOIN {$instruments} i ON i.id = c.instrument_id WHERE c.archived_at IS NULL AND c.status <> 'archived' ORDER BY COALESCE(NULLIF(c.name_en, ''), c.name_fa), c.id"
         ) ?: array();
     }
+
+    /** Curated Course rows join the human Instrument label for catalogue operations. */
+    public function operatorRows(): array {
+        global $wpdb;
+        $instruments=$wpdb->prefix.'dzn_instruments';
+        return $wpdb->get_results("SELECT c.id,c.reference_code,c.name_fa,c.name_en,c.course_type,c.default_duration_minutes,c.default_buffer_minutes,c.status,COALESCE(NULLIF(i.name_en,''),i.name_fa) instrument FROM {$this->table} c LEFT JOIN {$instruments} i ON i.id=c.instrument_id ORDER BY c.id DESC LIMIT 100") ?: array();
+    }
+
+    public function operatorFind(int $id): ?object {
+        global $wpdb;
+        $instruments=$wpdb->prefix.'dzn_instruments';
+        return $wpdb->get_row($wpdb->prepare("SELECT c.id,c.reference_code,c.name_fa,c.name_en,c.course_type,c.default_duration_minutes,c.default_buffer_minutes,c.status,COALESCE(NULLIF(i.name_en,''),i.name_fa) instrument FROM {$this->table} c LEFT JOIN {$instruments} i ON i.id=c.instrument_id WHERE c.id=%d",$id));
+    }
 }

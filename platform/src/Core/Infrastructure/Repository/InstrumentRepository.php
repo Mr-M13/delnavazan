@@ -23,4 +23,15 @@ final class InstrumentRepository extends BaseRepository {
             "SELECT id, name_fa, name_en, status FROM {$this->table} WHERE archived_at IS NULL AND status <> 'archived' ORDER BY COALESCE(NULLIF(name_en, ''), name_fa), id"
         ) ?: array();
     }
+
+    /** Curated catalogue rows for the Courses & Terms operator screen. */
+    public function operatorRows(): array {
+        global $wpdb;
+        return $wpdb->get_results("SELECT id,reference_code,name_fa,name_en,status FROM {$this->table} ORDER BY id DESC LIMIT 100") ?: array();
+    }
+
+    public function operatorFind(int $id): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT id,reference_code,name_fa,name_en,status FROM {$this->table} WHERE id=%d",$id));
+    }
 }

@@ -79,6 +79,16 @@ final class CoreReadService {
         return (new EnrolmentRepository())->operatorOptions();
     }
 
+    public function catalogueRows(string $entity): array {
+        if (!current_user_can('dzn_manage_courses')) throw new \RuntimeException('Unauthorized');
+        return match($entity){'course'=>(new CourseRepository())->operatorRows(),'instrument'=>(new InstrumentRepository())->operatorRows(),default=>throw new \InvalidArgumentException('Unsupported catalogue screen')};
+    }
+
+    public function catalogueRecord(string $entity,int $id): ?object {
+        if (!current_user_can('dzn_manage_courses')) throw new \RuntimeException('Unauthorized');
+        return match($entity){'course'=>(new CourseRepository())->operatorFind($id),'instrument'=>(new InstrumentRepository())->operatorFind($id),default=>throw new \InvalidArgumentException('Unsupported catalogue screen')};
+    }
+
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

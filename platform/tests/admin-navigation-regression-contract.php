@@ -161,6 +161,18 @@ if ( ! str_contains( $screen, 'private static function profileFields(string $ent
     || ! str_contains( $screen, "'timezone'=>'Time zone'" ) ) {
     throw new RuntimeException( 'Student and Teacher profiles must render curated fields and human reference links instead of internal IDs.' );
 }
+if ( ! str_contains( $screen, 'private static function catalogueFields(string $entity): array' )
+    || ! str_contains( $screen, "(new CoreReadService())->catalogueRows(\$entity)" )
+    || ! str_contains( $screen, "(new CoreReadService())->catalogueRecord(\$entity,\$id)" )
+    || str_contains( $screen, "array('id','reference_code','name_en','name_fa','instrument_id'")
+    || ! str_contains( $core_read, 'public function catalogueRows(string $entity): array' )
+    || ! str_contains( $core_read, 'public function catalogueRecord(string $entity,int $id): ?object' )
+    || ! str_contains( $course_repo, 'public function operatorRows(): array' )
+    || ! str_contains( $course_repo, 'COALESCE(NULLIF(i.name_en' )
+    || ! str_contains( $instrument_repo, 'public function operatorRows(): array' )
+    || ! str_contains( $instrument_repo, 'public function operatorFind(int $id): ?object' ) ) {
+    throw new RuntimeException( 'Course and Instrument views must use curated catalogue projections with human Instrument labels.' );
+}
 if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function courseSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function instrumentSelector(' )

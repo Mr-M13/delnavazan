@@ -109,7 +109,7 @@ foreach ( array(
         str_contains( $controller, "current_user_can( self::ACTIONS['$action'] )" ) &&
         str_contains( $controller, "'" . $action . "' => self::" . $method . "(" ) &&
         substr_count( $controller, $wrapper ) >= 2 && str_contains( $controller, $authority ) &&
-        str_contains( $controller, "self::requireCapability( self::ACTIONS['$action'] );" ),
+        str_contains( $controller, "self::requireCapability( self::ACTIONS['" . $action . "'] );" ),
         "The $action lifecycle command must remain on the canonical Term authority and its narrow capability."
     );
 }

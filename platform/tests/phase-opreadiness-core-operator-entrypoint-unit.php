@@ -140,7 +140,7 @@ namespace {
 
     // The entrypoint itself registers for each exact command capability on its own, because WordPress
     // only registers the submenu page and its load-$hook handler for a capability the actor holds.
-    $entrypoint_page = array( 'dzn-platform', null, 'dzn-core-dataset-readiness' );
+    $entrypoint_page = array( 'dzn-settings-menu', null, 'dzn-core-dataset-readiness' );
     foreach ( array( 'dzn_convert_service_arrangements_to_enrolments', 'dzn_manage_teacher_assignments', 'dzn_manage_canonical_lessons' ) as $command_capability ) {
         $GLOBALS['dzn_core_operator_caps'] = array( $command_capability );
         $GLOBALS['dzn_core_operator_page_registrations'] = array();

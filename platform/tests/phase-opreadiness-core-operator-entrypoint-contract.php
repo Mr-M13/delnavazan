@@ -23,8 +23,8 @@ dzn_core_operator_entrypoint_assert(
     'The plugin must register the Core readiness controller.'
 );
 dzn_core_operator_entrypoint_assert(
-    str_contains( $controller, "add_submenu_page(\n            'dzn-platform'") && str_contains( $controller, "self::MENU_SLUG" ),
-    'The operator entrypoint must be the Core readiness submenu under the authenticated Platform admin menu.'
+    str_contains( $controller, "add_submenu_page(\n            'dzn-settings-menu'") && str_contains( $controller, "self::MENU_SLUG" ),
+    'The operator entrypoint must be the Core readiness submenu under the authenticated Settings menu.'
 );
 dzn_core_operator_entrypoint_assert(
     str_contains( $controller, "if ( \$hook ) add_action( 'load-' . \$hook, array( __CLASS__, 'handlePost' ) );" ),

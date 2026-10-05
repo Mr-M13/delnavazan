@@ -105,8 +105,8 @@ if ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()' )
 }
 if ( ! str_contains( $operations, "'Current term<br>'" )
     || ! str_contains( $operations, "'In progress'" )
-    || str_contains( $operations, "'#'.(int)$r->request_id" )
-    || str_contains( $operations, "'#'.(int)$r->case_id" )
+    || str_contains( $operations, "'#'.(int)\$r->request_id" )
+    || str_contains( $operations, "'#'.(int)\$r->case_id" )
     || str_contains( $operations, "(string)\$r->request_state" )
     || str_contains( $operations, "(string)\$r->term_state" ) ) {
     throw new RuntimeException( 'Academy dashboard must present human workflow stages instead of raw IDs or internal lifecycle codes.' );
@@ -163,7 +163,7 @@ if ( ! str_contains( $screen, 'private static function lessonSelector(' )
 if ( ! str_contains( $screen, 'private static function profileFields(string $entity): array' )
     || ! str_contains( $screen, "self::objectTable(\$records, 'dzn-' . \$entity, self::profileFields(\$entity))" )
     || ! str_contains( $screen, "self::objectTable([\$record], null, \$profile?self::profileFields(\$entity):null)" )
-    || ! str_contains( $screen, "\$field === 'reference_code' && \$humanProfile && \$page !== null" )
+    || ! str_contains( $screen, "\$field === 'reference_code' && \$humanReference && \$page !== null" )
     || ! str_contains( $screen, "\$field!=='id'" )
     || ! str_contains( $screen, "'timezone'=>'Time zone'" ) ) {
     throw new RuntimeException( 'Student and Teacher profiles must render curated fields and human reference links instead of internal IDs.' );

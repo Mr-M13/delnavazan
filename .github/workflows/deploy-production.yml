@@ -1,0 +1,123 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        type: choice
+        options: [production]
+        required: true
+      commit_sha:
+        description: Exact full SHA of the current origin/main commit
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  source-gate:
+    name: Current-main source gate
+    uses: ./.github/workflows/pr-runtime-gate.yml
+
+  deploy:
+    name: Deploy and verify production
+    runs-on: ubuntu-24.04
+    environment: production
+    needs: source-gate
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from the main branch only.' >&2; exit 1; }
+
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate requested exact main SHA
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          git fetch --no-tags origin main
+          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+          test -f platform/tests/phase-student-portal-state-contract.php
+          test -f platform/tests/admin-navigation-regression-contract.php
+          bash -n deployment/production-deploy.sh
+          bash -n deployment/qa/production-smoke.sh
+          bash -n deployment/qa/production-deployment-contract.sh
+          bash deployment/qa/production-deployment-contract.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected production environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Deploy exact current-main SHA
+        id: deploy
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          PRODUCTION_BACKUP_DIR: ${{ secrets.PRODUCTION_BACKUP_DIR }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" && -n "$PRODUCTION_BACKUP_DIR" ]] || { echo 'Production SSH user/backup path are not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          deployment/production-deploy.sh "$TARGET" "$COMMIT_SHA" | tee "$RUNNER_TEMP/production-deployment.json"
+          cp "$RUNNER_TEMP/production-deployment.json" "$GITHUB_WORKSPACE/production-deployment.json"
+
+      - name: Run read-only production smoke checks
+        id: smoke
+        run: bash deployment/qa/production-smoke.sh https://delnavazan.com
+
+      - name: Keep production in maintenance after failed smoke
+        if: failure() && steps.smoke.outcome == 'failure'
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          ssh -T "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" 'wp --path="$HOME/domains/delnavazan.com/public_html" maintenance-mode activate'
+          printf '%s\n' '{"status":"smoke_failed","maintenance_mode":"enabled"}' > "$GITHUB_WORKSPACE/production-verification.json"
+
+      - name: Preserve machine-readable deployment record
+        if: always() && hashFiles('production-deployment.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-${{ inputs.commit_sha }}
+          path: |
+            ${{ runner.temp }}/production-deployment.json
+            production-verification.json
+          if-no-files-found: warn

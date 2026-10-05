@@ -25,13 +25,12 @@
 
 ## Current admin route and capability inventory
 
-The canonical sidebar is registered in `platform/src/Admin/Controller/Menu.php`; shared landing visibility and capability filtering live in `AdminNavigationController.php`. Each operational submenu supplies its own capability. These seven roots and registered pages are source-confirmed:
+The canonical sidebar is registered in `platform/src/Admin/Controller/Menu.php`; shared landing visibility and capability filtering live in `AdminNavigationController.php`. Each operational submenu supplies its own capability. These eight roots and registered pages are source-confirmed:
 
 | Current route/page | Workflow job | Capability / classification |
 | --- | --- | --- |
 | `dzn-platform` | Academy navigation landing | Root uses `read`; child pages are individually gated |
-| `dzn-academy-dashboard`, `dzn-booking-requests`, `dzn-booking-request-coordination` | Academy pipeline dashboard, booking intake and coordination | `dzn_view_booking_requests`, `dzn_view_booking_requests`, `dzn_manage_booking_request_coordination` |
-| `dzn-booking-requests`, `dzn-booking-request-coordination` | Triage and coordinate requests | `dzn_view_booking_requests`, `dzn_manage_booking_request_coordination` |
+| `dzn-academy-dashboard`, `dzn-booking-requests`, `dzn-booking-request-coordination` | Dashboard, booking intake, triage and coordination | `dzn_view_booking_requests`, `dzn_view_booking_requests`, `dzn_manage_booking_request_coordination` |
 | `dzn-student`, `dzn-student-identity-authority` | Maintain student record; resolve account/booking claim | `dzn_manage_students`, `dzn_view_student_acceptance_eligibility` |
 | `dzn-teacher`, `dzn-onboarding`, `dzn-teaching-eligibility`, `dzn-teacher-availability`, `dzn-academy-coverage` | Teacher record, invitation/onboarding, eligibility, availability and regional teaching coverage | `dzn_manage_teachers`, `dzn_manage_onboarding`, `dzn_manage_teaching_eligibility`, `dzn_manage_teacher_availability`, `dzn_view_booking_requests` |
 | `dzn-enrolment` | Review existing enrolments and continue a student's learning journey | `dzn_manage_enrolments`; grouped under Students |
@@ -62,7 +61,7 @@ Concrete source findings: `ScreenController` generic creation still asks for `en
 
 ## Defects by layer
 
-- **Navigation/presentation:** ambiguous `Bookings` root was actually the academy-wide pipeline; `Courses` held courses, terms, enrolments, instruments and lessons; `Notifications` is the operator's communications surface; a second Academy Operations link lived under Settings. Generic list/detail rendering leaks internal property names and raw IDs. These do not require replacing the canonical domain authorities.
+- **Navigation/presentation:** ambiguous `Bookings` root was actually the academy-wide pipeline; `Courses` held courses, terms, instruments and lessons while Enrolments appeared away from Students; `Notifications` is the operator's communications surface; a second Academy Operations link lived under Settings. Generic list/detail rendering leaks internal property names and raw IDs. These do not require replacing the canonical domain authorities.
 - **Read-model/application seam:** the Academy dashboard performs a large direct SQL join and embeds workflow state mapping. It should become a purpose-built canonical read projection with human labels, explicit lifecycle labels, no raw IDs, and clear next actions before broad screen redesign. Do not replace booking, identity, term, scheduling, finance, portal or notification write authorities.
 - **Domain authority:** source shows distinct canonical services already own identity claim (#221), integration/notification control plane (#220), terms, lesson schedules, finance/payment, teacher onboarding and portals. No evidence in this bounded route audit warrants a new CRUD/domain layer.
 

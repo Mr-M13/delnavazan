@@ -26,7 +26,7 @@ final class LessonOperationsReadService {
                 $row->class_status=match((string)$canonical->lifecycle_state){'authorised'=>'Ready to schedule','completed'=>'Completed','cancelled'=>'Cancelled',default=>'Review class status'};
                 if(!current_user_can('dzn_manage_canonical_lesson_schedules')){$row->schedule_label='Scheduling access required';$row->next_action='Open class';continue;}
                 $schedule=(new CanonicalLessonScheduleReadService())->forLesson((int)$row->id);
-                if($schedule['active_version']){$active=$schedule['active_version'];$row->schedule_label=(string)$active->local_wall_date.' · '.substr((string)$active->local_wall_time,0,5).' '.(string)$active->schedule_timezone;}
+                if($schedule['active_version']){$active=$schedule['active_version'];$row->schedule_label=(string)$active->local_wall_date.' · '.substr((string)$active->local_wall_time,0,5).' '.(string)$active->schedule_timezone;if($canonical->lifecycle_state==='authorised')$row->class_status='Scheduled';}
                 $row->next_action=$schedule['active_version']?'Review class':'Schedule class';
             }catch(\InvalidArgumentException){$row->class_status='Integrity review needed';$row->schedule_label='Schedule unavailable';$row->next_action='Review class';}
         }
@@ -54,7 +54,7 @@ final class LessonOperationsReadService {
         $lesson->schedule_label='Scheduling access required';
         if(current_user_can('dzn_manage_canonical_lesson_schedules')){
             try{$schedule=(new CanonicalLessonScheduleReadService())->forLesson($lessonId);$lesson->schedule_label='Not scheduled';
-                if($schedule['active_version']){$active=$schedule['active_version'];$lesson->schedule_label=(string)$active->local_wall_date.' · '.substr((string)$active->local_wall_time,0,5).' '.(string)$active->schedule_timezone;}
+                if($schedule['active_version']){$active=$schedule['active_version'];$lesson->schedule_label=(string)$active->local_wall_date.' · '.substr((string)$active->local_wall_time,0,5).' '.(string)$active->schedule_timezone;if($lesson->lifecycle_state==='authorised')$lesson->class_status='Scheduled';}
             }catch(\InvalidArgumentException){$lesson->class_status='Integrity review needed';$lesson->schedule_label='Schedule unavailable';}
         }
         return $lesson;

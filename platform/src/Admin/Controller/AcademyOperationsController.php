@@ -8,7 +8,7 @@ namespace Delnavazan\Platform\Admin\Controller;
 final class AcademyOperationsController {
     private const CAP='dzn_view_booking_requests';
     public static function register():void{add_action('admin_menu',[self::class,'menu']);}
-    public static function menu():void{add_submenu_page('dzn-platform','Academy Operations','Academy Operations',self::CAP,'dzn-academy-operations',[self::class,'screen']);}
+    public static function menu():void{add_submenu_page('dzn-settings-menu','Academy Operations','Operations',self::CAP,'dzn-academy-operations',[self::class,'screen']);}
     public static function screen():void{
         if(!current_user_can(self::CAP))wp_die('Forbidden',403);
         global $wpdb;$p=$wpdb->prefix.'dzn_';
@@ -33,13 +33,14 @@ final class AcademyOperationsController {
         return '<strong>'.esc_html($label).'</strong><br>'.$action;
     }
     private static function next(object $r):string{
-        if(!$r->case_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Open coordination');
+        if(!$r->case_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Open coordination',['booking_request_id'=>(int)$r->request_id]);
+        if($r->case_id&&!$r->student_id&&current_user_can('dzn_resolve_booking_request_student_identity')&&current_user_can('dzn_view_student_acceptance_eligibility'))return self::link('dzn-student-identity-authority','Review student identity',['booking_request_id'=>(int)$r->request_id]);
         if($r->case_id&&!$r->arrangement_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Continue coordination',['case_id'=>(int)$r->case_id]);
-        if($r->arrangement_id&&!$r->enrolment_id)return current_user_can('dzn_convert_service_arrangements_to_enrolments')?self::link('dzn-core-dataset-readiness','Convert accepted arrangement'):'Await authorised enrolment conversion';
-        if($r->enrolment_id&&!$r->assignment_id)return current_user_can('dzn_manage_teacher_assignments')?self::link('dzn-core-dataset-readiness','Assign teacher'):'Await authorised teacher assignment';
-        if($r->assignment_id&&!$r->term_id)return current_user_can('dzn_manage_canonical_terms')?self::link('dzn-core-dataset-readiness','Create canonical Term'):'Await authorised Term creation';
-        if($r->term_id&&(int)$r->lesson_count===0)return current_user_can('dzn_manage_canonical_lessons')?self::link('dzn-core-dataset-readiness','Issue first Lesson'):'Await authorised Lesson issuance';
-        return current_user_can('dzn_manage_canonical_lessons')?self::link('dzn-core-dataset-readiness','Manage canonical lessons'):'Read-only';
+        if($r->arrangement_id&&!$r->enrolment_id)return current_user_can('dzn_convert_service_arrangements_to_enrolments')?self::link('dzn-core-dataset-readiness','Convert accepted arrangement',['accepted_service_arrangement_id'=>(int)$r->arrangement_id]):'Await authorised enrolment conversion';
+        if($r->enrolment_id&&!$r->assignment_id)return current_user_can('dzn_manage_teacher_assignments')?self::link('dzn-core-dataset-readiness','Assign teacher',['enrolment_id'=>(int)$r->enrolment_id]):'Await authorised teacher assignment';
+        if($r->assignment_id&&!$r->term_id)return current_user_can('dzn_manage_canonical_terms')?self::link('dzn-core-dataset-readiness','Create canonical Term',['enrolment_id'=>(int)$r->enrolment_id]):'Await authorised Term creation';
+        if($r->term_id&&(int)$r->lesson_count===0)return current_user_can('dzn_manage_canonical_lessons')?self::link('dzn-core-dataset-readiness','Issue first Lesson',['term_id'=>(int)$r->term_id,'teacher_assignment_id'=>(int)$r->assignment_id]):'Await authorised Lesson issuance';
+        return current_user_can('dzn_manage_canonical_lessons')?self::link('dzn-core-dataset-readiness','Manage canonical lessons',['term_id'=>(int)$r->term_id,'teacher_assignment_id'=>(int)$r->assignment_id]):'Read-only';
     }
     private static function link(string $page,string $label,array $args=[]):string{$url=add_query_arg(['page'=>$page]+$args,admin_url('admin.php'));return '<a class="button" href="'.esc_url($url).'">'.esc_html($label).'</a>';}
 }

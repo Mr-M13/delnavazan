@@ -45,8 +45,8 @@ final class CoreDatasetReadinessController {
         $capability = self::entrypointCapability();
         if ( $capability === null ) return;
         $hook = add_submenu_page(
-            'dzn-platform',
-            'Core dataset readiness',
+            'dzn-settings-menu',
+            'Core dataset',
             'Core dataset readiness',
             $capability,
             self::MENU_SLUG,
@@ -392,10 +392,18 @@ final class CoreDatasetReadinessController {
         wp_nonce_field( 'dzn_core_dataset_' . $action );
         echo '<input type="hidden" name="dzn_action" value="' . esc_attr( $action ) . '">';
         foreach ( $fields as [ $name, $label ] ) {
-            echo '<p><label>' . esc_html( $label ) . '<br><input class="regular-text" name="' . esc_attr( $name ) . '" required></label></p>';
+            $value = self::contextId( $name );
+            echo '<p><label>' . esc_html( $label ) . '<br><input class="regular-text" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '" inputmode="numeric" required></label></p>';
         }
         submit_button( 'Execute authorised command' );
         echo '</form>';
+    }
+
+    /** Prefill only stable record IDs from a workflow deep-link; each command still revalidates authority. */
+    private static function contextId( string $name ): string {
+        $value = wp_unslash( $_GET[ $name ] ?? '' );
+        if ( ! is_scalar( $value ) || ! preg_match( '/^[1-9][0-9]*$/D', (string) $value ) ) return '';
+        return (string) absint( $value );
     }
 
     private static function messages(): void {

@@ -2,9 +2,39 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\IntegrationControlPlaneReadService;
+use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestModeReadinessService;
 
 /** Central, capability-gated operator view; provider credentials are never accepted or rendered here. */
 final class IntegrationControlPlaneController {
+    public static function googleSettings():void{self::providerSettings('google');}
+    public static function whatsAppSettings():void{self::providerSettings('whatsapp');}
+    public static function smsSettings():void{self::providerSettings('sms');}
+
+    /** Stripe configuration/readiness belongs in Settings; Finance keeps payment operations. */
+    public static function stripeSettings():void{
+        if(!current_user_can(PaymentExecutionController::CAPABILITY))wp_die('Forbidden',403);
+        $readiness=(new StripeTestModeReadinessService())->read();
+        echo '<div class="wrap"><h1>Stripe setup</h1><p>Secret-free test-mode readiness. This screen never displays credentials and does not enable production payments.</p>';
+        echo '<p><strong>'.esc_html($readiness['ready']?'Ready for an explicitly authorised test-mode check':'Setup is incomplete').'</strong></p><table class="widefat striped"><thead><tr><th>Check</th><th>State</th><th>Detail</th></tr></thead><tbody>';
+        foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
+        echo '</tbody></table><p>Payment execution and reconciliation are under Finance. Production activation remains disabled.</p></div>';
+    }
+
+    private static function providerSettings(string $provider):void{
+        if(!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
+        $r=(new IntegrationControlPlaneReadService())->report();
+        if($provider==='google'){
+            echo '<div class="wrap"><h1>Google Console</h1><p>Google OAuth and Calendar connection readiness. Client values are never displayed.</p><table class="widefat striped"><tbody>';
+            self::row('OAuth client configuration',$r['google_calendar']['oauth_client']);
+            self::row('Configuration source',$r['google_calendar']['configuration_source']);
+            self::row('Connection test',$r['google_calendar']['test_connection']);
+            echo '</tbody></table></div>';return;
+        }
+        $state=$r['notifications']['channels'][$provider]??'not_configured';
+        $label=$provider==='whatsapp'?'WhatsApp':'SMS';
+        echo '<div class="wrap"><h1>'.esc_html($label).' setup</h1><p>Channel status: <strong>'.esc_html((string)$state).'</strong></p><p>A provider and deployment credentials must be selected before this channel can send. This screen does not send test messages or expose secrets.</p></div>';
+    }
+
     public static function screen():void{
         if(!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
         $r=(new IntegrationControlPlaneReadService())->report();

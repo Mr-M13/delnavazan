@@ -27,11 +27,12 @@ final class OnboardingController {
     public static function screen(): void {
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) { echo '<div class="wrap"><p>Access denied.</p></div>'; return; }
         echo '<div class="wrap"><h1>Teacher onboarding</h1><p>Issuing creates a delivery intent; it does not mean an email was sent or received. No outbound email transport is currently configured. If one is configured in future, the delivery worker sends the one-time code to the frozen recipient email; this screen cannot confirm recipient delivery. Raw invitation secrets are never rendered, retained, logged, or placed in URLs, so this screen cannot provide a manual invitation code. The claim page is <code>' . esc_html( home_url( '/teacher-invitation/' ) ) . '</code>.</p>';
+        $contextTeacherId = self::contextId();
         if ( isset( $_GET['dzn_notice'] ) ) echo '<div class="notice ' . ( ( $_GET['dzn_error'] ?? '' ) === '1' ? 'notice-error' : 'notice-success' ) . '"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ) . '</p></div>';
         if ( current_user_can( 'dzn_issue_teacher_invitations' ) ) {
             echo '<h2>Issue invitation</h2><form method="post">'; wp_nonce_field( 'dzn_platform_issue_teacher_invitation' );
             echo '<input type="hidden" name="dzn_action" value="issue_teacher_invitation"><input type="hidden" name="command_key" value="' . esc_attr( wp_generate_uuid4() ) . '"><p><label>Teacher <select required name="teacher_id"><option value="">Select teacher</option>';
-            foreach ( ( new PrincipalInvitationReadService() )->rows() as $teacherRow ) echo '<option value="' . esc_attr( (string) $teacherRow->teacher_id ) . '">' . esc_html( $teacherRow->display_name . ' (#' . $teacherRow->teacher_id . ')' ) . '</option>';
+            foreach ( ( new PrincipalInvitationReadService() )->rows() as $teacherRow ) echo '<option value="' . esc_attr( (string) $teacherRow->teacher_id ) . '" ' . selected( $contextTeacherId, (string) $teacherRow->teacher_id, false ) . '>' . esc_html( $teacherRow->display_name . ' (#' . $teacherRow->teacher_id . ')' ) . '</option>';
             echo '</select></label></p><p><label>Recipient email <input required type="email" name="recipient"></label></p>';
             submit_button( 'Queue invitation / create replacement' ); echo '</form>';
         }
@@ -69,4 +70,6 @@ final class OnboardingController {
         nocache_headers(); if ( wp_safe_redirect( $url ) ) exit;
         wp_die( esc_html( $notice ), 'Delnavazan', array( 'response' => $error ? 500 : 200 ) );
     }
+
+    private static function contextId(): string { $value=wp_unslash($_GET['teacher_id']??''); return is_scalar($value)&&preg_match('/^[1-9][0-9]*$/D',(string)$value)?(string)absint($value):''; }
 }

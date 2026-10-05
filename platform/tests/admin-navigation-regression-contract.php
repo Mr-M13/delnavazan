@@ -1,91 +1,61 @@
 <?php
-// Source-level guard for the administrator navigation regression in issue #136.
+// Source-level guard for the grouped, journey-oriented administrator navigation.
 $root = dirname( __DIR__ );
 $controllers = $root . '/src/Admin/Controller';
-$workspace = file_get_contents( $controllers . '/AdminWorkspaceController.php' );
-$dashboard = file_get_contents( $controllers . '/AdminDashboardController.php' );
 $menu = file_get_contents( $controllers . '/Menu.php' );
-$finance = file_get_contents( $controllers . '/FinanceStatementController.php' );
+$navigation = file_get_contents( $controllers . '/AdminNavigationController.php' );
+$operations = file_get_contents( $controllers . '/AcademyOperationsController.php' );
+$dataset = file_get_contents( $controllers . '/CoreDatasetReadinessController.php' );
+$identity = file_get_contents( $controllers . '/StudentIdentityAuthorityController.php' );
+$payment = file_get_contents( $controllers . '/PaymentExecutionController.php' );
+$integrations = file_get_contents( $controllers . '/IntegrationControlPlaneController.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
-if ( false === $workspace || false === $dashboard || false === $menu || false === $finance || false === $theme_setup ) {
-    throw new RuntimeException( 'Unable to read admin navigation sources' );
+foreach ( array( $menu, $navigation, $operations, $dataset, $identity, $payment, $integrations, $theme_setup ) as $source ) {
+    if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
-if ( ! str_contains( $workspace, 'if(!self::hasAccess())' )
-    || ! str_contains( $workspace, "remove_menu_page('dzn-platform')" )
-    || ! str_contains( $workspace, "unset(\$submenu['dzn-platform'])" ) ) {
-    throw new RuntimeException( 'Workspace root must be hidden when its access check fails' );
+foreach ( array(
+    "['Bookings', 'dzn-platform'",
+    "['Students', 'dzn-students-menu'",
+    "['Teachers', 'dzn-teachers-menu'",
+    "['Courses', 'dzn-courses-menu'",
+    "['Finance', 'dzn-finance-menu'",
+    "['Notifications', 'dzn-notifications-menu'",
+    "['Settings', 'dzn-settings-menu'",
+) as $group ) {
+    if ( ! str_contains( $menu, $group ) ) throw new RuntimeException( 'Missing requested WordPress sidebar group: ' . $group );
 }
-if ( str_contains( $workspace, '$keep=' ) || str_contains( $workspace, 'array_filter($submenu[' ) ) {
-    throw new RuntimeException( 'Workspace must leave submenu visibility to each registered capability' );
+if ( ! str_contains( $menu, 'add_menu_page($label, $label, \'read\', $slug' )
+    || ! str_contains( $menu, 'add_submenu_page($parent, $label, $label, $capability, $slug, $callback)' )
+    || ! str_contains( $menu, "['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'" ) ) {
+    throw new RuntimeException( 'Grouped menu registration or Settings-only Stripe setup is missing' );
 }
-if ( ! str_contains( $workspace, 'current_user_can($x[2])' ) || ! str_contains( $workspace, 'current_user_can(\'manage_options\')' ) ) {
-    throw new RuntimeException( 'Workspace must retain capability-based link visibility and administrator access' );
+if ( str_contains( $menu, "['dzn-finance-menu', 'Stripe'") || str_contains( $menu, "['dzn-finance-menu', 'Stripe setup'") ) {
+    throw new RuntimeException( 'Stripe setup must not appear as a Finance menu item' );
 }
-if ( ! str_contains( $workspace, "if(!self::hasAccess())wp_die('Forbidden',403)" ) ) {
-    throw new RuntimeException( 'Workspace screen capability gate must remain in place' );
+if ( ! str_contains( $navigation, 'current_user_can((string) $capability)' )
+    || ! str_contains( $navigation, 'remove_menu_page($parent)' )
+    || ! str_contains( $navigation, "'dzn-platform' => 'Bookings'" ) ) {
+    throw new RuntimeException( 'Landing pages must retain child capability visibility and match their group' );
+}
+if ( ! str_contains( $operations, '\'booking_request_id\'=>(int)$r->request_id' )
+    || ! str_contains( $operations, '\'accepted_service_arrangement_id\'=>(int)$r->arrangement_id' )
+    || ! str_contains( $operations, '\'teacher_assignment_id\'=>(int)$r->assignment_id' ) ) {
+    throw new RuntimeException( 'Journey links must carry authoritative record context to the next step' );
+}
+if ( ! str_contains( $dataset, 'private static function contextId( string $name )' )
+    || ! str_contains( $dataset, 'preg_match( \'/^[1-9][0-9]*$/D\'' )
+    || ! str_contains( $identity, 'name===\'booking_request_id\'?$requestId:\'\'' )
+    || ! str_contains( $identity, 'Human-reviewed internal records only' ) ) {
+    throw new RuntimeException( 'Workflow prefill must be ID-only and preserve human-reviewed identity resolution' );
+}
+if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
+    || ! str_contains( $payment, 'Provider setup and readiness are under Settings.' ) ) {
+    throw new RuntimeException( 'Stripe setup must live in Settings while payment operations stay in Finance' );
 }
 if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' )" )
     || ! str_contains( $theme_setup, "! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' )" ) ) {
     throw new RuntimeException( 'Public toolbar must be hidden for signed-in non-administrators only' );
-}
-
-if ( str_contains( $dashboard, 'dzn-workspace' ) || ! str_contains( $dashboard, 'admin.php?page=dzn-platform' ) ) {
-    throw new RuntimeException( 'Dashboard workspace link must use the registered dzn-platform slug' );
-}
-
-$registration_corpus = '';
-foreach ( glob( $controllers . '/*.php' ) as $file ) {
-    $source = file_get_contents( $file );
-    if ( false !== $source && str_contains( $source, 'add_submenu_page(' ) ) {
-        $registration_corpus .= $source;
-    }
-}
-if ( ! str_contains( $menu, "add_menu_page('Delnavazan', 'Delnavazan', 'read', 'dzn-platform'")
-    || ! str_contains( $menu, "add_submenu_page('dzn-platform', 'Workspace', 'Workspace', 'read', 'dzn-platform'") ) {
-    throw new RuntimeException( 'dzn-platform menu and workspace registration must remain consistent' );
-}
-
-// Each dashboard link must have a concrete add_submenu_page registration. The
-// exception screen is generated by Menu's screen map; the remaining registrations
-// are either literal slugs or a controller MENU_SLUG constant plus its registration.
-$dashboard_registrations = [
-    'dzn-exception' => [
-        "add_submenu_page('dzn-platform', \$label, \$label, \$capability, 'dzn-' . \$screen",
-        "'Exceptions' => ['exception', 'dzn_manage_exceptions']",
-    ],
-    'dzn-onboarding' => [
-        "add_submenu_page('dzn-platform', 'Teacher onboarding', 'Teacher onboarding', 'dzn_manage_onboarding', 'dzn-onboarding'",
-    ],
-    'dzn-academy-operations' => [
-        "add_submenu_page('dzn-platform','Academy Operations','Academy Operations',self::CAP,'dzn-academy-operations'",
-    ],
-    'dzn-academy-coverage' => [
-        "add_submenu_page('dzn-platform','Academy Coverage','Academy Coverage',self::CAP,'dzn-academy-coverage'",
-    ],
-    'dzn-commercial-catalogue' => [
-        "add_submenu_page('dzn-platform','Commercial catalogue','Commercial catalogue',self::CAP,'dzn-commercial-catalogue'",
-    ],
-];
-foreach ( $dashboard_registrations as $slug => $registration_fragments ) {
-    $registered = true;
-    foreach ( $registration_fragments as $fragment ) {
-        if ( ! str_contains( $registration_corpus, $fragment ) ) {
-            $registered = false;
-            break;
-        }
-    }
-    if ( ! str_contains( $dashboard, "'{$slug}'" ) || ! $registered ) {
-        throw new RuntimeException( "Dashboard destination is not registered: {$slug}" );
-    }
-}
-if ( ! str_contains( $dashboard, "'dzn-finance-statements'" )
-    || ! str_contains( $finance, "public const MENU_SLUG='dzn-finance-statements';" )
-    || ! str_contains( $finance, "add_submenu_page(self::PARENT_SLUG,'Compensation statements','Compensation statements',self::CAPABILITY,self::MENU_SLUG," ) ) {
-    throw new RuntimeException( 'Finance dashboard destination must use its registered MENU_SLUG argument' );
-}
-if ( ! str_contains( $menu, "'dzn-' . \$screen" ) ) {
-    throw new RuntimeException( 'Core workspace screen slugs must remain registered by Menu' );
 }
 
 echo "Admin navigation regression source contract passed\n";

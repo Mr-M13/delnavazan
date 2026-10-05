@@ -17,6 +17,13 @@ final class LessonRepository extends BaseRepository {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table} WHERE id=%d AND record_model='legacy_phase1' AND archived_at IS NULL AND status <> 'archived'", $id));
     }
+
+    /** Human-labelled legacy Lesson choices for replacement administration. */
+    public function operatorOptions(): array {
+        global $wpdb;
+        $students=$wpdb->prefix.'dzn_students';$teachers=$wpdb->prefix.'dzn_teachers';$courses=$wpdb->prefix.'dzn_courses';
+        return $wpdb->get_results("SELECT l.id,l.lesson_type,l.status,COALESCE(NULLIF(s.display_name,''),NULLIF(s.first_name,''),s.last_name) student,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher,COALESCE(NULLIF(c.name_en,''),c.name_fa) course FROM {$this->table} l LEFT JOIN {$students} s ON s.id=l.student_id LEFT JOIN {$teachers} t ON t.id=l.teacher_id LEFT JOIN {$courses} c ON c.id=l.course_id WHERE l.record_model='legacy_phase1' AND l.archived_at IS NULL AND l.status <> 'archived' ORDER BY l.id DESC LIMIT 100") ?: array();
+    }
     public function find(int $id): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table} WHERE id=%d AND record_model='legacy_phase1'", $id));

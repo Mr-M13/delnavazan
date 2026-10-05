@@ -21,9 +21,13 @@ $instrument_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infras
 $teacher_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherRepository.php' );
 $course_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/CourseRepository.php' );
 $eligibility_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeachingEligibilityRepository.php' );
+$student_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/StudentRepository.php' );
+$enrolment_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/EnrolmentRepository.php' );
+$term_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TermRepository.php' );
+$lesson_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/LessonRepository.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
@@ -113,6 +117,29 @@ if ( ! str_contains( $screen, 'private static function instrumentSelector(): voi
     || ! str_contains( $instrument_repo, 'public function optionsForCourse(): array' )
     || ! str_contains( $instrument_repo, "status <> 'archived'" ) ) {
     throw new RuntimeException( 'Course setup must use a capability-gated human instrument choice instead of an Instrument ID text field.' );
+}
+if ( ! str_contains( $screen, 'private static function lessonSelector(' )
+    || ! str_contains( $screen, "self::legacyEnrolmentSelector('Enrolment', true)" )
+    || ! str_contains( $screen, "self::lessonSelector('student','Student',true)" )
+    || ! str_contains( $screen, "self::lessonSelector('teacher','Teacher',true)" )
+    || ! str_contains( $screen, "self::lessonSelector('course','Course',true)" )
+    || ! str_contains( $screen, "self::lessonSelector('term','Term (requires Enrolment)',false)" )
+    || ! str_contains( $screen, "self::lessonSelector('lesson','Original Lesson (replacement only)',false)" )
+    || str_contains( $screen, "self::input('student_id', 'Student ID'")
+    || str_contains( $screen, "self::input('teacher_id', 'Teacher ID'")
+    || str_contains( $screen, "self::input('course_id', 'Course ID'")
+    || str_contains( $screen, "self::input('term_id', 'Term ID'")
+    || ! str_contains( $core_read, "'lesson' => (new LessonRepository())->operatorOptions()" )
+    || ! str_contains( $core_read, "current_user_can('dzn_manage_lessons')" )
+    || ! str_contains( $enrolment_repo, "e.record_model='legacy_phase1'")
+    || ! str_contains( $term_repo, "t.record_model='legacy_phase1'")
+    || ! str_contains( $lesson_repo, "l.record_model='legacy_phase1'")
+    || 1 !== substr_count( $student_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $enrolment_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $term_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $lesson_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $core_read, 'public function lessonOperatorOptions(string $entity): array' ) ) {
+    throw new RuntimeException( 'Legacy Term and Lesson forms must use capability-gated human choices and keep selectors within legacy write authority.' );
 }
 if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function courseSelector(' )

@@ -61,6 +61,24 @@ final class CoreReadService {
         return (new TeacherRepository())->operatorOptions();
     }
 
+    public function lessonOperatorOptions(string $entity): array {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        return match($entity) {
+            'student' => (new StudentRepository())->operatorOptions(),
+            'teacher' => (new TeacherRepository())->operatorOptions(),
+            'course' => (new CourseRepository())->operatorOptions(),
+            'enrolment' => (new EnrolmentRepository())->operatorOptions(),
+            'term' => (new TermRepository())->operatorOptions(),
+            'lesson' => (new LessonRepository())->operatorOptions(),
+            default => throw new \InvalidArgumentException('Unsupported lesson selector'),
+        };
+    }
+
+    public function legacyEnrolmentOptionsForTerm(): array {
+        if (!current_user_can('dzn_manage_terms')) throw new \RuntimeException('Unauthorized');
+        return (new EnrolmentRepository())->operatorOptions();
+    }
+
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

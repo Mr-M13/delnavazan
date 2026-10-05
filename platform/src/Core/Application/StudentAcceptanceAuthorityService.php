@@ -3,16 +3,19 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\StudentIdentityAuthorityRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\StudentAccountClaimInvitationRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Writes only reviewed capacity and authority facts; it never accepts a service arrangement. */
 final class StudentAcceptanceAuthorityService {
     public function __construct(
         private ?BookingRequestRepository $transactions = null,
-        private ?StudentIdentityAuthorityRepository $records = null
+        private ?StudentIdentityAuthorityRepository $records = null,
+        private ?StudentAccountClaimInvitationRepository $claimInvitations = null
     ) {
         $this->transactions ??= new BookingRequestRepository();
         $this->records ??= new StudentIdentityAuthorityRepository();
+        $this->claimInvitations ??= new StudentAccountClaimInvitationRepository();
     }
 
     public function classify(
@@ -79,6 +82,23 @@ final class StudentAcceptanceAuthorityService {
             return $this->records->insertPrincipal(
                 $this->principalData($studentId, $userId, $basis, $channel, $evidenceAt, $actor, $now)
             );
+        });
+    }
+
+    /** Atomically turns a validated account-claim token into the existing canonical principal authority. */
+    public function establishPrincipalFromAccountClaim(string $secret,int $userId):int{
+        if($userId<1||get_current_user_id()!==$userId||!is_user_logged_in())throw new \InvalidArgumentException('Authenticated principal ownership required');
+        if(!preg_match('/^[a-f0-9]{64}$/D',$secret))throw new \InvalidArgumentException('Invalid account claim token');
+        $digest=hash_hmac('sha256',$secret,wp_salt('auth'));
+        return $this->transaction(function()use($digest,$userId):int{
+            $now=current_time('mysql',true);$context=$this->claimInvitations->claimContextForTokenForUpdate($digest);
+            if(!$context||$context->invitation_state!=='active'||$context->state!=='active'||(int)$context->active_slot!==1||(int)$context->current_generation!==(int)$context->generation_number||$context->expires_at<=$now)throw new \InvalidArgumentException('Account claim token is invalid, expired, revoked, replaced, or already used');
+            $studentId=(int)$context->student_id;$locks=$this->authorityLocks($studentId,array($userId));
+            if($this->activePrincipalForStudent($locks['principals'],$studentId)||$this->activePrincipalForUser($locks['principals'],$userId)||$this->activeGuardianForUser($locks['grants'],$userId,$now))throw new \InvalidArgumentException('A current Student principal or guardian authority already exists');
+            do_action('dzn_student_account_claim_authority_locks_held');$this->records->expireElapsedGrants($locks['grants'],$userId,$now);
+            $linkId=$this->records->insertPrincipal($this->principalData($studentId,$userId,'verified_internal_record','verified_internal_record',$now,$userId,$now));
+            $this->claimInvitations->consumeGeneration($context,$userId,$now);
+            return $linkId;
         });
     }
 

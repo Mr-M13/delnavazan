@@ -234,7 +234,7 @@ if ( ! str_contains( $assignment_service, 'assignInitial(' )
     throw new RuntimeException( 'Eligible Enrolment and valid Assignment must flow through canonical Lesson and Schedule authorities into validated portal read models.' );
 }
 if ( ! str_contains( $screen, "\$scheduleFields=array('version_number','local_wall_date','local_wall_time','schedule_timezone','duration_minutes','buffer_minutes','availability_basis')" )
-    || ! str_contains( $screen, "array('event_type'=>'\$event->event_type,'recorded_at'=>'\$event->recorded_at')" )
+    || ! str_contains( $screen, "array('event_type'=>\$event->event_type,'recorded_at'=>\$event->recorded_at)" )
     || str_contains( $screen, "self::objectTable(\$state['versions'], null)" )
     || ! str_contains( $screen, "name=\"idempotency_key\" value=\"'.esc_attr(wp_generate_uuid4())")
     || str_contains( $screen, "self::input('idempotency_key','Idempotency key'") ) {

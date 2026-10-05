@@ -14,13 +14,14 @@ final class Menu {
     public static function menu(): void {
         $groups = [
             ['Academy', 'dzn-platform', 'dashicons-calendar-alt', 58],
-            ['Students', 'dzn-students-menu', 'dashicons-groups', 59],
-            ['Teachers', 'dzn-teachers-menu', 'dashicons-welcome-learn-more', 60],
-            ['Courses & Terms', 'dzn-courses-menu', 'dashicons-book-alt', 61],
-            ['Classes / Schedule', 'dzn-classes-menu', 'dashicons-clock', 62],
-            ['Finance', 'dzn-finance-menu', 'dashicons-money-alt', 63],
-            ['Communications', 'dzn-notifications-menu', 'dashicons-email-alt', 64],
-            ['Settings', 'dzn-settings-menu', 'dashicons-admin-generic', 65],
+            ['Bookings', 'dzn-bookings-menu', 'dashicons-calendar', 59],
+            ['Students', 'dzn-students-menu', 'dashicons-groups', 60],
+            ['Teachers', 'dzn-teachers-menu', 'dashicons-welcome-learn-more', 61],
+            ['Courses & Terms', 'dzn-courses-menu', 'dashicons-book-alt', 62],
+            ['Classes / Schedule', 'dzn-classes-menu', 'dashicons-clock', 63],
+            ['Finance', 'dzn-finance-menu', 'dashicons-money-alt', 64],
+            ['Communications', 'dzn-notifications-menu', 'dashicons-email-alt', 65],
+            ['Delnavazan Settings', 'dzn-settings-menu', 'dashicons-admin-generic', 66],
         ];
         foreach ($groups as [$label, $slug, $icon, $position]) {
             add_menu_page($label, $label, 'read', $slug, [AdminNavigationController::class, 'screen'], $icon, $position);
@@ -28,8 +29,8 @@ final class Menu {
 
         $pages = [
             ['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
-            ['dzn-platform', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
-            ['dzn-platform', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
+            ['dzn-bookings-menu', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
+            ['dzn-bookings-menu', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
 
             ['dzn-students-menu', 'Students', 'dzn_manage_students', 'dzn-student', static fn() => ScreenController::screen('student'), static fn() => ScreenController::handlePost('student')],
             ['dzn-students-menu', 'Identity & authentication', 'dzn_view_student_acceptance_eligibility', 'dzn-student-identity-authority', [StudentIdentityAuthorityController::class, 'screen'], [StudentIdentityAuthorityController::class, 'handlePost']],
@@ -63,6 +64,15 @@ final class Menu {
                 // must run here so POST/redirect/GET responses can still send headers.
                 add_action('load-' . $hook, $postHandler);
             }
+        }
+
+        // These are section landing pages. Their operator links are capability-filtered
+        // by AdminNavigationController; the target screens keep their own registered caps.
+        foreach ([
+            ['Integrations', 'dzn-settings-integrations'],
+            ['Diagnostics', 'dzn-settings-diagnostics'],
+        ] as [$label, $slug]) {
+            add_submenu_page('dzn-settings-menu', $label, $label, 'read', $slug, [AdminNavigationController::class, 'screen']);
         }
     }
 }

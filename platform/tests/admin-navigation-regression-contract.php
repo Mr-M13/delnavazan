@@ -59,7 +59,7 @@ foreach ( array(
     "['Classes / Schedule', 'dzn-classes-menu'",
     "['Finance', 'dzn-finance-menu'",
     "['Communications', 'dzn-notifications-menu'",
-    "['Settings', 'dzn-settings-menu'",
+    "['Delnavazan Settings', 'dzn-settings-menu'",
 ) as $group ) {
     if ( ! str_contains( $menu, $group ) ) throw new RuntimeException( 'Missing requested WordPress sidebar group: ' . $group );
 }
@@ -270,6 +270,46 @@ if ( ! str_contains( $teaching_eligibility, 'private static function teacherSele
 if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' )" )
     || ! str_contains( $theme_setup, "! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' )" ) ) {
     throw new RuntimeException( 'Public toolbar must be hidden for signed-in non-administrators only' );
+}
+
+// Structural navigation contracts: canonical parent, one route per concept, and
+// per-destination capability filtering across grouped Settings sections.
+foreach ( array(
+    "['Bookings', 'dzn-bookings-menu'",
+    "['dzn-bookings-menu', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests'",
+    "['dzn-bookings-menu', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination'",
+    "['Integrations', 'dzn-settings-integrations']",
+    "['Diagnostics', 'dzn-settings-diagnostics']",
+) as $required_route ) {
+    if ( ! str_contains( $menu, $required_route ) ) throw new RuntimeException( 'Missing workflow-first navigation route: ' . $required_route );
+}
+foreach ( array( 'dzn-booking-requests', 'dzn-booking-request-coordination' ) as $booking_route ) {
+    if ( 1 !== substr_count( $menu, "'" . $booking_route . "'") || str_contains( $menu, "['dzn-platform', '" . ($booking_route === 'dzn-booking-requests' ? 'Booking requests' : 'Request coordination') ) ) {
+        throw new RuntimeException( 'Booking destinations must appear once under Bookings: ' . $booking_route );
+    }
+}
+foreach ( array(
+    "['Google Console', 'dzn-google-console', 'dzn_view_diagnostics']",
+    "['WhatsApp', 'dzn-whatsapp-settings', 'dzn_view_diagnostics']",
+    "['SMS', 'dzn-sms-settings', 'dzn_view_diagnostics']",
+    "['Stripe', 'dzn-stripe-settings', 'dzn_view_payment_execution_authority']",
+) as $integration_route ) {
+    if ( 1 !== substr_count( $navigation, $integration_route ) ) throw new RuntimeException( 'Integration route must have one canonical Settings parent and its own capability: ' . $integration_route );
+}
+if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'")
+    || str_contains( $menu, "['dzn-platform', 'Booking requests'")
+    || str_contains( $menu, "['dzn-platform', 'Request coordination'")
+    || ! str_contains( $navigation, "['Exceptions', 'dzn-exception', 'dzn_manage_exceptions']")
+    || ! str_contains( $navigation, "['System health', 'dzn-system-health', 'dzn_view_diagnostics']")
+    || ! str_contains( $menu, "['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception'") ) {
+    throw new RuntimeException( 'Academy must contain only its Dashboard, and operational exceptions must remain discoverable under Diagnostics with their authority cap.' );
+}
+if ( ! str_contains( $navigation, "(string) (\$item[2] ?? '') !== \$parent" )
+    || ! str_contains( $navigation, "if (!current_user_can('manage_options'))")
+    || ! str_contains( $navigation, "remove_menu_page(\$slug)")
+    || ! str_contains( $navigation, 'current_user_can($capability)' )
+    || ! str_contains( $navigation, 'remove_submenu_page(\'dzn-settings-menu\', $slug)' ) ) {
+    throw new RuntimeException( 'Navigation must suppress repeated parent entries, capability-filter section links, and limit native-menu cleanup to non-administrators.' );
 }
 
 echo "Admin navigation regression source contract passed\n";

@@ -26,6 +26,11 @@ final class TeacherInvitationDeliveryWorker {
         foreach($rows as $row)self::deliver((int)$row->generation_id);
     }
     private static function deliver(int $generationId):void{
+        $repository=new PrincipalInvitationRepository();
+        if(!apply_filters('dzn_teacher_invitation_email_transport_configured',false)){
+            try{$repository->failPendingDelivery($generationId,'email_transport_not_configured');}catch(\Throwable){}
+            return;
+        }
         $service=new PrincipalInvitationService();
         try{
             $payload=$service->prepareDelivery($generationId);
@@ -34,7 +39,7 @@ final class TeacherInvitationDeliveryWorker {
             $message="برای اتصال حساب مدرس دلنوازان، صفحه زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n\n".$claimUrl."\n\nکد دعوت:\n".$payload['secret']."\n\nاین کد را با دیگران به اشتراک نگذارید.";
             $sent=wp_mail((string)$payload['recipient'],$subject,$message);
             unset($message,$payload['secret']);
-            (new PrincipalInvitationRepository())->finishPreparedDelivery($generationId,$sent?'delivered':'failed',$sent?null:'mail_transport_rejected');
+            $repository->finishPreparedDelivery($generationId,$sent?'delivered':'failed',$sent?null:'mail_transport_rejected');
         }catch(\Throwable $e){
             // Preparation is atomic and fail-closed. Never log exception context: it may be transport-adjacent.
         }

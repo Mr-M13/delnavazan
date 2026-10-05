@@ -51,24 +51,46 @@ final class TeacherOnboardingService {
         try {
             $teacher = $this->repo->linkedTeacherForUser( $actor, true ); if ( ! $teacher ) throw new \InvalidArgumentException( 'Linked teacher principal required' );
             $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( ! in_array( $state, self::EDITABLE, true ) ) throw new \InvalidArgumentException( 'Teacher onboarding is not editable' );
-            $data = array(
-                'display_name' => Normalizer::text( $input['display_name'] ?? '', 191, true ),
-                'persian_name' => Normalizer::text( $input['persian_name'] ?? null ),
-                'english_name' => Normalizer::text( $input['english_name'] ?? null ),
-                'email' => Normalizer::email( $input['email'] ?? null ),
-                'country_code' => Normalizer::country( $input['country_code'] ?? null ),
-                'city' => Normalizer::text( $input['city'] ?? null ),
-                'timezone' => Normalizer::timezone( $input['timezone'] ?? null ),
-                'locale' => Normalizer::locale( $input['locale'] ?? null ),
-                'calendar_preference' => Normalizer::one( $input['calendar_preference'] ?? '', array( 'auto', 'gregorian', 'persian' ), 'calendar' ),
-            );
-            if ( ! $data['email'] || ! $data['country_code'] || ! $data['timezone'] || ! $data['locale'] ) throw new \InvalidArgumentException( 'Required teacher profile fields are missing' );
+            $data = $this->validatedProfile( $input );
             $availability = $this->repo->availabilityProfile( (int) $teacher->id );
             if ( $availability && (string) $availability->timezone !== $data['timezone'] && $this->repo->availabilityHasFacts( (int) $availability->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' );
             $this->repo->updateTeacherProfile( (int) $teacher->id, $data, $now, $actor );
             $fresh = $this->repo->teacherForUpdate( (int) $teacher->id ); $this->refreshProgress( $fresh, $state, $now, $actor );
             $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+
+    /** Capability-gated administrator maintenance of mutable Teacher profile facts. */
+    public function updateByAdministrator(int $teacherId, array $input): void {
+        if ( ! current_user_can( 'dzn_manage_teachers' ) ) throw new \RuntimeException( 'Unauthorized' );
+        $now = current_time( 'mysql', true ); $actor = (int) get_current_user_id(); $this->repo->begin();
+        try {
+            $teacher = $this->repo->teacherForUpdate( Normalizer::id( $teacherId ) );
+            if ( ! $teacher || $teacher->archived_at !== null || $teacher->status === 'archived' ) throw new \InvalidArgumentException( 'Teacher not found' );
+            $data = $this->validatedProfile( $input );
+            $data['phone'] = Normalizer::phone( $input['phone'] ?? null );
+            $data['whatsapp_phone'] = Normalizer::phone( $input['whatsapp_phone'] ?? null );
+            $availability = $this->repo->availabilityProfile( $teacherId );
+            if ( $availability && (string) $availability->timezone !== $data['timezone'] && $this->repo->availabilityHasFacts( (int) $availability->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' );
+            $this->repo->updateTeacherProfile( $teacherId, $data, $now, $actor );
+            $this->repo->commit();
+        } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+
+    private function validatedProfile(array $input): array {
+        $data = array(
+            'display_name' => Normalizer::text( $input['display_name'] ?? '', 191, true ),
+            'persian_name' => Normalizer::text( $input['persian_name'] ?? null ),
+            'english_name' => Normalizer::text( $input['english_name'] ?? null ),
+            'email' => Normalizer::email( $input['email'] ?? null ),
+            'country_code' => Normalizer::country( $input['country_code'] ?? null ),
+            'city' => Normalizer::text( $input['city'] ?? null ),
+            'timezone' => Normalizer::timezone( $input['timezone'] ?? null ),
+            'locale' => Normalizer::locale( $input['locale'] ?? null ),
+            'calendar_preference' => Normalizer::one( $input['calendar_preference'] ?? '', array( 'auto', 'gregorian', 'persian' ), 'calendar' ),
+        );
+        if ( ! $data['email'] || ! $data['country_code'] || ! $data['timezone'] || ! $data['locale'] ) throw new \InvalidArgumentException( 'Required teacher profile fields are missing' );
+        return $data;
     }
 
     /** Recalculate stored progress after the canonical availability authority accepts a Teacher mutation. */

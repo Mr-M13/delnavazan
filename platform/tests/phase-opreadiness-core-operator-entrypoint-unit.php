@@ -152,7 +152,7 @@ namespace {
             'An actor holding only ' . $command_capability . ' must reach the readiness submenu behind exactly that capability.'
         );
         dzn_core_operator_entrypoint_unit_assert(
-            $GLOBALS['dzn_core_operator_action_registrations'] === array( 'load-dzn-platform_page_dzn-core-dataset-readiness' ),
+            $GLOBALS['dzn_core_operator_action_registrations'] === array( 'load-dzn-settings-menu_page_dzn-core-dataset-readiness' ),
             'An actor holding only ' . $command_capability . ' must get the entrypoint pre-render load hook.'
         );
     }

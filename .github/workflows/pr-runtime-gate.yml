@@ -111,6 +111,7 @@ jobs:
           php platform/tests/notification-copy-integrity-contract.php
           php platform/tests/booking-canonical-alias-contract.php
           php platform/tests/booking-day-grid-theme-contract.php
+          php platform/tests/booking-ux-state-contract.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php
           else

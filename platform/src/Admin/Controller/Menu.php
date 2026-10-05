@@ -59,7 +59,11 @@ final class Menu {
         foreach ($pages as [$parent, $label, $capability, $slug, $callback, $postHandler]) {
             $hook = add_submenu_page($parent, $label, $label, $capability, $slug, $callback);
             NonceLifecycleDiagnostic::watchLoadHook($hook);
-            if ($hook && $postHandler !== null) add_action('load-' . $hook, $postHandler);
+            if ($hook && $postHandler !== null) {
+                // WordPress fires load-$hook before admin-header.php. Mutations
+                // must run here so POST/redirect/GET responses can still send headers.
+                add_action('load-' . $hook, $postHandler);
+            }
         }
     }
 }

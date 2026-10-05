@@ -43,7 +43,7 @@ if (str_contains($screen, 'self::handleMutation(); self::renderMessages()')) {
 }
 
 $menu = file_get_contents("{$root}/src/Admin/Controller/Menu.php");
-foreach (["add_action('load-' . \$hook", 'ScreenController::handlePost($screen)', 'before admin-header.php'] as $fragment) {
+foreach (["add_action('load-' . \$hook", '$postHandler', 'before admin-header.php'] as $fragment) {
     if (!str_contains($menu, $fragment)) throw new RuntimeException("Phase 1F pre-header mutation hook missing: {$fragment}");
 }
 

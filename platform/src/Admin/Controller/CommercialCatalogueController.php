@@ -5,7 +5,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepos
 final class CommercialCatalogueController{
  const CAP='dzn_manage_commercial_catalogue';
  public static function register():void{add_action('admin_menu',[self::class,'menu']);}
- public static function menu():void{$h=add_submenu_page('dzn-settings-menu','Commercial catalogue','Commercial catalogue',self::CAP,'dzn-commercial-catalogue',[self::class,'screen']);if($h)add_action('load-'.$h,[self::class,'post']);}
+ public static function menu():void{$h=add_submenu_page('dzn-courses-menu','Course catalogue and pricing','Course catalogue and pricing',self::CAP,'dzn-commercial-catalogue',[self::class,'screen']);if($h)add_action('load-'.$h,[self::class,'post']);}
  public static function post():void{
   if($_SERVER['REQUEST_METHOD']!=='POST')return;if(!current_user_can(self::CAP))wp_die('Forbidden',403);check_admin_referer('dzn_commercial_catalogue');
   try{$op=sanitize_key((string)($_POST['catalogue_operation']??''));$svc=new CommercialCatalogueService();$base=['evidence_channel'=>sanitize_text_field((string)($_POST['evidence_channel']??'')),'evidence_reference'=>sanitize_text_field((string)($_POST['evidence_reference']??'')),'evidence_at'=>sanitize_text_field((string)($_POST['evidence_at']??''))];$key=sanitize_text_field((string)($_POST['operator_key']??''));

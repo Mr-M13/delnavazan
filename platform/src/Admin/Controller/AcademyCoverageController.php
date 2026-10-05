@@ -4,7 +4,7 @@ use Delnavazan\Platform\Core\Application\AcademyCoverageReadService;
 final class AcademyCoverageController {
     private const CAP='dzn_view_booking_requests';
     public static function register():void{add_action('admin_menu',[self::class,'menu']);}
-    public static function menu():void{add_submenu_page('dzn-settings-menu','Academy Coverage','Coverage',self::CAP,'dzn-academy-coverage',[self::class,'screen']);}
+    public static function menu():void{add_submenu_page('dzn-teachers-menu','Teaching coverage','Coverage',self::CAP,'dzn-academy-coverage',[self::class,'screen']);}
     public static function screen():void{
         if(!current_user_can(self::CAP))wp_die('Forbidden',403);$rows=(new AcademyCoverageReadService())->matrix();
         echo '<div class="wrap"><h1>Academy golden-hour coverage</h1><p>Read-only planning view. Coverage uses only active, ready, accepting/limited teachers with active course eligibility and declared preferred/requestable availability. Regional windows are converted with timezone/DST rules for the current week.</p>';

@@ -27,9 +27,16 @@ $term_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructu
 $lesson_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/LessonRepository.php' );
 $availability_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherAvailabilityRepository.php' );
 $journey_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/AcademyJourneyReadService.php' );
+$term_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CanonicalTermReadService.php' );
+$assignment_assessment = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/TeacherAssignmentAssessment.php' );
+$assignment_service = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/TeacherAssignmentService.php' );
+$schedule_service = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CanonicalLessonScheduleService.php' );
+$lesson_authority = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CanonicalLessonAuthorityService.php' );
+$portal_owner_reads = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/PortalOwnerReadPorts.php' );
+$portal_read_models = file_get_contents( dirname( $controllers, 2 ) . '/Portals/PortalReadModels.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $term_read, $assignment_assessment, $assignment_service, $schedule_service, $lesson_authority, $portal_owner_reads, $portal_read_models, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 if ( ! str_contains( $availability, "'1'=>'Monday'" )
@@ -67,6 +74,14 @@ if ( ! str_contains( $menu, 'add_menu_page($label, $label, \'read\', $slug, [Adm
     || str_contains( $menu, "['dzn-courses-menu', 'Lessons'")
     || ! str_contains( $menu, "['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'" ) ) {
     throw new RuntimeException( 'Grouped menu registration or Settings-only Stripe setup is missing' );
+}
+foreach ( array(
+    array( $menu, "['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard'" ),
+    array( $menu, "['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'" ),
+    array( $menu, "['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson'" ),
+    array( $catalogue, "add_submenu_page('dzn-courses-menu','Course catalogue and pricing'" ),
+) as $canonicalEntry ) {
+    if ( 1 !== substr_count( $canonicalEntry[0], $canonicalEntry[1] ) ) throw new RuntimeException( 'Operational concept must have exactly one canonical menu entry: ' . $canonicalEntry[1] );
 }
 if ( str_contains( $menu, "['dzn-finance-menu', 'Stripe'") || str_contains( $menu, "['dzn-finance-menu', 'Stripe setup'") ) {
     throw new RuntimeException( 'Stripe setup must not appear as a Finance menu item' );
@@ -187,6 +202,43 @@ if ( ! str_contains( $screen, "if (!\$record && \$entity==='term' && current_use
     || ! str_contains( $core_read, 'public function canonicalTerm(int $termId): ?object' )
     || ! str_contains( $core_read, 'CanonicalTermReadService())->forEnrolment' ) ) {
     throw new RuntimeException( 'Canonical Term create redirects must resolve to the validated lifecycle detail screen.' );
+}
+if ( ! str_contains( $screen, "private static function canonicalTermCreateForm(): void" )
+    || ! str_contains( $screen, 'canonicalTermCreateOptions()' )
+    || ! str_contains( $screen, '<select required name="enrolment_id">' )
+    || str_contains( $screen, "self::input('enrolment_id','Canonical Enrolment ID'")
+    || ! str_contains( $screen, 'data-expected-term=' )
+    || ! str_contains( $term_read, 'public function createOptions(): array' )
+    || ! str_contains( $term_read, 'TermApplicabilityAssessment::CANONICAL_TERMINAL_HISTORY' )
+    || ! str_contains( $term_read, "array('closed','cancelled')" )
+    || str_contains( $term_read, 'SELECT *' ) ) {
+    throw new RuntimeException( 'Canonical Term creation must offer only integrity-checked, human-labeled eligible Enrolments and hide internal concurrency fields.' );
+}
+if ( ! str_contains( $assignment_service, 'assignInitial(' )
+    || ! str_contains( $assignment_service, 'TeacherAssignmentAssessment::applicableEnrolment($enrolment)' )
+    || ! str_contains( $assignment_assessment, 'public static function validInitialSource(array $source): bool' )
+    || ! str_contains( $assignment_assessment, 'public static function currentTeacher(?object $teacher): bool' )
+    || ! str_contains( $lesson_authority, 'createStandard(' )
+    || ! str_contains( $lesson_authority, "(string)\$assignmentHint->state!=='assigned'" )
+    || ! str_contains( $lesson_authority, "(int)\$assignmentHint->id!==\$expectedAssignment" )
+    || ! str_contains( $schedule_service, 'private function requireSchedulable(' )
+    || ! str_contains( $schedule_service, "'lesson_not_schedulable'" )
+    || ! str_contains( $schedule_service, "'enrolment_not_schedulable'" )
+    || ! str_contains( $schedule_service, "'term_not_current'" )
+    || ! str_contains( $schedule_service, "'stale_teacher_assignment'" )
+    || ! str_contains( $portal_owner_reads, 'CanonicalLessonAuthorityValidator::valid' )
+    || ! str_contains( $portal_owner_reads, 'CanonicalLessonScheduleValidator::valid' )
+    || ! str_contains( $portal_read_models, 'studentLesson(' )
+    || ! str_contains( $portal_read_models, 'teacherLesson(' )
+    || ! str_contains( $portal_read_models, 'lifecycle_state' ) ) {
+    throw new RuntimeException( 'Eligible Enrolment and valid Assignment must flow through canonical Lesson and Schedule authorities into validated portal read models.' );
+}
+if ( ! str_contains( $screen, "\$scheduleFields=array('version_number','local_wall_date','local_wall_time','schedule_timezone','duration_minutes','buffer_minutes','availability_basis')" )
+    || ! str_contains( $screen, "array('event_type'=>'\$event->event_type,'recorded_at'=>'\$event->recorded_at')" )
+    || str_contains( $screen, "self::objectTable(\$state['versions'], null)" )
+    || ! str_contains( $screen, "name=\"idempotency_key\" value=\"'.esc_attr(wp_generate_uuid4())")
+    || str_contains( $screen, "self::input('idempotency_key','Idempotency key'") ) {
+    throw new RuntimeException( 'Canonical schedule detail must show operator-relevant time and status, omit storage identifiers and hide command keys.' );
 }
 if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function courseSelector(' )

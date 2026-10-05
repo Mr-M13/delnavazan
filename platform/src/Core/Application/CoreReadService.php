@@ -61,21 +61,6 @@ final class CoreReadService {
         return (new TeacherRepository())->operatorOptions();
     }
 
-    public function teacherOptionsForTeachingEligibility(): array {
-        if (!current_user_can('dzn_manage_teaching_eligibility')) throw new \RuntimeException('Unauthorized');
-        return (new TeacherRepository())->operatorOptions();
-    }
-
-    public function courseOptionsForTeachingEligibility(): array {
-        if (!current_user_can('dzn_manage_teaching_eligibility')) throw new \RuntimeException('Unauthorized');
-        return (new CourseRepository())->operatorOptions();
-    }
-
-    public function teacherOptionsForAvailability(): array {
-        if (!current_user_can('dzn_manage_teacher_availability')) throw new \RuntimeException('Unauthorized');
-        return (new TeacherRepository())->operatorOptions();
-    }
-
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

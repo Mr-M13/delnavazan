@@ -282,9 +282,23 @@ final class ScreenController {
     private static function canonicalEvidence(array $post): array { return array('evidence_channel'=>sanitize_key($post['evidence_channel']??''),'evidence_reference'=>sanitize_text_field($post['evidence_reference']??''),'evidence_at'=>sanitize_text_field($post['evidence_at']??'')); }
 
     private static function canonicalTermCreateForm(): void {
-        echo '<h2>Create canonical Term</h2>'; self::formStart('create_canonical_term');
-        self::input('enrolment_id','Canonical Enrolment ID',true,'number'); self::input('expected_latest_term_id','Expected latest terminal Term ID',false,'number');
-        self::select('expected_latest_state','Expected latest state',['closed','cancelled'],'closed'); self::canonicalEvidenceFields(); submit_button('Create canonical Term'); echo '</form>';
+        $options=(new CoreReadService())->canonicalTermCreateOptions();
+        echo '<h2>Create canonical Term</h2>';
+        if(!$options){echo '<p>No canonical Enrolment is ready for another Term.</p>';return;}
+        $requested=wp_unslash($_GET['enrolment_id']??'');$selected=is_scalar($requested)&&preg_match('/^[1-9][0-9]*$/D',(string)$requested)?(string)absint($requested):'';
+        self::formStart('create_canonical_term');
+        echo '<p><label>Student and Course<br><select required name="enrolment_id">';
+        foreach($options as $option){
+            $value=(string)$option['enrolment_id'];
+            $expectedTerm=esc_attr((string)$option['expected_latest_term_id']);
+            $expectedState=esc_attr((string)$option['expected_latest_state']);
+            $label=esc_html((string)$option['label']);
+            echo '<option value="'.esc_attr($value).'" data-expected-term="'.$expectedTerm.'" data-expected-state="'.$expectedState.'"'.selected($selected,$value,false).'>'.$label.'</option>';
+        }
+        echo '</select></label></p><input type="hidden" name="expected_latest_term_id" value=""><input type="hidden" name="expected_latest_state" value="">';
+        echo '<p class="description">The latest closed or cancelled Term is checked automatically before creation.</p>';
+        self::canonicalEvidenceFields(); submit_button('Create canonical Term'); echo '</form>';
+        echo '<script>(function(){const f=document.querySelector("input[name=\'dzn_action\'][value=\'create_canonical_term\']")?.form;if(!f)return;const s=f.querySelector("select[name=\'enrolment_id\']"),i=f.querySelector("[name=\'expected_latest_term_id\']"),t=f.querySelector("[name=\'expected_latest_state\']");const sync=()=>{const o=s.options[s.selectedIndex];i.value=o?.dataset.expectedTerm||"";t.value=o?.dataset.expectedState||"";};s.addEventListener("change",sync);sync();})();</script>';
     }
 
     private static function canonicalTermLifecycleForm(object $term): void {

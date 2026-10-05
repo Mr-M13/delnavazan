@@ -108,6 +108,11 @@ final class CoreReadService {
         return (new CanonicalTermReadService())->history($termId);
     }
 
+    public function canonicalTermCreateOptions(): array {
+        if (!current_user_can('dzn_manage_canonical_terms')) throw new \RuntimeException('Unauthorized');
+        return (new CanonicalTermReadService())->createOptions();
+    }
+
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

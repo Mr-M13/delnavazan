@@ -85,6 +85,18 @@
     padding-block: var(--dzn-space-6) var(--dzn-space-8);
   }
 
+  .dzn-portal__booking-requests {
+    margin-block-end: var(--dzn-space-6);
+  }
+
+  .dzn-portal__booking-request {
+    margin-block: var(--dzn-space-3);
+    padding: var(--dzn-space-4);
+    border: 1px solid var(--dzn-color-border);
+    border-radius: var(--dzn-radius-sm);
+    background: var(--dzn-color-surface);
+  }
+
   .dzn-portal__demo-label {
     margin-block-end: var(--dzn-space-6);
     border: 1px dashed var(--dzn-color-warning);

@@ -64,6 +64,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureReadPorts(new Delnavazan\Platform\Core\Application\CanonicalTeacherAssignmentPortalReadPort(),new Delnavazan\Platform\Core\Application\CanonicalLessonSchedulePortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryPortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalAttendancePortalReadPortImpl());
 } );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingRequestRestController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\StudentBookingAccountRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingOptionsRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingAvailabilityPreviewRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingDayAvailabilityRestController', 'register' ) );

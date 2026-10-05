@@ -7,7 +7,7 @@
 
 $screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'account' ), true ) ? $args['screen'] : 'home';
 $model  = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
-$state  = isset( $model['state'] ) && in_array( (string) $model['state'], array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data' ), true )
+$state  = isset( $model['state'] ) && in_array( (string) $model['state'], array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data', 'pending_booking' ), true )
 	? (string) $model['state']
 	: ( ! empty( $model['available'] ) ? 'ok' : 'error' );
 $available = 'ok' === $state;
@@ -105,7 +105,11 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			<p class="dzn-portal__state-actions">
 				<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>"><?php esc_html_e( 'تلاش دوباره', 'delnavazan-theme' ); ?></a>
 			</p>
+		<?php elseif ( 'pending_booking' === $state ) : ?>
+			<p>درخواست شما ثبت شده است. پس از بررسی هویت و ثبت‌نام، اطلاعات کلاس‌ها نیز در همین حساب نمایش داده می‌شود.</p>
+			<?php dzn_theme_portal_component( 'booking-requests', array( 'items' => $model['booking_requests'] ?? array() ) ); ?>
 		<?php elseif ( 'account' === $screen ) : ?>
+			<?php dzn_theme_portal_component( 'booking-requests', array( 'items' => $model['booking_requests'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
@@ -120,6 +124,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			);
 			?>
 		<?php else : ?>
+			<?php dzn_theme_portal_component( 'booking-requests', array( 'items' => $model['booking_requests'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'upcoming-lesson', array( 'lesson' => $model['upcoming_lesson'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>

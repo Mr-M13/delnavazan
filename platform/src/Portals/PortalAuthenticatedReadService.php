@@ -11,6 +11,11 @@ namespace Delnavazan\Platform\Portals;
 final class PortalAuthenticatedReadService {
     private const LIMIT = 80;
 
+    /** Booking ownership is the WordPress account recorded when it was submitted. */
+    public function bookingRequests(): array {
+        return (new BookingRequestAccountReadService())->forCurrentUser();
+    }
+
     public function student(): array {
         $principal = (new PortalPrincipalResolver())->resolve('student');
         $lessons = $this->lessonsFor('student', (int) $principal['id'], $principal);

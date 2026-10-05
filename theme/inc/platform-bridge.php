@@ -150,7 +150,19 @@ function dzn_theme_platform_student_portal_state( array $lessons, array $enrolme
 
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
-	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
+	if ( 'signed_out' === $read['state'] || 'error' === $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
+	try {
+		$service = dzn_theme_platform_portal_service();
+		$requests = $service ? $service->bookingRequests() : array();
+	} catch ( Throwable $e ) {
+		return dzn_theme_platform_student_state_model( $screen, 'error' );
+	}
+	if ( 'not_linked' === $read['state'] ) {
+		if ( ! $requests ) { return dzn_theme_platform_student_state_model( $screen, 'not_linked' ); }
+		$model = dzn_theme_platform_student_state_model( $screen, 'pending_booking' );
+		$model['booking_requests'] = $requests;
+		return $model;
+	}
 	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/student-portal/' );
@@ -158,7 +170,12 @@ function dzn_theme_platform_student_model( $screen ) {
 	$lessons = is_array( $data['lessons'] ?? null ) ? $data['lessons'] : array();
 	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments );
-	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
+	if ( 'ok' !== $state ) {
+		if ( ! $requests ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
+		$model = dzn_theme_platform_student_state_model( $screen, 'pending_booking' );
+		$model['booking_requests'] = $requests;
+		return $model;
+	}
 	$now = time();
 	$past = array();
 	$future = array();
@@ -175,6 +192,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'source' => 'platform',
 		'student' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ),
 		'navigation' => $navigation,
+		'booking_requests' => $requests,
 	);
 	if ( 'account' === $screen ) {
 		$model['profile'] = array(

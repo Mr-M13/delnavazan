@@ -114,13 +114,18 @@ function dzn_theme_student_portal_view_model( $screen ) {
 	}
 
 	$state = isset( $model['state'] ) && is_string( $model['state'] ) ? $model['state'] : '';
-	if ( ! in_array( $state, array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data' ), true ) ) {
+	if ( ! in_array( $state, array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data', 'pending_booking' ), true ) ) {
 		$state = ! empty( $model['available'] ) ? 'ok' : 'error';
 	}
 
 	// Fail closed by rebuilding, not by removing keys: an adapter can supply any
 	// shape, so no partial student payload may survive a non-ok state.
 	if ( 'ok' !== $state ) {
+		if ( 'pending_booking' === $state && is_user_logged_in() && ! empty( $model['booking_requests'] ) && is_array( $model['booking_requests'] ) ) {
+			$pending = dzn_theme_student_portal_state_model( $screen, 'pending_booking' );
+			$pending['booking_requests'] = $model['booking_requests'];
+			return $pending;
+		}
 		return dzn_theme_student_portal_state_model( $screen, $state );
 	}
 
@@ -143,7 +148,7 @@ function dzn_theme_student_portal_view_model( $screen ) {
  * @return array
  */
 function dzn_theme_student_portal_state_model( $screen, $state ) {
-	if ( ! in_array( $state, array( 'signed_out', 'not_linked', 'error', 'no_data' ), true ) ) {
+	if ( ! in_array( $state, array( 'signed_out', 'not_linked', 'error', 'no_data', 'pending_booking' ), true ) ) {
 		$state = 'error';
 	}
 

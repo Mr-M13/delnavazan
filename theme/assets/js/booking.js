@@ -21,6 +21,8 @@
   let gridAvailabilityRequestId = 0;
   const slots = [];
   let idempotencyKey = '';
+  let accountNonce = String(dznBooking.nonce || '');
+  let accountReady = Boolean(dznBooking.signedIn);
   let availabilityRequestId = 0;
   let availabilityPreviewFailed = false;
   let availabilityPreviewPending = false;
@@ -529,9 +531,24 @@
       requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
     };
     try {
+      if (!accountReady) {
+        const passwordInput = root.querySelector('[data-account-password]');
+        const accountResponse = await fetch(apiUrl('delnavazan-platform/v1/booking-account'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full_name: fieldValue('full_name'), email: fieldValue('email'), password: passwordInput.value })
+        });
+        const accountResult = await accountResponse.json();
+        if (!accountResponse.ok || !accountResult.success || !accountResult.nonce) throw new Error(accountResult.code || 'account_unavailable');
+        accountNonce = accountResult.nonce;
+        accountReady = true;
+        passwordInput.value = '';
+        passwordInput.required = false;
+        passwordInput.disabled = true;
+      }
       const response = await fetch(apiUrl('delnavazan-platform/v1/booking-requests'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, 'X-WP-Nonce': accountNonce, 'X-DZN-Account-Required': '1' },
         body: JSON.stringify(payload)
       });
       const result = await response.json();
@@ -558,6 +575,11 @@
     } catch (error) {
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
+        invalid_account: 'برای ساخت حساب، ایمیل معتبر و رمز دست‌کم ۱۲ نویسه‌ای وارد کنید.',
+        account_exists: 'این ایمیل از قبل حساب دارد. ابتدا از پیوند ورود بالای فرم وارد شوید و سپس درخواست را ثبت کنید.',
+        account_unavailable: 'حساب کاربری ساخته نشد. لطفاً دوباره تلاش کنید.',
+        account_email_mismatch: 'ایمیل درخواست باید با ایمیل حساب واردشده یکسان باشد.',
+        account_session_required: 'ورود به حساب تکمیل نشد. صفحه را تازه کنید، وارد حساب شوید و درخواست را دوباره ثبت کنید.',
         blocked_time: 'زمان انتخاب‌شده طبق سیاست دلنوازان قابل درخواست نیست. زمان دیگری انتخاب کنید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',

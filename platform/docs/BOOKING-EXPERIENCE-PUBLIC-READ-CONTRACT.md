@@ -23,6 +23,8 @@ The response contains the submitted sequence number, one status, and, where curr
 
 POST /wp-json/delnavazan-platform/v1/booking-requests remains the only public intake write. Its strict field allowlist, IANA wall-time conversion, DST checks, 24-month private contact snapshot retention, idempotency, rate limit and opaque REQ-* reference remain authoritative. A successful request is submitted / unresolved; it does not create a Student, Lesson, Teacher assignment, payment, notification or reserved slot.
 
+The guided booking form now calls POST `/wp-json/delnavazan-platform/v1/booking-account` first for signed-out visitors. This creates a WordPress subscriber login and signs the visitor in; it does not create a canonical Student principal. The following request submission records the authenticated user ID as request owner. An existing account must sign in first, and the booking email must match that account. Requests made through older anonymous clients remain anonymous and cannot be claimed merely by matching an email address. The Student Portal exposes only requests owned by the current account. Account creation and booking submission are separate operations, so a failed booking may leave an account with no request; the visitor can retry the booking without creating another account.
+
 The free introductory meeting carries no payment choice at this stage. The 01:00–06:00 Iran-time blackout is an application rule in the existing normalization and validation paths; it adds no database table, migration, new route or booking authority. Later continuation/payment flows remain governed by their separate Platform authorities.
 
 

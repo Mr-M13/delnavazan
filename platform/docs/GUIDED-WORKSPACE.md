@@ -8,7 +8,9 @@ Invite from one email at **Teachers → Invite and review teachers**. The minima
 
 ## Students
 
-The area opens the existing human-reviewed identity and acceptance authority. Booking contact data does not automatically establish a Student principal or guardian. Student invitation generation and account claiming are not implemented by this workspace; those need a separate authority contract, including minors and duplicate identity handling.
+Students create a WordPress account directly in the booking form, or sign in to an existing account before booking. The request records that account ID and appears in its Student Portal immediately. An email match alone never grants access to an older or different booking. The account is a login and request owner, not yet a canonical Student principal or guardian. Staff still review identity and authority before accepting or linking an enrolment, including minors and duplicate identities. No student invitation is required.
+
+The account shows delivery metadata only for system notifications tied to its own booking and addressed to the student. The notification store does not retain a readable sent body, and the current workflow set has no booking acknowledgement intent. Therefore this is not yet a full correspondence archive. Manual staff email and WhatsApp messages remain outside this scope. A later message archive needs a dedicated privacy and recipient-authority contract.
 
 ## Classes
 

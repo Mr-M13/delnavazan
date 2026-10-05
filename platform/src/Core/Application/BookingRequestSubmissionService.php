@@ -13,8 +13,13 @@ final class BookingRequestSubmissionService {
      * locked and established replays/conflicts have been resolved. This keeps
      * secondary abuse controls from changing the authoritative retry outcome.
      */
-    public function submitPublic(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null): array {
-        $data = $this->validator->normalizePublic( $input ); $now = gmdate( 'Y-m-d H:i:s' ); $retention = gmdate( 'Y-m-d H:i:s', strtotime( '+24 months', strtotime( $now . ' UTC' ) ) ); $keyDigest = BookingRequestIdempotency::keyDigest($idempotencyKey); $payloadDigest = BookingRequestIdempotency::payloadDigest($data); $expires = gmdate('Y-m-d H:i:s', strtotime('+' . BookingRequestIdempotency::WINDOW_SECONDS . ' seconds', strtotime($now . ' UTC')));
+    public function submitPublic(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null, ?int $accountUserId = null): array {
+        $data = $this->validator->normalizePublic( $input );
+        if($accountUserId!==null){
+            $user=get_userdata($accountUserId);
+            if($accountUserId<1||get_current_user_id()!==$accountUserId||!$user||strtolower((string)$user->user_email)!==$data['contact']['email'])throw new \InvalidArgumentException('Booking email must match the signed-in account');
+        }
+        $now = gmdate( 'Y-m-d H:i:s' ); $retention = gmdate( 'Y-m-d H:i:s', strtotime( '+24 months', strtotime( $now . ' UTC' ) ) ); $keyDigest = BookingRequestIdempotency::keyDigest($idempotencyKey); $payloadDigest = BookingRequestIdempotency::payloadDigest($accountUserId===null?$data:$data+['account_user_id'=>$accountUserId]); $expires = gmdate('Y-m-d H:i:s', strtotime('+' . BookingRequestIdempotency::WINDOW_SECONDS . ' seconds', strtotime($now . ' UTC')));
         $uid = Identifier::uid(); $reference = 'REQ-' . $uid;
         $this->repo->begin(); try {
             $operation = $this->intake->reserveSubmissionKey($keyDigest, $payloadDigest, $expires, $now);
@@ -24,7 +29,7 @@ final class BookingRequestSubmissionService {
             if ( ! $operation->created_new || $operation->state !== 'processing' ) throw new IdempotencyConflictException('Idempotency operation unavailable');
             if ( $newSubmissionGate !== null && ! $newSubmissionGate() ) throw new BookingRequestRateLimitException('Booking Request rate limited');
             $instrument = $this->repo->instrumentForUpdate( $data['instrument_id'] ); $course = $data['course_id'] ? $this->repo->courseForUpdate( $data['course_id'] ) : null; $data = $this->validator->resolveLockedCatalogue( $data, $instrument, $course );
-            $id = $this->repo->createRequest( array( 'uid' => $uid, 'reference_code' => null, 'student_id' => null, 'requested_instrument_id' => $data['instrument_id'], 'selected_intro_course_id' => $data['course_id'], 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => $retention, 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => null, 'updated_by' => null ) );
+            $id = $this->repo->createRequest( array( 'uid' => $uid, 'reference_code' => null, 'student_id' => null, 'requested_instrument_id' => $data['instrument_id'], 'selected_intro_course_id' => $data['course_id'], 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => $retention, 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => $accountUserId, 'updated_by' => $accountUserId ) );
             $this->repo->assignReference( $id, $reference ); $digests = array('email_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['email']),'mobile_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['mobile']),'whatsapp_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['whatsapp_number'])); $this->repo->createSnapshot( $id, $data['contact'], $now, $digests ); foreach ( $data['times'] as $sequence => $time ) $this->repo->createTime( $id, $sequence + 1, $time, $now );
             foreach($this->intake->matchingContactRequests($digests,$id) as $match)$this->intake->createDuplicateFlag($id,$match['candidate_id'],$match['type'],$match['digest'],$now);
             $this->intake->completeSubmissionKey((int)$operation->id,$id,$reference,$now); $this->repo->commit(); return array( 'success' => true, 'request_reference' => $reference, 'replayed' => false );

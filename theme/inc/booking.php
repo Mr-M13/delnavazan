@@ -134,7 +134,8 @@ function dzn_theme_render_booking_route(): void {
                         <h2 id="dzn-booking-contact-title" tabindex="-1">اطلاعات کاربری خود را وارد کنید</h2>
                         <div class="dzn-booking__fields">
                             <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" required></div>
-                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">این ایمیل برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد.</p></div>
+                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" value="<?php echo esc_attr( is_user_logged_in() ? wp_get_current_user()->user_email : '' ); ?>" <?php echo is_user_logged_in() ? 'readonly' : ''; ?> required><p class="dzn-booking__field-help">این ایمیل برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد.</p></div>
+                            <?php if ( ! is_user_logged_in() ) : ?><div class="dzn-booking__field--wide"><label for="dzn-booking-password">رمز حساب هنرجویی</label><input id="dzn-booking-password" data-account-password type="password" autocomplete="new-password" minlength="12" required><p class="dzn-booking__field-help">حساب شما هنگام ثبت درخواست ساخته می‌شود. اگر از قبل حساب دارید، <a href="<?php echo esc_url( wp_login_url( home_url( '/enrol/' ) ) ); ?>">ابتدا وارد شوید</a>.</p></div><?php endif; ?>
                             <div><label for="dzn-booking-country">کشور محل زندگی</label><select id="dzn-booking-country" data-contact="country" autocomplete="country" required>
                                 <option value="">انتخاب کشور</option>
                                 <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
@@ -169,8 +170,8 @@ function dzn_theme_render_booking_route(): void {
                         <p class="dzn-booking__reference" data-reference dir="ltr"></p>
                         <p>زمان‌های پیشنهادی شما:</p>
                         <ul class="dzn-booking__success-times" data-success-times></ul>
-                        <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان برای هماهنگی با شما تماس می‌گیرد. در ادامهٔ مسیر هنرجویی، همین ایمیل برای ورود به حساب شما استفاده می‌شود. اعلان‌های کلاس را از طریق واتساپ دریافت می‌کنید و پیوند هر کلاس در حساب هنرجویی‌تان در دسترس خواهد بود.</p>
-                        <a class="dzn-booking__button" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
+                        <p>حساب شما آماده است و این درخواست در حساب هنرجویی‌تان ثبت شده است. زمان جلسه هنوز تأیید یا رزرو نشده؛ نتیجهٔ هماهنگی را از همان حساب دنبال کنید.</p>
+                        <a class="dzn-booking__button" href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>">مشاهدهٔ حساب هنرجویی</a>
                     </section>
                 </section>
             <?php endif; ?>
@@ -184,5 +185,5 @@ function dzn_theme_enqueue_booking_assets(): void {
     $style_path = get_theme_file_path( 'assets/css/booking.css' );
     wp_enqueue_style( 'delnavazan-booking', get_theme_file_uri( 'assets/css/booking.css' ), array( 'delnavazan-theme' ), file_exists( $style_path ) ? (string) filemtime( $style_path ) : wp_get_theme()->get( 'Version' ) );
     wp_enqueue_script( 'delnavazan-booking', get_theme_file_uri( 'assets/js/booking.js' ), array(), file_exists( $script_path ) ? (string) filemtime( $script_path ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
-    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05' ) );
+    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05', 'signedIn' => is_user_logged_in(), 'nonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '' ) );
 }

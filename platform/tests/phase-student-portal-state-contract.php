@@ -128,6 +128,29 @@ if ( ! str_contains( $term, 'if ( ! $term ) {' ) ) {
 	$fail( 'the term timeline may only skip the section when the term itself is absent' );
 }
 
+/* 3c. Term progress is bound to a known term identity, not just an enrolment. */
+$progress_start = strpos( $bridge, 'function dzn_theme_platform_student_term_progress(' );
+$progress_end   = false === $progress_start ? false : strpos( $bridge, 'function dzn_theme_platform_student_model(', $progress_start );
+if ( false === $progress_start || false === $progress_end ) {
+	$fail( 'student term progress must have an explicit read-model adapter' );
+}
+$progress = substr( $bridge, $progress_start, $progress_end - $progress_start );
+foreach ( array(
+	"if ( '' === \$term_reference ) { return array(); }",
+	"(string) ( \$row['enrolment_uid'] ?? '' ) === \$enrolment_uid",
+	"&& (string) ( \$row['term_reference'] ?? '' ) === \$term_reference",
+	"if ( '' !== \$term_reference && \$term_reference !== \$next_term_reference ) { return array(); }",
+) as $guard ) {
+	if ( ! str_contains( $progress, $guard ) ) {
+		$fail( 'term progress must fail closed and match both enrolment and term identity' );
+	}
+}
+if ( ! str_contains( $bridge, "dzn_theme_platform_student_term_progress( \$enrolment, \$next, \$lessons )" )
+	|| ! str_contains( $bridge, "\$model['term'] = \$term_progress ? array_merge( \$term_progress" )
+	|| ! str_contains( $bridge, ") : array();" ) ) {
+	$fail( 'the student model must omit the term timeline when term identity is unavailable' );
+}
+
 /* 4. The shell renders each state distinctly and keeps a logout route. */
 foreach ( array( "'not_linked' === \$state", "'no_data' === \$state", "'error' === \$state" ) as $branch ) {
 	if ( ! str_contains( $shell, $branch ) ) {

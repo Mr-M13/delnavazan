@@ -148,6 +148,38 @@ function dzn_theme_platform_student_portal_state( array $lessons, array $enrolme
 	return 'ok';
 }
 
+/**
+ * Build term progress only when the selected enrolment has a real term identity.
+ * Lesson rows must match both the enrolment and that term; an unknown term is
+ * not presented as a current-term total.
+ */
+function dzn_theme_platform_student_term_progress( $enrolment, $next, array $lessons ) {
+	if ( ! is_array( $enrolment ) ) { return array(); }
+	$enrolment_uid = (string) ( $enrolment['enrolment_uid'] ?? '' );
+	if ( '' === $enrolment_uid ) { return array(); }
+	$term_reference = trim( (string) ( $enrolment['term_reference'] ?? '' ) );
+	$next_enrolment_uid = is_array( $next ) ? (string) ( $next['enrolment_uid'] ?? '' ) : '';
+	$next_term_reference = is_array( $next ) ? trim( (string) ( $next['term_reference'] ?? '' ) ) : '';
+	if ( '' !== $next_term_reference && $next_enrolment_uid === $enrolment_uid ) {
+		if ( '' !== $term_reference && $term_reference !== $next_term_reference ) { return array(); }
+		$term_reference = $next_term_reference;
+	}
+	if ( '' === $term_reference ) { return array(); }
+	$related = array_values( array_filter( $lessons, static function ( $row ) use ( $enrolment_uid, $term_reference ) {
+		return (string) ( $row['enrolment_uid'] ?? '' ) === $enrolment_uid
+			&& (string) ( $row['term_reference'] ?? '' ) === $term_reference;
+	} ) );
+	$completed = count( array_filter( $related, static function ( $row ) {
+		return in_array( $row['delivery_state_summary'] ?? '', array( 'completed', 'delivered' ), true );
+	} ) );
+	return array(
+		'title' => $term_reference,
+		'completed' => $completed,
+		'total' => count( $related ),
+		'current_label' => count( $related ) ? sprintf( '%d جلسه ثبت‌شده', count( $related ) ) : '',
+	);
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -215,18 +247,13 @@ function dzn_theme_platform_student_model( $screen ) {
 		'notice' => ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '',
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
-	$related = $enrolment ? array_values( array_filter( $lessons, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $enrolment['enrolment_uid'] ?? '' ) ) ) : array();
-	$completed = count( array_filter( $related, static fn( $row ) => in_array( $row['delivery_state_summary'] ?? '', array( 'completed', 'delivered' ), true ) ) );
-	$model['term'] = array(
-		'title' => (string) ( $enrolment['term_reference'] ?? ( $next['term_reference'] ?? 'ترم جاری' ) ),
-		'completed' => $completed,
-		'total' => count( $related ),
-		'current_label' => count( $related ) ? sprintf( '%d جلسه ثبت‌شده', count( $related ) ) : '',
+	$term_progress = dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
+	$model['term'] = $term_progress ? array_merge( $term_progress, array(
 		'next_label' => $next ? 'کلاس بعدی: ' . dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'j F' ) : 'کلاس آینده‌ای ثبت نشده است',
 		'normal_replacement' => '',
 		'academy_owed_remedial' => '',
 		'academy_owed_tone' => 'muted',
-	);
+	) ) : array();
 	$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 5 ) );
 	$model['contact'] = array();
 	return $model;

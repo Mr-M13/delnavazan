@@ -37,8 +37,11 @@ final class StudentCheckoutReturnReadService {
         if ($this->payments->settlementForObligation((int) $session->obligation_id)) {
             return array('payment_state' => 'paid', 'checkout_state' => 'completed', 'action' => null, 'retry_allowed' => false, 'obligation_uid' => (string) $obligation->uid);
         }
+        // R1 keeps an offer accepted after an earlier instalment settles. A later payable
+        // obligation must therefore expose the same truthful return state as checkout
+        // initiation and the commercial read model, rather than becoming unavailable.
         $payable = $obligation && $offer
-            && (string) $offer->state === 'issued'
+            && in_array((string) $offer->state, array('issued', 'accepted'), true)
             && ($offer->expires_at === null || (string) $offer->expires_at > gmdate('Y-m-d H:i:s'))
             && (int) $session->amount_minor === (int) $obligation->amount_minor
             && strtoupper((string) $session->currency) === strtoupper((string) $obligation->currency)

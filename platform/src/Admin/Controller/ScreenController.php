@@ -181,14 +181,18 @@ final class ScreenController {
             echo '<p class="notice notice-error">Canonical lifecycle history failed integrity validation.</p>';
             return;
         }
-        echo '<h2>Recent records</h2>'; self::objectTable($records, 'dzn-' . $entity);
+        echo '<h2>Recent records</h2>';
+        if (in_array($entity, ['student','teacher'], true)) self::objectTable($records, 'dzn-' . $entity, self::profileFields($entity));
+        else self::objectTable($records, 'dzn-' . $entity);
     }
 
     private static function entityDetail(string $entity, int $id): void {
         $record = (new CoreReadService())->find($entity, $id);
         if (!$record) { echo '<p>Record not found.</p>'; return; }
-        echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>Record #' . esc_html((string) $id) . '</h2>';
-        self::objectTable([$record], null);
+        $profile=in_array($entity,['student','teacher'],true);
+        $heading=$profile?ucfirst($entity).' profile · '.(string)($record->reference_code??''):'Record #'.(string)$id;
+        echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>' . esc_html($heading) . '</h2>';
+        self::objectTable([$record], null, $profile?self::profileFields($entity):null);
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             self::teacherMaintenanceForm( $record );
             $teacherId=(int)$record->id;
@@ -285,6 +289,12 @@ final class ScreenController {
 
     private static function canonicalEvidenceFields(): void { self::select('evidence_channel','Evidence channel',['staff_record','authenticated_platform','document_reference'],'staff_record'); self::input('evidence_reference','Evidence reference',true); self::input('evidence_at','Evidence UTC',true,'text',gmdate('Y-m-d H:i:s')); self::input('idempotency_key','Idempotency key',true,'text',wp_generate_uuid4()); }
 
+    private static function profileFields(string $entity): array {
+        return $entity==='teacher'
+            ? array('id','reference_code','display_name','persian_name','english_name','email','phone','whatsapp_phone','country_code','city','timezone','locale','calendar_preference','status')
+            : array('id','reference_code','display_name','first_name','last_name','email','phone','whatsapp_phone','country_code','city','timezone','locale','calendar_preference','status');
+    }
+
     private static function teacherFields(): void {
         self::input('persian_name', 'Persian name'); self::input('english_name', 'English name'); self::input('display_name', 'Display name', true); self::input('email', 'Email', false, 'email'); self::input('phone', 'Phone'); self::input('whatsapp_phone', 'WhatsApp'); self::input('country_code', 'Country code', false, 'text', 'IR'); self::input('city', 'City'); self::input('timezone', 'Timezone', false, 'text', 'Asia/Tehran'); self::select('timezone_source', 'Timezone source', ['admin_selected', 'student_selected', 'imported', 'system_suggested'], 'admin_selected'); self::input('locale', 'Locale', false, 'text', 'fa_IR'); self::select('calendar_preference', 'Calendar', ['persian', 'gregorian', 'auto'], 'persian'); self::select('status', 'Status', ['active', 'inactive'], 'active');
     }
@@ -350,8 +360,11 @@ final class ScreenController {
 
     private static function objectTable(array $records, ?string $page, ?array $allowed = null): void {
         if (!$records) { echo '<p>No records.</p>'; return; }
-        $fields = $allowed ?? array_keys(get_object_vars($records[0])); echo '<table class="widefat striped"><thead><tr>'; foreach ($fields as $field) echo '<th>' . esc_html((string) $field) . '</th>'; echo '</tr></thead><tbody>';
-        foreach ($records as $record) { echo '<tr>'; foreach ($fields as $field) { $value = $record->$field ?? null; if ($field === 'id' && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) $value], admin_url('admin.php'))) . '">' . esc_html((string) $value) . '</a>'; echo '<td>' . $link . '</td>'; } else echo '<td>' . esc_html(self::displayValue($value)) . '</td>'; } echo '</tr>'; }
+        $humanProfile=$allowed!==null&&in_array('id',$allowed,true)&&in_array('reference_code',$allowed,true);
+        $fields = $allowed ?? array_keys(get_object_vars($records[0])); if($humanProfile)$fields=array_values(array_filter($fields,static fn($field)=>$field!=='id'));
+        $labels=array('reference_code'=>'Reference','display_name'=>'Display name','persian_name'=>'Persian name','english_name'=>'English name','first_name'=>'First name','last_name'=>'Last name','whatsapp_phone'=>'WhatsApp','country_code'=>'Country','timezone'=>'Time zone','locale'=>'Language/locale','calendar_preference'=>'Calendar','status'=>'Status');
+        echo '<table class="widefat striped"><thead><tr>'; foreach ($fields as $field) echo '<th>' . esc_html($labels[$field]??ucfirst(str_replace('_',' ',(string)$field))) . '</th>'; echo '</tr></thead><tbody>';
+        foreach ($records as $record) { echo '<tr>'; foreach ($fields as $field) { $value = $record->$field ?? null; if ($field === 'reference_code' && $humanProfile && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) ($record->id??0)], admin_url('admin.php'))) . '">' . esc_html(self::displayValue($value)==='—'?'View':self::displayValue($value)) . '</a>'; echo '<td>' . $link . '</td>'; } elseif ($field === 'id' && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) $value], admin_url('admin.php'))) . '">' . esc_html((string) $value) . '</a>'; echo '<td>' . $link . '</td>'; } else echo '<td>' . esc_html(self::displayValue($value)) . '</td>'; } echo '</tr>'; }
         echo '</tbody></table>';
     }
     private static function displayValue(mixed $value): string { return ($value === null || $value === '' || !is_scalar($value)) ? '—' : (string) $value; }

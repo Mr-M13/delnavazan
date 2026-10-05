@@ -153,6 +153,14 @@ if ( ! str_contains( $screen, 'private static function lessonSelector(' )
     || 1 !== substr_count( $core_read, 'public function lessonOperatorOptions(string $entity): array' ) ) {
     throw new RuntimeException( 'Legacy Term and Lesson forms must use capability-gated human choices and keep selectors within legacy write authority.' );
 }
+if ( ! str_contains( $screen, 'private static function profileFields(string $entity): array' )
+    || ! str_contains( $screen, "self::objectTable(\$records, 'dzn-' . \$entity, self::profileFields(\$entity))" )
+    || ! str_contains( $screen, "self::objectTable([\$record], null, \$profile?self::profileFields(\$entity):null)" )
+    || ! str_contains( $screen, "\$field === 'reference_code' && \$humanProfile && \$page !== null" )
+    || ! str_contains( $screen, "\$field!=='id'" )
+    || ! str_contains( $screen, "'timezone'=>'Time zone'" ) ) {
+    throw new RuntimeException( 'Student and Teacher profiles must render curated fields and human reference links instead of internal IDs.' );
+}
 if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function courseSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function instrumentSelector(' )

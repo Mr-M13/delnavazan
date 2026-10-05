@@ -5,6 +5,7 @@ use Delnavazan\Platform\Core\Application\NotificationDispatchWorker;
 use Delnavazan\Platform\Core\Application\NotificationTransportRouter;
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Core\Infrastructure\ReadModel\StudentNotificationRecipientReadModel;
+use Delnavazan\Platform\Core\Infrastructure\ReadModel\StudentAccountClaimNotificationSubjectReadModel;
 
 /**
  * Deployment composition root. It is deliberately unavailable until copy and at least one transport
@@ -23,7 +24,7 @@ final class NotificationRuntimeFactory {
   $recipients=new StudentNotificationRecipientReadModel();
   $resolver=new NotificationTransportRecipientResolver($recipients);
   $transport=new CompositeNotificationTransport(new NotificationTransportRouter($bindings),new ConfiguredNotificationCopy($copy),$resolver);
-  return new NotificationDispatchWorker(new NotificationDispatchService(transport:$transport,recipients:$recipients));
+  return new NotificationDispatchWorker(new NotificationDispatchService(transport:$transport,recipients:$recipients,subjects:new StudentAccountClaimNotificationSubjectReadModel()));
  }
  private static function hasConfiguredBinding(array $bindings):bool{
   foreach($bindings as $b)if(is_array($b)&&!empty($b['configured'])&&isset($b['port'])&&$b['port'] instanceof NotificationTransportPort)return true;

@@ -96,8 +96,10 @@ final class NotificationSupport {
     }
 
     /** §9 logical identity: one notification per logical event, whatever order a replay arrives in. */
-    public static function notificationKeyDigest(string $workflowKey,int $workflowVersion,string $intentKey,string $audience,string $recipientDigest,string $subjectAggregate,int $subjectId,string $coalesceBucket):string{
-        return hash_hmac('sha256','notification:'.$workflowKey.':'.$workflowVersion.':'.$intentKey.':'.$audience.':'.$recipientDigest.':'.$subjectAggregate.':'.$subjectId.':'.$coalesceBucket,self::salt());
+    public static function notificationKeyDigest(string $workflowKey,int $workflowVersion,string $intentKey,string $audience,string $recipientDigest,string $subjectAggregate,int $subjectId,string $coalesceBucket,?string $generationIdentity=null):string{
+        $key='notification:'.$workflowKey.':'.$workflowVersion.':'.$intentKey.':'.$audience.':'.$recipientDigest.':'.$subjectAggregate.':'.$subjectId.':'.$coalesceBucket;
+        if($generationIdentity!==null)$key.=':generation:'.$generationIdentity;
+        return hash_hmac('sha256',$key,self::salt());
     }
     /** §6.2.3 bound-evidence digest: proves which immutable fact a dispatch was decided on. */
     public static function boundEvidenceDigest(string $aggregate,int $aggregateId,string $eventType,?string $fromState,string $toState,string $occurredAt):string{

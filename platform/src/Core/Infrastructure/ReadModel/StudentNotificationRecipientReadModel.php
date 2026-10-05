@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Infrastructure\ReadModel;
 
-use Delnavazan\Platform\Core\Application\NotificationRecipientReadPort;
+use Delnavazan\Platform\Core\Application\NotificationBoundRecipientReadPort;
 use Delnavazan\Platform\Core\Application\NotificationSupport;
 
 /**
@@ -10,7 +10,7 @@ use Delnavazan\Platform\Core\Application\NotificationSupport;
  * Consent, guardian authority and route are deliberately supplied by external read-only authority filters.
  * Until those authorities are configured, eligibility fails closed and no notification can be handed off.
  */
-final class StudentNotificationRecipientReadModel implements NotificationRecipientReadPort {
+final class StudentNotificationRecipientReadModel implements NotificationBoundRecipientReadPort {
  public function recipient(string $audience,string $recipientKind,int $subjectAggregateId):?array{
   if($audience!=='student'||$recipientKind!=='student'||$subjectAggregateId<1)return null;
   global $wpdb;
@@ -51,5 +51,10 @@ final class StudentNotificationRecipientReadModel implements NotificationRecipie
    'academy_timezone'=>(string)(function_exists('wp_timezone_string')?wp_timezone_string():'UTC'),
    'locale'=>(string)($row['locale']?:'fa-IR')
   );
+ }
+ public function recipientForBinding(string $audience,string $recipientKind,int $subjectAggregateId,array $binding):?array{
+  if(($binding['aggregate']??'')!=='student_account_claim_invitation')return $this->recipient($audience,$recipientKind,$subjectAggregateId);
+  global $wpdb;$studentId=(int)$wpdb->get_var($wpdb->prepare("SELECT student_id FROM {$wpdb->prefix}dzn_student_account_claim_invitations WHERE id=%d",$subjectAggregateId));
+  return $studentId>0?$this->recipient($audience,$recipientKind,$studentId):null;
  }
 }

@@ -111,6 +111,9 @@ jobs:
           php platform/tests/student-checkout-return-contract.php
           php platform/tests/student-notification-recipient-authority-contract.php
           php platform/tests/notification-copy-integrity-contract.php
+          php platform/tests/student-account-claim-notification-atomic-contract.php
+          php platform/tests/phase-opreadiness-core-operator-entrypoint-contract.php
+          php platform/tests/phase-opreadiness-core-operator-entrypoint-unit.php
           php platform/tests/booking-canonical-alias-contract.php
           php platform/tests/booking-route-state-contract.php
           php platform/tests/booking-day-grid-theme-contract.php

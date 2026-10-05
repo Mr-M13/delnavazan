@@ -8,6 +8,12 @@ use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CoreDatasetReadinessService;
 use Delnavazan\Platform\Core\Application\EnrolmentConversionService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
+use Delnavazan\Platform\Core\Application\StudentAccountClaimNotificationService;
+use Delnavazan\Platform\Core\Application\NotificationRule;
+use Delnavazan\Platform\Core\Infrastructure\Repository\EnrolmentConversionRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationOutboxRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\StudentAccountClaimInvitationRepository;
 
 /**
  * Authenticated Core-operator entrypoint. Canonical authorities remain the only domain writers.
@@ -21,6 +27,7 @@ final class CoreDatasetReadinessController {
     private const MENU_SLUG = 'dzn-core-dataset-readiness';
     private const ACTIONS = array(
         'convert_enrolment' => 'dzn_convert_service_arrangements_to_enrolments',
+        'issue_student_claim_for_enrolment' => 'dzn_issue_student_account_claims',
         'assign_initial_teacher' => 'dzn_manage_teacher_assignments',
         'replace_teacher_assignment' => 'dzn_manage_teacher_assignments',
         'create_canonical_term' => 'dzn_manage_canonical_terms',
@@ -81,6 +88,22 @@ final class CoreDatasetReadinessController {
 
         try {
             $result = self::dispatchOperatorAction( $post );
+            if ( $action === 'convert_enrolment' && ! empty( $result['enrolment_id'] ) ) {
+                self::redirect(
+                    'Enrolment #' . (int) $result['enrolment_id'] . ' is ready. Submit the separate Student account-claim action below only when authorised. Operator evidence #' . (int) $result['operator_evidence_id'] . ' was recorded.',
+                    false,
+                    array( 'enrolment_id' => (int) $result['enrolment_id'] )
+                );
+            }
+            if ( $action === 'issue_student_claim_for_enrolment' ) {
+                $notificationId = (int) ( $result['notification_id'] ?? 0 );
+                self::redirect( 'Student account-claim notification issuance recorded; operator evidence #' . (int) ( $result['operator_evidence_id'] ?? 0 ) . ' was recorded.', false, array(
+                    'claim_issue' => '1',
+                    'claim_invitation_id' => (int) ( $result['invitation_id'] ?? 0 ),
+                    'claim_generation_id' => (int) ( $result['generation_id'] ?? 0 ),
+                    'claim_notification_id' => $notificationId,
+                ) );
+            }
             self::redirect(
                 'Completed ' . sanitize_key( (string) ( $result['operation'] ?? 'operator_command' ) ) .
                 ' #' . (int) ( $result['operator_result_id'] ?? 0 ) .
@@ -107,6 +130,11 @@ final class CoreDatasetReadinessController {
         return match ( $action ) {
             'convert_enrolment' => self::convertEnrolment(
                 self::positiveInt( $post, 'accepted_service_arrangement_id' ),
+                self::text( $post, 'operator_key' ),
+                self::text( $post, 'evidence_reference' )
+            ),
+            'issue_student_claim_for_enrolment' => self::issueStudentClaimForEnrolment(
+                self::positiveInt( $post, 'enrolment_id' ),
                 self::text( $post, 'operator_key' ),
                 self::text( $post, 'evidence_reference' )
             ),
@@ -219,6 +247,30 @@ final class CoreDatasetReadinessController {
             $reference,
             $key,
             'enrolment_id'
+        );
+    }
+
+    /** Explicitly issue the existing #221 claim notification for a converted canonical Enrolment. */
+    public static function issueStudentClaimForEnrolment( int $enrolmentId, string $key, string $reference ): array {
+        self::requireCapability( self::ACTIONS['issue_student_claim_for_enrolment'] );
+        $enrolment = ( new EnrolmentConversionRepository() )->enrolmentById( $enrolmentId );
+        if ( ! $enrolment || (string) $enrolment->record_model !== 'canonical_student_course_v1' || empty( $enrolment->accepted_service_arrangement_id ) || (int) $enrolment->student_id < 1 ) {
+            throw new \InvalidArgumentException( 'Canonical converted Enrolment required' );
+        }
+        $result = ( new StudentAccountClaimNotificationService() )->issue(
+            (int) $enrolment->student_id,
+            604800,
+            $key
+        );
+        return self::withOperatorEvidence(
+            $result,
+            'student_account_claim_notification_issue',
+            'enrolment',
+            $enrolmentId,
+            'staff_record',
+            $reference,
+            $key,
+            'notification_id'
         );
     }
 
@@ -343,6 +395,14 @@ final class CoreDatasetReadinessController {
                 array( 'evidence_reference', 'Operator evidence reference' ),
                 array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
             ) );
+        }
+        if ( current_user_can( self::ACTIONS['issue_student_claim_for_enrolment'] ) ) {
+            self::form( 'issue_student_claim_for_enrolment', 'Issue Student account-claim notification (explicit operator action)', array(
+                array( 'enrolment_id', 'Canonical converted Enrolment ID' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+            echo '<p>This action issues the existing Student account claim through its notification workflow. Enrolment conversion never triggers it automatically.</p>';
         }
         if ( current_user_can( self::ACTIONS['assign_initial_teacher'] ) ) {
             self::form( 'assign_initial_teacher', 'Assign initial Teacher', array(
@@ -522,13 +582,58 @@ final class CoreDatasetReadinessController {
     }
 
     private static function messages(): void {
+        if ( ( $_GET['claim_issue'] ?? '' ) === '1' ) {
+            $result = self::claimNotificationResultFromQuery( wp_unslash( $_GET ) );
+            if ( $result === null ) {
+                echo '<div class="notice notice-warning"><p>Claim notification status could not be verified from persisted records. Review the Student identity authority screen.</p><p><a href="' . esc_url( admin_url( 'admin.php?page=dzn-student-identity-authority' ) ) . '">Student identity &amp; acceptance authority</a></p></div>';
+                return;
+            }
+            echo '<div class="notice notice-success"><p>' . esc_html( $result['message'] ) . '</p><p>' . esc_html( $result['next_step'] ) . ' <a href="' . esc_url( $result['next_url'] ) . '">Student identity &amp; acceptance authority</a></p></div>';
+            return;
+        }
         if ( ! isset( $_GET['dzn_notice'] ) ) return;
         $class = ( $_GET['dzn_error'] ?? '' ) === '1' ? 'notice-error' : 'notice-success';
         echo '<div class="notice ' . esc_attr( $class ) . '"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ) . '</p></div>';
     }
 
-    private static function redirect( string $notice, bool $error = false ): never {
-        $url = add_query_arg( array( 'page' => self::MENU_SLUG, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0' ), admin_url( 'admin.php' ) );
+    /** Build the PRG result exclusively from persisted claim, outbox and notification records. */
+    public static function claimNotificationResultFromQuery( array $query ): ?array {
+        foreach ( array( 'claim_invitation_id', 'claim_generation_id', 'claim_notification_id' ) as $field ) {
+            if ( ! isset( $query[ $field ] ) || ! is_scalar( $query[ $field ] ) || ! preg_match( '/^[1-9][0-9]*$/D', (string) $query[ $field ] ) ) return null;
+        }
+        $invitationId = (int) $query['claim_invitation_id'];
+        $generationId = (int) $query['claim_generation_id'];
+        $notificationId = (int) $query['claim_notification_id'];
+        $notification = ( new NotificationRepository() )->find( $notificationId );
+        $outbox = ( new NotificationOutboxRepository() )->forNotification( $notificationId );
+        $lifecycle = ( new StudentAccountClaimInvitationRepository() )->lifecycleForGeneration( $invitationId, $generationId );
+        if ( !$notification || !$outbox || !$lifecycle ) return null;
+        $expectedIntentKey = hash_hmac( 'sha256', 'student_account_claim_intent:' . $generationId, wp_salt( 'dzn_student_account_claim' ) );
+        if (
+            (int) $notification->id !== $notificationId ||
+            (string) $notification->intent_key !== 'STUDENT_ACCOUNT_CLAIM_ISSUED' ||
+            (string) $notification->subject_aggregate !== 'student_account_claim_invitation' ||
+            (int) $notification->subject_aggregate_id !== $invitationId ||
+            (int) $notification->outbox_id !== (int) $outbox->id ||
+            (int) $outbox->notification_id !== $notificationId ||
+            (string) $outbox->event_type !== 'STUDENT_ACCOUNT_CLAIM_ISSUED' ||
+            (string) $outbox->aggregate_type !== 'student_account_claim' ||
+            (int) $outbox->aggregate_id !== $invitationId ||
+            !hash_equals( $expectedIntentKey, (string) $outbox->idempotency_key ) ||
+            (int) $lifecycle->invitation_id !== $invitationId ||
+            (int) $lifecycle->generation_id !== $generationId
+        ) return null;
+        $state = (string) $notification->state;
+        if ( ! NotificationRule::notificationState( $state ) ) return null;
+        return array(
+            'message' => 'Invitation #' . $invitationId . ' (' . (string) $lifecycle->invitation_state . '); generation #' . $generationId . ' (' . (string) $lifecycle->generation_state . '); notification #' . $notificationId . '; notification state: ' . $state . '. Recipient delivery: pending/unconfirmed.',
+            'next_step' => 'Review the invitation lifecycle to see whether it is issued, expired, or claimed.',
+            'next_url' => admin_url( 'admin.php?page=dzn-student-identity-authority' ),
+        );
+    }
+
+    private static function redirect( string $notice, bool $error = false, array $context = array() ): never {
+        $url = add_query_arg( array_merge( array( 'page' => self::MENU_SLUG, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0' ), $context ), admin_url( 'admin.php' ) );
         nocache_headers();
         if ( wp_safe_redirect( $url ) ) exit;
         wp_die( esc_html( $notice ), 'Delnavazan', array( 'response' => $error ? 500 : 200 ) );

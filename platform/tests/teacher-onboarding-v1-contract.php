@@ -50,7 +50,7 @@ foreach ( array( 'approve', 'return', 'reject', 'dzn_manage_onboarding', 'review
     if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
 
 if ( strpos( $files['portal'], 'hasActiveTeacherAuthority' ) === false || strpos( $files['portal'], 'teacher_onboarding_required' ) === false ) throw new RuntimeException( 'Normal Teacher portal readiness gate missing.' );
-foreach ( array( 'currentForUser', "'onboarding' === $screen", 'dzn_teacher_onboarding_profile' ) as $fragment )
+foreach ( array( 'currentForUser', "'onboarding' === \$screen", 'dzn_teacher_onboarding_profile' ) as $fragment )
     if ( strpos( $files['theme_bridge'], $fragment ) === false ) throw new RuntimeException( 'Theme onboarding projection missing: ' . $fragment );
 if ( strpos( $files['theme_route'], 'dzn_theme_teacher_requires_onboarding' ) === false ) throw new RuntimeException( 'Incomplete Teacher routing missing.' );
 foreach ( array( 'dzn_theme_platform_teacher_state_model', 'dzn_theme_platform_teacher_read_state', "'not_linked'", "'onboarding_required'", "'error'" ) as $fragment )

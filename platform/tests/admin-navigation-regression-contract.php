@@ -5,18 +5,28 @@ $controllers = $root . '/src/Admin/Controller';
 $workspace = file_get_contents( $controllers . '/AdminWorkspaceController.php' );
 $dashboard = file_get_contents( $controllers . '/AdminDashboardController.php' );
 $menu = file_get_contents( $controllers . '/Menu.php' );
-if ( false === $workspace || false === $dashboard || false === $menu ) {
+$theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
+if ( false === $workspace || false === $dashboard || false === $menu || false === $theme_setup ) {
     throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
-if ( str_contains( $workspace, 'simplifySidebar' ) || str_contains( $workspace, '$submenu[' ) ) {
-    throw new RuntimeException( 'Workspace must not destructively filter registered submenus' );
+if ( ! str_contains( $workspace, 'if(!self::hasAccess())' )
+    || ! str_contains( $workspace, "remove_menu_page('dzn-platform')" )
+    || ! str_contains( $workspace, "unset(\$submenu['dzn-platform'])" ) ) {
+    throw new RuntimeException( 'Workspace root must be hidden when its access check fails' );
+}
+if ( str_contains( $workspace, '$keep=' ) || str_contains( $workspace, 'array_filter($submenu[' ) ) {
+    throw new RuntimeException( 'Workspace must leave submenu visibility to each registered capability' );
 }
 if ( ! str_contains( $workspace, 'current_user_can($x[2])' ) || ! str_contains( $workspace, 'current_user_can(\'manage_options\')' ) ) {
     throw new RuntimeException( 'Workspace must retain capability-based link visibility and administrator access' );
 }
 if ( ! str_contains( $workspace, "if(!self::hasAccess())wp_die('Forbidden',403)" ) ) {
     throw new RuntimeException( 'Workspace screen capability gate must remain in place' );
+}
+if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' )" )
+    || ! str_contains( $theme_setup, "! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' )" ) ) {
+    throw new RuntimeException( 'Public toolbar must be hidden for signed-in non-administrators only' );
 }
 
 if ( str_contains( $dashboard, 'dzn-workspace' ) || ! str_contains( $dashboard, 'admin.php?page=dzn-platform' ) ) {

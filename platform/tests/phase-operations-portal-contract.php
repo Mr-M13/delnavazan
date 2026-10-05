@@ -30,6 +30,8 @@ $navigation = $read( $theme . '/template-parts/operations/navigation.php' );
 $diagnostics = $read( $theme . '/template-parts/operations/diagnostics.php' );
 $routes     = $read( $theme . '/inc/routes.php' );
 $functions  = $read( $theme . '/functions.php' );
+$theme_setup = $read( $theme . '/inc/setup.php' );
+$workspace_controller = $read( $root . '/platform/src/Admin/Controller/AdminWorkspaceController.php' );
 
 /* 1. Every linked operations screen must exist in the Platform. */
 $platform_source = '';
@@ -141,6 +143,20 @@ if ( ! str_contains( $functions, "inc/operations.php" ) ) {
 }
 if ( ! str_contains( $operations, "dzn_theme_is_route( 'admin-operations' )" ) ) {
 	$fail( 'operations styles must load on the operations route only' );
+}
+
+/* 7. Portal users do not see an unusable toolbar or Platform admin entry. */
+if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' )" )
+	|| ! str_contains( $theme_setup, "! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' )" ) ) {
+	$fail( 'the public toolbar must be hidden for signed-in non-administrators only' );
+}
+if ( ! str_contains( $workspace_controller, "if(!self::hasAccess())" )
+	|| ! str_contains( $workspace_controller, "remove_menu_page('dzn-platform')" )
+	|| ! str_contains( $workspace_controller, "unset(\$submenu['dzn-platform'])" ) ) {
+	$fail( 'the Platform admin menu must be hidden when its workspace denies access' );
+}
+if ( str_contains( $workspace_controller, '$keep=' ) || str_contains( $workspace_controller, 'array_filter($submenu[' ) ) {
+	$fail( 'the workspace must leave capability-filtered submenu visibility to WordPress' );
 }
 
 echo "Operations portal contract passed\n";

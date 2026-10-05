@@ -10,6 +10,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Keep the WordPress toolbar out of the public portal for non-administrators.
+ *
+ * The toolbar is still available inside wp-admin, and remains visible on the
+ * front end for administrators who need it.
+ *
+ * @param bool $show Whether WordPress should render the toolbar.
+ * @return bool
+ */
+function dzn_theme_show_admin_bar_for_portal_users( $show ) {
+	if ( ! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' ) ) {
+		return false;
+	}
+
+	return $show;
+}
+add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' );
+
+/**
  * Register presentation features and navigation locations.
  */
 function dzn_theme_setup() {

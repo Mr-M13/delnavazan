@@ -4,11 +4,16 @@ final class AdminWorkspaceController {
  public static function register():void{add_action('admin_menu',[self::class,'menu'],99);add_action('admin_menu',[self::class,'simplifySidebar'],999);}
  public static function menu():void{}
  public static function simplifySidebar():void{
-  // Keep authority screens registered and directly reachable, but remove implementation-level
-  // entries from the everyday sidebar. Workspace remains the human navigation layer.
-  global $submenu;if(empty($submenu['dzn-platform']))return;
-  $keep=['dzn-academy-operations','dzn-staff-access','dzn-platform','dzn-system-health'];
-  $submenu['dzn-platform']=array_values(array_filter($submenu['dzn-platform'],static fn($item)=>isset($item[2])&&in_array((string)$item[2],$keep,true)));
+  // The root menu has a broad `read` capability so WordPress can register the
+  // workspace for staff. Hide it when none of the workspace's own capabilities
+  // are present; otherwise let each submenu's registered capability control
+  // visibility. Do not prune the menu here, since that also hides valid areas
+  // from administrators and staff who received an access bundle.
+  global $submenu;
+  if(!self::hasAccess()){
+   remove_menu_page('dzn-platform');
+   unset($submenu['dzn-platform']);
+  }
  }
  private static function hasAccess():bool{
   if(current_user_can('manage_options'))return true;

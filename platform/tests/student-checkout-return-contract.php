@@ -13,6 +13,9 @@ $stripeAdapter = file_get_contents($root . '/src/Integrations/Payment/Stripe/Str
 foreach (array("resolve('student')", 'byUid($uid)', '$session->student_id !== $studentId', 'settlementForObligation', "'payment_state' => 'paid'", "'retry_allowed' => false", "'action' => 'retry'", "'obligation_uid' => (string) \$obligation->uid") as $needle) {
     if (strpos($service, $needle) === false) throw new RuntimeException('Student Checkout return authority contract missing ' . $needle);
 }
+if (strpos($service, "array('issued', 'accepted')") === false) {
+    throw new RuntimeException('Student Checkout return state must keep accepted offers payable for later instalments');
+}
 foreach (array("'/student/checkout-status'", "'methods' => 'GET'", 'wp_verify_nonce', 'get_query_params', 'StudentCheckoutReturnReadService', "'payment_state' => 'unavailable'") as $needle) {
     if (strpos($controller, $needle) === false) throw new RuntimeException('Student Checkout return endpoint contract missing ' . $needle);
 }

@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 BIN := bin
-.PHONY: help check-cache up fresh-install retained migration-30-to-32 migration-31-to-32 pure path-guards regressions concurrency all destroy
+.PHONY: help check-cache up fresh-install retained migration-30-to-32 migration-31-to-32 pure path-guards regressions concurrency stripe-checkout-e2e all destroy
 help:
 	@echo "Schema-33 offline disposable runtime"
 	@echo "State is outside this checkout; images must already be cached."
@@ -14,5 +14,6 @@ pure: ; @$(BIN)/run-pure-tests.sh
 path-guards: ; @../tests/runtime-path-guards.sh
 regressions: ; @$(BIN)/run-regressions.sh
 concurrency: ; @$(BIN)/run-concurrency.sh
+stripe-checkout-e2e: ; @$(BIN)/run-stripe-checkout-test-mode-e2e.sh
 all: ; @$(BIN)/run-all.sh
 destroy: ; @$(BIN)/destroy.sh

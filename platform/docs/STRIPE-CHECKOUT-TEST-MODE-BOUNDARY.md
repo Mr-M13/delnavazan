@@ -25,3 +25,9 @@ Stripe Checkout completion events enter the existing signed event intake only fo
 The authenticated `GET /wp-json/delnavazan-platform/v1/student/checkout-status?attempt_uid=…` read returns only the canonical payment state, checkout state, and whether the student may continue, resume, or retry. It verifies current student ownership and the offer/obligation/session relationship. Loading Stripe's return URL never changes payment state.
 
 The success and cancel URLs return to the Student Portal with an opaque attempt UID for display correlation. Loading either URL is not evidence of payment. Settlement continues through verified provider events and `CommercialPaymentService`.
+
+## Offline E2E evidence
+
+CI runs `platform/tests/stripe-checkout-test-mode-e2e-contract.php`. It verifies that Checkout creation metadata, signed-webhook verification, exact session and obligation attribution, canonical settlement, replay convergence, and the Student return read stay connected without granting the return URL settlement authority.
+
+For the durable database proof, run `platform/runtime/bin/run-stripe-checkout-test-mode-e2e.sh` in the existing offline disposable runtime after its cached-image prerequisites are available. The runner performs a fresh local install, creates only synthetic records and a generated per-run vault value, and sends a locally signed webhook body directly to the intake service. It never calls Stripe, creates a live or test Stripe Checkout Session, or uses a credential from source or the environment.

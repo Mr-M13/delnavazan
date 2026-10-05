@@ -106,6 +106,7 @@ jobs:
           php platform/tests/stripe-checkout-reconciliation-contract.php
           php platform/tests/stripe-checkout-webhook-contract.php
           php platform/tests/stripe-checkout-webhook-unit.php
+          php platform/tests/stripe-checkout-test-mode-e2e-contract.php
           php platform/tests/checkout-session-authority-contract.php
           php platform/tests/student-checkout-initiation-contract.php
           php platform/tests/checkout-session-lifecycle-contract.php

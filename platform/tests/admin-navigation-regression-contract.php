@@ -180,6 +180,14 @@ if ( ! str_contains( $screen, 'private static function catalogueFields(string $e
     || ! str_contains( $instrument_repo, 'public function operatorFind(int $id): ?object' ) ) {
     throw new RuntimeException( 'Course and Instrument views must use curated catalogue projections with human Instrument labels.' );
 }
+if ( ! str_contains( $screen, "if (!\$record && \$entity==='term' && current_user_can('dzn_manage_canonical_terms'))" )
+    || ! str_contains( $screen, "self::canonicalTermHistory(\$id); self::canonicalTermLifecycleForm(\$record)" )
+    || ! str_contains( $screen, '!$canonicalTerm && ($entity !== \'enrolment\'' )
+    || ! str_contains( $screen, "private static function canonicalTermFields(): array" )
+    || ! str_contains( $core_read, 'public function canonicalTerm(int $termId): ?object' )
+    || ! str_contains( $core_read, 'CanonicalTermReadService())->forEnrolment' ) {
+    throw new RuntimeException( 'Canonical Term create redirects must resolve to the validated lifecycle detail screen.' );
+}
 if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function courseSelector(' )
     || ! str_contains( $teaching_eligibility, 'private static function instrumentSelector(' )

@@ -127,6 +127,12 @@ if ( ! str_contains( $teaching_eligibility, 'private static function teacherSele
     || ! str_contains( $core_read, "current_user_can('dzn_manage_teacher_availability')" )
     || ! str_contains( $teacher_repo, 'public function operatorOptions(): array' )
     || ! str_contains( $course_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $teacher_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $course_repo, 'public function operatorOptions(): array' )
+    || 1 !== substr_count( $core_read, 'public function teacherOptionsForTeachingEligibility(): array' )
+    || 1 !== substr_count( $core_read, 'public function courseOptionsForTeachingEligibility(): array' )
+    || 1 !== substr_count( $core_read, 'public function instrumentOptionsForTeachingEligibility(): array' )
+    || 1 !== substr_count( $core_read, 'public function teacherOptionsForAvailability(): array' )
     || str_contains( $teaching_eligibility, "self::redirect('Saved #'" )
     || str_contains( $availability, "self::redirect( 'Saved #'" ) ) {
     throw new RuntimeException( 'Eligibility and availability forms must use capability-gated human Teacher/Course selectors, limit Intro Course choices, and avoid exposing record IDs.' );

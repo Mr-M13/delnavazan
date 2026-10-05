@@ -5,8 +5,9 @@ $controllers = $root . '/src/Admin/Controller';
 $workspace = file_get_contents( $controllers . '/AdminWorkspaceController.php' );
 $dashboard = file_get_contents( $controllers . '/AdminDashboardController.php' );
 $menu = file_get_contents( $controllers . '/Menu.php' );
+$finance = file_get_contents( $controllers . '/FinanceStatementController.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
-if ( false === $workspace || false === $dashboard || false === $menu || false === $theme_setup ) {
+if ( false === $workspace || false === $dashboard || false === $menu || false === $finance || false === $theme_setup ) {
     throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
@@ -65,10 +66,6 @@ $dashboard_registrations = [
     'dzn-commercial-catalogue' => [
         "add_submenu_page('dzn-platform','Commercial catalogue','Commercial catalogue',self::CAP,'dzn-commercial-catalogue'",
     ],
-    'dzn-finance-statements' => [
-        "public const MENU_SLUG='dzn-finance-statements';",
-        'add_submenu_page(self::PARENT_SLUG',
-    ],
 ];
 foreach ( $dashboard_registrations as $slug => $registration_fragments ) {
     $registered = true;
@@ -81,6 +78,11 @@ foreach ( $dashboard_registrations as $slug => $registration_fragments ) {
     if ( ! str_contains( $dashboard, "'{$slug}'" ) || ! $registered ) {
         throw new RuntimeException( "Dashboard destination is not registered: {$slug}" );
     }
+}
+if ( ! str_contains( $dashboard, "'dzn-finance-statements'" )
+    || ! str_contains( $finance, "public const MENU_SLUG='dzn-finance-statements';" )
+    || ! str_contains( $finance, "add_submenu_page(self::PARENT_SLUG,'Compensation statements','Compensation statements',self::CAPABILITY,self::MENU_SLUG," ) ) {
+    throw new RuntimeException( 'Finance dashboard destination must use its registered MENU_SLUG argument' );
 }
 if ( ! str_contains( $menu, "'dzn-' . \$screen" ) ) {
     throw new RuntimeException( 'Core workspace screen slugs must remain registered by Menu' );

@@ -18,14 +18,22 @@ namespace Delnavazan\Platform\Core\Application {
     }
 
     final class TeacherAssignmentService {
+        public static array $calls = array();
         public function assignInitial( int $enrolmentId, string $key ): array {
             return array( 'assignment_id' => 42, 'created' => true );
+        }
+        public function replace( int $enrolmentId, int $teacherId, array $agreement, string $key ): array {
+            self::$calls[] = array( $enrolmentId, $teacherId, $agreement, $key );
+            return array( 'assignment_id' => 44, 'created' => true );
         }
     }
 
     final class CanonicalLessonAuthorityService {
         public function createStandard( int $termId, int $assignmentId, array $evidence, string $key ): array {
             return array( 'lesson_id' => 43, 'created' => true );
+        }
+        public function cancel( int $lessonId, string $expectedState, array $evidence, string $key ): array {
+            return array( 'lesson_id' => $lessonId, 'created' => false, 'operation' => 'cancel' );
         }
     }
 
@@ -93,7 +101,7 @@ namespace {
     // The exact conversion capability plus the action-bound nonce reaches the existing authority and durable receipt.
     $GLOBALS['dzn_core_operator_caps'] = array( 'dzn_convert_service_arrangements_to_enrolments' );
     $result = $controller::dispatchOperatorAction( $post );
-    dzn_core_operator_entrypoint_unit_assert( $result['enrolment_id'] === 41 && $result['operator_evidence_id'] === 71, 'Authorised conversion must return the authority result and durable operator receipt id.' );
+    dzn_core_operator_entrypoint_unit_assert( $result['enrolment_id'] === 41 && $result['operator_evidence_id'] === 71 && $result['operator_result_id'] === 41, 'Authorised conversion must return the canonical result id and durable operator receipt id.' );
     dzn_core_operator_entrypoint_unit_assert( \Delnavazan\Platform\Core\Application\EnrolmentConversionService::$calls === array( array( 9, 'operator-key-that-is-long-enough' ) ), 'The dispatcher must reach the existing conversion authority with the supplied idempotency key.' );
     dzn_core_operator_entrypoint_unit_assert( $GLOBALS['dzn_core_operator_nonces'] === array( 'dzn_core_dataset_convert_enrolment' ), 'The authorised request must verify the action-bound admin nonce.' );
     dzn_core_operator_entrypoint_unit_assert(
@@ -109,6 +117,26 @@ namespace {
         ) ),
         'A successful conversion must append the complete operator-entrypoint audit receipt after the authority result.'
     );
+
+    // Reassignment is exposed only through the canonical assignment authority and keeps its
+    // expected-current-assignment guard and agreement evidence intact.
+    $GLOBALS['dzn_core_operator_caps'] = array( 'dzn_manage_teacher_assignments' );
+    $replace = $controller::dispatchOperatorAction( array(
+        'dzn_action' => 'replace_teacher_assignment', 'enrolment_id' => '41', 'expected_assignment_id' => '42',
+        'new_teacher_id' => '7', 'route' => 'staff_attestation', 'evidence_channel' => 'phone',
+        'evidence_reference' => 'agreement-7', 'evidence_at' => '2026-10-05 00:00:00', 'operator_key' => 'replacement-key-long-enough',
+    ) );
+    dzn_core_operator_entrypoint_unit_assert( $replace['assignment_id'] === 44 && $replace['operator_evidence_id'] === 71 && $replace['operator_result_id'] === 44, 'Reassignment must return canonical assignment and readiness receipt results.' );
+    dzn_core_operator_entrypoint_unit_assert( \Delnavazan\Platform\Core\Application\TeacherAssignmentService::$calls[0][0] === 41 && \Delnavazan\Platform\Core\Application\TeacherAssignmentService::$calls[0][1] === 7 && \Delnavazan\Platform\Core\Application\TeacherAssignmentService::$calls[0][2]['expected_assignment_id'] === 42, 'Reassignment must pass the target Teacher and expected current Assignment to the canonical service.' );
+
+    // Cancellation remains a canonical Lesson lifecycle command, behind its own narrow capability.
+    $GLOBALS['dzn_core_operator_caps'] = array( 'dzn_manage_canonical_lessons' );
+    $cancel = $controller::dispatchOperatorAction( array(
+        'dzn_action' => 'cancel_canonical_lesson', 'lesson_id' => '43', 'expected_lesson_state' => 'authorised',
+        'reason_code' => 'attested_non_delivery', 'evidence_channel' => 'staff_record',
+        'evidence_reference' => 'delivery-review-43', 'evidence_at' => '2026-10-05 00:00:00', 'operator_key' => 'cancel-key-long-enough-0001',
+    ) );
+    dzn_core_operator_entrypoint_unit_assert( $cancel['lesson_id'] === 43 && $cancel['operator_evidence_id'] === 71 && $cancel['operator_result_id'] === 43, 'Canonical cancellation must return the domain result and readiness receipt.' );
 
     // The entrypoint itself registers for each exact command capability on its own, because WordPress
     // only registers the submenu page and its load-$hook handler for a capability the actor holds.

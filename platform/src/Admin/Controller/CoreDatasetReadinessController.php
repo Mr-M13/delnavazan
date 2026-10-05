@@ -22,10 +22,12 @@ final class CoreDatasetReadinessController {
     private const ACTIONS = array(
         'convert_enrolment' => 'dzn_convert_service_arrangements_to_enrolments',
         'assign_initial_teacher' => 'dzn_manage_teacher_assignments',
+        'replace_teacher_assignment' => 'dzn_manage_teacher_assignments',
         'create_canonical_term' => 'dzn_manage_canonical_terms',
         'activate_canonical_term' => 'dzn_manage_canonical_terms',
         'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
         'complete_canonical_lesson' => 'dzn_manage_canonical_lessons',
+        'cancel_canonical_lesson' => 'dzn_manage_canonical_lessons',
         'record_delivery_outcome' => 'dzn_manage_canonical_lesson_delivery',
         'schedule_canonical_lesson' => 'dzn_manage_canonical_lesson_schedules',
         'revise_canonical_lesson_schedule' => 'dzn_manage_canonical_lesson_schedules',
@@ -77,7 +79,11 @@ final class CoreDatasetReadinessController {
 
         try {
             $result = self::dispatchOperatorAction( $post );
-            self::redirect( 'Completed; operator evidence #' . (int) $result['operator_evidence_id'] . ' was recorded.' );
+            self::redirect(
+                'Completed ' . sanitize_key( (string) ( $result['operation'] ?? 'operator_command' ) ) .
+                ' #' . (int) ( $result['operator_result_id'] ?? 0 ) .
+                '; operator evidence #' . (int) $result['operator_evidence_id'] . ' was recorded.'
+            );
         } catch ( \Throwable ) {
             // The individual authority controls its own atomic domain command and rejection semantics.
             self::redirect( 'Operation failed; no readiness receipt was recorded.', true );
@@ -107,6 +113,18 @@ final class CoreDatasetReadinessController {
                 self::text( $post, 'operator_key' ),
                 self::text( $post, 'evidence_reference' )
             ),
+            'replace_teacher_assignment' => self::replaceTeacherAssignment(
+                self::positiveInt( $post, 'enrolment_id' ),
+                self::positiveInt( $post, 'new_teacher_id' ),
+                array(
+                    'expected_assignment_id' => self::positiveInt( $post, 'expected_assignment_id' ),
+                    'route' => self::text( $post, 'route' ),
+                    'evidence_channel' => self::text( $post, 'evidence_channel' ),
+                    'evidence_reference' => self::text( $post, 'evidence_reference' ),
+                    'evidence_at' => self::text( $post, 'evidence_at' ),
+                ),
+                self::text( $post, 'operator_key' )
+            ),
             'create_canonical_term' => self::createCanonicalTerm(
                 self::positiveInt( $post, 'enrolment_id' ),
                 array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
@@ -130,6 +148,17 @@ final class CoreDatasetReadinessController {
             'complete_canonical_lesson' => self::completeCanonicalLesson(
                 self::positiveInt( $post, 'lesson_id' ),
                 array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
+            'cancel_canonical_lesson' => self::cancelCanonicalLesson(
+                self::positiveInt( $post, 'lesson_id' ),
+                self::text( $post, 'expected_lesson_state' ),
+                array(
+                    'reason_code' => self::text( $post, 'reason_code' ),
+                    'evidence_channel' => self::text( $post, 'evidence_channel' ),
+                    'evidence_reference' => self::text( $post, 'evidence_reference' ),
+                    'evidence_at' => self::text( $post, 'evidence_at' ),
+                ),
                 self::text( $post, 'operator_key' )
             ),
             'record_delivery_outcome' => self::recordDeliveryOutcome(
@@ -194,6 +223,12 @@ final class CoreDatasetReadinessController {
         );
     }
 
+    public static function replaceTeacherAssignment( int $enrolmentId, int $teacherId, array $agreement, string $key ): array {
+        self::requireCapability( self::ACTIONS['replace_teacher_assignment'] );
+        $result = ( new TeacherAssignmentService() )->replace( $enrolmentId, $teacherId, $agreement, $key );
+        return self::withOperatorEvidence( $result, 'teacher_assignment_replacement', 'enrolment', $enrolmentId, (string) ( $agreement['evidence_channel'] ?? '' ), (string) ( $agreement['evidence_reference'] ?? '' ), $key, 'assignment_id' );
+    }
+
     public static function createCanonicalTerm( int $enrolmentId, array $evidence, string $key ): array {
         self::requireCapability( self::ACTIONS['create_canonical_term'] );
         $result = ( new CanonicalTermAuthorityService() )->create( $enrolmentId, null, null, $evidence, $key );
@@ -225,6 +260,12 @@ final class CoreDatasetReadinessController {
         self::requireCapability( self::ACTIONS['complete_canonical_lesson'] );
         $result = ( new CanonicalLessonAuthorityService() )->complete( $lessonId, 'authorised', $evidence, $key );
         return self::withOperatorEvidence( $result, 'canonical_lesson_completion', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'lesson_id' );
+    }
+
+    public static function cancelCanonicalLesson( int $lessonId, string $expectedState, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['cancel_canonical_lesson'] );
+        $result = ( new CanonicalLessonAuthorityService() )->cancel( $lessonId, $expectedState, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_lesson_cancellation', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'lesson_id' );
     }
 
     public static function recordDeliveryOutcome( int $lessonId, string $expectedState, array $evidence, string $key ): array {
@@ -284,6 +325,18 @@ final class CoreDatasetReadinessController {
                 array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
             ) );
         }
+        if ( current_user_can( self::ACTIONS['replace_teacher_assignment'] ) ) {
+            self::form( 'replace_teacher_assignment', 'Replace Teacher Assignment by agreement', array(
+                array( 'enrolment_id', 'Canonical Enrolment ID' ),
+                array( 'expected_assignment_id', 'Current Teacher Assignment ID' ),
+                array( 'new_teacher_id', 'New eligible Teacher ID' ),
+                array( 'route', 'Agreement route: staff_attestation or authenticated_teacher' ),
+                array( 'evidence_channel', 'Evidence channel: phone, whatsapp, email, video_call, in_person, or other_verified' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
         if ( current_user_can( self::ACTIONS['create_canonical_term'] ) ) {
             self::form( 'create_canonical_term', 'Create first canonical Term', array(
                 array( 'enrolment_id', 'Canonical Enrolment ID' ),
@@ -331,6 +384,17 @@ final class CoreDatasetReadinessController {
                 array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
             ) );
         }
+        if ( current_user_can( self::ACTIONS['cancel_canonical_lesson'] ) ) {
+            self::form( 'cancel_canonical_lesson', 'Cancel canonical Lesson', array(
+                array( 'lesson_id', 'Canonical Lesson ID' ),
+                array( 'expected_lesson_state', 'Expected Lesson state: authorised' ),
+                array( 'reason_code', 'Cancellation reason: canonical_lesson_cancelled, attested_non_delivery, or academy_unavailable' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
+                array( 'evidence_reference', 'Operator evidence reference' ),
+                array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
+                array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+        }
         if ( current_user_can( self::ACTIONS['schedule_canonical_lesson'] ) ) {
             self::form( 'schedule_canonical_lesson', 'Schedule canonical Lesson', array(
                 array( 'lesson_id', 'Canonical Lesson ID' ),
@@ -370,7 +434,10 @@ final class CoreDatasetReadinessController {
             $key,
             array( 'state' => 'completed', 'id' => (int) ( $result[ $resultIdKey ] ?? 0 ) )
         );
-        return $result + array( 'operator_evidence_id' => $receipt );
+        return $result + array(
+            'operator_evidence_id' => $receipt,
+            'operator_result_id' => (int) ( $result[ $resultIdKey ] ?? 0 ),
+        );
     }
 
     private static function requireCapability( string $capability ): void {

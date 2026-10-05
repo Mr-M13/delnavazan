@@ -78,6 +78,23 @@ dzn_core_operator_entrypoint_assert(
     str_contains( $controller, "wp_die( 'Access denied.', 'Delnavazan', array( 'response' => 403 ) );" ),
     'A denied operator action must stop at the controller with a 403 before an authority can run.'
 );
+
+// Existing canonical correction authorities must remain reachable from this same narrow, audited
+// entrypoint so operations can recover without direct database edits.
+foreach ( array(
+    'replace_teacher_assignment' => array( 'dzn_manage_teacher_assignments', 'replaceTeacherAssignment(', 'TeacherAssignmentService() )->replace' ),
+    'cancel_canonical_lesson' => array( 'dzn_manage_canonical_lessons', 'cancelCanonicalLesson(', 'CanonicalLessonAuthorityService() )->cancel' ),
+) as $action => $contract ) {
+    [ $capability, $wrapper, $authority ] = $contract;
+    dzn_core_operator_entrypoint_assert(
+        str_contains( $controller, "'$action' => '$capability'" ) &&
+        str_contains( $controller, "current_user_can( self::ACTIONS['$action'] )" ) &&
+        substr_count( $controller, $wrapper ) >= 2 &&
+        str_contains( $controller, $authority ) &&
+        str_contains( $controller, "self::requireCapability( self::ACTIONS['$action'] );" ),
+        "The $action correction must stay on its existing authority behind its exact capability and operator form."
+    );
+}
 $authorization = strpos( $controller, "current_user_can( self::ACTIONS[ \$action ] )" );
 $nonce = strpos( $controller, "check_admin_referer( 'dzn_core_dataset_' . \$action )" );
 $dispatch = strpos( $controller, 'match ( $action )' );
@@ -127,8 +144,10 @@ dzn_core_operator_entrypoint_assert(
 );
 dzn_core_operator_entrypoint_assert(
     str_contains( $controller, "'operator_entrypoint'") && str_contains( $controller, "'state' => 'completed'") &&
-    str_contains( $controller, "return \$result + array( 'operator_evidence_id' => \$receipt );" ),
-    'A successful wrapper must produce a completed operator-entrypoint receipt and return its durable id.'
+    str_contains( $controller, "'operator_evidence_id' => \$receipt") &&
+    str_contains( $controller, "'operator_result_id' => (int) ( \$result[ \$resultIdKey ] ?? 0 )") &&
+    str_contains( $controller, "(int) ( \$result['operator_result_id'] ?? 0 )" ),
+    'A successful wrapper must return both its canonical result id and durable operator receipt id for the next operator step.'
 );
 dzn_core_operator_entrypoint_assert(
     ! str_contains( $controller, "'record_correction' =>") && str_contains( $controller, 'cannot create a correction in place of that command' ),

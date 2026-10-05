@@ -28,6 +28,8 @@ final class IntegrationControlPlaneController {
             self::row('OAuth client configuration',$r['google_calendar']['oauth_client']);
             self::row('Configuration source',$r['google_calendar']['configuration_source']);
             self::row('Connection test',$r['google_calendar']['test_connection']);
+        foreach($r['google_calendar']['projection_states'] as $state=>$count)self::row('Calendar projection: '.$state,(string)$count);
+            foreach($r['google_calendar']['projection_states'] as $state=>$count)self::row('Calendar projection: '.$state,(string)$count);
             echo '</tbody></table></div>';return;
         }
         $state=$r['notifications']['channels'][$provider]??'not_configured';
@@ -46,6 +48,8 @@ final class IntegrationControlPlaneController {
         self::row('Notification copy',$r['notifications']['copy_definitions']);
         foreach($r['notifications']['channels'] as $channel=>$state)self::row(ucfirst($channel).' channel',$state);
         foreach($r['email']['invitation_outbox'] as $state=>$count)self::row('Invitation outbox: '.$state,(string)$count);
+        foreach($r['notifications']['states'] as $state=>$count)self::row('Notification state: '.$state,(string)$count);
+        foreach($r['notifications']['delivery_states'] as $state=>$count)self::row('Notification delivery evidence: '.$state,(string)$count);
         echo '</tbody></table><h2>Google</h2><table class="widefat striped"><tbody>';
         self::row('Implemented capability',$r['google_calendar']['capability']);
         self::row('OAuth client configuration',$r['google_calendar']['oauth_client']);

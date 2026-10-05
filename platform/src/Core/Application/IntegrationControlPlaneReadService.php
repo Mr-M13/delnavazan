@@ -38,6 +38,9 @@ final class IntegrationControlPlaneReadService {
         $invitationDelivery=array('pending'=>0,'prepared'=>0,'delivered'=>0,'failed'=>0);
         foreach((array)$rows as $row){$state=(string)$row->status;if(array_key_exists($state,$invitationDelivery))$invitationDelivery[$state]=(int)$row->total;}
 
+        $googleProjectionStates=$this->countStates($wpdb->prefix.'dzn_provider_calendar_event_mappings','projection_state');
+        $notificationStates=$this->countStates($wpdb->prefix.'dzn_notifications','state');
+        $deliveryStates=$this->countStates($wpdb->prefix.'dzn_notification_deliveries','delivery_state');
         return array(
             'email'=>array(
                 'invitation_transport'=>function_exists('wp_mail')&&$invitationTransportConfigured?'configured_unverified':'not_configured',
@@ -47,6 +50,8 @@ final class IntegrationControlPlaneReadService {
             ),
             'notifications'=>array(
                 'runtime'=>$notificationRuntime?'configured':'not_configured',
+                'states'=>$notificationStates,
+                'delivery_states'=>$deliveryStates,
                 'copy_definitions'=>is_array($copy)&&$copy!==array()?'configured':'not_configured',
                 'channels'=>array(
                     'email'=>isset($configuredChannels['email'])?'configured':'not_configured',
@@ -59,6 +64,7 @@ final class IntegrationControlPlaneReadService {
                 'oauth_client'=> $googleConfigured?'configured':'not_configured',
                 'configuration_source'=>'DZN_GOOGLE_OAUTH_CLIENT_ID and DZN_GOOGLE_OAUTH_CLIENT_SECRET in deployment configuration',
                 'test_connection'=>'not_run',
+                'projection_states'=>$googleProjectionStates,
             ),
             'stripe'=>array(
                 'status'=>'see Payment Execution readiness',
@@ -67,4 +73,6 @@ final class IntegrationControlPlaneReadService {
             'generated_at'=>current_time('mysql',true),
         );
     }
+    /** Safe aggregate only: no recipients, content, provider reference, or credential values. */
+    private function countStates(string $table,string $column):array{global $wpdb;$rows=$wpdb->get_results("SELECT {$column} AS state,COUNT(*) AS total FROM {$table} GROUP BY {$column}");if(!is_array($rows))throw new \RuntimeException('integration_control_plane_read_unavailable');$out=array();foreach($rows as $row)$out[(string)$row->state]=(int)$row->total;return $out;}
 }

@@ -48,7 +48,7 @@ if (strpos($returnRead, '->ingest(') !== false || strpos($returnRead, 'Commercia
     throw new RuntimeException('Checkout return reads must never settle payment.');
 }
 foreach (array(
-    "DZN_STRIPE_CHECKOUT_E2E_TEST')!=='authority'", 'WP_CLI', "array('local','development')",
+    'DZN_STRIPE_CHECKOUT_E2E_TEST', "'authority'", 'WP_CLI', "'local'", "'development'",
     'StripeCheckoutAdapter::providerFields', 'StudentCheckoutReturnReadService', 'PaymentEventIntakeService',
     'signature_invalid', 'ambiguous_obligation_attribution', 'duplicate verified webhook',
     'commercial_obligation_settlements', 'PaymentExecutionIdempotency::reference($sessionReference)',

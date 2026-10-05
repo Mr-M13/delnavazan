@@ -15,4 +15,12 @@ final class InstrumentRepository extends BaseRepository {
             $instrumentId
         ));
     }
+
+    /** Instruments an operator may select when creating a Course; IDs stay in form values only. */
+    public function optionsForCourse(): array {
+        global $wpdb;
+        return $wpdb->get_results(
+            "SELECT id, name_fa, name_en, status FROM {$this->table} WHERE archived_at IS NULL AND status <> 'archived' ORDER BY COALESCE(NULLIF(name_en, ''), name_fa), id"
+        ) ?: array();
+    }
 }

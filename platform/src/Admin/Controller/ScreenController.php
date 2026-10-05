@@ -294,7 +294,17 @@ final class ScreenController {
     }
 
     private static function instrumentFields(): void { self::input('slug', 'Slug', true); self::input('name_fa', 'Persian name'); self::input('name_en', 'English name'); self::select('status', 'Status', ['active', 'inactive'], 'active'); }
-    private static function courseFields(): void { self::input('instrument_id', 'Instrument ID', true, 'number'); self::input('name_fa', 'Persian name', true); self::input('name_en', 'English name', true); self::select('course_type', 'Course type', ['standard', 'introductory'], 'standard'); self::select('status', 'Status', ['active', 'inactive'], 'active'); self::input('default_duration_minutes', 'Duration minutes', true, 'number', '30'); self::input('default_buffer_minutes', 'Buffer minutes', true, 'number', '15'); }
+    private static function courseFields(): void { self::instrumentSelector(); self::input('name_fa', 'Persian name', true); self::input('name_en', 'English name', true); self::select('course_type', 'Course type', ['standard', 'introductory'], 'standard'); self::select('status', 'Status', ['active', 'inactive'], 'active'); self::input('default_duration_minutes', 'Duration minutes', true, 'number', '30'); self::input('default_buffer_minutes', 'Buffer minutes', true, 'number', '15'); }
+    private static function instrumentSelector(): void {
+        $instruments = (new CoreReadService())->instrumentOptionsForCourse();
+        echo '<p><label>Instrument<br><select required name="instrument_id"><option value="">Choose an instrument</option>';
+        foreach ($instruments as $instrument) {
+            $name = (string) ($instrument->name_en ?: $instrument->name_fa ?: 'Instrument');
+            $label = $name . ((string) $instrument->status === 'active' ? '' : ' (inactive)');
+            echo '<option value="' . esc_attr((string) $instrument->id) . '">' . esc_html($label) . '</option>';
+        }
+        echo '</select></label><br><span class="description">Choose the instrument this Course teaches. Archived instruments are unavailable.</span></p>';
+    }
     private static function termFields(): void { self::input('enrolment_id', 'Enrolment ID', true, 'number'); self::input('sequence_number', 'Sequence', true, 'number', '1'); self::select('status', 'Status', ['draft', 'awaiting_payment', 'active', 'completed', 'cancelled'], 'draft'); self::input('lesson_allocation', 'Lesson allocation', true, 'number', '12'); self::input('replacement_allowance', 'Replacement allowance', true, 'number', '2'); self::select('payment_state', 'Payment state', ['not_required', 'pending', 'paid', 'failed', 'refunded'], 'not_required'); }
     private static function lessonFields(): void { self::input('student_id', 'Student ID', true, 'number'); self::input('teacher_id', 'Teacher ID', true, 'number'); self::input('course_id', 'Course ID', true, 'number'); self::select('lesson_type', 'Lesson type', ['introductory', 'standard', 'replacement'], 'introductory'); self::select('status', 'Status', ['draft'], 'draft'); self::input('enrolment_id', 'Enrolment ID (optional only for introductory)', false, 'number'); self::input('term_id', 'Term ID (requires Enrolment)', false, 'number'); self::input('replacement_for_lesson_id', 'Original Lesson ID (replacement only)', false, 'number'); }
 

@@ -13,9 +13,12 @@ $payment = file_get_contents( $controllers . '/PaymentExecutionController.php' )
 $integrations = file_get_contents( $controllers . '/IntegrationControlPlaneController.php' );
 $coverage = file_get_contents( $controllers . '/AcademyCoverageController.php' );
 $catalogue = file_get_contents( $controllers . '/CommercialCatalogueController.php' );
+$screen = file_get_contents( $controllers . '/ScreenController.php' );
+$core_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CoreReadService.php' );
+$instrument_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/InstrumentRepository.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $core_read, $instrument_repo, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
@@ -94,6 +97,15 @@ if ( ! str_contains( $coverage, "add_submenu_page('dzn-teachers-menu','Teaching 
     || str_contains( $catalogue, "add_submenu_page('dzn-settings-menu'" )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-academy-coverage'" ) ) {
     throw new RuntimeException( 'Teacher coverage and course pricing belong to their operator workflow groups, not technical Settings.' );
+}
+if ( ! str_contains( $screen, 'private static function instrumentSelector(): void' )
+    || ! str_contains( $screen, 'self::instrumentSelector();' )
+    || str_contains( $screen, "self::input('instrument_id', 'Instrument ID'")
+    || ! str_contains( $screen, 'Choose an instrument' )
+    || ! str_contains( $core_read, 'public function instrumentOptionsForCourse()' )
+    || ! str_contains( $instrument_repo, 'public function optionsForCourse(): array' )
+    || ! str_contains( $instrument_repo, "status <> 'archived'" ) ) {
+    throw new RuntimeException( 'Course setup must use a capability-gated human instrument choice instead of an Instrument ID text field.' );
 }
 if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_show_admin_bar_for_portal_users' )" )
     || ! str_contains( $theme_setup, "! is_admin() && is_user_logged_in() && ! current_user_can( 'manage_options' )" ) ) {

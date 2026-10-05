@@ -34,6 +34,13 @@ final class CoreReadService {
         return $rows;
     }
 
+    /** Human-labelled instrument options for Course administration. */
+    public function instrumentOptionsForCourse(): array {
+        $repository = $this->repository('instrument');
+        if (!$repository instanceof InstrumentRepository) throw new \InvalidArgumentException('Unsupported operator selector');
+        return $repository->optionsForCourse();
+    }
+
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

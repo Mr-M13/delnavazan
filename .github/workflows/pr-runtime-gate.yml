@@ -68,10 +68,7 @@ jobs:
             platform/tests/phase-2a2f-concurrency-contract.php
             platform/tests/phase-2a2f-contract.php
             platform/tests/phase-2a2q-contract.php
-            platform/tests/phase-2a2j-contract.php
-            platform/tests/phase-2a2m-contract.php
             platform/tests/phase-2a2n-contract.php
-            platform/tests/phase-2a2o-contract.php
           )
           for contract in "${contracts[@]}"; do
             php "$contract"

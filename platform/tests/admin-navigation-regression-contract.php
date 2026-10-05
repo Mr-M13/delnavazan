@@ -43,6 +43,8 @@ if ( ! str_contains( $menu, 'add_menu_page($label, $label, \'read\', $slug, [Adm
     || ! str_contains( $menu, "['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null]" )
     || ! str_contains( $menu, "['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson'" )
     || ! str_contains( $menu, "['dzn-classes-menu', 'Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review'" )
+    || ! str_contains( $menu, "['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'" )
+    || str_contains( $menu, "['dzn-courses-menu', 'Enrolments'")
     || str_contains( $menu, "['dzn-finance-menu', 'Attendance'")
     || str_contains( $menu, "['dzn-courses-menu', 'Lessons'")
     || ! str_contains( $menu, "['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'" ) ) {

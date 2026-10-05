@@ -33,6 +33,7 @@ final class Menu {
 
             ['dzn-students-menu', 'Students', 'dzn_manage_students', 'dzn-student', static fn() => ScreenController::screen('student'), static fn() => ScreenController::handlePost('student')],
             ['dzn-students-menu', 'Identity & authentication', 'dzn_view_student_acceptance_eligibility', 'dzn-student-identity-authority', [StudentIdentityAuthorityController::class, 'screen'], [StudentIdentityAuthorityController::class, 'handlePost']],
+            ['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment', static fn() => ScreenController::screen('enrolment'), static fn() => ScreenController::handlePost('enrolment')],
 
             ['dzn-teachers-menu', 'Teachers', 'dzn_manage_teachers', 'dzn-teacher', static fn() => ScreenController::screen('teacher'), static fn() => ScreenController::handlePost('teacher')],
             ['dzn-teachers-menu', 'Teacher onboarding', 'dzn_manage_onboarding', 'dzn-onboarding', [OnboardingController::class, 'screen'], [OnboardingController::class, 'handlePost']],
@@ -41,7 +42,6 @@ final class Menu {
 
             ['dzn-courses-menu', 'Courses', 'dzn_manage_courses', 'dzn-course', static fn() => ScreenController::screen('course'), static fn() => ScreenController::handlePost('course')],
             ['dzn-courses-menu', 'Terms', 'dzn_manage_terms', 'dzn-term', static fn() => ScreenController::screen('term'), static fn() => ScreenController::handlePost('term')],
-            ['dzn-courses-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment', static fn() => ScreenController::screen('enrolment'), static fn() => ScreenController::handlePost('enrolment')],
             ['dzn-courses-menu', 'Instruments', 'dzn_manage_courses', 'dzn-instrument', static fn() => ScreenController::screen('instrument'), static fn() => ScreenController::handlePost('instrument')],
             ['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson', static fn() => ScreenController::screen('lesson'), static fn() => ScreenController::handlePost('lesson')],
             ['dzn-classes-menu', 'Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],

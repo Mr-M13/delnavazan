@@ -82,6 +82,8 @@ jobs:
           php platform/tests/operations-dashboard-source-contract.php
           php platform/tests/teacher-availability-lifecycle-contract.php
           php platform/tests/launch-portal-hardening-contract.php
+          php platform/tests/phase-opreadiness-core-operator-entrypoint-contract.php
+          php platform/tests/phase-opreadiness-core-operator-entrypoint-unit.php
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-transport-routing-contract.php

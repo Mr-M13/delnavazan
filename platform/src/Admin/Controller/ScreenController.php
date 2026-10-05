@@ -229,7 +229,7 @@ final class ScreenController {
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
-        if ($entity === 'lesson') { if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status); }
+        if ($entity === 'lesson') { if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
     }
 
     private static function updateTeacherProfile(array $post): int {
@@ -358,10 +358,12 @@ final class ScreenController {
 
     private static function legacyEnrolmentSelector(string $label, bool $required): void { $rows=(new CoreReadService())->legacyEnrolmentOptionsForTerm(); echo '<p><label>'.esc_html($label).'<br><select name="enrolment_id"'.($required?' required':'').'><option value="">Choose a legacy Enrolment</option>'; foreach($rows as$row){$text=(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.(string)($row->teacher?:'Teacher');if($row->status!=='active')$text.=' ('.str_replace('_',' ',(string)$row->status).')';echo '<option value="'.esc_attr((string)$row->id).'">'.esc_html($text).'</option>';}echo '</select><br><span class="description">Only legacy Enrolments are accepted by this Term workflow.</span></label></p>'; }
 
-    private static function lessonSchedules(int $lessonId, string $lessonStatus): void {
+    private static function lessonSchedules(int $lessonId, string $lessonStatus, int $schedulePointer): void {
         $state = (new CoreReadService())->lessonSchedule($lessonId);
-        echo '<h2>Schedule</h2>'; if ($state['current']) self::objectTable([$state['current']], null); else echo '<p>No current schedule.</p>';
-        echo '<h3>Schedule history</h3>'; self::objectTable($state['history'], null);
+        $fields=array('version_number','local_wall_date','local_wall_time','schedule_timezone');
+        echo '<h2>Schedule</h2>'; if ($state['current']) self::objectTable([$state['current']], null,$fields); else echo '<p>No current schedule.</p>';
+        echo '<h3>Schedule history</h3>'; self::objectTable($state['history'], null,$fields);
+        if($schedulePointer!==(int)($state['current']->id??0)){echo '<p class="notice notice-error">The class schedule pointer needs staff review before it can be changed.</p>';return;}
         if(!in_array($lessonStatus,array('draft','scheduled'),true)){echo '<p>Scheduling is closed for this class status.</p>';return;}
         self::formStart($state['current'] ? 'reschedule' : 'initial_schedule'); echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lessonId) . '">';
         self::input('schedule_timezone', 'Schedule timezone', true, 'text', 'Australia/Brisbane'); self::input('local_wall_date', 'Local date', true, 'date'); self::input('local_wall_time', 'Local time (HH:MM:SS)', true, 'text'); self::input('reason', 'Reason'); submit_button($state['current'] ? 'Reschedule' : 'Create initial schedule'); echo '</form>';

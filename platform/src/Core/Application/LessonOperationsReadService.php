@@ -17,6 +17,7 @@ final class LessonOperationsReadService {
             if($row->record_model==='legacy_phase1'){
                 $row->class_status=match((string)$row->status){'draft'=>'Ready to schedule','scheduled'=>'Scheduled','completed'=>'Completed','cancelled'=>'Cancelled',default=>'Review class status'};
                 if((int)$row->current_schedule_version_id>0&&$row->local_wall_date&&$row->local_wall_time)$row->schedule_label=(string)$row->local_wall_date.' · '.substr((string)$row->local_wall_time,0,5).' '.(string)$row->schedule_timezone;
+                elseif((int)$row->current_schedule_version_id>0||$row->status==='scheduled'){$row->class_status='Schedule needs review';$row->schedule_label='Schedule unavailable';}
                 $row->next_action=$row->status==='draft'?'Set class time':'Review class';
                 continue;
             }
@@ -70,6 +71,7 @@ final class LessonOperationsReadService {
         $lesson->student_name=(string)$labels->student_name;$lesson->teacher_name=(string)$labels->teacher_name;$lesson->course_name=(string)$labels->course_name;
         $lesson->class_status=match((string)$lesson->status){'draft'=>'Ready to schedule','scheduled'=>'Scheduled','completed'=>'Completed','cancelled'=>'Cancelled',default=>'Review class status'};
         $schedule=(new LessonScheduleVersionRepository())->current($lessonId);$lesson->schedule_label=$schedule?(string)$schedule->local_wall_date.' · '.substr((string)$schedule->local_wall_time,0,5).' '.(string)$schedule->schedule_timezone:'Not scheduled';
+        if((int)($lesson->current_schedule_version_id??0)!==(int)($schedule->id??0)){$lesson->class_status='Schedule needs review';$lesson->schedule_label='Schedule unavailable';}
         return $lesson;
     }
 }

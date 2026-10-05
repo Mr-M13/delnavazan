@@ -20,9 +20,10 @@ $core_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/
 $instrument_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/InstrumentRepository.php' );
 $teacher_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherRepository.php' );
 $course_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/CourseRepository.php' );
+$eligibility_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeachingEligibilityRepository.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 
@@ -127,6 +128,9 @@ if ( ! str_contains( $teaching_eligibility, 'private static function teacherSele
     || ! str_contains( $core_read, "current_user_can('dzn_manage_teacher_availability')" )
     || ! str_contains( $teacher_repo, 'public function operatorOptions(): array' )
     || ! str_contains( $course_repo, 'public function operatorOptions(): array' )
+    || ! str_contains( $eligibility_repo, ') teacher,' )
+    || ! str_contains( $eligibility_repo, ') instrument,' )
+    || ! str_contains( $eligibility_repo, ') course,' )
     || 1 !== substr_count( $teacher_repo, 'public function operatorOptions(): array' )
     || 1 !== substr_count( $course_repo, 'public function operatorOptions(): array' )
     || 1 !== substr_count( $core_read, 'public function teacherOptionsForTeachingEligibility(): array' )

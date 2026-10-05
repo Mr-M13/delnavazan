@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
-use Delnavazan\Platform\Core\Application\{IntegrationControlPlaneReadService, PrincipalInvitationReadService, PrincipalInvitationService, TeacherOnboardingService};
+use Delnavazan\Platform\Core\Application\{PrincipalInvitationReadService, PrincipalInvitationService, TeacherOnboardingService};
 
 final class OnboardingController {
     public static function handlePost(): void {
@@ -26,7 +26,7 @@ final class OnboardingController {
 
     public static function screen(): void {
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) { echo '<div class="wrap"><p>Access denied.</p></div>'; return; }
-        $transport = ( new IntegrationControlPlaneReadService() )->report()['email']['invitation_transport'] ?? 'not_configured';
+        $transport = ( function_exists( 'wp_mail' ) && (bool) apply_filters( 'dzn_teacher_invitation_email_transport_configured', false ) ) ? 'configured_unverified' : 'not_configured';
         $transportCopy = $transport === 'configured_unverified' ? 'Outbound transport is configured, but WordPress mail acceptance is not recipient delivery.' : 'No outbound email transport is configured; issued invitations will be recorded as failed until transport is configured.';
         echo '<div class="wrap"><h1>Teacher onboarding</h1><p>Issuing creates a delivery intent; it does not mean an email was sent or received. ' . esc_html( $transportCopy ) . ' Raw invitation secrets are never rendered, retained, logged, or placed in URLs, so this screen cannot provide a manual invitation code. The claim page is <code>' . esc_html( home_url( '/teacher-invitation/' ) ) . '</code>.</p>';
         $contextTeacherId = self::contextId();

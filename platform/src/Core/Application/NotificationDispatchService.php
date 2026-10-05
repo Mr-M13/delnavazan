@@ -195,11 +195,15 @@ final class NotificationDispatchService {
         // `template_version_id`, the contract-proved variable codes and the decrypted parameter envelope —
         // never from a caller-supplied payload. It is built *before* the reservation, so an unavailable
         // cipher or an unprovable variable contract leaves the attempt `leased` and the work claimable.
-        $command=$this->authorisedCommand($notification,$attempt);
+        try{$command=$this->authorisedCommand($notification,$attempt);}catch(\RuntimeException $error){
+            if($error->getMessage()!=='ineligible_subject_state')throw $error;
+            if((string)$notification->intent_key!=='STUDENT_ACCOUNT_CLAIM_ISSUED')throw $error;
+            return $this->abortStaleClaimGeneration($attemptId,$authorisedCommand,$key);
+        }
         // §6.6/§10: the durable hand-off reservation — the exact `leased → handed_off` transition plus its
         // digest-only command row — commits *before* the port is called, so one attempt can never be handed
         // off twice and a replay of the same key never reaches the port again.
-        $reservation=$this->reserveHandOff($attemptId,$digest,$actor);
+        $reservation=$this->reserveHandOff($attemptId,$digest,$actor,$notification,$command,$authorisedCommand,$key);
         if(($reservation['reserved']??false)!==true)return $reservation;
         // The attempt stays open until the outcome is recorded: `handed_off → acknowledged | failed`.
         $response=$this->transport->handoff($command);
@@ -217,7 +221,7 @@ final class NotificationDispatchService {
      * port; a closed attempt, a lease held under another token and an elapsed lease are refused outright —
      * an elapsed lease belongs to recovery, never to the port.
      */
-    private function reserveHandOff(int $attemptId,string $digest,int $actor):array{
+    private function reserveHandOff(int $attemptId,string $digest,int $actor,object $observedNotification,array $parameters,array $input,string $key):array{
         $now=NotificationSupport::now();
         $this->repository->begin();
         try{
@@ -234,6 +238,12 @@ final class NotificationDispatchService {
             if((string)$locked->state!=='leased')throw new \RuntimeException('notification_attempt_state_conflict');
             if((string)$locked->lease_expires_at<=$now){$this->repository->commit();return array('attempt_id'=>$attemptId,'state'=>'leased','handed_off'=>false,'acknowledged'=>false,'permanent_failure'=>null,'outcome'=>NotificationRule::LEASE_EXPIRED_OUTCOME);}
             if((string)$notification->state!=='dispatching'||(string)$row->status!=='leased'||$row->leased_at===null||(string)$row->lease_token_digest!==(string)$locked->lease_token_digest)throw new \RuntimeException('notification_attempt_state_conflict');
+            if((string)$notification->intent_key==='STUDENT_ACCOUNT_CLAIM_ISSUED'){
+                if((int)$notification->id!==(int)$observedNotification->id||!StudentAccountClaimNotificationGuard::lockCurrent($notification,$parameters)){
+                    $this->repository->rollback();
+                    return $this->abortStaleClaimGeneration($attemptId,$input,$key);
+                }
+            }
             $this->attempts->closeAttempt($attemptId,array('state'=>'handed_off','updated_at'=>$now,'updated_by'=>$actor));
             $this->attempts->insertEvent($this->attemptEvent($attemptId,'handed_off','leased','handed_off','handed_off',$now,$actor));
             $this->repository->insertCommand(array(
@@ -517,7 +527,7 @@ final class NotificationDispatchService {
             array(
                 'workflow_key'=>$workflow?(string)$workflow->workflow_key:'',
                 'workflow_version'=>(int)$version->version_number,
-                'intent_key'=>(string)$version->intent_key,'audience'=>(string)$version->audience,
+                'intent_key'=>(string)$version->intent_key,'audience'=>(string)$version->audience,'outbox'=>$row,
             )
         );
         return array('composition'=>$composition,'policy'=>$policy,'subject_instant'=>$subjectInstant);
@@ -562,7 +572,7 @@ final class NotificationDispatchService {
         $binding=NotificationRule::requiredBinding($intent);
         $subjectId=(int)$notification->subject_aggregate_id;
         $subject=$this->subjects?->subject((string)$binding['aggregate'],$subjectId,$binding['instant']);
-        $recipient=$this->recipients?->recipient((string)$notification->audience,(string)$notification->recipient_kind,$subjectId);
+        $recipient=$this->recipient($notification,$subjectId,$binding);
         $bound=NotificationEligibility::boundEvidence($intent,$subjectId,(string)$notification->observed_at);
         $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now);
         $facts=array(
@@ -578,6 +588,11 @@ final class NotificationDispatchService {
             'bound_digest'=>$bound!==null?NotificationEligibility::boundEvidenceDigest($intent,$subjectId,$bound):null,
             'suppression_id'=>$suppression!==null?(int)$suppression->id:null,
         );
+    }
+    /** The #221 invitation subject resolves to its canonical Student recipient through the binding. */
+    private function recipient(object $notification,int $subjectId,array $binding):?array{
+        if($this->recipients instanceof NotificationBoundRecipientReadPort)return $this->recipients->recipientForBinding((string)$notification->audience,(string)$notification->recipient_kind,$subjectId,$binding);
+        return $this->recipients?->recipient((string)$notification->audience,(string)$notification->recipient_kind,$subjectId);
     }
     /**
      * A claim refused on eligibility closes the queued notification in its controlled terminal state without
@@ -641,6 +656,9 @@ final class NotificationDispatchService {
         if(!$snapshot||(int)$snapshot->template_version_id!==(int)$notification->template_version_id)throw new \RuntimeException('template_variable_mismatch');
         $parameters=NotificationSupport::decryptEnvelope($snapshot->rendered_params_envelope,$snapshot->cipher_version===null?null:(string)$snapshot->cipher_version);
         if($parameters===null)throw new \RuntimeException('envelope_decrypt_failure');
+        // A newer #221 generation has a different digest.  The old snapshot may be decrypted solely to
+        // prove this before hand-off; it cannot reach a transport once it is no longer current.
+        if(!StudentAccountClaimNotificationGuard::current($notification,$parameters))throw new \RuntimeException('ineligible_subject_state');
         // §6.4: the snapshot must first prove its frozen variable contract, its declared code set and a
         // reproducing key-ordered parameter digest, or nothing crosses the boundary.
         $version=$this->templates->version((int)$notification->template_version_id);
@@ -654,6 +672,27 @@ final class NotificationDispatchService {
             'variable_codes'=>$proof['contract']['variable_codes'],
             'parameters'=>$parameters,
         );
+    }
+    /** Close an attempt whose encrypted claim code no longer belongs to the current #221 generation. */
+    private function abortStaleClaimGeneration(int $attemptId,array $input,string $key):array{
+        $actor=NotificationSupport::actor();$evidence=NotificationSupport::evidence($input);$now=NotificationSupport::now();
+        $this->repository->begin();
+        try{
+            $hint=$this->attempts->find($attemptId);
+            if(!$hint||$hint->finished_at!==null)throw new \RuntimeException('notification_not_found');
+            $notification=$this->repository->find((int)$hint->notification_id,true);
+            $row=$this->outbox->row((int)$hint->outbox_id,true);
+            $attempt=$this->attempts->find($attemptId,true);
+            if(!$notification||!$row||(string)$notification->state!=='dispatching'||!in_array((string)$attempt->state,NotificationRule::ATTEMPT_OPEN_STATES,true))throw new \RuntimeException('notification_attempt_state_conflict');
+            $code='ineligible_subject_state';$state=NotificationRule::controlledState($code);
+            $this->repository->transition((int)$notification->id,'dispatching',array('state'=>$state,'failure_reason_code'=>$code,'updated_at'=>$now,'updated_by'=>$actor));
+            $this->repository->insertEvent($this->eventRow((int)$notification->id,$state,'dispatching',$state,$code,$evidence,$now,$actor,null));
+            $this->attempts->closeAttempt($attemptId,array('state'=>'failed','finished_at'=>$now,'outcome_code'=>$code,'failure_class'=>NotificationRule::ELIGIBILITY_ABORT_CLASS,'updated_at'=>$now,'updated_by'=>$actor));
+            $this->attempts->insertEvent($this->attemptEvent($attemptId,'failed',(string)$attempt->state,'failed',$code,$now,$actor));
+            $this->outbox->closeAny((int)$row->id,$state,$code);
+            $this->repository->commit();
+            return array('attempt_id'=>$attemptId,'state'=>$state,'eligible'=>false,'outcome'=>$code,'acknowledged'=>false,'permanent_failure'=>null);
+        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
     private function attemptEvent(int $attemptId,string $eventType,?string $from,string $to,string $reason,string $now,int $actor):array{
         return array(

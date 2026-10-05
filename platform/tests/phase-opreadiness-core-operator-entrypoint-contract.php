@@ -57,9 +57,10 @@ dzn_core_operator_entrypoint_assert(
     'The entrypoint capability must be one of the exact command capabilities.'
 );
 
-// §2 The only reachable mutations map one-for-one to their pre-existing narrow Core capabilities.
+// §2 The reachable mutations map one-for-one to their pre-existing narrow Core capabilities.
 $actions = array(
     'convert_enrolment' => 'dzn_convert_service_arrangements_to_enrolments',
+    'issue_student_claim_for_enrolment' => 'dzn_issue_student_account_claims',
     'assign_initial_teacher' => 'dzn_manage_teacher_assignments',
     'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
 );
@@ -138,9 +139,9 @@ dzn_core_operator_entrypoint_assert(
     'Unknown request actions must not reach a Core authority.'
 );
 
-// §3 Dispatch reaches precisely the existing three authority wrappers, and the UI only shows each
+// §3 Dispatch reaches the existing authority wrappers, and the UI only shows each
 // command to an actor that holds that command's own capability.
-foreach ( array( 'convertEnrolment(', 'assignInitialTeacher(', 'issueCanonicalLesson(' ) as $wrapper ) {
+foreach ( array( 'convertEnrolment(', 'issueStudentClaimForEnrolment(', 'assignInitialTeacher(', 'issueCanonicalLesson(' ) as $wrapper ) {
     dzn_core_operator_entrypoint_assert( substr_count( $controller, $wrapper ) >= 2, "The authenticated dispatcher and form must reach $wrapper." );
 }
 foreach ( $actions as $action => $capability ) {
@@ -151,6 +152,7 @@ foreach ( $actions as $action => $capability ) {
 }
 dzn_core_operator_entrypoint_assert(
     str_contains( $controller, "'convert_enrolment' => self::convertEnrolment(") &&
+    str_contains( $controller, "'issue_student_claim_for_enrolment' => self::issueStudentClaimForEnrolment(") &&
     str_contains( $controller, "'assign_initial_teacher' => self::assignInitialTeacher(") &&
     str_contains( $controller, "'issue_canonical_lesson' => self::issueCanonicalLesson(" ),
     'Each recognised POST action must reach its corresponding existing wrapper.'
@@ -167,6 +169,26 @@ foreach ( $actions as $action => $capability ) {
 foreach ( array( 'EnrolmentConversionService() )->convert', 'TeacherAssignmentService() )->assignInitial', 'CanonicalLessonAuthorityService() )->createStandard' ) as $authority ) {
     dzn_core_operator_entrypoint_assert( str_contains( $controller, $authority ), "The existing Core authority $authority must remain the domain writer." );
 }
+dzn_core_operator_entrypoint_assert(
+    str_contains( $controller, "StudentAccountClaimNotificationService() )->issue(") &&
+    str_contains( $controller, "record_model !== 'canonical_student_course_v1'") &&
+    str_contains( $controller, "'Issue Student account-claim notification (explicit operator action)'") &&
+    str_contains( $controller, 'Enrolment conversion never triggers it automatically.') &&
+    str_contains( $controller, 'array( \'enrolment_id\' => (int) $result[\'enrolment_id\'] )') &&
+    str_contains( $controller, 'self::contextId( $name )'),
+    'Claim notification issuance must be an explicit action for a converted canonical Enrolment through the existing #221 service, never an automatic conversion side effect.'
+);
+dzn_core_operator_entrypoint_assert(
+    str_contains( $controller, 'claimNotificationResultFromQuery( wp_unslash( $_GET ) )') &&
+    str_contains( $controller, 'lifecycleForGeneration( $invitationId, $generationId )') &&
+    str_contains( $controller, 'forNotification( $notificationId )') &&
+    str_contains( $controller, 'NotificationRepository() )->find( $notificationId )') &&
+    str_contains( $controller, 'Recipient delivery: pending/unconfirmed.') &&
+    !str_contains( $controller, 'claim_delivery_evidence_id') &&
+    !str_contains( $controller, 'claim_notification_state') &&
+    str_contains( $controller, 'page=dzn-student-identity-authority'),
+    'The claim result must ignore GET delivery/state claims and re-read the matching persisted claim, outbox and notification rows.'
+);
 $authorityCall = strpos( $controller, 'CanonicalLessonAuthorityService() )->createStandard' );
 $receipt = strpos( $controller, 'recordOperation(' );
 dzn_core_operator_entrypoint_assert(

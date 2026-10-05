@@ -21,6 +21,7 @@ $retry=file_get_contents($root.'/src/Core/Application/NotificationRetry.php');
 $eligibility=file_get_contents($root.'/src/Core/Application/NotificationEligibility.php');
 $integrity=file_get_contents($root.'/src/Core/Application/NotificationIntegrity.php');
 $notificationService=file_get_contents($root.'/src/Core/Application/NotificationService.php');
+$claimNotificationContract=file_get_contents($root.'/tests/student-account-claim-notification-atomic-contract.php');
 $dispatch=file_get_contents($root.'/src/Core/Application/NotificationDispatchService.php');
 $workflowService=file_get_contents($root.'/src/Core/Application/NotificationWorkflowService.php');
 $templateService=file_get_contents($root.'/src/Core/Application/NotificationTemplateService.php');
@@ -37,6 +38,7 @@ foreach(array('migration','outbox-compatibility','workflow','schedule-derivation
     $runtimeSuites.=file_get_contents($path);
 }
 $runtimeSuites.=file_get_contents($root.'/tests/phase-2a2s-concurrency-runner.sh');
+$runtimeSuites.=$claimNotificationContract;
 require_once $root.'/src/Core/Application/NotificationRule.php';
 $ruleClass='Delnavazan\\Platform\\Core\\Application\\NotificationRule';
 
@@ -72,7 +74,7 @@ foreach(array("array('idempotency_key',true)","array('notification_id',true)","'
 // 4. Locked S vocabularies, the closed intent registry and the §6.2.2 binding matrix.
 foreach(array(
     "INTENTS=array(","AUTOMATIC_RENEWAL_UPCOMING","AUTOMATIC_RENEWAL_CHARGED","AUTOMATIC_RENEWAL_FAILED","MANUAL_RENEWAL_PAYMENT_REQUIRED",
-    "GUARANTEE_DEADLINE_APPROACHING","GUARANTEE_EXPIRED","PAYMENT_FAILED","PAYMENT_RECOVERED","TERM_LAPSED","REFUND_REVIEW_REQUIRED","REFUND_RESOLVED",
+    "GUARANTEE_DEADLINE_APPROACHING","GUARANTEE_EXPIRED","PAYMENT_FAILED","PAYMENT_RECOVERED","TERM_LAPSED","REFUND_REVIEW_REQUIRED","REFUND_RESOLVED","STUDENT_ACCOUNT_CLAIM_ISSUED",
     "UNBOUND_INTENTS=array('GUARANTEE_EXPIRED')","MANDATORY_BASELINE=array('subject_exists','subject_state_is','recipient_resolvable','recipient_opted_in','guardian_authority_present','not_suppressed')",
     "'F'=>array('subject_instant_in_future','lead_time_at_least')","AUTHORISED_PAIRS=array(array('student','student'))",
     "RESERVED_PAIRS=array(array('guardian','guardian'),array('academy','staff'))",
@@ -83,7 +85,7 @@ foreach(array(
     "LEASE_EXPIRED_OUTCOME='lease_expired'","LEASE_EXPIRED_CLASS='retryable'",
     "FAILURE_CLASSES=array('retryable','defer','terminal')",
 ) as $needle)if(!str_contains($rule,$needle))throw new RuntimeException('Missing the locked S rule constant: '.$needle);
-if(count($ruleClass::INTENTS)!==11)throw new RuntimeException('The consumed intent registry must contain exactly the eleven R2 intents');
+if(count($ruleClass::INTENTS)!==12)throw new RuntimeException('The intent registry must contain the eleven R2 intents and the one #221 claim intent');
 foreach(array(
     "'AUTOMATIC_RENEWAL_UPCOMING'=>array(" , "'aggregate'=>'renewal_cycle','event_type'=>'opened'",
     "'MANUAL_RENEWAL_PAYMENT_REQUIRED'=>array(","'aggregate'=>'renewal_cycle','event_type'=>'payment_required'",
@@ -93,6 +95,7 @@ foreach(array(
     "'TERM_LAPSED'=>array(","'aggregate'=>'renewal_cycle','event_type'=>'lapsed'",
     "'REFUND_REVIEW_REQUIRED'=>array(","'aggregate'=>'refund_review','event_type'=>'review_required'",
     "'REFUND_RESOLVED'=>array(","'aggregate'=>'refund_review','event_type'=>'resolved'",
+    "'STUDENT_ACCOUNT_CLAIM_ISSUED'=>array(","'aggregate'=>'student_account_claim_invitation','event_type'=>'issued'",
     "'GUARANTEE_EXPIRED'=>null",
     "'instant'=>'automatic_charge_at'","'instant'=>'guarantee_deadline_at'",
     "'to_states'=>array('pending')","'to_states'=>array('lapsed')",

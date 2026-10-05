@@ -125,10 +125,16 @@ final class NotificationIntegrity {
         if((string)$notification->timezone===''&&$composition['timezone_basis']!==null)throw new \InvalidArgumentException('schedule_derivation_divergence');
         if((string)$notification->timezone!==''&&$composition['timezone_basis']===null)throw new \InvalidArgumentException('schedule_derivation_divergence');
         if($identity!==array()){
+            $generationIdentity=null;
+            if((string)$identity['intent_key']==='STUDENT_ACCOUNT_CLAIM_ISSUED'){
+                $mirror=$identity['outbox']??null;
+                if(!$mirror||empty($mirror->idempotency_key))throw new \InvalidArgumentException('schedule_derivation_divergence');
+                $generationIdentity=(string)$mirror->idempotency_key;
+            }
             $expected=NotificationSupport::notificationKeyDigest(
                 (string)$identity['workflow_key'],(int)$identity['workflow_version'],(string)$identity['intent_key'],
                 (string)$identity['audience'],(string)$notification->recipient_digest,
-                (string)$notification->subject_aggregate,(int)$notification->subject_aggregate_id,$bucket
+                (string)$notification->subject_aggregate,(int)$notification->subject_aggregate_id,$bucket,$generationIdentity
             );
             if(!hash_equals((string)$notification->notification_key_digest,$expected))throw new \InvalidArgumentException('schedule_derivation_divergence');
         }
@@ -350,6 +356,7 @@ final class NotificationIntegrity {
      *         `lease_cancellation_invalid` or `attempt_lifecycle_invalid`.
      */
     public static function aggregateIntegrity(object $notification,array $composition,array $policy,?string $subjectInstant,?object $row,array $attempts,int $workflowVersion,array $identity=array()):void{
+        if($identity!==array())$identity['outbox']=$row;
         self::notificationSchedule($notification,$composition,$subjectInstant,$identity);
         // §6.6/§7.3: the attempt lifecycle is proved before the closures are partitioned — an attempt whose
         // state vocabulary, event chain, sequence, ceiling or open/closed shape does not reproduce, a

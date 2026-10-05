@@ -46,8 +46,8 @@ final class NotificationService {
      * (`tier_f_instant_unavailable`) and an unresolvable timezone basis (`schedule_timezone_unresolved`).
      * Neither derives an instant, and neither leaves a `pending` row behind.
      */
-    public function observeIntent(int $outboxId,array $input,string $key):array{
-        NotificationSupport::requireCapability(self::CAPABILITY);
+    public function observeIntent(int $outboxId,array $input,string $key,bool $withinTransaction=false):array{
+        if(!$withinTransaction)NotificationSupport::requireCapability(self::CAPABILITY);
         $actor=NotificationSupport::actor();
         $evidence=NotificationSupport::evidence($input);
         $digest=NotificationSupport::keyDigest($key);
@@ -55,6 +55,7 @@ final class NotificationService {
         if(!$row)throw new \RuntimeException('notification_not_found');
         if($row->invitation_id!==null||$row->generation_id!==null)throw new \InvalidArgumentException('unregistered_intent');
         $intent=(string)$row->event_type;
+        if($withinTransaction&&($intent!=='STUDENT_ACCOUNT_CLAIM_ISSUED'||!current_user_can('dzn_issue_student_account_claims')))throw new \RuntimeException('notification_capability_required');
         if(!NotificationRule::registeredIntent($intent))throw new \InvalidArgumentException('unregistered_intent');
         if($row->notification_id!==null)return $this->replayObservedIntent((int)$row->notification_id,$outboxId);
         $version=$this->workflows->activeVersionForIntent($intent);
@@ -71,7 +72,7 @@ final class NotificationService {
         $subjectId=(int)$row->aggregate_id;
         $subject=$this->subjects?->subject($binding['aggregate'],$subjectId,$binding['instant']);
         if(!$subject||empty($subject['exists']))throw new \InvalidArgumentException('eligibility_unresolved');
-        $recipient=$this->recipients?->recipient((string)$version->audience,(string)$version->recipient_kind,$subjectId);
+        $recipient=$this->recipient($version,$subjectId,$binding);
         if(!$recipient||empty($recipient['resolvable']))throw new \InvalidArgumentException('recipient_unresolved');
         // §6.2.3: the bound evidence is decided from the subject's immutable append-only history, bounded by
         // this notification's own observed instant, and is digest-frozen with the derived schedule.
@@ -79,26 +80,26 @@ final class NotificationService {
         $boundDigest=$bound!==null?NotificationEligibility::boundEvidenceDigest($intent,$subjectId,$bound):null;
         $subjectInstant=$tier==='F'?($subject['instant']??null):null;
         if($tier==='F'&&($subjectInstant===null||NotificationSupport::seconds((string)$subjectInstant)===null)){
-            return $this->closeTerminalObservation($outboxId,$row,$version,$intent,$observedAt,'','tier_f_instant_unavailable',$evidence,$digest,$actor,$input);
+            return $this->closeTerminalObservation($outboxId,$row,$version,$intent,$observedAt,'','tier_f_instant_unavailable',$evidence,$digest,$actor,$input,$withinTransaction);
         }
         $timezone=$this->resolveBasis($composition,$recipient,$subject);
         if($composition['timezone_basis']!==null&&$timezone===null){
-            return $this->closeTerminalObservation($outboxId,$row,$version,$intent,$observedAt,'','schedule_timezone_unresolved',$evidence,$digest,$actor,$input);
+            return $this->closeTerminalObservation($outboxId,$row,$version,$intent,$observedAt,'','schedule_timezone_unresolved',$evidence,$digest,$actor,$input,$withinTransaction);
         }
         $timezone=(string)($timezone??'');
         $anchor=NotificationSchedule::anchor($composition,$observedAt,$subjectInstant);
         $bucket=NotificationSupport::coalesceBucket($anchor,$composition['coalesce']!==null?(int)$composition['coalesce']['coalesce_window_minutes']:null);
         $workflowKey=(string)$integrity['workflow_key'];
-        $notificationKey=NotificationSupport::notificationKeyDigest($workflowKey,(int)$version->version_number,$intent,(string)$version->audience,(string)$recipient['recipient_digest'],$binding['aggregate'],$subjectId,$bucket);
+        $notificationKey=NotificationSupport::notificationKeyDigest($workflowKey,(int)$version->version_number,$intent,(string)$version->audience,(string)$recipient['recipient_digest'],$binding['aggregate'],$subjectId,$bucket,$intent==='STUDENT_ACCOUNT_CLAIM_ISSUED'?(string)$row->idempotency_key:null);
         $tierFDigest=$tier==='F'?NotificationSupport::tierFEvidenceDigest($binding['aggregate'],$subjectId,(string)$binding['instant'],(string)$subjectInstant):null;
-        $this->repository->begin();
+        if(!$withinTransaction)$this->repository->begin();
         try{
             // Revalidate the frozen rule set under the guard: an append between the read and the write can
             // never take effect (it either hit the draft-only guard or diverges from the frozen digest).
             $guarded=$this->workflows->version((int)$version->id,true);
             $this->validatedVersion($guarded,$this->workflows->rulesFor((int)$guarded->id));
             $existing=$this->repository->byKeyDigest($notificationKey,true);
-            if($existing){$this->repository->commit();return $this->describeNotification($existing,$outboxId);}
+            if($existing){if(!$withinTransaction)$this->repository->commit();return $this->describeNotification($existing,$outboxId);}
             $now=NotificationSupport::now();
             $notificationId=$this->repository->insertNotification($this->notificationFields(
                 $notificationKey,$version,$intent,$recipient,$timezone,$observedAt,$binding,$subjectId,
@@ -119,7 +120,7 @@ final class NotificationService {
                 ));
             }catch(\InvalidArgumentException $scheduleError){
                 if($scheduleError->getMessage()!=='eligibility_expired')throw $scheduleError;
-                return $this->terminalFromPending($notificationId,$outboxId,$evidence,$digest,'observe_intent','eligibility_expired',$now,$actor);
+                return $this->terminalFromPending($notificationId,$outboxId,$evidence,$digest,'observe_intent','eligibility_expired',$now,$actor,$withinTransaction);
             }
             $this->repository->transition($notificationId,'pending',array(
                 'state'=>'scheduled','schedule_anchor_at'=>$derived['schedule_anchor_at'],'scheduled_for'=>$derived['scheduled_for'],
@@ -129,14 +130,14 @@ final class NotificationService {
             NotificationSupport::hook('dzn_phase_2a2s_after_notification_event_insert','schedule',$notificationId);
             $this->outbox->mirrorSchedule($outboxId,array('scheduled_for'=>$derived['scheduled_for'],'expires_at'=>$derived['expires_at'],'deferral_count'=>$derived['deferral_count'],'priority'=>$input['priority']??null));
             $this->recordCommand($digest,'observe_intent',$notificationId,'scheduled',$now,$actor);
-            $this->repository->commit();
+            if(!$withinTransaction)$this->repository->commit();
             return array(
                 'notification_id'=>$notificationId,'outbox_id'=>$outboxId,'state'=>'scheduled','intent_key'=>$intent,'tier'=>$tier,
                 'schedule_anchor_at'=>$derived['schedule_anchor_at'],'scheduled_for'=>$derived['scheduled_for'],
                 'expires_at'=>$derived['expires_at'],'deferral_count'=>0,'coalesce_bucket'=>$bucket,'retry_policy'=>$retry,'created'=>true,
             );
         }catch(\Throwable $e){
-            $this->repository->rollback();
+            if(!$withinTransaction)$this->repository->rollback();
             if($this->repository->duplicate($e)==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replayCommand($winner,$outboxId);
             if($this->repository->duplicate($e)==='notification_key_digest'){
                 $existing=$this->repository->byKeyDigest($notificationKey);
@@ -144,6 +145,11 @@ final class NotificationService {
             }
             throw $e;
         }
+    }
+
+    /** Internal composition seam: the caller has already authenticated and owns the shared transaction. */
+    public function observeTrustedIntentInTransaction(int $outboxId,array $input,string $key):array{
+        return $this->observeIntent($outboxId,$input,$key,true);
     }
 
     /** §8.1 `schedule`: derive and persist the schedule of a `pending` observation. */
@@ -275,7 +281,7 @@ final class NotificationService {
             $tier=NotificationRule::intentTier((string)$notification->intent_key);
             $binding=NotificationRule::requiredBinding((string)$notification->intent_key);
             $subject=$this->subjects?->subject($binding['aggregate'],(int)$notification->subject_aggregate_id,$binding['instant']);
-            $recipient=$this->recipients?->recipient((string)$version->audience,(string)$version->recipient_kind,(int)$notification->subject_aggregate_id);
+            $recipient=$this->recipient($version,(int)$notification->subject_aggregate_id,$binding);
             $bound=NotificationEligibility::boundEvidence((string)$notification->intent_key,(int)$notification->subject_aggregate_id,(string)$notification->observed_at);
             $now=NotificationSupport::now();
             $suppression=$this->suppressions->active((string)$notification->recipient_digest,(string)$version->intent_key,$now);
@@ -397,9 +403,9 @@ final class NotificationService {
      * transaction, no instant is derived, nothing is scheduled, leased or sent, and the intent is never
      * left `pending` waiting for configuration.
      */
-    private function closeTerminalObservation(int $outboxId,object $row,object $version,string $intent,string $observedAt,string $timezone,string $code,array $evidence,string $digest,int $actor,array $input=array()):array{
+    private function closeTerminalObservation(int $outboxId,object $row,object $version,string $intent,string $observedAt,string $timezone,string $code,array $evidence,string $digest,int $actor,array $input=array(),bool $withinTransaction=false):array{
         $binding=NotificationRule::requiredBinding($intent);
-        $recipient=$this->recipients?->recipient((string)$version->audience,(string)$version->recipient_kind,(int)$row->aggregate_id);
+        $recipient=$this->recipient($version,(int)$row->aggregate_id,$binding);
         if(!$recipient||empty($recipient['resolvable']))throw new \InvalidArgumentException('recipient_unresolved');
         $workflow=$this->workflows->workflow((int)$version->workflow_id);
         if(!$workflow)throw new \InvalidArgumentException('workflow_not_found');
@@ -407,7 +413,8 @@ final class NotificationService {
         // No instant was derived, so the identity carries the empty coalesce bucket exactly as §9 defines
         // it for a version whose coalesce rule is absent.
         $notificationKey=NotificationSupport::notificationKeyDigest((string)$workflow->workflow_key,(int)$version->version_number,$intent,(string)$version->audience,(string)$recipient['recipient_digest'],$binding['aggregate'],(int)$row->aggregate_id,'');
-        $this->repository->begin();
+        if($intent==='STUDENT_ACCOUNT_CLAIM_ISSUED')$notificationKey=NotificationSupport::notificationKeyDigest((string)$workflow->workflow_key,(int)$version->version_number,$intent,(string)$version->audience,(string)$recipient['recipient_digest'],$binding['aggregate'],(int)$row->aggregate_id,'',(string)$row->idempotency_key);
+        if(!$withinTransaction)$this->repository->begin();
         try{
             $now=NotificationSupport::now();
             $notificationId=$this->repository->insertNotification($this->notificationFields(
@@ -418,19 +425,19 @@ final class NotificationService {
             $snapshotId=$this->freezeRenderedSnapshot($notificationId,$templateVersion,$input,(string)$timezone,$now,$actor);
             $this->repository->attachRenderedSnapshot($notificationId,$snapshotId);
             $this->outbox->enrichIdentity($outboxId,$this->identityFields($notificationId,(string)$workflow->workflow_key,$version,$intent,null));
-            return $this->terminalFromPending($notificationId,$outboxId,$evidence,$digest,'observe_intent',$code,$now,$actor);
+            return $this->terminalFromPending($notificationId,$outboxId,$evidence,$digest,'observe_intent',$code,$now,$actor,$withinTransaction);
         }catch(\Throwable $e){
-            $this->repository->rollback();
+            if(!$withinTransaction)$this->repository->rollback();
             throw $e;
         }
     }
     /** Close a `pending` observation terminally with `pending → <state>` and nothing derived. */
-    private function terminalFromPending(int $notificationId,int $outboxId,array $evidence,string $digest,string $operation,string $code,string $now,int $actor):array{
+    private function terminalFromPending(int $notificationId,int $outboxId,array $evidence,string $digest,string $operation,string $code,string $now,int $actor,bool $withinTransaction=false):array{
         $this->repository->transition($notificationId,'pending',array('state'=>'failed','failure_reason_code'=>$code,'updated_at'=>$now,'updated_by'=>$actor));
         $this->repository->insertEvent($this->eventRow($notificationId,$this->repository->nextSequence($notificationId),'failed','pending','failed',$code,$evidence,$now,$actor,null));
         $this->outbox->closeAny($outboxId,'failed',$code);
         $this->recordCommand($digest,$operation,$notificationId,'failed',$now,$actor);
-        $this->repository->commit();
+        if(!$withinTransaction)$this->repository->commit();
         return array('notification_id'=>$notificationId,'state'=>'failed','failure_reason_code'=>$code,'created'=>true,'outbox_id'=>$outboxId);
     }
     /** The shared aggregate shape: identity digests, the resolved zone and no derived instant yet. */
@@ -459,6 +466,11 @@ final class NotificationService {
         $templateVersion=$this->templates->activeVersion((int)$version->template_id);
         if(!$templateVersion||(string)$templateVersion->state!=='active')throw new \InvalidArgumentException('template_variable_mismatch');
         return $templateVersion;
+    }
+    /** A claim invitation belongs to a Student but is itself the notification subject. */
+    private function recipient(object $version,int $subjectId,array $binding):?array{
+        if($this->recipients instanceof NotificationBoundRecipientReadPort)return $this->recipients->recipientForBinding((string)$version->audience,(string)$version->recipient_kind,$subjectId,$binding);
+        return $this->recipients?->recipient((string)$version->audience,(string)$version->recipient_kind,$subjectId);
     }
     /**
      * §6.4/§11 — freeze the immutable rendered-parameter snapshot in the observation transaction.

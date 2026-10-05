@@ -59,7 +59,7 @@ final class NotificationEligibility {
             $expected=$binding['to_states'];
             sort($declared);sort($expected);
             if($declared!==$expected)throw new \InvalidArgumentException('eligibility_binding_mismatch');
-            $vocabulary=RecurringRule::aggregateStates($aggregate);
+            $vocabulary=NotificationRule::bindingStates($aggregate);
             foreach($declared as $state)if(!in_array($state,$vocabulary,true))throw new \InvalidArgumentException('eligibility_binding_mismatch');
         }elseif($parameterB!==null)throw new \InvalidArgumentException('eligibility_binding_mismatch');
         if($code===NotificationRule::LEAD_TIME_RULE){

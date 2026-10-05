@@ -38,6 +38,7 @@ final class NotificationRule {
         'AUTOMATIC_RENEWAL_UPCOMING','AUTOMATIC_RENEWAL_CHARGED','AUTOMATIC_RENEWAL_FAILED',
         'MANUAL_RENEWAL_PAYMENT_REQUIRED','GUARANTEE_DEADLINE_APPROACHING','GUARANTEE_EXPIRED',
         'PAYMENT_FAILED','PAYMENT_RECOVERED','TERM_LAPSED','REFUND_REVIEW_REQUIRED','REFUND_RESOLVED',
+        'STUDENT_ACCOUNT_CLAIM_ISSUED',
     );
 
     /**
@@ -64,6 +65,7 @@ final class NotificationRule {
         'TERM_LAPSED'=>'renewal.term_lapsed',
         'REFUND_REVIEW_REQUIRED'=>'refund.review_required',
         'REFUND_RESOLVED'=>'refund.resolved',
+        'STUDENT_ACCOUNT_CLAIM_ISSUED'=>'identity.student_account_claim_issued',
     );
 
     /**
@@ -122,6 +124,12 @@ final class NotificationRule {
             'aggregate'=>'refund_review','event_type'=>'resolved','transitions'=>array('review_required|resolved'),
             'to_states'=>array('resolved'),'tier'=>'P','instant'=>null,
         ),
+        // #221 owns this invitation aggregate.  S binds to its append-only issued fact and never treats
+        // the mutable current-generation row as delivery evidence.
+        'STUDENT_ACCOUNT_CLAIM_ISSUED'=>array(
+            'aggregate'=>'student_account_claim_invitation','event_type'=>'issued','transitions'=>array('|active'),
+            'to_states'=>array('active'),'tier'=>'P','instant'=>null,
+        ),
     );
 
     /** The append-only subject-history table of each bound aggregate (never the mutable aggregate row). */
@@ -130,6 +138,7 @@ final class NotificationRule {
         'collection_intent'=>'collection_intent_events',
         'recovery_case'=>'recovery_case_events',
         'refund_review'=>'refund_review_events',
+        'student_account_claim_invitation'=>'student_account_claim_events',
     );
     /** The subject id column of each append-only subject-history table. */
     public const SUBJECT_EVENT_ID_COLUMNS=array(
@@ -137,6 +146,7 @@ final class NotificationRule {
         'collection_intent'=>'collection_intent_id',
         'recovery_case'=>'recovery_case_id',
         'refund_review'=>'refund_review_id',
+        'student_account_claim_invitation'=>'invitation_id',
     );
     /** The owning subject table of each bound aggregate, read only for its persisted tier-F instant. */
     public const SUBJECT_TABLES=array(
@@ -144,6 +154,7 @@ final class NotificationRule {
         'collection_intent'=>'collection_intents',
         'recovery_case'=>'recovery_cases',
         'refund_review'=>'refund_review_cases',
+        'student_account_claim_invitation'=>'student_account_claim_invitations',
     );
     /** The foreign-key column that names the subject aggregate id in the owning table. */
     public const SUBJECT_ID_COLUMNS=array(
@@ -151,6 +162,7 @@ final class NotificationRule {
         'collection_intent'=>'id',
         'recovery_case'=>'id',
         'refund_review'=>'id',
+        'student_account_claim_invitation'=>'id',
     );
     /**
      * §6.2.4(c): the commercial-policy, pattern and guarantee-fallback seams S may never read, name or
@@ -453,6 +465,11 @@ final class NotificationRule {
     public static function boundEventType(string $intent):string{return self::requiredBinding($intent)['event_type'];}
     public static function boundAllowlist(string $intent):array{return self::requiredBinding($intent)['to_states'];}
     public static function boundTransitions(string $intent):array{return self::requiredBinding($intent)['transitions'];}
+    /** State vocabulary of a binding owner; #221's one active invitation state stays equally closed. */
+    public static function bindingStates(string $aggregate):array{
+        if($aggregate==='student_account_claim_invitation')return array('active');
+        return RecurringRule::aggregateStates($aggregate);
+    }
     public static function tierFInstantColumn(string $intent):?string{return self::requiredBinding($intent)['instant'];}
     public static function tierFIntents():array{return array_values(array_filter(self::INTENTS,static fn(string $intent):bool=>self::BINDING_MATRIX[$intent]['tier']==='F'));}
     public static function registeredIntent(string $intent):bool{return in_array($intent,self::INTENTS,true);}

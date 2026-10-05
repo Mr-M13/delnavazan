@@ -168,3 +168,44 @@ function dzn_theme_primary_menu_fallback() {
 	}
 	echo '</ul>';
 }
+
+/**
+ * Render policy links from the migrated WordPress pages when a footer menu has
+ * not been assigned yet. Resolving page objects keeps the links tied to their
+ * canonical migrated permalinks instead of recreating those destinations here.
+ */
+function dzn_theme_footer_policy_menu_fallback() {
+	$pages = array(
+		array( 'terms', __( 'شرایط و ضوابط', 'delnavazan-theme' ) ),
+		array( 'privacy-policy', __( 'حریم خصوصی', 'delnavazan-theme' ) ),
+		array( 'refund_returns', __( 'بازگشت و بازپرداخت', 'delnavazan-theme' ) ),
+	);
+	$items = array();
+
+	foreach ( $pages as $page ) {
+		$post = get_page_by_path( $page[0], OBJECT, 'page' );
+
+		if ( ! $post || 'publish' !== get_post_status( $post ) ) {
+			continue;
+		}
+
+		$items[] = array(
+			'label' => $page[1],
+			'url'   => get_permalink( $post ),
+		);
+	}
+
+	if ( ! $items ) {
+		return;
+	}
+
+	echo '<ul class="site-footer__menu">';
+	foreach ( $items as $item ) {
+		printf(
+			'<li><a href="%2$s">%1$s</a></li>',
+			esc_html( $item['label'] ),
+			esc_url( $item['url'] )
+		);
+	}
+	echo '</ul>';
+}

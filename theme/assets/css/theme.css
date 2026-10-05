@@ -600,44 +600,6 @@
       var(--dzn-space-4);
   }
 
-  .site-header__account {
-    display: flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: .2rem;
-    margin-inline-start: auto;
-  }
-
-  .site-header__account-link {
-    display: inline-flex;
-    min-block-size: var(--dzn-tap);
-    align-items: center;
-    justify-content: center;
-    border-radius: .5rem;
-    padding-inline: var(--dzn-space-2);
-    color: var(--dzn-color-text-secondary);
-    font-size: var(--dzn-text-nav);
-    font-weight: 800;
-    text-decoration: none;
-  }
-
-  .site-header__account-link:hover {
-    background: rgb(16 74 77 / .08);
-    color: var(--dzn-color-action-primary-hover);
-  }
-
-  .site-header__login {
-    background: var(--dzn-color-text-secondary);
-    color: var(--dzn-color-on-action);
-    padding-inline: var(--dzn-space-3);
-  }
-
-  .site-header__login:hover,
-  .site-header__login:focus-visible {
-    background: #0b393b;
-    color: var(--dzn-color-on-action);
-  }
-
   .site-branding {
     display: flex;
 
@@ -1545,6 +1507,9 @@
     .primary-navigation {
       position:
         static;
+
+      margin-inline-start:
+        auto;
 
       border: 0;
 
@@ -4970,10 +4935,6 @@
     align-self:
       start;
 
-    border:
-      1px solid
-      rgb(185 142 55 / .32);
-
     border-radius:
       .45rem;
 
@@ -5486,10 +5447,6 @@
       direction:
         rtl;
 
-      border-inline-start:
-        1px solid
-        rgb(147 55 42 / .3);
-
       padding-inline:
         clamp(
           1rem,
@@ -5806,10 +5763,6 @@
           var(--dzn-gutter)
           * -.18
         );
-
-      border-block-end:
-        1px solid
-        rgb(147 55 42 / .22);
 
       padding:
         .5rem

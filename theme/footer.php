@@ -38,7 +38,7 @@ $footer_email_uri     = get_theme_file_uri( 'assets/images/Mail-gold.webp' );
 			'theme_location' => 'footer',
 			'container'      => false,
 			'menu_class'     => 'site-footer__menu',
-			'fallback_cb'    => false,
+			'fallback_cb'    => 'dzn_theme_footer_policy_menu_fallback',
 		)
 	);
 	?>

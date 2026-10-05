@@ -175,6 +175,14 @@ final class ScreenController {
     }
 
     private static function entityList(string $entity): void {
+        if($entity==='lesson'){
+            $records=(new CoreReadService())->lessonOperatorRows();
+            echo '<h2>Classes and schedule</h2><p>Review each learner, teacher, class state and next scheduling handoff. Schedule changes stay with the authorised schedule workflow.</p>';
+            if(!$records){echo '<p>No classes to review.</p>';return;}
+            echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Student / course</th><th>Teacher</th><th>Class status</th><th>Schedule</th><th>Next step</th></tr></thead><tbody>';
+            foreach($records as$row){$url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->id),admin_url('admin.php'));$label=(string)($row->reference_code?:'Class');echo '<tr><td><a href="'.esc_url($url).'">'.esc_html($label).'</a></td><td>'.esc_html((string)($row->student_name?:'Student')).'<br>'.esc_html((string)($row->course_name?:'Course')).'</td><td>'.esc_html((string)($row->teacher_name?:'Teacher')).'</td><td>'.esc_html((string)$row->class_status).'</td><td>'.esc_html((string)$row->schedule_label).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html((string)$row->next_action).'</a></td></tr>';}
+            echo '</tbody></table>';return;
+        }
         try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
         catch (\InvalidArgumentException $exception) {
             if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
@@ -188,15 +196,16 @@ final class ScreenController {
     }
 
     private static function entityDetail(string $entity, int $id): void {
-        $record = (new CoreReadService())->find($entity, $id);
+        $record = $entity==='lesson'?(new CoreReadService())->lessonOperatorRecord($id):(new CoreReadService())->find($entity, $id);
         if (!$record && $entity==='term' && current_user_can('dzn_manage_canonical_terms')) $record=(new CoreReadService())->canonicalTerm($id);
         if (!$record) { echo '<p>Record not found.</p>'; return; }
         $profile=in_array($entity,['student','teacher'],true);
         $canonicalTerm=$entity==='term'&&($record->record_model??null)==='canonical_enrolment_term_v1';
-        $heading=$profile?ucfirst($entity).' profile · '.(string)($record->reference_code??''):($canonicalTerm?'Term · '.(string)($record->reference_code??''):'Record #'.(string)$id);
+        $canonicalLesson=$entity==='lesson'&&($record->record_model??null)==='canonical_term_lesson_v1';
+        $heading=$profile?ucfirst($entity).' profile · '.(string)($record->reference_code??''):($canonicalTerm?'Term · '.(string)($record->reference_code??''):($canonicalLesson?'Class · '.(string)($record->reference_code??''):'Record #'.(string)$id));
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>' . esc_html($heading) . '</h2>';
         $displayRecord=in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRecord($entity,$id):$record;
-        $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():null));
+        $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():(($entity==='lesson')?array('reference_code','student_name','teacher_name','course_name','lesson_type','class_status','schedule_label'):null)));
         self::objectTable([$displayRecord??$record], null, $allowed);
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             self::teacherMaintenanceForm( $record );
@@ -220,7 +229,7 @@ final class ScreenController {
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
-        if ($entity === 'lesson') { self::lessonSchedules($id); if (($record->record_model ?? '') === 'canonical_term_lesson_v1') self::canonicalLessonSchedule($record); }
+        if ($entity === 'lesson') { if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status); }
     }
 
     private static function updateTeacherProfile(array $post): int {
@@ -349,10 +358,11 @@ final class ScreenController {
 
     private static function legacyEnrolmentSelector(string $label, bool $required): void { $rows=(new CoreReadService())->legacyEnrolmentOptionsForTerm(); echo '<p><label>'.esc_html($label).'<br><select name="enrolment_id"'.($required?' required':'').'><option value="">Choose a legacy Enrolment</option>'; foreach($rows as$row){$text=(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.(string)($row->teacher?:'Teacher');if($row->status!=='active')$text.=' ('.str_replace('_',' ',(string)$row->status).')';echo '<option value="'.esc_attr((string)$row->id).'">'.esc_html($text).'</option>';}echo '</select><br><span class="description">Only legacy Enrolments are accepted by this Term workflow.</span></label></p>'; }
 
-    private static function lessonSchedules(int $lessonId): void {
+    private static function lessonSchedules(int $lessonId, string $lessonStatus): void {
         $state = (new CoreReadService())->lessonSchedule($lessonId);
         echo '<h2>Schedule</h2>'; if ($state['current']) self::objectTable([$state['current']], null); else echo '<p>No current schedule.</p>';
         echo '<h3>Schedule history</h3>'; self::objectTable($state['history'], null);
+        if(!in_array($lessonStatus,array('draft','scheduled'),true)){echo '<p>Scheduling is closed for this class status.</p>';return;}
         self::formStart($state['current'] ? 'reschedule' : 'initial_schedule'); echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lessonId) . '">';
         self::input('schedule_timezone', 'Schedule timezone', true, 'text', 'Australia/Brisbane'); self::input('local_wall_date', 'Local date', true, 'date'); self::input('local_wall_time', 'Local time (HH:MM:SS)', true, 'text'); self::input('reason', 'Reason'); submit_button($state['current'] ? 'Reschedule' : 'Create initial schedule'); echo '</form>';
     }
@@ -384,7 +394,7 @@ final class ScreenController {
         if (!$records) { echo '<p>No records.</p>'; return; }
         $humanReference=$allowed!==null&&in_array('id',$allowed,true)&&in_array('reference_code',$allowed,true);
         $fields = $allowed ?? array_keys(get_object_vars($records[0])); if($humanReference)$fields=array_values(array_filter($fields,static fn($field)=>$field!=='id'));
-        $labels=array('reference_code'=>'Reference','display_name'=>'Display name','persian_name'=>'Persian name','english_name'=>'English name','name_en'=>'English name','name_fa'=>'Persian name','first_name'=>'First name','last_name'=>'Last name','student_name'=>'Student','course_name'=>'Course','whatsapp_phone'=>'WhatsApp','country_code'=>'Country','timezone'=>'Time zone','schedule_timezone'=>'Time zone','local_wall_date'=>'Local date','local_wall_time'=>'Local start time','duration_minutes'=>'Lesson length (minutes)','buffer_minutes'=>'Changeover buffer (minutes)','availability_basis'=>'Availability check','version_number'=>'Schedule version','event_type'=>'Schedule change','recorded_at'=>'Recorded','locale'=>'Language/locale','calendar_preference'=>'Calendar','status'=>'Status','instrument'=>'Instrument','course_type'=>'Course type','default_duration_minutes'=>'Lesson duration','default_buffer_minutes'=>'Buffer between lessons','sequence_number'=>'Term number','lifecycle_state'=>'Term status','lesson_allocation'=>'Lessons included','replacement_allowance'=>'Replacement lessons allowed','event_sequence'=>'Event','from_state'=>'Previous status','to_state'=>'New status','reason_code'=>'Reason','evidence_channel'=>'Evidence source','occurred_at'=>'Recorded at');
+        $labels=array('reference_code'=>'Reference','display_name'=>'Display name','persian_name'=>'Persian name','english_name'=>'English name','name_en'=>'English name','name_fa'=>'Persian name','first_name'=>'First name','last_name'=>'Last name','student_name'=>'Student','teacher_name'=>'Teacher','course_name'=>'Course','class_status'=>'Class status','schedule_label'=>'Schedule','lesson_type'=>'Class type','canonical_sequence'=>'Class in Term','whatsapp_phone'=>'WhatsApp','country_code'=>'Country','timezone'=>'Time zone','schedule_timezone'=>'Time zone','local_wall_date'=>'Local date','local_wall_time'=>'Local start time','duration_minutes'=>'Lesson length (minutes)','buffer_minutes'=>'Changeover buffer (minutes)','availability_basis'=>'Availability check','version_number'=>'Schedule version','event_type'=>'Schedule change','recorded_at'=>'Recorded','locale'=>'Language/locale','calendar_preference'=>'Calendar','status'=>'Status','instrument'=>'Instrument','course_type'=>'Course type','default_duration_minutes'=>'Lesson duration','default_buffer_minutes'=>'Buffer between lessons','sequence_number'=>'Term number','lifecycle_state'=>'Term status','lesson_allocation'=>'Lessons included','replacement_allowance'=>'Replacement lessons allowed','event_sequence'=>'Event','from_state'=>'Previous status','to_state'=>'New status','reason_code'=>'Reason','evidence_channel'=>'Evidence source','occurred_at'=>'Recorded at');
         echo '<table class="widefat striped"><thead><tr>'; foreach ($fields as $field) echo '<th>' . esc_html($labels[$field]??ucfirst(str_replace('_',' ',(string)$field))) . '</th>'; echo '</tr></thead><tbody>';
         foreach ($records as $record) { echo '<tr>'; foreach ($fields as $field) { $value = $record->$field ?? null; if ($field === 'reference_code' && $humanReference && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) ($record->id??0)], admin_url('admin.php'))) . '">' . esc_html(self::operatorValue((string)$field,$value)) . '</a>'; echo '<td>' . $link . '</td>'; } elseif ($field === 'id' && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) $value], admin_url('admin.php'))) . '">' . esc_html((string) $value) . '</a>'; echo '<td>' . $link . '</td>'; } else echo '<td>' . esc_html(self::operatorValue((string)$field,$value)) . '</td>'; } echo '</tr>'; }
         echo '</tbody></table>';
@@ -447,6 +457,7 @@ final class ScreenController {
         if ($state['active_version']) self::objectTable(array($state['active_version']), null, $scheduleFields); else echo '<p>No applicable canonical schedule.</p>';
         if ($state['versions']) { echo '<h3>Schedule history</h3>'; self::objectTable($state['versions'], null, $scheduleFields); }
         if ($state['events']) { echo '<h3>Schedule changes</h3>'; self::objectTable(array_map(static fn(object $event):array=>array('event_type'=>$event->event_type,'recorded_at'=>$event->recorded_at),$state['events']), null, array('event_type','recorded_at')); }
+        if((string)$lesson->lifecycle_state!=='authorised'){echo '<p>Scheduling is closed for this class status.</p>';return;}
         $active = $state['active_version'];
         self::formStart($active ? 'revise_canonical_lesson' : 'schedule_canonical_lesson');
         echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';

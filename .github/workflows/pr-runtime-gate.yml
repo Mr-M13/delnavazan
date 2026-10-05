@@ -132,6 +132,7 @@ jobs:
             echo 'Teacher onboarding v1 contract not present on this PR base yet.'
           fi
           php platform/tests/admin-navigation-regression-contract.php
+          php platform/tests/lesson-operator-workflow-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

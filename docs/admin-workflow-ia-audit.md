@@ -1,0 +1,70 @@
+# Academy workflow and admin information architecture audit
+
+**Evidence snapshot:** `origin/main` at `67da82324ee6e60a9066ecd03a5dc196513c81f6` (2026-10-05). This is a source audit; no WordPress runtime or user permissions were exercised.
+
+## Human workflow and role handoffs
+
+| Stage | Admin responsibility and decision | Student | Teacher | Finance / system | State and handoff |
+| --- | --- | --- | --- | --- | --- |
+| Enquiry / booking | Review request, match capacity, coordinate the requested intro, resolve identity only with evidence | Submit request and confirm contact/booking details | Supply coverage through onboarding and availability | Booking availability and notification workers provide system facts | Request received → needs coordination / matching → accepted or closed; hand off to student account claim/accepted arrangement |
+| Student / enrolment | Resolve or claim the correct student identity; convert accepted arrangement through canonical authority | Claim the account through #221 and maintain contact details | — | Identity authority prevents duplicate account linking | Unlinked → claimed/linked → accepted arrangement → canonical enrolment |
+| Course / term | Choose the correct course and create/advance a term under lifecycle guards | Confirm learning choice and term | Confirm teaching suitability where required | Canonical term and enrolment services own lifecycle | Course selected → term authorised/current → closed/cancelled; successor term follows terminal predecessor |
+| Teacher matching / onboarding | Invite and verify readiness, choose an eligible teacher, record agreement-backed replacement | Receive matching/booking communications | Claim invitation, complete profile and availability, submit onboarding | Invitation delivery worker and account-linking authority report separate state | Invited → linked/pending → ready/eligible → assigned; hand off to schedule |
+| Class / lesson schedule | Issue and schedule lessons, reschedule/release only through canonical schedule authority | See upcoming learning | See assigned lessons and join windows | Google projection is a derived integration; it does not own the schedule | Authorised → scheduled → delivered/completed, cancelled or reviewed |
+| Teaching / progress | Review attendance and delivery exceptions, apply evidenced outcome | Attend and report absence | Report delivery/absence; record progress through lesson journey | Attendance and lesson-delivery authorities own outcomes | Scheduled → delivery evidence → completed/review-required/non-delivery; hand off to finance where payable |
+| Finance | Review policy, teacher rates, payability and reconciliation exceptions | Pay under the canonical checkout/obligation path | Review compensation statements | Stripe/payment authority and evidence reconciliation own settlement | Due → checkout pending → evidence/reconciliation → settled or exception |
+| Communications | Review delivery readiness and ambiguous handoffs; do not infer delivery from queue creation | Receive account, booking and lesson messages | Receive invitation and class communications | #220 owns notification dispatch and Google diagnostics/control plane; credentials remain external | Queued → handed off → confirmed/ambiguous/failed; human reconciliation only through canonical evidence |
+| Completion / renewal | Close the term and prepare a successor only from valid terminal state | Confirm completion and continuation | Complete assigned lessons and update availability | System projections derive counts and payability | Current → closed/completed → renewal decision → successor term or exit |
+
+### Role boundaries
+
+- **Admin:** owns evidenced operational decisions, matching, lifecycle commands, exception review, and handoffs. Needs names, human-readable states, relevant context, and a next action. Does not need database identifiers or raw provider payloads in normal work.
+- **Student:** creates/claims their own account through the canonical claim authority, confirms booking and enrolment details, views current lessons/progress, and reports absence. They do not choose internal lifecycle codes or edit teacher/schedule authority.
+- **Teacher:** enters by invitation, claims the linked account, completes onboarding/availability, sees assigned classes, joins within the authorised window, and reports delivery facts. Invitation creation and email delivery are separate states.
+- **Finance / system operations:** finance reviews payability, rates and reconciliation; system operations monitors notification, Google, schema, migration and exception health. Secrets stay outside the UI and provider settlement/delivery remain externally evidenced.
+
+## Current admin route and capability inventory
+
+The canonical sidebar is registered in `platform/src/Admin/Controller/Menu.php`; shared landing visibility and capability filtering live in `AdminNavigationController.php`. Each operational submenu supplies its own capability. These seven roots and registered pages are source-confirmed:
+
+| Current route/page | Workflow job | Capability / classification |
+| --- | --- | --- |
+| `dzn-platform` | Academy navigation landing | Root uses `read`; child pages are individually gated |
+| `dzn-academy-dashboard`, `dzn-booking-requests`, `dzn-booking-request-coordination` | Academy pipeline dashboard, booking intake and coordination | `dzn_view_booking_requests`, `dzn_view_booking_requests`, `dzn_manage_booking_request_coordination` |
+| `dzn-booking-requests`, `dzn-booking-request-coordination` | Triage and coordinate requests | `dzn_view_booking_requests`, `dzn_manage_booking_request_coordination` |
+| `dzn-student`, `dzn-student-identity-authority` | Maintain student record; resolve account/booking claim | `dzn_manage_students`, `dzn_view_student_acceptance_eligibility` |
+| `dzn-teacher`, `dzn-onboarding`, `dzn-teaching-eligibility`, `dzn-teacher-availability` | Teacher record, invitation/onboarding, eligibility and supply | `dzn_manage_teachers`, `dzn_manage_onboarding`, `dzn_manage_teaching_eligibility`, `dzn_manage_teacher_availability` |
+| `dzn-course`, `dzn-term`, `dzn-enrolment`, `dzn-instrument` | Catalogue, enrolment and term journey | `dzn_manage_courses`, `dzn_manage_terms`, `dzn_manage_enrolments` |
+| `dzn-lesson`, `dzn-attendance-review` | Class scheduling and delivery/attendance evidence | `dzn_manage_lessons`, `dzn_manage_canonical_attendance_review` |
+| `dzn-teacher-rates`, `dzn-finance-policies`, `dzn-lesson-payability`, `dzn-compensation-statements`, `dzn-finance-reconciliation`, `dzn-payment-execution` | Rates, policy, payable lesson, statements and reconciliation | Finance authority capabilities per controller; payment execution has its own capability |
+| `dzn-communications` | Notification readiness and delivery diagnostics | Canonical notification read capability from #220 |
+| `dzn-system-health`, `dzn-google-console`, `dzn-whatsapp-settings`, `dzn-sms-settings`, `dzn-stripe-settings` | Technical status and integration readiness | Diagnostic/integration capabilities; Stripe setup is not finance operations |
+| `dzn-exception` | Operational exception acknowledgement/resolution/retry | `dzn_manage_exceptions`; currently registered under Settings |
+| `dzn-academy-coverage`, `dzn-commercial-catalogue`, `dzn-staff-access`, `dzn-portal-capabilities`, `dzn-core-dataset-readiness` | Supply gap, commercial catalogue, access, portal controls, canonical recovery commands | Settings currently contains both operational and technical work; each screen has a narrow capability |
+
+Additional registered admin actions/routes (not sidebar pages): `admin_post_*` teacher invitation/onboarding/availability, student account claim, student absence and teacher delivery issue; REST endpoints for booking options/requests/availability, student checkout, portal join/absence, payment reconciliation and Stripe webhooks. These are workflow actions and public/portal boundaries, not extra admin menu destinations. Google OAuth connect/callback/disconnect are admin-post control actions for the #220 integration surface.
+
+## Field classification and observed leakage
+
+| Screen family | Operator editable | Useful read-only | Derived/system-managed | Diagnostic/developer-only | Obsolete/duplicate |
+| --- | --- | --- | --- | --- | --- |
+| Academy dashboard / booking coordination | Request resolution and evidence-backed coordination decisions | Student/request/course/teacher names, booking facts, next step | Pipeline state and counts | Exception codes and join internals | The former Settings → Operations page duplicated the Academy root dashboard and is removed in this slice |
+| Students / identity | Human contact/profile facts; only identity actions supported by #221 | Booking/enrolment context and account-link status | Student IDs, principal linkage, claim state | Family/option/event UIDs and acceptance evidence identifiers | Raw claim tokens must never become ordinary editable fields |
+| Teachers / onboarding | Profile/contact, invitation decision, availability facts | Onboarding/readiness and delivery state | Teacher/principal IDs, readiness and invitation lifecycle | Provider errors/diagnostic evidence; credentials | No parallel teacher/account model; invitation creation is not delivery |
+| Courses / terms / enrolments | Course attributes and evidenced canonical term lifecycle | Student/course/teacher labels, lesson allocation/progress | IDs/FKs, applicable/current slot, sequence and canonical lifecycle | Authority/operator receipt keys, evidence internals | Generic legacy Term creation/lifecycle controls must not compete with canonical authority |
+| Lessons / schedule / attendance | Schedule intent and evidenced delivery/attendance decisions | Student/teacher/course/term labels, current schedule and lesson history | UTC occurrence, schedule version, lifecycle and payability | Schedule-version IDs, idempotency keys, raw provider references | Google projection is not a second schedule editor |
+| Finance | Policy/rates and authorized reconciliation choices | Payability, statement and settlement summaries | Obligation/payment state and computed amounts | Provider references, webhook evidence, idempotency keys | Payment execution belongs in Finance; Stripe credentials/setup do not |
+| Communications / integrations | Approved configuration actions where implemented; no credential value display | Channel readiness and delivery evidence state | Queue/dispatch/handoff status | Provider identifiers, OAuth state, tokens, raw payloads | #220 is the single notification and Google authority |
+| Settings / diagnostics | Narrow access/control actions only | System health and safe summaries | Schema/build/migration facts, retry state | Table names/counts, internal error codes, raw exception fields | Daily academy decisions should not be routed through technical health pages |
+
+Concrete source findings: `ScreenController` generic creation still asks for `instrument_id`, `enrolment_id`, `student_id`, `teacher_id`, `course_id`, `term_id`, and `replacement_for_lesson_id`; its object tables emit raw service properties by default. `TeachingEligibilityController` asks for Teacher/Course IDs. `TeacherAvailabilityController` asks for Teacher/Rule IDs and exposes timezone, weekdays, local wall times and internal state values. `CoreDatasetReadinessController` intentionally accepts canonical record IDs, evidence references, idempotency keys and internal lifecycle expectations; this is a narrow recovery/technical surface, not ordinary daily data entry. `AcademyOperationsController` uses a direct SQL projection; this slice now presents names and human workflow stages instead of visible record IDs/internal state codes, while keeping identifiers only for permission-gated action links. Its read boundary still needs a purpose-built canonical projection before deeper screen work. `IntegrationControlPlaneController` and #220 are secret-free and must stay canonical.
+
+## Defects by layer
+
+- **Navigation/presentation:** ambiguous `Bookings` root was actually the academy-wide pipeline; `Courses` held courses, terms, enrolments, instruments and lessons; `Notifications` is the operator's communications surface; a second Academy Operations link lived under Settings. Generic list/detail rendering leaks internal property names and raw IDs. These do not require replacing the canonical domain authorities.
+- **Read-model/application seam:** the Academy dashboard performs a large direct SQL join and embeds workflow state mapping. It should become a purpose-built canonical read projection with human labels, explicit lifecycle labels, no raw IDs, and clear next actions before broad screen redesign. Do not replace booking, identity, term, scheduling, finance, portal or notification write authorities.
+- **Domain authority:** source shows distinct canonical services already own identity claim (#221), integration/notification control plane (#220), terms, lesson schedules, finance/payment, teacher onboarding and portals. No evidence in this bounded route audit warrants a new CRUD/domain layer.
+
+## Validated first slice
+
+Make the Academy navigation landing list a capability-filtered route and register its pipeline as one `Dashboard` child; remove the duplicate Settings registration and stale alternate links. Name the sidebar roots by the work operators find there (`Academy`, `Courses & Terms`, `Communications`) while leaving each screen's controller, capability and service authority intact. The Academy dashboard now uses human stage labels and teacher names. Extend the navigation regression contract to guard routes, capability-specific landing behavior, dashboard field labels and prevent duplicate paths or raw IDs/internal lifecycle codes from returning. Follow with a separate slice for a canonical read projection and human selectors on entity lists; do not silently convert the technical recovery surface into a routine form.

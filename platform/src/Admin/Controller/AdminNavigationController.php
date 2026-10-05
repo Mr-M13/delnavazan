@@ -4,7 +4,7 @@ namespace Delnavazan\Platform\Admin\Controller;
 /** Shared landing pages and visibility rules for the grouped WordPress sidebar. */
 final class AdminNavigationController {
     private const GROUPS = [
-        'dzn-platform', 'dzn-students-menu', 'dzn-teachers-menu', 'dzn-courses-menu',
+        'dzn-platform', 'dzn-students-menu', 'dzn-teachers-menu', 'dzn-courses-menu', 'dzn-classes-menu',
         'dzn-finance-menu', 'dzn-notifications-menu', 'dzn-settings-menu',
     ];
 
@@ -42,12 +42,13 @@ final class AdminNavigationController {
 
     private static function title(string $parent): string {
         return match ($parent) {
-            'dzn-platform' => 'Bookings',
+            'dzn-platform' => 'Academy',
             'dzn-students-menu' => 'Students',
             'dzn-teachers-menu' => 'Teachers',
-            'dzn-courses-menu' => 'Courses',
+            'dzn-courses-menu' => 'Courses & Terms',
+            'dzn-classes-menu' => 'Classes / Schedule',
             'dzn-finance-menu' => 'Finance',
-            'dzn-notifications-menu' => 'Notifications',
+            'dzn-notifications-menu' => 'Communications',
             'dzn-settings-menu' => 'Settings',
         };
     }

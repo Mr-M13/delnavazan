@@ -80,27 +80,6 @@ function dzn_theme_render_booking_route(): void {
                     <section class="dzn-booking__step" data-step="availability" aria-labelledby="dzn-booking-availability-title" hidden>
                         <p class="dzn-booking__kicker">مرحلهٔ دوم · زمان جلسه</p>
                         <h2 id="dzn-booking-availability-title" tabindex="-1">چه زمانی برای شما مناسب است؟</h2>
-                        <div class="dzn-booking__timezone" data-timezone-note>
-                            <strong>منطقهٔ زمانی شما</strong><span class="dzn-booking__timezone-copy">بر اساس دستگاه شما تشخیص داده شد؛ ساعت‌ها خودکار با مدرس هماهنگ می‌شوند.</span>
-                            <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
-                            <select id="dzn-booking-timezone" data-timezone required>
-                                <optgroup label="مناطق پرکاربرد دلنوازان">
-                                    <option value="Australia/Brisbane">استرالیا — بریزبن</option>
-                                    <option value="Australia/Sydney">استرالیا — سیدنی / ملبورن</option>
-                                    <option value="Pacific/Auckland">نیوزیلند — اوکلند</option>
-                                    <option value="America/Los_Angeles">آمریکا / کانادا — غرب</option>
-                                    <option value="America/New_York">آمریکا / کانادا — شرق</option>
-                                    <option value="Europe/London">بریتانیا — لندن</option>
-                                    <option value="Europe/Berlin">اروپای مرکزی</option>
-                                    <option value="Asia/Dubai">امارات — دبی</option>
-                                    <option value="Asia/Tehran">ایران — تهران</option>
-                                </optgroup>
-                                <optgroup label="همهٔ مناطق زمانی">
-                                <?php echo wp_timezone_choice( $default_timezone, get_user_locale() ); ?>
-                                </optgroup>
-                            </select>
-                            <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
-                        </div>
                         <div class="dzn-booking__calendar">
                             <div class="dzn-booking__calendar-heading">
                                 <button type="button" class="dzn-booking__calendar-nav" data-calendar-prev aria-label="ماه قبل">‹</button>
@@ -141,9 +120,39 @@ function dzn_theme_render_booking_route(): void {
                             </select></div>
                             <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" list="dzn-booking-city-list" maxlength="191" required><datalist id="dzn-booking-city-list" data-city-list></datalist></div>
                             <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" required><p class="dzn-booking__field-help">کد کشور را هم وارد کنید؛ نمونه برای استرالیا ‎+61.</p></div>
+                        <div class="dzn-booking__timezone dzn-booking__field--wide" data-timezone-note>
+                            <strong>منطقهٔ زمانی انتخاب‌شده</strong><span class="dzn-booking__timezone-copy">همهٔ تاریخ‌ها و ساعت‌های درخواست بر اساس این منطقهٔ زمانی نمایش داده می‌شوند.</span>
+                            <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
+                            <select id="dzn-booking-timezone" data-timezone required>
+                                <optgroup label="مناطق پرکاربرد دلنوازان">
+                                    <option value="Australia/Brisbane">استرالیا — بریزبن</option>
+                                    <option value="Australia/Sydney">استرالیا — سیدنی / ملبورن</option>
+                                    <option value="Pacific/Auckland">نیوزیلند — اوکلند</option>
+                                    <option value="America/Los_Angeles">آمریکا / کانادا — غرب</option>
+                                    <option value="America/New_York">آمریکا / کانادا — شرق</option>
+                                    <option value="Europe/London">بریتانیا — لندن</option>
+                                    <option value="Europe/Berlin">اروپای مرکزی</option>
+                                    <option value="Asia/Dubai">امارات — دبی</option>
+                                    <option value="Asia/Tehran">ایران — تهران</option>
+                                </optgroup>
+                                <optgroup label="همهٔ مناطق زمانی">
+                                <?php echo wp_timezone_choice( $default_timezone, get_user_locale() ); ?>
+                                </optgroup>
+                            </select>
+                            <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
+                        </div>
                         </div>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما راه اصلی ارتباط دلنوازان در واتساپ برای اعلان‌ها و هماهنگی کلاس‌هاست. لطفاً شماره‌ای را وارد کنید که به حساب واتساپ شما متصل است.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
+                        <div class="dzn-booking__actions">
+                            <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
+                            <button class="dzn-booking__button" type="button" data-next="review">مرور و تأیید درخواست</button>
+                        </div>
+                    </section>
+
+                    <section class="dzn-booking__step" data-step="review" aria-labelledby="dzn-booking-review-title" hidden>
+                        <p class="dzn-booking__kicker">بازبینی نهایی</p>
+                        <h2 id="dzn-booking-review-title" tabindex="-1">خلاصهٔ درخواست شما</h2>
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
                             <aside class="dzn-booking__notice dzn-booking__summary-note">
@@ -157,12 +166,11 @@ function dzn_theme_render_booking_route(): void {
                             </aside>
                         </div>
                         <div class="dzn-booking__actions">
-                            <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
+                            <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-edit-details>ویرایش اطلاعات</button>
                             <button class="dzn-booking__button" type="button" data-submit>ثبت درخواست جلسهٔ معارفه</button>
                         </div>
                     </section>
-                    
-<section class="dzn-booking__step dzn-booking__success" data-step="success" aria-labelledby="dzn-booking-success-title" hidden>
+                    <section class="dzn-booking__step dzn-booking__success" data-step="success" aria-labelledby="dzn-booking-success-title" hidden>
                         <p class="dzn-booking__kicker">درخواست ثبت شد</p>
                         <h2 id="dzn-booking-success-title" tabindex="-1">درخواست شما برای بررسی ارسال شد</h2>
                         <p>این شماره را برای پیگیری نگه دارید:</p>

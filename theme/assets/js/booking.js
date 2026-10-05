@@ -21,9 +21,11 @@
   let gridAvailabilityRequestId = 0;
   const slots = [];
   let idempotencyKey = '';
+  let submissionPending = false;
   let availabilityRequestId = 0;
   let availabilityPreviewFailed = false;
   let availabilityPreviewPending = false;
+  let timezoneRefreshPending = false;
   let selectedDate = '';
   let dateCursor;
 
@@ -34,6 +36,15 @@
   const selectedOption = () => instrument.options[instrument.selectedIndex];
   const activeInstrument = () => instrument.value && selectedOption().dataset.course;
   const apiUrl = (path) => String(dznBooking.apiRoot).replace(/\/?$/, '/') + path;
+  const fetchWithTimeout = async (url, options, consumeResponse) => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      return await consumeResponse(response);
+    }
+    finally { window.clearTimeout(timeout); }
+  };
   const detectZone = () => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; }
   };
@@ -298,6 +309,8 @@
       remove.textContent = 'حذف';
       remove.setAttribute('aria-label', 'حذف زمان اولویت ' + (index + 1));
       remove.addEventListener('click', () => {
+        availabilityRequestId += 1;
+        availabilityPreviewPending = false;
         slots.splice(index, 1);
         renderSlots();
         renderTimeOptions();
@@ -314,9 +327,11 @@
     if (!activeInstrument() || !slots.length || !timezone.value) return false;
     availabilityPreviewPending = true;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
+    const requestTimezone = timezone.value;
+    const requestInstrument = instrument.value;
     renderSlots();
     try {
-      const response = await fetch(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
+      const { response, result } = await fetchWithTimeout(apiUrl('delnavazan-platform/v1/booking-availability/preview'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -324,10 +339,10 @@
           course_id: Number(selectedOption().dataset.course),
           requested_times: requestedSlots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
         })
-      });
-      const result = await response.json();
-      if (!response.ok || !Array.isArray(result.times) || result.times.length !== slots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
-      if (requestId !== availabilityRequestId) { availabilityPreviewPending = false; return false; }
+      }, async (response) => ({ response, result: await response.json() }));
+      if (!response.ok || !Array.isArray(result.times) || result.times.length !== requestedSlots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
+      if (requestId !== availabilityRequestId) return false;
+      if (requestTimezone !== timezone.value || requestInstrument !== instrument.value || requestedSlots.length !== slots.length || requestedSlots.some((item, index) => !slots[index] || item.local_date !== slots[index].local_date || item.local_start_time !== slots[index].local_start_time)) { availabilityPreviewPending = false; renderSlots(); return false; }
       availabilityPreviewPending = false;
       result.times.forEach((row, index) => {
         if (slots[index]) {
@@ -346,7 +361,7 @@
       }
       return true;
     } catch {
-      if (requestId !== availabilityRequestId) { availabilityPreviewPending = false; return false; }
+      if (requestId !== availabilityRequestId) return false;
       availabilityPreviewPending = false;
       availabilityPreviewFailed = true;
       slots.forEach((slot) => { slot.teacher_times = []; });
@@ -409,8 +424,8 @@
       section.hidden = !active;
       section.classList.toggle('is-active', active);
     });
-    const sequence = ['instrument', 'availability', 'contact'];
-    const progressStep = name === 'success' ? 'contact' : name;
+    const sequence = ['instrument', 'availability', 'contact', 'review'];
+    const progressStep = name === 'review' || name === 'success' ? 'contact' : name;
     root.querySelectorAll('[data-progress]').forEach((item) => {
       item.classList.toggle('is-current', item.dataset.progress === progressStep);
       item.classList.toggle('is-done', sequence.indexOf(item.dataset.progress) < sequence.indexOf(name));
@@ -433,11 +448,11 @@
     panel.replaceChildren();
     const rows = [
       ['ساز', selectedOption().textContent.trim()],
-      ['منطقهٔ زمانی شما', timezone.value],
       ['نام', fieldValue('full_name')],
       ['ایمیل', fieldValue('email')],
       ['موبایل', fieldValue('mobile')],
       ['کشور و شهر', fieldValue('country').toUpperCase() + ' · ' + fieldValue('city')],
+      ['منطقهٔ زمانی انتخاب‌شده', timezone.value],
       ['واتساپ', fieldValue('mobile')]
     ];
     const dl = document.createElement('dl');
@@ -466,7 +481,7 @@
     });
     panel.append(dl, scheduleTitle, list);
   };
-  root.querySelectorAll('[data-next]').forEach((button) => button.addEventListener('click', () => {
+  root.querySelectorAll('[data-next]').forEach((button) => button.addEventListener('click', async () => {
     const next = button.dataset.next;
     if (currentStep() === 'instrument' && !activeInstrument()) {
       showError('ابتدا ساز موردنظر را انتخاب کنید.');
@@ -477,8 +492,20 @@
       if (!slots.length) { showError('برای ادامه دست‌کم یک زمان پیشنهادی انتخاب کنید.'); root.querySelector('[data-calendar]')?.focus(); return; }
       if (!timezone.value) { showError('منطقهٔ زمانی را انتخاب کنید.'); timezone.focus(); return; }
     }
+    if (currentStep() === 'contact') {
+      if (timezoneRefreshPending || availabilityPreviewPending) return;
+      if (!validateSection('contact')) return;
+      if (!await assessSlots()) {
+        if (timezoneRefreshPending) return;
+        goTo('availability');
+        showError(availabilityPreviewFailed ? 'بررسی زمان‌ها انجام نشد. لطفاً دوباره تلاش کنید.' : 'یکی از زمان‌های انتخابی در دسترس نیست. زمان دیگری انتخاب کنید.');
+        return;
+      }
+      buildReview();
+    }
     goTo(next);
   }));
+  root.querySelector('[data-edit-details]').addEventListener('click', () => goTo('contact'));
   root.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', async () => {
     const target = button.dataset.back;
     goTo(target);
@@ -492,49 +519,57 @@
     else if (target === 'contact' && activeInstrument() && slots.length && timezone.value) goTo(target);
   }));
   timezone.addEventListener('change', async () => {
+    timezoneRefreshPending = true;
+    availabilityRequestId += 1;
     slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
-    await refreshAvailabilityGrid();
-    if (slots.length) await assessSlots();
-    renderTimeOptions();
+    try {
+      await refreshAvailabilityGrid();
+      if (slots.length) await assessSlots();
+      renderTimeOptions();
+    } finally {
+      timezoneRefreshPending = false;
+    }
   });
 
   root.querySelector('[data-submit]').addEventListener('click', async (event) => {
     showError('');
-    if (!validateSection('contact')) return;
-    const availabilityOk = await assessSlots();
-    if (!availabilityOk) {
-      showError(availabilityPreviewFailed ? 'بررسی زمان‌ها انجام نشد. لطفاً دوباره تلاش کنید.' : 'یکی از زمان‌های انتخابی در دسترس نیست. زمان دیگری را انتخاب کنید.');
-      goTo('availability');
-      return;
-    }
-    buildReview();
+    if (submissionPending || !validateSection('contact')) return;
+    submissionPending = true;
     const button = event.currentTarget;
     button.disabled = true;
-    button.textContent = 'در حال ثبت درخواست…';
-    if (!idempotencyKey) idempotencyKey = window.crypto?.randomUUID?.() || (Date.now() + '-' + Math.random().toString(16).slice(2));
-    const payload = {
-      requested_instrument_id: Number(instrument.value),
-      selected_intro_course_id: Number(selectedOption().dataset.course),
-      full_name: fieldValue('full_name'),
-      email: fieldValue('email'),
-      mobile: fieldValue('mobile'),
-      country: fieldValue('country').toUpperCase(),
-      city: fieldValue('city'),
-      timezone: timezone.value,
-      communication_language: 'fa',
-      whatsapp_same_as_mobile: true,
-      whatsapp_number: fieldValue('mobile'),
-      privacy_notice_accepted: true,
-      privacy_notice_version: dznBooking.privacyVersion,
-      requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
-    };
+    button.textContent = 'در حال بررسی زمان‌ها…';
     try {
-      const response = await fetch(apiUrl('delnavazan-platform/v1/booking-requests'), {
+      if (timezoneRefreshPending) return;
+      const availabilityOk = await assessSlots();
+      if (!availabilityOk) {
+        goTo('availability');
+        showError(availabilityPreviewFailed ? 'بررسی زمان‌ها انجام نشد. لطفاً دوباره تلاش کنید.' : 'یکی از زمان‌های انتخابی در دسترس نیست. زمان دیگری را انتخاب کنید.');
+        return;
+      }
+      buildReview();
+      button.textContent = 'در حال ثبت درخواست…';
+      if (!idempotencyKey) idempotencyKey = window.crypto?.randomUUID?.() || (Date.now() + '-' + Math.random().toString(16).slice(2));
+      const payload = {
+        requested_instrument_id: Number(instrument.value),
+        selected_intro_course_id: Number(selectedOption().dataset.course),
+        full_name: fieldValue('full_name'),
+        email: fieldValue('email'),
+        mobile: fieldValue('mobile'),
+        country: fieldValue('country').toUpperCase(),
+        city: fieldValue('city'),
+        timezone: timezone.value,
+        communication_language: 'fa',
+        whatsapp_same_as_mobile: true,
+        whatsapp_number: fieldValue('mobile'),
+        privacy_notice_accepted: true,
+        privacy_notice_version: dznBooking.privacyVersion,
+        requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
+      };
+      const { response, result } = await fetchWithTimeout(apiUrl('delnavazan-platform/v1/booking-requests'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify(payload)
-      });
-      const result = await response.json();
+      }, async (response) => ({ response, result: await response.json() }));
       if (!response.ok || !result.success || !result.request_reference) {
         if (response.status === 400) idempotencyKey = '';
         throw new Error(result.code || 'submission_unavailable');
@@ -566,6 +601,7 @@
       const code = error instanceof Error ? error.message : '';
       showError(messages[code] || 'پاسخ سامانه دریافت نشد. فرم را نبندید؛ با همین صفحه و همان اطلاعات دوباره تلاش کنید. ارسال مجدد با همان کلید از ثبت تکراری جلوگیری می‌کند.');
     } finally {
+      submissionPending = false;
       button.disabled = false;
       button.textContent = 'ثبت درخواست جلسهٔ معارفه';
     }

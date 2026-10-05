@@ -3,6 +3,8 @@ name: PR runtime gate
 on:
   workflow_call:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -10,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-runtime-gate-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: pr-runtime-gate-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Check out pull request
+      - name: Check out source
         uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -42,7 +44,7 @@ jobs:
             php -l "$file"
           done < <(git ls-files -z '*.php')
 
-      - name: Check pull-request patch whitespace
+      - name: Check patch whitespace
         run: git diff --check HEAD^1 HEAD
 
       - name: Run verified source-level Platform contracts

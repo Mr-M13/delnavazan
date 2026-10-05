@@ -120,7 +120,6 @@
       <div class="dzn-story__layout">
         <header class="dzn-story__chapter">
           <h2 id="dzn-story-process-title" class="dzn-story__chapter-title">چطور ثبت نام کنم؟</h2>
-          <p class="dzn-story__chapter-note">یک مسیر روشن</p>
         </header>
 
         <div class="dzn-story__stream">

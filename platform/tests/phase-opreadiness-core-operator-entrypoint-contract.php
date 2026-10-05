@@ -183,7 +183,7 @@ dzn_core_operator_entrypoint_assert(
     str_contains( $controller, 'lifecycleForGeneration( $invitationId, $generationId )') &&
     str_contains( $controller, 'forNotification( $notificationId )') &&
     str_contains( $controller, 'NotificationRepository() )->find( $notificationId )') &&
-    str_contains( $controller, "'Recipient delivery: pending/unconfirmed.'") &&
+    str_contains( $controller, 'Recipient delivery: pending/unconfirmed.') &&
     !str_contains( $controller, 'claim_delivery_evidence_id') &&
     !str_contains( $controller, 'claim_notification_state') &&
     str_contains( $controller, 'page=dzn-student-identity-authority'),

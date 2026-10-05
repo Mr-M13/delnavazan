@@ -139,3 +139,12 @@ jobs:
           bash -n deployment/staging-deploy.sh
           bash -n deployment/qa/staging-deployment-contract.sh
           bash deployment/qa/staging-deployment-contract.sh
+
+      - name: Check production deployment tooling
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n deployment/production-deploy.sh
+          bash -n deployment/qa/production-smoke.sh
+          bash -n deployment/qa/production-deployment-contract.sh
+          bash deployment/qa/production-deployment-contract.sh

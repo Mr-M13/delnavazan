@@ -23,6 +23,7 @@ final class IntegrationControlPlaneReadService {
         $copy=apply_filters('dzn_notification_copy_definitions',array());
         $notificationRuntime=NotificationRuntimeFactory::configured();
         $googleConfigured=GoogleOAuthController::configured();
+        $invitationTransportConfigured=(bool)apply_filters('dzn_teacher_invitation_email_transport_configured',false);
 
         global $wpdb;
         $outboxTable=$wpdb->prefix.'platform_outbox';
@@ -36,7 +37,7 @@ final class IntegrationControlPlaneReadService {
 
         return array(
             'email'=>array(
-                'invitation_transport'=>function_exists('wp_mail')?'available_unverified':'unavailable',
+                'invitation_transport'=>function_exists('wp_mail')&&$invitationTransportConfigured?'configured_unverified':'not_configured',
                 'invitation_delivery_verified'=>false,
                 'notification_binding'=>isset($configuredChannels['email'])?'configured':'not_configured',
                 'invitation_outbox'=>$invitationDelivery,

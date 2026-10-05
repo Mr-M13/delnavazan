@@ -33,10 +33,10 @@ foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $datas
 }
 if ( ! str_contains( $availability, "'1'=>'Monday'" )
     || ! str_contains( $availability, "'preferred'=>'Prefer this time'" )
-    || ! str_contains( $availability, 'private static function choice(' )
+    || ! str_contains( $availability, 'private static function choice(string' )
     || str_contains( $availability, 'Teacher ID' )
     || str_contains( $availability, 'Rule ID (optional' )
-    || str_contains( $availability_repo, 'Safe operator projection without table IDs, foreign keys, version counters or actor IDs.' )
+    || ! str_contains( $availability_repo, 'Safe operator projection without table IDs, foreign keys, version counters or actor IDs.' )
     || str_contains( $availability_repo, 'SELECT * FROM {$this->prefix}{$table}' )
     || ! str_contains( $availability_repo, 'Monday' )
     || ! str_contains( $availability_repo, 'Unavailable' ) ) {

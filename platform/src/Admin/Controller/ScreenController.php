@@ -102,6 +102,7 @@ final class ScreenController {
         try {
             $id = match ($action) {
                 'create_teacher' => (new TeacherService())->create(self::createPayload('teacher', $post)),
+                'update_teacher_profile' => self::updateTeacherProfile($post),
                 'create_student' => (new StudentService())->create(self::createPayload('student', $post)),
                 'create_instrument' => (new CatalogueService())->instrument(self::createPayload('instrument', $post)),
                 'create_course' => (new CatalogueService())->course(self::createPayload('course', $post)),
@@ -127,8 +128,8 @@ final class ScreenController {
                 default => throw new \InvalidArgumentException('Unsupported action'),
             };
             NonceLifecycleDiagnostic::logStage('mutation_complete');
-            self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''));
-        } catch (\Throwable) { self::redirectNotice('Operation failed; no change was saved.', true); }
+            self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''), false, $action === 'update_teacher_profile' ? ['id' => absint($post['teacher_id'] ?? 0)] : []);
+        } catch (\Throwable) { self::redirectNotice('Operation failed; no change was saved.', true, $action === 'update_teacher_profile' ? ['id' => absint($post['teacher_id'] ?? 0)] : []); }
     }
 
     private static function createPayload(string $entity, array $post): array {
@@ -188,6 +189,7 @@ final class ScreenController {
         if (!$record) { echo '<p>Record not found.</p>'; return; }
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>Record #' . esc_html((string) $id) . '</h2>';
         self::objectTable([$record], null);
+        if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) self::teacherMaintenanceForm( $record );
         if ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
@@ -202,6 +204,21 @@ final class ScreenController {
         }
         if ($entity === 'term' && ($record->record_model ?? '') === 'canonical_enrolment_term_v1' && current_user_can('dzn_manage_canonical_terms')) self::canonicalTermLifecycleForm($record);
         if ($entity === 'lesson') { self::lessonSchedules($id); if (($record->record_model ?? '') === 'canonical_term_lesson_v1') self::canonicalLessonSchedule($record); }
+    }
+
+    private static function updateTeacherProfile(array $post): int {
+        if ( ! current_user_can( 'dzn_manage_teachers' ) ) throw new \RuntimeException( 'Unauthorized' );
+        $fields = ['persian_name','english_name','display_name','email','phone','whatsapp_phone','country_code','city','timezone','locale','calendar_preference'];
+        ( new \Delnavazan\Platform\Core\Application\TeacherOnboardingService() )->updateByAdministrator( absint( $post['teacher_id'] ?? 0 ), array_intersect_key( $post, array_flip( $fields ) ) );
+        return absint( $post['teacher_id'] ?? 0 );
+    }
+
+    private static function teacherMaintenanceForm(object $teacher): void {
+        echo '<h2>Maintain teacher details</h2><p>Teacher ID, account link, lifecycle status, timezone provenance and audit fields are controlled by their lifecycle operations.</p>';
+        self::formStart('update_teacher_profile'); echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'">';
+        foreach ( ['persian_name'=>'Persian name','english_name'=>'English name','display_name'=>'Display name','email'=>'Email','phone'=>'Phone','whatsapp_phone'=>'WhatsApp','country_code'=>'Country code','city'=>'City','timezone'=>'Timezone','locale'=>'Locale'] as $field=>$label ) self::input($field,$label,$field==='display_name',$field==='email'?'email':'text',(string)($teacher->$field??''));
+        self::select('calendar_preference','Calendar',['auto','gregorian','persian'],(string)($teacher->calendar_preference??'auto'));
+        submit_button('Save teacher details'); echo '</form>';
     }
 
     private static function entityCreateForm(string $entity): void {
@@ -311,8 +328,8 @@ final class ScreenController {
         echo '</tbody></table>';
     }
     private static function displayValue(mixed $value): string { return ($value === null || $value === '' || !is_scalar($value)) ? '—' : (string) $value; }
-    private static function redirectNotice(string $notice, bool $error = false): never {
-        $url = add_query_arg(['page' => sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform')), 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], admin_url('admin.php'));
+    private static function redirectNotice(string $notice, bool $error = false, array $extra = []): never {
+        $url = add_query_arg(array_merge(['page' => sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform')), 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $extra), admin_url('admin.php'));
         NonceLifecycleDiagnostic::logStage('redirect_enter');
         nocache_headers();
         if (wp_safe_redirect($url)) exit;

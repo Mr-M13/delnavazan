@@ -30,7 +30,7 @@ final class OnboardingController {
 
     public static function screen(): void {
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) { echo '<div class="wrap"><p>Access denied.</p></div>'; return; }
-        echo '<div class="wrap"><h1>Invite and onboard teachers</h1><p>Enter the teacher’s email. They will create or connect their own account, complete their profile and availability, then submit it for your review. An invitation is queued first; check its delivery state below before asking the teacher to use it. Raw invitation secrets are never rendered, retained, logged, or placed in URLs.</p>';
+        echo '<div class="wrap"><h1>Invite and onboard teachers</h1><p>Enter the teacher’s email. They will create or connect their own account, complete their profile and availability, then submit it for your review. An invitation is queued first; the delivery worker sends the one-time code to the email. Check its delivery state below before asking the teacher to use it. Raw invitation secrets are never rendered, retained, logged, or placed in URLs.</p>';
         if ( isset( $_GET['dzn_notice'] ) ) echo '<div class="notice ' . ( ( $_GET['dzn_error'] ?? '' ) === '1' ? 'notice-error' : 'notice-success' ) . '"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ) . '</p></div>';
         if ( current_user_can( 'dzn_issue_teacher_invitations' ) && current_user_can( 'dzn_manage_teachers' ) ) {
             echo '<h2>Invite a new teacher</h2><form method="post">'; wp_nonce_field( 'dzn_platform_invite_new_teacher' );

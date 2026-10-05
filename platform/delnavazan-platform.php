@@ -52,6 +52,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
 	Delnavazan\Platform\Portals\TeacherAvailabilitySelfServiceController::register();
 	Delnavazan\Platform\Portals\TeacherInvitationController::register();
+	Delnavazan\Platform\Portals\StudentAccountClaimController::register();
 	Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker::register();
 	Delnavazan\Platform\Integrations\Notifications\NotificationWorkerBootstrap::register();
 	Delnavazan\Platform\Portals\TeacherDeliveryClaimController::register();

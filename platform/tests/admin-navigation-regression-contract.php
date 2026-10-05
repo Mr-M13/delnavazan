@@ -185,7 +185,7 @@ if ( ! str_contains( $screen, "if (!\$record && \$entity==='term' && current_use
     || ! str_contains( $screen, '!$canonicalTerm && ($entity !== \'enrolment\'' )
     || ! str_contains( $screen, "private static function canonicalTermFields(): array" )
     || ! str_contains( $core_read, 'public function canonicalTerm(int $termId): ?object' )
-    || ! str_contains( $core_read, 'CanonicalTermReadService())->forEnrolment' ) {
+    || ! str_contains( $core_read, 'CanonicalTermReadService())->forEnrolment' ) ) {
     throw new RuntimeException( 'Canonical Term create redirects must resolve to the validated lifecycle detail screen.' );
 }
 if ( ! str_contains( $teaching_eligibility, 'private static function teacherSelector(' )

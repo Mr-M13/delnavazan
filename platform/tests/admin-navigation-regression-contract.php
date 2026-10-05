@@ -26,9 +26,10 @@ $enrolment_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrast
 $term_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TermRepository.php' );
 $lesson_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/LessonRepository.php' );
 $availability_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherAvailabilityRepository.php' );
+$journey_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/AcademyJourneyReadService.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 if ( ! str_contains( $availability, "'1'=>'Monday'" )
@@ -95,6 +96,12 @@ if ( ! str_contains( $operations, '\'booking_request_id\'=>(int)$r->request_id' 
     || ! str_contains( $operations, '\'accepted_service_arrangement_id\'=>(int)$r->arrangement_id' )
     || ! str_contains( $operations, '\'teacher_assignment_id\'=>(int)$r->assignment_id' ) ) {
     throw new RuntimeException( 'Journey links must carry authoritative record context to the next step' );
+}
+if ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()' )
+    || str_contains( $operations, 'SELECT br.id request_id' )
+    || ! str_contains( $journey_read, 'current_user_can(\'dzn_view_booking_requests\')' )
+    || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {
+    throw new RuntimeException( 'Academy dashboard data must come from its capability-gated application read projection.' );
 }
 if ( ! str_contains( $operations, "'Current term<br>'" )
     || ! str_contains( $operations, "'In progress'" )

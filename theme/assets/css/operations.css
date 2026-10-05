@@ -86,6 +86,20 @@
     letter-spacing: .03em;
   }
 
+  .dzn-ops-nav__more {
+    margin-block-start: var(--dzn-space-3);
+  }
+
+  .dzn-ops-nav__more summary {
+    cursor: pointer;
+    color: var(--dzn-color-accent);
+    font-weight: 700;
+  }
+
+  .dzn-ops-nav__more .dzn-ops-nav__list {
+    margin-block-start: var(--dzn-space-3);
+  }
+
   .dzn-ops-nav__list {
     display: grid;
     gap: var(--dzn-space-3);

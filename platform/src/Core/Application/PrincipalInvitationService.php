@@ -2,6 +2,8 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherRepository;
+use Delnavazan\Platform\Core\Support\Identifier;
 
 /**
  * 2A.0 owns Core-side invitation authority. WordPress account provisioning is
@@ -16,8 +18,35 @@ final class PrincipalInvitationService {
      */
     public function issue(int $teacherId,string $recipient,int $ttl=604800,?string $command=null):array{
         $this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);$command=$this->key($command??'issue:'.$teacherId.':'.$recipient);$now=current_time('mysql',true);
-        $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$teacher=$this->repo->teacherForUpdate($teacherId);if(!$teacher||$teacher->archived_at!==null||$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');$parent=$this->repo->invitationForTeacher($teacherId);if(!$parent){$parentId=$this->repo->insert('teacher_invitations',['teacher_id'=>$teacherId,'recipient_digest'=>hash('sha256',$recipient),'current_generation_number'=>0,'status'=>'active','version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>get_current_user_id(),'updated_by'=>get_current_user_id()]);$parent=$this->repo->invitationForTeacher($teacherId);}else{$parentId=(int)$parent->id;$this->repo->supersedeUnclaimedGenerations($parentId,$now);$this->repo->cancelPendingDeliveryOutboxes($parentId,$now);}
-            $number=(int)$parent->current_generation_number+1;$recipientDigest=hash('sha256',$recipient);$generation=$this->repo->insert('teacher_invitation_generations',['invitation_id'=>$parentId,'generation_number'=>$number,'recipient_snapshot'=>$recipient,'recipient_digest'=>$recipientDigest,'secret_digest'=>null,'status'=>'queued_for_delivery','expires_at'=>gmdate('Y-m-d H:i:s',time()+max(300,$ttl)),'delivery_key'=>$this->key('delivery:'.$parentId.':'.$number),'created_at'=>$now,'created_by'=>get_current_user_id()]);$this->repo->update('teacher_invitations',['recipient_digest'=>$recipientDigest,'current_generation_number'=>$number,'status'=>'active','version'=>(int)$parent->version+1,'updated_at'=>$now,'updated_by'=>get_current_user_id()],['id'=>$parentId]);$this->repo->audit('teacher_invitation',$parentId,'teacher_invitation.queued',get_current_user_id(),$command);$this->repo->outbox($parentId,$generation,'teacher_invitation.delivery_requested',$this->key('outbox:'.$command));$this->repo->commit();return['invitation_id'=>$parentId,'generation_id'=>$generation,'status'=>'queued_for_delivery'];}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
+        $this->repo->begin();try{$result=$this->queueLocked($teacherId,$recipient,$ttl,$command,$now);$this->repo->commit();return $result;}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
+
+    /** Create only the minimal Teacher identity; the recipient supplies profile details after claiming. */
+    public function inviteNew(string $recipient):array{
+        $this->admin('dzn_manage_teachers');$this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);
+        $now=current_time('mysql',true);$this->repo->begin();
+        try{
+            if($this->repo->teacherByEmailForUpdate($recipient))throw new \InvalidArgumentException('Teacher already exists for this email. Reissue the invitation from their existing record.');
+            $teachers=new TeacherRepository();
+            $teacherId=$teachers->insert(['uid'=>Identifier::uid(),'reference_code'=>null,'status'=>'active','display_name'=>$recipient,'email'=>$recipient,'country_code'=>'IR','timezone'=>'Asia/Tehran','timezone_source'=>'admin_selected','locale'=>'fa_IR','calendar_preference'=>'persian','created_at'=>$now,'updated_at'=>$now,'created_by'=>get_current_user_id(),'updated_by'=>get_current_user_id()]);
+            $teachers->assignReference($teacherId,Identifier::reference('DZN-TCH-',$teacherId));
+            $result=$this->queueLocked($teacherId,$recipient,604800,$this->key('invite-new:'.$teacherId.':'.$recipient),$now);
+            $this->repo->commit();return ['teacher_id'=>$teacherId]+$result;
+        }catch(\Throwable $e){$this->repo->rollback();throw $e;}
+    }
+
+    private function queueLocked(int $teacherId,string $recipient,int $ttl,string $command,string $now):array{
+        if($this->repo->eventExists($command))return ['idempotent'=>true];
+        $teacher=$this->repo->teacherForUpdate($teacherId);if(!$teacher||$teacher->archived_at!==null||$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');
+        $parent=$this->repo->invitationForTeacher($teacherId);
+        if(!$parent){$parentId=$this->repo->insert('teacher_invitations',['teacher_id'=>$teacherId,'recipient_digest'=>hash('sha256',$recipient),'current_generation_number'=>0,'status'=>'active','version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>get_current_user_id(),'updated_by'=>get_current_user_id()]);$parent=$this->repo->invitationForTeacher($teacherId);}
+        else{$parentId=(int)$parent->id;$this->repo->supersedeUnclaimedGenerations($parentId,$now);$this->repo->cancelPendingDeliveryOutboxes($parentId,$now);}
+        $number=(int)$parent->current_generation_number+1;$recipientDigest=hash('sha256',$recipient);
+        $generation=$this->repo->insert('teacher_invitation_generations',['invitation_id'=>$parentId,'generation_number'=>$number,'recipient_snapshot'=>$recipient,'recipient_digest'=>$recipientDigest,'secret_digest'=>null,'status'=>'queued_for_delivery','expires_at'=>gmdate('Y-m-d H:i:s',time()+max(300,$ttl)),'delivery_key'=>$this->key('delivery:'.$parentId.':'.$number),'created_at'=>$now,'created_by'=>get_current_user_id()]);
+        $this->repo->update('teacher_invitations',['recipient_digest'=>$recipientDigest,'current_generation_number'=>$number,'status'=>'active','version'=>(int)$parent->version+1,'updated_at'=>$now,'updated_by'=>get_current_user_id()],['id'=>$parentId]);
+        $this->repo->audit('teacher_invitation',$parentId,'teacher_invitation.queued',get_current_user_id(),$command);
+        $this->repo->outbox($parentId,$generation,'teacher_invitation.delivery_requested',$this->key('outbox:'.$command));
+        return ['invitation_id'=>$parentId,'generation_id'=>$generation,'status'=>'queued_for_delivery'];
+    }
 
     /**
      * Internal delivery-boundary contract. No route or admin action invokes

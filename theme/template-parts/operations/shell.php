@@ -10,7 +10,6 @@ $state  = isset( $model['state'] ) && in_array( (string) $model['state'], array(
 	? (string) $model['state']
 	: 'restricted';
 $groups = ( 'ok' === $state && isset( $model['groups'] ) && is_array( $model['groups'] ) ) ? $model['groups'] : array();
-$count  = 'ok' === $state ? (int) ( $model['count'] ?? 0 ) : 0;
 ?>
 <main id="main-content" class="site-main dzn-ops" tabindex="-1">
 	<header class="dzn-ops__masthead">
@@ -18,7 +17,7 @@ $count  = 'ok' === $state ? (int) ( $model['count'] ?? 0 ) : 0;
 			<div>
 				<p class="dzn-eyebrow"><?php esc_html_e( 'دلنوازان', 'delnavazan-theme' ); ?></p>
 				<h1 class="dzn-ops__title"><?php esc_html_e( 'عملیات آموزشگاه', 'delnavazan-theme' ); ?></h1>
-				<p class="dzn-ops__lede"><?php esc_html_e( 'این نما فقط داده‌های معتبر پلتفرم را نمایش می‌دهد. هر اقدامی که وضعیت را تغییر می‌دهد، در صفحهٔ رسمی خودش در وردپرس انجام می‌شود.', 'delnavazan-theme' ); ?></p>
+				<p class="dzn-ops__lede"><?php esc_html_e( 'مدرسان، هنرجویان، کلاس‌ها و مدیریت را از همین‌جا دنبال کنید. هر مرحله شما را به اقدام مجاز بعدی می‌برد.', 'delnavazan-theme' ); ?></p>
 			</div>
 			<p class="dzn-ops__account">
 				<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'صفحهٔ اصلی', 'delnavazan-theme' ); ?></a>
@@ -60,17 +59,7 @@ $count  = 'ok' === $state ? (int) ( $model['count'] ?? 0 ) : 0;
 				<a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( home_url( '/dashboard/' ) ); ?>"><?php esc_html_e( 'بازگشت به داشبورد', 'delnavazan-theme' ); ?></a>
 			</p>
 		<?php else : ?>
-			<p class="dzn-ops__summary" role="status">
-				<?php
-				echo esc_html(
-					sprintf(
-						/* translators: %d: number of operations screens available to the current operator. */
-						__( '%d صفحهٔ عملیاتی در دسترس این حساب است.', 'delnavazan-theme' ),
-						$count
-					)
-				);
-				?>
-			</p>
+			<p class="dzn-ops__summary" role="status"><?php esc_html_e( 'بخش‌ها و اقدام‌ها بر اساس دسترسی حساب شما نمایش داده می‌شوند.', 'delnavazan-theme' ); ?></p>
 			<?php dzn_theme_operations_component( 'navigation', array( 'groups' => $groups ) ); ?>
 			<?php dzn_theme_operations_component( 'diagnostics', array( 'diagnostics' => $model['diagnostics'] ?? array() ) ); ?>
 		<?php endif; ?>

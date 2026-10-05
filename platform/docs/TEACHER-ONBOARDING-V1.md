@@ -38,7 +38,9 @@ A claimed account is deliberately `linked_pending / not_ready`. Normal teacher p
 
 ## Invitation delivery
 
-No concrete invitation transport is present. Issuing continues to create a delivery intent in the existing outbox. The admin screen exposes the safe code-entry destination, but never renders, stores, logs or places the one-time secret in a URL. A configured delivery worker must call the existing delivery preparation boundary and transmit its ephemeral code. No email subsystem is introduced here.
+The admin screen accepts an email for a new teacher. Platform creates a minimal canonical Teacher and a delivery intent in one database transaction. The teacher supplies their own profile after claiming. Existing Teacher records retain the explicit reissue path. A duplicate email is rejected so an operator can inspect the existing record rather than creating a second identity.
+
+The scheduled delivery worker sends the one-time code through `wp_mail`. The admin screen shows queued, transport-accepted, failed, uncertain, and claimed states. Transport acceptance does not prove inbox receipt. A failed or uncertain result requires an operator to inspect mail delivery and reissue; the secret is never rendered, stored, logged or placed in a URL.
 
 ## Staging validation
 

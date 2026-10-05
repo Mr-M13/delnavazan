@@ -29,65 +29,50 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function dzn_theme_operations_groups() {
 	return array(
-		'platform' => array(
-			'label' => 'هستهٔ پلتفرم',
+		'teachers' => array(
+			'label' => 'مدرسان',
 			'items' => array(
-				array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-platform', 'title' => 'وضعیت هسته', 'description' => 'سلامت، آمادگی و شمارنده‌های عملیاتی' ),
-				array( 'cap' => 'dzn_view_portal_capabilities', 'slug' => 'dzn-portal-capabilities', 'title' => 'پیوندهای ورود و غیبت', 'description' => 'ساخت، چرخش و لغو پیوندهای امضاشدهٔ عمومی' ),
-			),
-		),
-		'people' => array(
-			'label' => 'افراد',
-			'items' => array(
-				array( 'cap' => 'dzn_manage_students', 'slug' => 'dzn-student', 'title' => 'هنرجویان', 'description' => 'پرونده‌های هنرجو' ),
-				array( 'cap' => 'dzn_manage_teachers', 'slug' => 'dzn-teacher', 'title' => 'مدرسان', 'description' => 'پرونده‌های مدرس' ),
-				array( 'cap' => 'dzn_view_student_acceptance_eligibility', 'slug' => 'dzn-student-identity-authority', 'title' => 'هویت و اختیار هنرجو', 'description' => 'اتصال حساب و اختیار پذیرش' ),
-				array( 'cap' => 'dzn_manage_onboarding', 'slug' => 'dzn-onboarding', 'title' => 'شروع همکاری مدرس', 'description' => 'دعوت و بازبینی آمادگی مدرس' ),
-			),
-		),
-		'teaching' => array(
-			'label' => 'تدریس و زمان‌بندی',
-			'items' => array(
-				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teaching-eligibility', 'title' => 'صلاحیت تدریس', 'description' => 'دسترسی مدرس به دوره‌ها' ),
+				array( 'cap' => 'dzn_manage_onboarding', 'slug' => 'dzn-onboarding', 'title' => 'دعوت و شروع همکاری', 'description' => 'ارسال دعوت، پیگیری تحویل و بازبینی آمادگی مدرس' ),
+				array( 'cap' => 'dzn_manage_teachers', 'slug' => 'dzn-teacher', 'title' => 'پرونده‌های مدرسان', 'description' => 'پرونده‌های موجود' ),
+				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teaching-eligibility', 'title' => 'صلاحیت تدریس', 'description' => 'تأیید دوره‌های قابل تدریس' ),
 				array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teacher-availability', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی' ),
+			),
+		),
+		'students' => array(
+			'label' => 'هنرجویان',
+			'items' => array(
+				array( 'cap' => 'dzn_view_student_acceptance_eligibility', 'slug' => 'dzn-student-identity-authority', 'title' => 'حساب و پذیرش هنرجو', 'description' => 'بررسی هویت و پیوند حساب با تصمیم انسانی' ),
+				array( 'cap' => 'dzn_manage_students', 'slug' => 'dzn-student', 'title' => 'پرونده‌های هنرجویان', 'description' => 'پرونده‌های موجود' ),
+				array( 'cap' => 'dzn_manage_enrolments', 'slug' => 'dzn-enrolment', 'title' => 'ثبت‌نام‌ها', 'description' => 'وضعیت آموزشی هنرجو' ),
+			),
+		),
+		'classes' => array(
+			'label' => 'کلاس‌ها',
+			'items' => array(
+				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-operations', 'title' => 'مسیر کلاس', 'description' => 'درخواست، هماهنگی، پذیرش، ترم و جلسه در یک نما' ),
+				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-booking-requests', 'title' => 'درخواست‌های کلاس', 'description' => 'بررسی درخواست‌های ورودی' ),
+				array( 'cap' => 'dzn_manage_booking_request_coordination', 'slug' => 'dzn-booking-request-coordination', 'title' => 'هماهنگی درخواست', 'description' => 'هماهنگی مدرس و زمان' ),
+				array( 'cap' => 'dzn_manage_terms', 'slug' => 'dzn-term', 'title' => 'ترم‌ها', 'description' => 'ترم‌های آموزشی' ),
+				array( 'cap' => 'dzn_manage_lessons', 'slug' => 'dzn-lesson', 'title' => 'جلسه‌ها', 'description' => 'کلاس‌ها و چرخهٔ آموزشی' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-course', 'title' => 'دوره‌ها', 'description' => 'دوره‌های آموزشگاه' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-instrument', 'title' => 'سازها', 'description' => 'فهرست سازها' ),
+				array( 'cap' => 'dzn_manage_canonical_attendance_review', 'slug' => 'dzn-attendance-review', 'title' => 'بازبینی حضور', 'description' => 'شواهد حضور و تصمیم اپراتور' ),
 			),
 		),
-		'education' => array(
-			'label' => 'مسیر آموزشی',
+		'admin' => array(
+			'label' => 'مدیریت',
 			'items' => array(
-				array( 'cap' => 'dzn_manage_enrolments', 'slug' => 'dzn-enrolment', 'title' => 'ثبت‌نام‌ها', 'description' => 'ثبت‌نام و وضعیت آموزشی' ),
-				array( 'cap' => 'dzn_manage_terms', 'slug' => 'dzn-term', 'title' => 'ترم‌ها', 'description' => 'ترم‌های آموزشی' ),
-				array( 'cap' => 'dzn_manage_lessons', 'slug' => 'dzn-lesson', 'title' => 'کلاس‌ها', 'description' => 'کلاس‌ها و چرخهٔ آموزشی' ),
-				array( 'cap' => 'dzn_manage_exceptions', 'slug' => 'dzn-exception', 'title' => 'استثناها', 'description' => 'استثناهای عملیاتی' ),
-				array( 'cap' => 'dzn_manage_canonical_attendance_review', 'slug' => 'dzn-attendance-review', 'title' => 'بازبینی حضور', 'description' => 'شواهد حضور، غیبت و تصمیم نهایی اپراتور' ),
-			),
-		),
-		'requests' => array(
-			'label' => 'درخواست‌ها',
-			'items' => array(
-				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-operations', 'title' => 'صف عملیات آموزشگاه', 'description' => 'نمای یکپارچه از درخواست تا ثبت‌نام، ترم و جلسه' ),
-				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-booking-requests', 'title' => 'درخواست‌های کلاس', 'description' => 'درخواست‌های ورودی هنرجویان' ),
-				array( 'cap' => 'dzn_manage_booking_request_coordination', 'slug' => 'dzn-booking-request-coordination', 'title' => 'هماهنگی درخواست‌ها', 'description' => 'هماهنگی مدرس و زمان' ),
-			),
-		),
-		'commercial' => array(
-			'label' => 'ارتباطات و فروش',
-			'items' => array(
-				array( 'cap' => 'dzn_view_notification_authority', 'slug' => 'dzn-communications', 'title' => 'سلامت ارتباطات', 'description' => 'صف، تلاش‌ها و گردش‌کارهای بدون مسیر' ),
-				array( 'cap' => 'dzn_manage_commercial_catalogue', 'slug' => 'dzn-commercial-catalogue', 'title' => 'کاتالوگ و قیمت‌ها', 'description' => 'محصول دوره و قیمت منطقه‌ای' ),
-			),
-		),
-		'finance' => array(
-			'label' => 'مالی',
-			'items' => array(
+				array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-system-health', 'title' => 'وضعیت سامانه', 'description' => 'سلامت و آمادگی عملیاتی' ),
+				array( 'cap' => 'dzn_view_notification_authority', 'slug' => 'dzn-communications', 'title' => 'ارتباطات', 'description' => 'صف و تلاش‌های ارسال' ),
+				array( 'cap' => 'dzn_manage_commercial_catalogue', 'slug' => 'dzn-commercial-catalogue', 'title' => 'محصول و قیمت', 'description' => 'کاتالوگ و قیمت منطقه‌ای' ),
 				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-statements', 'title' => 'صورت‌حساب مدرسان', 'description' => 'صورت‌حساب و محاسبهٔ پرداخت' ),
-				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-rates', 'title' => 'نرخ مدرسان', 'description' => 'نرخ‌های مؤثر و بازه‌ای' ),
-				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-payability', 'title' => 'پرداخت‌پذیری جلسه', 'description' => 'محاسبهٔ پرداخت‌پذیری جلسه‌ها' ),
-				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-policies', 'title' => 'سیاست‌های مالی', 'description' => 'سیاست‌های ثبت‌شدهٔ مالی' ),
+				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-rates', 'title' => 'نرخ مدرسان', 'description' => 'نرخ‌های مؤثر' ),
+				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-payability', 'title' => 'پرداخت‌پذیری جلسه', 'description' => 'وضعیت پرداخت جلسه‌ها' ),
+				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-policies', 'title' => 'سیاست‌های مالی', 'description' => 'سیاست‌های ثبت‌شده' ),
 				array( 'cap' => 'dzn_view_finance_authority', 'slug' => 'dzn-finance-reconciliation', 'title' => 'تطبیق مالی', 'description' => 'تطبیق فقط‌خواندنی' ),
 				array( 'cap' => 'dzn_view_payment_execution_authority', 'slug' => 'dzn-payment-execution', 'title' => 'اجرای پرداخت', 'description' => 'وضعیت اجرای پرداخت' ),
+				array( 'cap' => 'dzn_manage_exceptions', 'slug' => 'dzn-exception', 'title' => 'استثناها', 'description' => 'استثناهای عملیاتی' ),
+				array( 'cap' => 'dzn_view_portal_capabilities', 'slug' => 'dzn-portal-capabilities', 'title' => 'پیوندهای ورود و غیبت', 'description' => 'مدیریت پیوندهای امضاشده' ),
 			),
 		),
 	);

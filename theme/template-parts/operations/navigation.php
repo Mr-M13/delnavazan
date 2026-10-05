@@ -20,7 +20,7 @@ if ( ! $groups ) {
 		<section class="dzn-ops-nav__group" aria-label="<?php echo esc_attr( (string) ( $group['label'] ?? '' ) ); ?>">
 			<h3 class="dzn-ops-nav__label"><?php echo esc_html( (string) ( $group['label'] ?? '' ) ); ?></h3>
 			<ul class="dzn-ops-nav__list">
-				<?php foreach ( (array) ( $group['items'] ?? array() ) as $item ) : ?>
+				<?php foreach ( array_slice( (array) ( $group['items'] ?? array() ), 0, 1 ) as $item ) : ?>
 					<li class="dzn-ops-nav__item">
 						<a class="dzn-ops-nav__link" href="<?php echo esc_url( admin_url( 'admin.php?page=' . (string) $item['slug'] ) ); ?>">
 							<span class="dzn-ops-nav__title"><?php echo esc_html( (string) $item['title'] ); ?></span>
@@ -30,6 +30,16 @@ if ( ! $groups ) {
 					</li>
 				<?php endforeach; ?>
 			</ul>
+			<?php if ( count( (array) ( $group['items'] ?? array() ) ) > 1 ) : ?>
+				<details class="dzn-ops-nav__more">
+					<summary><?php esc_html_e( 'ابزارهای بیشتر', 'delnavazan-theme' ); ?></summary>
+					<ul class="dzn-ops-nav__list">
+						<?php foreach ( array_slice( (array) $group['items'], 1 ) as $item ) : ?>
+							<li class="dzn-ops-nav__item"><a class="dzn-ops-nav__link" href="<?php echo esc_url( admin_url( 'admin.php?page=' . (string) $item['slug'] ) ); ?>"><span class="dzn-ops-nav__title"><?php echo esc_html( (string) $item['title'] ); ?></span><span class="dzn-ops-nav__description"><?php echo esc_html( (string) $item['description'] ); ?></span></a></li>
+						<?php endforeach; ?>
+					</ul>
+				</details>
+			<?php endif; ?>
 		</section>
 	<?php endforeach; ?>
 </nav>

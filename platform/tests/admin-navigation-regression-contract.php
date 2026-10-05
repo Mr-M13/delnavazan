@@ -162,7 +162,7 @@ if ( ! str_contains( $screen, 'private static function lessonSelector(' )
 }
 if ( ! str_contains( $screen, 'private static function profileFields(string $entity): array' )
     || ! str_contains( $screen, "self::objectTable(\$records, 'dzn-' . \$entity, self::profileFields(\$entity))" )
-    || ! str_contains( $screen, "self::objectTable([\$displayRecord??\$record], null, \$profile?self::profileFields(\$entity)" )
+    || ! str_contains( $screen, 'self::objectTable([$displayRecord??$record], null, $allowed)' )
     || ! str_contains( $screen, "\$field === 'reference_code' && \$humanReference && \$page !== null" )
     || ! str_contains( $screen, "\$field!=='id'" )
     || ! str_contains( $screen, "'timezone'=>'Time zone'" ) ) {

@@ -28,6 +28,8 @@ final class IntegrationControlPlaneController {
             self::row('OAuth client configuration',$r['google_calendar']['oauth_client']);
             self::row('Configuration source',$r['google_calendar']['configuration_source']);
             self::row('Connection test',$r['google_calendar']['test_connection']);
+        foreach($r['google_calendar']['projection_states'] as $state=>$count)self::row('Calendar projection: '.$state,(string)$count);
+            foreach($r['google_calendar']['projection_states'] as $state=>$count)self::row('Calendar projection: '.$state,(string)$count);
             echo '</tbody></table></div>';return;
         }
         $state=$r['notifications']['channels'][$provider]??'not_configured';

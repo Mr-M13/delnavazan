@@ -38,6 +38,7 @@ final class IntegrationControlPlaneReadService {
         $invitationDelivery=array('pending'=>0,'prepared'=>0,'delivered'=>0,'failed'=>0);
         foreach((array)$rows as $row){$state=(string)$row->status;if(array_key_exists($state,$invitationDelivery))$invitationDelivery[$state]=(int)$row->total;}
 
+        $googleProjectionStates=$this->countStates($wpdb->prefix.'dzn_provider_calendar_event_mappings','projection_state');
         $notificationStates=$this->countStates($wpdb->prefix.'dzn_notifications','state');
         $deliveryStates=$this->countStates($wpdb->prefix.'dzn_notification_deliveries','delivery_state');
         return array(
@@ -63,6 +64,7 @@ final class IntegrationControlPlaneReadService {
                 'oauth_client'=> $googleConfigured?'configured':'not_configured',
                 'configuration_source'=>'DZN_GOOGLE_OAUTH_CLIENT_ID and DZN_GOOGLE_OAUTH_CLIENT_SECRET in deployment configuration',
                 'test_connection'=>'not_run',
+                'projection_states'=>$googleProjectionStates,
             ),
             'stripe'=>array(
                 'status'=>'see Payment Execution readiness',

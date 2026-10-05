@@ -9,7 +9,7 @@ final class NotificationDispatchWorker {
  public function __construct(private NotificationDispatchService $dispatch){}
  public function runOnce():array{
   return NotificationSystemActor::run(function(){
-   $runId=NotificationSupport::uid();
+   $runId=NotificationSupport::uid(); $stamp=NotificationSupport::uid();
    $evidence=array('evidence_channel'=>'system','evidence_reference'=>'notification-worker:'.$runId,'evidence_at'=>NotificationSupport::now());
    $recovery=$this->dispatch->recoverExpiredLeases($evidence,'worker:recover:'.$runId);
    $claim=$this->dispatch->claimLease($evidence,'worker:claim:'.$runId);

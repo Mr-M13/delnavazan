@@ -25,10 +25,22 @@ $student_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastru
 $enrolment_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/EnrolmentRepository.php' );
 $term_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TermRepository.php' );
 $lesson_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/LessonRepository.php' );
+$availability_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherAvailabilityRepository.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
+}
+if ( ! str_contains( $availability, "'1'=>'Monday'" )
+    || ! str_contains( $availability, "'preferred'=>'Prefer this time'" )
+    || ! str_contains( $availability, 'private static function choice(' )
+    || str_contains( $availability, 'Teacher ID' )
+    || str_contains( $availability, 'Rule ID (optional' )
+    || str_contains( $availability_repo, 'Safe operator projection without table IDs, foreign keys, version counters or actor IDs.' )
+    || str_contains( $availability_repo, 'SELECT * FROM {$this->prefix}{$table}' )
+    || ! str_contains( $availability_repo, 'Monday' )
+    || ! str_contains( $availability_repo, 'Unavailable' ) ) {
+    throw new RuntimeException( 'Teacher availability must present human choices and safe operator projections.' );
 }
 
 foreach ( array(

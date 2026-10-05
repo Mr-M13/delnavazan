@@ -1,14 +1,16 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 final class AdminWorkspaceController {
- public static function register():void{add_action('admin_menu',[self::class,'menu'],99);add_action('admin_menu',[self::class,'simplifySidebar'],999);}
+ public static function register():void{add_action('admin_menu',[self::class,'menu'],99);add_action('admin_menu',[self::class,'hideWorkspaceMenuForUnauthorizedUsers'],999);}
  public static function menu():void{}
- public static function simplifySidebar():void{
-  // Keep authority screens registered and directly reachable, but remove implementation-level
-  // entries from the everyday sidebar. Workspace remains the human navigation layer.
-  global $submenu;if(empty($submenu['dzn-platform']))return;
-  $keep=['dzn-academy-operations','dzn-staff-access','dzn-platform','dzn-system-health'];
-  $submenu['dzn-platform']=array_values(array_filter($submenu['dzn-platform'],static fn($item)=>isset($item[2])&&in_array((string)$item[2],$keep,true)));
+ public static function hideWorkspaceMenuForUnauthorizedUsers():void{
+  // Hide the broad `read` root from accounts that cannot use the workspace.
+  // For authorized accounts, leave submenu visibility to each registered cap.
+  global $submenu;
+  if(!self::hasAccess()){
+   remove_menu_page('dzn-platform');
+   unset($submenu['dzn-platform']);
+  }
  }
  private static function hasAccess():bool{
   if(current_user_can('manage_options'))return true;

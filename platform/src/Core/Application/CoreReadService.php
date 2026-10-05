@@ -34,6 +34,85 @@ final class CoreReadService {
         return $rows;
     }
 
+    /** Human-labelled instrument options for Course administration. */
+    public function instrumentOptionsForCourse(): array {
+        $repository = $this->repository('instrument');
+        if (!$repository instanceof InstrumentRepository) throw new \InvalidArgumentException('Unsupported operator selector');
+        return $repository->optionsForCourse();
+    }
+
+    public function teacherOptionsForTeachingEligibility(): array {
+        if (!current_user_can('dzn_manage_teaching_eligibility')) throw new \RuntimeException('Unauthorized');
+        return (new TeacherRepository())->operatorOptions();
+    }
+
+    public function courseOptionsForTeachingEligibility(): array {
+        if (!current_user_can('dzn_manage_teaching_eligibility')) throw new \RuntimeException('Unauthorized');
+        return (new CourseRepository())->operatorOptions();
+    }
+
+    public function instrumentOptionsForTeachingEligibility(): array {
+        if (!current_user_can('dzn_manage_teaching_eligibility')) throw new \RuntimeException('Unauthorized');
+        return (new InstrumentRepository())->optionsForCourse();
+    }
+
+    public function teacherOptionsForAvailability(): array {
+        if (!current_user_can('dzn_manage_teacher_availability')) throw new \RuntimeException('Unauthorized');
+        return (new TeacherRepository())->operatorOptions();
+    }
+
+    public function lessonOperatorOptions(string $entity): array {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        return match($entity) {
+            'student' => (new StudentRepository())->operatorOptions(),
+            'teacher' => (new TeacherRepository())->operatorOptions(),
+            'course' => (new CourseRepository())->operatorOptions(),
+            'enrolment' => (new EnrolmentRepository())->operatorOptions(),
+            'term' => (new TermRepository())->operatorOptions(),
+            'lesson' => (new LessonRepository())->operatorOptions(),
+            default => throw new \InvalidArgumentException('Unsupported lesson selector'),
+        };
+    }
+
+    public function legacyEnrolmentOptionsForTerm(): array {
+        if (!current_user_can('dzn_manage_terms')) throw new \RuntimeException('Unauthorized');
+        return (new EnrolmentRepository())->operatorOptions();
+    }
+
+    public function catalogueRows(string $entity): array {
+        if (!current_user_can('dzn_manage_courses')) throw new \RuntimeException('Unauthorized');
+        return match($entity){'course'=>(new CourseRepository())->operatorRows(),'instrument'=>(new InstrumentRepository())->operatorRows(),default=>throw new \InvalidArgumentException('Unsupported catalogue screen')};
+    }
+
+    public function catalogueRecord(string $entity,int $id): ?object {
+        if (!current_user_can('dzn_manage_courses')) throw new \RuntimeException('Unauthorized');
+        return match($entity){'course'=>(new CourseRepository())->operatorFind($id),'instrument'=>(new InstrumentRepository())->operatorFind($id),default=>throw new \InvalidArgumentException('Unsupported catalogue screen')};
+    }
+
+    public function canonicalTerm(int $termId): ?object {
+        if (!current_user_can('dzn_manage_canonical_terms')) throw new \RuntimeException('Unauthorized');
+        if ($termId < 1) throw new \InvalidArgumentException('Term identity required');
+        $term=(new TermRepository())->findAny($termId);
+        if (!$term || ($term->record_model??null)!=='canonical_enrolment_term_v1') return null;
+        $inspection=(new CanonicalTermReadService())->forEnrolment((int)$term->enrolment_id);
+        foreach($inspection['terms'] as$row)if((int)$row['term_id']===$termId){
+            $enrolment=(new EnrolmentRepository())->find((int)$term->enrolment_id);
+            if($enrolment){$student=(new StudentRepository())->find((int)$enrolment->student_id);$course=(new CourseRepository())->find((int)$enrolment->course_id);$term->student_name=$student?(string)($student->display_name?:trim(($student->first_name??'').' '.($student->last_name??''))):'';$term->course_name=$course?(string)($course->name_en?:$course->name_fa):'';}
+            return $term;
+        }
+        throw new \RuntimeException('Canonical Term integrity conflict');
+    }
+
+    public function canonicalTermHistory(int $termId): array {
+        if (!current_user_can('dzn_manage_canonical_terms')) throw new \RuntimeException('Unauthorized');
+        return (new CanonicalTermReadService())->history($termId);
+    }
+
+    public function canonicalTermCreateOptions(): array {
+        if (!current_user_can('dzn_manage_canonical_terms')) throw new \RuntimeException('Unauthorized');
+        return (new CanonicalTermReadService())->createOptions();
+    }
+
     public function find(string $entity, int $id): ?object {
         $repository = $this->repository($entity); $row = $repository->find($id);
         if ($entity === 'enrolment' && $row && $repository instanceof EnrolmentRepository) $this->validateCanonicalEnrolment($repository, $row);

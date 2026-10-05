@@ -30,7 +30,7 @@ foreach ( array( "'state'=>'linked_pending'", "'readiness_state'=>'not_ready'", 
     if ( strpos( $finalize, $fragment ) === false ) throw new RuntimeException( 'Claim does not produce linked-pending onboarding: ' . $fragment );
 if ( strpos( $finalize, "'state'=>'active','readiness_state'=>'ready'" ) !== false ) throw new RuntimeException( 'Claim must not activate a Teacher.' );
 
-foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'review(', "current_user_can( 'dzn_manage_onboarding' )", 'hasUsableAvailability', "'agreement_state' => 'not_required'", "'readiness_state' => $readiness", "$readiness = 'ready'" ) as $fragment )
+foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'review(', "current_user_can( 'dzn_manage_onboarding' )", 'hasUsableAvailability', "'agreement_state' => 'not_required'", "'readiness_state' => \$readiness", "\$readiness = 'ready'" ) as $fragment )
     if ( strpos( $files['service'], $fragment ) === false ) throw new RuntimeException( 'Missing lifecycle contract: ' . $fragment );
 foreach ( array( "'state'=>'offboarded'", 'appendOnboardingEvent' ) as $fragment )
     if ( strpos( $files['claim'], $fragment ) === false ) throw new RuntimeException( 'Canonical teacher offboarding contract missing: ' . $fragment );
@@ -50,7 +50,7 @@ foreach ( array( 'approve', 'return', 'reject', 'dzn_manage_onboarding', 'review
     if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
 
 if ( strpos( $files['portal'], 'hasActiveTeacherAuthority' ) === false || strpos( $files['portal'], 'teacher_onboarding_required' ) === false ) throw new RuntimeException( 'Normal Teacher portal readiness gate missing.' );
-foreach ( array( 'currentForUser', "'onboarding' === $screen", 'dzn_teacher_onboarding_profile' ) as $fragment )
+foreach ( array( 'currentForUser', "'onboarding' === \$screen", 'dzn_teacher_onboarding_profile' ) as $fragment )
     if ( strpos( $files['theme_bridge'], $fragment ) === false ) throw new RuntimeException( 'Theme onboarding projection missing: ' . $fragment );
 if ( strpos( $files['theme_route'], 'dzn_theme_teacher_requires_onboarding' ) === false ) throw new RuntimeException( 'Incomplete Teacher routing missing.' );
 foreach ( array( 'dzn_theme_platform_teacher_state_model', 'dzn_theme_platform_teacher_read_state', "'not_linked'", "'onboarding_required'", "'error'" ) as $fragment )

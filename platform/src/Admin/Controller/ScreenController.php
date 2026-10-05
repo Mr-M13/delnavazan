@@ -175,20 +175,29 @@ final class ScreenController {
     }
 
     private static function entityList(string $entity): void {
-        try { $records = (new CoreReadService())->recent($entity); }
+        try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
         catch (\InvalidArgumentException $exception) {
             if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
             echo '<p class="notice notice-error">Canonical lifecycle history failed integrity validation.</p>';
             return;
         }
-        echo '<h2>Recent records</h2>'; self::objectTable($records, 'dzn-' . $entity);
+        echo '<h2>Recent records</h2>';
+        if (in_array($entity, ['student','teacher'], true)) self::objectTable($records, 'dzn-' . $entity, self::profileFields($entity));
+        elseif(in_array($entity,['course','instrument'],true)) self::objectTable($records, 'dzn-' . $entity, self::catalogueFields($entity));
+        else self::objectTable($records, 'dzn-' . $entity);
     }
 
     private static function entityDetail(string $entity, int $id): void {
         $record = (new CoreReadService())->find($entity, $id);
+        if (!$record && $entity==='term' && current_user_can('dzn_manage_canonical_terms')) $record=(new CoreReadService())->canonicalTerm($id);
         if (!$record) { echo '<p>Record not found.</p>'; return; }
-        echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>Record #' . esc_html((string) $id) . '</h2>';
-        self::objectTable([$record], null);
+        $profile=in_array($entity,['student','teacher'],true);
+        $canonicalTerm=$entity==='term'&&($record->record_model??null)==='canonical_enrolment_term_v1';
+        $heading=$profile?ucfirst($entity).' profile · '.(string)($record->reference_code??''):($canonicalTerm?'Term · '.(string)($record->reference_code??''):'Record #'.(string)$id);
+        echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>' . esc_html($heading) . '</h2>';
+        $displayRecord=in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRecord($entity,$id):$record;
+        $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():null));
+        self::objectTable([$displayRecord??$record], null, $allowed);
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             self::teacherMaintenanceForm( $record );
             $teacherId=(int)$record->id;
@@ -198,7 +207,7 @@ final class ScreenController {
             if(current_user_can('dzn_manage_teacher_availability')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-teacher-availability','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Availability</a>';
             echo '</p>';
         }
-        if ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') self::archiveActions($entity, $id, (string) $record->status);
+        if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1')) self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
             try { $history = (new CoreReadService())->enrolmentLifecycle($id); }
@@ -210,7 +219,7 @@ final class ScreenController {
             if ($history) self::objectTable($history, null); else echo '<p>No canonical lifecycle history.</p>';
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
-        if ($entity === 'term' && ($record->record_model ?? '') === 'canonical_enrolment_term_v1' && current_user_can('dzn_manage_canonical_terms')) self::canonicalTermLifecycleForm($record);
+        if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
         if ($entity === 'lesson') { self::lessonSchedules($id); if (($record->record_model ?? '') === 'canonical_term_lesson_v1') self::canonicalLessonSchedule($record); }
     }
 
@@ -273,9 +282,23 @@ final class ScreenController {
     private static function canonicalEvidence(array $post): array { return array('evidence_channel'=>sanitize_key($post['evidence_channel']??''),'evidence_reference'=>sanitize_text_field($post['evidence_reference']??''),'evidence_at'=>sanitize_text_field($post['evidence_at']??'')); }
 
     private static function canonicalTermCreateForm(): void {
-        echo '<h2>Create canonical Term</h2>'; self::formStart('create_canonical_term');
-        self::input('enrolment_id','Canonical Enrolment ID',true,'number'); self::input('expected_latest_term_id','Expected latest terminal Term ID',false,'number');
-        self::select('expected_latest_state','Expected latest state',['closed','cancelled'],'closed'); self::canonicalEvidenceFields(); submit_button('Create canonical Term'); echo '</form>';
+        $options=(new CoreReadService())->canonicalTermCreateOptions();
+        echo '<h2>Create canonical Term</h2>';
+        if(!$options){echo '<p>No canonical Enrolment is ready for another Term.</p>';return;}
+        $requested=wp_unslash($_GET['enrolment_id']??'');$selected=is_scalar($requested)&&preg_match('/^[1-9][0-9]*$/D',(string)$requested)?(string)absint($requested):'';
+        self::formStart('create_canonical_term');
+        echo '<p><label>Student and Course<br><select required name="enrolment_id">';
+        foreach($options as $option){
+            $value=(string)$option['enrolment_id'];
+            $expectedTerm=esc_attr((string)$option['expected_latest_term_id']);
+            $expectedState=esc_attr((string)$option['expected_latest_state']);
+            $label=esc_html((string)$option['label']);
+            echo '<option value="'.esc_attr($value).'" data-expected-term="'.$expectedTerm.'" data-expected-state="'.$expectedState.'"'.selected($selected,$value,false).'>'.$label.'</option>';
+        }
+        echo '</select></label></p><input type="hidden" name="expected_latest_term_id" value=""><input type="hidden" name="expected_latest_state" value="">';
+        echo '<p class="description">The latest closed or cancelled Term is checked automatically before creation.</p>';
+        self::canonicalEvidenceFields(); submit_button('Create canonical Term'); echo '</form>';
+        echo '<script>(function(){const f=document.querySelector("input[name=\'dzn_action\'][value=\'create_canonical_term\']")?.form;if(!f)return;const s=f.querySelector("select[name=\'enrolment_id\']"),i=f.querySelector("[name=\'expected_latest_term_id\']"),t=f.querySelector("[name=\'expected_latest_state\']");const sync=()=>{const o=s.options[s.selectedIndex];i.value=o?.dataset.expectedTerm||"";t.value=o?.dataset.expectedState||"";};s.addEventListener("change",sync);sync();})();</script>';
     }
 
     private static function canonicalTermLifecycleForm(object $term): void {
@@ -283,7 +306,16 @@ final class ScreenController {
         foreach (array('activate','close','cancel') as $operation) { self::formStart($operation.'_canonical_term'); echo '<input type="hidden" name="term_id" value="'.esc_attr((string)$term->id).'"><input type="hidden" name="expected_state" value="'.esc_attr((string)$term->lifecycle_state).'">'; self::canonicalEvidenceFields(); submit_button(ucfirst($operation).' canonical Term'); echo '</form>'; }
     }
 
-    private static function canonicalEvidenceFields(): void { self::select('evidence_channel','Evidence channel',['staff_record','authenticated_platform','document_reference'],'staff_record'); self::input('evidence_reference','Evidence reference',true); self::input('evidence_at','Evidence UTC',true,'text',gmdate('Y-m-d H:i:s')); self::input('idempotency_key','Idempotency key',true,'text',wp_generate_uuid4()); }
+    private static function canonicalEvidenceFields(): void { self::select('evidence_channel','Evidence source',['staff_record','authenticated_platform','document_reference'],'staff_record'); self::input('evidence_reference','Operator evidence reference',true); self::input('evidence_at','Evidence time (UTC)',true,'text',gmdate('Y-m-d H:i:s')); echo '<input type="hidden" name="idempotency_key" value="'.esc_attr(wp_generate_uuid4()).'">'; }
+
+    private static function profileFields(string $entity): array {
+        return $entity==='teacher'
+            ? array('id','reference_code','display_name','persian_name','english_name','email','phone','whatsapp_phone','country_code','city','timezone','locale','calendar_preference','status')
+            : array('id','reference_code','display_name','first_name','last_name','email','phone','whatsapp_phone','country_code','city','timezone','locale','calendar_preference','status');
+    }
+    private static function catalogueFields(string $entity): array { return $entity==='course'?array('id','reference_code','name_en','name_fa','instrument','course_type','default_duration_minutes','default_buffer_minutes','status'):array('id','reference_code','name_en','name_fa','status'); }
+    private static function canonicalTermFields(): array { return array('id','reference_code','student_name','course_name','sequence_number','lifecycle_state','lesson_allocation','replacement_allowance'); }
+    private static function canonicalTermHistory(int $termId): void { $events=(new CoreReadService())->canonicalTermHistory($termId); echo '<h2>Term history</h2>'; if(!$events){echo '<p>No lifecycle events recorded.</p>';return;} $rows=array_map(static fn(array $event):object=>(object)$event,$events); self::objectTable($rows,null,array('event_sequence','from_state','to_state','reason_code','evidence_channel','occurred_at')); }
 
     private static function teacherFields(): void {
         self::input('persian_name', 'Persian name'); self::input('english_name', 'English name'); self::input('display_name', 'Display name', true); self::input('email', 'Email', false, 'email'); self::input('phone', 'Phone'); self::input('whatsapp_phone', 'WhatsApp'); self::input('country_code', 'Country code', false, 'text', 'IR'); self::input('city', 'City'); self::input('timezone', 'Timezone', false, 'text', 'Asia/Tehran'); self::select('timezone_source', 'Timezone source', ['admin_selected', 'student_selected', 'imported', 'system_suggested'], 'admin_selected'); self::input('locale', 'Locale', false, 'text', 'fa_IR'); self::select('calendar_preference', 'Calendar', ['persian', 'gregorian', 'auto'], 'persian'); self::select('status', 'Status', ['active', 'inactive'], 'active');
@@ -294,9 +326,28 @@ final class ScreenController {
     }
 
     private static function instrumentFields(): void { self::input('slug', 'Slug', true); self::input('name_fa', 'Persian name'); self::input('name_en', 'English name'); self::select('status', 'Status', ['active', 'inactive'], 'active'); }
-    private static function courseFields(): void { self::input('instrument_id', 'Instrument ID', true, 'number'); self::input('name_fa', 'Persian name', true); self::input('name_en', 'English name', true); self::select('course_type', 'Course type', ['standard', 'introductory'], 'standard'); self::select('status', 'Status', ['active', 'inactive'], 'active'); self::input('default_duration_minutes', 'Duration minutes', true, 'number', '30'); self::input('default_buffer_minutes', 'Buffer minutes', true, 'number', '15'); }
-    private static function termFields(): void { self::input('enrolment_id', 'Enrolment ID', true, 'number'); self::input('sequence_number', 'Sequence', true, 'number', '1'); self::select('status', 'Status', ['draft', 'awaiting_payment', 'active', 'completed', 'cancelled'], 'draft'); self::input('lesson_allocation', 'Lesson allocation', true, 'number', '12'); self::input('replacement_allowance', 'Replacement allowance', true, 'number', '2'); self::select('payment_state', 'Payment state', ['not_required', 'pending', 'paid', 'failed', 'refunded'], 'not_required'); }
-    private static function lessonFields(): void { self::input('student_id', 'Student ID', true, 'number'); self::input('teacher_id', 'Teacher ID', true, 'number'); self::input('course_id', 'Course ID', true, 'number'); self::select('lesson_type', 'Lesson type', ['introductory', 'standard', 'replacement'], 'introductory'); self::select('status', 'Status', ['draft'], 'draft'); self::input('enrolment_id', 'Enrolment ID (optional only for introductory)', false, 'number'); self::input('term_id', 'Term ID (requires Enrolment)', false, 'number'); self::input('replacement_for_lesson_id', 'Original Lesson ID (replacement only)', false, 'number'); }
+    private static function courseFields(): void { self::instrumentSelector(); self::input('name_fa', 'Persian name', true); self::input('name_en', 'English name', true); self::select('course_type', 'Course type', ['standard', 'introductory'], 'standard'); self::select('status', 'Status', ['active', 'inactive'], 'active'); self::input('default_duration_minutes', 'Duration minutes', true, 'number', '30'); self::input('default_buffer_minutes', 'Buffer minutes', true, 'number', '15'); }
+    private static function instrumentSelector(): void {
+        $instruments = (new CoreReadService())->instrumentOptionsForCourse();
+        echo '<p><label>Instrument<br><select required name="instrument_id"><option value="">Choose an instrument</option>';
+        foreach ($instruments as $instrument) {
+            $name = (string) ($instrument->name_en ?: $instrument->name_fa ?: 'Instrument');
+            $label = $name . ((string) $instrument->status === 'active' ? '' : ' (inactive)');
+            echo '<option value="' . esc_attr((string) $instrument->id) . '">' . esc_html($label) . '</option>';
+        }
+        echo '</select></label><br><span class="description">Choose the instrument this Course teaches. Archived instruments are unavailable.</span></p>';
+    }
+    private static function termFields(): void { self::legacyEnrolmentSelector('Enrolment', true); self::input('sequence_number', 'Sequence', true, 'number', '1'); self::select('status', 'Status', ['draft', 'awaiting_payment', 'active', 'completed', 'cancelled'], 'draft'); self::input('lesson_allocation', 'Lesson allocation', true, 'number', '12'); self::input('replacement_allowance', 'Replacement allowance', true, 'number', '2'); self::select('payment_state', 'Payment state', ['not_required', 'pending', 'paid', 'failed', 'refunded'], 'not_required'); }
+    private static function lessonFields(): void { self::lessonSelector('student','Student',true); self::lessonSelector('teacher','Teacher',true); self::lessonSelector('course','Course',true); self::select('lesson_type', 'Lesson type', ['introductory', 'standard', 'replacement'], 'introductory'); self::select('status', 'Status', ['draft'], 'draft'); self::lessonSelector('enrolment','Enrolment (optional for introductory lessons)',false); self::lessonSelector('term','Term (requires Enrolment)',false); self::lessonSelector('lesson','Original Lesson (replacement only)',false); }
+
+    private static function lessonSelector(string $entity, string $label, bool $required): void {
+        $rows=(new CoreReadService())->lessonOperatorOptions($entity);
+        echo '<p><label>'.esc_html($label).'<br><select name="'.esc_attr($entity==='lesson'?'replacement_for_lesson_id':$entity.'_id').'"'.($required?' required':'').'><option value="">Choose '.esc_html(strtolower($label)).'</option>';
+        foreach($rows as $row){$status=(string)($row->status??'');$text=match($entity){'student'=>(string)($row->display_name?:trim(($row->first_name??'').' '.($row->last_name??''))?:'Student'),'teacher'=>(string)($row->display_name?:$row->english_name?:$row->persian_name?:'Teacher'),'course'=>(string)($row->name_en?:$row->name_fa?:'Course'),'enrolment'=>(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.(string)($row->teacher?:'Teacher'),'term'=>'Term '.(string)($row->sequence_number??'').' · '.(string)($row->student?:'Student'),'lesson'=>(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.ucfirst((string)($row->lesson_type??'lesson')),default=>'Record'};if($status!==''&&$status!=='active')$text.=' ('.str_replace('_',' ',$status).')';echo '<option value="'.esc_attr((string)$row->id).'">'.esc_html($text).'</option>';}
+        echo '</select></label></p>';
+    }
+
+    private static function legacyEnrolmentSelector(string $label, bool $required): void { $rows=(new CoreReadService())->legacyEnrolmentOptionsForTerm(); echo '<p><label>'.esc_html($label).'<br><select name="enrolment_id"'.($required?' required':'').'><option value="">Choose a legacy Enrolment</option>'; foreach($rows as$row){$text=(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.(string)($row->teacher?:'Teacher');if($row->status!=='active')$text.=' ('.str_replace('_',' ',(string)$row->status).')';echo '<option value="'.esc_attr((string)$row->id).'">'.esc_html($text).'</option>';}echo '</select><br><span class="description">Only legacy Enrolments are accepted by this Term workflow.</span></label></p>'; }
 
     private static function lessonSchedules(int $lessonId): void {
         $state = (new CoreReadService())->lessonSchedule($lessonId);
@@ -331,10 +382,14 @@ final class ScreenController {
 
     private static function objectTable(array $records, ?string $page, ?array $allowed = null): void {
         if (!$records) { echo '<p>No records.</p>'; return; }
-        $fields = $allowed ?? array_keys(get_object_vars($records[0])); echo '<table class="widefat striped"><thead><tr>'; foreach ($fields as $field) echo '<th>' . esc_html((string) $field) . '</th>'; echo '</tr></thead><tbody>';
-        foreach ($records as $record) { echo '<tr>'; foreach ($fields as $field) { $value = $record->$field ?? null; if ($field === 'id' && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) $value], admin_url('admin.php'))) . '">' . esc_html((string) $value) . '</a>'; echo '<td>' . $link . '</td>'; } else echo '<td>' . esc_html(self::displayValue($value)) . '</td>'; } echo '</tr>'; }
+        $humanReference=$allowed!==null&&in_array('id',$allowed,true)&&in_array('reference_code',$allowed,true);
+        $fields = $allowed ?? array_keys(get_object_vars($records[0])); if($humanReference)$fields=array_values(array_filter($fields,static fn($field)=>$field!=='id'));
+        $labels=array('reference_code'=>'Reference','display_name'=>'Display name','persian_name'=>'Persian name','english_name'=>'English name','name_en'=>'English name','name_fa'=>'Persian name','first_name'=>'First name','last_name'=>'Last name','student_name'=>'Student','course_name'=>'Course','whatsapp_phone'=>'WhatsApp','country_code'=>'Country','timezone'=>'Time zone','schedule_timezone'=>'Time zone','local_wall_date'=>'Local date','local_wall_time'=>'Local start time','duration_minutes'=>'Lesson length (minutes)','buffer_minutes'=>'Changeover buffer (minutes)','availability_basis'=>'Availability check','version_number'=>'Schedule version','event_type'=>'Schedule change','recorded_at'=>'Recorded','locale'=>'Language/locale','calendar_preference'=>'Calendar','status'=>'Status','instrument'=>'Instrument','course_type'=>'Course type','default_duration_minutes'=>'Lesson duration','default_buffer_minutes'=>'Buffer between lessons','sequence_number'=>'Term number','lifecycle_state'=>'Term status','lesson_allocation'=>'Lessons included','replacement_allowance'=>'Replacement lessons allowed','event_sequence'=>'Event','from_state'=>'Previous status','to_state'=>'New status','reason_code'=>'Reason','evidence_channel'=>'Evidence source','occurred_at'=>'Recorded at');
+        echo '<table class="widefat striped"><thead><tr>'; foreach ($fields as $field) echo '<th>' . esc_html($labels[$field]??ucfirst(str_replace('_',' ',(string)$field))) . '</th>'; echo '</tr></thead><tbody>';
+        foreach ($records as $record) { echo '<tr>'; foreach ($fields as $field) { $value = $record->$field ?? null; if ($field === 'reference_code' && $humanReference && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) ($record->id??0)], admin_url('admin.php'))) . '">' . esc_html(self::operatorValue((string)$field,$value)) . '</a>'; echo '<td>' . $link . '</td>'; } elseif ($field === 'id' && $page !== null) { $link = '<a href="' . esc_url(add_query_arg(['page' => $page, 'id' => (int) $value], admin_url('admin.php'))) . '">' . esc_html((string) $value) . '</a>'; echo '<td>' . $link . '</td>'; } else echo '<td>' . esc_html(self::operatorValue((string)$field,$value)) . '</td>'; } echo '</tr>'; }
         echo '</tbody></table>';
     }
+    private static function operatorValue(string $field,mixed $value):string { if(in_array($field,['status','lifecycle_state','from_state','to_state'],true))return match((string)$value){'active'=>'Active','inactive'=>'Inactive','archived'=>'Archived','authorised'=>'Authorised','current'=>'Current','paused'=>'Paused','closed'=>'Closed','cancelled'=>'Cancelled',default=>self::displayValue($value)}; if($field==='course_type')return match((string)$value){'introductory'=>'Introductory Course','standard'=>'Standard Course',default=>self::displayValue($value)}; return self::displayValue($value); }
     private static function displayValue(mixed $value): string { return ($value === null || $value === '' || !is_scalar($value)) ? '—' : (string) $value; }
     private static function redirectNotice(string $notice, bool $error = false, array $extra = []): never {
         $url = add_query_arg(array_merge(['page' => sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform')), 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $extra), admin_url('admin.php'));
@@ -388,8 +443,10 @@ final class ScreenController {
             echo '<p class="notice notice-error">Canonical schedule failed integrity validation.</p>';
             return;
         }
-        if ($state['active_version']) self::objectTable(array($state['active_version']), null); else echo '<p>No applicable canonical schedule.</p>';
-        if ($state['versions']) { echo '<h3>Schedule history</h3>'; self::objectTable($state['versions'], null); }
+        $scheduleFields=array('version_number','local_wall_date','local_wall_time','schedule_timezone','duration_minutes','buffer_minutes','availability_basis');
+        if ($state['active_version']) self::objectTable(array($state['active_version']), null, $scheduleFields); else echo '<p>No applicable canonical schedule.</p>';
+        if ($state['versions']) { echo '<h3>Schedule history</h3>'; self::objectTable($state['versions'], null, $scheduleFields); }
+        if ($state['events']) { echo '<h3>Schedule changes</h3>'; self::objectTable(array_map(static fn(object $event):array=>array('event_type'=>$event->event_type,'recorded_at'=>$event->recorded_at),$state['events']), null, array('event_type','recorded_at')); }
         $active = $state['active_version'];
         self::formStart($active ? 'revise_canonical_lesson' : 'schedule_canonical_lesson');
         echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';

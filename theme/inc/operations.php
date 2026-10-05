@@ -32,7 +32,7 @@ function dzn_theme_operations_groups() {
 		'platform' => array(
 			'label' => 'هستهٔ پلتفرم',
 			'items' => array(
-				array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-platform', 'title' => 'وضعیت هسته', 'description' => 'سلامت، آمادگی و شمارنده‌های عملیاتی' ),
+				array( 'cap' => 'dzn_view_diagnostics', 'slug' => 'dzn-system-health', 'title' => 'وضعیت سلامت سیستم', 'description' => 'سلامت، آمادگی و شمارنده‌های عملیاتی' ),
 				array( 'cap' => 'dzn_view_portal_capabilities', 'slug' => 'dzn-portal-capabilities', 'title' => 'پیوندهای ورود و غیبت', 'description' => 'ساخت، چرخش و لغو پیوندهای امضاشدهٔ عمومی' ),
 			),
 		),
@@ -50,6 +50,7 @@ function dzn_theme_operations_groups() {
 			'items' => array(
 				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teaching-eligibility', 'title' => 'صلاحیت تدریس', 'description' => 'دسترسی مدرس به دوره‌ها' ),
 				array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teacher-availability', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی' ),
+				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-coverage', 'title' => 'پوشش تدریس', 'description' => 'شکاف پوشش منطقه‌ای مدرس‌ها' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-course', 'title' => 'دوره‌ها', 'description' => 'دوره‌های آموزشگاه' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-instrument', 'title' => 'سازها', 'description' => 'فهرست سازها' ),
 			),
@@ -67,15 +68,20 @@ function dzn_theme_operations_groups() {
 		'requests' => array(
 			'label' => 'درخواست‌ها',
 			'items' => array(
-				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-operations', 'title' => 'صف عملیات آموزشگاه', 'description' => 'نمای یکپارچه از درخواست تا ثبت‌نام، ترم و جلسه' ),
+				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-dashboard', 'title' => 'داشبورد آموزشگاه', 'description' => 'نمای یکپارچه از درخواست تا ثبت‌نام، ترم و جلسه' ),
 				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-booking-requests', 'title' => 'درخواست‌های کلاس', 'description' => 'درخواست‌های ورودی هنرجویان' ),
 				array( 'cap' => 'dzn_manage_booking_request_coordination', 'slug' => 'dzn-booking-request-coordination', 'title' => 'هماهنگی درخواست‌ها', 'description' => 'هماهنگی مدرس و زمان' ),
 			),
 		),
 		'commercial' => array(
-			'label' => 'ارتباطات و فروش',
+			'label' => 'ارتباطات',
 			'items' => array(
 				array( 'cap' => 'dzn_view_notification_authority', 'slug' => 'dzn-communications', 'title' => 'سلامت ارتباطات', 'description' => 'صف، تلاش‌ها و گردش‌کارهای بدون مسیر' ),
+			),
+		),
+		'catalogue' => array(
+			'label' => 'دوره‌ها و قیمت‌گذاری',
+			'items' => array(
 				array( 'cap' => 'dzn_manage_commercial_catalogue', 'slug' => 'dzn-commercial-catalogue', 'title' => 'کاتالوگ و قیمت‌ها', 'description' => 'محصول دوره و قیمت منطقه‌ای' ),
 			),
 		),

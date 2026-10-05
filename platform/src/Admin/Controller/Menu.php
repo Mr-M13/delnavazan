@@ -13,27 +13,27 @@ final class Menu {
 
     public static function menu(): void {
         $groups = [
-            ['Bookings', 'dzn-platform', 'dashicons-calendar-alt', 58],
+            ['Academy', 'dzn-platform', 'dashicons-calendar-alt', 58],
             ['Students', 'dzn-students-menu', 'dashicons-groups', 59],
             ['Teachers', 'dzn-teachers-menu', 'dashicons-welcome-learn-more', 60],
-            ['Courses', 'dzn-courses-menu', 'dashicons-book-alt', 61],
-            ['Finance', 'dzn-finance-menu', 'dashicons-money-alt', 62],
-            ['Notifications', 'dzn-notifications-menu', 'dashicons-email-alt', 63],
-            ['Settings', 'dzn-settings-menu', 'dashicons-admin-generic', 64],
+            ['Courses & Terms', 'dzn-courses-menu', 'dashicons-book-alt', 61],
+            ['Classes / Schedule', 'dzn-classes-menu', 'dashicons-clock', 62],
+            ['Finance', 'dzn-finance-menu', 'dashicons-money-alt', 63],
+            ['Communications', 'dzn-notifications-menu', 'dashicons-email-alt', 64],
+            ['Settings', 'dzn-settings-menu', 'dashicons-admin-generic', 65],
         ];
         foreach ($groups as [$label, $slug, $icon, $position]) {
-            $callback = $slug === 'dzn-platform'
-                ? [AcademyOperationsController::class, 'screen']
-                : [AdminNavigationController::class, 'screen'];
-            add_menu_page($label, $label, 'read', $slug, $callback, $icon, $position);
+            add_menu_page($label, $label, 'read', $slug, [AdminNavigationController::class, 'screen'], $icon, $position);
         }
 
         $pages = [
+            ['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
             ['dzn-platform', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
             ['dzn-platform', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
 
             ['dzn-students-menu', 'Students', 'dzn_manage_students', 'dzn-student', static fn() => ScreenController::screen('student'), static fn() => ScreenController::handlePost('student')],
             ['dzn-students-menu', 'Identity & authentication', 'dzn_view_student_acceptance_eligibility', 'dzn-student-identity-authority', [StudentIdentityAuthorityController::class, 'screen'], [StudentIdentityAuthorityController::class, 'handlePost']],
+            ['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment', static fn() => ScreenController::screen('enrolment'), static fn() => ScreenController::handlePost('enrolment')],
 
             ['dzn-teachers-menu', 'Teachers', 'dzn_manage_teachers', 'dzn-teacher', static fn() => ScreenController::screen('teacher'), static fn() => ScreenController::handlePost('teacher')],
             ['dzn-teachers-menu', 'Teacher onboarding', 'dzn_manage_onboarding', 'dzn-onboarding', [OnboardingController::class, 'screen'], [OnboardingController::class, 'handlePost']],
@@ -42,12 +42,11 @@ final class Menu {
 
             ['dzn-courses-menu', 'Courses', 'dzn_manage_courses', 'dzn-course', static fn() => ScreenController::screen('course'), static fn() => ScreenController::handlePost('course')],
             ['dzn-courses-menu', 'Terms', 'dzn_manage_terms', 'dzn-term', static fn() => ScreenController::screen('term'), static fn() => ScreenController::handlePost('term')],
-            ['dzn-courses-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment', static fn() => ScreenController::screen('enrolment'), static fn() => ScreenController::handlePost('enrolment')],
             ['dzn-courses-menu', 'Instruments', 'dzn_manage_courses', 'dzn-instrument', static fn() => ScreenController::screen('instrument'), static fn() => ScreenController::handlePost('instrument')],
-            ['dzn-courses-menu', 'Lessons', 'dzn_manage_lessons', 'dzn-lesson', static fn() => ScreenController::screen('lesson'), static fn() => ScreenController::handlePost('lesson')],
+            ['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson', static fn() => ScreenController::screen('lesson'), static fn() => ScreenController::handlePost('lesson')],
+            ['dzn-classes-menu', 'Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
 
             ['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
-            ['dzn-finance-menu', 'Attendance', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
             ['dzn-notifications-menu', 'Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['dzn-settings-menu', 'System health', 'dzn_view_diagnostics', 'dzn-system-health', [ScreenController::class, 'status'], null],
             ['dzn-settings-menu', 'Google Console', 'dzn_view_diagnostics', 'dzn-google-console', [IntegrationControlPlaneController::class, 'googleSettings'], null],

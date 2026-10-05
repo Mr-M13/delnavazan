@@ -40,7 +40,6 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\CommercialCatalogueController::register();
-	Delnavazan\Platform\Admin\Controller\AcademyOperationsController::register();
 	Delnavazan\Platform\Admin\Controller\AcademyCoverageController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceRateController::register();

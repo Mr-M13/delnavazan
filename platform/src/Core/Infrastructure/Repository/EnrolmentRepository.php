@@ -16,6 +16,13 @@ final class EnrolmentRepository extends BaseRepository {
         ));
     }
 
+    /** Human-labelled legacy choices for the existing Term and Lesson services. */
+    public function operatorOptions(): array {
+        global $wpdb;
+        $students = $wpdb->prefix . 'dzn_students'; $teachers = $wpdb->prefix . 'dzn_teachers'; $courses = $wpdb->prefix . 'dzn_courses';
+        return $wpdb->get_results("SELECT e.id,e.status,COALESCE(NULLIF(s.display_name,''),NULLIF(s.first_name,''),s.last_name) student,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher,COALESCE(NULLIF(c.name_en,''),c.name_fa) course FROM {$this->table} e LEFT JOIN {$students} s ON s.id=e.student_id LEFT JOIN {$teachers} t ON t.id=e.teacher_id LEFT JOIN {$courses} c ON c.id=e.course_id WHERE e.record_model='legacy_phase1' AND e.archived_at IS NULL AND e.status <> 'archived' ORDER BY e.id DESC LIMIT 100") ?: array();
+    }
+
     /** A later conversion phase must add a dedicated, invariant-safe writer. */
     public function insert(array $data): int {
         throw new \RuntimeException('Generic Enrolment repository insertion is disabled');

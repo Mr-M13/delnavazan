@@ -35,6 +35,13 @@ final class TermRepository extends BaseRepository {
         )) ?: array();
     }
 
+    /** Human-labelled legacy Term choices for Lesson administration. */
+    public function operatorOptions(): array {
+        global $wpdb;
+        $enrolments = $wpdb->prefix . 'dzn_enrolments'; $students = $wpdb->prefix . 'dzn_students';
+        return $wpdb->get_results("SELECT t.id,t.sequence_number,t.status,COALESCE(NULLIF(s.display_name,''),NULLIF(s.first_name,''),s.last_name) student FROM {$this->table} t LEFT JOIN {$enrolments} e ON e.id=t.enrolment_id LEFT JOIN {$students} s ON s.id=e.student_id WHERE t.record_model='legacy_phase1' AND t.archived_at IS NULL AND t.status <> 'archived' ORDER BY t.id DESC LIMIT 100") ?: array();
+    }
+
     public function findAny(int $id): ?object {
         return parent::find($id);
     }

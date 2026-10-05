@@ -5,6 +5,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 final class StudentAccountClaimInvitationRepository {
     private string $prefix;
     public function __construct(){global $wpdb;$this->prefix=$wpdb->prefix.'dzn_';}
+    /** Safe operator projection: lifecycle facts only, never token/command digests. */
+    public function lifecycleRows(int $limit=100):array{global $wpdb;$limit=max(1,min($limit,100));return $wpdb->get_results("SELECT i.student_id,i.state,i.current_generation,i.created_at,i.updated_at,i.claimed_at,i.claimed_principal_id,i.revoked_at,i.revocation_reason_code,g.state AS generation_state,g.generation_number,g.issued_at,g.expires_at,g.claimed_at AS generation_claimed_at,g.claimed_principal_id AS generation_claimed_principal_id,g.revoked_at AS generation_revoked_at,g.superseded_at,g.replacement_reason_code FROM {$this->prefix}student_account_claim_invitations i LEFT JOIN {$this->prefix}student_account_claim_generations g ON g.invitation_id=i.id AND g.generation_number=i.current_generation ORDER BY i.updated_at DESC LIMIT {$limit}")?:array();}
     public function begin():void{global $wpdb;if($wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Claim invitation transaction start failed');}
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Claim invitation transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}

@@ -26,7 +26,10 @@ final class IntegrationControlPlaneReadService {
         $invitationTransportConfigured=(bool)apply_filters('dzn_teacher_invitation_email_transport_configured',false);
 
         global $wpdb;
-        $outboxTable=$wpdb->prefix.'platform_outbox';
+        // Platform tables live beneath the dzn_ namespace. Omitting it makes
+        // WordPress query a non-existent wp_platform_outbox table, which turns
+        // this read-only diagnostics screen into a blank fatal page.
+        $outboxTable=$wpdb->prefix.'dzn_platform_outbox';
         $rows=$wpdb->get_results($wpdb->prepare(
             "SELECT status,COUNT(*) AS total FROM {$outboxTable} WHERE event_type=%s GROUP BY status",
             'teacher_invitation.delivery_requested'

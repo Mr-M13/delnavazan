@@ -95,6 +95,38 @@ foreach ( array(
         "The $action correction must stay on its existing authority behind its exact capability and operator form."
     );
 }
+
+// Term administration supports first and successor canonical periods and preserves lifecycle
+// concurrency guards by passing expected predecessor/state inputs into the existing authority.
+foreach ( array(
+    'close_canonical_term' => array( 'dzn_manage_canonical_terms', 'closeCanonicalTerm(', 'CanonicalTermAuthorityService() )->close' ),
+    'cancel_canonical_term' => array( 'dzn_manage_canonical_terms', 'cancelCanonicalTerm(', 'CanonicalTermAuthorityService() )->cancel' ),
+) as $action => $contract ) {
+    [ $capability, $wrapper, $authority ] = $contract;
+    $method = strstr( $wrapper, '(', true );
+    dzn_core_operator_entrypoint_assert(
+        str_contains( $controller, "'$action' => '$capability'" ) &&
+        str_contains( $controller, "current_user_can( self::ACTIONS['$action'] )" ) &&
+        str_contains( $controller, "'" . $action . "' => self::" . $method . "(" ) &&
+        substr_count( $controller, $wrapper ) >= 2 && str_contains( $controller, $authority ) &&
+        str_contains( $controller, "self::requireCapability( self::ACTIONS['$action'] );" ),
+        "The $action lifecycle command must remain on the canonical Term authority and its narrow capability."
+    );
+}
+dzn_core_operator_entrypoint_assert(
+    str_contains( $controller, "self::optionalPositiveInt( \$post, 'expected_latest_term_id' )") &&
+    str_contains( $controller, "self::nullableText( \$post, 'expected_latest_term_state' )") &&
+    str_contains( $controller, "create( \$enrolmentId, \$expectedLatestTermId, \$expectedLatestTermState, \$evidence, \$key )") &&
+    str_contains( $controller, "array( 'expected_latest_term_id', 'Latest closed/cancelled Term ID (leave blank for first Term)', false )") &&
+    str_contains( $controller, "array( 'expected_latest_term_state', 'Latest Term state: closed or cancelled (leave blank for first Term)', false )" ),
+    'Successor Term creation must supply the canonical authority with the expected terminal predecessor and state.'
+);
+dzn_core_operator_entrypoint_assert(
+    str_contains( $controller, "'create_canonical_term' => self::createCanonicalTerm(") &&
+    str_contains( $controller, "current_user_can( self::ACTIONS['create_canonical_term'] )") &&
+    str_contains( $controller, "self::requireCapability( self::ACTIONS['create_canonical_term'] );" ),
+    'First and successor Term creation must remain reachable only through the existing Term capability and nonce-bound dispatcher.'
+);
 $authorization = strpos( $controller, "current_user_can( self::ACTIONS[ \$action ] )" );
 $nonce = strpos( $controller, "check_admin_referer( 'dzn_core_dataset_' . \$action )" );
 $dispatch = strpos( $controller, 'match ( $action )' );

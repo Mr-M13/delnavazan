@@ -25,6 +25,8 @@ final class CoreDatasetReadinessController {
         'replace_teacher_assignment' => 'dzn_manage_teacher_assignments',
         'create_canonical_term' => 'dzn_manage_canonical_terms',
         'activate_canonical_term' => 'dzn_manage_canonical_terms',
+        'close_canonical_term' => 'dzn_manage_canonical_terms',
+        'cancel_canonical_term' => 'dzn_manage_canonical_terms',
         'issue_canonical_lesson' => 'dzn_manage_canonical_lessons',
         'complete_canonical_lesson' => 'dzn_manage_canonical_lessons',
         'cancel_canonical_lesson' => 'dzn_manage_canonical_lessons',
@@ -127,11 +129,23 @@ final class CoreDatasetReadinessController {
             ),
             'create_canonical_term' => self::createCanonicalTerm(
                 self::positiveInt( $post, 'enrolment_id' ),
+                self::optionalPositiveInt( $post, 'expected_latest_term_id' ),
+                self::nullableText( $post, 'expected_latest_term_state' ),
                 array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
                 self::text( $post, 'operator_key' )
             ),
             'activate_canonical_term' => self::activateCanonicalTerm(
                 self::positiveInt( $post, 'term_id' ),
+                array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
+            'close_canonical_term' => self::closeCanonicalTerm(
+                self::positiveInt( $post, 'term_id' ), self::text( $post, 'expected_term_state' ),
+                array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
+                self::text( $post, 'operator_key' )
+            ),
+            'cancel_canonical_term' => self::cancelCanonicalTerm(
+                self::positiveInt( $post, 'term_id' ), self::text( $post, 'expected_term_state' ),
                 array( 'evidence_channel' => self::text( $post, 'evidence_channel' ), 'evidence_reference' => self::text( $post, 'evidence_reference' ), 'evidence_at' => self::text( $post, 'evidence_at' ) ),
                 self::text( $post, 'operator_key' )
             ),
@@ -229,9 +243,9 @@ final class CoreDatasetReadinessController {
         return self::withOperatorEvidence( $result, 'teacher_assignment_replacement', 'enrolment', $enrolmentId, (string) ( $agreement['evidence_channel'] ?? '' ), (string) ( $agreement['evidence_reference'] ?? '' ), $key, 'assignment_id' );
     }
 
-    public static function createCanonicalTerm( int $enrolmentId, array $evidence, string $key ): array {
+    public static function createCanonicalTerm( int $enrolmentId, ?int $expectedLatestTermId, ?string $expectedLatestTermState, array $evidence, string $key ): array {
         self::requireCapability( self::ACTIONS['create_canonical_term'] );
-        $result = ( new CanonicalTermAuthorityService() )->create( $enrolmentId, null, null, $evidence, $key );
+        $result = ( new CanonicalTermAuthorityService() )->create( $enrolmentId, $expectedLatestTermId, $expectedLatestTermState, $evidence, $key );
         return self::withOperatorEvidence( $result, 'canonical_term_creation', 'enrolment', $enrolmentId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'term_id' );
     }
 
@@ -239,6 +253,18 @@ final class CoreDatasetReadinessController {
         self::requireCapability( self::ACTIONS['activate_canonical_term'] );
         $result = ( new CanonicalTermAuthorityService() )->activate( $termId, 'authorised', $evidence, $key );
         return self::withOperatorEvidence( $result, 'canonical_term_activation', 'term', $termId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'term_id' );
+    }
+
+    public static function closeCanonicalTerm( int $termId, string $expectedState, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['close_canonical_term'] );
+        $result = ( new CanonicalTermAuthorityService() )->close( $termId, $expectedState, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_term_closure', 'term', $termId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'term_id' );
+    }
+
+    public static function cancelCanonicalTerm( int $termId, string $expectedState, array $evidence, string $key ): array {
+        self::requireCapability( self::ACTIONS['cancel_canonical_term'] );
+        $result = ( new CanonicalTermAuthorityService() )->cancel( $termId, $expectedState, $evidence, $key );
+        return self::withOperatorEvidence( $result, 'canonical_term_cancellation', 'term', $termId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'term_id' );
     }
 
     public static function issueCanonicalLesson( int $termId, int $assignmentId, array $evidence, string $key ): array {
@@ -338,8 +364,10 @@ final class CoreDatasetReadinessController {
             ) );
         }
         if ( current_user_can( self::ACTIONS['create_canonical_term'] ) ) {
-            self::form( 'create_canonical_term', 'Create first canonical Term', array(
+            self::form( 'create_canonical_term', 'Create canonical Term', array(
                 array( 'enrolment_id', 'Canonical Enrolment ID' ),
+                array( 'expected_latest_term_id', 'Latest closed/cancelled Term ID (leave blank for first Term)', false ),
+                array( 'expected_latest_term_state', 'Latest Term state: closed or cancelled (leave blank for first Term)', false ),
                 array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ),
                 array( 'evidence_reference', 'Operator evidence reference' ),
                 array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
@@ -351,6 +379,14 @@ final class CoreDatasetReadinessController {
                 array( 'evidence_reference', 'Operator evidence reference' ),
                 array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ),
                 array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+            self::form( 'close_canonical_term', 'Close current canonical Term', array(
+                array( 'term_id', 'Canonical Term ID' ), array( 'expected_term_state', 'Expected Term state: current' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ), array( 'evidence_reference', 'Operator evidence reference' ), array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ), array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
+            ) );
+            self::form( 'cancel_canonical_term', 'Cancel authorised/current canonical Term', array(
+                array( 'term_id', 'Canonical Term ID' ), array( 'expected_term_state', 'Expected Term state: authorised or current' ),
+                array( 'evidence_channel', 'Evidence channel: staff_record, authenticated_platform, or document_reference' ), array( 'evidence_reference', 'Operator evidence reference' ), array( 'evidence_at', 'Evidence time (UTC: YYYY-MM-DD HH:MM:SS)' ), array( 'operator_key', 'Idempotency key (at least 24 characters; retain for a retry)' ),
             ) );
         }
         if ( current_user_can( self::ACTIONS['issue_canonical_lesson'] ) ) {
@@ -450,17 +486,29 @@ final class CoreDatasetReadinessController {
         return $value;
     }
 
+    private static function optionalPositiveInt( array $post, string $key ): ?int {
+        if ( self::text( $post, $key ) === '' ) return null;
+        return self::positiveInt( $post, $key );
+    }
+
     private static function text( array $post, string $key ): string {
         return sanitize_text_field( (string) ( $post[ $key ] ?? '' ) );
+    }
+
+    private static function nullableText( array $post, string $key ): ?string {
+        $value = self::text( $post, $key );
+        return $value === '' ? null : $value;
     }
 
     private static function form( string $action, string $title, array $fields ): void {
         echo '<h2>' . esc_html( $title ) . '</h2><form method="post">';
         wp_nonce_field( 'dzn_core_dataset_' . $action );
         echo '<input type="hidden" name="dzn_action" value="' . esc_attr( $action ) . '">';
-        foreach ( $fields as [ $name, $label ] ) {
+        foreach ( $fields as $field ) {
+            [ $name, $label ] = $field;
+            $required = $field[2] ?? true;
             $value = self::contextId( $name );
-            echo '<p><label>' . esc_html( $label ) . '<br><input class="regular-text" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '" inputmode="numeric" required></label></p>';
+            echo '<p><label>' . esc_html( $label ) . '<br><input class="regular-text" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '" inputmode="numeric"' . ( $required ? ' required' : '' ) . '></label></p>';
         }
         submit_button( 'Execute authorised command' );
         echo '</form>';

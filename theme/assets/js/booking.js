@@ -25,7 +25,9 @@
   let availabilityRequestId = 0;
   let availabilityPreviewFailed = false;
   let availabilityPreviewPending = false;
+  let availabilityPreviewController = null;
   let timezoneRefreshPending = false;
+  let timezoneRefreshRequestId = 0;
   let selectedDate = '';
   let dateCursor;
 
@@ -36,14 +38,22 @@
   const selectedOption = () => instrument.options[instrument.selectedIndex];
   const activeInstrument = () => instrument.value && selectedOption().dataset.course;
   const apiUrl = (path) => String(dznBooking.apiRoot).replace(/\/?$/, '/') + path;
-  const fetchWithTimeout = async (url, options, consumeResponse) => {
+  const fetchWithTimeout = async (url, options, consumeResponse, externalSignal) => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 15000);
+    const abort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener('abort', abort, { once: true });
+    }
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       return await consumeResponse(response);
     }
-    finally { window.clearTimeout(timeout); }
+    finally {
+      window.clearTimeout(timeout);
+      if (externalSignal) externalSignal.removeEventListener('abort', abort);
+    }
   };
   const detectZone = () => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; }
@@ -69,7 +79,8 @@
     possible: ['امکان محدود یا احتمالی', 'is-possible'],
     none: ['تطابق فعلی ندارد؛ همچنان قابل درخواست', 'is-none'],
     blocked: ['این زمان طبق سیاست دلنوازان قابل درخواست نیست', 'is-blocked'],
-    checking: ['در حال بررسی زمان', 'is-checking']
+    checking: ['در حال بررسی زمان', 'is-checking'],
+    failed: ['بررسی انجام نشد', 'is-error']
   };
   const faDigits = (value) => String(value).replace(/[0-9]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
   const selectedDateLabel = (value) => new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T12:00:00Z'));
@@ -288,13 +299,21 @@
       const details = document.createElement('div');
       const heading = document.createElement('strong');
       heading.textContent = 'اولویت ' + faDigits(index + 1) + ' · ' + selectedDateLabel(slot.local_date) + '، ساعت ' + faDigits(slot.local_start_time);
-      const state = availabilityPreviewPending ? copy.checking : copy[slot.status];
+      const state = availabilityPreviewPending ? copy.checking : (availabilityPreviewFailed ? copy.failed : copy[slot.status]);
       details.append(heading);
       if (state) {
         const badge = document.createElement('span');
         badge.className = 'dzn-booking__badge ' + state[1];
         badge.textContent = state[0];
         details.append(badge);
+      }
+      if (availabilityPreviewFailed && !availabilityPreviewPending) {
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'dzn-booking__retry-availability';
+        retry.textContent = 'تلاش دوباره';
+        retry.addEventListener('click', () => { assessSlots(); });
+        details.append(retry);
       }
       const teacherTime = teacherTimeText(slot);
       if (teacherTime) {
@@ -309,8 +328,7 @@
       remove.textContent = 'حذف';
       remove.setAttribute('aria-label', 'حذف زمان اولویت ' + (index + 1));
       remove.addEventListener('click', () => {
-        availabilityRequestId += 1;
-        availabilityPreviewPending = false;
+        invalidateAvailabilityPreview();
         slots.splice(index, 1);
         renderSlots();
         renderTimeOptions();
@@ -321,10 +339,24 @@
     });
     preferenceCount.textContent = faDigits(slots.length) + ' از ۳';
   };
-  const assessSlots = async () => {
-    const requestId = ++availabilityRequestId;
+  const invalidateAvailabilityPreview = () => {
+    availabilityRequestId += 1;
+    if (availabilityPreviewController) availabilityPreviewController.abort();
+    availabilityPreviewController = null;
+    availabilityPreviewPending = false;
     availabilityPreviewFailed = false;
-    if (!activeInstrument() || !slots.length || !timezone.value) return false;
+  };
+  const assessSlots = async () => {
+    invalidateAvailabilityPreview();
+    const requestId = availabilityRequestId;
+    availabilityPreviewFailed = false;
+    if (!activeInstrument() || !slots.length || !timezone.value) {
+      availabilityPreviewPending = false;
+      renderSlots();
+      return false;
+    }
+    const controller = new AbortController();
+    availabilityPreviewController = controller;
     availabilityPreviewPending = true;
     const requestedSlots = slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time }));
     const requestTimezone = timezone.value;
@@ -339,17 +371,24 @@
           course_id: Number(selectedOption().dataset.course),
           requested_times: requestedSlots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
         })
-      }, async (response) => ({ response, result: await response.json() }));
+      }, async (response) => ({ response, result: await response.json() }), controller.signal);
       if (!response.ok || !Array.isArray(result.times) || result.times.length !== requestedSlots.length || result.times.some((row) => !row || !['strong', 'possible', 'none', 'blocked'].includes(row.status))) throw new Error('availability_check_failed');
       if (requestId !== availabilityRequestId) return false;
-      if (requestTimezone !== timezone.value || requestInstrument !== instrument.value || requestedSlots.length !== slots.length || requestedSlots.some((item, index) => !slots[index] || item.local_date !== slots[index].local_date || item.local_start_time !== slots[index].local_start_time)) { availabilityPreviewPending = false; renderSlots(); return false; }
+      if (requestTimezone !== timezone.value || requestInstrument !== instrument.value || requestedSlots.length !== slots.length || requestedSlots.some((item, index) => !slots[index] || item.local_date !== slots[index].local_date || item.local_start_time !== slots[index].local_start_time)) {
+        availabilityPreviewPending = false;
+        availabilityPreviewController = null;
+        renderSlots();
+        return false;
+      }
       availabilityPreviewPending = false;
+      availabilityPreviewController = null;
       result.times.forEach((row, index) => {
         if (slots[index]) {
           slots[index].status = row.status;
           slots[index].teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times.filter((time) => time && typeof time.timezone === 'string' && typeof time.starts_at_utc === 'string') : [];
         }
       });
+      renderSlots();
       const blocked = slots.filter((slot) => slot.status === 'blocked');
       if (blocked.length) {
         blocked.forEach((slot) => slots.splice(slots.indexOf(slot), 1));
@@ -363,6 +402,7 @@
     } catch {
       if (requestId !== availabilityRequestId) return false;
       availabilityPreviewPending = false;
+      availabilityPreviewController = null;
       availabilityPreviewFailed = true;
       slots.forEach((slot) => { slot.teacher_times = []; });
     }
@@ -395,7 +435,7 @@
     renderCalendar();
   });
   instrument.addEventListener('change', () => {
-    availabilityRequestId += 1;
+    invalidateAvailabilityPreview();
     slots.splice(0);
     availableTimes = [];
     availabilityGridState = 'idle';
@@ -519,15 +559,16 @@
     else if (target === 'contact' && activeInstrument() && slots.length && timezone.value) goTo(target);
   }));
   timezone.addEventListener('change', async () => {
+    const requestId = ++timezoneRefreshRequestId;
     timezoneRefreshPending = true;
-    availabilityRequestId += 1;
+    invalidateAvailabilityPreview();
     slots.forEach((slot) => { slot.status = null; slot.teacher_times = []; });
     try {
       await refreshAvailabilityGrid();
       if (slots.length) await assessSlots();
       renderTimeOptions();
     } finally {
-      timezoneRefreshPending = false;
+      if (requestId === timezoneRefreshRequestId) timezoneRefreshPending = false;
     }
   });
 

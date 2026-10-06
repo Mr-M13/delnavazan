@@ -22,8 +22,28 @@ final class IntegrationTestRunner {
     private function email(array $input):array {
         $to=sanitize_email((string)($input['destination']??''));
         if(!is_email($to))return array('state'=>'failed','code'=>'destination_invalid');
-        $sent=wp_mail($to,'[Delnavazan TEST] Email transport check','This is an explicitly requested Delnavazan TEST email. It is not a notification or delivery authority.');
-        return array('state'=>$sent?'success':'failed','code'=>$sent?'mailer_accepted':'mailer_rejected');
+        $mailerError='';
+        $capture=static function($error)use(&$mailerError):void{
+            if(is_object($error)&&method_exists($error,'get_error_message'))$mailerError=(string)$error->get_error_message();
+        };
+        add_action('wp_mail_failed',$capture,10,1);
+        try{$sent=wp_mail($to,'[Delnavazan TEST] Email transport check','This is an explicitly requested Delnavazan TEST email. It is not a notification or delivery authority.');}
+        finally{remove_action('wp_mail_failed',$capture,10);}
+        if($sent)return array('state'=>'success','code'=>'mailer_accepted');
+        global $phpmailer;
+        if(is_object($phpmailer)&&isset($phpmailer->ErrorInfo))$mailerError.=' '.(string)$phpmailer->ErrorInfo;
+        return array('state'=>'failed','code'=>$this->safeMailFailureCode($mailerError));
+    }
+    /** Reduce provider diagnostics to a fixed safe category; raw mailer text is never stored or returned. */
+    private function safeMailFailureCode(string $error):string {
+        $error=strtolower(strip_tags($error));
+        if(preg_match('/(tls|ssl|crypto|certificate|handshake|encryption)/',$error))return 'smtp_tls_failed';
+        if(preg_match('/(auth|authentication|credentials|login|username|password)/',$error))return 'smtp_authentication_failed';
+        if(preg_match('/(recipient|rcpt to|mailbox unavailable|user unknown|address not accepted)/',$error))return 'smtp_recipient_rejected';
+        if(preg_match('/(sender|from address|mail from|unauthorized sender)/',$error))return 'smtp_sender_rejected';
+        if(preg_match('/(connect|connection|timed out|timeout|network|could not connect|name resolution|dns)/',$error))return 'smtp_connection_failed';
+        if(preg_match('/(data not accepted|message rejected|content rejected|policy|spam)/',$error))return 'smtp_message_rejected';
+        return 'mailer_rejected_unknown';
     }
     private function whatsapp(IntegrationSettingsService $s,array $input):array {
         $to=preg_replace('/[^0-9]/','',(string)($input['destination']??''));

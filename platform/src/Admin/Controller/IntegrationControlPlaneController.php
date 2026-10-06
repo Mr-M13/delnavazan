@@ -44,9 +44,9 @@ final class IntegrationControlPlaneController {
         $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Sends the configured Meta test template to the entered number only after you press the test button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         echo '<div class="wrap"><h1>'.esc_html($labels[$provider]??$provider).'</h1><p>Credentials are encrypted at rest and never displayed. Leave a secret blank to keep its current value.</p>';
-        if(isset($_GET['integration_result']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_text_field((string)$_GET['integration_result'])).'</p></div>';
+        if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
         echo '<p>Readiness: <strong>'.esc_html($service->ready($provider)?'Ready':'Needs configuration').'</strong>';
-        if($last)echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html((string)($last['code']??'')).') at '.esc_html((string)($last['at']??''));echo '</p>';
+        if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_save"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_save_'.$provider);
         echo '<table class="form-table"><tbody>';
         foreach($schema as $field=>$type){$label=ucwords(str_replace('_',' ',$field));$secret=$type==='secret';$value=$configs[$field]??'';if($provider==='email'&&$field==='from_email'&&$value==='')$value='no-reply@delnavazan.com';if($provider==='email'&&$field==='from_name'&&$value==='')$value='Delnavazan';if($provider==='google'&&$field==='redirect_uri'&&$value==='')$value=admin_url('admin-post.php?action=dzn_google_oauth_callback');
@@ -61,6 +61,21 @@ final class IntegrationControlPlaneController {
         if(in_array($provider,array('email','whatsapp','sms'),true))echo '<p><label>Test destination <input required class="regular-text" name="test[destination]" type="'.($provider==='email'?'email':'tel').'" autocomplete="off"></label></p>';
         echo '<p>'.esc_html($safe[$provider]??'').'</p><p><button class="button" name="run_test" value="1">Send explicit test</button></p></form></div>';
     }
+    private static function emailResultMessage(string $result):string{
+        if($result==='success_mailer_accepted')return 'The mail server accepted the test message. Check the destination inbox and spam folder to confirm delivery.';
+        $prefix='failed_';return str_starts_with($result,$prefix)?self::emailCodeMessage(substr($result,strlen($prefix))):$result;
+    }
+    private static function emailCodeMessage(string $code):string{return match($code){
+        'smtp_tls_failed'=>'SMTP TLS/SSL negotiation failed. Check the selected encryption mode, port, and server certificate.',
+        'smtp_authentication_failed'=>'SMTP authentication was rejected. Check the mailbox username and password with the mail host.',
+        'smtp_connection_failed'=>'Could not connect to the SMTP server. Check the host, port, firewall, and server availability.',
+        'smtp_sender_rejected'=>'The SMTP server rejected the From address. Confirm that this mailbox is allowed to send as the configured sender.',
+        'smtp_recipient_rejected'=>'The SMTP server rejected the test destination. Confirm the destination address is valid and allowed by the mail host.',
+        'smtp_message_rejected'=>'The SMTP server rejected the message content or sending policy. Ask the mail host to review its rejection policy.',
+        'mailer_rejected_unknown'=>'The mailer rejected the message but did not provide a classifiable reason. Check the host mail logs for this test time.',
+        'mailer_accepted'=>'The mail server accepted the test message; recipient delivery is not confirmed.',
+        default=>$code,
+    };}
     public static function screen():void{
         if(!current_user_can('manage_options')&&!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
         $r=(new IntegrationControlPlaneReadService())->report();

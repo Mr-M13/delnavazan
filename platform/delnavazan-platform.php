@@ -35,6 +35,7 @@ add_action( 'plugins_loaded', static function () {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
 	Delnavazan\Platform\Admin\Controller\Menu::register();
+	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();
 	Delnavazan\Platform\Admin\Controller\AdminDashboardController::register();

@@ -1,0 +1,88 @@
+name: Diagnose production static theme serving
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact full SHA of current main (diagnostic code identity only)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delnavazan-production-static-serving-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Read-only production path and URL diagnostic
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this diagnostic from main only.' >&2; exit 1; }
+
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify diagnostic source is current main
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character SHA.' >&2; exit 1; }
+          git fetch --no-tags origin main
+          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+          bash -n deployment/qa/production-static-serving-diagnostic.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Collect read-only production evidence
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          deployment/qa/production-static-serving-diagnostic.sh "$COMMIT_SHA" | tee "$RUNNER_TEMP/production-static-serving-diagnostic.txt"
+
+      - name: Preserve diagnostic evidence
+        if: always() && hashFiles('${{ runner.temp }}/production-static-serving-diagnostic.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-static-serving-diagnostic-${{ inputs.commit_sha }}
+          path: ${{ runner.temp }}/production-static-serving-diagnostic.txt

@@ -23,6 +23,15 @@ check_css_asset(){
 }
 check_css_asset theme
 check_css_asset booking
+check_theme_asset(){
+  local path="$1" expected_type="$2"
+  if ! fetch "$path"; then return; fi
+  if [[ "$code" == 200 ]]; then pass "$path HTTP 200"; else fail "$path expected HTTP 200, got $code"; fi
+  if grep -Eiq "^content-type:[[:space:]]*(${expected_type})([;/[:space:]]|$)" "$headers"; then pass "$path has $expected_type content type"; else fail "$path expected $expected_type content type, got $(grep -Ei '^content-type:' "$headers" | tail -1 | sed -E 's/\r$//' || echo 'missing Content-Type')"; fi
+}
+check_theme_asset '/wp-content/themes/delnavazan-theme/style.css' 'text/css'
+check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/navigation.js' 'application/javascript|text/javascript'
+check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/booking.js' 'application/javascript|text/javascript'
 if ! fetch '/wp-json/delnavazan-platform/v1/booking-options'; then :; elif [[ "$code" == 200 ]] && grep -Eiq '^content-type:[[:space:]]*application/json' "$headers" && ! grep -Eq '"instruments"[[:space:]]*:[[:space:]]*\[\]' "$body"; then pass 'booking options API returns a non-empty catalogue'; else fail "booking options API is empty or invalid (HTTP $code)"; fi
 if result="$(curl --silent --show-error --max-time 20 --proto '=https' --dump-header "$headers" --output /dev/null --write-out '%{http_code}' "$BASE_URL/booking/")"; then location="$(grep -Ei '^location:' "$headers" | tail -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//; s/\r$//' || true)"; if [[ "$result" == 301 ]] && { [[ "$location" == '/enrol/' ]] || [[ "$location" == "$BASE_URL/enrol/" ]]; }; then pass '/booking/ redirects permanently to /enrol/'; else fail "/booking/ expected 301 to /enrol/, got $result ${location:-no-location}"; fi; else fail '/booking/ transfer failed'; fi
 for path in /login/ /wp-login.php; do if ! fetch "$path"; then continue; fi; if [[ "$code" == 200 ]]; then pass "$path HTTP 200"; else fail "$path expected HTTP 200, got $code"; fi; done

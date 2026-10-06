@@ -159,4 +159,6 @@ jobs:
           bash -n deployment/production-deploy.sh
           bash -n deployment/qa/production-smoke.sh
           bash -n deployment/qa/production-deployment-contract.sh
+          bash -n deployment/qa/production-static-serving-diagnostic.sh
+          bash -n deployment/qa/production-static-serving-diagnostic-contract.sh
           bash deployment/qa/production-deployment-contract.sh

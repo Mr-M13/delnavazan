@@ -4,6 +4,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 deploy="$ROOT/deployment/production-deploy.sh"
 workflow="$ROOT/.github/workflows/deploy-production.yml"
 smoke="$ROOT/deployment/qa/production-smoke.sh"
+static_diagnostic="$ROOT/deployment/qa/production-static-serving-diagnostic.sh"
+static_diagnostic_contract="$ROOT/deployment/qa/production-static-serving-diagnostic-contract.sh"
 theme_assets="$ROOT/theme/assets/css"
 theme_enqueue="$ROOT/theme/inc/assets.php"
 booking_enqueue="$ROOT/theme/inc/booking.php"
@@ -19,6 +21,11 @@ need "$deploy" 'expected_theme_css_sha'
 need "$deploy" 'expected_booking_css_sha'
 need "$deploy" 'installed_theme_css_sha'
 need "$deploy" 'installed_booking_css_sha'
+need "$deploy" 'assets/js/$asset'
+need "$deploy" 'expected_navigation_js_sha'
+need "$deploy" 'expected_booking_js_sha'
+need "$deploy" 'installed_navigation_js_sha'
+need "$deploy" 'installed_booking_js_sha'
 need "$deploy" 'sha256sum'
 need "$deploy" "php -l >/dev/null"
 need "$deploy" 'staged_plugin="$staged/wp-content/plugins/delnavazan-platform"'
@@ -49,12 +56,20 @@ need "$smoke" 'booking-options'
 need "$smoke" 'check_css_asset theme'
 need "$smoke" 'check_css_asset booking'
 need "$smoke" 'text/css'
+need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/style.css'"
+need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/navigation.js'"
+need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/booking.js'"
 need "$smoke" 'noindex'
 for asset in theme.css booking.css; do
   [[ -s "$theme_assets/$asset" ]] || { echo "FAIL required theme CSS source missing: theme/assets/css/$asset" >&2; exit 1; }
 done
+for asset in navigation.js booking.js; do
+  [[ -s "$ROOT/theme/assets/js/$asset" ]] || { echo "FAIL required theme JavaScript source missing: theme/assets/js/$asset" >&2; exit 1; }
+done
 need "$theme_enqueue" "get_theme_file_uri( 'assets/css/theme.css' )"
 need "$booking_enqueue" "get_theme_file_uri( 'assets/css/booking.css' )"
+bash -n "$static_diagnostic"
+bash "$static_diagnostic_contract"
 if grep -Fq 'staging.delnavazan.com' "$deploy" "$workflow" "$smoke"; then
   echo 'FAIL staging host referenced in production deployment tooling' >&2
   exit 1

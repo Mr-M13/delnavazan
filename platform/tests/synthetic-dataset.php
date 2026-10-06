@@ -6,10 +6,10 @@
  */
 defined( 'ABSPATH' ) || exit( 1 );
 
-use Delnavazan\Platform\Core\Application\{CatalogueService,StudentService,TeacherService};
+use Delnavazan\Platform\Core\Application\{BookingRequestMatchAssessmentService,BookingRequestSubmissionService,CatalogueService,InstrumentIntroCourseDefaultService,PrincipalInvitationService,StudentAccountClaimNotificationService,StudentService,TeacherAcceptingStateService,TeacherAvailabilityService,TeacherOnboardingService,TeacherService,TeachingEligibilityService};
 
 function dzn_synthetic_dataset_guard(): void {
-	if ( ! defined( 'WP_CLI' ) || ! WP_CLI || getenv( 'DZN_SYNTHETIC_DATASET' ) !== '1' || ! in_array( wp_get_environment_type(), array( 'local', 'development' ), true ) || ! current_user_can( 'dzn_manage_courses' ) || ! current_user_can( 'dzn_manage_teachers' ) || ! current_user_can( 'dzn_manage_students' ) ) {
+	if ( ! defined( 'WP_CLI' ) || ! WP_CLI || getenv( 'DZN_SYNTHETIC_DATASET' ) !== '1' || ! in_array( wp_get_environment_type(), array( 'local', 'development' ), true ) || ! current_user_can( 'dzn_manage_courses' ) || ! current_user_can( 'dzn_manage_teachers' ) || ! current_user_can( 'dzn_manage_students' ) || ! current_user_can( 'dzn_manage_onboarding' ) || ! current_user_can( 'dzn_issue_teacher_invitations' ) || ! current_user_can( 'dzn_manage_teacher_availability' ) || ! current_user_can( 'dzn_manage_teaching_eligibility' ) || ! current_user_can( 'dzn_prepare_booking_request_matches' ) || ! current_user_can( 'dzn_issue_student_account_claims' ) ) {
 		throw new RuntimeException( 'Synthetic dataset operation refused: isolated environment, explicit opt-in, WP-CLI, and operator capabilities are required.' );
 	}
 }
@@ -21,6 +21,7 @@ function dzn_synthetic_dataset_spec(): array {
 		'students' => array( 'DZN TEST Student A', 'DZN TEST Student B' ),
 		'courses' => array( 'DZN TEST Piano Intro', 'DZN TEST Piano Standard', 'DZN TEST Violin Standard' ),
 		'contact_domain' => 'synthetic.example.invalid',
+		'booking_scenario' => 'DZN TEST Piano match assessment',
 		'catalogue_prefix' => 'dzn-test-',
 		'email_prefix' => 'dzn-test+',
 	);
@@ -48,7 +49,8 @@ function dzn_synthetic_dataset_seed(): array {
 	}
 	if ( $occupied > 0 ) throw new RuntimeException( 'Synthetic namespace is already occupied without its dataset manifest; refusing to adopt or overwrite records.' );
 	$catalogue = new CatalogueService(); $teachers = new TeacherService(); $students = new StudentService();
-	$made = array( 'instrument_ids' => array(), 'course_ids' => array(), 'teacher_ids' => array(), 'student_ids' => array() );
+	$made = array( 'instrument_ids' => array(), 'course_ids' => array(), 'teacher_ids' => array(), 'student_ids' => array(), 'wordpress_user_ids' => array(), 'booking_request_ids' => array(), 'student_claim_ids' => array() );
+	$adminId = (int) get_current_user_id();
 	try {
 		foreach ( array( 'piano', 'violin' ) as $instrument ) {
 			$made['instrument_ids'][] = $catalogue->instrument( array( 'slug' => 'dzn-test-' . $instrument, 'name_en' => 'DZN TEST ' . ucfirst( $instrument ), 'name_fa' => 'آزمایشی ' . $instrument, 'status' => 'active' ) );
@@ -58,11 +60,58 @@ function dzn_synthetic_dataset_seed(): array {
 		foreach ( array( array( 'Ready', 'active' ), array( 'Onboarding', 'active' ), array( 'Inactive', 'inactive' ) ) as $i => $teacher ) {
 			$made['teacher_ids'][] = $teachers->create( array( 'display_name' => 'DZN TEST Teacher ' . $teacher[0], 'english_name' => 'DZN TEST Teacher ' . $teacher[0], 'persian_name' => 'آزمایشی استاد ' . $i, 'email' => 'dzn-test+teacher-' . $i . '@synthetic.example.invalid', 'status' => $teacher[1], 'country_code' => 'AU', 'timezone' => 'Australia/Brisbane', 'timezone_source' => 'admin_selected', 'locale' => 'en_AU' ) );
 		}
+		// Establish the ready Teacher through the invitation, principal claim, availability,
+		// and onboarding authorities. This prepares an in-process claim secret but never
+		// calls a transport; the prepared delivery row is no longer eligible for the worker.
+		$teacherId = (int) $made['teacher_ids'][0];
+		$teacherEmail = 'dzn-test+teacher-0@synthetic.example.invalid';
+		$invitations = new PrincipalInvitationService();
+		$issued = $invitations->issue( $teacherId, $teacherEmail, 3600, 'dzn-synthetic-teacher-' . $teacherId );
+		$delivery = $invitations->prepareDelivery( (int) $issued['generation_id'] );
+		if ( ( $delivery['recipient'] ?? '' ) !== $teacherEmail || strlen( (string) ( $delivery['secret'] ?? '' ) ) !== 64 ) throw new RuntimeException( 'Synthetic teacher invitation preparation failed.' );
+		if ( ! function_exists( 'wp_create_user' ) ) require_once ABSPATH . 'wp-admin/includes/user.php';
+		$userId = wp_create_user( 'dznsyn' . $teacherId, wp_generate_password( 40, true, true ), $teacherEmail );
+		if ( is_wp_error( $userId ) || ! $userId ) throw new RuntimeException( 'Synthetic teacher principal creation failed.' );
+		$userId = (int) $userId; $made['wordpress_user_ids'][] = $userId;
+		wp_set_current_user( $userId );
+		$claimKey = 'dzn-synthetic-claim-' . $teacherId;
+		$invitations->beginExistingClaim( (string) $delivery['secret'], $userId, $claimKey );
+		$invitations->finalizeClaim( $claimKey, $userId );
+		unset( $delivery );
+		$availability = new TeacherAvailabilityService();
+		$availability->setOwnProfile( array( 'timezone' => 'Australia/Brisbane' ) );
+		$availability->setOwnRecurringRule( array( 'weekday' => 3, 'local_start_time' => '10:00:00', 'local_end_time' => '12:00:00', 'state' => 'requestable', 'timezone' => 'Australia/Brisbane' ) );
+		$onboarding = new TeacherOnboardingService();
+		$onboarding->refreshOwnProgress(); $onboarding->submitOwn();
+		wp_set_current_user( $adminId ); $onboarding->review( $teacherId, 'approve' );
+		(new InstrumentIntroCourseDefaultService())->set( array( 'instrument_id' => $made['instrument_ids'][0], 'course_id' => $made['course_ids'][0], 'status' => 'active', 'reason_code' => 'synthetic_fixture' ) );
+		(new TeachingEligibilityService())->setEligibility( array( 'teacher_id' => $teacherId, 'course_id' => $made['course_ids'][0], 'status' => 'active', 'reason_code' => 'synthetic_fixture' ) );
+		(new TeacherAcceptingStateService())->set( array( 'teacher_id' => $teacherId, 'state' => 'accepting', 'reason_code' => 'synthetic_fixture' ) );
 		foreach ( array( 'A', 'B' ) as $i => $label ) $made['student_ids'][] = $students->create( array( 'display_name' => 'DZN TEST Student ' . $label, 'first_name' => 'Synthetic', 'last_name' => $label, 'city' => 'Brisbane', 'email' => 'dzn-test+student-' . $i . '@synthetic.example.invalid', 'country_code' => 'AU', 'timezone' => 'Australia/Brisbane', 'timezone_source' => 'admin_selected', 'locale' => 'en_AU', 'status' => 'active' ) );
+		// Canonical claim issuance records a notification intent and encrypted snapshot only.
+		// No delivery worker is invoked here, so the invalid recipient cannot receive a message.
+		$claim = (new StudentAccountClaimNotificationService())->issue( (int) $made['student_ids'][0], 3600, 'dzn-synthetic-student-claim-' . $made['student_ids'][0] );
+		$made['student_claim_ids'][] = array( 'invitation_id' => (int) $claim['invitation_id'], 'generation_id' => (int) $claim['generation_id'], 'outbox_id' => (int) $claim['outbox_id'], 'notification_id' => (int) $claim['notification_id'] );
+		// A future Wednesday request overlaps the Teacher's requestable Brisbane rule.
+		$requestedDate = new DateTimeImmutable( 'next Wednesday 10:00:00', new DateTimeZone( 'Australia/Brisbane' ) );
+		$booking = (new BookingRequestSubmissionService())->submitPublic( array(
+			'requested_instrument_id' => $made['instrument_ids'][0], 'selected_intro_course_id' => $made['course_ids'][0],
+			'full_name' => 'DZN TEST Booking Student', 'email' => 'dzn-test+booking@synthetic.example.invalid', 'mobile' => '+61400000001',
+			'country' => 'AU', 'city' => 'Brisbane', 'timezone' => 'Australia/Brisbane', 'communication_language' => 'en',
+			'whatsapp_same_as_mobile' => true, 'privacy_notice_accepted' => true, 'privacy_notice_version' => '2026-09-05',
+			'requested_times' => array( array( 'local_date' => $requestedDate->format( 'Y-m-d' ), 'local_start_time' => '10:00', 'timezone' => 'Australia/Brisbane' ) ),
+		), 'dzn-synthetic-booking-fixture-' . $teacherId );
+		global $wpdb;
+		$requestId = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}dzn_booking_requests WHERE reference_code=%s", $booking['request_reference'] ) );
+		if ( $requestId < 1 ) throw new RuntimeException( 'Synthetic booking request could not be resolved.' );
+		$made['booking_request_ids'][] = $requestId;
+		$assessment = (new BookingRequestMatchAssessmentService())->assess( $requestId, $adminId );
+		if ( ( $assessment['outcome'] ?? '' ) !== 'coverage_found' ) throw new RuntimeException( 'Synthetic Piano booking did not match the ready Teacher availability.' );
 		$manifest = array( 'marker' => 'DZN-SYNTHETIC-DATASET-V1', 'created_at_utc' => gmdate( 'Y-m-d H:i:s' ), 'ids' => $made, 'labels' => dzn_synthetic_dataset_spec(), 'external_effects' => array( 'notifications' => false, 'payments' => false, 'provider_calls' => false ) );
 		if ( ! add_option( 'dzn_synthetic_dataset_v1', $manifest, '', false ) ) throw new RuntimeException( 'Unable to persist synthetic dataset manifest.' );
 		return array( 'created' => true, 'idempotent' => false, 'dataset' => $manifest );
 	} catch ( Throwable $error ) {
+		wp_set_current_user( $adminId );
 		// Fail closed rather than attempting broad cleanup without a committed manifest.
 		throw new RuntimeException( 'Synthetic dataset seed failed; partial fixture ids=' . wp_json_encode( $made ) . '; inspect and remove only these explicitly synthetic rows.', 0, $error );
 	}
@@ -82,6 +131,18 @@ function dzn_synthetic_dataset_verify(): array {
 		$checks[ $key ] = array( 'expected' => count( $ids ), 'found' => $found, 'pass' => $found === count( $ids ) );
 		if ( ! $checks[ $key ]['pass'] ) throw new RuntimeException( 'Synthetic dataset verification failed for ' . $key . '.' );
 	}
+	$teacherId = (int) ( $manifest['ids']['teacher_ids'][0] ?? 0 );
+	$bookingId = (int) ( $manifest['ids']['booking_request_ids'][0] ?? 0 );
+	$ready = $teacherId > 0 ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_onboarding_states o INNER JOIN {$wpdb->prefix}dzn_teachers t ON t.id=o.teacher_id INNER JOIN {$wpdb->prefix}dzn_teacher_accepting_states a ON a.teacher_id=t.id AND a.state='accepting' INNER JOIN {$wpdb->prefix}dzn_teacher_course_eligibilities e ON e.teacher_id=t.id AND e.course_id=%d AND e.status='active' INNER JOIN {$wpdb->prefix}dzn_teacher_availability_profiles p ON p.teacher_id=t.id AND p.status='active' INNER JOIN {$wpdb->prefix}dzn_teacher_availability_rules r ON r.teacher_id=t.id AND r.profile_id=p.id AND r.status='active' AND r.state='requestable' WHERE t.id=%d AND t.status='active' AND o.state='active' AND o.readiness_state='ready'", (int) ( $manifest['ids']['course_ids'][0] ?? 0 ), $teacherId ) ) : 0;
+	$checks['ready_teacher_journey'] = array( 'expected' => 1, 'found' => $ready, 'pass' => $ready > 0 );
+	if ( ! $checks['ready_teacher_journey']['pass'] ) throw new RuntimeException( 'Synthetic ready Teacher journey verification failed.' );
+	$requestFound = $bookingId > 0 ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_booking_requests WHERE id=%d AND lifecycle_status='submitted' AND resolution_state='unresolved'", $bookingId ) ) : 0;
+	$checks['matchable_booking'] = array( 'expected' => 1, 'found' => $requestFound, 'pass' => $requestFound === 1 );
+	if ( ! $checks['matchable_booking']['pass'] ) throw new RuntimeException( 'Synthetic matchable booking verification failed.' );
+	$claimIds = $manifest['ids']['student_claim_ids'][0] ?? array();
+	$claimFound = ! empty( $claimIds['generation_id'] ) ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_student_account_claim_generations WHERE id=%d AND state='active'", (int) $claimIds['generation_id'] ) ) : 0;
+	$checks['student_account_claim'] = array( 'expected' => 1, 'found' => $claimFound, 'pass' => $claimFound === 1 );
+	if ( ! $checks['student_account_claim']['pass'] ) throw new RuntimeException( 'Synthetic Student account-claim verification failed.' );
 	return array( 'verified' => true, 'checks' => $checks, 'dataset' => $manifest );
 }
 
@@ -92,7 +153,13 @@ function dzn_synthetic_dataset_teardown(): array {
 	global $wpdb;
 	// Refuse teardown if any other platform table points at a core fixture record.
 	// This discovers every exact canonical FK column instead of assuming only enrolments exist.
-	$targets = array( 'instrument_ids' => array( 'column' => 'instrument_id', 'table' => 'dzn_instruments', 'owning' => 'dzn_courses' ), 'course_ids' => array( 'column' => 'course_id', 'table' => 'dzn_courses', 'owning' => '' ), 'teacher_ids' => array( 'column' => 'teacher_id', 'table' => 'dzn_teachers', 'owning' => '' ), 'student_ids' => array( 'column' => 'student_id', 'table' => 'dzn_students', 'owning' => '' ) );
+	$targets = array(
+		'instrument_ids' => array( 'columns' => array( 'instrument_id', 'requested_instrument_id' ), 'table' => 'dzn_instruments', 'owning' => 'dzn_courses' ),
+		'course_ids' => array( 'columns' => array( 'course_id', 'selected_intro_course_id' ), 'table' => 'dzn_courses', 'owning' => '' ),
+		'teacher_ids' => array( 'columns' => array( 'teacher_id' ), 'table' => 'dzn_teachers', 'owning' => '' ),
+		'student_ids' => array( 'columns' => array( 'student_id' ), 'table' => 'dzn_students', 'owning' => '' ),
+		'booking_request_ids' => array( 'columns' => array( 'booking_request_id' ), 'table' => 'dzn_booking_requests', 'owning' => '' ),
+	);
 	$platformTables = $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $wpdb->prefix . 'dzn_' ) . '%' ) );
 	foreach ( $targets as $idKey => $target ) {
 		$ids = array_map( 'intval', $manifest['ids'][ $idKey ] ?? array() );
@@ -101,9 +168,11 @@ function dzn_synthetic_dataset_teardown(): array {
 		foreach ( $platformTables as $table ) {
 			if ( $table === $wpdb->prefix . $target['table'] || ( $target['owning'] !== '' && $table === $wpdb->prefix . $target['owning'] ) ) continue;
 			$columns = $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`", 0 );
-			if ( ! in_array( $target['column'], $columns, true ) ) continue;
-			$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$table}` WHERE `{$target['column']}` IN ({$placeholders})", ...$ids ) );
-			if ( $count > 0 ) throw new RuntimeException( 'Synthetic dataset teardown refused because platform rows reference ' . $idKey . '; remove those rows through their owning lifecycle first.' );
+			foreach ( $target['columns'] as $column ) {
+				if ( ! in_array( $column, $columns, true ) ) continue;
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$table}` WHERE `{$column}` IN ({$placeholders})", ...$ids ) );
+				if ( $count > 0 ) throw new RuntimeException( 'Synthetic dataset teardown refused because platform rows reference ' . $idKey . '; remove those rows through their owning lifecycle first.' );
+			}
 		}
 	}
 	// The exact IDs come only from the private, marker-checked manifest. Delete leaves first.

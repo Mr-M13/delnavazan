@@ -28,7 +28,7 @@ final class IntegrationControlPlaneController {
     public static function stripeSettings():void{
         if(!current_user_can(PaymentExecutionController::CAPABILITY))wp_die('Forbidden',403);
         $readiness=(new StripeTestModeReadinessService())->read();
-        echo '<div class="wrap"><h1>Stripe setup</h1><p>Secret-free test-mode readiness. Production activation remains disabled.</p><p><strong>'.esc_html($readiness['ready']?'Ready':'Setup is incomplete').'</strong></p><table class="widefat striped"><tbody>';
+        echo '<div class="wrap"><h1>Stripe setup</h1><p>Stripe test-mode readiness is secret-free. Production activation remains disabled.</p><p><strong>'.esc_html($readiness['ready']?'Ready':'Setup is incomplete').'</strong></p><table class="widefat striped"><tbody>';
         foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
         echo '</tbody></table><p>Payment execution and reconciliation are under Finance.</p></div>';
     }

@@ -9,11 +9,11 @@ final class AdminNavigationController {
     ];
     private const SECTIONS = [
         'dzn-settings-integrations' => [
-            ['Integrations overview', 'dzn-integrations', 'dzn_view_diagnostics'],
-            ['Email', 'dzn-integration-email', 'dzn_manage_provider_integrations'],
-            ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_manage_provider_integrations'],
-            ['SMS fallback', 'dzn-integration-sms', 'dzn_manage_provider_integrations'],
-            ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_manage_provider_integrations'],
+            ['Integrations overview', 'dzn-integrations', 'dzn_access_integrations_overview'],
+            ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
+            ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
+            ['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
+            ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings'],
             ['Stripe', 'dzn-stripe-settings', 'dzn_view_payment_execution_authority'],
         ],
         'dzn-settings-diagnostics' => [

@@ -6,9 +6,26 @@ use Delnavazan\Platform\Core\Application\NotificationRule;
 
 /** The WordPress sidebar follows the academy's operator workflow, with authority kept per screen. */
 final class Menu {
+    private const INTEGRATIONS_OVERVIEW_CAP='dzn_access_integrations_overview';
+    private const INTEGRATION_SETTINGS_CAP='dzn_access_provider_integration_settings';
+
     public static function register(): void {
+        add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4);
         add_action('admin_menu', [__CLASS__, 'menu']);
         add_action('admin_menu', [AdminNavigationController::class, 'pruneMenus'], 999);
+    }
+
+    public static function mapMetaCap(array $caps,string $cap,int $userId,array $args):array {
+        if($cap===self::INTEGRATIONS_OVERVIEW_CAP)return self::mappedIntegrationCaps($userId,'dzn_view_diagnostics');
+        if($cap===self::INTEGRATION_SETTINGS_CAP)return self::mappedIntegrationCaps($userId,'dzn_manage_provider_integrations');
+        return $caps;
+    }
+
+    private static function mappedIntegrationCaps(int $userId,string $delegatedCap):array {
+        $user=get_userdata($userId);
+        if(!$user)return ['do_not_allow'];
+        $all=(array)$user->allcaps;
+        return !empty($all['manage_options'])||!empty($all[$delegatedCap])?['exist']:['do_not_allow'];
     }
 
     public static function menu(): void {
@@ -28,11 +45,11 @@ final class Menu {
         }
 
         $pages = [
-            ['dzn-settings-menu', 'Integrations', 'dzn_view_diagnostics', 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
-            ['dzn-settings-menu', 'Email', 'dzn_manage_provider_integrations', 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
-            ['dzn-settings-menu', 'Meta WhatsApp Cloud API', 'dzn_manage_provider_integrations', 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
-            ['dzn-settings-menu', 'SMS fallback', 'dzn_manage_provider_integrations', 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
-            ['dzn-settings-menu', 'Google OAuth / Calendar', 'dzn_manage_provider_integrations', 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
+            ['dzn-settings-menu', 'Integrations', self::INTEGRATIONS_OVERVIEW_CAP, 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
+            ['dzn-settings-menu', 'Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
+            ['dzn-settings-menu', 'Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
+            ['dzn-settings-menu', 'SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
+            ['dzn-settings-menu', 'Google OAuth / Calendar', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
             ['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
             ['dzn-bookings-menu', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
             ['dzn-bookings-menu', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],

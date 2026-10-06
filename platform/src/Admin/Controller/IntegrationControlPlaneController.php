@@ -62,7 +62,7 @@ final class IntegrationControlPlaneController {
         echo '<p>'.esc_html($safe[$provider]??'').'</p><p><button class="button" name="run_test" value="1">Send explicit test</button></p></form></div>';
     }
     public static function screen():void{
-        if(!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
+        if(!current_user_can('manage_options')&&!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
         $r=(new IntegrationControlPlaneReadService())->report();
         $settings=new IntegrationSettingsService();
         echo '<div class="wrap"><h1>Integrations</h1><p>Local readiness is separate from explicit provider tests. Test actions do not participate in notification delivery.</p><h2>Notification routing</h2><p>WhatsApp primary → email supporting channel → Telnyx SMS fallback.</p><ul>';

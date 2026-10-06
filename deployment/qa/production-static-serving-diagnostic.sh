@@ -11,7 +11,7 @@ fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 : "${PRODUCTION_SSH_USER:?Set the protected production SSH user}"
 [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'SSH username contains unsupported characters'
 
-ssh -T "${PRODUCTION_SSH_USER}@${HOST}" bash -s -- "$ROOT_REL" "$THEME_REL" <<'REMOTE'
+ssh -T "${PRODUCTION_SSH_USER}@${HOST}" bash -s -- "$ROOT_REL" "$theme_rel" <<'REMOTE'
 set -Eeuo pipefail
 root_rel="$1"; theme_rel="$2"
 [[ "$root_rel" == domains/delnavazan.com/public_html && "$theme_rel" == wp-content/themes/delnavazan-theme ]] || { echo 'FAIL invalid diagnostic target' >&2; exit 1; }
@@ -51,7 +51,7 @@ printf 'WORDPRESS_PATH_STATE=%s\n' "$state"
 root_real="$(realpath "$root")"
 theme="$root/$theme_rel"
 printf 'DEPLOY_ROOT=%s\nDEPLOY_ROOT_REALPATH=%s\n' "$root" "$root_real"
-for rel in wp-content wp-content/themes "$THEME_REL"; do
+for rel in wp-content wp-content/themes "$theme_rel"; do
   path="$root/$rel"
   if [[ -e "$path" || -L "$path" ]]; then
     printf 'PATH rel=%s real=%s mode=%s symlink=%s\n' "$rel" "$(realpath -m "$path")" "$(stat -c '%a:%F' "$path")" "$(if [[ -L "$path" ]]; then readlink "$path"; else printf no; fi)"

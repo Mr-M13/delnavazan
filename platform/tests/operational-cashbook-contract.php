@@ -12,6 +12,7 @@ $assert(str_contains($service,'reverse_transfer')&&str_contains($service,'revers
 $assert(str_contains($service,'balance_adjustment')&&str_contains($migration,"'balance_adjustment'"),'An opening balance can be corrected with an auditable append-only adjustment');
 $assert(str_contains($service,'finance_cash_reconciliations')&&str_contains($service,'$system-$actual'),'Reconciliation must compare recorded ledger and statement balances without mutation');
 $assert(str_contains($migration,'statement_balance_minor bigint NOT NULL')&&!str_contains($migration,'statement_balance_minor bigint unsigned NOT NULL'),'Statement reconciliation must support signed external balances');
+$assert(str_contains($migration,"\$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations')"),'The older Phase 2A.2-U finance verifier must explicitly tolerate the separately verified operational cashbook tables');
 $assert(str_contains($service,'OperationalCashRule::statementBalance'),'Reconciliation must use the signed statement-balance parser');
 $assert(str_contains($repository,'effective_kind')&&str_contains($repository,'original.transaction_kind')&&str_contains($repository,"IN ('income','expense')"),'Reports must account for reversals while excluding transfers');
 $assert(!preg_match('/\$wpdb->(?:update|delete)\s*\(/',$repository.$service),'Cashbook entries must not be rewritten or deleted');

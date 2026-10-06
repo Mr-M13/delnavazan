@@ -112,7 +112,8 @@ if ( ! str_contains( $operations, '\'booking_request_id\'=>(int)$r->request_id' 
     || ! str_contains( $operations, '\'teacher_assignment_id\'=>(int)$r->assignment_id' ) ) {
     throw new RuntimeException( 'Journey links must carry authoritative record context to the next step' );
 }
-if ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()' )
+if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()' )
+    && ! str_contains( $operations, 'new AcademyJourneyReadService())->search(' ) )
     || str_contains( $operations, 'SELECT br.id request_id' )
     || ! str_contains( $journey_read, 'current_user_can(\'dzn_view_booking_requests\')' )
     || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {

@@ -11,6 +11,8 @@ $assert(str_contains($service,'convert_to_iran')&&str_contains($service,"'rate_t
 $assert(str_contains($service,'reverse_transfer')&&str_contains($service,'reverse_transaction'),'Corrections must append reversals');
 $assert(str_contains($service,'balance_adjustment')&&str_contains($migration,"'balance_adjustment'"),'An opening balance can be corrected with an auditable append-only adjustment');
 $assert(str_contains($service,'finance_cash_reconciliations')&&str_contains($service,'$system-$actual'),'Reconciliation must compare recorded ledger and statement balances without mutation');
+$assert(str_contains($migration,'statement_balance_minor bigint NOT NULL')&&!str_contains($migration,'statement_balance_minor bigint unsigned NOT NULL'),'Statement reconciliation must support signed external balances');
+$assert(str_contains($service,'OperationalCashRule::statementBalance'),'Reconciliation must use the signed statement-balance parser');
 $assert(str_contains($repository,'effective_kind')&&str_contains($repository,'original.transaction_kind')&&str_contains($repository,"IN ('income','expense')"),'Reports must account for reversals while excluding transfers');
 $assert(!preg_match('/\$wpdb->(?:update|delete)\s*\(/',$repository.$service),'Cashbook entries must not be rewritten or deleted');
 $assert(str_contains($controller,"'record','convert','reconcile','reverse','reverse_transfer'")&&str_contains($controller,'check_admin_referer')&&str_contains($controller,'wp_safe_redirect'),'Admin write actions must be nonce-checked and redirect after posting');

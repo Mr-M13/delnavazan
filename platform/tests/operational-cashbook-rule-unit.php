@@ -8,6 +8,8 @@ $assert(Rule::amount('1,500.25','AUD')===150025,'AUD amounts must become exact c
 $assert(Rule::amount('۱۲۳٬۴۵۶٬۷۸۹','TOM')===123456789,'Persian toman digits and grouping must parse exactly');
 $assert(Rule::amount('٠٫٧٥','AUD')===75,'Arabic digits and decimal separator must parse exactly');
 $assert(Rule::amount('0','TOM',true)===0,'A zero statement balance must be reconcilable');
+$assert(Rule::statementBalance('-15.25','AUD')===-1525,'An overdrawn AUD statement balance must be reconcilable');
+$assert(Rule::statementBalance('-۱۲۳۴','TOM')===-1234,'A negative toman statement balance must be reconcilable');
 $assert(Rule::format(150025,'AUD')==='1,500.25 AUD','AUD formatting must show cents');
 $assert(Rule::format(-1250,'AUD')==='−12.50 AUD','Signed net totals must format correctly');
 $assert(Rule::rate('6533.33330000')==='6533.3333','Historical FX precision must be preserved without floating-point rounding');

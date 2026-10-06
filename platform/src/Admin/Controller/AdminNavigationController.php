@@ -61,9 +61,9 @@ final class AdminNavigationController {
             if (!self::sectionHasVisibleChild($section)) remove_submenu_page('dzn-settings-menu', $section);
         }
 
-        // Integration and diagnostics destinations remain registered at their own
-        // capabilities, but appear only inside their Settings section landing pages.
-        foreach (['dzn-integrations','dzn-integration-email','dzn-integration-whatsapp','dzn-integration-sms','dzn-integration-google','dzn-google-console', 'dzn-whatsapp-settings', 'dzn-sms-settings', 'dzn-stripe-settings', 'dzn-system-health'] as $slug) {
+        // Legacy aliases remain hidden; protected destinations use WordPress's
+        // hidden-page registration so direct access remains capability-checked.
+        foreach (['dzn-google-console', 'dzn-whatsapp-settings', 'dzn-sms-settings', 'dzn-stripe-settings'] as $slug) {
             remove_submenu_page('dzn-settings-menu', $slug);
         }
 

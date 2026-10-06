@@ -317,6 +317,16 @@ if ( ! str_contains( $navigation, "(string) (\$item[2] ?? '') !== \$parent" )
     throw new RuntimeException( 'Navigation must suppress repeated parent entries, capability-filter section links, and limit native-menu cleanup to non-administrators.' );
 }
 
+foreach ( array(
+    "['', 'Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'",
+    "['', 'System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",
+) as $hidden_route ) {
+    if ( ! str_contains( $menu, $hidden_route ) ) throw new RuntimeException( 'Protected Settings pages must remain registered as hidden, capability-checked WordPress pages: ' . $hidden_route );
+}
+if ( str_contains( $navigation, "'dzn-integration-email', 'dzn-integration-whatsapp'")
+    || str_contains( $navigation, "'dzn-system-health'] as \$slug") ) {
+    throw new RuntimeException( 'Protected pages must not be removed from WordPress page registration after their capability check.' );
+}
 
 if ( ! str_contains( $menu, "add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4)")
     || ! str_contains( $menu, "dzn_access_provider_integration_settings")

@@ -3,14 +3,19 @@
 
 final class DznAdminAuthorityTestUser {
     public array $allcaps;
-    public function __construct(array $allcaps) { $this->allcaps = $allcaps; }
+    private array $effectiveCaps;
+    public function __construct(array $allcaps, array $effectiveCaps) {
+        $this->allcaps = $allcaps;
+        $this->effectiveCaps = $effectiveCaps;
+    }
+    public function has_cap(string $capability): bool { return !empty($this->effectiveCaps[$capability]); }
 }
 
 $GLOBALS['dzn_test_users'] = array(
-    1 => new DznAdminAuthorityTestUser(array('manage_options' => true)),
-    2 => new DznAdminAuthorityTestUser(array('dzn_view_diagnostics' => true)),
-    3 => new DznAdminAuthorityTestUser(array('dzn_manage_provider_integrations' => true)),
-    4 => new DznAdminAuthorityTestUser(array()),
+    1 => new DznAdminAuthorityTestUser(array(), array('manage_options' => true)),
+    2 => new DznAdminAuthorityTestUser(array('dzn_view_diagnostics' => true), array('dzn_view_diagnostics' => true)),
+    3 => new DznAdminAuthorityTestUser(array('dzn_manage_provider_integrations' => true), array('dzn_manage_provider_integrations' => true)),
+    4 => new DznAdminAuthorityTestUser(array(), array()),
 );
 
 function get_userdata(int $userId): ?DznAdminAuthorityTestUser {

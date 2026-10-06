@@ -64,7 +64,8 @@ final class ScreenController {
                 echo '<p class="notice notice-error">Canonical lifecycle history failed integrity validation.</p>';
             }
         } else {
-            if ($screen !== 'enrolment') self::entityCreateForm($screen);
+            if ($screen === 'student') self::studentCreateDisclosure();
+            elseif ($screen !== 'enrolment') self::entityCreateForm($screen);
             else echo '<p>Enrolments are read-only. Generic creation is disabled; canonical conversion authority is not part of this phase.</p>';
             self::entityList($screen);
             if ($screen === 'term' && current_user_can('dzn_manage_canonical_terms')) self::canonicalTermCreateForm();
@@ -175,6 +176,7 @@ final class ScreenController {
     }
 
     private static function entityList(string $entity): void {
+        if ($entity === 'student') { self::studentList(); return; }
         if($entity==='lesson'){
             $records=(new CoreReadService())->lessonOperatorRows();
             echo '<h2>Classes and schedule</h2><p>Review each learner, teacher, class state and next scheduling handoff. Schedule changes stay with the authorised schedule workflow.</p>';
@@ -202,8 +204,17 @@ final class ScreenController {
         $profile=in_array($entity,['student','teacher'],true);
         $canonicalTerm=$entity==='term'&&($record->record_model??null)==='canonical_enrolment_term_v1';
         $canonicalLesson=$entity==='lesson'&&($record->record_model??null)==='canonical_term_lesson_v1';
-        $heading=$profile?ucfirst($entity).' profile · '.(string)($record->reference_code??''):($canonicalTerm?'Term · '.(string)($record->reference_code??''):($canonicalLesson?'Class · '.(string)($record->reference_code??''):'Record #'.(string)$id));
+        if ($entity === 'student') {
+            $studentName = trim(($record->first_name ?? '') . ' ' . ($record->last_name ?? ''));
+            $heading = 'Student · ' . (string) ($record->display_name ?: ($studentName !== '' ? $studentName : 'Profile'));
+        } else {
+            $heading = $profile ? ucfirst($entity) . ' profile · ' . (string) ($record->reference_code ?? '') : ($canonicalTerm ? 'Term · ' . (string) ($record->reference_code ?? '') : ($canonicalLesson ? 'Class · ' . (string) ($record->reference_code ?? '') : 'Record #' . (string) $id));
+        }
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>' . esc_html($heading) . '</h2>';
+        if ($entity === 'student') {
+            self::studentDetailTabs($record);
+            return;
+        }
         $displayRecord=in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRecord($entity,$id):$record;
         $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():(($entity==='lesson')?array('reference_code','student_name','teacher_name','course_name','lesson_type','class_status','schedule_label'):null)));
         self::objectTable([$displayRecord??$record], null, $allowed);
@@ -254,6 +265,51 @@ final class ScreenController {
             'course' => self::courseFields(), 'term' => self::termFields(), 'lesson' => self::lessonFields(),
         };
         submit_button('Create ' . self::ENTITIES[$entity][0]); echo '</form>';
+    }
+
+    private static function studentCreateDisclosure(): void {
+        echo '<details class="dzn-student-create"><summary class="button">Add student</summary><p>Create a student profile for a learner already identified by your team.</p>';
+        self::entityCreateForm('student');
+        echo '</details>';
+    }
+
+    private static function studentList(): void {
+        $query = sanitize_text_field(wp_unslash($_GET['s'] ?? ''));
+        $requested = sanitize_key(wp_unslash($_GET['student_status'] ?? 'active'));
+        $status = in_array($requested, array('active','inactive','archived','all'), true) ? $requested : 'active';
+        $page = max(1, absint($_GET['paged'] ?? 1));
+        $result = (new CoreReadService())->studentAdminRows($query, $status, $page);
+        echo '<h2>Students</h2><p>Active students appear first. Search by name, email, phone or reference.</p>';
+        echo '<form method="get" class="dzn-student-filters"><input type="hidden" name="page" value="dzn-student"><label>Search students <input type="search" name="s" value="'.esc_attr($query).'" placeholder="Name, email, phone or reference"></label> <label>Show <select name="student_status">';
+        foreach (array('active'=>'Active students','inactive'=>'Inactive students','archived'=>'Archived students','all'=>'All current students') as $value=>$label) echo '<option value="'.esc_attr($value).'"'.selected($status,$value,false).'>'.esc_html($label).'</option>';
+        echo '</select></label> <button class="button">Filter</button> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-student')).'">Reset</a></form>';
+        if (!$result['rows']) { echo '<p>No students match these filters. Try another search or choose a different status.</p>'; return; }
+        self::objectTable($result['rows'], 'dzn-student', array('id','reference_code','display_name','first_name','last_name','email','phone','status'));
+        $base = array('page'=>'dzn-student','s'=>$query,'student_status'=>$status);
+        echo '<p class="tablenav"><span>'.esc_html((string)$result['total']).' students · Page '.esc_html((string)$result['page']).' of '.esc_html((string)$result['pages']).'</span> ';
+        if ($result['page'] > 1) echo '<a class="button" href="'.esc_url(add_query_arg($base + array('paged'=>$result['page']-1),admin_url('admin.php'))).'">Previous</a> ';
+        if ($result['page'] < $result['pages']) echo '<a class="button" href="'.esc_url(add_query_arg($base + array('paged'=>$result['page']+1),admin_url('admin.php'))).'">Next</a>';
+        echo '</p>';
+    }
+
+    private static function studentDetailTabs(object $student): void {
+        $id = (int)$student->id;
+        $tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview'));
+        if (!in_array($tab, array('overview','account','administration'), true)) $tab = 'overview';
+        $url = static fn(string $key): string => add_query_arg(array('page'=>'dzn-student','id'=>$id,'tab'=>$key),admin_url('admin.php'));
+            echo '<nav class="nav-tab-wrapper" aria-label="Student profile sections"><a class="nav-tab'.($tab==='overview'?' nav-tab-active':'').'" href="'.esc_url($url('overview')).'">Overview</a><a class="nav-tab'.($tab==='account'?' nav-tab-active':'').'" href="'.esc_url($url('account')).'">Account &amp; Communication</a><a class="nav-tab'.($tab==='administration'?' nav-tab-active':'').'" href="'.esc_url($url('administration')).'">Administration</a></nav>';
+        if ($tab === 'overview') {
+            self::objectTable(array($student), null, array('reference_code','display_name','first_name','last_name','status','city','country_code','timezone','locale','calendar_preference'));
+            echo '<p><a class="button" href="'.esc_url($url('account')).'">Continue to account &amp; communication</a></p>';
+        } elseif ($tab === 'account') {
+            self::objectTable(array($student), null, array('email','phone','whatsapp_phone'));
+            if (current_user_can('dzn_view_student_acceptance_eligibility')) echo '<p><a class="button" href="'.esc_url(add_query_arg(array('page'=>'dzn-student-identity-authority','student_id'=>$id),admin_url('admin.php'))).'">Review account &amp; acceptance status</a></p>';
+            else echo '<p>Account and acceptance details are available to staff with account review access.</p>';
+            echo '<p>Communication history is not available on this profile.</p>';
+        } else {
+            echo '<h3>Administration</h3><p>Archiving removes this student from active operational lists. Existing records remain available.</p>';
+            self::archiveActions('student',$id,(string)$student->status);
+        }
     }
 
     private static function canonicalTermCreate(array $post): int {

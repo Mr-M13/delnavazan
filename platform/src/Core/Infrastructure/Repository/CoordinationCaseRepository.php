@@ -12,6 +12,7 @@ final class CoordinationCaseRepository {
     /** Shared serialization point with privacy erasure and match assessment. */
     public function requestForUpdate( int $id ): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}booking_requests WHERE id=%d FOR UPDATE", $id ) ); }
     public function caseForRead( int $id ): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}coordination_cases WHERE id=%d", $id ) ); }
+    public function activeMatchAttentionForRequest( int $requestId ): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT error_code,safe_detail FROM {$this->prefix}operational_exceptions WHERE entity_type='booking_request' AND entity_id=%d AND exception_type='booking_request_match_attention' AND status IN ('open','acknowledged') ORDER BY id DESC LIMIT 1", $requestId ) ); }
     public function caseForRequestForUpdate( int $requestId ): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}coordination_cases WHERE booking_request_id=%d FOR UPDATE", $requestId ) ); }
     public function caseForUpdate( int $id ): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}coordination_cases WHERE id=%d FOR UPDATE", $id ) ); }
     public function teacherForUpdate( int $id ): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teachers WHERE id=%d FOR UPDATE", $id ) ); }

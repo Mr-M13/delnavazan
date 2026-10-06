@@ -22,14 +22,13 @@ dzn_settings_assert($settings->redacted('email')['password']===true,'redacted se
 $settings->save('email',array('password'=>''));
 dzn_settings_assert($settings->ready('email'),'blank secret update must preserve the active secret');
 
-$settings->save('whatsapp',array('app_id'=>'meta-app','business_account_id'=>'meta-business','phone_number_id'=>'meta-phone','access_token'=>'meta-runtime-token','app_secret'=>'meta-app-secret'));
+$settings->save('whatsapp',array('app_id'=>'meta-app','business_account_id'=>'meta-business','phone_number_id'=>'meta-phone','test_template_name'=>'dzn_test_connection','test_template_language'=>'en_US','access_token'=>'meta-runtime-token','app_secret'=>'meta-app-secret'));
 dzn_settings_assert($settings->ready('whatsapp'),'complete Meta configuration must be locally ready');
 dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'meta-runtime-token'),'Meta token must not persist in plaintext');
 
-$settings->save('sms',array('endpoint'=>'https://sms.example/api','api_key'=>'sms-runtime-key'));
-dzn_settings_assert(!$settings->ready('sms'),'SMS must remain unconfigured without a selected provider');
-$settings->save('sms',array('provider'=>'operator-selected-provider','sender_id'=>'DLN','api_key'=>'sms-runtime-key'));
-dzn_settings_assert($settings->ready('sms'),'vendor-neutral SMS configuration must be representable');
+$settings->save('sms',array('messaging_profile_id'=>'telnyx-profile','api_key'=>'sms-runtime-key'));
+dzn_settings_assert($settings->ready('sms'),'Telnyx API key and messaging profile must be locally ready');
+dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'sms-runtime-key'),'Telnyx API key must not persist in plaintext');
 
 $callback=admin_url('admin-post.php?action=dzn_google_oauth_callback');
 $settings->save('google',array('client_id'=>'google-client','client_secret'=>'google-runtime-secret','redirect_uri'=>$callback));

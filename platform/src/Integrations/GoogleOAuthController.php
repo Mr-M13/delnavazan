@@ -94,6 +94,7 @@ final class GoogleOAuthController {
         if(!$teacher)self::returnToPortal('teacher_not_linked');
         try{
             $pending=$repository->pendingCalendarMappingsForTeacher((int)$teacher->id,10);
+            if(!$pending)self::returnToPortal('google_calendar_sync_no_pending');
             (new ProviderProjectionWorkerContext())->run(static function()use($pending):void{
                 $service=new GoogleCalendarProjectionService();
                 foreach($pending as $mapping)$service->dispatch((int)$mapping->id,'teacher-google-sync:'.(int)$mapping->id.':'.(int)$mapping->mapping_version);

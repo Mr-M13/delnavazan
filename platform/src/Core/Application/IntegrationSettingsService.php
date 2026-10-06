@@ -7,7 +7,7 @@ final class IntegrationSettingsService {
     private const KEY_VERSION='dzn_integration_settings_v1';
     private const SECRET_FIELDS=array(
         'email'=>array('password'), 'whatsapp'=>array('access_token','app_secret','verify_token'),
-        'sms'=>array('api_key','api_secret'), 'google'=>array('client_secret'),
+        'sms'=>array('api_key'), 'google'=>array('client_secret'),
     );
 
     /** Save only known fields; blank secret fields preserve the current value. */
@@ -50,11 +50,13 @@ final class IntegrationSettingsService {
         try{
             $v=fn($key)=>$this->value($provider,$key);
             if($provider==='email')return is_email($v('from_email'))&&($v('mode')!=='smtp'||($v('host')!==''&&$v('username')!==''&&$v('password')!==''&&(int)$v('port')>0&&(int)$v('port')<=65535));
-            if($provider==='whatsapp')return $v('app_id')!==''&&$v('business_account_id')!==''&&$v('phone_number_id')!==''&&$v('access_token')!=='';
-            if($provider==='sms')return $v('provider')!==''&&$v('endpoint')!==''&&$v('api_key')!=='';
+            if($provider==='whatsapp')return $v('app_id')!==''&&$v('business_account_id')!==''&&$v('phone_number_id')!==''&&$v('access_token')!==''&&stripos($v('test_template_name'),'test')!==false;
+            if($provider==='sms')return $v('api_key')!==''&&($v('messaging_profile_id')!==''||$v('sender_id')!=='');
             if($provider==='google'){
                 $expected=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
-                return $v('client_id')!==''&&$v('client_secret')!==''&&$expected!==''&&hash_equals($expected,$v('redirect_uri'));
+                $client=$v('client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');
+                $secret=$v('client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');
+                return $client!==''&&$secret!==''&&$expected!==''&&hash_equals($expected,$v('redirect_uri'));
             }
             return false;
         }catch(\Throwable){return false;}
@@ -62,8 +64,8 @@ final class IntegrationSettingsService {
     public static function providerSchemas():array{return (new self())->schema();}
     private function schema():array{return array(
         'email'=>array('mode'=>'text','host'=>'text','port'=>'text','encryption'=>'text','username'=>'text','password'=>'secret','from_name'=>'text','from_email'=>'email'),
-        'whatsapp'=>array('app_id'=>'text','business_account_id'=>'text','phone_number_id'=>'text','access_token'=>'secret','app_secret'=>'secret','verify_token'=>'secret'),
-        'sms'=>array('provider'=>'text','endpoint'=>'url','account_id'=>'text','sender_id'=>'text','api_key'=>'secret','api_secret'=>'secret'),
+        'whatsapp'=>array('app_id'=>'text','business_account_id'=>'text','phone_number_id'=>'text','test_template_name'=>'text','test_template_language'=>'text','access_token'=>'secret','app_secret'=>'secret','verify_token'=>'secret'),
+        'sms'=>array('messaging_profile_id'=>'text','sender_id'=>'text','api_key'=>'secret'),
         'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url'),
     );}
     private function valueRaw(string $provider,string $field):string{$all=(array)get_option(self::OPTION,array());$row=(array)($all[$provider]??array());return (string)($row[$field]??'');}

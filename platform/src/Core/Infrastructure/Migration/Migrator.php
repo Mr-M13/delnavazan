@@ -2113,10 +2113,12 @@ final class Migrator {
 			$parentRow = $wpdb->get_row( "SHOW COLUMNS FROM {$parentPhysical} LIKE 'id'" );
 			if ( ! $parentRow || ! self::is_bigint_unsigned_type( (string) $parentRow->Type ) || strtoupper( (string) $parentRow->Extra ) !== 'AUTO_INCREMENT' || $parentRow->Key !== 'PRI' ) throw new \RuntimeException('Migration verification failed: reference parent identity '.$parent);
 		}
-		// Rule 10: no Finance table outside the declared twenty-one.
+		// Rule 10: Phase 2A.2-U owns only its declared finance tables. Later migrations may add
+		// separately verified finance namespaces; do not make the older verifier reject them.
+		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations');
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $p . 'finance_%' ) ) as $table ) {
 			$short = substr( (string) $table, strlen( $p ) );
-			if ( ! isset( $spec[ $short ] ) ) throw new \RuntimeException('Migration verification failed: table outside the declared Phase 2A.2-U set: '.$short);
+			if ( ! isset( $spec[ $short ] ) && ! in_array( $short, $laterFinanceTables, true ) ) throw new \RuntimeException('Migration verification failed: table outside the declared Phase 2A.2-U set: '.$short);
 		}
 		// Rule 6: the phase owns no academic, notification, payment or accounting storage.
 		foreach ( array('finance_lessons','finance_terms','finance_attendance','finance_notifications','finance_payments','finance_ledger','finance_invoices','finance_payouts','finance_prices') as $forbidden ) {

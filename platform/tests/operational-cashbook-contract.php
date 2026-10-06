@@ -13,7 +13,7 @@ $assert(str_contains($service,'balance_adjustment')&&str_contains($migration,"'b
 $assert(str_contains($service,'finance_cash_reconciliations')&&str_contains($service,'$system-$actual'),'Reconciliation must compare recorded ledger and statement balances without mutation');
 $assert(str_contains($repository,'effective_kind')&&str_contains($repository,'original.transaction_kind')&&str_contains($repository,"IN ('income','expense')"),'Reports must account for reversals while excluding transfers');
 $assert(!preg_match('/\$wpdb->(?:update|delete)\s*\(/',$repository.$service),'Cashbook entries must not be rewritten or deleted');
-$assert(str_contains($controller,'dzn_cashbook_convert')&&str_contains($controller,'check_admin_referer')&&str_contains($controller,'wp_safe_redirect'),'Admin write actions must be nonce-checked and redirect after posting');
+$assert(str_contains($controller,"'record','convert','reconcile','reverse','reverse_transfer'")&&str_contains($controller,'check_admin_referer')&&str_contains($controller,'wp_safe_redirect'),'Admin write actions must be nonce-checked and redirect after posting');
 $assert(str_contains($controller,'current_user_can(OperationalCashLedgerService::MANAGE_CAPABILITY)')&&str_contains($plugin,'OperationalCashbookController::register()'),'The cashbook must use the Finance admin capability and be bootstrapped');
-$assert(!str_contains($service,'Stripe')&&!str_contains($service,'wp_remote_'),'The operational cashbook must remain separate from payment execution');
+$assert(!str_contains($service,'wp_remote_')&&!str_contains($service,'PaymentExecutionController'),'The operational cashbook must not call provider or payment execution paths');
 echo "operational-cashbook-contract: pass\n";

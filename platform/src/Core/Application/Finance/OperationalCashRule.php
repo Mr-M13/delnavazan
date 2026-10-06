@@ -35,6 +35,15 @@ final class OperationalCashRule {
         return $value;
     }
 
+    /** Parse a signed external statement balance; ledger entries themselves remain positive-only. */
+    public static function statementBalance(mixed $input,string $currency):int {
+        $raw=self::normaliseDigits(is_scalar($input)?(string)$input:'');
+        $negative=str_starts_with($raw,'-');
+        if($negative)$raw=substr($raw,1);
+        $value=self::amount($raw,$currency,true);
+        return $negative?-$value:$value;
+    }
+
     /** Preserve the operator-entered historical quote as a canonical decimal string; never use live FX. */
     public static function rate(mixed $input):string {
         $raw=self::normaliseDigits(is_scalar($input)?(string)$input:'');

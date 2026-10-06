@@ -99,7 +99,7 @@ final class OperationalCashLedgerService {
 
     public function reconcile(string $accountKey,array $input,string $commandKey):array {
         $account=OperationalCashRule::account($accountKey);$date=OperationalCashRule::date($input['as_of_date']??null);
-        $actual=OperationalCashRule::amount($input['statement_balance']??null,$account['currency'],true);$evidence=OperationalCashRule::evidence($input,true);
+        $actual=OperationalCashRule::statementBalance($input['statement_balance']??null,$account['currency']);$evidence=OperationalCashRule::evidence($input,true);
         $facts=array('account'=>$accountKey,'date'=>$date,'statement_balance_minor'=>$actual,'evidence'=>$evidence['reference_digest']);
         return $this->execute('reconcile_account',$commandKey,$facts,array($accountKey),function(array $locked,int $actor,string $now)use($accountKey,$date,$actual,$evidence):array{
             $system=$this->repository->balance((int)$locked[$accountKey]->id,$date);

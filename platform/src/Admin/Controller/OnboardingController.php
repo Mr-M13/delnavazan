@@ -8,7 +8,7 @@ final class OnboardingController {
         if ( ( $_SERVER['REQUEST_METHOD'] ?? '' ) !== 'POST' ) return;
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) wp_die( 'Access denied.', 'Delnavazan', array( 'response' => 403 ) );
         $post = wp_unslash( $_POST ); $action = sanitize_key( $post['dzn_action'] ?? '' );
-        if ( ! in_array( $action, array( 'issue_teacher_invitation', 'revoke_teacher_invitation', 'offboard_teacher_principal', 'review_teacher_onboarding' ), true ) ) return;
+        if ( ! in_array( $action, array( 'issue_teacher_invitation', 'revoke_teacher_invitation', 'offboard_teacher_principal', 'review_teacher_onboarding', 'admin_link_teacher_principal' ), true ) ) return;
         check_admin_referer( 'dzn_platform_' . $action );
         try {
             $teacher = absint( $post['teacher_id_override'] ?? 0 ) ?: absint( $post['teacher_id'] ?? 0 );
@@ -18,6 +18,7 @@ final class OnboardingController {
                 $service = new PrincipalInvitationService();
                 if ( $action === 'issue_teacher_invitation' ) $service->issue( $teacher, sanitize_email( $post['recipient'] ?? '' ), 604800, sanitize_text_field( $post['command_key'] ?? '' ) ?: wp_generate_uuid4() );
                 elseif ( $action === 'revoke_teacher_invitation' ) $service->revoke( $teacher, 'admin_revoked' );
+                elseif ( $action === 'admin_link_teacher_principal' ) $service->linkExistingPrincipal( $teacher, absint( $post['wordpress_user_id'] ?? 0 ) );
                 else $service->offboard( $teacher, 'admin_offboarded' );
             }
             self::redirect( 'Saved' );
@@ -38,6 +39,16 @@ final class OnboardingController {
             echo '</select></label></p><p><label>Teacher ID (for Teachers not shown above) <input min="1" type="number" name="teacher_id_override"></label></p><p><label>Recipient email <input required type="email" name="recipient"></label></p>';
             submit_button( 'Queue invitation / create replacement' ); echo '</form>';
         }
+
+        echo '<h2>Admin-assisted principal link</h2><p><strong>Use only after verifying the person’s identity.</strong> This binds an existing WordPress account to a Teacher and bypasses email invitation delivery as a delivery mechanism only. It does not bypass principal ownership safeguards or approve/activate the Teacher; normal onboarding and review still apply.</p><form method="post">'; wp_nonce_field( 'dzn_platform_admin_link_teacher_principal' );
+        echo '<input type="hidden" name="dzn_action" value="admin_link_teacher_principal"><p><label>Teacher <select required name="teacher_id"><option value="">Select teacher</option>';
+        foreach ( ( new PrincipalInvitationReadService() )->rows() as $teacherRow ) echo '<option value="' . esc_attr( (string) $teacherRow->teacher_id ) . '" ' . selected( $contextTeacherId, (string) $teacherRow->teacher_id, false ) . '>' . esc_html( $teacherRow->display_name . ' (#' . $teacherRow->teacher_id . ')' ) . '</option>';
+        echo '</select></label></p><p><label>Existing WordPress user <select required name="wordpress_user_id"><option value="">Select account</option>';
+        foreach ( get_users( array( 'number' => 200, 'orderby' => 'display_name', 'order' => 'ASC', 'fields' => array( 'ID', 'display_name', 'user_login', 'user_email' ) ) ) as $user ) {
+            $label = trim( (string) $user->display_name ) . ' (' . (string) $user->user_login . ' · ' . (string) $user->user_email . ')';
+            echo '<option value="' . esc_attr( (string) $user->ID ) . '">' . esc_html( $label ) . '</option>';
+        }
+        echo '</select></label></p>'; submit_button( 'Link existing account to Teacher', 'secondary' ); echo '</form>';
 
         echo '<h2>Review queue</h2><table class="widefat striped"><thead><tr><th>Teacher</th><th>Profile</th><th>Availability</th><th>Agreement</th><th>State</th><th>Review action</th></tr></thead><tbody>';
         $rows = ( new TeacherOnboardingService() )->reviewRows();

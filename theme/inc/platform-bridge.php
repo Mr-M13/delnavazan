@@ -317,7 +317,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
 		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
 		$parts = preg_split( '/\\s+/u', trim( $name ) );
-		$step = 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : ( 'active' === $onboarding['state'] && 'ready' === $onboarding['readiness_state'] ? 4 : 3 ) );
+		$step = isset($_GET['onboarding-step']) ? max(1,min(4,absint(wp_unslash($_GET['onboarding-step'])))) : ( 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : 4 ) );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
@@ -326,6 +326,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 				'availability_profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_profile' ),
 				'availability_rule' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_rule' ),
+				'copy_day' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_copy_day' ),
 				'submit' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_submit' ),
 			),
 		);

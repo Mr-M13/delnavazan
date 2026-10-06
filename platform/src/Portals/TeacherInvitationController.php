@@ -21,26 +21,27 @@ final class TeacherInvitationController {
                 $service->beginExistingClaim( $secret, $userId, $command );
                 $service->finalizeClaim( $command, $userId );
             } else {
-                $password = (string) ( $post['password'] ?? '' ); $confirmation = (string) ( $post['password_confirmation'] ?? '' );
-                if ( strlen( $password ) < 12 || ! hash_equals( $password, $confirmation ) ) throw new \InvalidArgumentException( 'Password requirements not met' );
                 $claim = $service->beginProvisioning( $secret, $command ); $recipient = (string) $claim['recipient'];
                 if ( email_exists( $recipient ) ) throw new \InvalidArgumentException( 'Existing account must authenticate first' );
                 $base = sanitize_user( strstr( $recipient, '@', true ) ?: 'teacher', true ); if ( $base === '' ) $base = 'teacher';
                 $login = $base; for ( $i = 0; username_exists( $login ) && $i < 20; $i++ ) $login = $base . wp_rand( 1000, 999999 );
                 if ( username_exists( $login ) ) throw new \RuntimeException( 'Unable to allocate account identity' );
                 if ( ! function_exists( 'wp_create_user' ) ) require_once ABSPATH . 'wp-admin/includes/user.php';
-                $userId = wp_create_user( $login, $password, $recipient );
+                $temporaryPassword = wp_generate_password( 48, true, true );
+                $userId = wp_create_user( $login, $temporaryPassword, $recipient );
                 if ( is_wp_error( $userId ) || ! $userId ) throw new \RuntimeException( 'Account creation failed' );
                 $userId = (int) $userId;
                 $service->recordProvisioningResult( $command, $userId, true );
                 $service->finalizeClaim( $command, $userId );
-                wp_set_current_user( $userId ); wp_set_auth_cookie( $userId, true, is_ssl() );
+                unset($temporaryPassword);
+                if ( function_exists('wp_new_user_notification') ) wp_new_user_notification($userId, null, 'user');
             }
             $user = get_userdata( $userId ); if ( $user && get_role( 'dzn_teacher' ) ) $user->add_role( 'dzn_teacher' );
-            unset( $secret, $password, $confirmation );
+            unset( $secret, $temporaryPassword );
+            if ( isset($recipient) ) { wp_safe_redirect( add_query_arg( 'teacher_claim', 'password_email', home_url('/login/') ) ); exit; }
             wp_safe_redirect( add_query_arg( 'teacher-view', 'onboarding', home_url( '/teacher-portal/' ) ) ); exit;
         } catch ( \Throwable $e ) {
-            unset( $secret, $password, $confirmation );
+            unset( $secret, $temporaryPassword );
             $message = is_user_logged_in() ? 'اتصال حساب انجام نشد. کد را بررسی کنید یا با مدیر تماس بگیرید.' : 'ساخت یا اتصال حساب انجام نشد. اگر قبلاً حساب دارید، ابتدا وارد شوید و دوباره کد را ثبت کنید.';
             self::redirect( $message, true );
         }

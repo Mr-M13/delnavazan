@@ -11,5 +11,5 @@ final class Normalizer {
  public static function one(mixed $v,array $allowed,string $label):string{$v=(string)$v;if(!in_array($v,$allowed,true))throw new \InvalidArgumentException('Invalid '.$label);return $v;}
  public static function timezoneSource(mixed $v):?string{if($v===null||$v==='')return null;return self::one($v,['student_selected','admin_selected','imported','system_suggested'],'timezone source');}
  public static function locale(mixed $v):?string{$v=self::text($v,16);if($v&&!preg_match('/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/',$v))throw new \InvalidArgumentException('Invalid locale');return $v;}
- public static function time(mixed $v):?string{$v=(string)$v;if($v&&!preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/',$v))throw new \InvalidArgumentException('Invalid local time');return $v?:null;}
+ public static function time(mixed $v):?string{$v=(string)$v;if($v&&!preg_match('/^(?:([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]|24:00:00)$/',$v))throw new \InvalidArgumentException('Invalid local time');return $v?:null;}
 }

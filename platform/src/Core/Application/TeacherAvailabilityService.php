@@ -20,18 +20,30 @@ final class TeacherAvailabilityService {
     }
 
     public function setRecurringRule(array $input): int {
-        $this->admin(); $d = $this->rule( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveRule( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        $this->admin(); $d = $this->rule( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $this->rejectOverlap($d); $id = $this->repo->saveRule( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
     public function setOwnRecurringRule(array $input): int {
         $teacher = $this->ownTeacher(); $input['teacher_id'] = $teacher; $input['status'] = 'active'; $input['reason_code'] = 'teacher_onboarding';
         $d = $this->rule( $input ); $now = current_time( 'mysql', true );
-        $this->repo->begin(); try { $profile = $this->profileForMutation( $teacher, $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveRule( $d, $now, get_current_user_id() ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        $this->repo->begin(); try { $profile = $this->profileForMutation( $teacher, $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $this->rejectOverlap($d); $id = $this->repo->saveRule( $d, $now, get_current_user_id() ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+
+    /** Copy every active rule from one weekday to explicitly selected weekdays atomically. */
+    public function copyOwnRecurringDay(int $sourceWeekday, array $targetWeekdays): void {
+        $teacher=$this->ownTeacher(); $source=Normalizer::count($sourceWeekday,1,7); $targets=array_values(array_unique(array_map(static fn($day)=>Normalizer::count($day,1,7),$targetWeekdays)));
+        $targets=array_values(array_filter($targets,static fn($day)=>$day!==$source)); if(!$targets)throw new \InvalidArgumentException('Choose at least one target weekday');
+        $now=current_time('mysql',true);$this->repo->begin();
+        try { $rules=$this->repo->activeRules($teacher);$sourceRules=array_values(array_filter($rules,static fn($r)=>(int)$r->weekday===$source));if(!$sourceRules)throw new \InvalidArgumentException('No active availability exists on the selected source day');
+            foreach($targets as$target)foreach($sourceRules as$r){$d=$this->rule(['teacher_id'=>$teacher,'weekday'=>$target,'local_start_time'=>$r->local_start_time,'local_end_time'=>$r->local_end_time,'state'=>$r->state,'timezone'=>$r->timezone]);$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$this->rejectOverlap($d);}
+            foreach($targets as$target)foreach($sourceRules as$r){$d=$this->rule(['teacher_id'=>$teacher,'weekday'=>$target,'local_start_time'=>$r->local_start_time,'local_end_time'=>$r->local_end_time,'state'=>$r->state,'timezone'=>$r->timezone]);$d['profile_id']=(int)$this->profileForMutation($teacher,$d['timezone'])->id;$this->repo->saveRule($d,$now,get_current_user_id());}
+            $this->repo->commit();
+        } catch(\Throwable$e){$this->repo->rollback();throw$e;}
     }
 
     public function setActiveOwnRecurringRule(array $input): int {
         $teacher=$this->activeOwnTeacher();$input['teacher_id']=$teacher;$input['status']='active';$input['reason_code']='teacher_self_service';$d=$this->rule($input);$now=current_time('mysql',true);
-        $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$id=$this->repo->saveRule($d,$now,get_current_user_id());$this->repo->commit();return $id;}catch(\Throwable $e){$this->repo->rollback();throw $e;}
+        $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$this->rejectOverlap($d);$id=$this->repo->saveRule($d,$now,get_current_user_id());$this->repo->commit();return $id;}catch(\Throwable $e){$this->repo->rollback();throw $e;}
     }
     public function retireActiveOwnRecurringRule(int $ruleId):void { $teacher=$this->activeOwnTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());$this->repo->commit();}catch(\Throwable $e){$this->repo->rollback();throw $e;} }
     public function setDatedException(array $input): int {
@@ -76,7 +88,7 @@ final class TeacherAvailabilityService {
     }
 
     private function rule(array $input): array {
-        $teacher = Normalizer::id( $input['teacher_id'] ?? null ); $weekday = Normalizer::count( $input['weekday'] ?? null, 1, 7 ); $timezone = $this->timezone( $input['timezone'] ?? null ); $start = $this->time( $input['local_start_time'] ?? null ); $end = $this->time( $input['local_end_time'] ?? null );
+        $teacher = Normalizer::id( $input['teacher_id'] ?? null ); $weekday = Normalizer::count( $input['weekday'] ?? null, 1, 7 ); $timezone = $this->timezone( $input['timezone'] ?? null ); $start = $this->time( $input['local_start_time'] ?? null ); $endInput = trim((string)($input['local_end_time'] ?? '')); $end = $endInput === '2400' ? '24:00:00' : $this->time( $endInput );
         // Validate a representative date as well as same-day half-open ordering.
         AvailabilityLocalTime::interval( '2026-01-05', $start, $end, $timezone );
         return array( 'id' => Normalizer::id( $input['id'] ?? null, false ), 'teacher_id' => $teacher, 'weekday' => $weekday, 'local_start_time' => $start, 'local_end_time' => $end, 'state' => $this->state( $input['state'] ?? null ), 'timezone' => $timezone, 'status' => Normalizer::one( $input['status'] ?? 'active', array( 'active', 'inactive' ), 'availability rule status' ), 'reason_code' => Normalizer::text( $input['reason_code'] ?? null, 64 ) );
@@ -93,6 +105,7 @@ final class TeacherAvailabilityService {
     private function admin(): void { if ( ! current_user_can( 'dzn_manage_teacher_availability' ) ) throw new \RuntimeException( 'Unauthorized' ); }
     private function timezone(mixed $value): string { $timezone = Normalizer::timezone( $value ); if ( ! $timezone ) throw new \InvalidArgumentException( 'IANA timezone required' ); return $timezone; }
     private function time(mixed $value): string { $time = Normalizer::time( $value ); if ( ! $time ) throw new \InvalidArgumentException( 'Local time required' ); return $time; }
+    private function rejectOverlap(array $d): void { $minute = static fn($v) => $v === '24:00:00' ? 1440 : ((int)substr($v,0,2))*60+(int)substr($v,3,2); foreach ($this->repo->activeRulesForUpdate((int)$d['teacher_id']) as $rule) { if ((int)$rule->weekday !== (int)$d['weekday'] || (int)$rule->id === (int)($d['id'] ?? 0)) continue; if ($minute($d['local_start_time']) < $minute((string)$rule->local_end_time) && $minute((string)$rule->local_start_time) < $minute($d['local_end_time'])) throw new \InvalidArgumentException('Recurring availability overlaps an existing interval on this weekday'); } }
     private function state(mixed $value): string { return Normalizer::one( $value, self::STATES, 'availability state' ); }
     private function utc(string $value): string { $date = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $value, new \DateTimeZone( 'UTC' ) ); if ( ! $date || $date->format( 'Y-m-d H:i:s' ) !== $value ) throw new \InvalidArgumentException( 'Canonical UTC datetime required' ); return $value; }
     private function append(array &$facts, array $interval, string $state, string $source, int $id): void { $facts[] = $interval + array( 'state' => $state, 'source' => $source, 'id' => $id, 'source_rank' => $source === 'exception' ? 2 : 1, 'state_rank' => array( 'requestable' => 1, 'preferred' => 2, 'blocked' => 3 )[ $state ] ); }

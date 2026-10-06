@@ -8,7 +8,7 @@ final class OnboardingController {
         if ( ( $_SERVER['REQUEST_METHOD'] ?? '' ) !== 'POST' ) return;
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) wp_die( 'Access denied.', 'Delnavazan', array( 'response' => 403 ) );
         $post = wp_unslash( $_POST ); $action = sanitize_key( $post['dzn_action'] ?? '' );
-        if ( ! in_array( $action, array( 'issue_teacher_invitation', 'revoke_teacher_invitation', 'offboard_teacher_principal', 'review_teacher_onboarding', 'admin_link_teacher_principal' ), true ) ) return;
+        if ( ! in_array( $action, array( 'issue_teacher_invitation', 'revoke_teacher_invitation', 'offboard_teacher_principal', 'admin_link_teacher_principal' ), true ) ) return;
         check_admin_referer( 'dzn_platform_' . $action );
         try {
             $teacher = absint( $post['teacher_id_override'] ?? 0 ) ?: absint( $post['teacher_id'] ?? 0 );
@@ -40,7 +40,7 @@ final class OnboardingController {
             submit_button( 'Queue invitation / create replacement' ); echo '</form>';
         }
 
-        echo '<h2>Admin-assisted principal link</h2><p><strong>Use only after verifying the person’s identity.</strong> This binds an existing WordPress account to a Teacher and bypasses email invitation delivery as a delivery mechanism only. It does not bypass principal ownership safeguards or approve/activate the Teacher; normal onboarding and review still apply.</p><form method="post">'; wp_nonce_field( 'dzn_platform_admin_link_teacher_principal' );
+        echo '<h2>Admin-assisted principal link</h2><p><strong>Use only after verifying the person’s identity.</strong> This binds an existing WordPress account to a Teacher and bypasses email invitation delivery as a delivery mechanism only. It does not bypass principal ownership safeguards; the teacher must complete onboarding before automatic activation.</p><form method="post">'; wp_nonce_field( 'dzn_platform_admin_link_teacher_principal' );
         echo '<input type="hidden" name="dzn_action" value="admin_link_teacher_principal"><p><label>Teacher <select required name="teacher_id"><option value="">Select teacher</option>';
         foreach ( ( new PrincipalInvitationReadService() )->rows() as $teacherRow ) echo '<option value="' . esc_attr( (string) $teacherRow->teacher_id ) . '" ' . selected( $contextTeacherId, (string) $teacherRow->teacher_id, false ) . '>' . esc_html( $teacherRow->display_name . ' (#' . $teacherRow->teacher_id . ')' ) . '</option>';
         echo '</select></label></p><p><label>Existing WordPress user <select required name="wordpress_user_id"><option value="">Select account</option>';
@@ -50,20 +50,13 @@ final class OnboardingController {
         }
         echo '</select></label></p>'; submit_button( 'Link existing account to Teacher', 'secondary' ); echo '</form>';
 
-        echo '<h2>Review queue</h2><table class="widefat striped"><thead><tr><th>Teacher</th><th>Profile</th><th>Availability</th><th>Agreement</th><th>State</th><th>Review action</th></tr></thead><tbody>';
+        echo '<h2>Onboarding diagnostics</h2><p>Invitation is the approval decision. Teachers activate automatically when profile and availability requirements are complete. This table is diagnostic; it does not gate readiness.</p><table class="widefat striped"><thead><tr><th>Teacher</th><th>Profile</th><th>Availability</th><th>Agreement</th><th>State</th><th>Readiness</th></tr></thead><tbody>';
         $rows = ( new TeacherOnboardingService() )->reviewRows();
         if ( ! $rows ) echo '<tr><td colspan="6">No linked teachers have started onboarding.</td></tr>';
         foreach ( $rows as $row ) {
             echo '<tr><td>' . esc_html( $row->display_name . ' (#' . $row->teacher_id . ')' ) . '<br><small>' . esc_html( (string) $row->email ) . '</small></td>';
             echo '<td>' . esc_html( (string) $row->profile_state ) . '</td><td>' . esc_html( (string) $row->availability_state ) . '</td><td>' . esc_html( (string) $row->agreement_state ) . '</td>';
-            echo '<td>' . esc_html( (string) $row->state ) . ( $row->review_reason_code ? '<br><small>' . esc_html( (string) $row->review_reason_code ) . '</small>' : '' ) . '</td><td>';
-            if ( $row->state === 'pending_review' ) {
-                echo '<form method="post">'; wp_nonce_field( 'dzn_platform_review_teacher_onboarding' );
-                echo '<input type="hidden" name="dzn_action" value="review_teacher_onboarding"><input type="hidden" name="teacher_id" value="' . esc_attr( (string) $row->teacher_id ) . '">';
-                echo '<select name="decision" aria-label="Decision"><option value="approve">Approve and activate</option><option value="return">Return for changes</option><option value="reject">Reject (resubmittable)</option></select> ';
-                echo '<input type="text" maxlength="191" name="reason_code" placeholder="Reason required for return/reject"> ';
-                submit_button( 'Save review', 'secondary', 'submit', false ); echo '</form>';
-            } else echo '&mdash;';
+            echo '<td>' . esc_html( (string) $row->state ) . ( $row->review_reason_code ? '<br><small>' . esc_html( (string) $row->review_reason_code ) . '</small>' : '' ) . '</td><td>' . esc_html((string)$row->readiness_state) . '</td>';
             echo '</td></tr>';
         }
         echo '</tbody></table>';

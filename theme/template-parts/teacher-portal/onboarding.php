@@ -1,16 +1,18 @@
 <?php
 $model = $args['model'] ?? array(); $onboarding = $model['onboarding'] ?? array(); $profile = $onboarding['profile'] ?? array(); $rules = $onboarding['availability_rules'] ?? array();
 $current = max( 1, min( 4, (int) ( $model['current_step'] ?? 1 ) ) );
-$steps = array( 'اطلاعات مدرس', 'منطقهٔ زمانی و دسترسی', 'بررسی مدیر', 'فعال‌سازی' );
-$states = array( 'linked_pending' => 'حساب متصل؛ تکمیل اطلاعات لازم است', 'in_progress' => 'در حال تکمیل', 'pending_review' => 'در انتظار بررسی مدیر', 'returned' => 'برای اصلاح بازگردانده شده', 'rejected' => 'رد شده؛ امکان اصلاح و ارسال دوباره وجود دارد', 'active' => 'فعال و آماده', 'offboarded' => 'غیرفعال شده' );
+$steps = array( 'حساب و پروفایل', 'منطقهٔ زمانی', 'دسترسی هفتگی', 'بازبینی و تکمیل' );
+$states = array( 'linked_pending' => 'حساب متصل؛ تکمیل اطلاعات لازم است', 'in_progress' => 'در حال تکمیل', 'pending_review' => 'اطلاعات ثبت شده', 'returned' => 'اطلاعات نیازمند اصلاح', 'rejected' => 'اطلاعات نیازمند اصلاح', 'active' => 'فعال و آماده', 'offboarded' => 'غیرفعال شده' );
 $editable = ! empty( $onboarding['can_edit'] ); $timezone = (string) ( $profile['timezone'] ?? 'Asia/Tehran' );
 $profile_complete = 'complete' === ( $onboarding['profile_state'] ?? '' ); $availability_complete = 'complete' === ( $onboarding['availability_state'] ?? '' );
 $country_options = array( 'IR' => 'ایران', 'AU' => 'استرالیا', 'CA' => 'کانادا', 'US' => 'آمریکا', 'GB' => 'بریتانیا', 'DE' => 'آلمان', 'FR' => 'فرانسه', 'NL' => 'هلند', 'SE' => 'سوئد', 'NZ' => 'نیوزیلند' );
-$golden = array(
-	array( 'region' => 'استرالیا و نیوزیلند', 'student' => '۱۶:۰۰ تا ۲۱:۰۰ به وقت منطقهٔ دانشجو' ),
-	array( 'region' => 'اروپا و بریتانیا', 'student' => '۱۶:۰۰ تا ۲۱:۰۰ به وقت منطقهٔ دانشجو' ),
-	array( 'region' => 'کانادا و آمریکا', 'student' => '۱۶:۰۰ تا ۲۱:۰۰ به وقت منطقهٔ دانشجو' ),
-);
+$golden = array();
+$nextMonday = new DateTimeImmutable('next monday 00:00:00', new DateTimeZone('UTC'));
+foreach ( array( 'استرالیا و نیوزیلند'=>'Australia/Brisbane', 'اروپا'=>'Europe/Berlin', 'بریتانیا'=>'Europe/London', 'شرق آمریکای شمالی'=>'America/Toronto', 'غرب آمریکای شمالی'=>'America/Vancouver' ) as $region => $studentZone ) {
+	$start = new DateTimeImmutable($nextMonday->format('Y-m-d').' 16:00:00',new DateTimeZone($studentZone));
+	$end = new DateTimeImmutable($nextMonday->format('Y-m-d').' 21:00:00',new DateTimeZone($studentZone));
+	$golden[] = array('region'=>$region,'teacher'=>$start->setTimezone(new DateTimeZone($timezone))->format('D H:i').'–'.$end->setTimezone(new DateTimeZone($timezone))->format('H:i'));
+}
 ?>
 <section class="dzn-tp-section" aria-labelledby="tp-onboarding">
 	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">شروع همکاری · مرحله به مرحله</p><h2 id="tp-onboarding">راه‌اندازی حساب مدرس</h2></div><span><?php echo esc_html( $states[ $onboarding['state'] ?? '' ] ?? 'وضعیت نامشخص' ); ?></span></div>
@@ -19,11 +21,11 @@ $golden = array(
 	<?php if ( isset( $_GET['dzn_notice'] ) ) : ?><p class="dzn-tp-notice <?php echo ( $_GET['dzn_error'] ?? '' ) === '1' ? 'is-error' : 'is-success'; ?>" role="status"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ); ?></p><?php endif; ?>
 	<ol class="dzn-tp-onboarding"><?php foreach ( $steps as $index => $step ) : ?><li class="<?php echo esc_attr( $index + 1 < $current ? 'is-complete' : ( $index + 1 === $current ? 'is-current' : 'is-future' ) ); ?>"><?php echo esc_html( $step ); ?></li><?php endforeach; ?></ol>
 	<?php if ( in_array( $onboarding['state'] ?? '', array( 'returned', 'rejected' ), true ) && ! empty( $onboarding['review_reason_code'] ) ) : ?><div class="dzn-tp-review-note"><strong>یادداشت مدیر:</strong> <?php echo esc_html( $onboarding['review_reason_code'] ); ?></div><?php endif; ?>
-	<?php if ( 'pending_review' === ( $onboarding['state'] ?? '' ) ) : ?><p class="dzn-tp-help">اطلاعات شما ثبت شده و در انتظار بررسی مدیر است. پس از بازگرداندن یا رد شدن می‌توانید اصلاح و دوباره ارسال کنید.</p><?php endif; ?>
+	<?php if ( 'pending_review' === ( $onboarding['state'] ?? '' ) ) : ?><p class="dzn-tp-help">دعوت شما تأیید همکاری است؛ پس از تکمیل اطلاعات و دسترسی، حساب خودکار فعال می‌شود.</p><?php endif; ?>
 	<?php if ( 'active' === ( $onboarding['state'] ?? '' ) && 'ready' === ( $onboarding['readiness_state'] ?? '' ) ) : ?><p class="dzn-tp-notice is-success">حساب شما فعال است و پرتال مدرس آمادهٔ استفاده است.</p><?php endif; ?>
 </section>
 
-<section class="dzn-tp-section" aria-labelledby="tp-profile">
+<?php if ( $current === 1 ) : ?><section class="dzn-tp-section" aria-labelledby="tp-profile">
 	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">گام ۱</p><h2 id="tp-profile">اطلاعات مدرس</h2></div><span><?php echo esc_html( 'complete' === ( $onboarding['profile_state'] ?? '' ) ? 'کامل' : 'ناقص' ); ?></span></div>
 	<form class="dzn-tp-form" method="post" action="<?php echo esc_url( $model['actions']['profile'] ?? '' ); ?>">
 		<?php wp_nonce_field( 'dzn_teacher_onboarding_profile' ); ?>
@@ -41,31 +43,33 @@ $golden = array(
 		</div>
 		<?php if ( $editable ) : ?><button class="dzn-button" type="submit">ذخیرهٔ اطلاعات</button><?php endif; ?>
 	</form>
-</section>
+</section><p><a class="dzn-button" href="<?php echo esc_url( add_query_arg( array('teacher-view'=>'onboarding','onboarding-step'=>2), home_url('/teacher-portal/') ) ); ?>">بعدی: منطقهٔ زمانی</a></p><?php endif; ?>
 
-<section class="dzn-tp-section" aria-labelledby="tp-availability">
-	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">گام ۲</p><h2 id="tp-availability">منطقهٔ زمانی و دسترسی هفتگی</h2></div><span><?php echo esc_html( 'complete' === ( $onboarding['availability_state'] ?? '' ) ? 'کامل' : 'حداقل یک بازه لازم است' ); ?></span></div>
+<?php if ( $current === 2 ) : ?><section class="dzn-tp-section" aria-labelledby="tp-timezone"><h2 id="tp-timezone">منطقهٔ زمانی مدرس</h2><p>همهٔ زمان‌های طلایی و بازه‌های هفتگی بر پایهٔ منطقهٔ زمانی IANA انتخابی شما محاسبه می‌شوند؛ تبدیل‌ها با تغییر ساعت تابستانی هماهنگ می‌شوند.</p><form method="post" action="<?php echo esc_url($model['actions']['availability_profile']??''); ?>"><?php wp_nonce_field('dzn_teacher_onboarding_availability_profile'); ?><label>منطقهٔ زمانی<select required name="timezone"><?php echo wp_timezone_choice($timezone,get_user_locale()); ?></select></label><button class="dzn-button" type="submit">ذخیره و ادامه</button></form><p><a href="<?php echo esc_url(add_query_arg(array('teacher-view'=>'onboarding','onboarding-step'=>1),home_url('/teacher-portal/'))); ?>">بازگشت به پروفایل</a></p></section><?php endif; ?>
+<?php if ( $current === 3 ) : ?><section class="dzn-tp-section" aria-labelledby="tp-availability">
+	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">گام ۳</p><h2 id="tp-availability">دسترسی هفتگی</h2></div><span><?php echo esc_html( 'complete' === ( $onboarding['availability_state'] ?? '' ) ? 'کامل' : 'حداقل یک بازه لازم است' ); ?></span></div>
 	<p class="dzn-tp-help">فقط زمان‌هایی را وارد کنید که واقعاً می‌توانید تدریس کنید. «ترجیحی» یعنی دوست دارید در آن ساعت کلاس بگیرید؛ «قابل درخواست» یعنی در صورت نیاز می‌توانیم آن ساعت را پیشنهاد کنیم.</p>
-	<div class="dzn-tp-review-note"><strong>ساعت‌های طلایی دلنوازان</strong><p>این‌ها راهنما هستند، نه الزام. ساعت دقیق با توجه به منطقهٔ زمانی و تغییرات ساعت تابستانی محاسبه می‌شود؛ بنابراین از تبدیل ثابت به وقت ایران استفاده نمی‌کنیم.</p><ul><?php foreach ( $golden as $window ) : ?><li><strong><?php echo esc_html( $window['region'] ); ?>:</strong> <?php echo esc_html( $window['student'] ); ?></li><?php endforeach; ?></ul><p>اگر بخشی از دسترسی واقعی شما با این بازه‌ها هم‌پوشانی دارد، ثبت آن به ما کمک می‌کند دانشجوی مناسب‌تری به شما پیشنهاد کنیم.</p></div>
+	<div class="dzn-tp-review-note"><strong>ساعت‌های طلایی به وقت شما (<?php echo esc_html($timezone); ?>)</strong><p>این راهنما از منطقهٔ زمانی هر منطقه به منطقهٔ زمانی انتخابی شما تبدیل شده و با تغییر ساعت تابستانی به‌روز می‌شود. زمان‌های زیر برای دوشنبهٔ آینده‌اند و ممکن است در هفته‌های دیگر یک ساعت جابه‌جا شوند.</p><ul><?php foreach ( $golden as $window ) : ?><li><strong><?php echo esc_html( $window['region'] ); ?>:</strong> <?php echo esc_html( $window['teacher'] ); ?></li><?php endforeach; ?></ul></div>
 	<?php if ( $editable ) : ?>
 	<form class="dzn-tp-inline-form" method="post" action="<?php echo esc_url( $model['actions']['availability_profile'] ?? '' ); ?>"><?php wp_nonce_field( 'dzn_teacher_onboarding_availability_profile' ); ?><input type="hidden" name="timezone" value="<?php echo esc_attr( $timezone ); ?>"><button class="dzn-button dzn-button--secondary" type="submit">هماهنگ‌سازی منطقهٔ زمانی با پروفایل</button></form>
 	<form class="dzn-tp-form" method="post" action="<?php echo esc_url( $model['actions']['availability_rule'] ?? '' ); ?>">
 		<?php wp_nonce_field( 'dzn_teacher_onboarding_availability_rule' ); ?><input type="hidden" name="timezone" value="<?php echo esc_attr( $timezone ); ?>">
 		<div class="dzn-tp-form-grid">
 			<label>روز هفته<select name="weekday"><?php foreach ( array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' ) as $value => $label ) : ?><option value="<?php echo esc_attr( (string) $value ); ?>"><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
-			<label>از<input required type="time" name="local_start_time"></label><label>تا<input required type="time" name="local_end_time"></label>
+			<label>از (۲۴ ساعته، مانند 0600)<input required inputmode="numeric" pattern="(?:[01][0-9]|2[0-3])[0-5][0-9]" maxlength="4" placeholder="0600" name="local_start_time"></label><label>تا (۲۴ ساعته؛ 2400 یعنی پایان روز)<input required inputmode="numeric" pattern="(?:[01][0-9]|2[0-3])[0-5][0-9]|2400" maxlength="4" placeholder="1200 یا 2400" name="local_end_time"></label>
 			<label>نوع بازه<select name="state"><option value="requestable">قابل درخواست</option><option value="preferred">ترجیحی</option></select></label>
 		</div><button class="dzn-button" type="submit">افزودن بازه</button>
 	</form>
+	<form class="dzn-tp-form" method="post" action="<?php echo esc_url($model['actions']['copy_day']??''); ?>"><?php wp_nonce_field('dzn_teacher_onboarding_copy_day'); ?><p><strong>کپی یک روز به روزهای دیگر</strong> — روز مبدأ و مقصدها را انتخاب کنید. با فشردن دکمه، همین بازه‌ها فقط به مقصدهای انتخاب‌شده افزوده می‌شوند؛ اگر مقصدی تداخل داشته باشد، هیچ تغییری انجام نمی‌شود.</p><label>روز مبدأ<select name="source_weekday"><?php foreach(array(1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه') as $day=>$label): ?><option value="<?php echo esc_attr((string)$day); ?>"><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label><fieldset><legend>روزهای مقصد</legend><?php foreach(array(1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه') as $day=>$label): ?><label><input type="checkbox" name="target_weekdays[]" value="<?php echo esc_attr((string)$day); ?>"> <?php echo esc_html($label); ?></label> <?php endforeach; ?></fieldset><button class="dzn-button dzn-button--secondary" type="submit">پیش‌نمایش مقصدهای انتخاب‌شده و اعمال کپی</button></form>
 	<?php endif; ?>
 	<?php $weekday_labels = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' ); ?>
-	<?php if ( $rules ) : ?><ul class="dzn-tp-rule-list"><?php foreach ( $rules as $rule ) : ?><li><strong><?php echo esc_html( $weekday_labels[ (int) $rule['weekday'] ] ?? (string) $rule['weekday'] ); ?></strong> — <?php echo esc_html( substr( $rule['local_start_time'], 0, 5 ) . ' تا ' . substr( $rule['local_end_time'], 0, 5 ) ); ?> · <?php echo esc_html( $rule['state'] === 'preferred' ? 'ترجیحی' : ( $rule['state'] === 'requestable' ? 'قابل درخواست' : 'مسدود' ) ); ?></li><?php endforeach; ?></ul><?php else : ?><p>هنوز بازه‌ای ثبت نشده است.</p><?php endif; ?>
-</section>
+	<?php if ( $rules ) : ?><ul class="dzn-tp-rule-list"><?php foreach ( $rules as $rule ) : ?><li><strong><?php echo esc_html( $weekday_labels[ (int) $rule['weekday'] ] ?? (string) $rule['weekday'] ); ?></strong> — <?php echo esc_html( str_replace(':','',substr($rule['local_start_time'],0,5)) . ' تا ' . (substr($rule['local_end_time'],0,5)==='24:00'?'2400':str_replace(':','',substr($rule['local_end_time'],0,5))) ); ?> · <?php echo esc_html( $rule['state'] === 'preferred' ? 'ترجیحی' : ( $rule['state'] === 'requestable' ? 'قابل درخواست' : 'مسدود' ) ); ?></li><?php endforeach; ?></ul><?php else : ?><p>هنوز بازه‌ای ثبت نشده است.</p><?php endif; ?>
+</section><p><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url(add_query_arg(array('teacher-view'=>'onboarding','onboarding-step'=>2),home_url('/teacher-portal/'))); ?>">بازگشت</a> <a class="dzn-button" href="<?php echo esc_url(add_query_arg(array('teacher-view'=>'onboarding','onboarding-step'=>4),home_url('/teacher-portal/'))); ?>">بعدی: بازبینی</a></p><?php endif; ?>
 
-<section class="dzn-tp-section" aria-labelledby="tp-review">
-	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">گام ۳</p><h2 id="tp-review">توافق‌ها و ارسال برای بررسی</h2></div><span>بررسی مدیر الزامی است</span></div>
-	<p class="dzn-tp-help">قبل از ارسال، این دو مورد باید سبز باشند. مدیر فقط اطلاعات و آمادگی تدریس را بررسی می‌کند؛ اگر چیزی نیاز به اصلاح داشته باشد، همین صفحه دلیل را به شما نشان می‌دهد.</p>
+<?php if ( $current === 4 ) : ?><section class="dzn-tp-section" aria-labelledby="tp-review">
+	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">گام ۴</p><h2 id="tp-review">بازبینی و تکمیل</h2></div><span>فعال‌سازی خودکار</span></div>
+	<p class="dzn-tp-help">دعوت مدیر تصمیم همکاری را ثبت کرده است. با تکمیل پروفایل و دست‌کم یک بازهٔ قابل درخواست یا ترجیحی، حساب شما خودکار فعال می‌شود و می‌توانید وارد پرتال شوید.</p>
 	<ul class="dzn-tp-rule-list"><li><?php echo $profile_complete ? '✓' : '○'; ?> اطلاعات شخصی و منطقهٔ زمانی</li><li><?php echo $availability_complete ? '✓' : '○'; ?> حداقل یک بازهٔ واقعی تدریس</li></ul>
-	<div class="dzn-tp-review-note"><strong>بعد از تأیید چه می‌شود؟</strong><p>در پرتال مدرس، کلاس‌های آینده، شروع کلاس، دسترسی‌ها و وضعیت مالی را می‌بینید. اتصال Google برای قرار دادن خودکار کلاس‌ها در Google Calendar و ساخت پیوند Google Meet استفاده می‌شود. بخش مالی نیز صورت‌حساب و وضعیت بررسی/تأیید/پرداخت را از سوابق معتبر کلاس نشان می‌دهد؛ خود پرتال مبلغ را حدس نمی‌زند.</p></div>
-	<?php if ( $editable ) : ?><form method="post" action="<?php echo esc_url( $model['actions']['submit'] ?? '' ); ?>"><?php wp_nonce_field( 'dzn_teacher_onboarding_submit' ); ?><button class="dzn-button" type="submit" <?php disabled( empty( $onboarding['can_submit'] ) ); ?>>ارسال برای بررسی مدیر</button><?php if ( empty( $onboarding['can_submit'] ) ) : ?><p class="dzn-tp-help">ابتدا اطلاعات و دسترسی هفتگی را کامل کنید.</p><?php endif; ?></form><?php endif; ?>
-</section>
+	<div class="dzn-tp-review-note"><strong>پس از فعال‌شدن</strong><p>خانهٔ مدرس و حساب کاربری در دسترس می‌شوند. اگر هنوز موردی ناقص است، به همان مرحله برگردید و تکمیلش کنید.</p></div>
+	<?php if ( $editable && ( $profile_complete && $availability_complete ) ) : ?><p class="dzn-tp-notice is-success">حساب شما فعال است؛ <a href="<?php echo esc_url(home_url('/teacher-portal/')); ?>">رفتن به پرتال مدرس</a></p><?php elseif($editable): ?><p><a class="dzn-button" href="<?php echo esc_url(add_query_arg(array('teacher-view'=>'onboarding','onboarding-step'=>1),home_url('/teacher-portal/'))); ?>">بازگشت به تکمیل اطلاعات</a></p><?php endif; ?>
+</section><?php endif; ?>

@@ -33,7 +33,7 @@ final class AvailabilityLocalTime {
     /** @return array{starts_at_utc:string,ends_at_utc:string} */
     public static function interval(string $date, string $start, string $end, string $timezone): array {
         $starts = self::wall( $date, $start, $timezone );
-        $ends = self::wall( $date, $end, $timezone );
+        $ends = $end === '24:00:00' ? self::wall( ( new \DateTimeImmutable( $date, new \DateTimeZone( 'UTC' ) ) )->modify( '+1 day' )->format( 'Y-m-d' ), '00:00:00', $timezone ) : self::wall( $date, $end, $timezone );
         if ( $ends <= $starts ) throw new \InvalidArgumentException( 'Availability end must follow start' );
         $utc = new \DateTimeZone( 'UTC' );
         return array( 'starts_at_utc' => $starts->setTimezone( $utc )->format( 'Y-m-d H:i:s' ), 'ends_at_utc' => $ends->setTimezone( $utc )->format( 'Y-m-d H:i:s' ) );

@@ -16,7 +16,7 @@ $files = array(
 $contracts = array(
     'native password setup notification after claim' => str_contains($files['claim'], 'wp_new_user_notification') && str_contains($files['claim'], 'wp_generate_password') && !str_contains($files['claim'], "\$_POST['password']"),
     'existing claim preserves authenticated account password' => str_contains($files['claim'], 'beginExistingClaim') && !str_contains($files['claim'], 'wp_set_password'),
-    'automatic activation from complete readiness' => str_contains($files['onboarding'], "'state' => $to, 'readiness_state' => $progress['ready_for_review'] ? 'ready' : 'not_ready'") && str_contains($files['onboarding'], "? 'active'"),
+    'automatic activation from complete readiness' => str_contains($files['onboarding'], "'state' => \$to, 'readiness_state' => \$progress['ready_for_review'] ? 'ready' : 'not_ready'") && str_contains($files['onboarding'], "? 'active'"),
     '2400 next-day exclusive boundary' => str_contains($files['availability'], "=== '2400' ? '24:00:00'") && str_contains($files['time'], "'24:00:00' ? self::wall"),
     'recurring overlap rejected in canonical service' => str_contains($files['availability'], 'rejectOverlap') && str_contains($files['availability'], 'Recurring availability overlaps'),
     'apply-day is an atomic canonical write with explicit target days' => str_contains($files['availability'], 'copyOwnRecurringDay') && str_contains($files['availability'], '$this->repo->commit()') && str_contains($files['wizard'], 'روزهای مقصد'),

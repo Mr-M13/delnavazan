@@ -16,6 +16,9 @@ if ( strpos( $service, "\$outboxTable=\$wpdb->prefix.'dzn_platform_outbox';" ) =
     || strpos( $service, "\$outboxTable=\$wpdb->prefix.'platform_outbox';" ) !== false ) {
     throw new RuntimeException( 'Invitation diagnostics must query the namespaced platform outbox table.' );
 }
+foreach(array('dzn_notifications','dzn_notification_deliveries','countStates','delivery_states') as $needle)if(strpos($service,$needle)===false)throw new RuntimeException('Safe notification diagnostics contract missing '.$needle);
+foreach(array('Notification state:','Notification delivery evidence:') as $needle)if(strpos($controller,$needle)===false)throw new RuntimeException('Notification diagnostics presentation missing '.$needle);
+if(strpos($service,'recipient_contact_envelope')!==false||strpos($service,'provider_event_reference_digest')!==false)throw new RuntimeException('Integration diagnostics must not expose sensitive notification fields');
 foreach(array('current_user_can','IntegrationControlPlaneReadService::READ_CAPABILITY','Send explicit test','dzn_integration_settings_save','dzn_integration_settings_test','check_admin_referer','manage_options','run_test','dzn_integration_test_') as $needle){
     if(strpos($controller,$needle)===false)throw new RuntimeException('Control plane screen contract missing '.$needle);
 }

@@ -160,6 +160,16 @@ if ! mv "$theme" "$theme_previous" || ! mv "$staged_theme" "$theme"; then
 fi
 rm -f "$upload"
 
+# Public WordPress application paths must remain traversable by the web server.
+# The deployment staging area is intentionally private (0700), so normalise
+# public directory modes after the atomic moves and before runtime verification.
+chmod 755 "$root/wp-content" "$root/wp-content/plugins" "$root/wp-content/themes" "$plugin" "$theme"
+find "$plugin" "$theme" -type d -exec chmod 755 {} +
+find "$plugin" "$theme" -type f -exec chmod 644 {} +
+for public_dir in "$root/wp-content" "$root/wp-content/plugins" "$root/wp-content/themes" "$plugin" "$theme"; do
+  [[ "$(stat -c '%a' "$public_dir")" == 755 ]] || { echo "FAIL public application directory is not web-traversable: $public_dir" >&2; exit 1; }
+done
+
 # Force WordPress through the Platform's canonical Migrator. This call is
 # idempotent and fails the deployment if migration or its verifier throws.
 if ! wp --path="$root" eval '\Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();'; then

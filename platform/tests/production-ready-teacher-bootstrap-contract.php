@@ -1,0 +1,9 @@
+<?php
+$root = dirname(__DIR__, 2);
+$script = file_get_contents(__DIR__ . '/production-ready-teacher-bootstrap.php');
+$fixture = file_get_contents(__DIR__ . '/synthetic-dataset.php');
+foreach ( array("defined( 'WP_CLI' ) || ! WP_CLI", "wp_get_environment_type() !== 'production'", 'I_UNDERSTAND_CREATE_SYNTHETIC_READY_TEACHER', 'delnavazan.com', 'www.delnavazan.com', 'manage_options', 'dzn_manage_teachers', 'dzn_manage_onboarding', 'dzn_manage_teacher_availability', 'dzn_manage_teaching_eligibility', 'teacher.ready.piano@synthetic.example.invalid', 'DZN TEST Ready Piano Teacher', "'seed' =>", "'verify' =>", 'TeacherService', 'PrincipalInvitationService', 'TeacherOnboardingService', 'TeachingEligibilityService', 'TeacherAvailabilityService', 'TeacherAcceptingStateService', 'Australia/Brisbane', "'state' => 'accepting'") as $needle ) if ( strpos( $script, $needle ) === false ) throw new RuntimeException( 'Production ready teacher bootstrap contract missing: ' . $needle );
+foreach ( array( 'wp_mail(', 'wp_remote_', 'Stripe', 'Google', 'NotificationService', 'PaymentService' ) as $forbidden ) if ( strpos( $script, $forbidden ) !== false ) throw new RuntimeException( 'Bootstrap must not call external/provider services: ' . $forbidden );
+if ( strpos( $script, 'getenv( \'DZN_PRODUCTION_READY_TEACHER_BOOTSTRAP\' ) !== \'I_UNDERSTAND_CREATE_SYNTHETIC_READY_TEACHER\'' ) === false ) throw new RuntimeException( 'Exact production opt-in literal is required.' );
+if ( strpos( $fixture, "in_array( wp_get_environment_type(), array( 'local', 'development' ), true )" ) === false || strpos( $fixture, "getenv( 'DZN_SYNTHETIC_DATASET' ) !== '1'" ) === false ) throw new RuntimeException( 'General synthetic fixture production lock changed.' );
+echo "production-ready-teacher-bootstrap-contract: ok\n";

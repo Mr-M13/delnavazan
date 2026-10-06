@@ -73,6 +73,7 @@ jobs:
             platform/tests/phase-2a2f-contract.php
             platform/tests/phase-2a2q-contract.php
             platform/tests/phase-2a2n-contract.php
+            platform/tests/production-ready-teacher-bootstrap-contract.php
           )
           for contract in "${contracts[@]}"; do
             php "$contract"

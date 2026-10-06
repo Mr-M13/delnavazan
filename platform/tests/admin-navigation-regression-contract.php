@@ -289,9 +289,11 @@ foreach ( array( 'dzn-booking-requests', 'dzn-booking-request-coordination' ) as
     }
 }
 foreach ( array(
-    "['Google Console', 'dzn-google-console', 'dzn_view_diagnostics']",
-    "['WhatsApp', 'dzn-whatsapp-settings', 'dzn_view_diagnostics']",
-    "['SMS', 'dzn-sms-settings', 'dzn_view_diagnostics']",
+    "['Integrations overview', 'dzn-integrations', 'dzn_view_diagnostics']",
+    "['Email', 'dzn-integration-email', 'dzn_manage_provider_integrations']",
+    "['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_manage_provider_integrations']",
+    "['SMS fallback', 'dzn-integration-sms', 'dzn_manage_provider_integrations']",
+    "['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_manage_provider_integrations']",
     "['Stripe', 'dzn-stripe-settings', 'dzn_view_payment_execution_authority']",
 ) as $integration_route ) {
     if ( 1 !== substr_count( $navigation, $integration_route ) ) throw new RuntimeException( 'Integration route must have one canonical Settings parent and its own capability: ' . $integration_route );

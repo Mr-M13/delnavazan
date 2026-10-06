@@ -74,7 +74,8 @@ final class Menu {
             ['Integrations', 'dzn-settings-integrations'],
             ['Diagnostics', 'dzn-settings-diagnostics'],
         ] as [$label, $slug]) {
-            add_submenu_page('dzn-settings-menu', $label, $label, 'read', $slug, [AdminNavigationController::class, 'screen']);
+            $callback=$slug==='dzn-settings-integrations'?[IntegrationControlPlaneController::class,'screen']:[AdminNavigationController::class,'screen'];
+            add_submenu_page('dzn-settings-menu', $label, $label, 'read', $slug, $callback);
         }
     }
 }

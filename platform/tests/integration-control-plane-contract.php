@@ -14,7 +14,7 @@ if ( strpos( $service, "\$outboxTable=\$wpdb->prefix.'dzn_platform_outbox';" ) =
     || strpos( $service, "\$outboxTable=\$wpdb->prefix.'platform_outbox';" ) !== false ) {
     throw new RuntimeException( 'Invitation diagnostics must query the namespaced platform outbox table.' );
 }
-foreach(array('current_user_can','IntegrationControlPlaneReadService::READ_CAPABILITY','Run safe readiness check','No API request or WhatsApp message is sent','No API request or SMS is sent','No Google API request is sent','dzn_integration_settings_save','dzn_integration_settings_test','check_admin_referer','manage_options') as $needle){
+foreach(array('current_user_can','dzn_view_diagnostics','Run safe readiness check','No API request or WhatsApp message is sent','No API request or SMS is sent','No Google API request is sent','dzn_integration_settings_save','dzn_integration_settings_test','check_admin_referer','manage_options') as $needle){
     if(strpos($controller,$needle)===false)throw new RuntimeException('Control plane screen contract missing '.$needle);
 }
 foreach(array('openssl_encrypt','aes-256-gcm','wp_salt','Meta WhatsApp Cloud API','no-reply@delnavazan.com') as $needle)if(strpos($settings.$controller.$mail,$needle)===false)throw new RuntimeException('Integration secret/provider contract missing '.$needle);

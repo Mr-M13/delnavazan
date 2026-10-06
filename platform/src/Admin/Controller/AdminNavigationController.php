@@ -18,7 +18,7 @@ final class AdminNavigationController {
         ],
         'dzn-settings-diagnostics' => [
             ['Exceptions', 'dzn-exception', 'dzn_manage_exceptions'],
-            ['System health', 'dzn-system-health', 'dzn_view_diagnostics'],
+            ['System health', 'dzn-system-health', 'dzn_access_system_health'],
         ],
     ];
 

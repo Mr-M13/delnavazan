@@ -305,7 +305,7 @@ if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'")
     || str_contains( $menu, "['dzn-platform', 'Booking requests'")
     || str_contains( $menu, "['dzn-platform', 'Request coordination'")
     || ! str_contains( $navigation, "['Exceptions', 'dzn-exception', 'dzn_manage_exceptions']")
-    || ! str_contains( $navigation, "['System health', 'dzn-system-health', 'dzn_view_diagnostics']")
+    || ! str_contains( $navigation, "['System health', 'dzn-system-health', 'dzn_access_system_health']")
     || ! str_contains( $menu, "['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception'") ) {
     throw new RuntimeException( 'Academy must contain only its Dashboard, and operational exceptions must remain discoverable under Diagnostics with their authority cap.' );
 }

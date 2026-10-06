@@ -8,6 +8,7 @@ use Delnavazan\Platform\Core\Application\NotificationRule;
 final class Menu {
     private const INTEGRATIONS_OVERVIEW_CAP='dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP='dzn_access_provider_integration_settings';
+    private const SYSTEM_HEALTH_CAP='dzn_access_system_health';
 
     public static function register(): void {
         add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4);
@@ -18,6 +19,7 @@ final class Menu {
     public static function mapMetaCap(array $caps,string $cap,int $userId,array $args):array {
         if($cap===self::INTEGRATIONS_OVERVIEW_CAP)return self::mappedIntegrationCaps($userId,'dzn_view_diagnostics');
         if($cap===self::INTEGRATION_SETTINGS_CAP)return self::mappedIntegrationCaps($userId,'dzn_manage_provider_integrations');
+        if($cap===self::SYSTEM_HEALTH_CAP)return self::mappedIntegrationCaps($userId,'dzn_view_diagnostics');
         return $caps;
     }
 
@@ -72,7 +74,7 @@ final class Menu {
             ['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
             ['dzn-notifications-menu', 'Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['dzn-notifications-menu', 'Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
-            ['dzn-settings-menu', 'System health', 'dzn_view_diagnostics', 'dzn-system-health', [ScreenController::class, 'status'], null],
+            ['dzn-settings-menu', 'System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [ScreenController::class, 'status'], null],
             ['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],
         ];
 

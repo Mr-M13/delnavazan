@@ -8,7 +8,16 @@ use Delnavazan\Platform\Integrations\IntegrationTestRunner;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
 final class IntegrationControlPlaneController {
-    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));}
+    public static function register():void{
+        add_filter('user_has_cap',array(__CLASS__,'siteAdminIntegrationCapability'),10,4);
+        add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));
+        add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));
+    }
+    /** Site administrators always inherit integration-management authority; delegated staff still need the explicit grant. */
+    public static function siteAdminIntegrationCapability(array $allcaps,array $caps,array $args,\WP_User $user):array{
+        if(!empty($allcaps['manage_options']))$allcaps['dzn_manage_provider_integrations']=true;
+        return $allcaps;
+    }
     public static function save():void{self::handle('save');}
     public static function test():void{self::handle('test');}
     private static function handle(string $operation):void{

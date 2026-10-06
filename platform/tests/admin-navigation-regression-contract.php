@@ -11,6 +11,7 @@ $dataset = file_get_contents( $controllers . '/CoreDatasetReadinessController.ph
 $identity = file_get_contents( $controllers . '/StudentIdentityAuthorityController.php' );
 $payment = file_get_contents( $controllers . '/PaymentExecutionController.php' );
 $integrations = file_get_contents( $controllers . '/IntegrationControlPlaneController.php' );
+if ( ! str_contains( $integrations, "add_filter('user_has_cap'" ) || ! str_contains( $integrations, "!empty($allcaps['manage_options'])" ) || ! str_contains( $integrations, "$allcaps['dzn_manage_provider_integrations']=true" ) ) throw new RuntimeException( 'Site administrators must inherit integration-management authority before WordPress menu capability checks' );
 $coverage = file_get_contents( $controllers . '/AcademyCoverageController.php' );
 $catalogue = file_get_contents( $controllers . '/CommercialCatalogueController.php' );
 $screen = file_get_contents( $controllers . '/ScreenController.php' );

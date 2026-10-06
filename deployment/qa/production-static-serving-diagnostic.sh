@@ -11,7 +11,7 @@ fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 : "${PRODUCTION_SSH_USER:?Set the protected production SSH user}"
 [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'SSH username contains unsupported characters'
 
-ssh -T "${PRODUCTION_SSH_USER}@${HOST}" bash -s -- "$ROOT_REL" "$theme_rel" <<'REMOTE'
+ssh -T "${PRODUCTION_SSH_USER}@${HOST}" bash -s -- "$ROOT_REL" "$THEME_REL" <<'REMOTE'
 set -Eeuo pipefail
 root_rel="$1"; theme_rel="$2"
 [[ "$root_rel" == domains/delnavazan.com/public_html && "$theme_rel" == wp-content/themes/delnavazan-theme ]] || { echo 'FAIL invalid diagnostic target' >&2; exit 1; }

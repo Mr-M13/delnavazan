@@ -22,3 +22,6 @@ if grep -Eiq '\b(db export|db import|maintenance-mode|DELETE FROM|wp_update|wp_i
   exit 1
 fi
 echo 'PASS production static serving diagnostic contract'
+
+need "$diagnostic" 'bash -s -- "$ROOT_REL" "$THEME_REL"'
+need "$diagnostic" 'for rel in wp-content wp-content/themes "$theme_rel"'

@@ -34,6 +34,12 @@ final class CoreReadService {
         return $rows;
     }
 
+    public function studentAdminRows(string $query, string $status, int $page): array {
+        if (!current_user_can('dzn_manage_students')) throw new \RuntimeException('Unauthorized');
+        if (!in_array($status, array('active', 'inactive', 'archived', 'all'), true)) $status = 'active';
+        return (new StudentRepository())->adminRows($query, $status, $page);
+    }
+
     /** Human-labelled instrument options for Course administration. */
     public function instrumentOptionsForCourse(): array {
         $repository = $this->repository('instrument');

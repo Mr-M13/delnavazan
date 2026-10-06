@@ -16,7 +16,7 @@ This note records the operator-facing path and its authority boundaries. The Aca
 
 The Academy queue searches by booking reference, Student/contact name, contact email, instrument, and course; it returns 25 rows per page and excludes privacy-erased requests. Queue links carry the request, arrangement, Enrolment, assignment, or Term context to the canonical screen. The journey detail lists completed/pending stages, current blocker, and next capability-gated action.
 
-Identity review offers bounded Student search by name, email, or reference. Final acceptance carries the already resolved Student and offers only current principal choices for adult capacity or current guardian grants for minor capacity. The accepting authority service remains the final validator.
+Identity review offers bounded Student search by name, email, or reference. Final acceptance carries the already resolved Student and offers searchable current principal choices for adult capacity or current guardian grants for minor capacity. The accepting authority service remains the final validator.
 
 Core readiness retains its action-specific capability and nonce checks. Contextual links prefill stable record references. Replacement teacher search is bounded to 20 course-eligible, active, ready, accepting teachers and shows current assignment count. No admin screen writes Teacher Assignment rows directly.
 

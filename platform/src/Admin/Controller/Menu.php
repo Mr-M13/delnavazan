@@ -26,7 +26,9 @@ final class Menu {
     private static function mappedIntegrationCaps(int $userId,string $delegatedCap):array {
         $user=get_userdata($userId);
         if(!$user)return ['do_not_allow'];
-        return $user->has_cap('manage_options')||$user->has_cap($delegatedCap)?['exist']:['do_not_allow'];
+        if($user->has_cap('manage_options'))return ['manage_options'];
+        if($user->has_cap($delegatedCap))return [$delegatedCap];
+        return ['do_not_allow'];
     }
 
     public static function menu(): void {

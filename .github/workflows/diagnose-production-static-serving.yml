@@ -77,7 +77,7 @@ jobs:
           set -Eeuo pipefail
           [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
           [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
-          deployment/qa/production-static-serving-diagnostic.sh "$COMMIT_SHA" | tee "$RUNNER_TEMP/production-static-serving-diagnostic.txt"
+          bash deployment/qa/production-static-serving-diagnostic.sh "$COMMIT_SHA" | tee "$RUNNER_TEMP/production-static-serving-diagnostic.txt"
 
       - name: Preserve diagnostic evidence
         if: always() && hashFiles('${{ runner.temp }}/production-static-serving-diagnostic.txt') != ''

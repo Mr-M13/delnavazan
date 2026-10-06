@@ -1,0 +1,27 @@
+<?php
+namespace Delnavazan\Platform\Core\Infrastructure\Repository;
+
+use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
+
+/** Persistence boundary for the append-only academy cashbook tables. */
+final class OperationalCashRepository {
+    private string $p;
+    public function __construct(){global $wpdb;$this->p=$wpdb->prefix.'dzn_';}
+    public function begin():void{\Delnavazan\Platform\Core\Application\Finance\FinanceSupport::begin();}
+    public function commit():void{\Delnavazan\Platform\Core\Application\Finance\FinanceSupport::commit();}
+    public function rollback():void{\Delnavazan\Platform\Core\Application\Finance\FinanceSupport::rollback();}
+    private function table(string $name):string{if(!in_array($name,OperationalCashRule::TABLES,true))throw new \InvalidArgumentException('Undeclared academy cashbook table');return $this->p.$name;}
+    public function account(string $key,bool $lock=false):?object{global $wpdb;$table=$this->table('finance_cash_accounts');return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE account_key=%s".($lock?' FOR UPDATE':''),$key));}
+    public function accounts():array{global $wpdb;$table=$this->table('finance_cash_accounts');return (array)$wpdb->get_results("SELECT * FROM {$table} WHERE active=1 ORDER BY id ASC");}
+    public function command(string $digest):?object{global $wpdb;$table=$this->table('finance_cash_commands');return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE command_key_digest=%s",$digest));}
+    public function insert(string $name,array $data):int{global $wpdb;$table=$this->table($name);if(false===$wpdb->insert($table,$data))throw new \RuntimeException('Academy cashbook write failed: '.$wpdb->last_error);return (int)$wpdb->insert_id;}
+    public function byId(int $id):?object{global $wpdb;$table=$this->table('finance_cash_transactions');return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d",$id));}
+    public function transferById(int $id):?object{global $wpdb;$table=$this->table('finance_cash_transfers');return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d",$id));}
+    public function isReversed(int $transactionId):bool{global $wpdb;$table=$this->table('finance_cash_transactions');return (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE reverses_transaction_id=%d",$transactionId))>0;}
+    public function transferReversal(int $transferId):bool{global $wpdb;$table=$this->table('finance_cash_transfers');return (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE reverses_transfer_id=%d",$transferId))>0;}
+    public function balance(int $accountId,?string $throughDate=null):int{global $wpdb;$table=$this->table('finance_cash_transactions');$sql="SELECT COALESCE(SUM(CAST(amount_minor AS SIGNED)*direction),0) FROM {$table} WHERE account_id=%d";if($throughDate!==null)$sql.=' AND transaction_date<=%s';return (int)($throughDate===null?$wpdb->get_var($wpdb->prepare($sql,$accountId)):$wpdb->get_var($wpdb->prepare($sql,$accountId,$throughDate)));}
+    public function recent(int $accountId=0,int $limit=50,int $offset=0,?string $from=null,?string $through=null):array{global $wpdb;$table=$this->table('finance_cash_transactions');$transfer=$this->table('finance_cash_transfers');$sql="SELECT t.*,x.rate_tom_per_aud,x.evidence_reference AS exchange_evidence FROM {$table} t LEFT JOIN {$transfer} x ON x.id=t.transfer_id WHERE 1=1";$args=array();if($accountId>0){$sql.=' AND t.account_id=%d';$args[]=$accountId;}if($from!==null){$sql.=' AND t.transaction_date>=%s';$args[]=$from;}if($through!==null){$sql.=' AND t.transaction_date<=%s';$args[]=$through;}$sql.=' ORDER BY t.transaction_date DESC,t.id DESC LIMIT '.max(1,min(100,$limit)).' OFFSET '.max(0,$offset);return (array)$wpdb->get_results($args?$wpdb->prepare($sql,...$args):$sql);}
+    public function transactionCount(int $accountId,string $from,string $through):int{global $wpdb;$table=$this->table('finance_cash_transactions');return (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE account_id=%d AND transaction_date BETWEEN %s AND %s",$accountId,$from,$through));}
+    public function periodTotals(int $accountId,string $from,string $through):array{global $wpdb;$table=$this->table('finance_cash_transactions');$sql="SELECT effective_kind,effective_category,SUM(CASE WHEN effective_kind='income' THEN CAST(amount_minor AS SIGNED)*direction ELSE 0 END) income_minor,SUM(CASE WHEN effective_kind='expense' THEN CAST(amount_minor AS SIGNED)*(0-direction) ELSE 0 END) expense_minor,COUNT(*) row_count FROM (SELECT cash_tx.*,CASE WHEN cash_tx.transaction_kind='reversal' THEN original.transaction_kind ELSE cash_tx.transaction_kind END effective_kind,CASE WHEN cash_tx.transaction_kind='reversal' THEN original.category ELSE cash_tx.category END effective_category FROM {$table} cash_tx LEFT JOIN {$table} original ON original.id=cash_tx.reverses_transaction_id WHERE cash_tx.account_id=%d AND cash_tx.transaction_date BETWEEN %s AND %s) ledger WHERE effective_kind IN ('income','expense') GROUP BY effective_kind,effective_category ORDER BY effective_kind,effective_category";return (array)$wpdb->get_results($wpdb->prepare($sql,$accountId,$from,$through));}
+    public function reconciliations(int $accountId):array{global $wpdb;$table=$this->table('finance_cash_reconciliations');return (array)$wpdb->get_results($wpdb->prepare("SELECT * FROM {$table} WHERE account_id=%d ORDER BY as_of_date DESC,id DESC LIMIT 12",$accountId));}
+}

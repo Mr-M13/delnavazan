@@ -32,6 +32,13 @@ final class AcademyOperationsController {
         return '<strong>'.esc_html($label).'</strong><br>'.$action;
     }
     private static function next(object $r):string{
+        if($r->match_attention_code==='no_current_coverage'){
+            $links=[];
+            if(current_user_can('dzn_manage_teacher_availability'))$links[]=self::link('dzn-teacher-availability','Review teacher availability');
+            if(current_user_can('dzn_prepare_booking_request_matches'))$links[]=self::link('dzn-booking-requests','Reassess request',['request_id'=>(int)$r->request_id]);
+            if(current_user_can('dzn_manage_booking_request_coordination')&&$r->case_id)$links[]=self::link('dzn-booking-request-coordination','Continue coordination',['case_id'=>(int)$r->case_id]);
+            return $links?implode('<br>',$links):'Await authorised coverage review';
+        }
         if(!$r->case_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Open coordination',['booking_request_id'=>(int)$r->request_id]);
         if($r->case_id&&!$r->student_id&&current_user_can('dzn_resolve_booking_request_student_identity')&&current_user_can('dzn_view_student_acceptance_eligibility'))return self::link('dzn-student-identity-authority','Review student identity',['booking_request_id'=>(int)$r->request_id]);
         if($r->case_id&&!$r->arrangement_id&&current_user_can('dzn_manage_booking_request_coordination'))return self::link('dzn-booking-request-coordination','Continue coordination',['case_id'=>(int)$r->case_id]);

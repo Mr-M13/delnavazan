@@ -412,6 +412,7 @@ final class CoreDatasetReadinessController {
             ) );
         }
         if ( current_user_can( self::ACTIONS['replace_teacher_assignment'] ) ) {
+            self::replacementTeacherSearch();
             self::form( 'replace_teacher_assignment', 'Replace Teacher Assignment by agreement', array(
                 array( 'enrolment_id', 'Canonical Enrolment ID' ),
                 array( 'expected_assignment_id', 'Current Teacher Assignment ID' ),
@@ -568,10 +569,34 @@ final class CoreDatasetReadinessController {
             [ $name, $label ] = $field;
             $required = $field[2] ?? true;
             $value = self::contextId( $name );
+            if ( $name === 'new_teacher_id' && self::contextId( 'enrolment_id' ) !== '' ) {
+                self::replacementTeacherSelect( $value );
+                continue;
+            }
             echo '<p><label>' . esc_html( $label ) . '<br><input class="regular-text" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '" inputmode="numeric"' . ( $required ? ' required' : '' ) . '></label></p>';
         }
         submit_button( 'Execute authorised command' );
         echo '</form>';
+    }
+
+    /** The authority ties initial assignment to the accepted arrangement; this list is only for evidenced replacements. */
+    private static function replacementTeacherSearch(): void {
+        $enrolmentId=self::contextId('enrolment_id');
+        if($enrolmentId==='')return;
+        $query=isset($_GET['teacher_q'])&&is_scalar($_GET['teacher_q'])?sanitize_text_field(wp_unslash($_GET['teacher_q'])):'';
+        echo '<h3>Find a replacement Teacher</h3><p>Initial assignment follows the accepted Service Arrangement. Replacement ends the current assignment and records a successor in its history. Record verified agreement and evidence; the command is refused while an active future Lesson schedule exists. TeacherAssignmentService rechecks the Enrolment, current assignment and agreement on submission.</p><form method="get"><input type="hidden" name="page" value="'.esc_attr(self::MENU_SLUG).'"><input type="hidden" name="enrolment_id" value="'.esc_attr($enrolmentId).'"><label>Search eligible teachers <input type="search" name="teacher_q" value="'.esc_attr($query).'"></label> <button class="button">Search teachers</button></form>';
+    }
+
+    /** Bounded course-eligible choices with active/accepting state and current assignment load. */
+    private static function replacementTeacherSelect(string $selected): void {
+        global $wpdb;$p=$wpdb->prefix.'dzn_';$enrolmentId=(int)self::contextId('enrolment_id');
+        $query=isset($_GET['teacher_q'])&&is_scalar($_GET['teacher_q'])?sanitize_text_field(wp_unslash($_GET['teacher_q'])):'';
+        $like='%'.$wpdb->esc_like($query).'%';
+        $sql="SELECT DISTINCT t.id,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,a.state accepting_state,c.name_en course_en,c.name_fa course_fa,(SELECT COUNT(*) FROM {$p}teacher_assignments load_ta WHERE load_ta.teacher_id=t.id AND load_ta.applicable_slot=1) current_load FROM {$p}enrolments e INNER JOIN {$p}courses c ON c.id=e.course_id INNER JOIN {$p}teacher_course_eligibilities ce ON ce.course_id=c.id AND ce.status='active' AND (ce.effective_from IS NULL OR ce.effective_from<=UTC_TIMESTAMP()) AND (ce.effective_until IS NULL OR ce.effective_until>UTC_TIMESTAMP()) INNER JOIN {$p}teachers t ON t.id=ce.teacher_id AND t.status='active' AND t.archived_at IS NULL INNER JOIN {$p}teacher_onboarding_states o ON o.teacher_id=t.id AND o.state='active' AND o.readiness_state='ready' INNER JOIN {$p}teacher_accepting_states a ON a.teacher_id=t.id AND a.state IN ('accepting','limited') WHERE e.id=%d AND e.archived_at IS NULL AND ( %s='' OR t.display_name LIKE %s OR t.english_name LIKE %s OR t.persian_name LIKE %s ) ORDER BY teacher_name ASC LIMIT 20";
+        $rows=$wpdb->get_results($wpdb->prepare($sql,$enrolmentId,$query,$like,$like,$like))?:array();
+        echo '<p><label>New eligible Teacher<br><select name="new_teacher_id" required><option value="">Choose a Teacher</option>';
+        foreach($rows as$row){$name=(string)$row->teacher_name.' · '.(string)($row->course_en?:$row->course_fa).' · '.(string)$row->accepting_state.' · '.(int)$row->current_load.' current assignments';echo '<option value="'.(int)$row->id.'"'.selected($selected,(string)$row->id,false).'>'.esc_html($name).'</option>';}
+        echo '</select></label></p>';if(!$rows)echo '<p>No currently eligible teachers match this course and search. Review teacher eligibility, onboarding and accepting state, then search again.</p>';
     }
 
     /** Prefill only stable record IDs from a workflow deep-link; each command still revalidates authority. */

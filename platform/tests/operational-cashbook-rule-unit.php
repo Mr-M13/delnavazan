@@ -1,0 +1,23 @@
+<?php
+require_once dirname(__DIR__).'/src/Core/Application/Finance/FinanceIdempotency.php';
+require_once dirname(__DIR__).'/src/Core/Application/Finance/OperationalCashRule.php';
+use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule as Rule;
+$assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
+$reject=static function(callable $work,string $message)use($assert):void{$failed=false;try{$work();}catch(InvalidArgumentException){$failed=true;}$assert($failed,$message);};
+$assert(Rule::amount('1,500.25','AUD')===150025,'AUD amounts must become exact cents');
+$assert(Rule::amount('۱۲۳٬۴۵۶٬۷۸۹','TOM')===123456789,'Persian toman digits and grouping must parse exactly');
+$assert(Rule::amount('٠٫٧٥','AUD')===75,'Arabic digits and decimal separator must parse exactly');
+$assert(Rule::amount('0','TOM',true)===0,'A zero statement balance must be reconcilable');
+$assert(Rule::format(150025,'AUD')==='1,500.25 AUD','AUD formatting must show cents');
+$assert(Rule::format(-1250,'AUD')==='−12.50 AUD','Signed net totals must format correctly');
+$assert(Rule::rate('6533.33330000')==='6533.3333','Historical FX precision must be preserved without floating-point rounding');
+$assert(Rule::rate('65,333.3333')==='65333.3333','Well-formed FX grouping separators must parse without changing the rate');
+$reject(fn()=>Rule::amount('12.345','AUD'),'AUD sub-cent values must be refused');
+$reject(fn()=>Rule::amount('12.5','TOM'),'Fractional toman values must be refused');
+$reject(fn()=>Rule::amount('1,2','AUD'),'Malformed grouping separators must be refused');
+$reject(fn()=>Rule::amount('-15','AUD'),'Negative input amounts must be refused');
+$reject(fn()=>Rule::amount('0','AUD'),'Zero income, expense and transfer amounts must be refused');
+$reject(fn()=>Rule::rate('0'),'A zero exchange rate must be refused');
+$reject(fn()=>Rule::rate('1e5'),'Scientific notation must be refused');
+$assert(Rule::account('iran')['currency']==='TOM'&&Rule::account('australia')['currency']==='AUD','The account currency units must remain distinct');
+echo "operational-cashbook-rule-unit: pass\n";

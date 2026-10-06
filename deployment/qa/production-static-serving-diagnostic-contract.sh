@@ -8,7 +8,7 @@ bash -n "$diagnostic"
 need "$workflow" 'environment: production'
 need "$workflow" 'persist-credentials: false'
 need "$workflow" 'refs/heads/main'
-need "$workflow" 'git rev-parse origin/main'
+need "$workflow" 'git rev-parse HEAD'
 need "$workflow" 'production-static-serving-diagnostic.sh "$COMMIT_SHA"'
 need "$diagnostic" 'get_stylesheet_directory()'
 need "$diagnostic" 'get_stylesheet_directory_uri()'

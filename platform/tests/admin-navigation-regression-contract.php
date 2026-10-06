@@ -321,7 +321,7 @@ if ( ! str_contains( $navigation, "(string) (\$item[2] ?? '') !== \$parent" )
 if ( ! str_contains( $menu, "add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4)")
     || ! str_contains( $menu, "dzn_access_provider_integration_settings")
     || ! str_contains( $menu, "dzn_access_integrations_overview")
-    || ! str_contains( $menu, "!empty($all['manage_options'])||!empty($all[$delegatedCap])") ) {
+    || ! str_contains( $menu, '!empty($all[\'manage_options\'])||!empty($all[$delegatedCap])' ) ) {
     throw new RuntimeException( 'Integration navigation must use narrow meta capabilities that allow site administrators or the matching delegated integration capability without globally granting either capability.' );
 }
 echo "Admin navigation regression source contract passed\n";

@@ -83,3 +83,5 @@ if grep -Fq '162.255.118.68' "$deploy" "$workflow" "$smoke"; then
   exit 1
 fi
 echo 'PASS production deployment source contract'
+
+grep -Fq 'wp --path="$root" --skip-plugins --skip-themes maintenance-mode activate' "$deploy" || fail 'maintenance activation must survive an incompatible rolled-back plugin by skipping application code'

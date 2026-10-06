@@ -149,7 +149,7 @@ on_exit(){
 }
 trap on_exit EXIT
 deployment_mutation_started=1
-wp --path="$root" maintenance-mode activate >/dev/null; maintenance=1
+wp --path="$root" --skip-plugins --skip-themes maintenance-mode activate >/dev/null; maintenance=1
 if ! mv "$plugin" "$plugin_previous" || ! mv "$staged_plugin" "$plugin"; then
   echo "FAIL atomic Platform directory replacement failed; file backup: $backup" >&2
   exit 1

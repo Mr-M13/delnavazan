@@ -1,4 +1,9 @@
 <?php
+
+if (str_contains($booking, 'برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد')) throw new RuntimeException('Booking must not promise that the submitted email is already the student-account login');
+if (str_contains($booking, 'راه اصلی ارتباط دلنوازان در واتساپ')) throw new RuntimeException('Booking must not promise WhatsApp as the primary contact channel before transport readiness');
+if (!str_contains($booking, 'اگر حساب هنرجویی برای شما فعال شود')) throw new RuntimeException('Booking must make account activation conditional');
+if (!str_contains($booking, 'واتساپ یا پیامک فقط در صورت فعال بودن آن کانال')) throw new RuntimeException('Booking must keep mobile-channel delivery conditional on configured transport');
 $root=dirname(__DIR__);
 $read=file_get_contents($root.'/src/Core/Application/AcademyJourneyReadService.php');
 $dashboard=file_get_contents($root.'/src/Admin/Controller/AcademyOperationsController.php');

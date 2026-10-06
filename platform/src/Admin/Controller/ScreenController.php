@@ -204,7 +204,12 @@ final class ScreenController {
         $profile=in_array($entity,['student','teacher'],true);
         $canonicalTerm=$entity==='term'&&($record->record_model??null)==='canonical_enrolment_term_v1';
         $canonicalLesson=$entity==='lesson'&&($record->record_model??null)==='canonical_term_lesson_v1';
-        $heading=$entity==='student'?'Student · '.(string)($record->display_name?:trim(($record->first_name??'').' '.($record->last_name??''))?:'Profile') : ($profile?ucfirst($entity).' profile · '.(string)($record->reference_code??''):($canonicalTerm?'Term · '.(string)($record->reference_code??''):($canonicalLesson?'Class · '.(string)($record->reference_code??''):'Record #'.(string)$id));
+        if ($entity === 'student') {
+            $studentName = trim(($record->first_name ?? '') . ' ' . ($record->last_name ?? ''));
+            $heading = 'Student · ' . (string) ($record->display_name ?: ($studentName !== '' ? $studentName : 'Profile'));
+        } else {
+            $heading = $profile ? ucfirst($entity) . ' profile · ' . (string) ($record->reference_code ?? '') : ($canonicalTerm ? 'Term · ' . (string) ($record->reference_code ?? '') : ($canonicalLesson ? 'Class · ' . (string) ($record->reference_code ?? '') : 'Record #' . (string) $id));
+        }
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=dzn-' . $entity)) . '">← Back to list</a></p><h2>' . esc_html($heading) . '</h2>';
         if ($entity === 'student') {
             self::studentDetailTabs($record);

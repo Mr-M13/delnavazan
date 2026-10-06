@@ -64,7 +64,7 @@ final class IntegrationControlPlaneReadService {
             'google_calendar'=>array(
                 'capability'=>'teacher Google Calendar event projection and Google Meet join links',
                 'oauth_client'=> $googleConfigured?'configured':'not_configured',
-                'configuration_source'=>'DZN_GOOGLE_OAUTH_CLIENT_ID and DZN_GOOGLE_OAUTH_CLIENT_SECRET in deployment configuration',
+                'configuration_source'=>'Admin-managed encrypted OAuth client settings, or deployment constants',
                 'authorized_redirect_uri'=>$googleRedirectUri!==''?$googleRedirectUri:'unavailable: HTTPS site URL required',
                 'test_connection'=>'not_run',
                 'projection_states'=>$googleProjectionStates,

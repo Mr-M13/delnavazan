@@ -292,11 +292,11 @@ foreach ( array( 'dzn-booking-requests', 'dzn-booking-request-coordination' ) as
     }
 }
 foreach ( array(
-    "['Integrations overview', 'dzn-integrations', 'dzn_view_diagnostics']",
-    "['Email', 'dzn-integration-email', 'dzn_manage_provider_integrations']",
-    "['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_manage_provider_integrations']",
-    "['SMS fallback', 'dzn-integration-sms', 'dzn_manage_provider_integrations']",
-    "['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_manage_provider_integrations']",
+    "['Integrations overview', 'dzn-integrations', 'dzn_access_integrations_overview']",
+    "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']",
+    "['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings']",
+    "['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings']",
+    "['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings']",
     "['Stripe', 'dzn-stripe-settings', 'dzn_view_payment_execution_authority']",
 ) as $integration_route ) {
     if ( 1 !== substr_count( $navigation, $integration_route ) ) throw new RuntimeException( 'Integration route must have one canonical Settings parent and its own capability: ' . $integration_route );
@@ -317,4 +317,11 @@ if ( ! str_contains( $navigation, "(string) (\$item[2] ?? '') !== \$parent" )
     throw new RuntimeException( 'Navigation must suppress repeated parent entries, capability-filter section links, and limit native-menu cleanup to non-administrators.' );
 }
 
+
+if ( ! str_contains( $menu, "add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4)")
+    || ! str_contains( $menu, "dzn_access_provider_integration_settings")
+    || ! str_contains( $menu, "dzn_access_integrations_overview")
+    || ! str_contains( $menu, "!empty($all['manage_options'])||!empty($all[$delegatedCap])") ) {
+    throw new RuntimeException( 'Integration navigation must use narrow meta capabilities that allow site administrators or the matching delegated integration capability without globally granting either capability.' );
+}
 echo "Admin navigation regression source contract passed\n";

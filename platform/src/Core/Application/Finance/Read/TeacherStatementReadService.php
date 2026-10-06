@@ -40,6 +40,12 @@ final class TeacherStatementReadService {
         foreach($this->statements->statementsFor($teacherId) as $statement)$rows[]=$this->shape($statement);
         return $rows;
     }
+    /** Current authenticated ready Teacher's own statements; no caller-supplied teacher ID. */
+    public function ownStatements():array{
+        $principal=(new \Delnavazan\Platform\Portals\PortalPrincipalResolver())->resolve('teacher');
+        if(!(new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository())->hasActiveTeacherAuthority((int)get_current_user_id(),(int)$principal['id']))throw new \InvalidArgumentException('teacher_onboarding_required');
+        $rows=array();foreach($this->statements->statementsFor((int)$principal['id']) as $statement){FinanceStatementIntegrity::assertTotals((int)$statement->id,$this->statements,$this->snapshots,$this->evaluations);$rows[]=$this->shape($statement);}return $rows;
+    }
     /**
      * §11.1 `statementReconciliation`: do this statement's lines still equal a fresh derivation from the
      * canonical facts, and do its totals equal its lines? Read-only, exact, no repair.

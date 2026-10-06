@@ -22,7 +22,7 @@ function dzn_theme_enqueue_teacher_portal_assets() {
 add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 );
 
 function dzn_theme_teacher_portal_view_model( $screen ) {
-	$allowed = array( 'home', 'account', 'onboarding' );
+	$allowed = array( 'home', 'finance', 'settings', 'onboarding' );
 	$screen = in_array( $screen, $allowed, true ) ? $screen : 'home';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
 	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
@@ -40,7 +40,8 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 			&& ! array_filter( $model['classes'], static fn( $item ) => ! dzn_theme_teacher_portal_class_valid( $item ) )
 			&& ! array_filter( $model['calendar'], static fn( $item ) => ! dzn_theme_teacher_portal_calendar_valid( $item ) );
 	}
-	if ( 'account' === $screen ) {
+	if ( 'finance' === $screen ) { return in_array( $model['finance_state'] ?? null, array( 'available', 'empty', 'unavailable' ), true ) && is_array( $model['statements'] ?? null ); }
+	if ( 'settings' === $screen ) {
 		return dzn_theme_teacher_portal_profile_valid( $model['profile'] ?? null )
 			&& ( false === ( $model['availability_available'] ?? true ) || dzn_theme_teacher_portal_availability_valid( $model['availability'] ?? null, $model['exceptions'] ?? null ) )
 			&& dzn_theme_teacher_portal_statistics_valid( $model['statistics'] ?? null )
@@ -53,24 +54,24 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 		&& in_array( $onboarding['state'] ?? null, array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'offboarded' ), true )
 		&& in_array( $onboarding['readiness_state'] ?? null, array( 'not_ready', 'ready' ), true )
 		&& is_bool( $onboarding['can_edit'] ?? null ) && is_bool( $onboarding['can_submit'] ?? null )
-		&& ! array_filter( array( 'profile', 'availability_profile', 'availability_rule', 'submit' ), static fn( $key ) => ! dzn_theme_teacher_portal_text( $actions[ $key ] ?? null ) );
+		&& ! array_filter( array( 'profile', 'availability_profile', 'availability_rule', 'instruments' ), static fn( $key ) => ! dzn_theme_teacher_portal_text( $actions[ $key ] ?? null ) );
 }
 function dzn_theme_teacher_portal_text( $value ) { return is_string( $value ) && '' !== trim( $value ); }
 function dzn_theme_teacher_portal_teacher_valid( $teacher ) {
 	return is_array( $teacher ) && dzn_theme_teacher_portal_text( $teacher['first_name'] ?? null ) && dzn_theme_teacher_portal_text( $teacher['full_name'] ?? null );
 }
 function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
-	if ( ! is_array( $navigation ) || count( $navigation ) < 3 ) { return false; }
+	if ( ! is_array( $navigation ) || count( $navigation ) !== 3 ) { return false; }
 	$current = 0;
 	$seen = array();
 	foreach ( $navigation as $item ) {
 		if ( ! is_array( $item ) ) { return false; }
 		$item_screen = $item['screen'] ?? null;
-		if ( ! in_array( $item_screen, array( 'home', 'account', 'onboarding' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
+		if ( ! in_array( $item_screen, array( 'home', 'finance', 'settings' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
 		$seen[ $item_screen ] = true;
 		if ( $item['current'] ) { ++$current; if ( $item_screen !== $screen ) { return false; } }
 	}
-	return 1 === $current && count( $seen ) === 3;
+	return 0 === $current || ( 1 === $current && count( $seen ) === 3 );
 }
 function dzn_theme_teacher_portal_profile_valid( $profile ) {
 	if ( ! is_array( $profile ) ) { return false; }
@@ -115,12 +116,12 @@ function dzn_theme_teacher_portal_preview_allowed() {
 }
 function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'خانهٔ مدرس', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
-		array( 'screen' => 'account', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'account', $url ), 'current' => 'account' === $screen ),
-		array( 'screen' => 'onboarding', 'label' => 'شروع همکاری', 'url' => add_query_arg( 'teacher-view', 'onboarding', $url ), 'current' => 'onboarding' === $screen ),
+		array( 'screen' => 'home', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
+		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $url ), 'current' => 'finance' === $screen ),
+		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $url ), 'current' => 'settings' === $screen ),
 	);
 	$base = array( 'available' => true, 'screen' => $screen, 'is_demo' => true, 'teacher' => array( 'first_name' => 'سارا', 'full_name' => 'سارا نمونه' ), 'navigation' => $nav );
-	if ( 'account' === $screen ) {
+	if ( 'settings' === $screen ) {
 		return array_merge( $base, array(
 			'profile' => array( 'name' => 'سارا نمونه', 'email' => 'teacher@example.invalid', 'mobile' => '+00 000 000 000', 'timezone' => 'Asia/Tehran', 'timezone_label' => 'زمان تهران', 'calendar' => 'persian' ),
 			'google_state' => 'needs_attention',
@@ -134,6 +135,7 @@ function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 			'statistics' => array( 'active_students' => '۸', 'lessons_month' => '۲۶', 'hours_month' => '۱۹٫۵', 'upcoming' => '۱۲', 'year_total' => '۱۹۴' ),
 		) );
 	}
+	if ( 'finance' === $screen ) { return array_merge( $base, array( 'finance_state' => 'unavailable', 'statements' => array() ) ); }
 	if ( 'onboarding' === $screen ) { return array_merge( $base, array( 'current_step' => 4 ) ); }
 	$attention = array(
 		array( 'ref'=>'ATT-01','action_available'=>true,'state' => 'intro_request', 'title' => 'درخواست تازهٔ کلاس آشنایی', 'context' => 'نیلا · سه‌تار', 'message' => 'شنبه ۲۸ شهریور، ۱۸:۳۰ زمان شما · ۱۱:۰۰ زمان هنرجو', 'due' => 'پاسخ تا ۱۸ ساعت دیگر', 'primary' => 'بررسی درخواست', 'secondary' => 'زمان‌های جایگزین' ),

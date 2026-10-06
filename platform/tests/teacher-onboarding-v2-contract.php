@@ -20,10 +20,10 @@ $contracts = array(
     '2400 next-day exclusive boundary' => str_contains($files['availability'], "=== '2400' ? '24:00:00'") && str_contains($files['time'], "'24:00:00' ? self::wall"),
     'recurring overlap rejected in canonical service' => str_contains($files['availability'], 'rejectOverlap') && str_contains($files['availability'], 'Recurring availability overlaps'),
     'apply-day is an atomic canonical write with explicit target days' => str_contains($files['availability'], 'copyOwnRecurringDay') && str_contains($files['availability'], '$this->repo->commit()') && str_contains($files['wizard'], 'روزهای مقصد'),
-    'timezone-selected DST-aware golden time display' => str_contains($files['wizard'], 'setTimezone(new DateTimeZone($timezone))') && str_contains($files['wizard'], 'تغییر ساعت تابستانی'),
+    'timezone-selected DST-aware golden time display' => str_contains($files['wizard'], 'setTimezone($teacherZone)') && str_contains($files['wizard'], 'AcademyDemandWindowRule::regions()') && str_contains($files['wizard'], 'تغییر ساعت تابستانی'),
     'distinct four-step onboarding views' => str_contains($files['wizard'], '$current === 1') && str_contains($files['wizard'], '$current === 2') && str_contains($files['wizard'], '$current === 3') && str_contains($files['wizard'], '$current === 4'),
     'teacher menu logout and signed-out login path' => str_contains($files['shell'], 'wp_logout_url') && str_contains($files['routes'], 'redirect_to') && str_contains($files['routes'], "home_url( '/login/' )"),
-    'teacher navigation has distinct route destinations' => str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'account'") && str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'onboarding'"),
+    'teacher navigation has distinct route destinations' => str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'finance'") && str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'settings'") && str_contains($files['routes'], "'finance', 'settings', 'onboarding'"),
     'administrator diagnostics do not expose routine approval action' => str_contains($files['admin'], 'This table is diagnostic') && !str_contains($files['admin'], 'Approve and activate'),
 );
 foreach ($contracts as $name => $passed) {

@@ -218,7 +218,7 @@ function dzn_theme_render_portal_route( $kind ) {
 	if ( ! is_user_logged_in() ) { return; }
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
-		$screen = in_array( $screen, array( 'home', 'account', 'onboarding' ), true ) ? $screen : 'home';
+		$screen = in_array( $screen, array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $screen : 'home';
 		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;

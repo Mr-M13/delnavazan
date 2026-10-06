@@ -50,6 +50,19 @@ final class TeacherAvailabilityService {
         $this->admin(); $d = $this->exception( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveException( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
+    /** Self-service all-day blocked exception, scoped to the authenticated ready Teacher. */
+    public function setOwnDayOff(string $localDate): int {
+        return $this->setOwnDatedException(array('local_date'=>$localDate));
+    }
+
+    public function setOwnDatedException(array $input): int {
+        $teacher=$this->selfServiceTeacher();$profile=$this->repo->profile($teacher);if(!$profile||$profile->status!=='active')throw new \InvalidArgumentException('Active availability profile required');$timezone=$this->authorityTimezone($profile->timezone);$date=AvailabilityLocalTime::date((string)($input['local_date']??''));$today=(new \DateTimeImmutable('today',new \DateTimeZone($timezone)))->format('Y-m-d');if($date<=$today)throw new \InvalidArgumentException('Day off must be a future local date');$input=array('teacher_id'=>$teacher,'local_date'=>$date,'all_day'=>1,'state'=>'blocked','timezone'=>$timezone,'status'=>'active','reason_code'=>'teacher_self_service');
+        $d=$this->exception($input);$now=current_time('mysql',true);
+        $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$id=$this->repo->saveException($d,$now,get_current_user_id());$this->repo->commit();return$id;}catch(\Throwable $e){$this->repo->rollback();throw$e;}
+    }
+    public function retireActiveOwnException(int $exceptionId): void { $teacher=$this->selfServiceTeacher();$id=Normalizer::id($exceptionId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnException($id,$teacher,$now,get_current_user_id());$this->repo->commit();}catch(\Throwable $e){$this->repo->rollback();throw$e;} }
+    public function upcomingOwnExceptions(int $limit=30): array { $teacher=$this->selfServiceTeacher();$profile=$this->repo->profile($teacher);$timezone=$profile?$this->authorityTimezone($profile->timezone):null;if(!$timezone)return array();$from=(new \DateTimeImmutable('today',new \DateTimeZone($timezone)))->format('Y-m-d');$until=(new \DateTimeImmutable($from,new \DateTimeZone($timezone)))->modify('+1 year')->format('Y-m-d');$rows=array_filter($this->repo->activeExceptions($teacher,$from,$until),static fn($row)=>(int)$row->all_day===1&&(string)$row->state==='blocked');return array_slice(array_values($rows),0,max(1,min(100,$limit))); }
+
     /** @return list<array{state:string,starts_at_utc:string,ends_at_utc:string,source:string}> */
     public function effective(int $teacherId, string $fromUtc, string $untilUtc): array {
         $teacher = Normalizer::id( $teacherId ); $from = $this->utc( $fromUtc ); $until = $this->utc( $untilUtc ); if ( $until <= $from ) throw new \InvalidArgumentException( 'Availability range end must follow start' );
@@ -102,6 +115,7 @@ final class TeacherAvailabilityService {
     private function usableTeacher(int $teacher): object { $row = $this->repo->teacherForUpdate( $teacher ); if ( ! $row || $row->status !== 'active' || $row->archived_at !== null ) throw new \InvalidArgumentException( 'Active Teacher required' ); return $row; }
     private function ownTeacher(): int { $user = (int) get_current_user_id(); if ( $user < 1 ) throw new \RuntimeException( 'Unauthorized' ); $teacher = $this->repo->onboardingTeacherIdForUser( $user ); if ( ! $teacher ) throw new \RuntimeException( 'Teacher onboarding is not editable' ); return $teacher; }
     private function activeOwnTeacher(): int { $user=(int)get_current_user_id();if($user<1)throw new \RuntimeException('Unauthorized');$teacher=$this->repo->activeTeacherIdForUser($user);if(!$teacher)throw new \RuntimeException('Active ready Teacher required');return $teacher; }
+    private function selfServiceTeacher(): int { $user=(int)get_current_user_id();if($user<1)throw new \RuntimeException('Unauthorized');$teacher=$this->repo->activeTeacherIdForUser($user)??$this->repo->onboardingTeacherIdForUser($user);if(!$teacher)throw new \RuntimeException('Linked Teacher required');return $teacher; }
     private function admin(): void { if ( ! current_user_can( 'dzn_manage_teacher_availability' ) ) throw new \RuntimeException( 'Unauthorized' ); }
     private function timezone(mixed $value): string { $timezone = Normalizer::timezone( $value ); if ( ! $timezone ) throw new \InvalidArgumentException( 'IANA timezone required' ); return $timezone; }
     private function time(mixed $value): string { $time = Normalizer::time( $value ); if ( ! $time ) throw new \InvalidArgumentException( 'Local time required' ); return $time; }

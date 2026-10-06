@@ -10,7 +10,6 @@ final class TeacherOnboardingController {
         add_action( 'admin_post_dzn_teacher_onboarding_availability_profile', array( __CLASS__, 'availabilityProfile' ) );
         add_action( 'admin_post_dzn_teacher_onboarding_availability_rule', array( __CLASS__, 'availabilityRule' ) );
         add_action( 'admin_post_dzn_teacher_onboarding_copy_day', array( __CLASS__, 'copyDay' ) );
-        add_action( 'admin_post_dzn_teacher_onboarding_submit', array( __CLASS__, 'submit' ) );
     }
 
     public static function profile(): never {
@@ -52,12 +51,6 @@ final class TeacherOnboardingController {
         } catch ( \Throwable $e ) { self::redirect( str_contains($e->getMessage(),'overlaps') ? 'این بازه با زمان دیگری در همین روز هم‌پوشانی دارد. آن را حذف یا به زمان مجاور تغییر دهید.' : 'زمان را به شکل HHMM وارد کنید؛ برای پایان روز 2400 بنویسید. بازه باید پس از زمان شروع باشد.', true ); }
     }
 
-    public static function submit(): never {
-        self::guard( 'dzn_teacher_onboarding_submit' );
-        try { ( new TeacherOnboardingService() )->submitOwn(); self::redirect( 'اطلاعات برای بررسی مدیر ارسال شد.' ); }
-        catch ( \Throwable ) { self::redirect( 'تا تکمیل پروفایل، منطقهٔ زمانی و دست‌کم یک بازهٔ قابل رزرو، ارسال ممکن نیست.', true ); }
-    }
-
     public static function copyDay(): never {
         self::guard('dzn_teacher_onboarding_copy_day');
         try{$post=wp_unslash($_POST);$targets=array_map('intval',(array)($post['target_weekdays']??[]));(new TeacherAvailabilityService())->copyOwnRecurringDay((int)($post['source_weekday']??0),$targets);(new TeacherOnboardingService())->refreshOwnProgress();self::redirect('بازه‌های روز مبدأ برای روزهای انتخاب‌شده ثبت شد.',false,3);}
@@ -70,7 +63,7 @@ final class TeacherOnboardingController {
     }
     private static function time(mixed $value): string { $value = trim( (string) $value ); if (preg_match('/^(?:[01][0-9]|2[0-3])[0-5][0-9]$/',$value)) return substr($value,0,2).':'.substr($value,2,2).':00'; if($value==='2400') return '2400'; return $value; }
     private static function redirect(string $notice, bool $error = false, int $step = 1): never {
-        $url = add_query_arg( array( 'teacher-view' => 'onboarding', 'onboarding-step' => $step, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0' ), home_url( '/teacher-portal/' ) );
+        $ready=false;try{$ready=!(new TeacherOnboardingService())->requiresOnboarding();}catch(\Throwable){}$url = add_query_arg( array( 'teacher-view' => $ready ? 'home' : 'onboarding', 'onboarding-step' => $step, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0' ), home_url( '/teacher-portal/' ) );
         nocache_headers(); if ( wp_safe_redirect( $url ) ) exit;
         wp_die( esc_html( $notice ), 'Delnavazan', array( 'response' => $error ? 400 : 200 ) );
     }

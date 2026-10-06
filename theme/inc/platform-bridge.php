@@ -300,13 +300,19 @@ function dzn_theme_platform_google_state( $teacher_id ) {
 	} catch ( Throwable $e ) { return 'unavailable'; }
 }
 
+function dzn_theme_platform_teacher_day_offs() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilityService';
+	if ( ! class_exists( $class ) ) { return array(); }
+	try { return ( new $class() )->upcomingOwnExceptions(); } catch ( Throwable ) { return array(); }
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/teacher-portal/' );
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'خانهٔ مدرس', 'url' => $base_url, 'current' => 'home' === $screen ),
-		array( 'screen' => 'account', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'account', $base_url ), 'current' => 'account' === $screen ),
-		array( 'screen' => 'onboarding', 'label' => 'شروع همکاری', 'url' => add_query_arg( 'teacher-view', 'onboarding', $base_url ), 'current' => 'onboarding' === $screen ),
+		array( 'screen' => 'home', 'label' => 'حساب کاربری', 'url' => $base_url, 'current' => 'home' === $screen ),
+		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $base_url ), 'current' => 'finance' === $screen ),
+		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $base_url ), 'current' => 'settings' === $screen ),
 	);
 	$onboarding_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOnboardingService';
 	$onboarding = null;
@@ -327,8 +333,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'availability_profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_profile' ),
 				'availability_rule' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_rule' ),
 				'copy_day' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_copy_day' ),
-				'submit' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_submit' ),
+				'instruments' => admin_url( 'admin-post.php?action=dzn_teacher_instruments' ),
 			),
+			'instruments' => class_exists('\\Delnavazan\\Platform\\Core\\Application\\TeachingEligibilityService') ? (new \Delnavazan\Platform\Core\Application\TeachingEligibilityService())->ownCourseCatalogue() : array(),
+			'day_offs' => dzn_theme_platform_teacher_day_offs(),
 		);
 	}
 	if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
@@ -338,7 +346,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
-	if ( 'account' === $screen ) {
+	if ( 'finance' === $screen ) { $finance='\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TeacherStatementReadService';$statements=array();$state='unavailable';if(class_exists($finance)){try{$statements=(new $finance())->ownStatements();$state=$statements?'available':'empty';}catch(Throwable){$state='unavailable';}}return array( 'available' => true, 'screen' => 'finance', 'source' => 'platform', 'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ), 'navigation' => $nav, 'finance_state' => $state, 'statements' => $statements ); }
+	if ( in_array( $screen, array( 'settings', 'finance' ), true ) ) {
 		$month = wp_date( 'Y-m', $now, wp_timezone() );
 		$year = wp_date( 'Y', $now, wp_timezone() );
 		$month_lessons = array_filter( $all_lessons, static fn( $row ) => 0 === strpos( dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y-m' ), $month ) );
@@ -347,11 +356,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$students = array_unique( array_filter( array_map( static fn( $row ) => (string) ( $row['student_display_reference'] ?? '' ), $all_lessons ) ) );
 		$assigned = array_unique( array_filter( array_map( static fn( $row ) => is_array( $row ) ? (string) ( $row['student_display_reference'] ?? '' ) : '', (array) ( $data['assignments'] ?? array() ) ) ) );
 		$upcoming_count = count( array_filter( $all_lessons, static fn( $row ) => strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ) >= time() ) );
-		$nav[0]['current'] = false; $nav[1]['current'] = true;
+		$nav[0]['current'] = false;
 		return array(
-			'available' => true, 'screen' => 'account', 'source' => 'platform',
+			'available' => true, 'screen' => $screen, 'source' => 'platform',
 			'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ), 'navigation' => $nav,
-			'profile' => array( 'name' => $identity['full_name'], 'email' => $identity['email'], 'mobile' => '', 'timezone' => wp_timezone_string() ?: 'UTC', 'timezone_label' => wp_timezone_string() ?: 'UTC', 'calendar' => 'gregorian' ),
+			'profile' => array( 'name' => $identity['full_name'], 'email' => $identity['email'], 'mobile' => '', 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'calendar' => 'gregorian' ),
 			'google_state' => dzn_theme_platform_google_state( (int) ( $data['principal']['principal_id'] ?? 0 ) ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
@@ -365,7 +374,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'availability_retire_url' => admin_url('admin-post.php?action=dzn_teacher_availability_retire'),
 			'availability_retire_nonce' => wp_create_nonce('dzn_teacher_availability_retire'),
 			'availability_nonce' => wp_create_nonce('dzn_teacher_availability_rule'),
-			'exceptions' => array(), 'payment_state' => 'unavailable',
+			'exceptions' => array(), 'day_offs' => dzn_theme_platform_teacher_day_offs(), 'accepting_state' => ( new \Delnavazan\Platform\Core\Infrastructure\Repository\TeacherAvailabilityRepository() )->acceptingFor( (int) ( $onboarding['teacher_id'] ?? 0 ) ), 'payment_state' => 'unavailable', 'instruments' => class_exists('\\Delnavazan\\Platform\\Core\\Application\\TeachingEligibilityService') ? (new \Delnavazan\Platform\Core\Application\TeachingEligibilityService())->ownCourseCatalogue() : array(),
 			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}
@@ -407,6 +416,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 		);
 	}
+	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_lessons,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=strtotime((string)($row['starts_at_utc']??'').' UTC');$b=strtotime((string)($row['ends_at_utc']??'').' UTC');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_display_reference']??''),$all_lessons)));
 	return array(
 		'available' => true,
 		'screen' => 'home',
@@ -415,6 +425,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'navigation' => $nav,
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => array(),
+		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)count($future),'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,
 		'calendar' => $calendar,
 	);

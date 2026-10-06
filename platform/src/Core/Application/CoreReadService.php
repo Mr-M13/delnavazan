@@ -40,6 +40,13 @@ final class CoreReadService {
         return (new StudentRepository())->adminRows($query, $status, $page);
     }
 
+    /** @return array{rows:array,total:int,page:int,per_page:int} */
+    public function teacherAdminDirectory(string $search, string $status, int $page): array {
+        if (!current_user_can('dzn_manage_teachers')) throw new \RuntimeException('Unauthorized');
+        if (!in_array($status, array('all','active','inactive','archived'), true)) $status = 'all';
+        return (new TeacherRepository())->adminDirectory($search, $status, $page);
+    }
+
     /** Human-labelled instrument options for Course administration. */
     public function instrumentOptionsForCourse(): array {
         $repository = $this->repository('instrument');

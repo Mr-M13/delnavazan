@@ -65,8 +65,8 @@ final class ScreenController {
             }
         } else {
             if ($screen === 'student') self::studentCreateDisclosure();
-            elseif ($screen !== 'enrolment') self::entityCreateForm($screen);
-            else echo '<p>Enrolments are read-only. Generic creation is disabled; canonical conversion authority is not part of this phase.</p>';
+            elseif ($screen === 'enrolment') echo '<p>Enrolments are read-only. Generic creation is disabled; canonical conversion authority is not part of this phase.</p>';
+            elseif ($screen !== 'teacher') self::entityCreateForm($screen);
             self::entityList($screen);
             if ($screen === 'term' && current_user_can('dzn_manage_canonical_terms')) self::canonicalTermCreateForm();
         }
@@ -185,6 +185,7 @@ final class ScreenController {
             foreach($records as$row){$url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->id),admin_url('admin.php'));$label=(string)($row->reference_code?:'Class');echo '<tr><td><a href="'.esc_url($url).'">'.esc_html($label).'</a></td><td>'.esc_html((string)($row->student_name?:'Student')).'<br>'.esc_html((string)($row->course_name?:'Course')).'</td><td>'.esc_html((string)($row->teacher_name?:'Teacher')).'</td><td>'.esc_html((string)$row->class_status).'</td><td>'.esc_html((string)$row->schedule_label).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html((string)$row->next_action).'</a></td></tr>';}
             echo '</tbody></table>';return;
         }
+        if ($entity === 'teacher') { self::teacherDirectory(); echo '<details class="dzn-teacher-create"><summary>Add a teacher</summary>'; self::entityCreateForm('teacher'); echo '</details>'; return; }
         try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
         catch (\InvalidArgumentException $exception) {
             if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
@@ -196,6 +197,38 @@ final class ScreenController {
         elseif(in_array($entity,['course','instrument'],true)) self::objectTable($records, 'dzn-' . $entity, self::catalogueFields($entity));
         else self::objectTable($records, 'dzn-' . $entity);
     }
+
+    private static function teacherDirectory(): void {
+        $search = isset($_GET['teacher_search']) && is_scalar($_GET['teacher_search']) ? sanitize_text_field(wp_unslash((string)$_GET['teacher_search'])) : '';
+        $status = isset($_GET['teacher_status']) && is_scalar($_GET['teacher_status']) ? sanitize_key(wp_unslash((string)$_GET['teacher_status'])) : 'all';
+        $page = max(1, absint($_GET['teacher_page'] ?? 1));
+        $result = (new CoreReadService())->teacherAdminDirectory($search, $status, $page);
+        echo '<h2>Teacher directory</h2><p>Search by teacher name, email or reference. Operational indicators summarize current course eligibility, availability and applicable classes.</p>';
+        echo '<form method="get" class="search-form"><input type="hidden" name="page" value="dzn-teacher">';
+        echo '<label class="screen-reader-text" for="dzn-teacher-search">Search teachers</label><input id="dzn-teacher-search" type="search" name="teacher_search" value="'.esc_attr($search).'" placeholder="Name, email or reference"> ';
+        echo '<label for="dzn-teacher-status">Status </label><select id="dzn-teacher-status" name="teacher_status">';
+        foreach (array('all'=>'All teachers','active'=>'Active','inactive'=>'Inactive','archived'=>'Archived') as $value=>$label) echo '<option value="'.esc_attr($value).'"'.selected($status,$value,false).'>'.esc_html($label).'</option>';
+        echo '</select> <button class="button">Search</button></form>';
+        if (!$result['rows']) { echo '<p>No teachers match these filters. Try a broader search or choose another status.</p>'; return; }
+        echo '<p>'.esc_html(number_format_i18n($result['total'])).' teacher'.($result['total']===1?'':'s').'</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Teacher</th><th>Email</th><th>Status</th><th>Student intake</th><th>Course eligibility</th><th>Availability</th><th>Current classes</th></tr></thead><tbody>';
+        foreach ($result['rows'] as $row) {
+            $url=add_query_arg(array('page'=>'dzn-teacher','id'=>(int)$row->id),admin_url('admin.php'));
+            $name=(string)($row->display_name?:$row->english_name?:$row->persian_name?:'Teacher');
+            $detail=$row->reference_code?'<br><small>'.esc_html((string)$row->reference_code).'</small>':'';
+            $archived=$row->archived_at!==null;
+            echo '<tr><td><a href="'.esc_url($url).'"><strong>'.esc_html($name).'</strong></a>'.$detail.'</td><td>'.esc_html((string)($row->email?:'—')).'</td><td>'.esc_html($archived?'Archived':self::teacherStatus((string)$row->status)).'</td>';
+            echo '<td>'.esc_html(self::acceptingLabel((string)$row->accepting_state)).'</td><td>'.esc_html((int)$row->eligible_course_count>0?number_format_i18n((int)$row->eligible_course_count).' active courses':'None recorded').'</td>';
+            $availability=(int)$row->availability_rule_count>0?number_format_i18n((int)$row->availability_rule_count).' time windows':((string)$row->availability_status==='not_set'?'Not set':'No active time windows');
+            echo '<td>'.esc_html($availability).'</td><td>'.esc_html(number_format_i18n((int)$row->current_class_count)).'</td></tr>';
+        }
+        echo '</tbody></table>';
+        $pages=(int)ceil($result['total']/$result['per_page']);
+        if($pages>1){$base=add_query_arg(array('page'=>'dzn-teacher','teacher_search'=>$search,'teacher_status'=>$status,'teacher_page'=>'%#%'),admin_url('admin.php'));echo '<nav class="tablenav"><div class="tablenav-pages">'.wp_kses_post(paginate_links(array('base'=>$base,'format'=>'','current'=>$page,'total'=>$pages,'type'=>'plain','prev_text'=>'‹ Previous','next_text'=>'Next ›'))).'</div></nav>';}
+    }
+
+    private static function teacherStatus(string $status): string { return match($status){'active'=>'Active','inactive'=>'Inactive','archived'=>'Archived',default=>ucfirst(str_replace('_',' ',$status))}; }
+    private static function acceptingLabel(string $state): string { return match($state){'accepting'=>'Accepting students','limited'=>'Limited availability','paused'=>'Paused','not_set'=>'Not recorded',default=>ucfirst(str_replace('_',' ',$state))}; }
 
     private static function entityDetail(string $entity, int $id): void {
         $record = $entity==='lesson'?(new CoreReadService())->lessonOperatorRecord($id):(new CoreReadService())->find($entity, $id);
@@ -219,15 +252,18 @@ final class ScreenController {
         $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():(($entity==='lesson')?array('reference_code','student_name','teacher_name','course_name','lesson_type','class_status','schedule_label'):null)));
         self::objectTable([$displayRecord??$record], null, $allowed);
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
-            self::teacherMaintenanceForm( $record );
             $teacherId=(int)$record->id;
-            echo '<h2>Continue teacher setup</h2><p>';
-            if(current_user_can('dzn_manage_onboarding')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-onboarding','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Onboarding / invitation</a> ';
-            if(current_user_can('dzn_manage_teaching_eligibility')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-teaching-eligibility','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Course eligibility</a> ';
-            if(current_user_can('dzn_manage_teacher_availability')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-teacher-availability','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Availability</a>';
-            echo '</p>';
+            echo '<h2>Teacher operations</h2><p class="description">Start with day-to-day teaching details. Account setup and lifecycle history are managed in their dedicated workflows.</p><p>';
+            if(current_user_can('dzn_manage_teaching_eligibility')) echo '<a class="button button-primary" href="'.esc_url(add_query_arg(['page'=>'dzn-teaching-eligibility','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Instruments and course eligibility</a> ';
+            if(current_user_can('dzn_manage_teacher_availability')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-teacher-availability','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Availability</a> ';
+            if(current_user_can('dzn_manage_onboarding')) echo '<a class="button" href="'.esc_url(add_query_arg(['page'=>'dzn-onboarding','teacher_id'=>$teacherId],admin_url('admin.php'))).'">Account and onboarding</a>';
+            echo '</p><details><summary>Profile details and lifecycle actions</summary>';
+            self::teacherMaintenanceForm( $record );
+            self::archiveActions($entity,$id,(string)$record->status);
+            echo '</details>';
         }
-        if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1')) self::archiveActions($entity, $id, (string) $record->status);
+        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) self::archiveActions($entity, $id, (string) $record->status);
+        if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') && $entity !== 'teacher') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
             try { $history = (new CoreReadService())->enrolmentLifecycle($id); }

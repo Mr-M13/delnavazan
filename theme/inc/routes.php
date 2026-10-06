@@ -68,6 +68,7 @@ function dzn_theme_auth_status_message() {
 		$modifier = 'failed' === $status ? ' is-error' : ' is-success';
 		echo '<p class="dzn-route__notice' . esc_attr( $modifier ) . '" role="' . ( 'failed' === $status ? 'alert' : 'status' ) . '">' . esc_html( $messages[ $status ] ) . '</p>';
 	}
+	if ( isset($_GET['teacher_claim']) && sanitize_key(wp_unslash($_GET['teacher_claim'])) === 'password_email' ) echo '<p class="dzn-route__notice is-success" role="status">دعوت مدرس متصل شد. برای انتخاب رمز عبور، پیوند امن ارسال‌شده به ایمیل خود را باز کنید؛ سپس از همین صفحه وارد پرتال مدرس شوید.</p>';
 }
 
 function dzn_theme_render_frontend_login_form( $redirect_to ) {
@@ -117,6 +118,7 @@ function dzn_theme_render_login_route() {
 			<p class="dzn-eyebrow">ورود امن</p>
 			<h1 id="dzn-route-title">ورود به دلنوازان</h1>
 			<p>هنرجویان و مدرسان با همان حساب ثبت‌شده در دلنوازان وارد می‌شوند.</p>
+			<p><a href="<?php echo esc_url(home_url('/teacher-portal/')); ?>">ورود به پرتال مدرس</a></p>
 			<?php dzn_theme_auth_status_message(); ?>
 			<?php dzn_theme_render_frontend_login_form( $redirect_to ); ?>
 			<p><a href="<?php echo esc_url( wp_lostpassword_url( home_url( '/login/' ) ) ); ?>">رمز عبور را فراموش کرده‌اید؟</a></p>
@@ -175,10 +177,9 @@ function dzn_theme_render_teacher_invitation_route() {
 				<input type="hidden" name="action" value="dzn_teacher_invitation_claim"><?php wp_nonce_field( 'dzn_teacher_invitation_claim' ); ?>
 				<p><label>کد دعوت<br><input required autocomplete="one-time-code" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label></p>
 				<?php if ( ! is_user_logged_in() ) : ?>
-					<p><label>رمز عبور جدید (حداقل ۱۲ نویسه)<br><input required type="password" autocomplete="new-password" minlength="12" name="password"></label></p>
-					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="12" name="password_confirmation"></label></p>
+					<p>پس از اتصال دعوت، پیوند امن انتخاب رمز عبور به همین نشانی ایمیل می‌شود.</p>
 				<?php else : ?><p>این دعوت به حساب واردشدهٔ فعلی متصل می‌شود.</p><?php endif; ?>
-				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به حساب' : 'ساخت حساب و ادامه'; ?></button></p>
+				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به حساب' : 'اتصال دعوت و ارسال پیوند رمز عبور'; ?></button></p>
 			</form>
 			<?php if ( ! is_user_logged_in() ) : ?><p><a href="<?php echo esc_url( home_url( '/login/' ) ); ?>">قبلاً حساب دارید؟ ابتدا وارد شوید</a></p><?php endif; ?>
 		</section>
@@ -217,7 +218,7 @@ function dzn_theme_render_portal_route( $kind ) {
 	if ( ! is_user_logged_in() ) { return; }
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
-		$screen = in_array( $screen, array( 'home', 'account', 'onboarding' ), true ) ? $screen : 'home';
+		$screen = in_array( $screen, array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $screen : 'home';
 		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;

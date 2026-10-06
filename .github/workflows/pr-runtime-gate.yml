@@ -60,6 +60,7 @@ jobs:
             platform/tests/phase-1f-contract.php
             platform/tests/phase-2a0-contract.php
             platform/tests/phase-2a0-independent-review-contract.php
+            platform/tests/teacher-admin-principal-link-contract.php
             platform/tests/phase-2a1a-contract.php
             platform/tests/phase-2a1b-contract.php
             platform/tests/phase-2a1c-contract.php
@@ -132,6 +133,10 @@ jobs:
             php platform/tests/teacher-onboarding-v1-contract.php
           else
             echo 'Teacher onboarding v1 contract not present on this PR base yet.'
+          fi
+          if [[ -f platform/tests/teacher-onboarding-v2-contract.php ]]; then
+            php platform/tests/teacher-onboarding-v2-contract.php
+            php platform/tests/teacher-portal-phase2-contract.php
           fi
           php platform/tests/admin-navigation-regression-contract.php
           php platform/tests/lesson-operator-workflow-contract.php

@@ -1,10 +1,10 @@
 <?php
-$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'account', 'onboarding' ), true ) ? $args['screen'] : 'home';
+$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $args['screen'] : 'home';
 $model = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model['teacher'] : array();
 ?>
 <main id="main-content" class="site-main dzn-teacher-portal dzn-teacher-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1" dir="rtl">
- <header class="dzn-tp-masthead"><div class="dzn-container dzn-tp-masthead__inner"><div><p class="dzn-tp-kicker">مدرس دلنوازان</p><h1><?php echo esc_html( 'account' === $screen ? 'حساب کاربری مدرس' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( ! empty( $teacher['first_name'] ) ? sprintf( 'سلام %s،', $teacher['first_name'] ) : 'خانهٔ مدرس' ) ) ); ?></h1><p><?php echo esc_html( 'account' === $screen ? 'اطلاعات، ترجیحات و نمای کلی تدریس شما' : ( 'onboarding' === $screen ? 'اطلاعات لازم را تکمیل و برای بررسی مدیر ارسال کنید' : 'کلاس‌ها و کارهای مهم امروز را یک‌جا ببینید.' ) ); ?></p></div>
+ <header class="dzn-tp-masthead"><div class="dzn-container dzn-tp-masthead__inner"><div><p class="dzn-tp-kicker">مدرس دلنوازان</p><h1><?php echo esc_html( 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( ! empty( $teacher['first_name'] ) ? sprintf( 'حساب کاربری · %s', $teacher['first_name'] ) : 'حساب کاربری' ) ) ) ); ?></h1><p><?php echo esc_html( 'settings' === $screen ? 'پروفایل، دسترسی و ترجیحات شما' : ( 'finance' === $screen ? 'سوابق مالی بر پایهٔ اطلاعات معتبر سامانه' : ( 'onboarding' === $screen ? 'اطلاعات را مرحله‌به‌مرحله تکمیل کنید؛ حساب پس از آماده‌شدن خودکار فعال می‌شود.' : 'درخواست‌ها، کلاس‌های آینده و خلاصهٔ تدریس شما.' ) ) ); ?></p></div>
  <nav aria-label="پیمایش پرتال مدرس"><ul><?php foreach ( $model['navigation'] ?? array() as $item ) : ?><li><a href="<?php echo esc_url( $item['url'] ?? '' ); ?>"<?php if ( ! empty( $item['current'] ) ) : ?> aria-current="page"<?php endif; ?>><?php echo esc_html( $item['label'] ?? '' ); ?></a></li><?php endforeach; ?></ul></nav><?php if ( is_user_logged_in() ) : ?><p class="dzn-tp-account"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a> <a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">خروج از حساب</a></p><?php endif; ?></div></header>
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
@@ -18,7 +18,8 @@ $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model[
   );
   $message = $messages[ $state ] ?? $messages['error'];
  ?><section class="dzn-tp-section dzn-tp-unavailable"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p></section>
- <?php elseif ( 'account' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
+ <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
+ elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );
  else : dzn_theme_teacher_portal_component( 'home', array( 'model' => $model ) ); endif; ?>
  </div>

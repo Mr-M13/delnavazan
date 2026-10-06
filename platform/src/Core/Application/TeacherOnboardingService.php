@@ -3,9 +3,9 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherOnboardingRepository;
 
-/** Authoritative invitation-only lifecycle from linked principal to approved Teacher readiness. */
+/** Invitation-led lifecycle from linked principal to automatically ready Teacher. */
 final class TeacherOnboardingService {
-    private const EDITABLE = array( 'linked_pending', 'in_progress', 'returned', 'rejected' );
+    private const EDITABLE = array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected' );
     private const RESUBMITTABLE = array( 'linked_pending', 'in_progress', 'returned', 'rejected' );
 
     public function __construct(private ?TeacherOnboardingRepository $repo = null) { $this->repo ??= new TeacherOnboardingRepository(); }
@@ -146,12 +146,13 @@ final class TeacherOnboardingService {
     public function reviewRows(): array { if ( ! current_user_can( 'dzn_manage_onboarding' ) ) throw new \RuntimeException( 'Unauthorized' ); return $this->repo->reviewRows(); }
 
     private function refreshProgress(object $teacher, string $from, string $now, int $actor): void {
-        $progress = $this->progress( $teacher ); $to = $from === 'linked_pending' ? 'in_progress' : $from;
+        $progress = $this->progress( $teacher ); $to = $progress['ready_for_review'] ? 'active' : ( in_array($from,array('linked_pending','pending_review'),true) ? 'in_progress' : $from );
         $this->repo->saveState( (int) $teacher->id, array(
-            'state' => $to, 'readiness_state' => 'not_ready', 'profile_state' => $progress['profile_state'],
+            'state' => $to, 'readiness_state' => $progress['ready_for_review'] ? 'ready' : 'not_ready', 'profile_state' => $progress['profile_state'],
             'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required',
+            'activated_at' => $progress['ready_for_review'] ? $now : null,
         ), $now, $actor );
-        if ( $to !== $from ) $this->repo->appendEvent( (int) $teacher->id, $from, $to, null, $actor, $now );
+        if ( $to !== $from ) $this->repo->appendEvent( (int) $teacher->id, $from, $to, $progress['ready_for_review'] ? 'onboarding_requirements_complete' : null, $actor, $now );
     }
 
     private function progress(object $teacher): array {

@@ -169,3 +169,37 @@ Read-only/reversible staging checks refreshed before import:
 - The previously generated local WXR package was not found at its documented Downloads path during this refresh. Recreate it from the production export with the committed deterministic builder and verify its counts/digest before import; do not substitute an unverified XML file.
 
 The content import remains intentionally unexecuted until the source export/package is recovered or freshly exported and verified.
+
+## 10. Source package preflight and promotion inventory
+
+Before an operator imports a regenerated package, run the read-only contract check:
+
+```bash
+python3 deployment/seo/migration/validate-import-package.py \
+  --package /path/to/delnavazan-staging-import.xml \
+  --json /path/to/delnavazan-staging-import.preflight.json
+```
+
+The validator compares every post/page type and exact slug with
+`production-seo-baseline.csv`, checks the per-object Rank Math title, description and focus keyword,
+enforces source status (with the approved `enrol` draft exception), rejects retired presentation
+objects and untracked content, and verifies featured-image references point to attachments in the WXR.
+It emits a per-URL promotion inventory and exits nonzero on any mismatch. Keep its JSON beside the
+generated package for review; neither file belongs in Git because source content includes author data.
+
+The inventory does not publish anything. Under the recorded decisions, the package contains 19
+published articles; 13 production-published pages, of which `enrol` is deliberately demoted to draft;
+eight production-pending pages; and 57 attachments. The homepage (`home`) stays pending and must not
+replace the recovered Theme homepage. The four transactional slugs (`booking-cancelled`,
+`booking-received`, `cancellation-help`, `payment-success`) require explicit noindex verification before
+public promotion. The other seven pending pages still need editorial approval. No current canonical
+page may be overwritten: inspect the destination's current page/post inventory first and stop for
+reconciliation on any slug collision. This package validator cannot inspect or mutate that destination.
+
+Passing the package check is necessary, not sufficient. Before public promotion, separately prove the
+target inventory is understood, Rank Math is installed and its production global settings are restored,
+the target remains noindex during staging, imports preserve media and links, and rendered titles,
+descriptions, self canonicals, sitemap membership and redirects match the approved URL map. The checked
+in WXR/package is not idempotent to import by itself; do not repeat an import as a retry strategy.
+The WordPress importer action remains an operator-controlled step until a target-aware, collision-safe
+import mechanism is implemented and reviewed.

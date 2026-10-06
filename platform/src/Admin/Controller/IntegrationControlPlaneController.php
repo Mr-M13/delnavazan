@@ -27,9 +27,10 @@ final class IntegrationControlPlaneController {
             echo '<div class="wrap"><h1>Google Console</h1><p>Google OAuth and Calendar connection readiness. Client values are never displayed.</p><table class="widefat striped"><tbody>';
             self::row('OAuth client configuration',$r['google_calendar']['oauth_client']);
             self::row('Configuration source',$r['google_calendar']['configuration_source']);
+            self::row('Authorized redirect URI',$r['google_calendar']['authorized_redirect_uri']);
             self::row('Connection test',$r['google_calendar']['test_connection']);
         foreach($r['google_calendar']['projection_states'] as $state=>$count)self::row('Calendar projection: '.$state,(string)$count);
-            echo '</tbody></table></div>';return;
+            echo '</tbody></table><p>Configure a Google OAuth web client with this exact HTTPS redirect URI, then provide the client ID and secret through deployment configuration. Client values are never entered or displayed here. Connection remains untested until an authorized teacher completes OAuth.</p></div>';return;
         }
         $state=$r['notifications']['channels'][$provider]??'not_configured';
         $label=$provider==='whatsapp'?'WhatsApp':'SMS';
@@ -53,6 +54,7 @@ final class IntegrationControlPlaneController {
         self::row('Implemented capability',$r['google_calendar']['capability']);
         self::row('OAuth client configuration',$r['google_calendar']['oauth_client']);
         self::row('OAuth credentials source',$r['google_calendar']['configuration_source']);
+        self::row('OAuth authorized redirect URI',$r['google_calendar']['authorized_redirect_uri']);
         self::row('Connection test',$r['google_calendar']['test_connection']);
         echo '</tbody></table><h2>Stripe</h2><p>Use Payment Execution for secret-free Stripe test-mode readiness. Production payment activation remains separately gated.</p>';
         echo '<p>WhatsApp and SMS have transport seams only. Choose providers and supply deployment credentials before enabling either channel. No provider test, message, or payment is sent from this screen.</p>';

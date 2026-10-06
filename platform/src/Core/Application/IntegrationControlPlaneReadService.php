@@ -23,6 +23,8 @@ final class IntegrationControlPlaneReadService {
         $copy=apply_filters('dzn_notification_copy_definitions',array());
         $notificationRuntime=NotificationRuntimeFactory::configured();
         $googleConfigured=GoogleOAuthController::configured();
+        $googleRedirectUri=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
+        if(!is_string($googleRedirectUri)||!str_starts_with($googleRedirectUri,'https://'))$googleRedirectUri='';
         $invitationTransportConfigured=(bool)apply_filters('dzn_teacher_invitation_email_transport_configured',false);
 
         global $wpdb;
@@ -63,6 +65,7 @@ final class IntegrationControlPlaneReadService {
                 'capability'=>'teacher Google Calendar event projection and Google Meet join links',
                 'oauth_client'=> $googleConfigured?'configured':'not_configured',
                 'configuration_source'=>'DZN_GOOGLE_OAUTH_CLIENT_ID and DZN_GOOGLE_OAUTH_CLIENT_SECRET in deployment configuration',
+                'authorized_redirect_uri'=>$googleRedirectUri!==''?$googleRedirectUri:'unavailable: HTTPS site URL required',
                 'test_connection'=>'not_run',
                 'projection_states'=>$googleProjectionStates,
             ),

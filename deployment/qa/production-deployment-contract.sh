@@ -34,6 +34,10 @@ need "$deploy" 'trap on_exit EXIT'
 need "$deploy" 'deployment_mutation_started=1'
 need "$deploy" 'mv "$plugin" "$plugin_previous"'
 need "$deploy" 'mv "$staged_plugin" "$plugin"'
+need "$deploy" 'chmod 755 "$root/wp-content" "$root/wp-content/plugins" "$root/wp-content/themes" "$plugin" "$theme"'
+need "$deploy" 'find "$plugin" "$theme" -type d -exec chmod 755 {} +'
+need "$deploy" 'find "$plugin" "$theme" -type f -exec chmod 644 {} +'
+need "$deploy" 'public application directory is not web-traversable'
 if grep -Fq 'tar -xzf "$upload" -C "$root"' "$deploy"; then
   echo 'FAIL production deploy must not extract an uploaded package directly into the live tree' >&2
   exit 1

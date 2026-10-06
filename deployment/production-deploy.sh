@@ -55,7 +55,7 @@ git fetch --no-tags origin main
 
 readonly ssh_target="${PRODUCTION_SSH_USER}@${PRODUCTION_HOST}"
 readonly upload=".dzn-production-deploy-${2}.tar.gz"
-scp -q "$scratch/deploy.tar.gz" "$ssh_target:$upload"
+scp "$scratch/deploy.tar.gz" "$ssh_target:$upload"
 ssh -T "$ssh_target" bash -s -- "$2" "$version" "$build" "$schema" "$PRODUCTION_ROOT" "$PRODUCTION_BACKUP_DIR" "$upload" "$archive_sha" "$declared_build" "$theme_sha" <<'REMOTE'
 set -Eeuo pipefail
 sha="$1"; version="$2"; build="$3"; expected_schema="$4"; root_rel="$5"; backup_root="$6"; upload="$7"; expected_archive_sha="$8"; declared_build="$9"; expected_theme_sha="${10}"
@@ -87,7 +87,13 @@ if ! tar -xzf "$upload" -C "$staged" || ! find "$staged" -type f -name '*.php' -
   echo 'FAIL uploaded package does not extract or contains PHP syntax errors on the production runtime' >&2
   exit 1
 fi
-rm -rf "$staged"
+staged_plugin="$staged/wp-content/plugins/delnavazan-platform"
+staged_theme="$staged/wp-content/themes/delnavazan-theme"
+[[ -f "$staged_plugin/delnavazan-platform.php" && -f "$staged_theme/style.css" ]] || { rm -rf "$staged"; echo 'FAIL staged Platform/theme package is incomplete' >&2; exit 1; }
+plugin_device="$(stat -c '%d' "$(dirname "$plugin")")"
+theme_device="$(stat -c '%d' "$(dirname "$theme")")"
+stage_device="$(stat -c '%d' "$staged")"
+[[ "$plugin_device" == "$theme_device" && "$plugin_device" == "$stage_device" ]] || { rm -rf "$staged"; echo 'FAIL staged package and live app paths must share a filesystem for atomic installation' >&2; exit 1; }
 install -d -m 700 "$backup_root"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"; backup="$backup_root/${stamp}-${sha}"
 umask 077; mkdir -m 700 "$backup"
@@ -98,15 +104,47 @@ wp --path="$root" --skip-plugins --skip-themes db export "$backup/database.sql" 
 printf '%s\n' "{\"target\":\"https://delnavazan.com\",\"sha\":\"$sha\",\"platform_version\":\"$version\",\"platform_build\":\"$build\",\"declared_source_build\":\"$declared_build\",\"expected_schema\":\"$expected_schema\",\"archive_sha256\":\"$expected_archive_sha\",\"theme_style_sha256\":\"$expected_theme_sha\",\"backup\":\"$backup\",\"status\":\"preflight_complete\"}" > "$backup/deployment.json"
 
 maintenance=0
+deployment_mutation_started=0
+deployment_committed=0
+plugin_previous="${plugin}.dzn-previous-${stamp}"
+theme_previous="${theme}.dzn-previous-${stamp}"
 restore_files(){
-  rm -rf "$plugin" "$theme"
-  install -d "$(dirname "$plugin")" "$(dirname "$theme")"
-  tar -C "$root/wp-content" -xzf "$backup/application-files.tar.gz"
+  local restore_failed=0
+  if [[ -e "$plugin_previous" ]]; then
+    rm -rf "$plugin" && mv "$plugin_previous" "$plugin" || restore_failed=1
+  fi
+  if [[ -e "$theme_previous" ]]; then
+    rm -rf "$theme" && mv "$theme_previous" "$theme" || restore_failed=1
+  fi
+  if [[ ! -d "$plugin" || ! -d "$theme" ]]; then
+    install -d "$(dirname "$plugin")" "$(dirname "$theme")"
+    tar -C "$root/wp-content" -xzf "$backup/application-files.tar.gz" || restore_failed=1
+  fi
+  return "$restore_failed"
 }
+on_exit(){
+  local result=$?
+  trap - EXIT
+  trap '' HUP INT TERM
+  if [[ "$deployment_mutation_started" == 1 && "$deployment_committed" == 0 ]]; then
+    if ! restore_files; then
+      echo "FAIL automatic application-file rollback failed; file backup: $backup" >&2
+    else
+      echo "Application files restored after failed deployment; maintenance mode remains on; file backup: $backup" >&2
+    fi
+  fi
+  rm -rf "$staged" || echo 'WARN could not remove staged package directory' >&2
+  exit "$result"
+}
+trap on_exit EXIT
+deployment_mutation_started=1
 wp --path="$root" maintenance-mode activate >/dev/null; maintenance=1
-if ! { rm -rf "$plugin" "$theme" && tar -xzf "$upload" -C "$root"; }; then
-  restore_files || true
-  echo "FAIL package extraction failed; file backup: $backup" >&2
+if ! mv "$plugin" "$plugin_previous" || ! mv "$staged_plugin" "$plugin"; then
+  echo "FAIL atomic Platform directory replacement failed; file backup: $backup" >&2
+  exit 1
+fi
+if ! mv "$theme" "$theme_previous" || ! mv "$staged_theme" "$theme"; then
+  echo "FAIL atomic theme directory replacement failed; file backup: $backup" >&2
   exit 1
 fi
 rm -f "$upload"
@@ -114,21 +152,21 @@ rm -f "$upload"
 # Force WordPress through the Platform's canonical Migrator. This call is
 # idempotent and fails the deployment if migration or its verifier throws.
 if ! wp --path="$root" eval '\Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();'; then
-  restore_files || true
   printf '%s\n' "{\"status\":\"migration_failed\",\"sha\":\"$sha\",\"backup\":\"$backup\",\"database_restore\":\"manual operator decision required\"}" > "$backup/failure.json"
-  echo "FAIL migration failed; maintenance mode remains on; app files restored; DB backup and state: $backup" >&2
+  echo "FAIL migration failed; maintenance mode remains on; application-file rollback will run; DB backup and state: $backup" >&2
   exit 1
 fi
 
 after="$(wp --path="$root" eval 'echo json_encode(["schema" => (string) get_option("dzn_platform_schema_version", "not-installed"), "version" => DZN_PLATFORM_VERSION, "build" => DZN_PLATFORM_BUILD_ID, "plugin_active" => in_array("delnavazan-platform/delnavazan-platform.php", (array) get_option("active_plugins", []), true), "stylesheet" => get_option("stylesheet")]);')"
 installed_theme_sha="$(sha256sum "$theme/style.css" | awk '{print $1}')"
 if ! php -r '$s=json_decode($argv[1],true); exit(($s["schema"]??"")===$argv[2]&&($s["version"]??"")===$argv[3]&&($s["build"]??"")===$argv[4]&&($s["plugin_active"]??false)===true&&($s["stylesheet"]??"")==="delnavazan-theme"?0:1);' "$after" "$expected_schema" "$version" "$build" || [[ "$installed_theme_sha" != "$expected_theme_sha" ]]; then
-  restore_files || true
   printf '%s\n' "{\"status\":\"identity_verification_failed\",\"sha\":\"$sha\",\"before\":$before,\"after\":$after,\"backup\":\"$backup\"}" > "$backup/failure.json"
-  echo "FAIL post-deploy identity/schema verification failed; maintenance mode remains on; file backup: $backup" >&2
+  echo "FAIL post-deploy identity/schema verification failed; maintenance mode remains on; application-file rollback will run; file backup: $backup" >&2
   exit 1
 fi
 printf '%s\n' "{\"target\":\"https://delnavazan.com\",\"sha\":\"$sha\",\"archive_sha256\":\"$expected_archive_sha\",\"theme_style_sha256\":\"$expected_theme_sha\",\"declared_source_build\":\"$declared_build\",\"before\":$before,\"after\":$after,\"backup\":\"$backup\",\"status\":\"deployed\"}" > "$backup/deployment.json"
+deployment_committed=1
 wp --path="$root" maintenance-mode deactivate >/dev/null; maintenance=0
+rm -rf "$plugin_previous" "$theme_previous" || echo 'WARN prior app directories remain beside the live paths' >&2
 cat "$backup/deployment.json"
 REMOTE

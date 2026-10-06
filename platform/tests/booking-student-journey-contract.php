@@ -1,9 +1,4 @@
 <?php
-
-if (str_contains($booking, 'برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد')) throw new RuntimeException('Booking must not promise that the submitted email is already the student-account login');
-if (str_contains($booking, 'راه اصلی ارتباط دلنوازان در واتساپ')) throw new RuntimeException('Booking must not promise WhatsApp as the primary contact channel before transport readiness');
-if (!str_contains($booking, 'اگر حساب هنرجویی برای شما فعال شود')) throw new RuntimeException('Booking must make account activation conditional');
-if (!str_contains($booking, 'واتساپ یا پیامک فقط در صورت فعال بودن آن کانال')) throw new RuntimeException('Booking must keep mobile-channel delivery conditional on configured transport');
 $root=dirname(__DIR__);
 $read=file_get_contents($root.'/src/Core/Application/AcademyJourneyReadService.php');
 $dashboard=file_get_contents($root.'/src/Admin/Controller/AcademyOperationsController.php');
@@ -14,6 +9,10 @@ $validation=file_get_contents($root.'/src/Core/Application/StudentAccountClaimVa
 $booking=file_get_contents(dirname($root).'/theme/inc/booking.php');
 $routes=file_get_contents(dirname($root).'/theme/inc/routes.php');
 $assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
+$assert(!str_contains($booking, 'برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد'),'Booking must not promise that the submitted email is already the student-account login');
+$assert(!str_contains($booking, 'راه اصلی ارتباط دلنوازان در واتساپ'),'Booking must not promise WhatsApp as the primary contact channel before transport readiness');
+$assert(str_contains($booking, 'اگر حساب هنرجویی برای شما فعال شود'),'Booking must make account activation conditional');
+$assert(str_contains($booking, 'واتساپ یا پیامک فقط در صورت فعال بودن آن کانال'),'Booking must keep mobile-channel delivery conditional on configured transport');
 $assert(str_contains($dashboard,"if(\$r->enrolment_id&&\$r->claim_state!=='claimed'") && str_contains($dashboard,"'dzn_issue_student_account_claims'") ,'Dashboard must offer account claim only in the canonical enrolment stage with the existing narrow capability.');
 $assert(str_contains($read,'student_account_claim_invitations claim ON claim.student_id=br.student_id'),'Journey read model must expose existing invitation lifecycle for contextual operator decisions.');
 $assert(str_contains($issue,"'canonical_student_course_v1'") && str_contains($issue,'StudentAccountClaimNotificationService') && str_contains($issue,"'dzn_issue_student_account_claims'"),'Claim issuance must require canonical enrolment and reuse existing notification authority.');

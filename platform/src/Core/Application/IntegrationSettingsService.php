@@ -37,6 +37,7 @@ final class IntegrationSettingsService {
     public function value(string $provider,string $field):string {
         $all=(array)get_option(self::OPTION,array());$row=(array)($all[$provider]??array());$value=(string)($row[$field]??'');
         if($value===''&&$provider==='email'&&$field==='from_email')return 'no-reply@delnavazan.com';
+        if($value===''&&$provider==='email'&&$field==='from_name')return 'Delnavazan';
         if($value===''&&$provider==='email'&&$field==='mode')return 'host_mail';
         return in_array($field,self::SECRET_FIELDS[$provider]??array(),true)&&$value!==''?$this->open($provider,$field,$value):$value;
     }

@@ -54,6 +54,7 @@ final class Menu {
 
             ['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
             ['dzn-notifications-menu', 'Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
+            ['dzn-notifications-menu', 'Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['dzn-settings-menu', 'System health', 'dzn_view_diagnostics', 'dzn-system-health', [ScreenController::class, 'status'], null],
             ['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],
         ];

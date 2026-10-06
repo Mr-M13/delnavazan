@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
+use Delnavazan\Platform\Integrations\Notifications\TeacherInvitationPresentation;
 
 /**
  * Bounded legacy invitation-delivery worker. Invitation delivery deliberately remains outside
@@ -32,11 +33,13 @@ final class TeacherInvitationDeliveryWorker {
             return;
         }
         $service=new PrincipalInvitationService();
+        try { $claimUrl=NotificationActionLinkPolicy::currentTeacherInvitation(); }
+        catch (\Throwable) { try{$repository->failPendingDelivery($generationId,'notification_action_link_unavailable');}catch(\Throwable){} return; }
         try{
             $payload=$service->prepareDelivery($generationId);
-            $claimUrl=home_url('/teacher-invitation/');
-            $subject='دعوت به پنل مدرس دلنوازان';
-            $message="برای اتصال حساب مدرس دلنوازان، صفحه زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n\n".$claimUrl."\n\nکد دعوت:\n".$payload['secret']."\n\nاین کد را با دیگران به اشتراک نگذارید.";
+            $copy=TeacherInvitationPresentation::values();
+            $subject=TeacherInvitationPresentation::render($copy['subject'],$claimUrl,(string)$payload['secret']);
+            $message=TeacherInvitationPresentation::render($copy['body'],$claimUrl,(string)$payload['secret']);
             $sent=wp_mail((string)$payload['recipient'],$subject,$message);
             unset($message,$payload['secret']);
             $repository->finishPreparedDelivery($generationId,$sent?'delivered':'failed',$sent?null:'mail_transport_rejected');

@@ -52,6 +52,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           contracts=(
+            platform/tests/integration-control-plane-contract.php
+            platform/tests/integration-settings-runtime.php
             platform/tests/phase-1b-contract.php
             platform/tests/phase-1d-contract.php
             platform/tests/phase-1e-contract.php

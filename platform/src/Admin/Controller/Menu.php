@@ -28,6 +28,11 @@ final class Menu {
         }
 
         $pages = [
+            ['dzn-settings-menu', 'Integrations', 'dzn_view_diagnostics', 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
+            ['dzn-settings-menu', 'Email', 'dzn_manage_provider_integrations', 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
+            ['dzn-settings-menu', 'Meta WhatsApp Cloud API', 'dzn_manage_provider_integrations', 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
+            ['dzn-settings-menu', 'SMS fallback', 'dzn_manage_provider_integrations', 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
+            ['dzn-settings-menu', 'Google OAuth / Calendar', 'dzn_manage_provider_integrations', 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
             ['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
             ['dzn-bookings-menu', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
             ['dzn-bookings-menu', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
@@ -50,9 +55,6 @@ final class Menu {
             ['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
             ['dzn-notifications-menu', 'Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['dzn-settings-menu', 'System health', 'dzn_view_diagnostics', 'dzn-system-health', [ScreenController::class, 'status'], null],
-            ['dzn-settings-menu', 'Google Console', 'dzn_view_diagnostics', 'dzn-google-console', [IntegrationControlPlaneController::class, 'googleSettings'], null],
-            ['dzn-settings-menu', 'WhatsApp', 'dzn_view_diagnostics', 'dzn-whatsapp-settings', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
-            ['dzn-settings-menu', 'SMS', 'dzn_view_diagnostics', 'dzn-sms-settings', [IntegrationControlPlaneController::class, 'smsSettings'], null],
             ['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],
         ];
 
@@ -72,7 +74,8 @@ final class Menu {
             ['Integrations', 'dzn-settings-integrations'],
             ['Diagnostics', 'dzn-settings-diagnostics'],
         ] as [$label, $slug]) {
-            add_submenu_page('dzn-settings-menu', $label, $label, 'read', $slug, [AdminNavigationController::class, 'screen']);
+            $callback=$slug==='dzn-settings-integrations'?[IntegrationControlPlaneController::class,'screen']:[AdminNavigationController::class,'screen'];
+            add_submenu_page('dzn-settings-menu', $label, $label, 'read', $slug, $callback);
         }
     }
 }

@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\Port\ProviderOAuthPort;
+use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 
 /**
  * Live Google OAuth transport.
@@ -14,6 +15,10 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
     private const TOKEN_URI='https://oauth2.googleapis.com/token';
     private const REVOKE_URI='https://oauth2.googleapis.com/revoke';
     private const TOKEN_INFO_URI='https://oauth2.googleapis.com/tokeninfo';
+
+    public static function clientId():string{return (new IntegrationSettingsService())->value('google','client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');}
+    public static function isConfigured():bool{try{return self::clientId()!==''&&self::clientSecret()!=='';}catch(\Throwable){return false;}}
+    private static function clientSecret():string{return (new IntegrationSettingsService())->value('google','client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');}
 
     public function authorizationUri(array $request):string{
         $this->configuration((string)($request['client_reference']??''));
@@ -81,9 +86,7 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
     }
 
     private function configuration(string $expectedClient=''):array{
-        if(!defined('DZN_GOOGLE_OAUTH_CLIENT_ID')||!defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))throw new \RuntimeException('google_oauth_not_configured');
-        $client=trim((string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'));
-        $secret=trim((string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'));
+        $client=trim(self::clientId());$secret=trim(self::clientSecret());
         if($client===''||$secret==='')throw new \RuntimeException('google_oauth_not_configured');
         if($expectedClient!==''&&!hash_equals($client,$expectedClient))throw new \RuntimeException('google_oauth_client_mismatch');
         return array($client,$secret);

@@ -9,9 +9,11 @@ final class AdminNavigationController {
     ];
     private const SECTIONS = [
         'dzn-settings-integrations' => [
-            ['Google Console', 'dzn-google-console', 'dzn_view_diagnostics'],
-            ['WhatsApp', 'dzn-whatsapp-settings', 'dzn_view_diagnostics'],
-            ['SMS', 'dzn-sms-settings', 'dzn_view_diagnostics'],
+            ['Integrations overview', 'dzn-integrations', 'dzn_view_diagnostics'],
+            ['Email', 'dzn-integration-email', 'dzn_manage_provider_integrations'],
+            ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_manage_provider_integrations'],
+            ['SMS fallback', 'dzn-integration-sms', 'dzn_manage_provider_integrations'],
+            ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_manage_provider_integrations'],
             ['Stripe', 'dzn-stripe-settings', 'dzn_view_payment_execution_authority'],
         ],
         'dzn-settings-diagnostics' => [
@@ -61,7 +63,7 @@ final class AdminNavigationController {
 
         // Integration and diagnostics destinations remain registered at their own
         // capabilities, but appear only inside their Settings section landing pages.
-        foreach (['dzn-google-console', 'dzn-whatsapp-settings', 'dzn-sms-settings', 'dzn-stripe-settings', 'dzn-system-health'] as $slug) {
+        foreach (['dzn-integrations','dzn-integration-email','dzn-integration-whatsapp','dzn-integration-sms','dzn-integration-google','dzn-google-console', 'dzn-whatsapp-settings', 'dzn-sms-settings', 'dzn-stripe-settings', 'dzn-system-health'] as $slug) {
             remove_submenu_page('dzn-settings-menu', $slug);
         }
 

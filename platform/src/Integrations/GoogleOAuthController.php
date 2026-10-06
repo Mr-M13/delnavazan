@@ -11,10 +11,10 @@ final class GoogleOAuthController {
         add_action('admin_post_dzn_google_connect',array(__CLASS__,'start'));
         add_action('admin_post_dzn_google_oauth_callback',array(__CLASS__,'callback'));
         add_action('admin_post_dzn_google_disconnect',array(__CLASS__,'disconnect'));
+        add_action('admin_post_dzn_google_calendar_sync',array(__CLASS__,'syncCalendar'));
     }
     public static function configured():bool{
-        return defined('DZN_GOOGLE_OAUTH_CLIENT_ID')&&trim((string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'))!==''
-            &&defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET')&&trim((string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))!=='';
+        return GoogleOAuthTransport::isConfigured();
     }
     public static function start():void{
         if(!is_user_logged_in())auth_redirect();
@@ -34,7 +34,7 @@ final class GoogleOAuthController {
             $service=new ProviderIntegrationService(null,null,$oauth,$adapter,$adapter);
             $result=$service->beginAuthorization(array(
                 'provider_code'=>GoogleCalendarMeetAdapter::PROVIDER_CODE,'teacher_id'=>(int)$teacher->id,
-                'client_reference'=>(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'),'redirect_uri'=>$redirect,
+                'client_reference'=>GoogleOAuthTransport::clientId(),'redirect_uri'=>$redirect,
                 'scope_snapshot'=>$scopes,'evidence_channel'=>'authenticated_platform',
                 'evidence_reference'=>'teacher-google-connect:'.(int)$teacher->id,'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'teacher-google-connect:'.get_current_user_id().':'.wp_generate_uuid4());
@@ -43,7 +43,7 @@ final class GoogleOAuthController {
                 'teacher_id'=>(int)$teacher->id,'expires_at'=>time()+900,
             )),time()+900);
             $uri=$oauth->authorizationUri(array(
-                'client_reference'=>(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'),'redirect_uri'=>$redirect,
+                'client_reference'=>GoogleOAuthTransport::clientId(),'redirect_uri'=>$redirect,
                 'scope_snapshot'=>$scopes,'state'=>$result['state'],'code_challenge'=>$result['code_challenge'],
             ));
             $parts=parse_url($uri);
@@ -84,6 +84,23 @@ final class GoogleOAuthController {
             ),'teacher-google-disconnect-local:'.(int)$connection->id.':'.wp_generate_uuid4());
             self::returnToPortal('google_disconnected');
         }catch(\Throwable){self::returnToPortal('google_disconnect_failed');}
+    }
+    /** Explicitly dispatch/reconcile only this authenticated Teacher's pending projections. */
+    public static function syncCalendar():void{
+        if(!is_user_logged_in())auth_redirect();
+        check_admin_referer('dzn_google_calendar_sync');
+        $repository=new ProviderIntegrationRepository();
+        $teacher=$repository->teacherForPrincipalUser((int)get_current_user_id(),false);
+        if(!$teacher)self::returnToPortal('teacher_not_linked');
+        try{
+            $pending=$repository->pendingCalendarMappingsForTeacher((int)$teacher->id,10);
+            if(!$pending)self::returnToPortal('google_calendar_sync_no_pending');
+            (new ProviderProjectionWorkerContext())->run(static function()use($pending):void{
+                $service=new GoogleCalendarProjectionService();
+                foreach($pending as $mapping)$service->dispatch((int)$mapping->id,'teacher-google-sync:'.(int)$mapping->id.':'.(int)$mapping->mapping_version);
+            });
+            self::returnToPortal('google_calendar_sync_complete');
+        }catch(\Throwable){self::returnToPortal('google_calendar_sync_failed');}
     }
     public static function callback():void{
         if(!is_user_logged_in())auth_redirect();

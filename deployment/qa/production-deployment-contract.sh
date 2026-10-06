@@ -13,6 +13,19 @@ need "$deploy" 'git archive "$2" platform'
 need "$deploy" 'git archive "$2" theme'
 need "$deploy" 'sha256sum'
 need "$deploy" "php -l >/dev/null"
+need "$deploy" 'staged_plugin="$staged/wp-content/plugins/delnavazan-platform"'
+need "$deploy" 'atomic installation'
+need "$deploy" 'trap on_exit EXIT'
+need "$deploy" 'deployment_mutation_started=1'
+need "$deploy" 'mv "$plugin" "$plugin_previous"'
+need "$deploy" 'mv "$staged_plugin" "$plugin"'
+if grep -Fq 'tar -xzf "$upload" -C "$root"' "$deploy"; then
+  echo 'FAIL production deploy must not extract an uploaded package directly into the live tree' >&2
+  exit 1
+fi
+committed_line="$(grep -nF 'deployment_committed=1' "$deploy" | tail -1 | cut -d: -f1)"
+cleanup_line="$(grep -nF 'rm -rf "$plugin_previous" "$theme_previous"' "$deploy" | tail -1 | cut -d: -f1)"
+[[ -n "$committed_line" && -n "$cleanup_line" && "$cleanup_line" -gt "$committed_line" ]] || { echo 'FAIL production deploy must retain previous app directories until post-deploy verification commits' >&2; exit 1; }
 need "$deploy" 'db export'
 need "$deploy" 'Migrator::maybe_upgrade()'
 need "$deploy" 'main-${2:0:12}'

@@ -12,6 +12,17 @@ check_html(){ local path="$1"; if ! fetch "$path"; then return; fi; if [[ "$code
 check_html '/'
 check_html '/enrol/'
 if grep -Eq 'data-instrument-choice="[0-9]+"' "$body"; then pass '/enrol/ renders course choices'; else fail '/enrol/ does not render any course choices'; fi
+css_urls="$(grep -Eo '/wp-content/themes/delnavazan-theme/assets/css/(theme|booking)\.css(\?[^"[:space:]<>]*)?' "$body" | sort -u || true)"
+check_css_asset(){
+  local asset="$1" url=""
+  url="$(grep -E "/assets/css/${asset}\.css(\?|$)" <<<"$css_urls" | head -1 || true)"
+  if [[ -z "$url" ]]; then fail "/enrol/ does not reference current $asset.css from delnavazan-theme"; return; fi
+  if ! fetch "$url"; then return; fi
+  if [[ "$code" == 200 ]]; then pass "$url HTTP 200"; else fail "$url expected HTTP 200, got $code"; fi
+  if grep -Eiq '^content-type:[[:space:]]*text/css([;[:space:]]|$)' "$headers"; then pass "$url has CSS content type"; else fail "$url expected CSS content type, got $(grep -Ei '^content-type:' "$headers" | tail -1 | sed -E 's/\r$//' || echo 'missing Content-Type')"; fi
+}
+check_css_asset theme
+check_css_asset booking
 if ! fetch '/wp-json/delnavazan-platform/v1/booking-options'; then :; elif [[ "$code" == 200 ]] && grep -Eiq '^content-type:[[:space:]]*application/json' "$headers" && ! grep -Eq '"instruments"[[:space:]]*:[[:space:]]*\[\]' "$body"; then pass 'booking options API returns a non-empty catalogue'; else fail "booking options API is empty or invalid (HTTP $code)"; fi
 if result="$(curl --silent --show-error --max-time 20 --proto '=https' --dump-header "$headers" --output /dev/null --write-out '%{http_code}' "$BASE_URL/booking/")"; then location="$(grep -Ei '^location:' "$headers" | tail -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//; s/\r$//' || true)"; if [[ "$result" == 301 ]] && { [[ "$location" == '/enrol/' ]] || [[ "$location" == "$BASE_URL/enrol/" ]]; }; then pass '/booking/ redirects permanently to /enrol/'; else fail "/booking/ expected 301 to /enrol/, got $result ${location:-no-location}"; fi; else fail '/booking/ transfer failed'; fi
 for path in /login/ /wp-login.php; do if ! fetch "$path"; then continue; fi; if [[ "$code" == 200 ]]; then pass "$path HTTP 200"; else fail "$path expected HTTP 200, got $code"; fi; done

@@ -38,6 +38,9 @@ mkdir -p "$scratch/wp-content/plugins/delnavazan-platform" "$scratch/wp-content/
 git archive "$2" platform | tar -x -C "$scratch/wp-content/plugins/delnavazan-platform" --strip-components=1
 git archive "$2" theme | tar -x -C "$scratch/wp-content/themes/delnavazan-theme" --strip-components=1
 [[ -f "$scratch/wp-content/plugins/delnavazan-platform/delnavazan-platform.php" && -f "$scratch/wp-content/themes/delnavazan-theme/style.css" ]] || fail 'Platform/theme package is incomplete'
+for asset in theme.css booking.css; do
+  [[ -f "$scratch/wp-content/themes/delnavazan-theme/assets/css/$asset" ]] || fail "theme package is missing required assets/css/$asset"
+done
 python3 - "$scratch/wp-content/plugins/delnavazan-platform/delnavazan-platform.php" "$build" <<'PY'
 import pathlib, re, sys
 path = pathlib.Path(sys.argv[1])
@@ -50,16 +53,18 @@ PY
 tar -C "$scratch" -czf "$scratch/deploy.tar.gz" wp-content
 archive_sha="$(sha256sum "$scratch/deploy.tar.gz" | awk '{print $1}')"
 theme_sha="$(sha256sum "$scratch/wp-content/themes/delnavazan-theme/style.css" | awk '{print $1}')"
+theme_css_sha="$(sha256sum "$scratch/wp-content/themes/delnavazan-theme/assets/css/theme.css" | awk '{print $1}')"
+booking_css_sha="$(sha256sum "$scratch/wp-content/themes/delnavazan-theme/assets/css/booking.css" | awk '{print $1}')"
 git fetch --no-tags origin main
 [[ "$(git rev-parse origin/main)" == "$2" ]] || fail 'origin/main moved while the deployment package was being prepared'
 
 readonly ssh_target="${PRODUCTION_SSH_USER}@${PRODUCTION_HOST}"
 readonly upload=".dzn-production-deploy-${2}.tar.gz"
 scp "$scratch/deploy.tar.gz" "$ssh_target:$upload"
-ssh -T "$ssh_target" bash -s -- "$2" "$version" "$build" "$schema" "$PRODUCTION_ROOT" "$PRODUCTION_BACKUP_DIR" "$upload" "$archive_sha" "$declared_build" "$theme_sha" <<'REMOTE'
+ssh -T "$ssh_target" bash -s -- "$2" "$version" "$build" "$schema" "$PRODUCTION_ROOT" "$PRODUCTION_BACKUP_DIR" "$upload" "$archive_sha" "$declared_build" "$theme_sha" "$theme_css_sha" "$booking_css_sha" <<'REMOTE'
 set -Eeuo pipefail
-sha="$1"; version="$2"; build="$3"; expected_schema="$4"; root_rel="$5"; backup_root="$6"; upload="$7"; expected_archive_sha="$8"; declared_build="$9"; expected_theme_sha="${10}"
-[[ "$sha" =~ ^[0-9a-f]{40}$ && "$root_rel" == 'domains/delnavazan.com/public_html' && "$expected_archive_sha" =~ ^[0-9a-f]{64}$ && "$expected_theme_sha" =~ ^[0-9a-f]{64}$ ]] || { echo 'FAIL invalid deployment identity or target' >&2; exit 1; }
+sha="$1"; version="$2"; build="$3"; expected_schema="$4"; root_rel="$5"; backup_root="$6"; upload="$7"; expected_archive_sha="$8"; declared_build="$9"; expected_theme_sha="${10}"; expected_theme_css_sha="${11}"; expected_booking_css_sha="${12}"
+[[ "$sha" =~ ^[0-9a-f]{40}$ && "$root_rel" == 'domains/delnavazan.com/public_html' && "$expected_archive_sha" =~ ^[0-9a-f]{64}$ && "$expected_theme_sha" =~ ^[0-9a-f]{64}$ && "$expected_theme_css_sha" =~ ^[0-9a-f]{64}$ && "$expected_booking_css_sha" =~ ^[0-9a-f]{64}$ ]] || { echo 'FAIL invalid deployment identity or target' >&2; exit 1; }
 [[ "$backup_root" == /* && "$backup_root" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo 'FAIL backup path must be absolute and contain only safe path characters' >&2; exit 1; }
 root="$HOME/$root_rel"; plugin="$root/wp-content/plugins/delnavazan-platform"; theme="$root/wp-content/themes/delnavazan-theme"
 [[ -f "$root/wp-load.php" && -f "$plugin/delnavazan-platform.php" && -f "$theme/style.css" ]] || { echo 'FAIL production WordPress/plugin/theme preflight failed' >&2; exit 1; }
@@ -89,7 +94,8 @@ if ! tar -xzf "$upload" -C "$staged" || ! find "$staged" -type f -name '*.php' -
 fi
 staged_plugin="$staged/wp-content/plugins/delnavazan-platform"
 staged_theme="$staged/wp-content/themes/delnavazan-theme"
-[[ -f "$staged_plugin/delnavazan-platform.php" && -f "$staged_theme/style.css" ]] || { rm -rf "$staged"; echo 'FAIL staged Platform/theme package is incomplete' >&2; exit 1; }
+[[ -f "$staged_plugin/delnavazan-platform.php" && -f "$staged_theme/style.css" && -f "$staged_theme/assets/css/theme.css" && -f "$staged_theme/assets/css/booking.css" ]] || { rm -rf "$staged"; echo 'FAIL staged Platform/theme package is missing required files' >&2; exit 1; }
+[[ "$(sha256sum "$staged_theme/assets/css/theme.css" | awk '{print $1}')" == "$expected_theme_css_sha" && "$(sha256sum "$staged_theme/assets/css/booking.css" | awk '{print $1}')" == "$expected_booking_css_sha" ]] || { rm -rf "$staged"; echo 'FAIL staged theme CSS checksum mismatch' >&2; exit 1; }
 plugin_device="$(stat -c '%d' "$(dirname "$plugin")")"
 theme_device="$(stat -c '%d' "$(dirname "$theme")")"
 stage_device="$(stat -c '%d' "$staged")"
@@ -159,7 +165,9 @@ fi
 
 after="$(wp --path="$root" eval 'echo json_encode(["schema" => (string) get_option("dzn_platform_schema_version", "not-installed"), "version" => DZN_PLATFORM_VERSION, "build" => DZN_PLATFORM_BUILD_ID, "plugin_active" => in_array("delnavazan-platform/delnavazan-platform.php", (array) get_option("active_plugins", []), true), "stylesheet" => get_option("stylesheet")]);')"
 installed_theme_sha="$(sha256sum "$theme/style.css" | awk '{print $1}')"
-if ! php -r '$s=json_decode($argv[1],true); exit(($s["schema"]??"")===$argv[2]&&($s["version"]??"")===$argv[3]&&($s["build"]??"")===$argv[4]&&($s["plugin_active"]??false)===true&&($s["stylesheet"]??"")==="delnavazan-theme"?0:1);' "$after" "$expected_schema" "$version" "$build" || [[ "$installed_theme_sha" != "$expected_theme_sha" ]]; then
+installed_theme_css_sha="$(sha256sum "$theme/assets/css/theme.css" | awk '{print $1}')"
+installed_booking_css_sha="$(sha256sum "$theme/assets/css/booking.css" | awk '{print $1}')"
+if ! php -r '$s=json_decode($argv[1],true); exit(($s["schema"]??"")===$argv[2]&&($s["version"]??"")===$argv[3]&&($s["build"]??"")===$argv[4]&&($s["plugin_active"]??false)===true&&($s["stylesheet"]??"")==="delnavazan-theme"?0:1);' "$after" "$expected_schema" "$version" "$build" || [[ "$installed_theme_sha" != "$expected_theme_sha" || "$installed_theme_css_sha" != "$expected_theme_css_sha" || "$installed_booking_css_sha" != "$expected_booking_css_sha" ]]; then
   printf '%s\n' "{\"status\":\"identity_verification_failed\",\"sha\":\"$sha\",\"before\":$before,\"after\":$after,\"backup\":\"$backup\"}" > "$backup/failure.json"
   echo "FAIL post-deploy identity/schema verification failed; maintenance mode remains on; application-file rollback will run; file backup: $backup" >&2
   exit 1

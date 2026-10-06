@@ -166,6 +166,11 @@ final class ProviderIntegrationRepository {
         $limit=max(1,min(50,$limit));global $wpdb;
         return (array)$wpdb->get_results("SELECT * FROM {$this->p}provider_calendar_event_mappings WHERE provider_code='google_calendar' AND projection_state='pending' ORDER BY id ASC LIMIT ".$limit);
     }
+    /** Pending Google projections for one Teacher only; used by the explicit teacher portal action. */
+    public function pendingCalendarMappingsForTeacher(int $teacherId,int $limit=10):array{
+        $limit=max(1,min(10,$limit));global $wpdb;
+        return (array)$wpdb->get_results($wpdb->prepare("SELECT m.* FROM {$this->p}provider_calendar_event_mappings m INNER JOIN {$this->p}lessons l ON l.id=m.lesson_id INNER JOIN {$this->p}integration_connections c ON c.id=m.connection_id WHERE m.provider_code='google_calendar' AND m.projection_state='pending' AND l.teacher_id=%d AND c.teacher_id=%d AND c.connection_state='connected' ORDER BY m.id ASC LIMIT ".$limit,$teacherId,$teacherId));
+    }
     public function calendarMappings(int $lessonId):array{
         return $this->rows("SELECT * FROM {$this->p}provider_calendar_event_mappings WHERE lesson_id=%d ORDER BY id",$lessonId);
     }

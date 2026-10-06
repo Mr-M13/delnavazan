@@ -119,8 +119,10 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
     || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {
     throw new RuntimeException( 'Academy dashboard data must come from its capability-gated application read projection.' );
 }
-if ( ! str_contains( $operations, "'Current term<br>'" )
-    || ! str_contains( $operations, "'In progress'" )
+if ( ! str_contains( $operations, '<th>Journey stage</th>' )
+    || ! str_contains( $operations, "'Identity unresolved'" )
+    || ! str_contains( $operations, "'Not accepted'" )
+    || ! str_contains( $operations, "'No Teacher Assignment'" )
     || str_contains( $operations, "'#'.(int)\$r->request_id" )
     || str_contains( $operations, "'#'.(int)\$r->case_id" )
     || str_contains( $operations, "(string)\$r->request_state" )

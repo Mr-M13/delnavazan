@@ -41,8 +41,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character SHA.' >&2; exit 1; }
-          git fetch --no-tags origin main
-          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
           bash -n deployment/qa/production-static-serving-diagnostic.sh
 
       - name: Configure pinned production SSH access

@@ -263,7 +263,7 @@ final class ScreenController {
             echo '</details>';
         }
         if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) self::archiveActions($entity, $id, (string) $record->status);
-        if (!$canonicalTerm && $entity !== 'teacher' && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1')) self::archiveActions($entity, $id, (string) $record->status);
+        if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') && $entity !== 'teacher') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
             try { $history = (new CoreReadService())->enrolmentLifecycle($id); }

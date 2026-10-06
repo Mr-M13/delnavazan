@@ -11,7 +11,7 @@ final class IntegrationControlPlaneReadService {
 
     /** @return array<string,mixed> */
     public function report():array{
-        if(!current_user_can(self::READ_CAPABILITY))throw new \RuntimeException('Unauthorized');
+        if(!current_user_can('manage_options')&&!current_user_can(self::READ_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $bindings=apply_filters('dzn_notification_transport_bindings',array());
         $configuredChannels=array();
         if(is_array($bindings))foreach($bindings as $binding){

@@ -7,7 +7,7 @@ final class DiagnosticsService {
     private const REQUIRED_MIGRATION = '001_initial_core_schema';
 
     public function status(): array {
-        if (!current_user_can('dzn_view_diagnostics')) throw new \RuntimeException('Unauthorized');
+        if (!current_user_can('manage_options') && !current_user_can('dzn_view_diagnostics')) throw new \RuntimeException('Unauthorized');
         $snapshot = (new CoreStatusRepository())->snapshot();
         $schemaVersion = (string) get_option('dzn_platform_schema_version', 'not installed');
         $migrationState = (array) get_option('dzn_platform_completed_migrations', []);

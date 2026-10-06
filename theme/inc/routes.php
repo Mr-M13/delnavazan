@@ -12,7 +12,7 @@ function dzn_theme_route() {
 	$path = trim( (string) $path, '/' );
 	// Preserve the recovered public enrolment URL while the booking experience uses one canonical renderer.
 	if ( 'enrol' === $path ) { $path = 'booking'; }
-	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'admin-operations' );
+	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' );
 	return in_array( $path, $routes, true ) ? $path : '';
 }
 
@@ -187,6 +187,23 @@ function dzn_theme_render_teacher_invitation_route() {
 	<?php
 }
 
+function dzn_theme_render_student_account_claim_route() {
+	$state = isset( $_GET['claim'] ) ? sanitize_key( wp_unslash( $_GET['claim'] ) ) : '';
+	$messages = array(
+		'expired' => 'این پیوند منقضی شده است. برای دریافت راهنمایی دربارهٔ پیوند تازه با دلنوازان تماس بگیرید.',
+		'unavailable' => 'این پیوند معتبر نیست، قبلاً استفاده شده یا دیگر فعال نیست. با دلنوازان تماس بگیرید تا وضعیت حساب بررسی شود.',
+	);
+	?>
+	<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1"><section class="dzn-route__state" aria-labelledby="dzn-route-title">
+		<p class="dzn-eyebrow">حساب هنرجویی</p><h1 id="dzn-route-title">اتصال حساب هنرجویی</h1>
+		<?php if ( isset( $messages[ $state ] ) ) : ?><p role="alert"><?php echo esc_html( $messages[ $state ] ); ?></p><?php endif; ?>
+		<?php if ( ! is_user_logged_in() ) : ?><p>برای اتصال امن حساب، ابتدا وارد حساب دلنوازان شوید.</p><p><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( add_query_arg( 'redirect_to', home_url( '/student-account-claim/' ), home_url( '/login/' ) ) ); ?>">ورود به حساب</a></p>
+		<?php else : ?><p>کد یک‌بارمصرف را از پیام دلنوازان وارد کنید. این کد در نشانی صفحه قرار نمی‌گیرد.</p><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="dzn_student_account_claim"><?php wp_nonce_field( 'dzn_student_account_claim' ); ?><p><label>کد اتصال<br><input required autocomplete="one-time-code" inputmode="text" minlength="64" maxlength="64" name="claim_code"></label></p><p><button class="wp-block-button__link wp-element-button" type="submit">اتصال حساب هنرجویی</button></p></form><?php endif; ?>
+		<p><a href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a></p>
+	</section></main>
+	<?php
+}
+
 function dzn_theme_render_dashboard_route() {
 	$destinations = dzn_theme_dashboard_destinations();
 	if ( count( $destinations ) > 1 ) {
@@ -216,6 +233,9 @@ function dzn_theme_render_portal_route( $kind ) {
 	// Authentication is gated before get_header() in dzn_theme_render_virtual_route().
 	// Keep this guard fail-closed if the renderer is ever called from another entrypoint.
 	if ( ! is_user_logged_in() ) { return; }
+	if ( 'student' === $kind && isset( $_GET['account_claim'] ) && sanitize_key( wp_unslash( $_GET['account_claim'] ) ) === 'success' ) {
+		echo '<p class="dzn-route__notice is-success" role="status">حساب هنرجویی با موفقیت متصل شد. اطلاعات آموزشی شما از این پرتال در دسترس است.</p>';
+	}
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
 		$screen = in_array( $screen, array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $screen : 'home';
@@ -256,6 +276,7 @@ function dzn_theme_render_virtual_route() {
 		case 'dashboard': dzn_theme_render_dashboard_route(); break;
 		case 'teacher-portal': dzn_theme_render_portal_route( 'teacher' ); break;
 		case 'teacher-invitation': dzn_theme_render_teacher_invitation_route(); break;
+		case 'student-account-claim': dzn_theme_render_student_account_claim_route(); break;
 		case 'student-portal': dzn_theme_render_portal_route( 'student' ); break;
 		case 'admin-operations': dzn_theme_render_admin_route(); break;
 	}

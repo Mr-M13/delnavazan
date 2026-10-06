@@ -43,6 +43,49 @@ final class TeacherRepository extends BaseRepository {
         ) ?: array();
     }
 
+    /** Searchable, paginated operational directory for the teacher admin screen. */
+    public function adminDirectory(string $search, string $status, int $page, int $perPage = 20): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $page = max(1, $page);
+        $perPage = max(1, min(50, $perPage));
+        $where = array();
+        $args = array();
+        if ($status === 'active' || $status === 'inactive') {
+            $where[] = 't.status = %s';
+            $args[] = $status;
+            $where[] = 't.archived_at IS NULL';
+        } elseif ($status === 'archived') {
+            $where[] = "(t.status = 'archived' OR t.archived_at IS NOT NULL)";
+        } else {
+            $where[] = '1=1';
+        }
+        if ($search !== '') {
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $where[] = '(t.display_name LIKE %s OR t.persian_name LIKE %s OR t.english_name LIKE %s OR t.email LIKE %s OR t.reference_code LIKE %s)';
+            array_push($args, $like, $like, $like, $like, $like);
+        }
+        $clause = implode(' AND ', $where);
+        $countSql = "SELECT COUNT(*) FROM {$this->table} t WHERE {$clause}";
+        $total = (int) $wpdb->get_var($args ? $wpdb->prepare($countSql, ...$args) : $countSql);
+        $offset = ($page - 1) * $perPage;
+        $sql = "SELECT t.id,t.reference_code,t.display_name,t.persian_name,t.english_name,t.email,t.status,t.timezone,t.archived_at,
+            COALESCE(a.state,'not_set') accepting_state,
+            COALESCE(ap.status,'not_set') availability_status, COALESCE(ar.rule_count,0) availability_rule_count,
+            COALESCE(el.eligible_count,0) eligible_course_count, COALESCE(ta.class_count,0) current_class_count
+            FROM {$this->table} t
+            LEFT JOIN {$p}teacher_accepting_states a ON a.teacher_id=t.id
+            LEFT JOIN {$p}teacher_availability_profiles ap ON ap.teacher_id=t.id
+            LEFT JOIN (SELECT teacher_id,COUNT(*) rule_count FROM {$p}teacher_availability_rules WHERE status='active' AND state IN ('preferred','requestable') GROUP BY teacher_id) ar ON ar.teacher_id=t.id
+            LEFT JOIN (SELECT teacher_id,COUNT(*) eligible_count FROM {$p}teacher_course_eligibilities WHERE status='active' AND (effective_from IS NULL OR effective_from<=UTC_TIMESTAMP()) AND (effective_until IS NULL OR effective_until>UTC_TIMESTAMP()) GROUP BY teacher_id) el ON el.teacher_id=t.id
+            LEFT JOIN (SELECT teacher_id,COUNT(*) class_count FROM {$p}teacher_assignments WHERE applicable_slot=1 GROUP BY teacher_id) ta ON ta.teacher_id=t.id
+            WHERE {$clause} ORDER BY CASE WHEN t.archived_at IS NULL THEN 0 ELSE 1 END, COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name),t.id LIMIT %d OFFSET %d";
+        $args[] = $perPage;
+        $args[] = $offset;
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$args)) ?: array();
+        return array('rows' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage);
+    }
+
     /** Serialize offboarding against Assignment creation/replacement on this Teacher. */
     public function archive(int $id, string $now, ?int $actor): void {
         global $wpdb;

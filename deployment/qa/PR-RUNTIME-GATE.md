@@ -60,6 +60,7 @@ php platform/tests/teacher-availability-dst-contract.php
 php platform/tests/booking-preference-order-contract.php
 php platform/tests/booking-public-window-contract.php
 php platform/tests/operations-dashboard-source-contract.php
+php platform/tests/booking-student-journey-contract.php
 php platform/tests/launch-portal-hardening-contract.php
 php platform/tests/onboarding-admin-authority-contract.php
 php platform/tests/booking-canonical-alias-contract.php

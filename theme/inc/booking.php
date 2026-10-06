@@ -113,7 +113,7 @@ function dzn_theme_render_booking_route(): void {
                         <h2 id="dzn-booking-contact-title" tabindex="-1">اطلاعات کاربری خود را وارد کنید</h2>
                         <div class="dzn-booking__fields">
                             <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" required></div>
-                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">این ایمیل برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد.</p></div>
+                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">این ایمیل برای پیگیری درخواست شما استفاده می‌شود. اگر حساب هنرجویی برای شما فعال شود، راهنمای ورود جداگانه ارسال خواهد شد.</p></div>
                             <div><label for="dzn-booking-country">کشور محل زندگی</label><select id="dzn-booking-country" data-contact="country" autocomplete="country" required>
                                 <option value="">انتخاب کشور</option>
                                 <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
@@ -142,7 +142,7 @@ function dzn_theme_render_booking_route(): void {
                             <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
                         </div>
                         </div>
-                        <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما راه اصلی ارتباط دلنوازان در واتساپ برای اعلان‌ها و هماهنگی کلاس‌هاست. لطفاً شماره‌ای را وارد کنید که به حساب واتساپ شما متصل است.</p>
+                        <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما برای تماس و هماهنگی این درخواست استفاده می‌شود. اعلان‌های واتساپ یا پیامک فقط در صورت فعال بودن آن کانال ارسال می‌شوند.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
@@ -177,7 +177,7 @@ function dzn_theme_render_booking_route(): void {
                         <p class="dzn-booking__reference" data-reference dir="ltr"></p>
                         <p>زمان‌های پیشنهادی شما:</p>
                         <ul class="dzn-booking__success-times" data-success-times></ul>
-                        <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان برای هماهنگی با شما تماس می‌گیرد. در ادامهٔ مسیر هنرجویی، همین ایمیل برای ورود به حساب شما استفاده می‌شود. اعلان‌های کلاس را از طریق واتساپ دریافت می‌کنید و پیوند هر کلاس در حساب هنرجویی‌تان در دسترس خواهد بود.</p>
+                        <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان برای بررسی درخواست و هماهنگی با شما تماس می‌گیرد. ثبت درخواست به‌تنهایی حساب هنرجویی یا پرداختی ایجاد نمی‌کند. اگر ادامهٔ دوره برای شما مناسب باشد، مراحل بعدی پس از هماهنگی به شما گفته می‌شود.</p>
                         <a class="dzn-booking__button" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                     </section>
                 </section>

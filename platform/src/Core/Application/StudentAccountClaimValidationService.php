@@ -15,7 +15,8 @@ final class StudentAccountClaimValidationService {
         $digest=hash_hmac('sha256',$secret,wp_salt('auth'));$now=current_time('mysql',true);
         $this->records->begin();try{
             $context=$this->records->claimContextForTokenForUpdate($digest);
-            if(!$context||$context->invitation_state!=='active'||$context->state!=='active'||(int)$context->active_slot!==1||(int)$context->current_generation!==(int)$context->generation_number||$context->expires_at<=$now)throw new \InvalidArgumentException('Account claim token is invalid, expired, revoked, replaced, or already used');
+            if(!$context||$context->invitation_state!=='active'||$context->state!=='active'||(int)$context->active_slot!==1||(int)$context->current_generation!==(int)$context->generation_number)throw new \InvalidArgumentException('account_claim_unavailable');
+            if($context->expires_at<=$now)throw new \InvalidArgumentException('account_claim_expired');
             $student=$this->records->studentForUpdate((int)$context->student_id);
             if(!$student||$student->archived_at!==null||$student->status!=='active')throw new \InvalidArgumentException('Student is not eligible for account claim');
             if(!$this->records->wordpressUserForUpdate($wordpressUserId))throw new \InvalidArgumentException('Authenticated principal is unavailable');

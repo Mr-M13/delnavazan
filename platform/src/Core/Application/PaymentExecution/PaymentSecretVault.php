@@ -8,12 +8,9 @@ use Delnavazan\Platform\Core\Support\Identifier;
  * Provider-secret isolation boundary (contract §11).
  *
  * Signing secrets and API keys exist only as authenticated ciphertext under a domain-separated key;
- * only the adapter registered for the provider may decrypt one, and nothing else may read, log, export
- * or expose a value. This build ships the vault, the encryption, the rotation/retire lifecycle, the
- * audit and the fail-closed behaviour — and **no path that can write a Stripe credential**:
- * `PROVISIONABLE_PROVIDERS` is empty, so every write path refuses, before any capability check, with
- * `provider_secret_write_not_authorised` and an auditable `write_refused` row. The only storage path
- * that exists is the constant-gated disposable test vault.
+ * only the provider adapter or the narrowly scoped sandbox connection check may decrypt one; values
+ * are never logged, exported or rendered. The dedicated Stripe TEST configuration method does not
+ * add Stripe to the provisionable-provider set and cannot provision live-mode credentials.
  */
 final class PaymentSecretVault {
     private const CAPABILITY='dzn_manage_payment_providers';
@@ -39,10 +36,14 @@ final class PaymentSecretVault {
 
     /** Store one secret. Returns a classified result; a refusal is durable and auditable, never silent. */
     public function store(string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key):array{
-        return $this->write('stored',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key);
+        return $this->write('stored',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key,false);
+    }
+    /** Dedicated administrative path for encrypted Stripe TEST credentials; it cannot accept live mode. */
+    public function storeStripeTestConfiguration(int $accountId,string $secretClass,string $value,array $input,string $key):array{
+        return $this->write('stored','stripe',$accountId,$secretClass,'test',$value,$input,$key,true);
     }
     public function rotate(string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key):array{
-        return $this->write('rotated',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key);
+        return $this->write('rotated',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key,false);
     }
     public function retire(string $providerKey,int $accountId,string $secretClass,string $mode,array $input,string $key):array{
         return $this->retireOrRevoke('retired',$providerKey,$accountId,$secretClass,$mode,$input,$key);
@@ -86,7 +87,18 @@ final class PaymentSecretVault {
         return $plaintext;
     }
 
-    private function write(string $auditType,string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key):array{
+    /** Decrypt only a Stripe test API key for the authenticated, explicit Test Connection action. */
+    public function revealForStripeTestConnection(int $secretId):?string{
+        PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
+        $row=$this->repository->secret($secretId);
+        if(!$row||(string)$row->provider_key!=='stripe'||(string)$row->secret_class!=='api_key'||(string)$row->mode!=='test'||(int)$row->active_slot!==1){
+            $this->audit('decrypt_failed','stripe','api_key',(int)($row->payment_provider_account_id??0),'test','secret_scope_mismatch',self::KEY_VERSION,null,0);
+            return null;
+        }
+        return $this->decrypt($row,'api_key');
+    }
+
+    private function write(string $auditType,string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key,bool $stripeTestConfiguration):array{
         $providerKey=strtolower(trim($providerKey));
         $accountId=PaymentExecutionSupport::positiveInt($accountId,'Valid provider account required');
         if(trim($value)==='')throw new \InvalidArgumentException('Provider secret value required');
@@ -94,7 +106,7 @@ final class PaymentSecretVault {
         $mode=$this->mode($mode);
         // §11.3 [C2-5]: the constant gate and the capability are necessary but never sufficient, and
         // the refusal happens first, before any capability check, nonce or scope resolution.
-        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider($providerKey)){
+        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider($providerKey)&&!($stripeTestConfiguration&&$providerKey==='stripe'&&$mode==='test')){
             $audit=$this->audit('write_refused',$providerKey,$secretClass,0,$mode,'provider_secret_write_not_authorised',self::KEY_VERSION,null,0);
             return array('stored'=>false,'reason_code'=>'provider_secret_write_not_authorised','audit_entry_id'=>$audit,'secret_id'=>null);
         }
@@ -187,4 +199,12 @@ final class PaymentSecretVault {
         return $mode;
     }
     private function keyString(string $key):string{return PaymentExecutionIdempotency::key($key);}
+
+    private function decrypt(object $row,string $secretClass):?string{
+        if((string)$row->cipher_version!==PaymentExecutionRule::CIPHER||!self::supportedKeyVersion((string)$row->key_version)||!function_exists('sodium_crypto_secretbox_open'))return null;
+        $raw=base64_decode((string)$row->ciphertext,true);$nonce=@hex2bin((string)$row->nonce);
+        if(!is_string($raw)||!is_string($nonce)||strlen($nonce)!==SODIUM_CRYPTO_SECRETBOX_NONCEBYTES)return null;
+        $plain=@sodium_crypto_secretbox_open($raw,$nonce,PaymentExecutionIdempotency::vaultKey($secretClass,(string)$row->key_version));
+        return is_string($plain)?$plain:null;
+    }
 }

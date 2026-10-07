@@ -42,6 +42,8 @@ final class StripeTestModeReadinessService {
         $webhookSecret=$accountReady?$this->secrets->activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'webhook_signing_secret',$accountId,'test'):null;
         $apiReady=self::sealedSecretReady($apiSecret,'api_key');
         $webhookReady=self::sealedSecretReady($webhookSecret,'webhook_signing_secret');
+        $publishableReady=is_string(get_option('dzn_stripe_test_publishable_key',''))&&preg_match('/^pk_test_[A-Za-z0-9]{16,}$/D',(string)get_option('dzn_stripe_test_publishable_key',''))===1;
+        $add('test_publishable_key',$publishableReady,$publishableReady?'A Stripe test publishable key is configured.':'A Stripe test publishable key is required.');
         $add('test_api_key',$apiReady,$apiReady?'An active encrypted test API-key record is present.':'An active encrypted Stripe test API key is required.');
         $add('test_webhook_secret',$webhookReady,$webhookReady?'An active encrypted test webhook-signing record is present.':'An active encrypted test webhook-signing secret is required.');
 

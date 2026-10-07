@@ -118,6 +118,9 @@ final class IntegrationTestRunner {
         $certs=function_exists('openssl_get_cert_locations')?openssl_get_cert_locations():array();
         $fileExists=static fn($key):bool=>isset($certs[$key])&&$certs[$key]!==''&&is_file((string)$certs[$key]);
         $dirExists=static fn($key):bool=>isset($certs[$key])&&$certs[$key]!==''&&is_dir((string)$certs[$key]);
+        $iniCaFile=(string)ini_get('openssl.cafile');$iniCaPath=(string)ini_get('openssl.capath');
+        $fileReadable=static fn($path):bool=>$path!==''&&@is_file($path)&&@is_readable($path);
+        $dirReadable=static fn($path):bool=>$path!==''&&@is_dir($path)&&@is_readable($path);
         return array(
             'php_version'=>PHP_VERSION,
             'sapi'=>PHP_SAPI,
@@ -127,6 +130,12 @@ final class IntegrationTestRunner {
             'open_basedir_enabled'=>(string)ini_get('open_basedir')!=='',
             'default_ca_file_exists'=>$fileExists('default_cert_file'),
             'default_ca_path_exists'=>$dirExists('default_cert_dir'),
+            'openssl_cafile_configured'=>$iniCaFile!=='',
+            'openssl_cafile_readable'=>$fileReadable($iniCaFile),
+            'openssl_capath_configured'=>$iniCaPath!=='',
+            'openssl_capath_readable'=>$dirReadable($iniCaPath),
+            'default_ca_file_readable'=>$fileReadable((string)($certs['default_cert_file']??'')),
+            'default_ca_path_readable'=>$dirReadable((string)($certs['default_cert_dir']??'')),
             'proxy_environment_configured'=>(getenv('HTTPS_PROXY')!==false||getenv('https_proxy')!==false||getenv('HTTP_PROXY')!==false||getenv('http_proxy')!==false||getenv('ALL_PROXY')!==false||getenv('all_proxy')!==false),
         );
     }
@@ -145,20 +154,27 @@ final class IntegrationTestRunner {
         if(!function_exists('stream_socket_client')||!function_exists('stream_get_transports')||!in_array('ssl',stream_get_transports(),true))return array_merge(array('state'=>'unavailable','category'=>'ssl_transport_unavailable','errno'=>0),$evidence);
         try{$context=stream_context_create($options);}catch(\Throwable){return array_merge(array('state'=>'unavailable','category'=>'ssl_context_invalid','errno'=>0),$evidence);}
         $errno=0;$error='';$stream=false;
+        // Drain stale errors from unrelated OpenSSL calls, then classify only errors from this probe.
+        if(function_exists('openssl_error_string'))while(openssl_error_string()!==false){}
         set_error_handler(static function(int $severity,string $message)use(&$error):bool{$error=$message;return true;});
         try{$stream=@stream_socket_client('ssl://'.$host.':'.$port,$errno,$error,8,STREAM_CLIENT_CONNECT,$context);}catch(\Throwable){$stream=false;}
         finally{restore_error_handler();}
         if(is_resource($stream)){fclose($stream);return array_merge(array('state'=>'connected','category'=>'none','errno'=>0),$evidence);}
-        return array_merge(array('state'=>'failed','category'=>self::safeTransportErrorCategory($error),'errno'=>(int)$errno),$evidence);
+        $opensslErrors=array();
+        if(function_exists('openssl_error_string'))while(($opensslError=openssl_error_string())!==false&&count($opensslErrors)<20)$opensslErrors[]=$opensslError;
+        return array_merge(array('state'=>'failed','category'=>self::safeTransportErrorCategory($error,$opensslErrors),'errno'=>(int)$errno),$evidence);
     }
     /** Map raw transport warnings to fixed categories. Raw warning text is never returned or stored. */
-    public static function safeTransportErrorCategory(string $error):string {
-        $error=strtolower(strip_tags($error));
+    public static function safeTransportErrorCategory(string $error,array $opensslErrors=array()):string {
+        $error=strtolower(strip_tags($error.' '.implode(' ',$opensslErrors)));
         if(preg_match('/(resolve|resolving|name lookup|name or service not known|php_network_getaddresses|nodename nor servname)/',$error))return 'dns';
         if(preg_match('/(timed? out|timeout|operation now in progress)/',$error))return 'timeout';
         if(preg_match('/(permission denied|operation not permitted|access denied)/',$error))return 'permission_denied';
         if(preg_match('/(refused|actively refused)/',$error))return 'connection_refused';
-        if(preg_match('/(ssl|tls|crypto|certificate|cert verify|handshake)/',$error))return 'tls';
+        if(preg_match('/(peer certificate|hostname mismatch|host name mismatch|does not match the expected|subject name.*match|certificate name mismatch)/',$error))return 'tls_peer_name';
+        if(preg_match('/(certificate verify failed|unable to get (local )?issuer|self.signed certificate|unable to verify the first certificate|certificate has expired|certificate is not yet valid|cert verify)/',$error))return 'tls_certificate_chain';
+        if(preg_match('/(handshake|wrong version number|no shared cipher|unsupported protocol|protocol version|tlsv[0-9.]* alert|ssl alert)/',$error))return 'tls_handshake';
+        if(preg_match('/(ssl|tls|crypto|certificate|handshake)/',$error))return 'tls_other';
         if(preg_match('/(network is unreachable|no route to host|network unreachable)/',$error))return 'network_unreachable';
         if($error==='')return 'no_safe_error_text';
         return 'other';

@@ -18,6 +18,7 @@ if ( ! function_exists( 'esc_html' ) ) { function esc_html( string $value ): str
 if ( ! function_exists( 'sanitize_key' ) ) { function sanitize_key( string $value ): string { return strtolower( preg_replace( '/[^a-z0-9_-]/', '', $value ) ); } }
 if ( ! function_exists( 'wp_unslash' ) ) { function wp_unslash( string $value ): string { return $value; } }
 
+require_once dirname( __DIR__ ) . '/src/Admin/Controller/Menu.php';
 require_once dirname( __DIR__ ) . '/src/Admin/Controller/AdminShellController.php';
 
 $shell = new ReflectionClass( \Delnavazan\Platform\Admin\Controller\AdminShellController::class );

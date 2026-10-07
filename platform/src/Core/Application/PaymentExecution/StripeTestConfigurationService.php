@@ -68,7 +68,7 @@ final class StripeTestConfigurationService {
         return array('state'=>'success','code'=>'stripe_test_account_reachable');
     }
 
-    /** Deliberately enable the single configured Stripe sandbox account after its credentials exist. */
+    /** Deliberately enable the single configured Stripe sandbox account after complete sandbox credentials exist. */
     public function activateTestCheckout():array{
         PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
         if(!self::testEnvironmentAllowed()||!StripeCheckoutAdapter::testModeActivationAllowed())

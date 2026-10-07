@@ -44,7 +44,7 @@ final class CoreReadService {
     public function teacherAdminDirectory(string $search, string $status, int $page, string $sort = 'name', string $direction = 'asc'): array {
         if (!current_user_can('dzn_manage_teachers')) throw new \RuntimeException('Unauthorized');
         if (!in_array($status, array('all','active','pending','inactive','archived'), true)) $status = 'all';
-        return (new TeacherRepository())->adminDirectory($search, $status, $page, 10, $sort, $direction);
+        return (new TeacherRepository())->adminDirectory($search, $status, $page, 20, $sort, $direction);
     }
 
     public function teacherAdminProfile(int $teacherId): ?object {

@@ -19,7 +19,7 @@ This is read-only and never sends credentials, writes data or submits a booking.
 - [ ] Browser review at 375px, 768px and 1440px for homepage, booking and login.
 - [ ] No console errors, failed assets, PHP errors or unexpected 404/500 responses.
 - [ ] Disposable staging accounts verify student, teacher and staff login, role routing and logout.
-- [ ] Teacher onboarding is exercised from invitation claim through readiness/review with disposable staging data.
+- [ ] Teacher onboarding is exercised from invitation claim through automatic profile-and-availability activation with disposable staging data.
 - [ ] Booking instrument, timezone, availability, contact validation and summary are tested without a real enrolment/submission unless an explicitly disposable test path is used.
 - [ ] Teacher canonical availability add/remove behaviour is verified with a disposable approved teacher.
 - [ ] Academy Operations and staff Workspace are verified with least-privilege operator roles.

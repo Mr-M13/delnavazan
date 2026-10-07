@@ -8,19 +8,16 @@ final class OnboardingController {
         if ( ( $_SERVER['REQUEST_METHOD'] ?? '' ) !== 'POST' ) return;
         if ( ! current_user_can( 'dzn_manage_onboarding' ) ) wp_die( 'Access denied.', 'Delnavazan', array( 'response' => 403 ) );
         $post = wp_unslash( $_POST ); $action = sanitize_key( $post['dzn_action'] ?? '' );
-        if ( ! in_array( $action, array( 'issue_teacher_invitation', 'revoke_teacher_invitation', 'offboard_teacher_principal', 'admin_link_teacher_principal' ), true ) ) return;
+        if ( ! in_array( $action, array( 'issue_teacher_invitation', 'issue_teacher_invitation_by_email', 'revoke_teacher_invitation', 'offboard_teacher_principal', 'admin_link_teacher_principal' ), true ) ) return;
         check_admin_referer( 'dzn_platform_' . $action );
         try {
             $teacher = absint( $post['teacher_id_override'] ?? 0 ) ?: absint( $post['teacher_id'] ?? 0 );
-            if ( $action === 'review_teacher_onboarding' ) {
-                ( new TeacherOnboardingService() )->review( $teacher, sanitize_key( $post['decision'] ?? '' ), sanitize_text_field( $post['reason_code'] ?? '' ) );
-            } else {
-                $service = new PrincipalInvitationService();
-                if ( $action === 'issue_teacher_invitation' ) $service->issue( $teacher, sanitize_email( $post['recipient'] ?? '' ), 604800, sanitize_text_field( $post['command_key'] ?? '' ) ?: wp_generate_uuid4() );
-                elseif ( $action === 'revoke_teacher_invitation' ) $service->revoke( $teacher, 'admin_revoked' );
-                elseif ( $action === 'admin_link_teacher_principal' ) $service->linkExistingPrincipal( $teacher, absint( $post['wordpress_user_id'] ?? 0 ) );
-                else $service->offboard( $teacher, 'admin_offboarded' );
-            }
+            $service = new PrincipalInvitationService();
+            if ( $action === 'issue_teacher_invitation_by_email' ) $service->issueForEmail( sanitize_email( $post['recipient'] ?? '' ), 604800, sanitize_text_field( $post['command_key'] ?? '' ) ?: wp_generate_uuid4() );
+            elseif ( $action === 'issue_teacher_invitation' ) $service->issue( $teacher, sanitize_email( $post['recipient'] ?? '' ), 604800, sanitize_text_field( $post['command_key'] ?? '' ) ?: wp_generate_uuid4() );
+            elseif ( $action === 'revoke_teacher_invitation' ) $service->revoke( $teacher, 'admin_revoked' );
+            elseif ( $action === 'admin_link_teacher_principal' ) $service->linkExistingPrincipal( $teacher, absint( $post['wordpress_user_id'] ?? 0 ) );
+            else $service->offboard( $teacher, 'admin_offboarded' );
             self::redirect( 'Saved' );
         } catch ( \Throwable ) { self::redirect( 'Operation failed; no change was saved.', true ); }
     }
@@ -33,11 +30,9 @@ final class OnboardingController {
         $contextTeacherId = self::contextId();
         if ( isset( $_GET['dzn_notice'] ) ) echo '<div class="notice ' . ( ( $_GET['dzn_error'] ?? '' ) === '1' ? 'notice-error' : 'notice-success' ) . '"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ) . '</p></div>';
         if ( current_user_can( 'dzn_issue_teacher_invitations' ) ) {
-            echo '<h2>Issue invitation</h2><form method="post">'; wp_nonce_field( 'dzn_platform_issue_teacher_invitation' );
-            echo '<input type="hidden" name="dzn_action" value="issue_teacher_invitation"><input type="hidden" name="command_key" value="' . esc_attr( wp_generate_uuid4() ) . '"><p><label>Teacher <select required name="teacher_id"><option value="">Select teacher</option>';
-            foreach ( ( new PrincipalInvitationReadService() )->rows() as $teacherRow ) echo '<option value="' . esc_attr( (string) $teacherRow->teacher_id ) . '" ' . selected( $contextTeacherId, (string) $teacherRow->teacher_id, false ) . '>' . esc_html( $teacherRow->display_name . ' (#' . $teacherRow->teacher_id . ')' ) . '</option>';
-            echo '</select></label></p><p><label>Teacher ID (for Teachers not shown above) <input min="1" type="number" name="teacher_id_override"></label></p><p><label>Recipient email <input required type="email" name="recipient"></label></p>';
-            submit_button( 'Queue invitation / create replacement' ); echo '</form>';
+            echo '<h2>Invite a teacher by email</h2><p>The email is enough to invite a new teacher. An existing unlinked teacher profile with the same email is reused; otherwise a blank profile is created for onboarding. The invitation is the approval decision; profile and availability completion activates the account automatically.</p><form method="post">'; wp_nonce_field( 'dzn_platform_issue_teacher_invitation_by_email' );
+            echo '<input type="hidden" name="dzn_action" value="issue_teacher_invitation_by_email"><input type="hidden" name="command_key" value="' . esc_attr( wp_generate_uuid4() ) . '"><p><label>Teacher email <input required type="email" name="recipient"></label></p>';
+            submit_button( 'Queue teacher invitation' ); echo '</form>';
         }
 
         echo '<h2>Admin-assisted principal link</h2><p><strong>Use only after verifying the person’s identity.</strong> This binds an existing WordPress account to a Teacher and bypasses email invitation delivery as a delivery mechanism only. It does not bypass principal ownership safeguards; the teacher must complete onboarding before automatic activation.</p><form method="post">'; wp_nonce_field( 'dzn_platform_admin_link_teacher_principal' );

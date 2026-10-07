@@ -83,7 +83,7 @@ function dzn_synthetic_dataset_seed(): array {
 		$availability->setOwnRecurringRule( array( 'weekday' => 3, 'local_start_time' => '10:00:00', 'local_end_time' => '12:00:00', 'state' => 'requestable', 'timezone' => 'Australia/Brisbane' ) );
 		$onboarding = new TeacherOnboardingService();
 		$onboarding->refreshOwnProgress(); $onboarding->submitOwn();
-		wp_set_current_user( $adminId ); $onboarding->review( $teacherId, 'approve' );
+		wp_set_current_user( $adminId );
 		(new InstrumentIntroCourseDefaultService())->set( array( 'instrument_id' => $made['instrument_ids'][0], 'course_id' => $made['course_ids'][0], 'status' => 'active', 'reason_code' => 'synthetic_fixture' ) );
 		(new TeachingEligibilityService())->setEligibility( array( 'teacher_id' => $teacherId, 'course_id' => $made['course_ids'][0], 'status' => 'active', 'reason_code' => 'synthetic_fixture' ) );
 		(new TeacherAcceptingStateService())->set( array( 'teacher_id' => $teacherId, 'state' => 'accepting', 'reason_code' => 'synthetic_fixture' ) );

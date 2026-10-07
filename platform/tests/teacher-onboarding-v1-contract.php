@@ -30,8 +30,9 @@ foreach ( array( "'state'=>'linked_pending'", "'readiness_state'=>'not_ready'", 
     if ( strpos( $finalize, $fragment ) === false ) throw new RuntimeException( 'Claim does not produce linked-pending onboarding: ' . $fragment );
 if ( strpos( $finalize, "'state'=>'active','readiness_state'=>'ready'" ) !== false ) throw new RuntimeException( 'Claim must not activate a Teacher.' );
 
-foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'review(', "current_user_can( 'dzn_manage_onboarding' )", 'hasUsableAvailability', "'agreement_state' => 'not_required'", "'readiness_state' => \$readiness", "\$readiness = 'ready'" ) as $fragment )
+foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'reconcileLegacyReviewState', 'invitation_approved_and_requirements_complete', "'agreement_state' => 'not_required'", "'readiness_state' => 'ready'", "'can_submit' => false" ) as $fragment )
     if ( strpos( $files['service'], $fragment ) === false ) throw new RuntimeException( 'Missing lifecycle contract: ' . $fragment );
+if ( strpos( $files['service'], 'function review(' ) !== false || strpos( $files['admin'], '->review(' ) !== false ) throw new RuntimeException( 'Teacher onboarding must not have a later review stage.' );
 foreach ( array( "'state'=>'offboarded'", 'appendOnboardingEvent' ) as $fragment )
     if ( strpos( $files['claim'], $fragment ) === false ) throw new RuntimeException( 'Canonical teacher offboarding contract missing: ' . $fragment );
 

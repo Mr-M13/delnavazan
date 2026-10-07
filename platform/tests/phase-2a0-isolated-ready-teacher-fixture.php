@@ -6,7 +6,6 @@
 defined( 'ABSPATH' ) || exit( 1 );
 
 use Delnavazan\Platform\Core\Application\PrincipalInvitationService;
-use Delnavazan\Platform\Core\Application\TeacherService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityService;
 use Delnavazan\Platform\Core\Application\TeacherOnboardingService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
@@ -14,7 +13,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationReposi
 function dzn_phase_2a0_ready_teacher_guard(): int {
     $run = (string) getenv( 'DZN_PHASE_2A0_RUNTIME_RUN_ID' );
     $environment = wp_get_environment_type();
-    if ( getenv( 'DZN_PHASE_2A0_RUNTIME_TEST' ) !== 'isolated' || ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( $environment, array( 'local', 'development' ), true ) || ! preg_match( '/^[A-Za-z0-9_-]{12,64}$/', $run ) || get_option( 'dzn_phase_2a0_isolated_runtime_marker' ) !== $run || ! current_user_can( 'dzn_manage_onboarding' ) || ! current_user_can( 'dzn_issue_teacher_invitations' ) || ! current_user_can( 'dzn_manage_teachers' ) ) {
+    if ( getenv( 'DZN_PHASE_2A0_RUNTIME_TEST' ) !== 'isolated' || ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( $environment, array( 'local', 'development' ), true ) || ! preg_match( '/^[A-Za-z0-9_-]{12,64}$/', $run ) || get_option( 'dzn_phase_2a0_isolated_runtime_marker' ) !== $run || ! current_user_can( 'dzn_manage_onboarding' ) || ! current_user_can( 'dzn_issue_teacher_invitations' ) ) {
         throw new RuntimeException( 'Ready-teacher fixture refused.' );
     }
     return get_current_user_id();
@@ -30,8 +29,11 @@ function dzn_phase_2a0_create_ready_teacher_fixture(): array {
     $teacher = 0; $user = 0; $finalized = false; $secret = null;
     $service = new PrincipalInvitationService();
     try {
-        $teacher = ( new TeacherService() )->create( array( 'display_name' => 'DZN READY RUNTIME ' . substr( $suffix, 0, 8 ), 'email' => $recipient, 'status' => 'active' ) );
-        $issued = $service->issue( $teacher, $recipient, 900, 'dzn-ready-issue-' . $suffix );
+        $firstIssue = $service->issueForEmail( $recipient, 900, 'dzn-ready-issue-' . $suffix );
+        $teacher = (int) ( $firstIssue['teacher_id'] ?? 0 );
+        if ( $teacher < 1 || empty( $firstIssue['teacher_created'] ) ) throw new RuntimeException( 'Email-only invitation did not create its canonical Teacher profile.' );
+        $issued = $service->issueForEmail( $recipient, 900, 'dzn-ready-reissue-' . $suffix );
+        if ( (int) ( $issued['teacher_id'] ?? 0 ) !== $teacher || ! empty( $issued['teacher_created'] ) ) throw new RuntimeException( 'Email-only invitation reissue must reuse its canonical Teacher profile.' );
         $payload = $service->prepareDelivery( (int) $issued['generation_id'] );
         $secret = (string) ( $payload['secret'] ?? '' );
         if ( strlen( $secret ) !== 64 || ( $payload['recipient'] ?? null ) !== $recipient ) throw new RuntimeException( 'Ready-teacher fixture failed.' );
@@ -45,18 +47,13 @@ function dzn_phase_2a0_create_ready_teacher_fixture(): array {
         $service->finalizeClaim( $command, $user );
         $finalized = true;
         if ( ( new PrincipalInvitationRepository() )->hasActiveTeacherAuthority( $user, $teacher ) ) throw new RuntimeException( 'Claim must remain onboarding-pending.' );
+        $onboarding = new TeacherOnboardingService();
+        $onboarding->updateOwnProfile( array( 'display_name' => 'DZN READY RUNTIME ' . substr( $suffix, 0, 8 ), 'email' => $recipient, 'country_code' => 'IR', 'timezone' => 'Asia/Tehran', 'locale' => 'fa_IR', 'calendar_preference' => 'auto' ) );
         $availability = new TeacherAvailabilityService();
         $availability->setOwnProfile( array( 'timezone' => 'Asia/Tehran' ) );
         $availability->setOwnRecurringRule( array( 'weekday' => 6, 'local_start_time' => '10:00:00', 'local_end_time' => '11:00:00', 'state' => 'requestable', 'timezone' => 'Asia/Tehran' ) );
-        $onboarding = new TeacherOnboardingService();
         $onboarding->refreshOwnProgress();
         $onboarding->submitOwn();
-        wp_set_current_user( $admin );
-        $onboarding->review( $teacher, 'return', 'isolated_fixture_changes_requested' );
-        wp_set_current_user( $user ); $onboarding->submitOwn();
-        wp_set_current_user( $admin ); $onboarding->review( $teacher, 'reject', 'isolated_fixture_rejected' );
-        wp_set_current_user( $user ); $onboarding->submitOwn();
-        wp_set_current_user( $admin ); $onboarding->review( $teacher, 'approve' );
         if ( ! ( new PrincipalInvitationRepository() )->hasActiveTeacherAuthority( $user, $teacher ) ) throw new RuntimeException( 'Ready-teacher fixture failed.' );
         unset( $payload, $secret, $recipient );
         return array( 'teacher_id' => $teacher, 'wordpress_user_id' => $user, 'admin_user_id' => $admin );

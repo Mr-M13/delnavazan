@@ -251,6 +251,22 @@ final class ScreenController {
 
     private static function teacherStatus(string $status): string { return match($status){'active'=>'Active','pending'=>'Pending','inactive'=>'Inactive','archived'=>'Archived',default=>ucfirst(str_replace('_',' ',$status))}; }
     private static function acceptingLabel(string $state): string { return match($state){'accepting'=>'Accepting students','limited'=>'Limited availability','paused'=>'Paused','not_set'=>'Not recorded',default=>ucfirst(str_replace('_',' ',$state))}; }
+    private static function teacherOnboardingSummary(object $teacher): string {
+        $principal = match ((string)($teacher->principal_status ?? '')) {
+            'active' => 'Account linked', '', 'not_linked' => 'Account not linked',
+            default => ucfirst(str_replace('_', ' ', (string)$teacher->principal_status)),
+        };
+        $onboarding = match ((string)($teacher->onboarding_state ?? '')) {
+            'active' => 'Onboarding complete', '', 'not_started' => 'Onboarding not started',
+            default => ucfirst(str_replace('_', ' ', (string)$teacher->onboarding_state)),
+        };
+        $readiness = match ((string)($teacher->readiness_state ?? '')) {
+            'ready' => 'Ready to teach', '', 'not_ready' => 'Not ready to teach',
+            default => ucfirst(str_replace('_', ' ', (string)$teacher->readiness_state)),
+        };
+        return $principal . ' · ' . $onboarding . ' · ' . $readiness;
+    }
+    private static function teacherIntegrationStatus(string $state): string { return match($state){'connected'=>'Connected','not_connected'=>'Not connected',''=>'Not connected',default=>ucfirst(str_replace('_',' ',$state))}; }
 
     private static function entityDetail(string $entity, int $id): void {
         $record = $entity==='lesson'?(new CoreReadService())->lessonOperatorRecord($id):($entity==='teacher'?(new CoreReadService())->teacherAdminProfile($id):(new CoreReadService())->find($entity, $id));
@@ -275,7 +291,7 @@ final class ScreenController {
         self::objectTable([$displayRecord??$record], null, $allowed);
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             $teacherId=(int)$record->id;
-            echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html((string)($record->google_calendar_state??'Unavailable')).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html((string)($record->principal_status??'not linked').' · '.(string)($record->onboarding_state??'not started').' / '.(string)($record->readiness_state??'not ready')).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Term availability</th><td>'.esc_html((string)($record->availability_summary?:'Not recorded')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Truthful statistics</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
+            echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html(self::teacherIntegrationStatus((string)($record->google_calendar_state ?? ''))).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html(self::teacherOnboardingSummary($record)).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Weekly availability</th><td>'.esc_html((string)($record->availability_summary?:'No active weekly windows')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Current teaching</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
             self::teacherInlineControls($record); echo '<details><summary>Profile details and lifecycle actions</summary>';
             self::teacherMaintenanceForm( $record );
             self::archiveActions($entity,$id,(string)$record->status);
@@ -383,17 +399,34 @@ final class ScreenController {
         $status = in_array($requested, array('active','inactive','archived','all'), true) ? $requested : 'active';
         $page = max(1, absint($_GET['paged'] ?? 1));
         $result = (new CoreReadService())->studentAdminRows($query, $status, $page);
-        echo '<h2>Students</h2><p>Active students appear first. Search by name, email, phone or reference.</p>';
+        echo '<h2>Student directory</h2><p>Active students appear first. Search by name, email, phone or reference.</p>';
         echo '<form method="get" class="dzn-student-filters"><input type="hidden" name="page" value="dzn-student"><label>Search students <input type="search" name="s" value="'.esc_attr($query).'" placeholder="Name, email, phone or reference"></label> <label>Show <select name="student_status">';
-        foreach (array('active'=>'Active students','inactive'=>'Inactive students','archived'=>'Archived students','all'=>'All current students') as $value=>$label) echo '<option value="'.esc_attr($value).'"'.selected($status,$value,false).'>'.esc_html($label).'</option>';
+        foreach (array('active'=>'Active students','inactive'=>'Inactive students','archived'=>'Archived students','all'=>'All non-archived students') as $value=>$label) echo '<option value="'.esc_attr($value).'"'.selected($status,$value,false).'>'.esc_html($label).'</option>';
         echo '</select></label> <button class="button">Filter</button> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-student')).'">Reset</a></form>';
         if (!$result['rows']) { echo '<p>No students match these filters. Try another search or choose a different status.</p>'; return; }
-        self::objectTable($result['rows'], 'dzn-student', array('id','reference_code','display_name','first_name','last_name','email','phone','status'));
+        echo '<p><strong>'.esc_html(number_format_i18n((int)$result['total'])).'</strong> student'.($result['total']===1?'':'s').'</p><table class="widefat striped"><thead><tr><th>Student</th><th>Contact</th><th>Location / time zone</th><th>Status</th><th>Profile</th></tr></thead><tbody>';
+        foreach ($result['rows'] as $student) {
+            $url = add_query_arg(array('page'=>'dzn-student','id'=>(int)$student->id),admin_url('admin.php'));
+            $name = (string)($student->display_name ?: trim((string)($student->first_name ?? '').' '.(string)($student->last_name ?? '')) ?: 'Student');
+            $contact = array_filter(array((string)($student->email ?? ''),(string)($student->phone ?? '')));
+            $place = array_filter(array((string)($student->city ?? ''),(string)($student->country_code ?? '')));
+            echo '<tr><td><a href="'.esc_url($url).'"><strong>'.esc_html($name).'</strong></a>'.($student->reference_code?'<br><small>'.esc_html((string)$student->reference_code).'</small>':'').'</td><td>'.esc_html($contact ? implode(' · ',$contact) : 'No contact details').'</td><td>'.esc_html($place ? implode(', ',$place) : 'Location not recorded').'<br><small>'.esc_html((string)($student->timezone ?: 'Time zone not recorded')).'</small></td><td>'.esc_html(self::studentStatus((string)($student->status ?? ''),(bool)($student->archived_at ?? false))).'</td><td><a class="button" href="'.esc_url($url).'">Open profile</a></td></tr>';
+        }
+        echo '</tbody></table>';
         $base = array('page'=>'dzn-student','s'=>$query,'student_status'=>$status);
         echo '<p class="tablenav"><span>'.esc_html((string)$result['total']).' students · Page '.esc_html((string)$result['page']).' of '.esc_html((string)$result['pages']).'</span> ';
         if ($result['page'] > 1) echo '<a class="button" href="'.esc_url(add_query_arg($base + array('paged'=>$result['page']-1),admin_url('admin.php'))).'">Previous</a> ';
         if ($result['page'] < $result['pages']) echo '<a class="button" href="'.esc_url(add_query_arg($base + array('paged'=>$result['page']+1),admin_url('admin.php'))).'">Next</a>';
         echo '</p>';
+    }
+
+    private static function studentStatus(string $status, bool $archived): string {
+        if ($archived || $status === 'archived') return 'Archived';
+        return match ($status) {
+            'active' => 'Active',
+            'inactive' => 'Inactive',
+            default => $status === '' ? 'Not recorded' : ucfirst(str_replace('_', ' ', $status)),
+        };
     }
 
     private static function studentDetailTabs(object $student): void {

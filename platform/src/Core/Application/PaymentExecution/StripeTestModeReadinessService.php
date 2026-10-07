@@ -25,9 +25,12 @@ final class StripeTestModeReadinessService {
         };
 
         $add('adapter',class_exists(StripeCheckoutAdapter::class),'Stripe Checkout test adapter is loaded.');
-        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'production';
-        $environmentAllowed=in_array($environment,array('local','development','staging'),true);
-        $add('environment',$environmentAllowed,$environmentAllowed?'Environment is recognised as non-production.':'Environment must be local, development, or staging.');
+        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'unknown';
+        $environmentAllowed=StripeTestConfigurationService::testEnvironmentAllowed();
+        $environmentDetail=$environmentAllowed
+            ?($environment==='production'?'Pre-launch production TEST mode is explicitly enabled; only Stripe test credentials and test Checkout are permitted.':'Environment is recognised as non-production.')
+            :'Environment must be local, development, staging, or explicitly enabled pre-launch production TEST mode.';
+        $add('environment',$environmentAllowed,$environmentDetail);
 
         $all=array_values(array_filter($this->providers->accountsForProvider(StripeCheckoutAdapter::PROVIDER_KEY),static fn($account)=>(string)($account->mode??'')==='test'
             &&(string)($account->state??'')==='active'&&(string)($account->execution_state??'')==='enabled'
@@ -55,7 +58,7 @@ final class StripeTestModeReadinessService {
         $activationAuthorized=defined('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')
             &&constant('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')===true
             &&PaymentSecretVault::testVaultActive()&&$environmentAllowed;
-        $add('deliberate_test_activation',$activationAuthorized,$activationAuthorized?'The explicit non-production test activation gate is enabled.':'Test traffic stays disabled until the non-production test vault and explicit activation gate are enabled.');
+        $add('deliberate_test_activation',$activationAuthorized,$activationAuthorized?'The explicit test vault, environment, and operator activation gates are enabled.':'Test traffic stays disabled until the test vault, environment, and operator activation gates are enabled.');
 
         $completed=(array)get_option('dzn_platform_completed_migrations',array());
         $schema=(string)get_option('dzn_platform_schema_version','');

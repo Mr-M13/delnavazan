@@ -4,7 +4,7 @@ namespace Delnavazan\Platform\Core\Application\PaymentExecution;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentProviderRepository,PaymentSecretRepository};
 use Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdapter;
 
-/** Stripe sandbox configuration and provider calls are restricted to recognised non-production environments. */
+/** Stripe sandbox configuration and provider calls are restricted to recognised test environments. */
 final class StripeTestConfigurationService {
     private const PUBLISHABLE_OPTION='dzn_stripe_test_publishable_key';
     private PaymentProviderRepository $providers;
@@ -91,11 +91,27 @@ final class StripeTestConfigurationService {
             'stripe-test-deactivation-'.wp_generate_uuid4());
     }
 
-    public function publishableKey():string{return (string)get_option(self::PUBLISHABLE_OPTION,'');}
-    /** A production default is mandatory when WordPress cannot identify its environment. */
+    public function publishableKey():string{
+        $key=(string)get_option(self::PUBLISHABLE_OPTION,'');
+        return preg_match('/^pk_test_[A-Za-z0-9]{16,}$/D',$key)===1?$key:'';
+    }
+    /** Production remains closed unless both the environment and operator gates are explicit. */
     public static function testEnvironmentAllowed():bool{
-        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'production';
-        return in_array($environment,array('local','development','staging'),true);
+        if(!function_exists('wp_get_environment_type'))return false;
+        $environment=(string)wp_get_environment_type();
+        if(in_array($environment,array('local','development','staging'),true))return true;
+        return $environment==='production'&&self::preLaunchProductionTestModeActive();
+    }
+    /**
+     * Temporary pre-launch switch for production acceptance. Remove either constant to close it.
+     * The existing checkout authorization and disposable test vault remain independent required gates.
+     */
+    public static function preLaunchProductionTestModeActive():bool{
+        return defined('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED')
+            &&constant('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED')===true
+            &&defined('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')
+            &&constant('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')===true
+            &&PaymentSecretVault::testVaultActive();
     }
     public function savedState():array{
         $accounts=array_values(array_filter($this->providers->accountsForProvider('stripe'),static fn($a)=>(string)$a->mode==='test'&&(string)$a->state==='active'));

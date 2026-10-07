@@ -88,8 +88,8 @@ final class AdminShellController {
     public static function pruneWordPressSubmenu(): void {
         global $submenu;
         if (!self::hasVisibleTab()) { remove_menu_page(Menu::ROOT_SLUG); unset($submenu[Menu::ROOT_SLUG]); return; }
-        // Do not unregister pages: direct URLs must retain WordPress's own capability checks.
-        $submenu[Menu::ROOT_SLUG] = [];
+        // WordPress resolves admin.php?page=... against this registration table when it
+        // authorizes direct routes. Keep it intact; CSS hides only the legacy sidebar links.
     }
 
     public static function renderNavigation(): void {
@@ -120,7 +120,7 @@ final class AdminShellController {
 
     public static function styles(): void {
         if (!str_starts_with(self::currentPage(), 'dzn-')) return;
-        echo '<style>.dzn-admin-shell{margin:18px 20px 0 2px;padding:14px 16px 0;background:#fff;border:1px solid #dcdcde;border-radius:4px 4px 0 0}.dzn-admin-shell__brand{display:flex;gap:10px;align-items:baseline;margin:0 0 12px}.dzn-admin-shell__brand strong{font-size:16px}.dzn-admin-shell__brand span{color:#646970}.dzn-admin-shell__tabs,.dzn-admin-shell__subtabs{display:flex;gap:4px;flex-wrap:wrap}.dzn-admin-shell__tab,.dzn-admin-shell__subtab{padding:8px 10px;text-decoration:none;border-bottom:3px solid transparent}.dzn-admin-shell__subtabs{padding-top:5px;border-top:1px solid #dcdcde}.dzn-admin-shell__subtab{font-size:13px}.dzn-admin-shell__tab:hover,.dzn-admin-shell__subtab:hover{background:#f0f0f1}.dzn-admin-shell__tab.is-active,.dzn-admin-shell__subtab.is-active{font-weight:600;color:#1d2327;border-bottom-color:#2271b1}@media(max-width:782px){.dzn-admin-shell{margin-right:10px}.dzn-admin-shell__tab,.dzn-admin-shell__subtab{padding:9px 7px}}</style>';
+        echo '<style>#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}.dzn-admin-shell{margin:18px 20px 0 2px;padding:14px 16px 0;background:#fff;border:1px solid #dcdcde;border-radius:4px 4px 0 0}.dzn-admin-shell__brand{display:flex;gap:10px;align-items:baseline;margin:0 0 12px}.dzn-admin-shell__brand strong{font-size:16px}.dzn-admin-shell__brand span{color:#646970}.dzn-admin-shell__tabs,.dzn-admin-shell__subtabs{display:flex;gap:4px;flex-wrap:wrap}.dzn-admin-shell__tab,.dzn-admin-shell__subtab{padding:8px 10px;text-decoration:none;border-bottom:3px solid transparent}.dzn-admin-shell__subtabs{padding-top:5px;border-top:1px solid #dcdcde}.dzn-admin-shell__subtab{font-size:13px}.dzn-admin-shell__tab:hover,.dzn-admin-shell__subtab:hover{background:#f0f0f1}.dzn-admin-shell__tab.is-active,.dzn-admin-shell__subtab.is-active{font-weight:600;color:#1d2327;border-bottom-color:#2271b1}@media(max-width:782px){.dzn-admin-shell{margin-right:10px}.dzn-admin-shell__tab,.dzn-admin-shell__subtab{padding:9px 7px}}</style>';
     }
 
     private static function currentPage(): string {

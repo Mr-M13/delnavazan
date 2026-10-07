@@ -98,7 +98,7 @@ final class IntegrationTestRunner {
             if($command==='AUTH')return 'client: AUTH [payload redacted]';
             if(in_array($command,array('MAIL','RCPT'),true))return 'client: '.$command.' [address redacted]';
             if(in_array($command,array('EHLO','HELO','STARTTLS','DATA','QUIT','RSET','NOOP','BDAT'),true))return 'client: '.$command;
-            return 'client: SMTP command';
+            return '';
         }
         if(preg_match('/SERVER\\s*->\\s*CLIENT:\\s*([0-9]{3})/i',$line,$m))return 'server: '.$m[1];
         if(preg_match('/(TLS|SSL|crypto|certificate|handshake)/i',$line))return 'transport: TLS diagnostic (details redacted)';

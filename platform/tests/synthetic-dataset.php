@@ -1,16 +1,18 @@
 <?php
 /**
- * Guarded, repeatable synthetic academy dataset for an isolated WordPress site.
+ * Guarded synthetic academy dataset for isolated/staging WordPress sites.
  * Run with: DZN_SYNTHETIC_DATASET=1 wp eval-file platform/tests/synthetic-dataset.php <mode>
  * This utility is test-only and is not loaded by the plugin or deployment packages.
  */
 defined( 'ABSPATH' ) || exit( 1 );
+require_once __DIR__ . '/synthetic-dataset-policy.php';
 
 use Delnavazan\Platform\Core\Application\{BookingRequestMatchAssessmentService,BookingRequestSubmissionService,CatalogueService,InstrumentIntroCourseDefaultService,PrincipalInvitationService,StudentAccountClaimNotificationService,StudentService,TeacherAcceptingStateService,TeacherAvailabilityService,TeacherOnboardingService,TeacherService,TeachingEligibilityService};
 
 function dzn_synthetic_dataset_guard(): void {
-	if ( ! defined( 'WP_CLI' ) || ! WP_CLI || getenv( 'DZN_SYNTHETIC_DATASET' ) !== '1' || ! in_array( wp_get_environment_type(), array( 'local', 'development' ), true ) || ! current_user_can( 'dzn_manage_courses' ) || ! current_user_can( 'dzn_manage_teachers' ) || ! current_user_can( 'dzn_manage_students' ) || ! current_user_can( 'dzn_manage_onboarding' ) || ! current_user_can( 'dzn_issue_teacher_invitations' ) || ! current_user_can( 'dzn_manage_teacher_availability' ) || ! current_user_can( 'dzn_manage_teaching_eligibility' ) || ! current_user_can( 'dzn_prepare_booking_request_matches' ) || ! current_user_can( 'dzn_issue_student_account_claims' ) ) {
-		throw new RuntimeException( 'Synthetic dataset operation refused: isolated environment, explicit opt-in, WP-CLI, and operator capabilities are required.' );
+	$host = (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+	if ( ! dzn_synthetic_dataset_policy_allows( (string) wp_get_environment_type(), defined( 'WP_CLI' ) && WP_CLI, getenv( 'DZN_SYNTHETIC_DATASET' ), getenv( 'DZN_SYNTHETIC_DATASET_STAGING' ), $host ) || ! current_user_can( 'dzn_manage_courses' ) || ! current_user_can( 'dzn_manage_teachers' ) || ! current_user_can( 'dzn_manage_students' ) || ! current_user_can( 'dzn_manage_onboarding' ) || ! current_user_can( 'dzn_issue_teacher_invitations' ) || ! current_user_can( 'dzn_manage_teacher_availability' ) || ! current_user_can( 'dzn_manage_teaching_eligibility' ) || ! current_user_can( 'dzn_prepare_booking_request_matches' ) || ! current_user_can( 'dzn_issue_student_account_claims' ) ) {
+		throw new RuntimeException( 'Synthetic dataset operation refused: WP-CLI, explicit opt-in, approved isolated/staging host, and operator capabilities are required; production is never permitted.' );
 	}
 }
 
@@ -92,8 +94,8 @@ function dzn_synthetic_dataset_seed(): array {
 		// No delivery worker is invoked here, so the invalid recipient cannot receive a message.
 		$claim = (new StudentAccountClaimNotificationService())->issue( (int) $made['student_ids'][0], 3600, 'dzn-synthetic-student-claim-' . $made['student_ids'][0] );
 		$made['student_claim_ids'][] = array( 'invitation_id' => (int) $claim['invitation_id'], 'generation_id' => (int) $claim['generation_id'], 'outbox_id' => (int) $claim['outbox_id'], 'notification_id' => (int) $claim['notification_id'] );
-		// A future Wednesday request overlaps the Teacher's requestable Brisbane rule.
-		$requestedDate = new DateTimeImmutable( 'next Wednesday 10:00:00', new DateTimeZone( 'Australia/Brisbane' ) );
+		// Fixed Wednesday keeps the requested-time scenario stable across reruns and years.
+		$requestedDate = new DateTimeImmutable( '2030-01-02 10:00:00', new DateTimeZone( 'Australia/Brisbane' ) );
 		$booking = (new BookingRequestSubmissionService())->submitPublic( array(
 			'requested_instrument_id' => $made['instrument_ids'][0], 'selected_intro_course_id' => $made['course_ids'][0],
 			'full_name' => 'DZN TEST Booking Student', 'email' => 'dzn-test+booking@synthetic.example.invalid', 'mobile' => '+61400000001',
@@ -187,8 +189,17 @@ function dzn_synthetic_dataset_teardown(): array {
 	return array( 'removed' => true, 'id_count' => array_sum( array_map( 'count', $manifest['ids'] ) ) );
 }
 
+
+function dzn_synthetic_dataset_reconcile(): array {
+	dzn_synthetic_dataset_guard();
+	$manifest = dzn_synthetic_dataset_read();
+	if ( ! $manifest ) return array( 'reconciled' => false, 'state' => 'absent', 'next_action' => 'seed' );
+	$verification = dzn_synthetic_dataset_verify();
+	return array( 'reconciled' => true, 'state' => 'healthy', 'checks' => $verification['checks'], 'dataset' => $verification['dataset'] );
+}
+
 try {
 	$mode = (string) ( $args[0] ?? 'preview' );
-	$result = match ( $mode ) { 'preview' => dzn_synthetic_dataset_preview(), 'seed' => dzn_synthetic_dataset_seed(), 'verify' => dzn_synthetic_dataset_verify(), 'teardown' => dzn_synthetic_dataset_teardown(), default => throw new InvalidArgumentException( 'Mode must be preview, seed, verify, or teardown.' ) };
+	$result = match ( $mode ) { 'preview' => dzn_synthetic_dataset_preview(), 'seed' => dzn_synthetic_dataset_seed(), 'verify' => dzn_synthetic_dataset_verify(), 'reconcile' => dzn_synthetic_dataset_reconcile(), 'teardown' => dzn_synthetic_dataset_teardown(), default => throw new InvalidArgumentException( 'Mode must be preview, seed, verify, reconcile, or teardown.' ) };
 	WP_CLI::log( wp_json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
 } catch ( Throwable $error ) { WP_CLI::error( $error->getMessage() ); }

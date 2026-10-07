@@ -19,7 +19,7 @@ if ( strpos( $fixture, 'DELETE FROM {$wpdb->prefix}{$table} WHERE id IN ({$place
 foreach ( array( 'wp_mail(', 'wp_remote_request(', 'wp_remote_post(', 'wp_remote_get(', 'wp_remote_retrieve_body(', 'CommercialPaymentService', 'GoogleCalendarProjection', 'TeacherInvitationDeliveryWorker' ) as $forbidden ) {
 	if ( strpos( $fixture, $forbidden ) !== false ) throw new RuntimeException( 'Synthetic dataset must not call external delivery or provider services: ' . $forbidden );
 }
-if ( strpos( $fixture, "'weekday' => 3" ) === false || strpos( $fixture, "'state' => 'requestable'" ) === false || strpos( $fixture, "'state' => 'accepting'" ) === false || strpos( $fixture, "'state' => 'active'" ) === false ) {
+if ( strpos( $fixture, "'weekday' => 3" ) === false || strpos( $fixture, "'state' => 'requestable'" ) === false || strpos( $fixture, "'state' => 'accepting'" ) === false || strpos( $fixture, "'status' => 'active'" ) === false ) {
 	throw new RuntimeException( 'Synthetic ready Teacher must have requestable availability, accepting state, and active eligibility.' );
 }
 foreach ( array( 'requested_instrument_id', 'selected_intro_course_id', 'booking_request_ids', 'student_account_claim', 'remove those rows through their owning lifecycle first' ) as $safetyNeedle ) {

@@ -77,11 +77,12 @@ foreach ( array(
 }
 if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || ! str_contains( $shell, 'firstAvailableDestination' )
-    || ! str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
-    || ! str_contains( $shell, 'Do not unregister pages: direct URLs must retain WordPress' )
+    || str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
+    || ! str_contains( $shell, 'Keep it intact; CSS hides only the legacy sidebar links.' )
+    || ! str_contains( $shell, '#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}' )
     || ! str_contains( $shell, "'courses' => ['Courses'" )
     || ! str_contains( $shell, "'enrolments_classes' => ['Enrolments / Classes'" ) ) {
-    throw new RuntimeException( 'Application tabs must be capability-aware and preserve protected direct routes.' );
+    throw new RuntimeException( 'Application tabs must preserve WordPress route registration while hiding the legacy sidebar visually.' );
 }
 if ( ! str_contains( $shell, "['Course catalogue and pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']" )
     || ! str_contains( $shell, "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']" )
@@ -311,10 +312,11 @@ if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'" )
 }
 if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || ! str_contains( $shell, 'remove_menu_page(Menu::ROOT_SLUG)' )
-    || ! str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
+    || str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
+    || ! str_contains( $shell, '#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}' )
     || ! str_contains( $shell, "'dzn-integration-email' => 'settings'" )
     || ! str_contains( $shell, "'dzn-system-health' => 'settings'" ) ) {
-    throw new RuntimeException( 'Navigation must hide the sidebar submenu while retaining registered capability-gated routes.' );
+    throw new RuntimeException( 'Navigation must hide the sidebar submenu visually while retaining registered capability-gated routes.' );
 }
 if ( str_contains( $shell, 'remove_submenu_page(' ) || str_contains( $shell, 'remove_menu_page($slug)' ) ) {
     throw new RuntimeException( 'Protected routes and unrelated WordPress menus must remain registered.' );

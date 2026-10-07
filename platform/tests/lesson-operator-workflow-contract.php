@@ -8,7 +8,7 @@ $workflow=file_get_contents($root.'/src/Core/Application/LessonOperationsReadSer
 $navigation=file_get_contents($root.'/src/Admin/Controller/Menu.php');
 $expect=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
 
-$expect(str_contains($navigation,"['Classes', 'dzn_manage_lessons', 'dzn-lesson'")&&str_contains($navigation,"Menu::ROOT_SLUG"),'Classes must remain a capability-gated Delnavazan application route.');
+$expect(str_contains($navigation,"['Classes', 'dzn_manage_lessons', 'dzn-lesson'")&&str_contains($navigation,'add_submenu_page(self::ROOT_SLUG, $label, $label, $capability, $slug, $callback)'),'Classes must remain a capability-gated Delnavazan application route.');
 $expect(str_contains($screen,"if(\$entity==='lesson')")&&str_contains($screen,"lessonOperatorRows()")&&str_contains($screen,'<th>Student / course</th>')&&str_contains($screen,'<th>Class status</th>')&&str_contains($screen,'<th>Schedule</th>')&&str_contains($screen,'<th>Next step</th>'),'Class list must show a human workflow with its next operator step.');
 $expect(str_contains($read,'public function lessonOperatorRows(): array')&&str_contains($read,'new LessonOperationsReadService())->recent()'),'Class rows must use the application read seam.');
 $expect(str_contains($workflow,"current_user_can('dzn_manage_lessons')")&&str_contains($workflow,"current_user_can('dzn_manage_canonical_lessons')")&&str_contains($workflow,'CanonicalLessonAuthorityValidator::valid'),'Canonical class rows must stay behind their capability and validated lifecycle authority.');

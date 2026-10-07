@@ -3148,6 +3148,14 @@
       none;
   }
 
+  .dzn-instrument-folio.is-auto-scrolling {
+    scroll-behavior:
+      auto !important;
+
+    scroll-snap-type:
+      none !important;
+  }
+
   .dzn-instrument-folio.is-normalizing
   .dzn-instrument-tile {
     transition:

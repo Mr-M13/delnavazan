@@ -185,6 +185,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
 
     const positionCard = (index, behavior = 'smooth') => {
       pauseAutoUntil = performance.now() + 1800;
+      rail.classList.remove('is-auto-scrolling');
       activeIndex = Math.max(0, Math.min(cards.length - 1, index));
       const card = cards[activeIndex];
       const targetLeft = card.offsetLeft - ((rail.clientWidth - card.offsetWidth) / 2);
@@ -265,6 +266,8 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
 
     rail.addEventListener('pointerdown', () => {
       interacting = true;
+      pauseAutoUntil = performance.now() + 1800;
+      rail.classList.remove('is-auto-scrolling');
     });
 
     const releaseInteraction = () => {
@@ -313,9 +316,12 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
       const elapsed = lastAutoFrame ? Math.min((now - lastAutoFrame) / 1000, 0.05) : 0;
       lastAutoFrame = now;
       if (!reducedMotion.matches && !interacting && now >= pauseAutoUntil && cycleSpan > 0 && document.visibilityState === 'visible') {
+        rail.classList.add('is-auto-scrolling');
         rail.scrollLeft += elapsed * 9;
         if (rail.scrollLeft >= cycleSpan * 2) rail.scrollLeft -= cycleSpan;
         else if (rail.scrollLeft < cycleSpan) rail.scrollLeft += cycleSpan;
+      } else {
+        rail.classList.remove('is-auto-scrolling');
       }
       window.requestAnimationFrame(autoScroll);
     };

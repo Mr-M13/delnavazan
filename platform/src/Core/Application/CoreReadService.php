@@ -41,10 +41,10 @@ final class CoreReadService {
     }
 
     /** @return array{rows:array,total:int,page:int,per_page:int} */
-    public function teacherAdminDirectory(string $search, string $status, int $page): array {
+    public function teacherAdminDirectory(string $search, string $status, int $page, string $sort = 'name', string $direction = 'asc'): array {
         if (!current_user_can('dzn_manage_teachers')) throw new \RuntimeException('Unauthorized');
         if (!in_array($status, array('all','active','inactive','archived'), true)) $status = 'all';
-        return (new TeacherRepository())->adminDirectory($search, $status, $page);
+        return (new TeacherRepository())->adminDirectory($search, $status, $page, 20, $sort, $direction);
     }
 
     /** Human-labelled instrument options for Course administration. */

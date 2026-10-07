@@ -98,6 +98,8 @@ jobs:
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-action-link-policy-contract.php
           php platform/tests/teacher-invitation-presentation-contract.php
+          php platform/tests/branded-password-reset-contract.php
+          php platform/tests/homepage-instrument-belt-contract.php
           php platform/tests/notification-transport-routing-contract.php
           php platform/tests/notification-composite-transport-contract.php
           php platform/tests/notification-system-actor-contract.php

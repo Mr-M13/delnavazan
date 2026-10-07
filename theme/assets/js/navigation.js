@@ -116,6 +116,8 @@
     let normalizationFrame = 0;
     let normalizing = false;
     let interacting = false;
+    let lastAutoFrame = 0;
+    let pauseAutoUntil = 0;
     const controls = document.createElement('div');
     const previous = document.createElement('button');
     const next = document.createElement('button');
@@ -182,6 +184,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
     };
 
     const positionCard = (index, behavior = 'smooth') => {
+      pauseAutoUntil = performance.now() + 1800;
       activeIndex = Math.max(0, Math.min(cards.length - 1, index));
       const card = cards[activeIndex];
       const targetLeft = card.offsetLeft - ((rail.clientWidth - card.offsetWidth) / 2);
@@ -302,6 +305,21 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
         positionCard(activeIndex, 'auto');
       });
     };
+
+    // Move at a deliberately slow, constant rate. The duplicated groups make a
+    // one-cycle offset visually identical, so crossing the boundary never eases
+    // or snaps the visible cards. Reduced-motion users keep the manual controls.
+    const autoScroll = (now) => {
+      const elapsed = lastAutoFrame ? Math.min((now - lastAutoFrame) / 1000, 0.05) : 0;
+      lastAutoFrame = now;
+      if (!reducedMotion.matches && !interacting && now >= pauseAutoUntil && cycleSpan > 0 && document.visibilityState === 'visible') {
+        rail.scrollLeft += elapsed * 9;
+        if (rail.scrollLeft >= cycleSpan * 2) rail.scrollLeft -= cycleSpan;
+        else if (rail.scrollLeft < cycleSpan) rail.scrollLeft += cycleSpan;
+      }
+      window.requestAnimationFrame(autoScroll);
+    };
+    window.requestAnimationFrame(autoScroll);
 
     window.addEventListener('resize', syncAfterResize, { passive: true });
     mobileQuery.addEventListener('change', syncAfterResize);

@@ -202,29 +202,43 @@ final class ScreenController {
         $search = isset($_GET['teacher_search']) && is_scalar($_GET['teacher_search']) ? sanitize_text_field(wp_unslash((string)$_GET['teacher_search'])) : '';
         $status = isset($_GET['teacher_status']) && is_scalar($_GET['teacher_status']) ? sanitize_key(wp_unslash((string)$_GET['teacher_status'])) : 'all';
         $page = max(1, absint($_GET['teacher_page'] ?? 1));
-        $result = (new CoreReadService())->teacherAdminDirectory($search, $status, $page);
+        $sort = isset($_GET['teacher_sort']) && is_scalar($_GET['teacher_sort']) ? sanitize_key(wp_unslash((string)$_GET['teacher_sort'])) : 'name';
+        $direction = isset($_GET['teacher_order']) && is_scalar($_GET['teacher_order']) ? sanitize_key(wp_unslash((string)$_GET['teacher_order'])) : 'asc';
+        $sortLabels = array('name'=>'Teacher','email'=>'Email','status'=>'Status','intake'=>'Student intake','instruments'=>'Instruments','availability'=>'Weekly availability','classes'=>'Current classes');
+        if (!isset($sortLabels[$sort])) $sort = 'name';
+        $direction = $direction === 'desc' ? 'desc' : 'asc';
+        $result = (new CoreReadService())->teacherAdminDirectory($search, $status, $page, $sort, $direction);
         echo '<h2>Teacher directory</h2><p>Search by teacher name, email or reference. Operational indicators summarize current course eligibility, availability and applicable classes.</p>';
-        echo '<form method="get" class="search-form"><input type="hidden" name="page" value="dzn-teacher">';
+        echo '<form method="get" class="search-form"><input type="hidden" name="page" value="dzn-teacher"><input type="hidden" name="teacher_sort" value="'.esc_attr($sort).'"><input type="hidden" name="teacher_order" value="'.esc_attr($direction).'">';
         echo '<label class="screen-reader-text" for="dzn-teacher-search">Search teachers</label><input id="dzn-teacher-search" type="search" name="teacher_search" value="'.esc_attr($search).'" placeholder="Name, email or reference"> ';
         echo '<label for="dzn-teacher-status">Status </label><select id="dzn-teacher-status" name="teacher_status">';
         foreach (array('all'=>'All teachers','active'=>'Active','inactive'=>'Inactive','archived'=>'Archived') as $value=>$label) echo '<option value="'.esc_attr($value).'"'.selected($status,$value,false).'>'.esc_html($label).'</option>';
         echo '</select> <button class="button">Search</button></form>';
         if (!$result['rows']) { echo '<p>No teachers match these filters. Try a broader search or choose another status.</p>'; return; }
         echo '<p>'.esc_html(number_format_i18n($result['total'])).' teacher'.($result['total']===1?'':'s').'</p>';
-        echo '<table class="widefat striped"><thead><tr><th>Teacher</th><th>Email</th><th>Status</th><th>Student intake</th><th>Course eligibility</th><th>Availability</th><th>Current classes</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr>';
+        foreach ($sortLabels as $key => $label) {
+            $nextDirection = $sort === $key && $direction === 'asc' ? 'desc' : 'asc';
+            $url = add_query_arg(array('page'=>'dzn-teacher','teacher_search'=>$search,'teacher_status'=>$status,'teacher_sort'=>$key,'teacher_order'=>$nextDirection,'teacher_page'=>1),admin_url('admin.php'));
+            $state = $sort === $key ? ($direction === 'asc' ? ' aria-sort="ascending"' : ' aria-sort="descending"') : '';
+            $arrow = $sort === $key ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
+            echo '<th scope="col"'.$state.'><a href="'.esc_url($url).'">'.esc_html($label.$arrow).'</a></th>';
+        }
+        echo '<th>Profile details</th></tr></thead><tbody>';
         foreach ($result['rows'] as $row) {
             $url=add_query_arg(array('page'=>'dzn-teacher','id'=>(int)$row->id),admin_url('admin.php'));
             $name=(string)($row->display_name?:$row->english_name?:$row->persian_name?:'Teacher');
             $detail=$row->reference_code?'<br><small>'.esc_html((string)$row->reference_code).'</small>':'';
             $archived=$row->archived_at!==null;
             echo '<tr><td><a href="'.esc_url($url).'"><strong>'.esc_html($name).'</strong></a>'.$detail.'</td><td>'.esc_html((string)($row->email?:'—')).'</td><td>'.esc_html($archived?'Archived':self::teacherStatus((string)$row->status)).'</td>';
-            echo '<td>'.esc_html(self::acceptingLabel((string)$row->accepting_state)).'</td><td>'.esc_html((int)$row->eligible_course_count>0?number_format_i18n((int)$row->eligible_course_count).' active courses':'None recorded').'</td>';
+            echo '<td>'.esc_html(self::acceptingLabel((string)$row->accepting_state)).'</td><td>'.esc_html((string)$row->instrument_names!==''?(string)$row->instrument_names:'None recorded').'</td>';
             $availability=(int)$row->availability_rule_count>0?number_format_i18n((int)$row->availability_rule_count).' time windows':((string)$row->availability_status==='not_set'?'Not set':'No active time windows');
-            echo '<td>'.esc_html($availability).'</td><td>'.esc_html(number_format_i18n((int)$row->current_class_count)).'</td></tr>';
+            echo '<td>'.esc_html($availability).'</td><td>'.esc_html(number_format_i18n((int)$row->current_class_count)).'</td>';
+            echo '<td><details><summary>Expand</summary><p><strong>Instruments:</strong> '.esc_html((string)$row->instrument_names!==''?(string)$row->instrument_names:'None recorded').'</p><p><strong>Weekly availability ('.esc_html((string)($row->timezone?:'timezone not set')).'):</strong> '.esc_html((string)$row->availability_summary!==''?(string)$row->availability_summary:'No active weekly windows').'</p><p><a href="'.esc_url($url).'">Open teacher profile and controls</a></p></details></td></tr>';
         }
         echo '</tbody></table>';
         $pages=(int)ceil($result['total']/$result['per_page']);
-        if($pages>1){$base=add_query_arg(array('page'=>'dzn-teacher','teacher_search'=>$search,'teacher_status'=>$status,'teacher_page'=>'%#%'),admin_url('admin.php'));echo '<nav class="tablenav"><div class="tablenav-pages">'.wp_kses_post(paginate_links(array('base'=>$base,'format'=>'','current'=>$page,'total'=>$pages,'type'=>'plain','prev_text'=>'‹ Previous','next_text'=>'Next ›'))).'</div></nav>';}
+        if($pages>1){$base=add_query_arg(array('page'=>'dzn-teacher','teacher_search'=>$search,'teacher_status'=>$status,'teacher_sort'=>$sort,'teacher_order'=>$direction,'teacher_page'=>'%#%'),admin_url('admin.php'));echo '<nav class="tablenav"><div class="tablenav-pages">'.wp_kses_post(paginate_links(array('base'=>$base,'format'=>'','current'=>$page,'total'=>$pages,'type'=>'plain','prev_text'=>'‹ Previous','next_text'=>'Next ›'))).'</div></nav>';}
     }
 
     private static function teacherStatus(string $status): string { return match($status){'active'=>'Active','inactive'=>'Inactive','archived'=>'Archived',default=>ucfirst(str_replace('_',' ',$status))}; }

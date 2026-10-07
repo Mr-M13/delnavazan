@@ -25,6 +25,7 @@ $contracts = array(
     'teacher menu logout and signed-out login path' => str_contains($files['shell'], 'wp_logout_url') && str_contains($files['routes'], 'redirect_to') && str_contains($files['routes'], "home_url( '/login/' )"),
     'teacher navigation has distinct route destinations' => str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'finance'") && str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'settings'") && str_contains($files['routes'], "'finance', 'settings', 'onboarding'"),
     'administrator diagnostics do not expose routine approval action' => str_contains($files['admin'], 'This table is diagnostic') && !str_contains($files['admin'], 'Approve and activate'),
+    'a teacher readiness refusal returns to setup rather than a generic portal error' => str_contains($files['bridge'], "'teacher_onboarding_required' === \$reason ? 'onboarding_required'") && str_contains($files['bridge'], "'not_linked','onboarding_required'"),
 );
 foreach ($contracts as $name => $passed) {
     if (!$passed) throw new RuntimeException('Teacher onboarding v2 contract failed: ' . $name);

@@ -32,7 +32,9 @@ $session=array('object'=>'checkout.session','id'=>'cs_test_'.str_repeat('B',24),
     'metadata'=>array('checkout_attempt_uid'=>$request->attemptUid(),'obligation_reference'=>$request->obligationReference(),'provider_account_reference'=>'prelaunch_test_account'));
 $transport=static function(string $url,array $options)use($session):array{
     if($url!=='https://api.stripe.com/v1/checkout/sessions')throw new RuntimeException('Unexpected provider destination.');
-    if(!str_starts_with(base64_decode((string)($options['headers']['Authorization']??''),true)?:'','sk_test_'))throw new RuntimeException('Non-test credential reached provider transport.');
+    $authorization=(string)($options['headers']['Authorization']??'');
+    $encoded=str_starts_with($authorization,'Basic ')?substr($authorization,6):'';
+    if(!str_starts_with(base64_decode($encoded,true)?:'','sk_test_'))throw new RuntimeException('Non-test credential reached provider transport.');
     return array('response'=>array('code'=>200),'body'=>json_encode($session));
 };
 $adapter=new $adapterClass($credentials,$transport);

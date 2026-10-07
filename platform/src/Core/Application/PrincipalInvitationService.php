@@ -2,6 +2,8 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherRepository;
+use Delnavazan\Platform\Core\Support\Identifier;
 
 /**
  * 2A.0 owns Core-side invitation authority. WordPress account provisioning is
@@ -16,8 +18,30 @@ final class PrincipalInvitationService {
      */
     public function issue(int $teacherId,string $recipient,int $ttl=604800,?string $command=null):array{
         $this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);$command=$this->key($command??'issue:'.$teacherId.':'.$recipient);$now=current_time('mysql',true);
-        $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$teacher=$this->repo->teacherForUpdate($teacherId);if(!$teacher||$teacher->archived_at!==null||$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');$parent=$this->repo->invitationForTeacher($teacherId);if(!$parent){$parentId=$this->repo->insert('teacher_invitations',['teacher_id'=>$teacherId,'recipient_digest'=>hash('sha256',$recipient),'current_generation_number'=>0,'status'=>'active','version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>get_current_user_id(),'updated_by'=>get_current_user_id()]);$parent=$this->repo->invitationForTeacher($teacherId);}else{$parentId=(int)$parent->id;$this->repo->supersedeUnclaimedGenerations($parentId,$now);$this->repo->cancelPendingDeliveryOutboxes($parentId,$now);}
-            $number=(int)$parent->current_generation_number+1;$recipientDigest=hash('sha256',$recipient);$generation=$this->repo->insert('teacher_invitation_generations',['invitation_id'=>$parentId,'generation_number'=>$number,'recipient_snapshot'=>$recipient,'recipient_digest'=>$recipientDigest,'secret_digest'=>null,'status'=>'queued_for_delivery','expires_at'=>gmdate('Y-m-d H:i:s',time()+max(300,$ttl)),'delivery_key'=>$this->key('delivery:'.$parentId.':'.$number),'created_at'=>$now,'created_by'=>get_current_user_id()]);$this->repo->update('teacher_invitations',['recipient_digest'=>$recipientDigest,'current_generation_number'=>$number,'status'=>'active','version'=>(int)$parent->version+1,'updated_at'=>$now,'updated_by'=>get_current_user_id()],['id'=>$parentId]);$this->repo->audit('teacher_invitation',$parentId,'teacher_invitation.queued',get_current_user_id(),$command);$this->repo->outbox($parentId,$generation,'teacher_invitation.delivery_requested',$this->key('outbox:'.$command));$this->repo->commit();return['invitation_id'=>$parentId,'generation_id'=>$generation,'status'=>'queued_for_delivery'];}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
+        $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$result=$this->queueWithinTransaction($teacherId,$recipient,$ttl,$command,$now);$this->repo->commit();return$result;}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
+
+    /** Create a blank canonical Teacher only when no active profile already owns this email. */
+    public function issueForEmail(string $recipient,int $ttl=604800,?string $command=null):array{
+        $this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);$command=$this->key($command??'issue-email:'.$recipient);$now=current_time('mysql',true);
+        $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$teacherId=$this->teacherForEmail($recipient);$created=false;if(!$teacherId){$teacherId=$this->createInvitedTeacher($recipient,$now);$created=true;}$result=$this->queueWithinTransaction($teacherId,$recipient,$ttl,$command,$now);$this->repo->commit();return$result+array('teacher_id'=>$teacherId,'teacher_created'=>$created);}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
+
+    private function queueWithinTransaction(int $teacherId,string $recipient,int $ttl,string $command,string $now):array{
+        $teacher=$this->repo->teacherForUpdate($teacherId);if(!$teacher||$teacher->archived_at!==null||$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');$parent=$this->repo->invitationForTeacher($teacherId);if(!$parent){$parentId=$this->repo->insert('teacher_invitations',['teacher_id'=>$teacherId,'recipient_digest'=>hash('sha256',$recipient),'current_generation_number'=>0,'status'=>'active','version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>get_current_user_id(),'updated_by'=>get_current_user_id()]);$parent=$this->repo->invitationForTeacher($teacherId);}else{$parentId=(int)$parent->id;$this->repo->supersedeUnclaimedGenerations($parentId,$now);$this->repo->cancelPendingDeliveryOutboxes($parentId,$now);}
+        $number=(int)$parent->current_generation_number+1;$recipientDigest=hash('sha256',$recipient);$generation=$this->repo->insert('teacher_invitation_generations',['invitation_id'=>$parentId,'generation_number'=>$number,'recipient_snapshot'=>$recipient,'recipient_digest'=>$recipientDigest,'secret_digest'=>null,'status'=>'queued_for_delivery','expires_at'=>gmdate('Y-m-d H:i:s',time()+max(300,$ttl)),'delivery_key'=>$this->key('delivery:'.$parentId.':'.$number),'created_at'=>$now,'created_by'=>get_current_user_id()]);$this->repo->update('teacher_invitations',['recipient_digest'=>$recipientDigest,'current_generation_number'=>$number,'status'=>'active','version'=>(int)$parent->version+1,'updated_at'=>$now,'updated_by'=>get_current_user_id()],['id'=>$parentId]);$this->repo->audit('teacher_invitation',$parentId,'teacher_invitation.queued',get_current_user_id(),$command);$this->repo->outbox($parentId,$generation,'teacher_invitation.delivery_requested',$this->key('outbox:'.$command));return array('invitation_id'=>$parentId,'generation_id'=>$generation,'status'=>'queued_for_delivery');
+    }
+
+    private function teacherForEmail(string $recipient):int{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=$wpdb->get_results($wpdb->prepare("SELECT id,status,archived_at FROM {$p}teachers WHERE email=%s AND archived_at IS NULL AND status<>'archived' ORDER BY id FOR UPDATE",$recipient));
+        if(count((array)$rows)>1)throw new \InvalidArgumentException('Multiple active teacher profiles match this email');
+        if(!$rows)return 0;$teacher=$rows[0];if((string)$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');
+        $linked=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}teacher_principal_links WHERE teacher_id=%d AND status='active' LIMIT 1",(int)$teacher->id));if($linked)throw new \InvalidArgumentException('Teacher already has a linked account');
+        return(int)$teacher->id;
+    }
+
+    private function createInvitedTeacher(string $recipient,string $now):int{
+        $teachers=new TeacherRepository();$data=array('uid'=>Identifier::uid(),'reference_code'=>null,'status'=>'active','persian_name'=>null,'english_name'=>null,'display_name'=>'مدرس جدید','email'=>$recipient,'phone'=>null,'whatsapp_phone'=>null,'country_code'=>null,'city'=>null,'timezone'=>null,'timezone_source'=>null,'locale'=>null,'calendar_preference'=>null,'wordpress_user_id'=>null);
+        $data=array_replace($data,$teachers->creationAuditValues($now,(int)get_current_user_id()?:null));$id=$teachers->insert($data);$teachers->assignReference($id,Identifier::reference('DZN-TCH-',$id));return$id;
+    }
 
     /**
      * Internal delivery-boundary contract. No route or admin action invokes

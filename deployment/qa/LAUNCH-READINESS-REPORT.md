@@ -19,7 +19,7 @@ The PR runtime gate protects source-level contracts. `deployment/qa/staging-smok
 - Run the smoke suite against the final deployed staging build and record a clean pass.
 - Browser review at 375px, 768px and 1440px for public and authenticated critical paths.
 - Use disposable staging identities to verify student, teacher and least-privilege staff login/routing/logout.
-- Exercise teacher invitation/onboarding, approved-teacher availability maintenance and Academy Operations with disposable data.
+- Exercise teacher invitation/onboarding, automatically activated teacher availability maintenance and Academy Operations with disposable data.
 - Exercise booking validation and timezone/availability behaviour without creating a real enrolment unless a disposable submission path is explicitly prepared.
 - Verify notification/provider surfaces fail closed when external credentials or transports are unavailable.
 - Confirm staging remains noindex and production remains unchanged.

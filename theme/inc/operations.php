@@ -42,11 +42,15 @@ function dzn_theme_operations_groups() {
 				array( 'cap' => 'dzn_manage_students', 'slug' => 'dzn-student', 'title' => 'هنرجویان', 'description' => 'پرونده‌های هنرجو' ),
 				array( 'cap' => 'dzn_manage_teachers', 'slug' => 'dzn-teachers-menu', 'title' => 'مدرسان', 'description' => 'پرونده، دعوت، صلاحیت، زمان‌ها و پوشش تدریس' ),
 				array( 'cap' => 'dzn_view_student_acceptance_eligibility', 'slug' => 'dzn-student-identity-authority', 'title' => 'هویت و اختیار هنرجو', 'description' => 'اتصال حساب و اختیار پذیرش' ),
+				array( 'cap' => 'dzn_manage_onboarding', 'slug' => 'dzn-onboarding', 'title' => 'شروع همکاری مدرس', 'description' => 'دعوت و بازبینی آمادگی مدرس' ),
 			),
 		),
 		'teaching' => array(
 			'label' => 'تدریس و زمان‌بندی',
 			'items' => array(
+				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teaching-eligibility', 'title' => 'صلاحیت تدریس', 'description' => 'دسترسی مدرس به دوره‌ها' ),
+				array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teacher-availability', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی' ),
+				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-coverage', 'title' => 'پوشش تدریس', 'description' => 'شکاف پوشش منطقه‌ای مدرس‌ها' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-course', 'title' => 'دوره‌ها', 'description' => 'دوره‌های آموزشگاه' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-instrument', 'title' => 'سازها', 'description' => 'فهرست سازها' ),
 			),

@@ -10,6 +10,8 @@ foreach(array('pk_test_','sk_test_','whsec_',"execution_state'=>'disabled",'comp
     if(strpos($service,$needle)===false)throw new RuntimeException('Stripe test configuration contract missing '.$needle);
 foreach(array('dzn_stripe_test_settings_save','dzn_stripe_test_connection','Test Connection','payment-provider-events/stripe/stripe_test','type="password"','configured; leave blank to keep') as $needle)
     if(strpos($controller,$needle)===false)throw new RuntimeException('Stripe Settings surface contract missing '.$needle);
+foreach(array('Configure Stripe test mode','admin.php?page=dzn-stripe-settings','users with payment provider authority') as $needle)
+    if(strpos($controller,$needle)===false)throw new RuntimeException('Stripe Integrations card contract missing '.$needle);
 if(strpos($readiness,'test_publishable_key')===false)throw new RuntimeException('Stripe publishable-key readiness check missing');
 if(strpos($adapter,"array('local','development','staging')")===false||strpos($adapter,'testModeActivationAllowed')===false)
     throw new RuntimeException('Production Stripe checkout must remain disabled');

@@ -11,7 +11,7 @@ $required = array(
     'WordPress lost-password links are routed through Delnavazan' => "add_filter( 'lostpassword_url', 'dzn_theme_branded_lostpassword_url'",
     'legacy browser requests are redirected away from WordPress auth screens' => "add_action( 'login_init', 'dzn_theme_redirect_native_auth_screens'",
     'redirects are restricted to validated local destinations' => 'wp_validate_redirect( $requested_redirect, home_url( \'/dashboard/\' ) )',
-    'password reset requires matching passwords and a minimum length' => "strlen( $pass1 ) < 12 || ! hash_equals( $pass1, $pass2 )",
+    'password reset requires matching passwords and a minimum length' => "strlen( \$pass1 ) < 12 || ! hash_equals( \$pass1, \$pass2 )",
     'request and reset posts require separate nonces' => 'wp_verify_nonce( $nonce, $nonce_action )',
     'teacher account recovery uses the WordPress-compatible branded URL filter' => 'wp_lostpassword_url()',
 );

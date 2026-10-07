@@ -113,6 +113,7 @@ jobs:
           php platform/tests/notification-handoff-reconciliation-contract.php
           php platform/tests/customer-checkout-contract.php
           php platform/tests/stripe-checkout-adapter-contract.php
+          php platform/tests/stripe-test-settings-contract.php
           php platform/tests/stripe-checkout-adapter-unit.php
           php platform/tests/stripe-checkout-reconciliation-contract.php
           php platform/tests/stripe-checkout-webhook-contract.php

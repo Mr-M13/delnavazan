@@ -4,11 +4,12 @@ namespace Delnavazan\Platform\Admin\Controller;
 use Delnavazan\Platform\Core\Application\IntegrationControlPlaneReadService;
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestModeReadinessService;
+use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestConfigurationService;
 use Delnavazan\Platform\Integrations\IntegrationTestRunner;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
 final class IntegrationControlPlaneController {
-    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));}
+    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));}
     public static function save():void{self::handle('save');}
     public static function test():void{self::handle('test');}
     private static function handle(string $operation):void{
@@ -35,11 +36,33 @@ final class IntegrationControlPlaneController {
     /** Stripe configuration/readiness remains with Payment Execution. */
     public static function stripeSettings():void{
         if(!current_user_can(PaymentExecutionController::CAPABILITY))wp_die('Forbidden',403);
-        $readiness=(new StripeTestModeReadinessService())->read();
-        echo '<div class="wrap"><h1>Stripe setup</h1><p>Stripe test-mode readiness is secret-free. Production activation remains disabled.</p><p><strong>'.esc_html($readiness['ready']?'Ready':'Setup is incomplete').'</strong></p><table class="widefat striped"><tbody>';
+        $configuration=new StripeTestConfigurationService();$saved=$configuration->savedState();$readiness=(new StripeTestModeReadinessService())->read();$last=(array)get_option('dzn_stripe_test_connection_result',array());
+        echo '<div class="wrap"><h1>Stripe setup</h1><p>Configure Stripe sandbox credentials. Secret keys are encrypted and write-only. Live credentials and live payment execution are prohibited; a production checkout cannot be enabled from this screen.</p>';
+        if(isset($_GET['stripe_result'])){$result=sanitize_key((string)$_GET['stripe_result']);$messages=array('saved'=>'Stripe test configuration saved.','success'=>'Stripe accepted the test key and confirmed sandbox mode.','failed'=>'Stripe test connection failed. Check the test key and try again.','blocked'=>'Stripe test connection is not ready. Save a valid test secret key first.');echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
+        $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/stripe_test');
+        echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code>'.esc_html($webhookUrl).'</code></p><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_test_settings_save">';wp_nonce_field('dzn_stripe_test_settings_save');
+        echo '<table class="form-table"><tbody><tr><th><label for="stripe-pk">Publishable key</label></th><td><input class="regular-text" id="stripe-pk" name="settings[publishable_key]" value="'.esc_attr($configuration->publishableKey()).'" placeholder="pk_test_…" autocomplete="off"></td></tr>';
+        foreach(array('secret_key'=>'Secret key','webhook_signing_secret'=>'Webhook signing secret') as $field=>$label){$has=$field==='secret_key'?$saved['secret']:$saved['webhook'];echo '<tr><th><label for="stripe-'.esc_attr($field).'">'.esc_html($label).'</label></th><td><input class="regular-text" type="password" id="stripe-'.esc_attr($field).'" name="settings['.esc_attr($field).']" value="" autocomplete="new-password" placeholder="'.($has?'•••••••••••• (configured; leave blank to keep)':'Enter Stripe test credential').'"></td></tr>';}
+        echo '</tbody></table><p><button class="button button-primary">Save test configuration</button></p></form>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_test_connection">';wp_nonce_field('dzn_stripe_test_connection');echo '<p><button class="button" name="run_test" value="1">Test Connection</button>';
+        if($last)echo ' · Last test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html((string)($last['code']??'')).') at '.esc_html((string)($last['at']??''));echo '</p></form>';
+        echo '<h2>Stripe test-mode readiness</h2><p><strong>'.esc_html($readiness['ready']?'Ready':'Setup is incomplete').'</strong></p><table class="widefat striped"><tbody>';
         foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
         echo '</tbody></table><p>Payment execution and reconciliation are under Finance.</p></div>';
     }
+    public static function saveStripeTestSettings():void{
+        self::authorizeStripeSettings();check_admin_referer('dzn_stripe_test_settings_save');
+        try{(new StripeTestConfigurationService())->save((array)($_POST['settings']??array()));$result='saved';}
+        catch(\Throwable $e){$result='blocked';}
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-stripe-settings','stripe_result'=>$result),admin_url('admin.php')));exit;
+    }
+    public static function testStripeConnection():void{
+        self::authorizeStripeSettings();check_admin_referer('dzn_stripe_test_connection');if(!isset($_POST['run_test']))wp_die('Explicit test action required',400);
+        $result=(new StripeTestConfigurationService())->testConnection();$state=(string)$result['state'];$code=(string)$result['code'];
+        update_option('dzn_stripe_test_connection_result',array('state'=>$state,'code'=>$code,'at'=>current_time('mysql',true)),false);
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-stripe-settings','stripe_result'=>$state==='success'?'success':($state==='failed'?'failed':'blocked')),admin_url('admin.php')));exit;
+    }
+    private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
         $labels=array('email'=>'Email','whatsapp'=>'Meta WhatsApp Cloud API','sms'=>'SMS fallback','google'=>'Google OAuth / Calendar');

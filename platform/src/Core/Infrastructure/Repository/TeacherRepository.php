@@ -44,11 +44,14 @@ final class TeacherRepository extends BaseRepository {
     }
 
     /** Searchable, paginated operational directory for the teacher admin screen. */
-    public function adminDirectory(string $search, string $status, int $page, int $perPage = 20): array {
+    public function adminDirectory(string $search, string $status, int $page, int $perPage = 20, string $sort = 'name', string $direction = 'asc'): array {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $page = max(1, $page);
         $perPage = max(1, min(50, $perPage));
+        $sortColumns = array('name' => "COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name)", 'email' => 't.email', 'status' => 't.status', 'intake' => 'accepting_state', 'instruments' => 'instrument_names', 'availability' => 'availability_rule_count', 'classes' => 'current_class_count');
+        if (!isset($sortColumns[$sort])) $sort = 'name';
+        $sortDirection = strtolower($direction) === 'desc' ? 'DESC' : 'ASC';
         $where = array();
         $args = array();
         if ($status === 'active' || $status === 'inactive') {
@@ -72,14 +75,17 @@ final class TeacherRepository extends BaseRepository {
         $sql = "SELECT t.id,t.reference_code,t.display_name,t.persian_name,t.english_name,t.email,t.status,t.timezone,t.archived_at,
             COALESCE(a.state,'not_set') accepting_state,
             COALESCE(ap.status,'not_set') availability_status, COALESCE(ar.rule_count,0) availability_rule_count,
-            COALESCE(el.eligible_count,0) eligible_course_count, COALESCE(ta.class_count,0) current_class_count
+            COALESCE(el.eligible_count,0) eligible_course_count, COALESCE(inst.instrument_names,'') instrument_names,
+            COALESCE(av.availability_summary,'') availability_summary, COALESCE(ta.class_count,0) current_class_count
             FROM {$this->table} t
             LEFT JOIN {$p}teacher_accepting_states a ON a.teacher_id=t.id
             LEFT JOIN {$p}teacher_availability_profiles ap ON ap.teacher_id=t.id
             LEFT JOIN (SELECT teacher_id,COUNT(*) rule_count FROM {$p}teacher_availability_rules WHERE status='active' AND state IN ('preferred','requestable') GROUP BY teacher_id) ar ON ar.teacher_id=t.id
             LEFT JOIN (SELECT teacher_id,COUNT(*) eligible_count FROM {$p}teacher_course_eligibilities WHERE status='active' AND (effective_from IS NULL OR effective_from<=UTC_TIMESTAMP()) AND (effective_until IS NULL OR effective_until>UTC_TIMESTAMP()) GROUP BY teacher_id) el ON el.teacher_id=t.id
+            LEFT JOIN (SELECT e.teacher_id,GROUP_CONCAT(DISTINCT COALESCE(NULLIF(i.name_en,''),i.name_fa) ORDER BY COALESCE(NULLIF(i.name_en,''),i.name_fa) SEPARATOR ', ') instrument_names FROM {$p}teacher_course_eligibilities e INNER JOIN {$p}courses c ON c.id=e.course_id INNER JOIN {$p}instruments i ON i.id=c.instrument_id WHERE e.status='active' AND (e.effective_from IS NULL OR e.effective_from<=UTC_TIMESTAMP()) AND (e.effective_until IS NULL OR e.effective_until>UTC_TIMESTAMP()) AND c.status='active' AND c.archived_at IS NULL AND i.status='active' AND i.archived_at IS NULL GROUP BY e.teacher_id) inst ON inst.teacher_id=t.id
+            LEFT JOIN (SELECT teacher_id,GROUP_CONCAT(CONCAT(ELT(weekday,'Mon','Tue','Wed','Thu','Fri','Sat','Sun'),' ',TIME_FORMAT(local_start_time,'%H:%i'),'–',TIME_FORMAT(local_end_time,'%H:%i')) ORDER BY weekday,local_start_time SEPARATOR '; ') availability_summary FROM {$p}teacher_availability_rules WHERE status='active' AND state IN ('preferred','requestable') GROUP BY teacher_id) av ON av.teacher_id=t.id
             LEFT JOIN (SELECT teacher_id,COUNT(*) class_count FROM {$p}teacher_assignments WHERE applicable_slot=1 GROUP BY teacher_id) ta ON ta.teacher_id=t.id
-            WHERE {$clause} ORDER BY CASE WHEN t.archived_at IS NULL THEN 0 ELSE 1 END, COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name),t.id LIMIT %d OFFSET %d";
+            WHERE {$clause} ORDER BY CASE WHEN t.archived_at IS NULL THEN 0 ELSE 1 END, {$sortColumns[$sort]} {$sortDirection},t.id LIMIT %d OFFSET %d";
         $args[] = $perPage;
         $args[] = $offset;
         $rows = $wpdb->get_results($wpdb->prepare($sql, ...$args)) ?: array();

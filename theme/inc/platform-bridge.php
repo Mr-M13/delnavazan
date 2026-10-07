@@ -282,7 +282,8 @@ function dzn_theme_platform_teacher_read_state() {
 	} catch ( Throwable $e ) {
 		$reason = (string) $e->getMessage();
 		$unlinked = array( 'portal_principal_unresolved', 'portal_principal_ambiguous', 'portal_principal_kind_not_permitted' );
-		return array( 'state' => in_array( $reason, $unlinked, true ) ? 'not_linked' : 'error', 'reason' => $reason );
+		$state = in_array( $reason, $unlinked, true ) ? 'not_linked' : ( 'teacher_onboarding_required' === $reason ? 'onboarding_required' : 'error' );
+		return array( 'state' => $state, 'reason' => $reason );
 	}
 }
 
@@ -342,7 +343,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
 	if ( 'active' !== $onboarding['state'] || 'ready' !== $onboarding['readiness_state'] ) { return dzn_theme_platform_teacher_state_model( $screen, 'onboarding_required' ); }
 	$read = dzn_theme_platform_teacher_read_state();
-	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_teacher_state_model( $screen, (string) $read['state'] ); }
+	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_teacher_state_model( $screen, in_array($read['state'], array('not_linked','onboarding_required'), true) ? (string)$read['state'] : 'error' ); }
 	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );

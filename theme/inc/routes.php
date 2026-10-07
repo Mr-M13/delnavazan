@@ -106,6 +106,12 @@ function dzn_theme_redirect_frontend_login_failure( $username ) {
 add_action( 'wp_login_failed', 'dzn_theme_redirect_frontend_login_failure' );
 
 function dzn_theme_render_login_route() {
+	$action = isset( $_GET['action'] ) && is_string( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+	if ( in_array( $action, array( 'lostpassword', 'rp' ), true ) ) {
+		dzn_theme_render_password_reset_route( $action );
+		return;
+	}
+	if ( isset( $_GET['password_reset'] ) ) { echo '<p class="dzn-route__notice is-success" role="status">رمز عبور شما به‌روزرسانی شد. اکنون با رمز تازه وارد شوید.</p>'; }
 	$requested_redirect = isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] ) ? wp_unslash( $_GET['redirect_to'] ) : '';
 	$redirect_to = $requested_redirect ? wp_validate_redirect( $requested_redirect, home_url( '/dashboard/' ) ) : home_url( '/dashboard/' );
 	if ( is_user_logged_in() ) {
@@ -126,6 +132,93 @@ function dzn_theme_render_login_route() {
 	</main>
 	<?php
 }
+
+/** Branded password recovery while retaining WordPress's native reset keys and password storage. */
+function dzn_theme_render_password_reset_route( $action ) {
+	$requested_redirect = isset( $_REQUEST['redirect_to'] ) && is_string( $_REQUEST['redirect_to'] ) ? wp_unslash( $_REQUEST['redirect_to'] ) : '';
+	$redirect_to = $requested_redirect ? wp_validate_redirect( $requested_redirect, home_url( '/dashboard/' ) ) : home_url( '/dashboard/' );
+	if ( 'lostpassword' === $action ) {
+		?>
+		<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1"><section class="dzn-route__state" aria-labelledby="dzn-route-title">
+		<p class="dzn-eyebrow">حساب دلنوازان</p><h1 id="dzn-route-title">بازیابی رمز عبور</h1>
+		<?php if ( isset( $_GET['sent'] ) ) : ?><p class="dzn-route__notice is-success" role="status">اگر حسابی با این نشانی وجود داشته باشد، پیوند امن بازیابی برای آن ایمیل شده است.</p><?php else : ?>
+		<?php if ( isset( $_GET['error'] ) ) : ?><p class="dzn-route__notice is-error" role="alert">درخواست کامل نشد. لطفاً دوباره تلاش کنید یا از یک پیوند تازه استفاده کنید.</p><?php endif; ?>
+		<p>نشانی ایمیل حساب خود را وارد کنید. اگر حسابی با این نشانی وجود داشته باشد، پیوند امن برایتان ارسال می‌شود.</p>
+		<form class="dzn-login-form" method="post" action="<?php echo esc_url( add_query_arg( array( 'action' => 'lostpassword', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); ?>">
+		<?php wp_nonce_field( 'dzn_branded_password_lost', 'dzn_password_nonce' ); ?><input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>"><label for="dzn-password-email">ایمیل حساب<input id="dzn-password-email" type="email" name="user_login" autocomplete="username" required></label><button type="submit">ارسال پیوند بازیابی</button>
+		</form><?php endif; ?><p><a href="<?php echo esc_url( add_query_arg( 'redirect_to', $redirect_to, home_url( '/login/' ) ) ); ?>">بازگشت به ورود</a></p></section></main>
+		<?php
+		return;
+	}
+	$key = isset( $_REQUEST['key'] ) && is_string( $_REQUEST['key'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['key'] ) ) : '';
+	$login = isset( $_REQUEST['login'] ) && is_string( $_REQUEST['login'] ) ? sanitize_user( wp_unslash( $_REQUEST['login'] ), true ) : '';
+	$user = $key && $login ? check_password_reset_key( $key, $login ) : new WP_Error( 'invalid_key', 'Invalid reset link.' );
+	?>
+	<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1"><section class="dzn-route__state" aria-labelledby="dzn-route-title">
+	<p class="dzn-eyebrow">حساب دلنوازان</p><h1 id="dzn-route-title">تنظیم رمز عبور تازه</h1>
+	<?php if ( is_wp_error( $user ) ) : ?><p class="dzn-route__notice is-error" role="alert">این پیوند بازیابی معتبر یا فعال نیست. از صفحهٔ ورود یک پیوند تازه درخواست کنید.</p><p><a href="<?php echo esc_url( add_query_arg( 'action', 'lostpassword', home_url( '/login/' ) ) ); ?>">درخواست پیوند تازه</a></p>
+	<?php else : ?><?php if ( isset( $_GET['error'] ) ) : ?><p class="dzn-route__notice is-error" role="alert">رمزها باید یکسان و دست‌کم ۱۲ نویسه باشند. دوباره تلاش کنید.</p><?php endif; ?><p>رمز تازه‌ای برای حساب دلنوازان انتخاب کنید.</p><form class="dzn-login-form" method="post" action="<?php echo esc_url( add_query_arg( array( 'action' => 'rp', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); ?>">
+	<?php wp_nonce_field( 'dzn_branded_password_reset', 'dzn_password_nonce' ); ?><input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>"><input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>"><input type="hidden" name="login" value="<?php echo esc_attr( $login ); ?>"><label for="dzn-new-password">رمز تازه<input id="dzn-new-password" type="password" name="pass1" autocomplete="new-password" minlength="12" required></label><label for="dzn-confirm-password">تکرار رمز تازه<input id="dzn-confirm-password" type="password" name="pass2" autocomplete="new-password" minlength="12" required></label><button type="submit">ذخیرهٔ رمز تازه</button>
+	</form><?php endif; ?></section></main>
+	<?php
+}
+
+/** Keep WordPress credential recovery behind the first-party login route. */
+function dzn_theme_branded_lostpassword_url( $url, $redirect ) {
+	$args = array( 'action' => 'lostpassword' );
+	if ( is_string( $redirect ) && $redirect !== '' ) { $args['redirect_to'] = wp_validate_redirect( $redirect, home_url( '/dashboard/' ) ); }
+	return add_query_arg( $args, home_url( '/login/' ) );
+}
+add_filter( 'lostpassword_url', 'dzn_theme_branded_lostpassword_url', 10, 2 );
+
+function dzn_theme_branded_password_reset_message( $message, $key, $user_login, $user ) {
+	$url = add_query_arg( array( 'action' => 'rp', 'key' => $key, 'login' => $user_login ), home_url( '/login/' ) );
+	return "برای تنظیم رمز عبور دلنوازان، پیوند زیر را باز کنید:\n\n" . $url . "\n\nاگر این درخواست را شما ثبت نکرده‌اید، این پیام را نادیده بگیرید.";
+}
+add_filter( 'retrieve_password_message', 'dzn_theme_branded_password_reset_message', 10, 4 );
+
+/** Redirect browser-facing core login and reset screens, including links sent before this flow existed. */
+function dzn_theme_redirect_native_auth_screens() {
+	if ( 'GET' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) { return; }
+	$action = isset( $_REQUEST['action'] ) && is_string( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : 'login';
+	if ( ! in_array( $action, array( 'login', 'lostpassword', 'rp', 'resetpass' ), true ) ) { return; }
+	$args = array();
+	if ( in_array( $action, array( 'lostpassword' ), true ) ) { $args['action'] = 'lostpassword'; }
+	if ( in_array( $action, array( 'rp', 'resetpass' ), true ) ) {
+		$args['action'] = 'rp';
+		foreach ( array( 'key', 'login' ) as $field ) if ( isset( $_GET[ $field ] ) && is_string( $_GET[ $field ] ) ) $args[ $field ] = sanitize_text_field( wp_unslash( $_GET[ $field ] ) );
+	}
+	$redirect = isset( $_REQUEST['redirect_to'] ) && is_string( $_REQUEST['redirect_to'] ) ? wp_unslash( $_REQUEST['redirect_to'] ) : '';
+	if ( $redirect !== '' ) { $args['redirect_to'] = wp_validate_redirect( $redirect, home_url( '/dashboard/' ) ); }
+	wp_safe_redirect( add_query_arg( $args, home_url( '/login/' ) ) );
+	exit;
+}
+add_action( 'login_init', 'dzn_theme_redirect_native_auth_screens', 0 );
+
+function dzn_theme_handle_branded_password_reset() {
+	if ( ! dzn_theme_is_route( 'login' ) || 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) { return; }
+	$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+	if ( ! in_array( $action, array( 'lostpassword', 'rp' ), true ) ) { return; }
+	$nonce = isset( $_POST['dzn_password_nonce'] ) && is_string( $_POST['dzn_password_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_password_nonce'] ) ) : '';
+	$nonce_action = 'lostpassword' === $action ? 'dzn_branded_password_lost' : 'dzn_branded_password_reset';
+	if ( ! wp_verify_nonce( $nonce, $nonce_action ) ) { wp_safe_redirect( add_query_arg( array( 'action' => $action, 'error' => '1' ), home_url( '/login/' ) ) ); exit; }
+	$requested_redirect = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : '';
+	$redirect_to = $requested_redirect ? wp_validate_redirect( $requested_redirect, home_url( '/dashboard/' ) ) : home_url( '/dashboard/' );
+	if ( 'lostpassword' === $action ) {
+		$identity = isset( $_POST['user_login'] ) && is_string( $_POST['user_login'] ) ? sanitize_text_field( wp_unslash( $_POST['user_login'] ) ) : '';
+		if ( $identity !== '' ) { retrieve_password( $identity ); }
+		wp_safe_redirect( add_query_arg( array( 'action' => 'lostpassword', 'sent' => '1', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); exit;
+	}
+	$key = isset( $_POST['key'] ) && is_string( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '';
+	$login = isset( $_POST['login'] ) && is_string( $_POST['login'] ) ? sanitize_user( wp_unslash( $_POST['login'] ), true ) : '';
+	$user = $key && $login ? check_password_reset_key( $key, $login ) : new WP_Error( 'invalid_key', 'Invalid reset link.' );
+	$pass1 = isset( $_POST['pass1'] ) && is_string( $_POST['pass1'] ) ? (string) wp_unslash( $_POST['pass1'] ) : '';
+	$pass2 = isset( $_POST['pass2'] ) && is_string( $_POST['pass2'] ) ? (string) wp_unslash( $_POST['pass2'] ) : '';
+	if ( is_wp_error( $user ) || strlen( $pass1 ) < 12 || ! hash_equals( $pass1, $pass2 ) ) { wp_safe_redirect( add_query_arg( array( 'action' => is_wp_error( $user ) ? 'lostpassword' : 'rp', 'error' => '1', 'key' => is_wp_error( $user ) ? '' : $key, 'login' => is_wp_error( $user ) ? '' : $login, 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); exit; }
+	reset_password( $user, $pass1 );
+	wp_safe_redirect( add_query_arg( array( 'password_reset' => '1', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); exit;
+}
+add_action( 'template_redirect', 'dzn_theme_handle_branded_password_reset', 0 );
 
 function dzn_theme_portal_principal_available( $kind ) {
 	$class = '\\Delnavazan\\Platform\\Portals\\PortalPrincipalResolver';

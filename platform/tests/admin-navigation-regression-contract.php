@@ -139,12 +139,13 @@ if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
     || ! str_contains( $payment, 'Provider setup and readiness are under Settings.' ) ) {
     throw new RuntimeException( 'Stripe setup must live in Settings while payment operations stay in Finance' );
 }
-if ( ! str_contains( $coverage, "add_submenu_page('dzn-teachers-menu','Teaching coverage'" )
+if ( str_contains( $menu, "['dzn-teachers-menu'," )
+    || ! str_contains( $screen, 'teacherCoverage()' )
+    || ! str_contains( $screen, 'teacherInvitationPanel()' )
     || ! str_contains( $catalogue, "add_submenu_page('dzn-courses-menu','Course catalogue and pricing'" )
     || str_contains( $coverage, "add_submenu_page('dzn-settings-menu'" )
-    || str_contains( $catalogue, "add_submenu_page('dzn-settings-menu'" )
-    || ! str_contains( $theme_operations, "'slug' => 'dzn-academy-coverage'" ) ) {
-    throw new RuntimeException( 'Teacher coverage and course pricing belong to their operator workflow groups, not technical Settings.' );
+    || str_contains( $catalogue, "add_submenu_page('dzn-settings-menu'" ) ) {
+    throw new RuntimeException( 'Teachers must be one consolidated page while course pricing remains in its workflow group.' );
 }
 if ( ! str_contains( $screen, 'private static function instrumentSelector(): void' )
     || ! str_contains( $screen, 'self::instrumentSelector();' )

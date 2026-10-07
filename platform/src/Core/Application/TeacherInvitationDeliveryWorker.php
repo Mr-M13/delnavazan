@@ -26,15 +26,21 @@ final class TeacherInvitationDeliveryWorker {
         $rows=(new PrincipalInvitationRepository())->pendingDeliveryRows(10);
         foreach($rows as $row)self::deliver((int)$row->generation_id);
     }
-    private static function deliver(int $generationId):void{
+    /** Explicitly dispatch a just-issued invitation where the live transport is allowed.
+     * Returns an honest state: mail acceptance is not recipient delivery. */
+    public static function dispatchNow(int $generationId):string{
+        if(!in_array(wp_get_environment_type(),array('staging','production'),true))return 'queued';
+        return self::deliver($generationId);
+    }
+    private static function deliver(int $generationId):string{
         $repository=new PrincipalInvitationRepository();
         if(!apply_filters('dzn_teacher_invitation_email_transport_configured',false)){
             try{$repository->failPendingDelivery($generationId,'email_transport_not_configured');}catch(\Throwable){}
-            return;
+            return 'failed';
         }
         $service=new PrincipalInvitationService();
         try { $claimUrl=NotificationActionLinkPolicy::currentTeacherInvitation(); }
-        catch (\Throwable) { try{$repository->failPendingDelivery($generationId,'notification_action_link_unavailable');}catch(\Throwable){} return; }
+        catch (\Throwable) { try{$repository->failPendingDelivery($generationId,'notification_action_link_unavailable');}catch(\Throwable){} return 'failed'; }
         try{
             $payload=$service->prepareDelivery($generationId);
             $copy=TeacherInvitationPresentation::values();
@@ -43,8 +49,12 @@ final class TeacherInvitationDeliveryWorker {
             $sent=wp_mail((string)$payload['recipient'],$subject,$message);
             unset($message,$payload['secret']);
             $repository->finishPreparedDelivery($generationId,$sent?'delivered':'failed',$sent?null:'mail_transport_rejected');
+            return $sent?'accepted_by_transport':'failed';
         }catch(\Throwable $e){
-            // Preparation is atomic and fail-closed. Never log exception context: it may be transport-adjacent.
+            // Preparation is atomic and fail-closed. A prepared secret must never be
+            // retried, and no transport context is logged because it can be sensitive.
+            try{$repository->failPreparedDelivery($generationId,'mail_transport_exception');}catch(\Throwable){try{$repository->failPendingDelivery($generationId,'delivery_preparation_failed');}catch(\Throwable){}}
+            return 'failed';
         }
     }
 }

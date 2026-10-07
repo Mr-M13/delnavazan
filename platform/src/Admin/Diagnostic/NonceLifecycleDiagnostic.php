@@ -73,6 +73,7 @@ final class NonceLifecycleDiagnostic {
     private static function capabilityForPage(string $page): string {
         return [
             'dzn-teacher' => 'dzn_manage_teachers',
+            'dzn-teachers-menu' => 'dzn_manage_teachers',
             'dzn-student' => 'dzn_manage_students',
             'dzn-instrument' => 'dzn_manage_courses',
             'dzn-course' => 'dzn_manage_courses',

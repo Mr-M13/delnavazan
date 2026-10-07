@@ -20,7 +20,9 @@ final class IntegrationControlPlaneController {
             if(!isset($_POST['run_test']))wp_die('Explicit test action required',400);
             $evidence=(new IntegrationTestRunner())->run($provider,(array)($_POST['test']??array()));
             $result=$evidence['state'].'_'.$evidence['code'];
-            update_option('dzn_integration_test_'.$provider,array('state'=>$evidence['state'],'code'=>$evidence['code'],'at'=>current_time('mysql',true)),false);
+            $record=array('state'=>$evidence['state'],'code'=>$evidence['code'],'at'=>current_time('mysql',true));
+            if($provider==='email'&&isset($evidence['diagnostic'])&&is_array($evidence['diagnostic']))$record['diagnostic']=$evidence['diagnostic'];
+            update_option('dzn_integration_test_'.$provider,$record,false);
         }
         wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-'.$provider,'integration_result'=>$result),admin_url('admin.php')));exit;
     }
@@ -47,6 +49,7 @@ final class IntegrationControlPlaneController {
         if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
         echo '<p>Readiness: <strong>'.esc_html($service->ready($provider)?'Ready':'Needs configuration').'</strong>';
         if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
+        if($provider==='email'&&!empty($last['diagnostic'])&&is_array($last['diagnostic']))self::renderEmailDiagnostic($last['diagnostic']);
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_save"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_save_'.$provider);
         echo '<table class="form-table"><tbody>';
         foreach($schema as $field=>$type){$label=ucwords(str_replace('_',' ',$field));$secret=$type==='secret';$value=$configs[$field]??'';if($provider==='email'&&$field==='from_email'&&$value==='')$value='no-reply@delnavazan.com';if($provider==='email'&&$field==='from_name'&&$value==='')$value='Delnavazan';if($provider==='google'&&$field==='redirect_uri'&&$value==='')$value=admin_url('admin-post.php?action=dzn_google_oauth_callback');
@@ -76,6 +79,26 @@ final class IntegrationControlPlaneController {
         'mailer_accepted'=>'The mail server accepted the test message; recipient delivery is not confirmed.',
         default=>$code,
     };}
+    /** Capability-gated safe details for the most recent explicit email test. */
+    private static function renderEmailDiagnostic(array $diagnostic):void{
+        $effective=(array)($diagnostic['effective']??array());
+        echo '<h2>Safe SMTP runtime evidence</h2><p>Passwords, usernames, addresses, message content, and raw server text are omitted.</p><table class="widefat striped"><tbody>';
+        foreach(array('host'=>'Effective Host','port'=>'Effective Port','smtp_secure'=>'SMTPSecure','smtp_auto_tls'=>'SMTPAutoTLS','smtp_auth'=>'SMTPAuth') as $key=>$label){
+            $value=$effective[$key]??'';if(is_bool($value))$value=$value?'true':'false';
+            echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)$value).'</td></tr>';
+        }
+        foreach(array('verify_peer'=>'TLS verify_peer','verify_peer_name'=>'TLS verify_peer_name','allow_self_signed'=>'TLS allow_self_signed','peer_name'=>'TLS peer_name') as $key=>$label){
+            $value=((array)($effective['tls_context']??array()))[$key]??'runtime default';if(is_bool($value))$value=$value?'true':'false';
+            echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)$value).'</td></tr>';
+        }
+        echo '</tbody></table><h3>phpmailer_init callbacks (priority order)</h3><ul>';
+        foreach((array)($diagnostic['hooks']??array()) as $hook){$hook=(array)$hook;$source=(string)($hook['callback']??'unknown');$file=(string)($hook['file']??'');$line=(int)($hook['line']??0);$location=$file!==''?$file.($line?':'.$line:''):'';
+            echo '<li>'.esc_html('priority '.(int)($hook['priority']??0).' · '.$source.($location!==''?' · '.$location:'')).'</li>';
+        }
+        echo '</ul><h3>Redacted SMTP protocol trace</h3><ol>';
+        foreach((array)($diagnostic['trace']??array()) as $step)echo '<li>'.esc_html((string)$step).'</li>';
+        echo '</ol>';
+    }
     public static function screen():void{
         if(!current_user_can('manage_options')&&!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
         $r=(new IntegrationControlPlaneReadService())->report();

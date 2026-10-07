@@ -23,16 +23,87 @@ final class IntegrationTestRunner {
         $to=sanitize_email((string)($input['destination']??''));
         if(!is_email($to))return array('state'=>'failed','code'=>'destination_invalid');
         $mailerError='';
+        $diagnostic=array('effective'=>array(),'hooks'=>$this->phpmailerHookSources(),'trace'=>array());
+        $mailer=null;$previousDebug=null;$previousDebugOutput=null;
+        $captureMailer=static function($instance)use(&$diagnostic,&$mailer,&$previousDebug,&$previousDebugOutput):void{
+            if(!is_object($instance))return;
+            $mailer=$instance;
+            $host=(string)($instance->Host??'');
+            // A malformed Host can contain userinfo; keep only its host portion.
+            if(str_contains($host,'@'))$host=substr($host,strrpos($host,'@')+1);
+            $diagnostic['effective']=array(
+                'host'=>substr($host,0,255),
+                'port'=>(int)($instance->Port??0),
+                'smtp_secure'=>strtolower((string)($instance->SMTPSecure??'')),
+                'smtp_auto_tls'=>(bool)($instance->SMTPAutoTLS??false),
+                'smtp_auth'=>(bool)($instance->SMTPAuth??false),
+            );
+            $ssl=(array)($instance->SMTPOptions['ssl']??array());
+            $diagnostic['effective']['tls_context']=array(
+                'verify_peer'=>array_key_exists('verify_peer',$ssl)?(bool)$ssl['verify_peer']:'runtime default',
+                'verify_peer_name'=>array_key_exists('verify_peer_name',$ssl)?(bool)$ssl['verify_peer_name']:'runtime default',
+                'allow_self_signed'=>array_key_exists('allow_self_signed',$ssl)?(bool)$ssl['allow_self_signed']:'runtime default',
+                'peer_name'=>isset($ssl['peer_name'])?substr(preg_replace('/[^a-zA-Z0-9.:-]/','',(string)$ssl['peer_name']),0,255):'Host default',
+            );
+            $previousDebug=$instance->SMTPDebug??0;
+            $previousDebugOutput=$instance->Debugoutput??'echo';
+            $instance->SMTPDebug=2;
+            $instance->Debugoutput=static function($line,$level=0)use(&$diagnostic):void{
+                $safe=IntegrationTestRunner::safeSmtpDebugLine((string)$line);
+                if($safe!==''&&!in_array($safe,$diagnostic['trace'],true)&&count($diagnostic['trace'])<100)$diagnostic['trace'][]=$safe;
+            };
+        };
         $capture=static function($error)use(&$mailerError):void{
             if(is_object($error)&&method_exists($error,'get_error_message'))$mailerError=(string)$error->get_error_message();
         };
+        add_action('phpmailer_init',$captureMailer,PHP_INT_MAX,1);
         add_action('wp_mail_failed',$capture,10,1);
         try{$sent=wp_mail($to,'[Delnavazan TEST] Email transport check','This is an explicitly requested Delnavazan TEST email. It is not a notification or delivery authority.');}
-        finally{remove_action('wp_mail_failed',$capture,10);}
-        if($sent)return array('state'=>'success','code'=>'mailer_accepted');
+        finally{
+            remove_action('phpmailer_init',$captureMailer,PHP_INT_MAX);
+            remove_action('wp_mail_failed',$capture,10);
+            if(is_object($mailer)){$mailer->SMTPDebug=$previousDebug;$mailer->Debugoutput=$previousDebugOutput;}
+        }
         global $phpmailer;
-        if(is_object($phpmailer)&&isset($phpmailer->ErrorInfo))$mailerError.=' '.(string)$phpmailer->ErrorInfo;
-        return array('state'=>'failed','code'=>$this->safeMailFailureCode($mailerError));
+        if(!$sent&&is_object($phpmailer)&&isset($phpmailer->ErrorInfo))$mailerError.=' '.(string)$phpmailer->ErrorInfo;
+        if(!$sent)$diagnostic['trace'][]='mailer: '.$this->safeMailFailureCode($mailerError);
+        return array('state'=>$sent?'success':'failed','code'=>$sent?'mailer_accepted':$this->safeMailFailureCode($mailerError),'diagnostic'=>$diagnostic);
+    }
+    /** Return hook callbacks as non-secret code locations without invoking them. */
+    private function phpmailerHookSources():array {
+        global $wp_filter;
+        $hook=$wp_filter['phpmailer_init']??null;
+        $callbacks=is_object($hook)&&isset($hook->callbacks)&&is_array($hook->callbacks)?$hook->callbacks:array();
+        $sources=array();
+        foreach($callbacks as $priority=>$entries)foreach($entries as $entry){
+            $callback=$entry['function']??null;$label='unknown';$file='';$line=0;
+            try{
+                if(is_array($callback)&&count($callback)===2){
+                    $class=is_object($callback[0])?get_class($callback[0]):(string)$callback[0];$method=(string)$callback[1];$label=$class.'::'.$method;$reflection=new \\ReflectionMethod($callback[0],$method);
+                }elseif($callback instanceof \\Closure){$reflection=new \\ReflectionFunction($callback);$label='closure';}
+                elseif(is_string($callback)&&function_exists($callback)){$reflection=new \\ReflectionFunction($callback);$label=$callback;}
+                elseif(is_object($callback)&&method_exists($callback,'__invoke')){$reflection=new \\ReflectionMethod($callback,'__invoke');$label=get_class($callback).'::__invoke';}
+                else{$reflection=null;}
+                if($reflection){$path=(string)$reflection->getFileName();$file=$path!==''?basename($path):'';$line=(int)$reflection->getStartLine();}
+            }catch(\\Throwable){$label='unresolved callback';}
+            if(count($sources)<50)$sources[]=array('priority'=>(int)$priority,'callback'=>substr($label,0,160),'file'=>$file,'line'=>$line);
+        }
+        return $sources;
+    }
+    /** Convert PHPMailer debug lines to an allowlisted protocol transcript; payloads and addresses never survive. */
+    public static function safeSmtpDebugLine(string $line):string {
+        $line=trim(strip_tags($line));
+        if(preg_match('/CLIENT\\s*->\\s*SERVER:\\s*([A-Z][A-Z0-9-]*)/i',$line,$m)){
+            $command=strtoupper($m[1]);
+            if($command==='AUTH')return 'client: AUTH [payload redacted]';
+            if(in_array($command,array('MAIL','RCPT'),true))return 'client: '.$command.' [address redacted]';
+            if(in_array($command,array('EHLO','HELO','STARTTLS','DATA','QUIT','RSET','NOOP','BDAT'),true))return 'client: '.$command;
+            return 'client: SMTP command';
+        }
+        if(preg_match('/SERVER\\s*->\\s*CLIENT:\\s*([0-9]{3})/i',$line,$m))return 'server: '.$m[1];
+        if(preg_match('/(TLS|SSL|crypto|certificate|handshake)/i',$line))return 'transport: TLS diagnostic (details redacted)';
+        if(preg_match('/(connect|connection|timed out|timeout|network|could not connect|name resolution|dns)/i',$line))return 'transport: connection diagnostic (details redacted)';
+        return '';
     }
     /** Reduce provider diagnostics to a fixed safe category; raw mailer text is never stored or returned. */
     private function safeMailFailureCode(string $error):string {

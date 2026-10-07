@@ -15,7 +15,7 @@ The workflow uses PHP 8.3 and runs:
 4. The pure/source-level Phase 2A.3 quiet-hours and day-availability contracts.
 5. Teacher DST/lifecycle, booking preference-order/public-window/canonical/day-grid, operations dashboard and launch/onboarding hardening contracts.
 6. Student Portal state, teacher onboarding v1 and operations portal contracts when those files are present.
-7. `bash -n deployment/qa/staging-smoke.sh`.
+7. `bash -n deployment/qa/site-smoke.sh` (the generic, read-only HTTP smoke runner).
 
 Obsolete runs for the same PR are cancelled. This workflow deliberately uses
 `pull_request`, not `pull_request_target`.
@@ -72,7 +72,7 @@ test ! -f platform/tests/teacher-onboarding-v1-contract.php || \
 test ! -f platform/tests/phase-operations-portal-contract.php || \
   php platform/tests/phase-operations-portal-contract.php
 git diff --check HEAD^1 HEAD
-bash -n deployment/qa/staging-smoke.sh
+bash -n deployment/qa/site-smoke.sh
 ```
 
 ## Intentionally not covered
@@ -80,6 +80,5 @@ bash -n deployment/qa/staging-smoke.sh
 This gate does not start WordPress, MySQL, a web server, browser automation, or a disposable
 runtime. Runtime, migration, concurrency, REST and authentication scripts in
 `platform/tests/` remain for the disposable WordPress/MySQL verification environment.
-The staging smoke runner is syntax-checked here only; its live read-only checks must run after
-a staging deployment. Booking submission, payments, account writes and all deployments remain
-outside CI.
+The site smoke runner is syntax-checked here only; its live read-only checks require an explicitly
+selected site URL. Booking submission, payments, account writes and all deployments remain outside CI.

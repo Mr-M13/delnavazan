@@ -12,7 +12,7 @@ Use this path for every release:
 4. From `main`, run **Deploy production** manually with the full SHA that is still the current `origin/main` commit.
 5. Review the deployment record and read-only production smoke result before closing the release.
 
-`.github/workflows/pr-runtime-gate.yml` runs on pull requests. It covers the Platform source contracts and both deployment toolchains. Production deploys are manual-only, serialized, pinned to current `main`, and use a protected GitHub Actions environment named `production`. Configure required reviewers on that environment and add these environment secrets:
+`.github/workflows/pr-runtime-gate.yml` runs on pull requests. It covers the Platform source contracts and production deployment tooling. Production deploys are manual-only, serialized, pinned to current `main`, and use a protected GitHub Actions environment named `production`. Configure required reviewers on that environment and add these environment secrets:
 
 - `PRODUCTION_SSH_USER` — restricted DirectAdmin account name.
 - `PRODUCTION_SSH_PRIVATE_KEY` — deploy key scoped to the hosting account.
@@ -23,11 +23,9 @@ Use this path for every release:
 
 The workflow does not edit DNS, WordPress URLs, mail records, SSL settings, or catalogue data. Those are controlled production configuration and data operations. Production currently serves `https://delnavazan.com`; `www` redirects to the apex.
 
-## Optional staging
+## Pre-launch acceptance data
 
-Staging at `https://staging.delnavazan.com` is an optional pre-release environment. Use `.github/workflows/deploy-staging.yml` only when a release benefits from a staging rehearsal. Its protected `staging` environment and `STAGING_*` secrets are separate from production. Staging remains noindex. A staging deploy is not required before every production release and cannot deploy production.
-
-The staging workflow deploys only `domains/staging.delnavazan.com/public_html`. Its database and runtime are not a code source. Never copy staging plugin/theme files into production or use the legacy mirror helper to deploy either environment.
+The live staging environment is being retired separately after its hosting account, database, and storage boundaries are positively verified. The staging deployment workflow is removed from the source tree. Production acceptance data must remain blocked until authenticated inspection confirms there is no genuine academy data and the synthetic fixture has an exact, complete manifest and verified teardown for every created record.
 
 ## Source and boundaries
 
@@ -35,6 +33,5 @@ The staging workflow deploys only `domains/staging.delnavazan.com/public_html`. 
 - `theme/` -> `wp-content/themes/delnavazan-theme/`
 - `.github/workflows/pr-runtime-gate.yml` -> pull-request source checks
 - `.github/workflows/deploy-production.yml` -> protected, manual production release
-- `.github/workflows/deploy-staging.yml` -> optional, protected staging rehearsal
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.

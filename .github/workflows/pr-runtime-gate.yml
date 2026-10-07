@@ -162,16 +162,8 @@ jobs:
             echo 'Operations portal contract not present on this PR base yet.'
           fi
 
-      - name: Check staging smoke runner syntax
-        run: bash -n deployment/qa/staging-smoke.sh
-
-      - name: Check staging deployment tooling
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          bash -n deployment/staging-deploy.sh
-          bash -n deployment/qa/staging-deployment-contract.sh
-          bash deployment/qa/staging-deployment-contract.sh
+      - name: Check reusable site smoke runner syntax
+        run: bash -n deployment/qa/site-smoke.sh
 
       - name: Check production deployment tooling
         shell: bash

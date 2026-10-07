@@ -39,7 +39,8 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\OperationalCashbookController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();
-	Delnavazan\Platform\Admin\Controller\AdminDashboardController::register();
+	// Delnavazan's operational overview lives in the capability-filtered Academy
+	// console. Do not duplicate a stale snapshot on WordPress's generic dashboard.
 	Delnavazan\Platform\Admin\Controller\AdminShellController::register();
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();

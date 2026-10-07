@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\AcademyJourneyReadService;
+use Delnavazan\Platform\Core\Application\CoreReadService;
 
 /**
  * Read-only academy operations pipeline. It joins canonical/authoritative projections only and
@@ -15,10 +16,12 @@ final class AcademyOperationsController {
         $stage=isset($_GET['stage'])&&is_scalar($_GET['stage'])?sanitize_key(wp_unslash($_GET['stage'])):'needs_action';
         $page=isset($_GET['paged'])&&is_scalar($_GET['paged'])?max(1,absint($_GET['paged'])):1;
         $result=(new AcademyJourneyReadService())->search($query,$stage,$page);$rows=$result['rows'];
-        echo '<div class="wrap"><h1>Academy</h1><p>Today’s work is collected here. Review the next action for each learner journey, then open the existing operational screen to complete it. The authorised path is booking → coordination and reviewed identity → accepted Service Arrangement → Enrolment → Teacher Assignment → Term and Lessons.</p><h2>Needs attention</h2>';
+        echo '<div class="wrap"><h1>Academy</h1><p>Today’s work is collected here. Review the next action for each learner journey, then open the existing operational screen to complete it. The authorised path is booking → coordination and reviewed identity → accepted Service Arrangement → Enrolment → Teacher Assignment → Term and Lessons.</p>';
         echo '<form method="get"><input type="hidden" name="page" value="dzn-academy-dashboard"><label>Search name, email, booking reference, instrument or course <input type="search" name="q" value="'.esc_attr($query).'"></label> <label>Needs action <select name="stage"><option value="needs_action"'.selected($stage,'needs_action',false).'>Action queue</option><option value="">All records</option>';
         foreach(array('needs_coordination'=>'Coordination','needs_identity'=>'Student identity review','needs_acceptance'=>'Acceptance','needs_enrolment'=>'Enrolment conversion','needs_assignment'=>'Teacher assignment','complete'=>'Assignment complete')as$value=>$label)echo '<option value="'.esc_attr($value).'"'.selected($stage,$value,false).'>'.esc_html($label).'</option>';
-        echo '</select></label> <button class="button">Search</button></form><p>'.(int)$result['total'].' matching learner journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
+        echo '</select></label> <button class="button">Search</button></form><p><strong>'.(int)$result['total'].'</strong> matching learner journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
+        self::classOperationalState();
+        echo '<h2>Needs attention</h2>';
         $detailId=isset($_GET['detail_request_id'])&&is_scalar($_GET['detail_request_id'])?absint($_GET['detail_request_id']):0;
         if($detailId>0)foreach($rows as$r)if((int)$r->request_id===$detailId){self::journeyDetail($r);break;}
         echo '<table class="widefat striped"><thead><tr><th>Booking / person</th><th>Instrument / course</th><th>Journey stage</th><th>Current blocker / next action</th></tr></thead><tbody>';
@@ -33,6 +36,46 @@ final class AcademyOperationsController {
         echo '<section class="notice notice-info"><h2>Journey detail: '.esc_html((string)$r->request_ref).'</h2><p>'.esc_html((string)($r->student_name?:$r->contact_name?:'Identity unresolved')).($r->contact_email?' · '.esc_html((string)$r->contact_email):'').' · '.esc_html((string)($r->instrument_fa?:$r->instrument_en?:'Instrument unavailable')).($r->course_fa||$r->course_en?' · '.esc_html((string)($r->course_fa?:$r->course_en)):'').'</p><ol>';
         foreach(array('Booking submitted'=>true,'Coordination opened'=>(bool)$r->case_id,'Student identity resolved'=>(bool)$r->student_id,'Service Arrangement accepted'=>(bool)$r->arrangement_id,'Enrolment converted'=>(bool)$r->enrolment_id,'Teacher Assignment current'=>(bool)$r->assignment_id,'Student account connected'=>$r->claim_state==='claimed','Term created'=>(bool)$r->term_id)as$label=>$done)echo '<li>'.esc_html($label).': <strong>'.($done?'Complete':'Pending').'</strong></li>';
         echo '</ol><p><strong>Current blocker and next authorised action:</strong> '.self::next($r).'</p><p>Unavailable actions are identified by their required capability or missing predecessor stage above. Authority screens revalidate each command.</p></section>';
+    }
+    /**
+     * Reuses the Classes workflow's capability-gated projection. The Academy page
+     * intentionally does not query lesson tables or expose class data to an actor
+     * who cannot open the existing Classes authority screen.
+     */
+    private static function classOperationalState(): void {
+        if (!current_user_can('dzn_manage_lessons')) return;
+        $rows = (new CoreReadService())->lessonOperatorRows();
+        $attention = array_values(array_filter($rows, static fn(object $row): bool => in_array((string) $row->class_status, array('Integrity review needed', 'Schedule needs review', 'Ready to schedule'), true)));
+        $todayRows = array_values(array_filter($rows, static fn(object $row): bool => self::scheduleDate($row) !== '' && self::scheduleDate($row) === self::todayInScheduleTimezone($row)));
+        $upcoming = array_values(array_filter($rows, static fn(object $row): bool => self::scheduleDate($row) > self::todayInScheduleTimezone($row)));
+        echo '<section class="dzn-academy-class-state"><h2>Classes: today and next</h2><p>Live class state from the existing Classes read model. Times remain in each class’s scheduled time zone.</p><div class="dzn-academy-class-state__summary"><strong>'.(int) count($attention).'</strong> class'.(count($attention) === 1 ? '' : 'es').' need scheduling or integrity review · <strong>'.(int) count($todayRows).'</strong> scheduled today</div>';
+        if ($attention) {
+            echo '<h3>Class attention</h3><ul>';
+            foreach (array_slice($attention, 0, 3) as $row) {
+                $url = add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
+                $label = (string) ($row->student_name ?: $row->course_name ?: 'Class');
+                echo '<li><a href="'.esc_url($url).'">'.esc_html($label).'</a> · '.esc_html((string) $row->class_status).'</li>';
+            }
+            if (count($attention) > 3) echo '<li>Plus '.(int) (count($attention) - 3).' more in Classes.</li>';
+            echo '</ul>';
+        }
+        if (!$todayRows && !$upcoming) { echo '<p>No scheduled classes are currently visible in the Classes workflow.</p><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>'; return; }
+        echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student / course</th><th>Teacher</th><th>Class state</th><th></th></tr></thead><tbody>';
+        foreach (array_slice(array_merge($todayRows, $upcoming), 0, 6) as $row) {
+            $url = add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
+            echo '<tr><td>'.esc_html((string) $row->schedule_label).'</td><td>'.esc_html((string) ($row->student_name ?: 'Student')).'<br><small>'.esc_html((string) ($row->course_name ?: 'Course')).'</small></td><td>'.esc_html((string) ($row->teacher_name ?: 'Teacher')).'</td><td>'.esc_html((string) $row->class_status).'</td><td><a class="button" href="'.esc_url($url).'">Open class</a></td></tr>';
+        }
+        echo '</tbody></table><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>';
+    }
+    private static function scheduleDate(object $row): string {
+        $label = (string) ($row->schedule_label ?? '');
+        return preg_match('/^([0-9]{4}-[0-9]{2}-[0-9]{2}) · /', $label, $matches) ? $matches[1] : '';
+    }
+    private static function todayInScheduleTimezone(object $row): string {
+        $label = (string) ($row->schedule_label ?? '');
+        $timezone = substr($label, (int) strrpos($label, ' ') + 1);
+        try { return (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d'); }
+        catch (\Exception) { return gmdate('Y-m-d'); }
     }
     private static function attention(object $r):string{
         if(!$r->match_attention_code)return '<span aria-label="No active matching attention">—</span>';

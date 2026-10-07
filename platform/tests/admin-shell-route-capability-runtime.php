@@ -78,4 +78,15 @@ foreach ( $submenu['dzn-platform'] as $item ) {
 }
 if ( $teacherAllowed ) throw new RuntimeException( 'Restricted operator can resolve an unauthorized teacher route.' );
 
+// Route registrations remain available to WordPress, but the legacy submenu must
+// not become a second Delnavazan navigation surface on unrelated admin screens.
+$_GET['page'] = 'plugins';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::styles();
+$otherAdminStyles = ob_get_clean();
+if ( ! str_contains( $otherAdminStyles, '#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}' )
+    || str_contains( $otherAdminStyles, 'dzn-admin-shell__tabs' ) ) {
+    throw new RuntimeException( 'Legacy Delnavazan submenu visibility escaped the unified shell.' );
+}
+
 echo "Admin shell route and capability runtime contract passed\n";

@@ -52,7 +52,7 @@ final class CoordinationCaseController {
         $attention = $repo->activeMatchAttentionForRequest( (int) $case->booking_request_id );
         if ( $attention && ( $attention->error_code ?? '' ) === 'no_current_coverage' ) {
             echo '<div class="notice notice-warning"><p><strong>No current teacher coverage.</strong> Review the request’s preferred times and teacher availability. Update availability only from verified teacher evidence using the canonical availability workflow, then reassess matchability. Add an advisory candidate only after reviewing their suitability; coverage assessment does not reserve capacity or select a teacher.</p><p>';
-            if ( current_user_can( 'dzn_manage_teacher_availability' ) ) echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=dzn-teacher-availability' ) ) . '">Review teacher availability</a> ';
+            if ( current_user_can( 'dzn_manage_teachers' ) ) echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=dzn-teachers-menu' ) ) . '">Review teacher availability</a> ';
             if ( current_user_can( 'dzn_prepare_booking_request_matches' ) && current_user_can( 'dzn_view_booking_requests' ) ) echo '<a class="button" href="' . esc_url( add_query_arg( array( 'page' => 'dzn-booking-requests', 'request_id' => (int) $case->booking_request_id ), admin_url( 'admin.php' ) ) ) . '">Review request and reassess matches</a>';
             echo '</p></div>';
         }

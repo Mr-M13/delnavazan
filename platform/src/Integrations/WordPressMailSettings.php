@@ -5,7 +5,9 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 
 /** Applies operator email settings to WordPress mail. Host mail remains the default transport. */
 final class WordPressMailSettings {
-    public static function register():void{add_action('phpmailer_init',array(__CLASS__,'configure'));add_filter('wp_mail_from',array(__CLASS__,'fromAddress'));add_filter('wp_mail_from_name',array(__CLASS__,'fromName'));}
+    public static function register():void{add_action('phpmailer_init',array(__CLASS__,'configure'));add_filter('wp_mail_from',array(__CLASS__,'fromAddress'));add_filter('wp_mail_from_name',array(__CLASS__,'fromName'));add_filter('dzn_teacher_invitation_email_transport_configured',array(__CLASS__,'transportConfigured'));}
+    /** Invitation delivery uses the same configured WordPress SMTP path as platform mail. */
+    public static function transportConfigured(bool $configured):bool{if($configured)return true;$s=new IntegrationSettingsService();return $s->value('email','mode')==='smtp'&&$s->ready('email');}
     public static function fromAddress(string $current):string{$value=(new IntegrationSettingsService())->value('email','from_email');return is_email($value)?$value:$current;}
     public static function fromName(string $current):string{$value=(new IntegrationSettingsService())->value('email','from_name');return $value!==''?$value:$current;}
     public static function configure(object $mailer):void{

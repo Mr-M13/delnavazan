@@ -44,6 +44,14 @@ final class Menu {
             ['Delnavazan Settings', 'dzn-settings-menu', 'dashicons-admin-generic', 66],
         ];
         foreach ($groups as [$label, $slug, $icon, $position]) {
+            // Teachers is a single operational page. Do not make onboarding,
+            // eligibility, availability or coverage separate navigation concepts.
+            if ($slug === 'dzn-teachers-menu') {
+                $hook=add_menu_page($label, $label, 'dzn_manage_teachers', $slug, static fn() => ScreenController::screen('teacher'), $icon, $position);
+                NonceLifecycleDiagnostic::watchLoadHook($hook);
+                if($hook)add_action('load-'.$hook, static fn() => ScreenController::handlePost('teacher'));
+                continue;
+            }
             add_menu_page($label, $label, 'read', $slug, [AdminNavigationController::class, 'screen'], $icon, $position);
         }
 
@@ -60,11 +68,6 @@ final class Menu {
             ['dzn-students-menu', 'Students', 'dzn_manage_students', 'dzn-student', static fn() => ScreenController::screen('student'), static fn() => ScreenController::handlePost('student')],
             ['dzn-students-menu', 'Identity & authentication', 'dzn_view_student_acceptance_eligibility', 'dzn-student-identity-authority', [StudentIdentityAuthorityController::class, 'screen'], [StudentIdentityAuthorityController::class, 'handlePost']],
             ['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment', static fn() => ScreenController::screen('enrolment'), static fn() => ScreenController::handlePost('enrolment')],
-
-            ['dzn-teachers-menu', 'Teachers', 'dzn_manage_teachers', 'dzn-teacher', static fn() => ScreenController::screen('teacher'), static fn() => ScreenController::handlePost('teacher')],
-            ['dzn-teachers-menu', 'Teacher onboarding', 'dzn_manage_onboarding', 'dzn-onboarding', [OnboardingController::class, 'screen'], [OnboardingController::class, 'handlePost']],
-            ['dzn-teachers-menu', 'Teacher eligibility', 'dzn_manage_teaching_eligibility', 'dzn-teaching-eligibility', [TeachingEligibilityController::class, 'screen'], [TeachingEligibilityController::class, 'handlePost']],
-            ['dzn-teachers-menu', 'Teacher availability', 'dzn_manage_teacher_availability', 'dzn-teacher-availability', [TeacherAvailabilityController::class, 'screen'], [TeacherAvailabilityController::class, 'handlePost']],
 
             ['dzn-courses-menu', 'Courses', 'dzn_manage_courses', 'dzn-course', static fn() => ScreenController::screen('course'), static fn() => ScreenController::handlePost('course')],
             ['dzn-courses-menu', 'Terms', 'dzn_manage_terms', 'dzn-term', static fn() => ScreenController::screen('term'), static fn() => ScreenController::handlePost('term')],

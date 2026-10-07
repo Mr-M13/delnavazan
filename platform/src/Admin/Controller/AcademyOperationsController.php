@@ -39,13 +39,13 @@ final class AcademyOperationsController {
         $labels=['no_current_coverage'=>'No current teacher coverage','instrument_unavailable'=>'Instrument unavailable','selected_course_unavailable'=>'Selected intro course unavailable','default_intro_course_unavailable'=>'Default intro course unavailable'];
         $label=$labels[(string)$r->match_attention_code]??'Matching needs attention';
         $action=current_user_can('dzn_prepare_booking_request_matches')?self::link('dzn-booking-requests','Review request',['request_id'=>(int)$r->request_id]):'Read-only';
-        if($r->match_attention_code==='no_current_coverage'&&current_user_can('dzn_manage_onboarding'))$action.=' '.self::link('dzn-academy-coverage','View supply gaps');
+        if($r->match_attention_code==='no_current_coverage'&&current_user_can('dzn_manage_teachers'))$action.=' '.self::link('dzn-teachers-menu','View supply gaps');
         return '<strong>'.esc_html($label).'</strong><br>'.$action;
     }
     private static function next(object $r):string{
         if($r->match_attention_code==='no_current_coverage'){
             $links=[];
-            if(current_user_can('dzn_manage_teacher_availability'))$links[]=self::link('dzn-teacher-availability','Review teacher availability');
+            if(current_user_can('dzn_manage_teachers'))$links[]=self::link('dzn-teachers-menu','Review teacher availability');
             if(current_user_can('dzn_prepare_booking_request_matches'))$links[]=self::link('dzn-booking-requests','Reassess request',['request_id'=>(int)$r->request_id]);
             if(current_user_can('dzn_manage_booking_request_coordination')&&$r->case_id)$links[]=self::link('dzn-booking-request-coordination','Continue coordination',['case_id'=>(int)$r->case_id]);
             return $links?implode('<br>',$links):'Await authorised coverage review';

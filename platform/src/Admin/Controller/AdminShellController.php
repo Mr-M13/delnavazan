@@ -5,14 +5,59 @@ namespace Delnavazan\Platform\Admin\Controller;
 final class AdminShellController {
     /** The visible primary navigation follows academy work, never table layout. */
     private const TABS = [
-        'academy' => ['Academy', [['dzn-academy-dashboard', 'dzn_view_booking_requests'], ['dzn-booking-request-coordination', 'dzn_manage_booking_request_coordination']]],
-        'teachers' => ['Teachers', [['dzn-teachers-menu', 'dzn_manage_teachers']]],
-        'students' => ['Students', [['dzn-student', 'dzn_manage_students'], ['dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility']]],
-        'courses' => ['Courses', [['dzn-course', 'dzn_manage_courses'], ['dzn-term', 'dzn_manage_terms']]],
-        'enrolments_classes' => ['Enrolments / Classes', [['dzn-enrolment', 'dzn_manage_enrolments'], ['dzn-lesson', 'dzn_manage_lessons'], ['dzn-attendance-review', 'dzn_manage_canonical_attendance_review'], ['dzn-core-dataset-readiness', 'dzn_convert_service_arrangements_to_enrolments'], ['dzn-core-dataset-readiness', 'dzn_issue_student_account_claims'], ['dzn-core-dataset-readiness', 'dzn_manage_teacher_assignments'], ['dzn-core-dataset-readiness', 'dzn_manage_canonical_terms'], ['dzn-core-dataset-readiness', 'dzn_manage_canonical_lessons'], ['dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_delivery'], ['dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_schedules']]],
-        'finance' => ['Finance', [['dzn-finance-statements', 'dzn_view_finance_authority'], ['dzn-payment-execution', 'dzn_view_payment_execution_authority'], ['dzn-finance-cashbook', 'dzn_view_cash_ledger']]],
-        'communications' => ['Communications', [['dzn-communications', 'dzn_view_notification_authority'], ['dzn-communications-templates', 'dzn_manage_provider_integrations']]],
-        'settings' => ['Settings', [['dzn-integrations', 'dzn_access_integrations_overview'], ['dzn-exception', 'dzn_manage_exceptions'], ['dzn-system-health', 'dzn_access_system_health'], ['dzn-staff-access', 'manage_options']]],
+        'academy' => ['Academy', [
+            ['Dashboard', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
+            ['Booking requests', 'dzn-booking-requests', 'dzn_view_booking_requests'],
+            ['Request coordination', 'dzn-booking-request-coordination', 'dzn_manage_booking_request_coordination'],
+        ]],
+        'teachers' => ['Teachers', [['Teacher directory', 'dzn-teachers-menu', 'dzn_manage_teachers']]],
+        'students' => ['Students', [
+            ['Student directory', 'dzn-student', 'dzn_manage_students'],
+            ['Identity and acceptance', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
+        ]],
+        'courses' => ['Courses', [
+            ['Courses', 'dzn-course', 'dzn_manage_courses'],
+            ['Terms', 'dzn-term', 'dzn_manage_terms'],
+            ['Instruments', 'dzn-instrument', 'dzn_manage_courses'],
+            ['Course catalogue and pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue'],
+        ]],
+        'enrolments_classes' => ['Enrolments / Classes', [
+            ['Enrolments', 'dzn-enrolment', 'dzn_manage_enrolments'],
+            ['Classes', 'dzn-lesson', 'dzn_manage_lessons'],
+            ['Attendance review', 'dzn-attendance-review', 'dzn_manage_canonical_attendance_review'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_convert_service_arrangements_to_enrolments'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_issue_student_account_claims'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_manage_teacher_assignments'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_terms'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lessons'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_delivery'],
+            ['Operational actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_schedules'],
+        ]],
+        'finance' => ['Finance', [
+            ['Teacher statements', 'dzn-finance-statements', 'dzn_view_finance_authority'],
+            ['Teacher rates', 'dzn-finance-rates', 'dzn_view_finance_authority'],
+            ['Class payability', 'dzn-finance-payability', 'dzn_view_finance_authority'],
+            ['Finance policies', 'dzn-finance-policies', 'dzn_view_finance_authority'],
+            ['Reconciliation', 'dzn-finance-reconciliation', 'dzn_view_finance_authority'],
+            ['Payment execution', 'dzn-payment-execution', 'dzn_view_payment_execution_authority'],
+            ['Academy account balances', 'dzn-finance-cashbook', 'dzn_view_cash_ledger'],
+        ]],
+        'communications' => ['Communications', [
+            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
+            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
+        ]],
+        'settings' => ['Settings', [
+            ['Integrations overview', 'dzn-integrations', 'dzn_access_integrations_overview'],
+            ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
+            ['WhatsApp', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
+            ['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
+            ['Google Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings'],
+            ['Stripe setup', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']],
+            ['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities'],
+            ['Exceptions', 'dzn-exception', 'dzn_manage_exceptions'],
+            ['System health', 'dzn-system-health', 'dzn_access_system_health'],
+            ['Staff access', 'dzn-staff-access', 'manage_options'],
+        ]],
     ];
 
     /** Pages share their tab while retaining their original, protected callback. */
@@ -58,12 +103,24 @@ final class AdminShellController {
             $class = $key === $active ? ' is-active' : '';
             echo '<a class="dzn-admin-shell__tab' . esc_attr($class) . '" href="' . esc_url(admin_url('admin.php?page=' . rawurlencode($slug))) . '"' . ($key === $active ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
         }
-        echo '</nav></div>';
+        echo '</nav>';
+        if (isset(self::TABS[$active])) {
+            echo '<nav class="dzn-admin-shell__subtabs" aria-label="' . esc_attr(self::TABS[$active][0]) . ' pages">';
+            $seen = [];
+            foreach (self::TABS[$active][1] as [$routeLabel, $slug, $requiredCapabilities]) {
+                if (isset($seen[$slug]) || !self::hasRequiredCapabilities($requiredCapabilities)) continue;
+                $seen[$slug] = true;
+                $current = $slug === $page || ($page === Menu::ROOT_SLUG && $slug === 'dzn-academy-dashboard');
+                echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url(admin_url('admin.php?page=' . rawurlencode($slug))) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($routeLabel) . '</a>';
+            }
+            echo '</nav>';
+        }
+        echo '</div>';
     }
 
     public static function styles(): void {
         if (!str_starts_with(self::currentPage(), 'dzn-')) return;
-        echo '<style>.dzn-admin-shell{margin:18px 20px 0 2px;padding:14px 16px 0;background:#fff;border:1px solid #dcdcde;border-radius:4px 4px 0 0}.dzn-admin-shell__brand{display:flex;gap:10px;align-items:baseline;margin:0 0 12px}.dzn-admin-shell__brand strong{font-size:16px}.dzn-admin-shell__brand span{color:#646970}.dzn-admin-shell__tabs{display:flex;gap:4px;flex-wrap:wrap}.dzn-admin-shell__tab{padding:8px 10px;text-decoration:none;border-bottom:3px solid transparent}.dzn-admin-shell__tab:hover{background:#f0f0f1}.dzn-admin-shell__tab.is-active{font-weight:600;color:#1d2327;border-bottom-color:#2271b1}@media(max-width:782px){.dzn-admin-shell{margin-right:10px}.dzn-admin-shell__tab{padding:9px 7px}}</style>';
+        echo '<style>.dzn-admin-shell{margin:18px 20px 0 2px;padding:14px 16px 0;background:#fff;border:1px solid #dcdcde;border-radius:4px 4px 0 0}.dzn-admin-shell__brand{display:flex;gap:10px;align-items:baseline;margin:0 0 12px}.dzn-admin-shell__brand strong{font-size:16px}.dzn-admin-shell__brand span{color:#646970}.dzn-admin-shell__tabs,.dzn-admin-shell__subtabs{display:flex;gap:4px;flex-wrap:wrap}.dzn-admin-shell__tab,.dzn-admin-shell__subtab{padding:8px 10px;text-decoration:none;border-bottom:3px solid transparent}.dzn-admin-shell__subtabs{padding-top:5px;border-top:1px solid #dcdcde}.dzn-admin-shell__subtab{font-size:13px}.dzn-admin-shell__tab:hover,.dzn-admin-shell__subtab:hover{background:#f0f0f1}.dzn-admin-shell__tab.is-active,.dzn-admin-shell__subtab.is-active{font-weight:600;color:#1d2327;border-bottom-color:#2271b1}@media(max-width:782px){.dzn-admin-shell{margin-right:10px}.dzn-admin-shell__tab,.dzn-admin-shell__subtab{padding:9px 7px}}</style>';
     }
 
     private static function currentPage(): string {
@@ -77,7 +134,13 @@ final class AdminShellController {
     }
 
     private static function firstAvailableDestination(array $destinations): ?string {
-        foreach ($destinations as [$slug, $capability]) if (current_user_can($capability)) return $slug;
+        foreach ($destinations as [, $slug, $requiredCapabilities]) if (self::hasRequiredCapabilities($requiredCapabilities)) return $slug;
         return null;
+    }
+
+    private static function hasRequiredCapabilities($requiredCapabilities): bool {
+        $requiredCapabilities = is_array($requiredCapabilities) ? $requiredCapabilities : [$requiredCapabilities];
+        foreach ($requiredCapabilities as $capability) if (!current_user_can($capability)) return false;
+        return true;
     }
 }

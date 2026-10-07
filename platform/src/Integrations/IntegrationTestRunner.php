@@ -131,9 +131,20 @@ final class IntegrationTestRunner {
         return (new TelnyxSmsAdapter($s))->sendTest($to);
     }
     private function google(bool $configured):array {
-        $response=wp_remote_get('https://oauth2.googleapis.com/.well-known/openid-configuration',array('timeout'=>15,'redirection'=>0));
-        $reachable=!is_wp_error($response)&&(int)wp_remote_retrieve_response_code($response)>=200&&(int)wp_remote_retrieve_response_code($response)<300;
-        return array('state'=>$configured&&$reachable?'success':'failed','code'=>!$configured?($reachable?'local_oauth_configuration_incomplete':'local_oauth_configuration_incomplete_and_google_unreachable'):($reachable?'oauth_configuration_and_google_reachable':'google_provider_unreachable'));
+        $response=wp_remote_get('https://accounts.google.com/.well-known/openid-configuration',array('timeout'=>15,'redirection'=>0));
+        if(is_wp_error($response))return array('state'=>'failed','code'=>$this->googleTransportFailureCode($response));
+        $status=(int)wp_remote_retrieve_response_code($response);
+        if($status<200||$status>=300)return array('state'=>'failed','code'=>'google_provider_refused_http_'.$status);
+        return array('state'=>$configured?'success':'failed','code'=>$configured?'oauth_configuration_and_google_reachable':'local_oauth_configuration_incomplete');
+    }
+    /** Preserve the transport failure class without storing WP_Error text or potentially sensitive request data. */
+    private function googleTransportFailureCode($error):string {
+        $message=strtolower((string)$error->get_error_message());
+        if(preg_match('/(resolve|resolving|dns|name lookup|host not found)/',$message))return 'google_transport_dns_failed';
+        if(preg_match('/(ssl|tls|certificate|cert verify|crypto|handshake)/',$message))return 'google_transport_tls_failed';
+        if(preg_match('/(timed? out|timeout)/',$message))return 'google_transport_timeout';
+        if(preg_match('/(connect|connection|network|firewall|proxy|could not reach)/',$message))return 'google_transport_connectivity_failed';
+        return 'google_transport_failed';
     }
     private function httpResult($response,string $provider):array {
         if(is_wp_error($response))return array('state'=>'failed','code'=>$provider.'_transport_failed');

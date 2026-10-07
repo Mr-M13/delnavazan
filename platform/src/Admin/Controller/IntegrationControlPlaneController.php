@@ -144,6 +144,11 @@ final class IntegrationControlPlaneController {
         foreach($r['notifications']['delivery_states'] as $state=>$count)echo '<tr><th>Notification delivery evidence: '.esc_html((string)$state).'</th><td>'.(int)$count.'</td></tr>';
         echo '<tr><th>Google teacher calendar</th><td>'.esc_html((string)$r['google_calendar']['oauth_client']).'</td></tr></tbody></table><h2>Google teacher connection</h2><p>Teachers connect or disconnect their own account from their account settings. Calendar entries are projections of Delnavazan’s canonical schedule; Delnavazan remains authoritative.</p><table class="widefat striped"><tbody>';
         foreach($r['google_calendar']['projection_states'] as $state=>$count)echo '<tr><th>Calendar projection: '.esc_html((string)$state).'</th><td>'.esc_html((string)$count).'</td></tr>';
-        echo '</tbody></table><h2>Stripe</h2><p>Use Payment Execution for Stripe test readiness. Production activation remains separately gated.</p></div>';
+        echo '</tbody></table><h2>Stripe</h2><div class="card"><p>Configure Stripe sandbox credentials and check connectivity. Live credentials and production payment execution remain prohibited.</p>';
+        if(current_user_can(PaymentExecutionController::CAPABILITY)){
+            $stripeReadiness=(new StripeTestModeReadinessService())->read();
+            echo '<p>Checkout readiness: <strong>'.esc_html($stripeReadiness['ready']?'Ready':'Setup is incomplete').'</strong></p><p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-stripe-settings')).'">Configure Stripe test mode</a></p>';
+        }else echo '<p>Stripe settings are available to users with payment provider authority.</p>';
+        echo '</div></div>';
     }
 }

@@ -114,7 +114,7 @@ final class IntegrationTestRunner {
     /** Safe, request-local evidence about the PHP runtime executing this explicit test. */
     public static function safePhpRuntimeEvidence():array {
         $disabled=array_map('trim',explode(',',(string)ini_get('disable_functions')));
-        $wrappers=function_exists('stream_get_wrappers')?stream_get_wrappers():array();
+        $transports=function_exists('stream_get_transports')?stream_get_transports():array();
         $certs=function_exists('openssl_get_cert_locations')?openssl_get_cert_locations():array();
         $fileExists=static fn($key):bool=>isset($certs[$key])&&$certs[$key]!==''&&is_file((string)$certs[$key]);
         $dirExists=static fn($key):bool=>isset($certs[$key])&&$certs[$key]!==''&&is_dir((string)$certs[$key]);
@@ -122,7 +122,7 @@ final class IntegrationTestRunner {
             'php_version'=>PHP_VERSION,
             'sapi'=>PHP_SAPI,
             'openssl_extension'=>extension_loaded('openssl'),
-            'ssl_stream_wrapper'=>in_array('ssl',$wrappers,true),
+            'ssl_tls_transport_available'=>in_array('ssl',$transports,true),
             'stream_socket_client_enabled'=>!in_array('stream_socket_client',$disabled,true),
             'open_basedir_enabled'=>(string)ini_get('open_basedir')!=='',
             'default_ca_file_exists'=>$fileExists('default_cert_file'),
@@ -142,7 +142,7 @@ final class IntegrationTestRunner {
         $sslOptions=(array)($options['ssl']??array());$socketOptions=(array)($options['socket']??array());
         $contextKeys=static fn(array $values):array=>array_slice(array_values(array_filter(array_map('strval',array_keys($values)),static fn($key)=>preg_match('/^[a-zA-Z0-9_.-]{1,64}$/',$key)===1)),0,30);
         $evidence=array('ssl_context_keys'=>$contextKeys($sslOptions),'socket_context_keys'=>$contextKeys($socketOptions));
-        if(!function_exists('stream_socket_client')||!function_exists('stream_get_wrappers')||!in_array('ssl',stream_get_wrappers(),true))return array_merge(array('state'=>'unavailable','category'=>'ssl_stream_unavailable','errno'=>0),$evidence);
+        if(!function_exists('stream_socket_client')||!function_exists('stream_get_transports')||!in_array('ssl',stream_get_transports(),true))return array_merge(array('state'=>'unavailable','category'=>'ssl_transport_unavailable','errno'=>0),$evidence);
         try{$context=stream_context_create($options);}catch(\Throwable){return array_merge(array('state'=>'unavailable','category'=>'ssl_context_invalid','errno'=>0),$evidence);}
         $errno=0;$error='';$stream=false;
         set_error_handler(static function(int $severity,string $message)use(&$error):bool{$error=$message;return true;});

@@ -50,7 +50,6 @@ function dzn_theme_operations_groups() {
 			'items' => array(
 				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teaching-eligibility', 'title' => 'صلاحیت تدریس', 'description' => 'دسترسی مدرس به دوره‌ها' ),
 				array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teacher-availability', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی' ),
-				array( 'cap' => 'dzn_view_booking_requests', 'slug' => 'dzn-academy-coverage', 'title' => 'پوشش تدریس', 'description' => 'شکاف پوشش منطقه‌ای مدرس‌ها' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-course', 'title' => 'دوره‌ها', 'description' => 'دوره‌های آموزشگاه' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-instrument', 'title' => 'سازها', 'description' => 'فهرست سازها' ),
 			),

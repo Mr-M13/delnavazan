@@ -13,7 +13,7 @@ use Delnavazan\Platform\Core\Application\Finance\{FinancePolicyService,FinanceRu
 final class FinancePolicyController {
     public const CAPABILITY='dzn_view_finance_authority';
     public const MENU_SLUG='dzn-finance-policies';
-    public const PARENT_SLUG='dzn-finance-menu';
+    public const PARENT_SLUG=Menu::ROOT_SLUG;
 
     public static function register():void{add_action('admin_menu',array(__CLASS__,'menu'));}
     public static function menu():void{

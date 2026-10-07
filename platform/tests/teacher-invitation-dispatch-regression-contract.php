@@ -1,0 +1,10 @@
+<?php
+/** Dispatch must always close a prepared invitation with an honest terminal status. */
+$root=dirname(__DIR__);
+$worker=(string)file_get_contents($root.'/src/Core/Application/TeacherInvitationDeliveryWorker.php');
+$repository=(string)file_get_contents($root.'/src/Core/Infrastructure/Repository/PrincipalInvitationRepository.php');
+$screen=(string)file_get_contents($root.'/src/Admin/Controller/ScreenController.php');
+foreach(['dispatchNow','wp_mail','finishPreparedDelivery',"failPreparedDelivery(\$generationId,'mail_transport_exception')",'return \'failed\''] as $needle)if(!str_contains($worker,$needle))throw new RuntimeException('Invitation dispatch terminal-outcome regression: '.$needle);
+foreach(['function failPreparedDelivery','delivery_failure_reason','processed_at'] as $needle)if(!str_contains($repository,$needle))throw new RuntimeException('Invitation failure persistence regression: '.$needle);
+foreach(['Send Invitation','invitation_dispatch_failed','recorded status below is authoritative','Recent invitations'] as $needle)if(!str_contains($screen,$needle))throw new RuntimeException('Invitation admin truthfulness regression: '.$needle);
+echo "teacher-invitation-dispatch-regression-contract: pass\n";

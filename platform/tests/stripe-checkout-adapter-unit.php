@@ -91,4 +91,7 @@ $credentialSource->value=array('api_key'=>'sk_test_'.str_repeat('A',24),'account
 $GLOBALS['checkout_fake_environment']='production';
 checkout_assert($adapter->create($request)['state']==='unavailable','Checkout was activated in a production environment');
 checkout_assert(count($GLOBALS['checkout_fake_calls'])===$calls,'Adapter sent traffic from a production environment');
+$GLOBALS['checkout_fake_environment']='unknown';
+checkout_assert($adapter->create($request)['state']==='unavailable','Checkout was activated in an unrecognised environment');
+checkout_assert(count($GLOBALS['checkout_fake_calls'])===$calls,'Adapter sent traffic from an unrecognised environment');
 echo "Stripe Checkout adapter fake-provider unit checks passed\n";

@@ -5,8 +5,13 @@ $request=file_get_contents(dirname(__DIR__).'/src/Core/Application/Checkout/Chec
 $events=file_get_contents(dirname(__DIR__).'/src/Integrations/Payment/Stripe/StripeEventTranslator.php');
 $readiness=file_get_contents(dirname(__DIR__).'/src/Core/Application/PaymentExecution/StripeTestModeReadinessService.php');
 $controller=file_get_contents(dirname(__DIR__).'/src/Admin/Controller/IntegrationControlPlaneController.php');
-foreach(array('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED','PaymentSecretVault::testVaultActive',"array('local','development','staging')",'testModeActivationAllowed') as $needle)
+ $configuration=file_get_contents(dirname(__DIR__).'/src/Core/Application/PaymentExecution/StripeTestConfigurationService.php');
+ $vault=file_get_contents(dirname(__DIR__).'/src/Core/Application/PaymentExecution/PaymentSecretVault.php');
+foreach(array('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED','PaymentSecretVault::testVaultActive','testEnvironmentAllowed') as $needle)
     if(strpos($adapter,$needle)===false)throw new RuntimeException('Stripe test activation contract missing '.$needle);
+foreach(array('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED','DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED','preLaunchProductionTestModeActive','PaymentSecretVault::testVaultActive') as $needle)
+    if(strpos($configuration,$needle)===false)throw new RuntimeException('Stripe pre-launch production gate missing '.$needle);
+if(strpos($vault,'DZN_PLATFORM_PAYMENT_TEST_VAULT')===false)throw new RuntimeException('Stripe disposable test-vault gate is missing');
 foreach(array('(string)$account->mode===\'test\'','count($accounts)!==1',"activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'api_key'","activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'webhook_signing_secret'",'sk_test_','whsec_') as $needle)
     if(strpos($credentials,$needle)===false)throw new RuntimeException('Stripe test configuration contract missing '.$needle);
 foreach(array('https://api.stripe.com/v1/checkout/sessions','Idempotency-Key','Authorization',"'redirection'=>0","'sslverify'=>true","'timeout'=>15",'wp_remote_post','131072','provider_request_rejected','provider_unavailable') as $needle)

@@ -8,7 +8,7 @@ use Closure;
 /**
  * Stripe-hosted Checkout boundary.
  *
- * Outbound Checkout is test-mode only and requires a deliberate non-production activation plus the
+ * Outbound Checkout is test-mode only and requires a deliberate environment activation plus the
  * existing constant-gated disposable secret vault. This adapter cannot load a live key, does not
  * persist provider identifiers or URLs, and cannot settle commercial obligations.
  */
@@ -130,12 +130,11 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
         return $this->eventUnavailable('provider_event_search_incomplete');
     }
 
-    /** This code path is restricted to an explicitly authorised, non-production test environment. */
+    /** This code path is restricted to an explicitly authorised test environment. */
     public static function testModeActivationAllowed():bool{
         if(!defined('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')||constant('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED')!==true)return false;
         if(!PaymentSecretVault::testVaultActive())return false;
-        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'production';
-        return in_array($environment,array('local','development','staging'),true);
+        return \Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestConfigurationService::testEnvironmentAllowed();
     }
 
     /** Exact future Stripe Checkout fields; values come only from the authoritative request. */

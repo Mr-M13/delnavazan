@@ -115,6 +115,7 @@ jobs:
           php platform/tests/stripe-checkout-adapter-contract.php
           php platform/tests/stripe-test-settings-contract.php
           php platform/tests/stripe-checkout-adapter-unit.php
+          php platform/tests/stripe-prelaunch-production-mode-unit.php
           php platform/tests/stripe-checkout-reconciliation-contract.php
           php platform/tests/stripe-checkout-webhook-contract.php
           php platform/tests/stripe-checkout-webhook-unit.php

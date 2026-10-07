@@ -72,7 +72,10 @@ final class AdminNavigationController {
         // route by pruning only sidebar entries.
         remove_submenu_page('dzn-settings-menu', 'dzn-exception');
 
-        foreach (self::GROUPS as $parent) if (!self::hasVisibleChild($parent)) remove_menu_page($parent);
+        foreach (self::GROUPS as $parent) {
+            if ($parent === 'dzn-teachers-menu' && current_user_can('dzn_manage_teachers')) continue;
+            if (!self::hasVisibleChild($parent)) remove_menu_page($parent);
+        }
 
         // Non-site-admin operator accounts do not need WordPress content, appearance,
         // plugin, tool, or core-settings menus in their daily Delnavazan workspace.

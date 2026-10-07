@@ -21,7 +21,7 @@ final class AdminWorkspaceController {
   if(!self::hasAccess())wp_die('Forbidden',403);
   $groups=[
    'Students'=>[['dzn-student','Students','dzn_manage_students'],['dzn-student-identity-authority','Account & acceptance','dzn_view_student_acceptance_eligibility'],['dzn-enrolment','Enrolments','dzn_manage_enrolments']],
-   'Teachers'=>[['dzn-teacher','Teachers','dzn_manage_teachers'],['dzn-onboarding','Onboarding & invitations','dzn_manage_onboarding'],['dzn-teaching-eligibility','Teaching eligibility','dzn_manage_teaching_eligibility'],['dzn-teacher-availability','Availability','dzn_manage_teacher_availability'],['dzn-academy-coverage','Golden-hour coverage','dzn_view_booking_requests']],
+   'Teachers'=>[['dzn-teachers-menu','Teachers','dzn_manage_teachers']],
    'Bookings & teaching'=>[['dzn-academy-dashboard','Academy dashboard','dzn_view_booking_requests'],['dzn-booking-requests','Booking requests','dzn_view_booking_requests'],['dzn-booking-request-coordination','Request coordination','dzn_manage_booking_request_coordination'],['dzn-term','Terms','dzn_manage_terms'],['dzn-lesson','Classes','dzn_manage_lessons'],['dzn-attendance-review','Attendance review','dzn_manage_canonical_attendance_review']],
    'Courses & pricing'=>[['dzn-instrument','Instruments','dzn_manage_courses'],['dzn-course','Courses','dzn_manage_courses'],['dzn-commercial-catalogue','Products & regional pricing','dzn_manage_commercial_catalogue']],
    'Communications'=>[['dzn-communications','Communications health','dzn_view_notification_authority']],

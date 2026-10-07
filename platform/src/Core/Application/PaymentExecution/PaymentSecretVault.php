@@ -40,6 +40,15 @@ final class PaymentSecretVault {
     }
     /** Dedicated administrative path for encrypted Stripe TEST credentials; it cannot accept live mode. */
     public function storeStripeTestConfiguration(int $accountId,string $secretClass,string $value,array $input,string $key):array{
+        if(!StripeTestConfigurationService::testEnvironmentAllowed()){
+            $audit=$this->audit('write_refused','stripe',$secretClass,$accountId,'test','stripe_test_environment_required',self::KEY_VERSION,null,0);
+            return array('stored'=>false,'reason_code'=>'stripe_test_environment_required','audit_entry_id'=>$audit,'secret_id'=>null);
+        }
+        $expectedPrefix=$secretClass==='api_key'?'/^sk_test_[A-Za-z0-9]{16,}$/D':($secretClass==='webhook_signing_secret'?'/^whsec_[A-Za-z0-9]{16,}$/D':null);
+        if($expectedPrefix===null||preg_match($expectedPrefix,$value)!==1){
+            $audit=$this->audit('write_refused','stripe',in_array($secretClass,array('api_key','webhook_signing_secret'),true)?$secretClass:'unknown',0,'test','stripe_test_credential_invalid',self::KEY_VERSION,null,0);
+            return array('stored'=>false,'reason_code'=>'stripe_test_credential_invalid','audit_entry_id'=>$audit,'secret_id'=>null);
+        }
         return $this->write('stored','stripe',$accountId,$secretClass,'test',$value,$input,$key,true);
     }
     public function rotate(string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key):array{

@@ -11,8 +11,8 @@ function phase_1e_require(string $source, array $fragments, string $label): void
 $menu = file_get_contents("{$root}/src/Admin/Controller/Menu.php");
 phase_1e_require($menu, ['dzn-platform', 'System health', 'Teachers', 'Students', 'Instruments', 'Courses', 'Enrolments', 'Terms', 'Exceptions', 'ScreenController'], 'menu');
 phase_1e_require($menu, [
-    "['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson'",
-    "['dzn-classes-menu', 'Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review'",
+    "['Classes', 'dzn_manage_lessons', 'dzn-lesson'",
+    "['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review'",
 ], 'Classes / Schedule navigation');
 
 $screen = file_get_contents("{$root}/src/Admin/Controller/ScreenController.php");

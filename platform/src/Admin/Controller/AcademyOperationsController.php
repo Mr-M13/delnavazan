@@ -15,10 +15,10 @@ final class AcademyOperationsController {
         $stage=isset($_GET['stage'])&&is_scalar($_GET['stage'])?sanitize_key(wp_unslash($_GET['stage'])):'needs_action';
         $page=isset($_GET['paged'])&&is_scalar($_GET['paged'])?max(1,absint($_GET['paged'])):1;
         $result=(new AcademyJourneyReadService())->search($query,$stage,$page);$rows=$result['rows'];
-        echo '<div class="wrap"><h1>Academy dashboard</h1><h2>Operations queue</h2><p>Follow the authorised path: booking → coordination and reviewed identity → accepted Service Arrangement → Enrolment → Teacher Assignment → Term and Lessons. Each action opens its canonical authority screen.</p>';
+        echo '<div class="wrap"><h1>Academy</h1><p>Today’s work is collected here. Review the next action for each learner journey, then open the existing operational screen to complete it.</p><h2>Needs attention</h2>';
         echo '<form method="get"><input type="hidden" name="page" value="dzn-academy-dashboard"><label>Search name, email, booking reference, instrument or course <input type="search" name="q" value="'.esc_attr($query).'"></label> <label>Needs action <select name="stage"><option value="needs_action"'.selected($stage,'needs_action',false).'>Action queue</option><option value="">All records</option>';
         foreach(array('needs_coordination'=>'Coordination','needs_identity'=>'Student identity review','needs_acceptance'=>'Acceptance','needs_enrolment'=>'Enrolment conversion','needs_assignment'=>'Teacher assignment','complete'=>'Assignment complete')as$value=>$label)echo '<option value="'.esc_attr($value).'"'.selected($stage,$value,false).'>'.esc_html($label).'</option>';
-        echo '</select></label> <button class="button">Search</button></form><p>'.(int)$result['total'].' matching booking journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
+        echo '</select></label> <button class="button">Search</button></form><p>'.(int)$result['total'].' matching learner journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
         $detailId=isset($_GET['detail_request_id'])&&is_scalar($_GET['detail_request_id'])?absint($_GET['detail_request_id']):0;
         if($detailId>0)foreach($rows as$r)if((int)$r->request_id===$detailId){self::journeyDetail($r);break;}
         echo '<table class="widefat striped"><thead><tr><th>Booking / person</th><th>Instrument / course</th><th>Journey stage</th><th>Current blocker / next action</th></tr></thead><tbody>';

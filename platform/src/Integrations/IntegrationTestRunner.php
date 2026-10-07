@@ -23,7 +23,7 @@ final class IntegrationTestRunner {
         $to=sanitize_email((string)($input['destination']??''));
         if(!is_email($to))return array('state'=>'failed','code'=>'destination_invalid');
         $mailerError='';
-        $diagnostic=array('effective'=>array(),'hooks'=>$this->phpmailerHookSources(),'trace'=>array());
+        $diagnostic=array('effective'=>array(),'hooks'=>$this->phpmailerHookSources(),'trace'=>array(),'runtime'=>array(),'stream_probe'=>array());
         $mailer=null;$previousDebug=null;$previousDebugOutput=null;
         $captureMailer=static function($instance)use(&$diagnostic,&$mailer,&$previousDebug,&$previousDebugOutput):void{
             if(!is_object($instance))return;
@@ -45,6 +45,12 @@ final class IntegrationTestRunner {
                 'allow_self_signed'=>array_key_exists('allow_self_signed',$ssl)?(bool)$ssl['allow_self_signed']:'runtime default',
                 'peer_name'=>isset($ssl['peer_name'])?substr(preg_replace('/[^a-zA-Z0-9.:-]/','',(string)$ssl['peer_name']),0,255):'Host default',
             );
+            $diagnostic['runtime']=self::safePhpRuntimeEvidence();
+            $diagnostic['runtime']['mailer_class']=get_class($instance);
+            $diagnostic['runtime']['mailer_file']=self::safeClassFile($instance);
+            $diagnostic['runtime']['phpmailer_version']=defined('PHPMailer\\PHPMailer\\PHPMailer::VERSION')?constant('PHPMailer\\PHPMailer\\PHPMailer::VERSION'):'unknown';
+            $diagnostic['runtime']['smtp_class_file']=class_exists('PHPMailer\\PHPMailer\\SMTP')?self::safeClassFile('PHPMailer\\PHPMailer\\SMTP'):'unknown';
+            $diagnostic['stream_probe']=self::probeSmtpSslStream($host,(int)($instance->Port??0),(array)($instance->SMTPOptions??array()));
             $previousDebug=$instance->SMTPDebug??0;
             $previousDebugOutput=$instance->Debugoutput??'echo';
             $instance->SMTPDebug=2;
@@ -104,6 +110,58 @@ final class IntegrationTestRunner {
         if(preg_match('/(TLS|SSL|crypto|certificate|handshake)/i',$line))return 'transport: TLS diagnostic (details redacted)';
         if(preg_match('/(connect|connection|timed out|timeout|network|could not connect|name resolution|dns)/i',$line))return 'transport: connection diagnostic (details redacted)';
         return '';
+    }
+    /** Safe, request-local evidence about the PHP runtime executing this explicit test. */
+    public static function safePhpRuntimeEvidence():array {
+        $disabled=array_map('trim',explode(',',(string)ini_get('disable_functions')));
+        $wrappers=function_exists('stream_get_wrappers')?stream_get_wrappers():array();
+        $certs=function_exists('openssl_get_cert_locations')?openssl_get_cert_locations():array();
+        $fileExists=static fn($key):bool=>isset($certs[$key])&&$certs[$key]!==''&&is_file((string)$certs[$key]);
+        $dirExists=static fn($key):bool=>isset($certs[$key])&&$certs[$key]!==''&&is_dir((string)$certs[$key]);
+        return array(
+            'php_version'=>PHP_VERSION,
+            'sapi'=>PHP_SAPI,
+            'openssl_extension'=>extension_loaded('openssl'),
+            'ssl_stream_wrapper'=>in_array('ssl',$wrappers,true),
+            'stream_socket_client_enabled'=>!in_array('stream_socket_client',$disabled,true),
+            'open_basedir_enabled'=>(string)ini_get('open_basedir')!=='',
+            'default_ca_file_exists'=>$fileExists('default_cert_file'),
+            'default_ca_path_exists'=>$dirExists('default_cert_dir'),
+            'proxy_environment_configured'=>(getenv('HTTPS_PROXY')!==false||getenv('https_proxy')!==false||getenv('HTTP_PROXY')!==false||getenv('http_proxy')!==false||getenv('ALL_PROXY')!==false||getenv('all_proxy')!==false),
+        );
+    }
+    /** Return only a class basename, never an absolute server path. */
+    private static function safeClassFile($class):string {
+        try{$reflection=new \ReflectionClass($class);$file=$reflection->getFileName();return is_string($file)?basename($file):'internal';}
+        catch(\Throwable){return 'unknown';}
+    }
+    /** Probe only the SSL stream connect/handshake, using PHPMailer TLS context options and a short timeout. */
+    public static function probeSmtpSslStream(string $host,int $port,array $options):array {
+        $host=trim($host);
+        if($host===''||$port<1||$port>65535||str_contains($host,',')||str_contains($host,'@')||preg_match('/[^A-Za-z0-9.:\[\]-]/',$host))return array('state'=>'skipped','category'=>'host_or_port_unsupported','errno'=>0,'ssl_context_keys'=>array(),'socket_context_keys'=>array());
+        $sslOptions=(array)($options['ssl']??array());$socketOptions=(array)($options['socket']??array());
+        $contextKeys=static fn(array $values):array=>array_slice(array_values(array_filter(array_map('strval',array_keys($values)),static fn($key)=>preg_match('/^[a-zA-Z0-9_.-]{1,64}$/',$key)===1)),0,30);
+        $evidence=array('ssl_context_keys'=>$contextKeys($sslOptions),'socket_context_keys'=>$contextKeys($socketOptions));
+        if(!function_exists('stream_socket_client')||!function_exists('stream_get_wrappers')||!in_array('ssl',stream_get_wrappers(),true))return array_merge(array('state'=>'unavailable','category'=>'ssl_stream_unavailable','errno'=>0),$evidence);
+        try{$context=stream_context_create($options);}catch(\Throwable){return array_merge(array('state'=>'unavailable','category'=>'ssl_context_invalid','errno'=>0),$evidence);}
+        $errno=0;$error='';$stream=false;
+        set_error_handler(static function(int $severity,string $message)use(&$error):bool{$error=$message;return true;});
+        try{$stream=@stream_socket_client('ssl://'.$host.':'.$port,$errno,$error,8,STREAM_CLIENT_CONNECT,$context);}catch(\Throwable){$stream=false;}
+        finally{restore_error_handler();}
+        if(is_resource($stream)){fclose($stream);return array_merge(array('state'=>'connected','category'=>'none','errno'=>0),$evidence);}
+        return array_merge(array('state'=>'failed','category'=>self::safeTransportErrorCategory($error),'errno'=>(int)$errno),$evidence);
+    }
+    /** Map raw transport warnings to fixed categories. Raw warning text is never returned or stored. */
+    public static function safeTransportErrorCategory(string $error):string {
+        $error=strtolower(strip_tags($error));
+        if(preg_match('/(resolve|resolving|name lookup|name or service not known|php_network_getaddresses|nodename nor servname)/',$error))return 'dns';
+        if(preg_match('/(timed? out|timeout|operation now in progress)/',$error))return 'timeout';
+        if(preg_match('/(permission denied|operation not permitted|access denied)/',$error))return 'permission_denied';
+        if(preg_match('/(refused|actively refused)/',$error))return 'connection_refused';
+        if(preg_match('/(ssl|tls|crypto|certificate|cert verify|handshake)/',$error))return 'tls';
+        if(preg_match('/(network is unreachable|no route to host|network unreachable)/',$error))return 'network_unreachable';
+        if($error==='')return 'no_safe_error_text';
+        return 'other';
     }
     /** Reduce provider diagnostics to a fixed safe category; raw mailer text is never stored or returned. */
     private function safeMailFailureCode(string $error):string {

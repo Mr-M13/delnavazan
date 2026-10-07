@@ -2,8 +2,9 @@
 namespace Delnavazan\Platform\Core\Application\PaymentExecution;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentProviderRepository,PaymentSecretRepository};
+use Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdapter;
 
-/** Production may store Stripe sandbox credentials, while the checkout adapter keeps its non-production gate. */
+/** Stripe sandbox configuration and provider calls are restricted to recognised non-production environments. */
 final class StripeTestConfigurationService {
     private const PUBLISHABLE_OPTION='dzn_stripe_test_publishable_key';
     private PaymentProviderRepository $providers;
@@ -17,6 +18,7 @@ final class StripeTestConfigurationService {
 
     public function save(array $input):array{
         PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
+        if(!self::testEnvironmentAllowed())throw new \RuntimeException('stripe_test_environment_required');
         $publishable=trim((string)($input['publishable_key']??''));$apiKey=trim((string)($input['secret_key']??''));$webhook=trim((string)($input['webhook_signing_secret']??''));
         if($publishable!==''&&preg_match('/^pk_test_[A-Za-z0-9]{16,}$/D',$publishable)!==1)throw new \InvalidArgumentException('invalid_stripe_test_publishable_key');
         if($apiKey!==''&&preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$apiKey)!==1)throw new \InvalidArgumentException('invalid_stripe_test_secret_key');
@@ -50,6 +52,7 @@ final class StripeTestConfigurationService {
     /** A bounded authenticated read of Stripe's sandbox account; provider text and credentials are never surfaced. */
     public function testConnection():array{
         PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
+        if(!self::testEnvironmentAllowed())return array('state'=>'blocked','code'=>'stripe_test_environment_required');
         $accounts=array_values(array_filter($this->providers->accountsForProvider('stripe'),static fn($a)=>(string)$a->mode==='test'&&(string)$a->state==='active'));
         if(count($accounts)!==1)return array('state'=>'blocked','code'=>'test_account_unavailable');
         $secret=$this->secrets->activeSecret('stripe','api_key',(int)$accounts[0]->id,'test');
@@ -65,13 +68,42 @@ final class StripeTestConfigurationService {
         return array('state'=>'success','code'=>'stripe_test_account_reachable');
     }
 
+    /** Deliberately enable the single configured Stripe sandbox account after its credentials exist. */
+    public function activateTestCheckout():array{
+        PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
+        if(!self::testEnvironmentAllowed()||!StripeCheckoutAdapter::testModeActivationAllowed())
+            throw new \RuntimeException('stripe_test_activation_unavailable');
+        $saved=$this->savedState();
+        if(empty($saved['account_id'])||empty($saved['publishable'])||empty($saved['secret'])||empty($saved['webhook']))
+            throw new \RuntimeException('complete_stripe_test_configuration_required');
+        return (new PaymentProviderAccountService($this->providers))->setExecutionState((int)$saved['account_id'],
+            array('execution_state'=>'enabled','reason_code'=>'deliberate_stripe_test_activation'),
+            'stripe-test-activation-'.wp_generate_uuid4());
+    }
+
+    /** Shut off sandbox Checkout without changing credentials or the production payment gate. */
+    public function deactivateTestCheckout():array{
+        PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
+        $saved=$this->savedState();
+        if(empty($saved['account_id']))throw new \RuntimeException('stripe_test_account_unavailable');
+        return (new PaymentProviderAccountService($this->providers))->setExecutionState((int)$saved['account_id'],
+            array('execution_state'=>'disabled','reason_code'=>'deliberate_stripe_test_deactivation'),
+            'stripe-test-deactivation-'.wp_generate_uuid4());
+    }
+
     public function publishableKey():string{return (string)get_option(self::PUBLISHABLE_OPTION,'');}
+    /** A production default is mandatory when WordPress cannot identify its environment. */
+    public static function testEnvironmentAllowed():bool{
+        $environment=function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'production';
+        return in_array($environment,array('local','development','staging'),true);
+    }
     public function savedState():array{
         $accounts=array_values(array_filter($this->providers->accountsForProvider('stripe'),static fn($a)=>(string)$a->mode==='test'&&(string)$a->state==='active'));
-        if(count($accounts)!==1)return array('account_id'=>0,'publishable'=>false,'secret'=>false,'webhook'=>false);
+        if(count($accounts)!==1)return array('account_id'=>0,'publishable'=>false,'secret'=>false,'webhook'=>false,'execution_enabled'=>false);
         $id=(int)$accounts[0]->id;
         return array('account_id'=>$id,'publishable'=>$this->publishableKey()!=='',
             'secret'=>$this->secrets->activeSecret('stripe','api_key',$id,'test')!==null,
-            'webhook'=>$this->secrets->activeSecret('stripe','webhook_signing_secret',$id,'test')!==null);
+            'webhook'=>$this->secrets->activeSecret('stripe','webhook_signing_secret',$id,'test')!==null,
+            'execution_enabled'=>(string)($accounts[0]->execution_state??'')==='enabled');
     }
 }

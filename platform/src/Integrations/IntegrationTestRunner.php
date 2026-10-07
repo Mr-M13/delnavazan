@@ -79,13 +79,13 @@ final class IntegrationTestRunner {
             $callback=$entry['function']??null;$label='unknown';$file='';$line=0;
             try{
                 if(is_array($callback)&&count($callback)===2){
-                    $class=is_object($callback[0])?get_class($callback[0]):(string)$callback[0];$method=(string)$callback[1];$label=$class.'::'.$method;$reflection=new \\ReflectionMethod($callback[0],$method);
-                }elseif($callback instanceof \\Closure){$reflection=new \\ReflectionFunction($callback);$label='closure';}
-                elseif(is_string($callback)&&function_exists($callback)){$reflection=new \\ReflectionFunction($callback);$label=$callback;}
-                elseif(is_object($callback)&&method_exists($callback,'__invoke')){$reflection=new \\ReflectionMethod($callback,'__invoke');$label=get_class($callback).'::__invoke';}
+                    $class=is_object($callback[0])?get_class($callback[0]):(string)$callback[0];$method=(string)$callback[1];$label=$class.'::'.$method;$reflection=new \ReflectionMethod($callback[0],$method);
+                }elseif($callback instanceof \Closure){$reflection=new \ReflectionFunction($callback);$label='closure';}
+                elseif(is_string($callback)&&function_exists($callback)){$reflection=new \ReflectionFunction($callback);$label=$callback;}
+                elseif(is_object($callback)&&method_exists($callback,'__invoke')){$reflection=new \ReflectionMethod($callback,'__invoke');$label=get_class($callback).'::__invoke';}
                 else{$reflection=null;}
                 if($reflection){$path=(string)$reflection->getFileName();$file=$path!==''?basename($path):'';$line=(int)$reflection->getStartLine();}
-            }catch(\\Throwable){$label='unresolved callback';}
+            }catch(\Throwable){$label='unresolved callback';}
             if(count($sources)<50)$sources[]=array('priority'=>(int)$priority,'callback'=>substr($label,0,160),'file'=>$file,'line'=>$line);
         }
         return $sources;

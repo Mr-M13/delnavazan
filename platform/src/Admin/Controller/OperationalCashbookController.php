@@ -12,7 +12,7 @@ final class OperationalCashbookController {
         add_action('admin_menu',array(__CLASS__,'menu'));
         foreach(array('record','convert','reconcile','reverse','reverse_transfer') as$operation)add_action('admin_post_dzn_cashbook_'.$operation,array(__CLASS__,'handle'));
     }
-    public static function menu():void{add_submenu_page('dzn-finance-menu','Academy account balances','Academy account balances',OperationalCashLedgerService::VIEW_CAPABILITY,self::MENU_SLUG,array(__CLASS__,'screen'));}
+    public static function menu():void{add_submenu_page(Menu::ROOT_SLUG,'Academy account balances','Academy account balances',OperationalCashLedgerService::VIEW_CAPABILITY,self::MENU_SLUG,array(__CLASS__,'screen'));}
     public static function handle():never{
         if(!current_user_can(OperationalCashLedgerService::MANAGE_CAPABILITY))wp_die('You are not allowed to manage academy account balances.');
         $operation=sanitize_key(wp_unslash($_POST['cashbook_operation']??''));if(!in_array($operation,array('record','convert','reconcile','reverse','reverse_transfer'),true))wp_die('Unsupported cashbook action.');

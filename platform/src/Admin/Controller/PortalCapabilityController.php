@@ -7,7 +7,7 @@ final class PortalCapabilityController {
     public const CAPABILITY='dzn_view_portal_capabilities';
     public const MENU_SLUG='dzn-portal-capabilities';
     public static function register():void { add_action('admin_menu',array(__CLASS__,'menu')); add_action('admin_post_dzn_portal_capability_command',array(__CLASS__,'command')); }
-    public static function menu():void { if(function_exists('add_submenu_page'))add_submenu_page('dzn-settings-menu','Portal capabilities','Portal capabilities',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render')); }
+    public static function menu():void { if(function_exists('add_submenu_page'))add_submenu_page(Menu::ROOT_SLUG,'Portal capabilities','Portal capabilities',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render')); }
 
     public static function command():void {
         if(!current_user_can('dzn_manage_portal_capabilities'))wp_die(esc_html__('Unauthorized','delnavazan-platform'),'',array('response'=>403));

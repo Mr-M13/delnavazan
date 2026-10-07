@@ -4,6 +4,7 @@ $root = dirname( __DIR__ );
 $controllers = $root . '/src/Admin/Controller';
 $menu = file_get_contents( $controllers . '/Menu.php' );
 $navigation = file_get_contents( $controllers . '/AdminNavigationController.php' );
+$shell = file_get_contents( $controllers . '/AdminShellController.php' );
 $operations = file_get_contents( $controllers . '/AcademyOperationsController.php' );
 $workspace = file_get_contents( $controllers . '/AdminWorkspaceController.php' );
 $dashboard = file_get_contents( $controllers . '/AdminDashboardController.php' );
@@ -36,7 +37,7 @@ $portal_owner_reads = file_get_contents( dirname( $controllers, 2 ) . '/Core/App
 $portal_read_models = file_get_contents( dirname( $controllers, 2 ) . '/Portals/PortalReadModels.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $term_read, $assignment_assessment, $assignment_service, $schedule_service, $lesson_authority, $portal_owner_reads, $portal_read_models, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $shell, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $term_read, $assignment_assessment, $assignment_service, $schedule_service, $lesson_authority, $portal_owner_reads, $portal_read_models, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 if ( ! str_contains( $availability, "'1'=>'Monday'" )
@@ -51,61 +52,57 @@ if ( ! str_contains( $availability, "'1'=>'Monday'" )
     throw new RuntimeException( 'Teacher availability must present human choices and safe operator projections.' );
 }
 
-foreach ( array(
-    "['Academy', 'dzn-platform'",
-    "['Students', 'dzn-students-menu'",
-    "['Teachers', 'dzn-teachers-menu'",
-    "['Courses & Terms', 'dzn-courses-menu'",
-    "['Classes / Schedule', 'dzn-classes-menu'",
-    "['Finance', 'dzn-finance-menu'",
-    "['Communications', 'dzn-notifications-menu'",
-    "['Delnavazan Settings', 'dzn-settings-menu'",
-) as $group ) {
-    if ( ! str_contains( $menu, $group ) ) throw new RuntimeException( 'Missing requested WordPress sidebar group: ' . $group );
-}
-if ( ! str_contains( $menu, 'add_menu_page($label, $label, \'read\', $slug, [AdminNavigationController::class, \'screen\']' )
-    || ! str_contains( $menu, 'add_submenu_page($parent, $label, $label, $capability, $slug, $callback)' )
-    || ! str_contains( $menu, "['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null]" )
-    || ! str_contains( $menu, "['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson'" )
-    || ! str_contains( $menu, "['dzn-classes-menu', 'Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review'" )
-    || ! str_contains( $menu, "['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'" )
+if ( 1 !== substr_count( $menu, 'add_menu_page(' )
+    || ! str_contains( $menu, "add_menu_page('Delnavazan', 'Delnavazan', 'read', self::ROOT_SLUG")
+    || ! str_contains( $menu, "add_submenu_page(self::ROOT_SLUG, \$label, \$label, \$capability, \$slug, \$callback)")
+    || str_contains( $menu, "['Bookings', 'dzn-bookings-menu'")
+    || str_contains( $menu, "['Finance', 'dzn-finance-menu'")
+    || ! str_contains( $menu, "['Academy', 'dzn_view_booking_requests', 'dzn-academy-dashboard'")
+    || ! str_contains( $menu, "['Classes', 'dzn_manage_lessons', 'dzn-lesson'")
+    || ! str_contains( $menu, "['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review'")
+    || ! str_contains( $menu, "['Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'")
     || str_contains( $menu, "['dzn-courses-menu', 'Enrolments'")
     || str_contains( $menu, "['dzn-finance-menu', 'Attendance'")
     || str_contains( $menu, "['dzn-courses-menu', 'Lessons'")
-    || ! str_contains( $menu, "['dzn-settings-menu', 'Stripe', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'" ) ) {
-    throw new RuntimeException( 'Grouped menu registration or Settings-only Stripe setup is missing' );
+    || ! str_contains( $menu, "['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'") ) {
+    throw new RuntimeException( 'Unified application registration or protected destination routes are missing' );
 }
 foreach ( array(
-    array( $menu, "['dzn-platform', 'Dashboard', 'dzn_view_booking_requests', 'dzn-academy-dashboard'" ),
-    array( $menu, "['dzn-students-menu', 'Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'" ),
-    array( $menu, "['dzn-classes-menu', 'Classes', 'dzn_manage_lessons', 'dzn-lesson'" ),
-    array( $catalogue, "add_submenu_page('dzn-courses-menu','Course catalogue and pricing'" ),
+    array( $menu, "'dzn-academy-dashboard'" ),
+    array( $menu, "'dzn-enrolment'" ),
+    array( $menu, "'dzn-lesson'" ),
+    array( $catalogue, "add_submenu_page(Menu::ROOT_SLUG" ),
 ) as $canonicalEntry ) {
     if ( 1 !== substr_count( $canonicalEntry[0], $canonicalEntry[1] ) ) throw new RuntimeException( 'Operational concept must have exactly one canonical menu entry: ' . $canonicalEntry[1] );
 }
-if ( str_contains( $menu, "['dzn-finance-menu', 'Stripe'") || str_contains( $menu, "['dzn-finance-menu', 'Stripe setup'") ) {
-    throw new RuntimeException( 'Stripe setup must not appear as a Finance menu item' );
+if ( ! str_contains( $shell, 'current_user_can($capability)' )
+    || ! str_contains( $shell, 'firstAvailableDestination' )
+    || ! str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
+    || ! str_contains( $shell, 'Do not unregister pages: direct URLs must retain WordPress' )
+    || ! str_contains( $shell, "'courses' => ['Courses'" )
+    || ! str_contains( $shell, "'enrolments_classes' => ['Enrolments / Classes'" ) ) {
+    throw new RuntimeException( 'Application tabs must be capability-aware and preserve protected direct routes.' );
 }
-if ( ! str_contains( $navigation, 'current_user_can((string) $capability)' )
-    || ! str_contains( $navigation, 'remove_menu_page($parent)' )
-    || ! str_contains( $navigation, "'dzn-platform' => 'Academy'" )
-    || ! str_contains( $navigation, "'dzn-courses-menu' => 'Courses & Terms'" )
-    || ! str_contains( $navigation, "'dzn-classes-menu' => 'Classes / Schedule'" )
-    || ! str_contains( $navigation, "'dzn-notifications-menu' => 'Communications'" ) ) {
-    throw new RuntimeException( 'Landing pages must retain child capability visibility and match their group' );
+if ( ! str_contains( $shell, "['Course catalogue and pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']" )
+    || ! str_contains( $shell, "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']" )
+    || ! str_contains( $shell, "['Stripe setup', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]" )
+    || ! str_contains( $shell, "['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities']" )
+    || ! str_contains( $shell, 'dzn-admin-shell__subtabs' )
+    || ! str_contains( $shell, 'private static function hasRequiredCapabilities' )
+    || ! str_contains( $shell, 'foreach ($requiredCapabilities as $capability) if (!current_user_can($capability)) return false;' ) ) {
+    throw new RuntimeException( 'Specialist users must see tabs only when every capability required by a destination is held.' );
 }
 if ( str_contains( $menu, 'dzn-academy-operations' )
     || str_contains( $operations, 'add_submenu_page(' )
     || str_contains( $operations, 'function menu(' )
-    || str_contains( $navigation, "'dzn-platform' => 'Bookings'" )
     || str_contains( $workspace, "'dzn-academy-operations'" )
     || str_contains( $dashboard, "'dzn-academy-operations'" )
     || str_contains( $theme_operations, "'slug' => 'dzn-academy-operations'" )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-academy-dashboard'" )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-system-health'" )
-    || ! str_contains( $menu, "['Academy', 'dzn-platform'," )
-    || ! str_contains( $operations, "echo '<div class=\"wrap\"><h1>Academy dashboard</h1>" ) ) {
-    throw new RuntimeException( 'The Academy dashboard must have one canonical entry under Academy, not a second Settings/Operations route.' );
+    || ! str_contains( $menu, "add_menu_page('Delnavazan', 'Delnavazan', 'read', self::ROOT_SLUG" )
+    || ! str_contains( $operations, "echo '<div class=\"wrap\"><h1>Academy</h1><p>Today’s work is collected here." ) ) {
+    throw new RuntimeException( 'The Academy dashboard must be the operational default without a second Operations route.' );
 }
 if ( ! str_contains( $operations, '\'booking_request_id\'=>(int)$r->request_id' )
     || ! str_contains( $operations, '\'accepted_service_arrangement_id\'=>(int)$r->arrangement_id' )
@@ -139,10 +136,10 @@ if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
     || ! str_contains( $payment, 'Provider setup and readiness are under Settings.' ) ) {
     throw new RuntimeException( 'Stripe setup must live in Settings while payment operations stay in Finance' );
 }
-if ( str_contains( $menu, "['dzn-teachers-menu'," )
-    || ! str_contains( $screen, 'teacherCoverage()' )
+if ( ! str_contains( $menu, "['Teachers', 'dzn_manage_teachers', 'dzn-teachers-menu'" )
+    || ! str_contains( $screen, 'teacherDirectory()' )
     || ! str_contains( $screen, 'teacherInvitationPanel()' )
-    || ! str_contains( $catalogue, "add_submenu_page('dzn-courses-menu','Course catalogue and pricing'" )
+    || ! str_contains( $catalogue, 'add_submenu_page(Menu::ROOT_SLUG' )
     || str_contains( $coverage, "add_submenu_page('dzn-settings-menu'" )
     || str_contains( $catalogue, "add_submenu_page('dzn-settings-menu'" ) ) {
     throw new RuntimeException( 'Teachers must be one consolidated page while course pricing remains in its workflow group.' );
@@ -276,64 +273,63 @@ if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_sho
     throw new RuntimeException( 'Public toolbar must be hidden for signed-in non-administrators only' );
 }
 
-// Structural navigation contracts: canonical parent, one route per concept, and
-// per-destination capability filtering across grouped Settings sections.
+// Structural navigation contract: one application root, canonical destination URLs,
+// capability-filtered tabs, and protected integrations/diagnostic destinations.
 foreach ( array(
-    "['Bookings', 'dzn-bookings-menu'",
-    "['dzn-bookings-menu', 'Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests'",
-    "['dzn-bookings-menu', 'Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination'",
-    "['Integrations', 'dzn-settings-integrations']",
-    "['Diagnostics', 'dzn-settings-diagnostics']",
-) as $required_route ) {
-    if ( ! str_contains( $menu, $required_route ) ) throw new RuntimeException( 'Missing workflow-first navigation route: ' . $required_route );
+    "'academy' => ['Academy'",
+    "'teachers' => ['Teachers'",
+    "'students' => ['Students'",
+    "'courses' => ['Courses'",
+    "'enrolments_classes' => ['Enrolments / Classes'",
+    "'finance' => ['Finance'",
+    "'communications' => ['Communications'",
+    "'settings' => ['Settings'",
+) as $required_tab ) {
+    if ( ! str_contains( $shell, $required_tab ) ) throw new RuntimeException( 'Missing application navigation tab: ' . $required_tab );
 }
 foreach ( array( 'dzn-booking-requests', 'dzn-booking-request-coordination' ) as $booking_route ) {
-    if ( 1 !== substr_count( $menu, "'" . $booking_route . "'") || str_contains( $menu, "['dzn-platform', '" . ($booking_route === 'dzn-booking-requests' ? 'Booking requests' : 'Request coordination') ) ) {
-        throw new RuntimeException( 'Booking destinations must appear once under Bookings: ' . $booking_route );
+    if ( 1 !== substr_count( $menu, "'" . $booking_route . "'" ) ) {
+        throw new RuntimeException( 'Booking destinations must appear once under the unified application: ' . $booking_route );
     }
 }
 foreach ( array(
-    "['Integrations overview', 'dzn-integrations', 'dzn_access_integrations_overview']",
-    "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']",
-    "['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings']",
-    "['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings']",
-    "['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings']",
-    "['Stripe', 'dzn-stripe-settings', 'dzn_view_payment_execution_authority']",
-) as $integration_route ) {
-    if ( 1 !== substr_count( $navigation, $integration_route ) ) throw new RuntimeException( 'Integration route must have one canonical Settings parent and its own capability: ' . $integration_route );
+    "['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'",
+    "['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp'",
+    "['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms'",
+    "['Google OAuth / Calendar', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google'",
+    "['Exceptions', 'dzn_manage_exceptions', 'dzn-exception'",
+    "['System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",
+) as $protected_route ) {
+    if ( ! str_contains( $menu, $protected_route ) ) throw new RuntimeException( 'Protected destination lost its original capability: ' . $protected_route );
 }
-if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'")
+if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'" )
     || str_contains( $menu, "['dzn-platform', 'Booking requests'")
     || str_contains( $menu, "['dzn-platform', 'Request coordination'")
-    || ! str_contains( $navigation, "['Exceptions', 'dzn-exception', 'dzn_manage_exceptions']")
-    || ! str_contains( $navigation, "['System health', 'dzn-system-health', 'dzn_access_system_health']")
-    || ! str_contains( $menu, "['dzn-settings-menu', 'Exceptions', 'dzn_manage_exceptions', 'dzn-exception'") ) {
-    throw new RuntimeException( 'Academy must contain only its Dashboard, and operational exceptions must remain discoverable under Diagnostics with their authority cap.' );
+    || ! str_contains( $shell, "'dzn-exception' => 'settings'")
+    || ! str_contains( $shell, "'dzn-system-health' => 'settings'") ) {
+    throw new RuntimeException( 'Academy must use one dashboard entry and Settings must retain protected diagnostics destinations.' );
 }
-if ( ! str_contains( $navigation, "(string) (\$item[2] ?? '') !== \$parent" )
-    || ! str_contains( $navigation, "if (!current_user_can('manage_options'))")
-    || ! str_contains( $navigation, "remove_menu_page(\$slug)")
-    || ! str_contains( $navigation, 'current_user_can($capability)' )
-    || ! str_contains( $navigation, 'remove_submenu_page(\'dzn-settings-menu\', $slug)' ) ) {
-    throw new RuntimeException( 'Navigation must suppress repeated parent entries, capability-filter section links, and limit native-menu cleanup to non-administrators.' );
+if ( ! str_contains( $shell, 'current_user_can($capability)' )
+    || ! str_contains( $shell, 'remove_menu_page(Menu::ROOT_SLUG)' )
+    || ! str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
+    || ! str_contains( $shell, "'dzn-integration-email' => 'settings'" )
+    || ! str_contains( $shell, "'dzn-system-health' => 'settings'" ) ) {
+    throw new RuntimeException( 'Navigation must hide the sidebar submenu while retaining registered capability-gated routes.' );
 }
-
-foreach ( array(
-    "['', 'Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'",
-    "['', 'System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",
-) as $hidden_route ) {
-    if ( ! str_contains( $menu, $hidden_route ) ) throw new RuntimeException( 'Protected Settings pages must remain registered as hidden, capability-checked WordPress pages: ' . $hidden_route );
+if ( str_contains( $shell, 'remove_submenu_page(' ) || str_contains( $shell, 'remove_menu_page($slug)' ) ) {
+    throw new RuntimeException( 'Protected routes and unrelated WordPress menus must remain registered.' );
 }
-if ( str_contains( $navigation, "'dzn-integration-email', 'dzn-integration-whatsapp'")
-    || str_contains( $navigation, "'dzn-system-health'] as \$slug") ) {
-    throw new RuntimeException( 'Protected pages must not be removed from WordPress page registration after their capability check.' );
+if ( ! str_contains( $menu, "['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'")
+    || ! str_contains( $menu, "['System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'") ) {
+    throw new RuntimeException( 'Protected Settings pages must remain registered as hidden, capability-checked WordPress pages.' );
 }
 
 if ( ! str_contains( $menu, "add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4)")
     || ! str_contains( $menu, "dzn_access_provider_integration_settings")
     || ! str_contains( $menu, "dzn_access_integrations_overview")
-    || ! str_contains( $menu, "if(\$user->has_cap('manage_options'))return ['manage_options'];")
-    || ! str_contains( $menu, "if(\$user->has_cap(\$delegatedCap))return [\$delegatedCap];") ) {
+    || ! str_contains( $menu, "if (\$user->has_cap('manage_options')) return ['manage_options'];")
+    || ! str_contains( $menu, "if (\$user->has_cap(\$delegatedCap)) return [\$delegatedCap];")
+    || ! str_contains( $menu, "return ['do_not_allow'];") ) {
     throw new RuntimeException( 'Integration navigation must use narrow meta capabilities that allow site administrators or the matching delegated integration capability without globally granting either capability.' );
 }
 echo "Admin navigation regression source contract passed\n";

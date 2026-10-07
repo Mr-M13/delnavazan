@@ -40,7 +40,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();
 	Delnavazan\Platform\Admin\Controller\AdminDashboardController::register();
-	Delnavazan\Platform\Admin\Controller\AdminWorkspaceController::register();
+	Delnavazan\Platform\Admin\Controller\AdminShellController::register();
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\CommercialCatalogueController::register();

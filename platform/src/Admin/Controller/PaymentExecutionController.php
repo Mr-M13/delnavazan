@@ -16,7 +16,7 @@ final class PaymentExecutionController {
     public const CAPABILITY='dzn_view_payment_execution_authority';
     private const RECONCILE_CAPABILITY='dzn_manage_payment_execution';
     public const MENU_SLUG='dzn-payment-execution';
-    public const PARENT_SLUG='dzn-finance-menu';
+    public const PARENT_SLUG=Menu::ROOT_SLUG;
 
     public static function register():void{
         add_action('admin_menu',array(__CLASS__,'menu'));

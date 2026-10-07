@@ -56,7 +56,7 @@ final class CoreDatasetReadinessController {
         $capability = self::entrypointCapability();
         if ( $capability === null ) return;
         $hook = add_submenu_page(
-            'dzn-settings-menu',
+            'dzn-platform',
             'Core dataset',
             'Core dataset readiness',
             $capability,

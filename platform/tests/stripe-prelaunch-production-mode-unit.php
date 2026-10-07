@@ -11,6 +11,7 @@ spl_autoload_register(static function(string $class)use($source):void{
     if(is_file($path))require_once $path;
 });
 function wp_get_environment_type(){return 'production';}
+function home_url($path='/'){return 'https://delnavazan.example'.'/'.ltrim($path,'/');}
 function is_wp_error($value){return false;}
 function wp_remote_retrieve_response_code($response){return (int)($response['response']['code']??0);}
 function wp_remote_retrieve_body($response){return (string)($response['body']??'');}

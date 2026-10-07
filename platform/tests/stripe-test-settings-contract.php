@@ -21,7 +21,7 @@ if(strpos($adapter,'testModeActivationAllowed')===false||strpos($service,'preLau
 foreach(array('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED','DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED','preLaunchProductionTestModeActive') as $needle)
     if(strpos($service,$needle)===false)throw new RuntimeException('Pre-launch production TEST mode gate is incomplete: '.$needle);
 if(strpos($vault,'DZN_PLATFORM_PAYMENT_TEST_VAULT')===false)throw new RuntimeException('The disposable payment test-vault gate is missing');
-foreach(array('PRE-LAUNCH PRODUCTION TEST MODE IS ACTIVE','DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED','DZN_PLATFORM_PAYMENT_TEST_VAULT','only Stripe TEST credentials and test Checkout') as $needle)
+foreach(array('PRE-LAUNCH PRODUCTION TEST MODE IS ACTIVE','DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED','DZN_PLATFORM_PAYMENT_TEST_VAULT','Only Stripe TEST credentials and test Checkout') as $needle)
     if(strpos($controller,$needle)===false)throw new RuntimeException('Conspicuous production test-mode warning or disable path missing: '.$needle);
 foreach(array('sk_live_','pk_live_','whsec_live_') as $live)if(strpos($service,$live)!==false)throw new RuntimeException('Live Stripe credential support must not be added');
 echo "Stripe test settings contract passed\n";

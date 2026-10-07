@@ -63,7 +63,7 @@ final class AdminNavigationController {
 
         // Legacy aliases remain hidden; protected destinations use WordPress's
         // hidden-page registration so direct access remains capability-checked.
-        foreach (['dzn-google-console', 'dzn-whatsapp-settings', 'dzn-sms-settings', 'dzn-stripe-settings'] as $slug) {
+        foreach (['dzn-google-console', 'dzn-whatsapp-settings', 'dzn-sms-settings'] as $slug) {
             remove_submenu_page('dzn-settings-menu', $slug);
         }
 

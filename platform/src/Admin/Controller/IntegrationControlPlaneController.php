@@ -91,6 +91,16 @@ final class IntegrationControlPlaneController {
             $value=((array)($effective['tls_context']??array()))[$key]??'runtime default';if(is_bool($value))$value=$value?'true':'false';
             echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)$value).'</td></tr>';
         }
+        foreach(array('php_version'=>'PHP version','sapi'=>'PHP SAPI','openssl_extension'=>'OpenSSL extension','ssl_stream_wrapper'=>'SSL stream wrapper','stream_socket_client_enabled'=>'Socket stream enabled','open_basedir_enabled'=>'open_basedir enabled','default_ca_file_exists'=>'Default CA file available','default_ca_path_exists'=>'Default CA path available','proxy_environment_configured'=>'Proxy environment configured','mailer_class'=>'PHPMailer class','mailer_file'=>'PHPMailer source file','phpmailer_version'=>'PHPMailer version','smtp_class_file'=>'SMTP source file') as $key=>$label){
+            $value=((array)($diagnostic['runtime']??array()))[$key]??'unknown';if(is_bool($value))$value=$value?'yes':'no';
+            echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)$value).'</td></tr>';
+        }
+        $probe=(array)($diagnostic['stream_probe']??array());
+        echo '<tr><th>PHP SSL stream probe</th><td>'.esc_html((string)($probe['state']??'unavailable')).'</td></tr>';
+        echo '<tr><th>PHP SSL stream failure category</th><td>'.esc_html((string)($probe['category']??'unknown')).'</td></tr>';
+        echo '<tr><th>PHP SSL stream errno</th><td>'.(int)($probe['errno']??0).'</td></tr>';
+        echo '<tr><th>PHPMailer SSL context option names</th><td>'.esc_html(implode(', ',array_map('strval',(array)($probe['ssl_context_keys']??array())))).'</td></tr>';
+        echo '<tr><th>PHPMailer socket context option names</th><td>'.esc_html(implode(', ',array_map('strval',(array)($probe['socket_context_keys']??array())))).'</td></tr>';
         echo '</tbody></table><h3>phpmailer_init callbacks (priority order)</h3><ul>';
         foreach((array)($diagnostic['hooks']??array()) as $hook){$hook=(array)$hook;$source=(string)($hook['callback']??'unknown');$file=(string)($hook['file']??'');$line=(int)($hook['line']??0);$location=$file!==''?$file.($line?':'.$line:''):'';
             echo '<li>'.esc_html('priority '.(int)($hook['priority']??0).' · '.$source.($location!==''?' · '.$location:'')).'</li>';

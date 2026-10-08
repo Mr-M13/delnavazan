@@ -89,6 +89,7 @@ checkout_assert($adapter->create($request)['state']==='unavailable','A live cred
 checkout_assert(count($GLOBALS['checkout_fake_calls'])===$calls,'Adapter sent traffic with a live credential');
 $credentialSource->value=array('api_key'=>'sk_test_'.str_repeat('A',24),'account_reference'=>'test_account_41');
 $GLOBALS['checkout_fake_environment']='production';
+checkout_assert(!\Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestConfigurationService::testEnvironmentAllowed(),'Production TEST configuration was allowed without the explicit pre-launch gate.');
 checkout_assert($adapter->create($request)['state']==='unavailable','Checkout was activated in a production environment');
 checkout_assert(count($GLOBALS['checkout_fake_calls'])===$calls,'Adapter sent traffic from a production environment');
 $GLOBALS['checkout_fake_environment']='unknown';

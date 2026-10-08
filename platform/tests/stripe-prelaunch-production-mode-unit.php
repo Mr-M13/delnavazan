@@ -21,6 +21,7 @@ $configuration='Delnavazan\\Platform\\Core\\Application\\PaymentExecution\\Strip
 $adapterClass='Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeCheckoutAdapter';
 prelaunch_assert($configuration::testEnvironmentAllowed(),'Explicitly gated production TEST configuration was not allowed.');
 prelaunch_assert($adapterClass::testModeActivationAllowed(),'Explicitly gated production TEST Checkout was not allowed.');
+prelaunch_assert(!\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionRule::liveExecutionAuthorised('stripe'),'Pre-launch TEST gates must never authorize live Stripe charging.');
 
 $credentials=new class implements \Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutCredentialSource {
     public function credentials():?array{return array('api_key'=>'sk_test_'.str_repeat('A',24),'account_reference'=>'prelaunch_test_account');}
@@ -41,4 +42,12 @@ $adapter=new $adapterClass($credentials,$transport);
 $result=$adapter->create($request);
 prelaunch_assert(($result['state']??'')==='open','Fake non-live Checkout session was not accepted in explicitly gated pre-launch mode.');
 prelaunch_assert(str_starts_with((string)($result['provider_reference']??''),'cs_test_'),'The fake test Checkout identity was not retained.');
+$calls=0;
+$liveCredentials=new class implements \Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutCredentialSource {
+    public function credentials():?array{return array('api_key'=>'sk_live_'.str_repeat('Z',24),'account_reference'=>'prelaunch_test_account');}
+};
+$liveAdapter=new $adapterClass($liveCredentials,static function()use(&$calls):array{$calls++;return array('response'=>array('code'=>200),'body'=>'{}');});
+$blocked=$liveAdapter->create($request);
+prelaunch_assert(($blocked['state']??'')==='unavailable','Live credentials were accepted while pre-launch production TEST mode was active.');
+prelaunch_assert($calls===0,'Live credentials reached Stripe transport in pre-launch production TEST mode.');
 echo "Pre-launch production Stripe TEST-mode fake-provider checks passed\n";

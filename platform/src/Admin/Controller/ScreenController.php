@@ -66,6 +66,7 @@ final class ScreenController {
         } else {
             if ($screen === 'student') self::studentCreateDisclosure();
             elseif ($screen === 'enrolment') echo '<p>Enrolments are read-only. Generic creation is disabled; canonical conversion authority is not part of this phase.</p>';
+            elseif ($screen === 'lesson') self::legacyLessonCreateDisclosure();
             elseif ($screen !== 'teacher') self::entityCreateForm($screen);
             self::entityList($screen);
             if ($screen === 'term' && current_user_can('dzn_manage_canonical_terms')) self::canonicalTermCreateForm();
@@ -185,12 +186,13 @@ final class ScreenController {
 
     private static function entityList(string $entity): void {
         if ($entity === 'student') { self::studentList(); return; }
+        if ($entity === 'enrolment') { self::enrolmentWorkspace(); return; }
         if($entity==='lesson'){
             $records=(new CoreReadService())->lessonOperatorRows();
-            echo '<h2>Classes and schedule</h2><p>Review each learner, teacher, class state and next scheduling handoff. Schedule changes stay with the authorised schedule workflow.</p>';
+            echo '<h2>Classes and schedule</h2><p>Review the scheduled time, learner, teacher, delivery and attendance facts in one place. Schedule and attendance changes stay with their authorised workflows.</p>';
             if(!$records){echo '<p>No classes to review.</p>';return;}
-            echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Student / course</th><th>Teacher</th><th>Class status</th><th>Schedule</th><th>Next step</th></tr></thead><tbody>';
-            foreach($records as$row){$url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->id),admin_url('admin.php'));$label=(string)($row->reference_code?:'Class');echo '<tr><td><a href="'.esc_url($url).'">'.esc_html($label).'</a></td><td>'.esc_html((string)($row->student_name?:'Student')).'<br>'.esc_html((string)($row->course_name?:'Course')).'</td><td>'.esc_html((string)($row->teacher_name?:'Teacher')).'</td><td>'.esc_html((string)$row->class_status).'</td><td>'.esc_html((string)$row->schedule_label).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html((string)$row->next_action).'</a></td></tr>';}
+            echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Date / time</th><th>Teacher</th><th>Student / enrolment</th><th>Status</th><th>Attendance / outcome</th><th>Attention</th><th>Open</th></tr></thead><tbody>';
+            foreach($records as$row){$url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->id),admin_url('admin.php'));$label=(string)($row->reference_code?:'Class');$student=(string)($row->student_name?:'Student');$enrolment=(string)($row->enrolment_reference?:'No enrolment reference');$course=(string)($row->course_name?:'Course');if(($row->instrument_name??'')!=='')$course.=' · '.(string)$row->instrument_name;echo '<tr><td><a href="'.esc_url($url).'">'.esc_html($label).'</a><br><small>'.esc_html($course).'</small></td><td>'.esc_html((string)$row->schedule_label).'</td><td>'.esc_html((string)($row->teacher_name?:'Teacher')).'</td><td>'.esc_html($student).'<br><small>'.esc_html($enrolment).'</small></td><td>'.esc_html((string)$row->class_status).'</td><td>'.esc_html((string)$row->attendance_label).'<br><small>'.esc_html((string)$row->delivery_label).'</small></td><td>'.esc_html((string)$row->attention).'<br><small>'.esc_html((string)$row->exception_label).'</small></td><td><a class="button" href="'.esc_url($url).'">'.esc_html((string)$row->next_action).'</a></td></tr>';}
             echo '</tbody></table>';return;
         }
         if ($entity === 'teacher') { self::teacherInvitationPanel(); self::teacherDirectory(); self::teacherCoverage(); return; }
@@ -204,6 +206,26 @@ final class ScreenController {
         if (in_array($entity, ['student','teacher'], true)) self::objectTable($records, 'dzn-' . $entity, self::profileFields($entity));
         elseif(in_array($entity,['course','instrument'],true)) self::objectTable($records, 'dzn-' . $entity, self::catalogueFields($entity));
         else self::objectTable($records, 'dzn-' . $entity);
+    }
+
+    private static function enrolmentWorkspace(): void {
+        $records = (new CoreReadService())->enrolmentOperatorRows();
+        echo '<h2>Enrolments and learning progress</h2><p>Read-only operational overview. It shows the recorded learner relationship, current teacher and term, class progress and existing attention states; lifecycle, assignment and scheduling changes remain with their canonical authorities.</p>';
+        if (!$records) { echo '<p>No enrolments to review.</p>'; return; }
+        echo '<table class="widefat striped"><thead><tr><th>Enrolment</th><th>Student / course</th><th>Teacher</th><th>Term / status</th><th>Classes</th><th>Next class</th><th>Attention</th><th>Open</th></tr></thead><tbody>';
+        foreach ($records as $row) {
+            $url = add_query_arg(array('page' => 'dzn-enrolment', 'id' => (int) $row->id), admin_url('admin.php'));
+            $reference = (string) ($row->reference_code ?: 'Enrolment');
+            $course=(string)($row->course_name ?: 'Course'); if(($row->instrument_name??'')!=='')$course.=' · '.(string)$row->instrument_name;
+            echo '<tr><td><a href="'.esc_url($url).'"><strong>'.esc_html($reference).'</strong></a></td><td>'.esc_html((string)($row->student_name ?: 'Student')).'<br><small>'.esc_html($course).'</small></td><td>'.esc_html((string)($row->teacher_name ?: 'Not recorded')).'</td><td>'.esc_html((string)$row->term_label).'<br><small>'.esc_html((string)$row->enrolment_status).'</small></td><td>'.esc_html((string)$row->class_summary).'</td><td>'.esc_html((string)$row->next_class).'</td><td>'.esc_html((string)$row->attention).'</td><td><a class="button" href="'.esc_url($url).'">Open enrolment</a></td></tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    private static function legacyLessonCreateDisclosure(): void {
+        echo '<details><summary>Legacy manual class entry</summary><p>Use this only for the retained legacy workflow. Normal classes are issued and scheduled through the existing canonical authority; this page does not create an alternative canonical path.</p>';
+        self::entityCreateForm('lesson');
+        echo '</details>';
     }
 
     private static function teacherDirectory(): void {
@@ -253,7 +275,7 @@ final class ScreenController {
     private static function acceptingLabel(string $state): string { return match($state){'accepting'=>'Accepting students','limited'=>'Limited availability','paused'=>'Paused','not_set'=>'Not recorded',default=>ucfirst(str_replace('_',' ',$state))}; }
 
     private static function entityDetail(string $entity, int $id): void {
-        $record = $entity==='lesson'?(new CoreReadService())->lessonOperatorRecord($id):($entity==='teacher'?(new CoreReadService())->teacherAdminProfile($id):(new CoreReadService())->find($entity, $id));
+        $record = $entity==='lesson'?(new CoreReadService())->lessonOperatorRecord($id):($entity==='enrolment'?(new CoreReadService())->enrolmentOperatorRecord($id):($entity==='teacher'?(new CoreReadService())->teacherAdminProfile($id):(new CoreReadService())->find($entity, $id)));
         if (!$record && $entity==='term' && current_user_can('dzn_manage_canonical_terms')) $record=(new CoreReadService())->canonicalTerm($id);
         if (!$record) { echo '<p>Record not found.</p>'; return; }
         $profile=in_array($entity,['student','teacher'],true);
@@ -271,8 +293,14 @@ final class ScreenController {
             return;
         }
         $displayRecord=in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRecord($entity,$id):$record;
-        $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():(($entity==='lesson')?array('reference_code','student_name','teacher_name','course_name','lesson_type','class_status','schedule_label'):null)));
+        $allowed=$profile?self::profileFields($entity):(in_array($entity,['course','instrument'],true)?self::catalogueFields($entity):($canonicalTerm?self::canonicalTermFields():(($entity==='enrolment')?self::enrolmentWorkspaceFields():(($entity==='lesson')?array('reference_code','student_name','teacher_name','course_name','instrument_name','enrolment_reference','lesson_type','class_status','schedule_label','attendance_label','delivery_label','exception_label','attention'):null))));
         self::objectTable([$displayRecord??$record], null, $allowed);
+        if ($entity === 'enrolment' && current_user_can('dzn_manage_lessons')) {
+            $classes = (new CoreReadService())->enrolmentOperatorClasses($id);
+            echo '<h2>Classes in this enrolment</h2>';
+            if (!$classes) echo '<p>No classes recorded.</p>';
+            else { echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Date / time</th><th>Teacher</th><th>Status</th><th>Attendance / outcome</th><th>Attention</th></tr></thead><tbody>'; foreach ($classes as $class) { $url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$class->id),admin_url('admin.php')); echo '<tr><td><a href="'.esc_url($url).'">'.esc_html((string)($class->reference_code?:'Class')).'</a></td><td>'.esc_html((string)$class->schedule_label).'</td><td>'.esc_html((string)($class->teacher_name?:'Not recorded')).'</td><td>'.esc_html((string)$class->class_status).'</td><td>'.esc_html((string)$class->attendance_label).'<br><small>'.esc_html((string)$class->delivery_label).'</small></td><td>'.esc_html((string)$class->attention).'</td></tr>'; } echo '</tbody></table>'; }
+        }
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             $teacherId=(int)$record->id;
             echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html((string)($record->google_calendar_state??'Unavailable')).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html((string)($record->principal_status??'not linked').' · '.(string)($record->onboarding_state??'not started').' / '.(string)($record->readiness_state??'not ready')).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Term availability</th><td>'.esc_html((string)($record->availability_summary?:'Not recorded')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Truthful statistics</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
@@ -484,6 +512,7 @@ final class ScreenController {
     }
     private static function catalogueFields(string $entity): array { return $entity==='course'?array('id','reference_code','name_en','name_fa','instrument','course_type','default_duration_minutes','default_buffer_minutes','status'):array('id','reference_code','name_en','name_fa','status'); }
     private static function canonicalTermFields(): array { return array('id','reference_code','student_name','course_name','sequence_number','lifecycle_state','lesson_allocation','replacement_allowance'); }
+    private static function enrolmentWorkspaceFields(): array { return array('reference_code','student_name','course_name','instrument_name','teacher_name','term_label','enrolment_status','class_summary','next_class','attention'); }
     private static function canonicalTermHistory(int $termId): void { $events=(new CoreReadService())->canonicalTermHistory($termId); echo '<h2>Term history</h2>'; if(!$events){echo '<p>No lifecycle events recorded.</p>';return;} $rows=array_map(static fn(array $event):object=>(object)$event,$events); self::objectTable($rows,null,array('event_sequence','from_state','to_state','reason_code','evidence_channel','occurred_at')); }
 
     private static function teacherFields(): void {

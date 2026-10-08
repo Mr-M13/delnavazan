@@ -50,6 +50,20 @@ final class OperationalExceptionRepository extends BaseRepository {
     }
 
     /**
+     * A privacy-minimised operational indicator for an existing aggregate.
+     * The workspace needs only the fact that active exceptions exist; their
+     * detail remains on the capability-gated Exceptions screen.
+     */
+    public function activeCountFor(string $entityType, int $entityId): int {
+        global $wpdb;
+        if ($entityId < 1) return 0;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->table} WHERE entity_type=%s AND entity_id=%d AND status IN ('open','acknowledged')",
+            $entityType, $entityId
+        ));
+    }
+
+    /**
      * Serialize the read-or-create active-exception path without making
      * historical fingerprints globally unique. MySQL releases this lock with
      * the connection as an additional safety net.

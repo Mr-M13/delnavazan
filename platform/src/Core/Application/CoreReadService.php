@@ -136,6 +136,21 @@ final class CoreReadService {
         return (new LessonOperationsReadService())->recent();
     }
 
+    public function enrolmentOperatorRows(): array {
+        if (!current_user_can('dzn_manage_enrolments')) throw new \RuntimeException('Unauthorized');
+        return (new EnrolmentOperationsReadService())->recent();
+    }
+
+    public function enrolmentOperatorRecord(int $enrolmentId): ?object {
+        if (!current_user_can('dzn_manage_enrolments')) throw new \RuntimeException('Unauthorized');
+        return (new EnrolmentOperationsReadService())->record($enrolmentId);
+    }
+
+    public function enrolmentOperatorClasses(int $enrolmentId): array {
+        if (!current_user_can('dzn_manage_enrolments')) throw new \RuntimeException('Unauthorized');
+        return (new EnrolmentOperationsReadService())->classesForEnrolment($enrolmentId);
+    }
+
     public function canonicalLesson(int $lessonId): ?object {
         return (new LessonOperationsReadService())->canonicalLesson($lessonId);
     }

@@ -28,6 +28,7 @@ $term_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructu
 $lesson_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/LessonRepository.php' );
 $availability_repo = file_get_contents( dirname( $controllers, 2 ) . '/Core/Infrastructure/Repository/TeacherAvailabilityRepository.php' );
 $journey_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/AcademyJourneyReadService.php' );
+$lesson_operations_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/LessonOperationsReadService.php' );
 $term_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CanonicalTermReadService.php' );
 $assignment_assessment = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/TeacherAssignmentAssessment.php' );
 $assignment_service = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/TeacherAssignmentService.php' );
@@ -37,7 +38,7 @@ $portal_owner_reads = file_get_contents( dirname( $controllers, 2 ) . '/Core/App
 $portal_read_models = file_get_contents( dirname( $controllers, 2 ) . '/Portals/PortalReadModels.php' );
 $theme_setup = file_get_contents( dirname( $root ) . '/theme/inc/setup.php' );
 $theme_operations = file_get_contents( dirname( $root ) . '/theme/inc/operations.php' );
-foreach ( array( $menu, $navigation, $shell, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $term_read, $assignment_assessment, $assignment_service, $schedule_service, $lesson_authority, $portal_owner_reads, $portal_read_models, $theme_setup, $theme_operations ) as $source ) {
+foreach ( array( $menu, $navigation, $shell, $operations, $workspace, $dashboard, $dataset, $identity, $payment, $integrations, $coverage, $catalogue, $screen, $teaching_eligibility, $availability, $core_read, $instrument_repo, $teacher_repo, $course_repo, $eligibility_repo, $student_repo, $enrolment_repo, $term_repo, $lesson_repo, $availability_repo, $journey_read, $lesson_operations_read, $term_read, $assignment_assessment, $assignment_service, $schedule_service, $lesson_authority, $portal_owner_reads, $portal_read_models, $theme_setup, $theme_operations ) as $source ) {
     if ( false === $source ) throw new RuntimeException( 'Unable to read admin navigation sources' );
 }
 if ( ! str_contains( $availability, "'1'=>'Monday'" )
@@ -105,6 +106,9 @@ if ( str_contains( $menu, 'dzn-academy-operations' )
     || ! str_contains( $operations, "echo '<div class=\"wrap\"><h1>Academy</h1><p>Today’s work is collected here." ) ) {
     throw new RuntimeException( 'The Academy dashboard must be the operational default without a second Operations route.' );
 }
+if ( str_contains( file_get_contents( $root . '/delnavazan-platform.php' ), 'AdminDashboardController::register()' ) ) {
+    throw new RuntimeException( 'The generic WordPress dashboard must not duplicate the Academy console.' );
+}
 if ( ! str_contains( $operations, '\'booking_request_id\'=>(int)$r->request_id' )
     || ! str_contains( $operations, '\'accepted_service_arrangement_id\'=>(int)$r->arrangement_id' )
     || ! str_contains( $operations, '\'teacher_assignment_id\'=>(int)$r->assignment_id' ) ) {
@@ -116,6 +120,16 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
     || ! str_contains( $journey_read, 'current_user_can(\'dzn_view_booking_requests\')' )
     || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {
     throw new RuntimeException( 'Academy dashboard data must come from its capability-gated application read projection.' );
+}
+if ( ! str_contains( $operations, 'private static function classOperationalState(): void' )
+    || ! str_contains( $operations, "current_user_can('dzn_manage_lessons')" )
+    || ! str_contains( $operations, '(new CoreReadService())->lessonOperatorRows()' )
+    || ! str_contains( $operations, 'Classes: today and next' )
+    || ! str_contains( $operations, 'private static function scheduleDate(object $row): string' )
+    || str_contains( $operations, 'FROM {$p}lessons' )
+    || ! str_contains( $core_read, 'public function lessonOperatorRows(): array' )
+    || ! str_contains( $lesson_operations_read, "current_user_can('dzn_manage_lessons')" ) ) {
+    throw new RuntimeException( 'Academy class state must reuse the existing capability-gated Classes projection.' );
 }
 if ( ! str_contains( $operations, '<th>Journey stage</th>' )
     || ! str_contains( $operations, "'Identity unresolved'" )
@@ -184,6 +198,14 @@ if ( ! str_contains( $screen, 'private static function profileFields(string $ent
     || ! str_contains( $screen, "\$field!=='id'" )
     || ! str_contains( $screen, "'timezone'=>'Time zone'" ) ) {
     throw new RuntimeException( 'Student and Teacher profiles must render curated fields and human reference links instead of internal IDs.' );
+}
+if ( ! str_contains( $screen, "'<h2>Student directory</h2>" )
+    || ! str_contains( $screen, 'All non-archived students' )
+    || ! str_contains( $screen, 'Location / time zone' )
+    || ! str_contains( $screen, 'private static function studentStatus(string $status, bool $archived): string' )
+    || ! str_contains( $screen, 'teacherOnboardingSummary(object $teacher)' )
+    || ! str_contains( $screen, 'Weekly availability' ) ) {
+    throw new RuntimeException( 'Student and Teacher directories must provide concise operational identity and state.' );
 }
 if ( ! str_contains( $screen, 'private static function catalogueFields(string $entity): array' )
     || ! str_contains( $screen, "(new CoreReadService())->catalogueRows(\$entity)" )

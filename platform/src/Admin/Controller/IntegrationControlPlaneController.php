@@ -40,10 +40,24 @@ final class IntegrationControlPlaneController {
         $testEnvironment=StripeTestConfigurationService::testEnvironmentAllowed();
         $production=function_exists('wp_get_environment_type')&&(string)wp_get_environment_type()==='production';
         $preLaunchActive=$production&&StripeTestConfigurationService::preLaunchProductionTestModeActive();
-        echo '<div class="wrap"><h1>Stripe setup</h1><p>Configure Stripe sandbox credentials on staging or another recognised test environment. Secret keys are encrypted and write-only. Live credentials and live payment execution are prohibited.</p>';
+        echo '<div class="wrap"><h1>Stripe setup</h1><p>Configure Stripe sandbox credentials on a recognised test environment. Pre-launch production TEST mode is available only while all three explicit gates are active. Secret keys are encrypted and write-only. Live credentials and live payment execution are prohibited.</p>';
         if($preLaunchActive)echo '<div class="notice notice-error"><p><strong>PRE-LAUNCH PRODUCTION TEST MODE IS ACTIVE.</strong> Only Stripe TEST credentials and test Checkout are permitted. Disable it immediately by removing <code>DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED</code>, <code>DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED</code>, or <code>DZN_PLATFORM_PAYMENT_TEST_VAULT</code> from the production configuration.</p></div>';
         elseif(!$testEnvironment)echo '<div class="notice notice-warning"><p>Stripe test configuration and Test Connection are disabled. Production requires the explicit pre-launch production TEST-mode gate plus the operator authorization and disposable test-vault gates.</p></div>';
-        if(isset($_GET['stripe_result'])){$result=sanitize_key((string)$_GET['stripe_result']);$messages=array('saved'=>'Stripe test configuration saved.','success'=>'Stripe accepted the test key and confirmed sandbox mode.','failed'=>'Stripe test connection failed. Check the test key and try again.','blocked'=>'Stripe test operation is not ready. Check the environment, operator, vault, and readiness gates below.');echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
+        if(isset($_GET['stripe_result'])){$result=sanitize_key((string)$_GET['stripe_result']);$messages=array(
+            'saved'=>'Stripe test configuration saved.','success'=>'Stripe accepted the test key and confirmed sandbox mode.',
+            'failed'=>'Stripe test connection failed. Check the test key and try again.',
+            'blocked'=>'Stripe test operation is not ready. Check the environment, operator, vault, and readiness gates below.',
+            'invalid_stripe_test_publishable_key'=>'The publishable key must be a valid Stripe TEST key (pk_test_). No credentials were saved.',
+            'invalid_stripe_test_secret_key'=>'The secret key must be a valid Stripe TEST key (sk_test_). No credentials were saved.',
+            'invalid_stripe_test_webhook_secret'=>'The webhook signing secret must be a valid Stripe TEST secret (whsec_). No credentials were saved.',
+            'complete_stripe_test_configuration_required'=>'Enter the publishable key, secret key, and webhook signing secret together for the first save. No credentials were saved.',
+            'stripe_test_environment_required'=>'The production TEST-mode gates are not active for this request. No credentials were saved.',
+            'stripe_account_scope_ambiguous'=>'The Stripe account state is ambiguous, so the save was refused. No credentials were saved.',
+            'stripe_test_account_state_unavailable'=>'The existing Stripe TEST account is not in a configurable state. No credentials were saved.',
+            'stripe_test_secret_store_refused'=>'The encrypted TEST credential vault refused a write. Check readiness before repeating the save; credential values are never shown here.',
+            'stripe_configuration_unauthorized'=>'Your account lacks the Stripe provider-configuration capability. No credentials were saved.',
+            'save_failed'=>'Stripe test configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
+        );echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
         $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/stripe_test');
         echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code>'.esc_html($webhookUrl).'</code></p>';
         if($testEnvironment){echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_test_settings_save">';wp_nonce_field('dzn_stripe_test_settings_save');
@@ -74,8 +88,19 @@ final class IntegrationControlPlaneController {
     public static function saveStripeTestSettings():void{
         self::authorizeStripeSettings();check_admin_referer('dzn_stripe_test_settings_save');
         try{(new StripeTestConfigurationService())->save((array)($_POST['settings']??array()));$result='saved';}
-        catch(\Throwable $e){$result='blocked';}
+        catch(\Throwable $e){$result=self::safeStripeSaveResult($e);}
         wp_safe_redirect(add_query_arg(array('page'=>'dzn-stripe-settings','stripe_result'=>$result),admin_url('admin.php')));exit;
+    }
+    /** Map only known fixed errors to user-facing codes. Never reflect exception text or credential data. */
+    public static function safeStripeSaveResult(\Throwable $error):string{
+        $allowed=array(
+            'invalid_stripe_test_publishable_key','invalid_stripe_test_secret_key','invalid_stripe_test_webhook_secret',
+            'complete_stripe_test_configuration_required','stripe_test_environment_required','stripe_account_scope_ambiguous',
+            'stripe_test_account_state_unavailable','stripe_test_secret_store_refused'
+        );
+        if(in_array($error->getMessage(),$allowed,true))return $error->getMessage();
+        if($error->getMessage()==='Unauthorized')return 'stripe_configuration_unauthorized';
+        return 'save_failed';
     }
     public static function testStripeConnection():void{
         self::authorizeStripeSettings();check_admin_referer('dzn_stripe_test_connection');if(!isset($_POST['run_test']))wp_die('Explicit test action required',400);

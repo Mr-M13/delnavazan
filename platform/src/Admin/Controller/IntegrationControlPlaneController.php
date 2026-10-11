@@ -54,7 +54,12 @@ final class IntegrationControlPlaneController {
             'stripe_test_environment_required'=>'The production TEST-mode gates are not active for this request. No credentials were saved.',
             'stripe_account_scope_ambiguous'=>'The Stripe account state is ambiguous, so the save was refused. No credentials were saved.',
             'stripe_test_account_state_unavailable'=>'The existing Stripe TEST account is not in a configurable state. No credentials were saved.',
-            'stripe_test_secret_store_refused'=>'The encrypted TEST credential vault refused a write. Check readiness before repeating the save; credential values are never shown here.',
+            'stripe_test_secret_store_refused'=>'The encrypted TEST credential vault refused a write. Some fields may have been saved; review readiness before retrying. Credential values are never shown here.',
+            'stripe_persistence_duplicate'=>'A Stripe TEST configuration record conflicts with existing stored state. Review readiness and contact support before retrying.',
+            'stripe_persistence_schema'=>'The Stripe TEST storage schema is unavailable or out of date. Do not re-enter credentials until the storage issue is resolved.',
+            'stripe_persistence_transient'=>'The Stripe TEST storage transaction could not complete. Some fields may have been saved; review readiness before retrying.',
+            'stripe_persistence_failed'=>'The Stripe TEST storage operation failed. Some fields may have been saved; review readiness before retrying.',
+            'stripe_test_configuration_persistence_unconfirmed'=>'The Stripe TEST save could not be confirmed by a read-after-write check. Some fields may have been saved; review readiness before retrying.',
             'stripe_configuration_unauthorized'=>'Your account lacks the Stripe provider-configuration capability. No credentials were saved.',
             'save_failed'=>'Stripe test configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
         );echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
@@ -100,6 +105,19 @@ final class IntegrationControlPlaneController {
         );
         if(in_array($error->getMessage(),$allowed,true))return $error->getMessage();
         if($error->getMessage()==='Unauthorized')return 'stripe_configuration_unauthorized';
+        if($error instanceof \Delnavazan\Platform\Core\Infrastructure\Repository\PersistenceException){
+            return match($error->errno){
+                1062=>'stripe_persistence_duplicate',
+                1054,1146=>'stripe_persistence_schema',
+                1205,1213=>'stripe_persistence_transient',
+                default=>'stripe_persistence_failed',
+            };
+        }
+        // Repository update and transaction wrappers include database text in their exception
+        // message. Classify the boundary only; never return that text to the browser.
+        if(str_starts_with($error->getMessage(),'Payment secret persistence failed:')
+            ||str_starts_with($error->getMessage(),'Payment provider persistence failed:')
+            ||str_starts_with($error->getMessage(),'Transaction '))return 'stripe_persistence_failed';
         return 'save_failed';
     }
     public static function testStripeConnection():void{

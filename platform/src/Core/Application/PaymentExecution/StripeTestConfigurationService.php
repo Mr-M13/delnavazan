@@ -46,6 +46,14 @@ final class StripeTestConfigurationService {
             $stored[]=$class;
         }
         if($publishable!=='')update_option(self::PUBLISHABLE_OPTION,$publishable,false);
+        // Confirm only presence and scope after the writes; never read plaintext back from the vault.
+        $state=$this->savedState();
+        if((int)($state['account_id']??0)!==$accountId
+            ||($publishable!==''&&!$state['publishable'])
+            ||($apiKey!==''&&!$state['secret'])
+            ||($webhook!==''&&!$state['webhook'])){
+            throw new \RuntimeException('stripe_test_configuration_persistence_unconfirmed');
+        }
         return array('account_id'=>$accountId,'stored'=>$stored,'publishable_key_saved'=>$publishable!=='');
     }
 

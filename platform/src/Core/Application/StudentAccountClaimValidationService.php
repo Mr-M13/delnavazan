@@ -18,7 +18,7 @@ final class StudentAccountClaimValidationService {
             if(!$context||$context->invitation_state!=='active'||$context->state!=='active'||(int)$context->active_slot!==1||(int)$context->current_generation!==(int)$context->generation_number)throw new \InvalidArgumentException('account_claim_unavailable');
             if($context->expires_at<=$now)throw new \InvalidArgumentException('account_claim_expired');
             $student=$this->records->studentForUpdate((int)$context->student_id);
-            if(!$student||$student->archived_at!==null||$student->status!=='active')throw new \InvalidArgumentException('Student is not eligible for account claim');
+            if(!$student||$student->archived_at!==null||$student->status!=='active'||trim((string)$student->uid)===''||trim((string)$student->reference_code)==='')throw new \InvalidArgumentException('Student is not eligible for account claim');
             if(!$this->records->wordpressUserForUpdate($wordpressUserId))throw new \InvalidArgumentException('Authenticated principal is unavailable');
             if($this->records->activePrincipalForStudentForUpdate((int)$context->student_id)||$this->records->activePrincipalForUserForUpdate($wordpressUserId))throw new \InvalidArgumentException('Student or authenticated principal already has a canonical link');
             $evidence=array('invitation_id'=>(int)$context->invitation_id,'generation_id'=>(int)$context->id,'student_id'=>(int)$context->student_id,'wordpress_user_id'=>$wordpressUserId,'generation_uid'=>(string)$context->uid,'evidence_at'=>$now);

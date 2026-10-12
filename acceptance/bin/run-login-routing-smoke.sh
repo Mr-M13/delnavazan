@@ -5,15 +5,18 @@ set -euo pipefail
 bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd -P)"
 source "$bin/common.sh"
 
-"$bin/reset.sh"
-"$bin/seed-identities.sh"
+if [ "${DZN_ACCEPTANCE_SKIP_RESET:-0}" != 1 ]; then
+  "$bin/reset.sh"
+  "$bin/seed-identities.sh"
+fi
 mkdir -p "$DZN_ACCEPTANCE_STATE_DIR/cookies" "$DZN_ACCEPTANCE_STATE_DIR/http"
 
 password='dzn-acceptance-local-only'
 test_cookie='wordpress_test_cookie=WP Cookie check'
 
 login_and_expect() {
-  local identity="$1" expected_path="$2" jar="$DZN_ACCEPTANCE_STATE_DIR/cookies/$identity.txt" login_page="$DZN_ACCEPTANCE_STATE_DIR/http/$identity-login.html" response="$DZN_ACCEPTANCE_STATE_DIR/http/$identity-response.html" nonce meta status effective
+  local identity="$1" expected_path="$2"
+  local jar="$DZN_ACCEPTANCE_STATE_DIR/cookies/$identity.txt" login_page="$DZN_ACCEPTANCE_STATE_DIR/http/$identity-login.html" response="$DZN_ACCEPTANCE_STATE_DIR/http/$identity-response.html" nonce meta status effective
   rm -f "$jar" "$login_page" "$response"
   curl --fail --silent --show-error --cookie "$test_cookie" --cookie-jar "$jar" "$DZN_ACCEPTANCE_WP_URL/login/" >"$login_page"
   nonce="$(sed -n 's/.*name="dzn_frontend_login_nonce" value="\([^"]*\)".*/\1/p' "$login_page" | head -n 1)"

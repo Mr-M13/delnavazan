@@ -8,7 +8,7 @@ Status on 2026-10-12. These are **different evidence levels**, not an overall re
 | Student, teacher, dual login routes | PASS | HTTP role-routing smoke for three synthetic identities |
 | Teacher invitation cron registration | PASS | `teacher-invitation-worker-scheduling-unit.php` |
 | Teacher onboarding v2 source contracts | PASS | 14 source contracts |
-| Teacher invitation issuance + claim + activation | FAIL / INVESTIGATE | Isolated ready-teacher fixture reaches `TeacherOnboardingService.php:119`: cannot complete from current state. Investigate whether fixture calls `submitOwn` after automatic activation; do not assume product bug. |
+| Teacher invitation issuance + claim + activation | PASS | Isolated ready-teacher fixture now verifies canonical issuance, principal claim, readiness, automatic activation and cleanup; legacy manual submit removed and administrator context restored. |
 | New-teacher password reset notification | NOT COVERED | Verify WordPress reset-key creation and intercepted `wp_mail` locally; no real email |
 | Student account invitation / claim | NOT COVERED | Exercise canonical service and expiry/replay protections in isolated DB |
 | Availability, timezone, blocked slots, booking | NOT COVERED | Synthetic schedule and booking HTTP/API lifecycle |

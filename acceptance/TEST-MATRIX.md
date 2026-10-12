@@ -10,7 +10,7 @@ Status on 2026-10-12. These are **different evidence levels**, not an overall re
 | Teacher onboarding v2 source contracts | PASS | 14 source contracts |
 | Teacher invitation issuance + claim + activation | PASS | Isolated ready-teacher fixture now verifies canonical issuance, principal claim, readiness, automatic activation and cleanup; legacy manual submit removed and administrator context restored. |
 | New-teacher password reset notification | NOT COVERED | Verify WordPress reset-key creation and intercepted `wp_mail` locally; no real email |
-| Student account invitation / claim | NOT COVERED | Exercise canonical service and expiry/replay protections in isolated DB |
+| Student account invitation / claim | PARTIAL PASS | Isolated WordPress + MariaDB rejects malformed/unknown claim tokens, rejects unknown-token authority handoff, and creates no principal link; issuance, expiry, replay and successful claim still require synthetic notification authority fixtures. `acceptance/bin/student-claim-runtime-smoke.sh` |
 | Availability, timezone, blocked slots, booking | NOT COVERED | Synthetic schedule and booking HTTP/API lifecycle |
 | Stripe checkout and reconciliation | FAIL (vault schema mismatch) | Current Schema 38 migrator verification passes and Stripe fixture prepares, but secret insertion fails: `payment_provider_secrets.cipher_version` is `varchar(16)` while `PaymentExecutionRule::CIPHER` is `sodium_secretbox_v1` (19 characters). Requires additive migration with compatibility for existing databases. No Stripe HTTP requests or charges. |
 | Email / WhatsApp / SMS | BLOCKED | Provider mocks or sandbox required; never send live notifications |

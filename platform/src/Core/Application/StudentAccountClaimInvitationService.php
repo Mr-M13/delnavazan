@@ -28,7 +28,7 @@ final class StudentAccountClaimInvitationService {
             $duplicate=$this->records->generationForCommandForUpdate($commandDigest);
             if($duplicate){if((int)$duplicate->student_id!==$studentId)throw new \InvalidArgumentException('Claim issuance command conflicts with another Student');return array('idempotent'=>true,'invitation_id'=>(int)$duplicate->invitation_id,'generation_id'=>(int)$duplicate->id,'status'=>(string)$duplicate->state);}
             $student=$this->records->studentForUpdate($studentId);
-            if(!$student||$student->archived_at!==null||$student->status!=='active')throw new \InvalidArgumentException('Student is not eligible for account claim');
+            if(!$student||$student->archived_at!==null||$student->status!=='active'||trim((string)$student->uid)===''||trim((string)$student->reference_code)==='')throw new \InvalidArgumentException('Student is not eligible for account claim');
             $invitation=$this->records->invitationForStudentForUpdate($studentId);
             if($invitation&&$invitation->state==='claimed')throw new \InvalidArgumentException('Student already has a claimed account invitation');
             if(!$invitation){$invitationId=$this->records->insertInvitation(array('uid'=>Identifier::uid(),'student_id'=>$studentId,'state'=>'active','current_generation'=>0,'created_at'=>$now,'created_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor));$invitation=$this->records->invitationForStudentForUpdate($studentId);}else{$invitationId=(int)$invitation->id;$this->records->supersedeActiveGenerations($invitationId,'replacement_issued',$now,$actor);}

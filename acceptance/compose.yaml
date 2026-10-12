@@ -1,0 +1,51 @@
+name: ${DZN_ACCEPTANCE_COMPOSE_PROJECT}
+
+# Local acceptance only. Images must already be cached; this definition never pulls.
+services:
+  db:
+    image: ${DZN_ACCEPTANCE_DB_IMAGE}
+    pull_policy: never
+    restart: "no"
+    environment:
+      MARIADB_DATABASE: ${DZN_ACCEPTANCE_DB_NAME}
+      MARIADB_USER: ${DZN_ACCEPTANCE_DB_USER}
+      MARIADB_PASSWORD: ${DZN_ACCEPTANCE_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DZN_ACCEPTANCE_DB_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=+00:00"]
+    volumes:
+      - ${DZN_ACCEPTANCE_DB_DIR}:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -uroot -p\"$$MARIADB_ROOT_PASSWORD\" --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [acceptance]
+  wordpress:
+    image: ${DZN_ACCEPTANCE_WP_IMAGE}
+    pull_policy: never
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: ${DZN_ACCEPTANCE_DB_NAME}
+      WORDPRESS_DB_USER: ${DZN_ACCEPTANCE_DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DZN_ACCEPTANCE_DB_PASSWORD}
+      WP_ENVIRONMENT_TYPE: local
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+        define('WP_DEBUG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        define('DISALLOW_FILE_EDIT', true);
+        define('WP_HOME', '${DZN_ACCEPTANCE_WP_URL}');
+        define('WP_SITEURL', '${DZN_ACCEPTANCE_WP_URL}');
+    volumes:
+      - ${DZN_ACCEPTANCE_WP_DIR}:/var/www/html
+      - ${DZN_ACCEPTANCE_SOURCE_DIR}:/workspace:ro
+    ports:
+      - "127.0.0.1:${DZN_ACCEPTANCE_WP_PORT}:80"
+    networks: [acceptance]
+networks:
+  acceptance:
+    name: ${DZN_ACCEPTANCE_COMPOSE_PROJECT}_network

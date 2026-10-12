@@ -106,7 +106,9 @@ final class TeacherOnboardingService {
         $now = current_time( 'mysql', true ); $this->repo->begin();
         try {
             $teacher = $this->repo->linkedTeacherForUser( $actor, true ); if ( ! $teacher ) throw new \InvalidArgumentException( 'Linked teacher principal required' );
-            $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( ! in_array( $state, self::EDITABLE, true ) ) throw new \InvalidArgumentException( 'Teacher onboarding is not editable' );
+            // Availability changes can demote an active Teacher back to setup.
+            // Never let an internal progress refresh revive an offboarded principal.
+            $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( $state === 'offboarded' ) throw new \InvalidArgumentException( 'Teacher onboarding is not editable' );
             $this->refreshProgress( $teacher, $state, $now, $actor ); $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
@@ -142,7 +144,7 @@ final class TeacherOnboardingService {
     }
 
     private function refreshProgress(object $teacher, string $from, string $now, int $actor): void {
-        $progress = $this->progress( $teacher ); $to = $progress['ready_for_activation'] ? 'active' : ( in_array($from,array('linked_pending','pending_review','returned','rejected'),true) ? 'in_progress' : $from );
+        $progress = $this->progress( $teacher ); $to = $progress['ready_for_activation'] ? 'active' : ( in_array($from,array('linked_pending','pending_review','returned','rejected','active'),true) ? 'in_progress' : $from );
         $this->repo->saveState( (int) $teacher->id, array(
             'state' => $to, 'readiness_state' => $progress['ready_for_activation'] ? 'ready' : 'not_ready', 'profile_state' => $progress['profile_state'],
             'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required',

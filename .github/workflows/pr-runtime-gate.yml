@@ -150,6 +150,7 @@ jobs:
           fi
           if [[ -f platform/tests/teacher-onboarding-v2-contract.php ]]; then
             php platform/tests/teacher-onboarding-v2-contract.php
+            php platform/tests/teacher-onboarding-readiness-gate-contract.php
             php platform/tests/teacher-portal-phase2-contract.php
           fi
           php platform/tests/admin-navigation-regression-contract.php

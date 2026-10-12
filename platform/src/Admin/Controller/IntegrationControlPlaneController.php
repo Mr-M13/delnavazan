@@ -130,7 +130,7 @@ final class IntegrationControlPlaneController {
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
         $labels=array('email'=>'Email','whatsapp'=>'Meta WhatsApp Cloud API','sms'=>'SMS fallback','google'=>'Google OAuth / Calendar');
-        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Sends the configured Meta test template to the entered number only after you press the test button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
+        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Runs a local Meta mock using the configured test-template prerequisites. It never contacts Meta or sends a WhatsApp message.','sms'=>'Runs a local Telnyx mock using the configured sender/profile prerequisites. It never contacts Telnyx or sends an SMS.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         echo '<div class="wrap"><h1>'.esc_html($labels[$provider]??$provider).'</h1><p>Credentials are encrypted at rest and never displayed. Leave a secret blank to keep its current value.</p>';
         if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
@@ -149,7 +149,8 @@ final class IntegrationControlPlaneController {
         echo '</tbody></table><p><button class="button button-primary">Save settings</button></p></form>';
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_test"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_test_'.$provider);
         if(in_array($provider,array('email','whatsapp','sms'),true))echo '<p><label>Test destination <input required class="regular-text" name="test[destination]" type="'.($provider==='email'?'email':'tel').'" autocomplete="off"></label></p>';
-        echo '<p>'.esc_html($safe[$provider]??'').'</p><p><button class="button" name="run_test" value="1">Send explicit test</button></p></form></div>';
+        $button=in_array($provider,array('whatsapp','sms'),true)?'Run local mock test':'Send explicit test';
+        echo '<p>'.esc_html($safe[$provider]??'').'</p><p><button class="button" name="run_test" value="1">'.esc_html($button).'</button></p></form></div>';
     }
     private static function emailResultMessage(string $result):string{
         if($result==='success_mailer_accepted')return 'The mail server accepted the test message. Check the destination inbox and spam folder to confirm delivery.';

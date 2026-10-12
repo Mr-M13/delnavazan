@@ -82,8 +82,15 @@ if ( ! defined( 'DZN_PHASE_2A0_READY_TEACHER_FIXTURE_LIBRARY' ) ) {
         $fixture = dzn_phase_2a0_create_ready_teacher_fixture();
         dzn_phase_2a0_cleanup_ready_teacher_fixture( $fixture );
         echo "Ready-teacher fixture passed; no invitation secret printed.\n";
-    } catch ( Throwable ) {
-        fwrite( STDERR, "Ready-teacher fixture refused or failed.\n" );
+    } catch ( Throwable $e ) {
+        // Diagnostics remain opt-in, isolated and secret-free: only exception class
+        // and the originating source location, never exception messages or args.
+        if ( getenv( 'DZN_PHASE_2A0_SAFE_DIAGNOSTICS' ) === '1' && getenv( 'DZN_PHASE_2A0_RUNTIME_TEST' ) === 'isolated' && wp_get_environment_type() === 'local' ) {
+            $source = basename( $e->getFile() );
+            fwrite( STDERR, 'Ready-teacher fixture failed: ' . get_class( $e ) . ' at ' . $source . ':' . $e->getLine() . "\n" );
+        } else {
+            fwrite( STDERR, "Ready-teacher fixture refused or failed.\n" );
+        }
         exit( 1 );
     }
 }

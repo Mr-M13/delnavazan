@@ -12,9 +12,9 @@ final class TeacherInvitationDeliveryWorker {
     public const HOOK='dzn_teacher_invitation_delivery_dispatch';
 
     public static function register():void{
+        add_filter('cron_schedules',array(__CLASS__,'schedules'));
         add_action(self::HOOK,array(__CLASS__,'run'));
         if(!wp_next_scheduled(self::HOOK))wp_schedule_event(time()+60,'five_minutes',self::HOOK);
-        add_filter('cron_schedules',array(__CLASS__,'schedules'));
     }
     public static function schedules(array $schedules):array{
         $schedules['five_minutes']??=array('interval'=>300,'display'=>'Every five minutes');

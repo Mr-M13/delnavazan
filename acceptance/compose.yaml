@@ -13,7 +13,7 @@ services:
       MARIADB_ROOT_PASSWORD: ${DZN_ACCEPTANCE_DB_ROOT_PASSWORD}
     command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=+00:00"]
     volumes:
-      - ${DZN_ACCEPTANCE_DB_DIR}:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -uroot -p\"$$MARIADB_ROOT_PASSWORD\" --silent"]
       interval: 3s
@@ -49,3 +49,7 @@ services:
 networks:
   acceptance:
     name: ${DZN_ACCEPTANCE_COMPOSE_PROJECT}_network
+
+# Docker-managed volume avoids intermittent macOS bind-mount initialisation failures.
+volumes:
+  mariadb_data:

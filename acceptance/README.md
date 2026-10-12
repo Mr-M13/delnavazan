@@ -2,8 +2,10 @@
 
 This is an isolated WordPress + MariaDB environment for exercising Delnavazan's
 real HTTP login and portal routing. It mounts this worktree's `platform/` and
-`theme/` read-only, binds WordPress only to `127.0.0.1:18081`, and stores all
-mutable state exclusively in `acceptance/.state/` (which is ignored by Git).
+`theme/` read-only, binds WordPress only to `127.0.0.1:18081`, and stores WordPress files and test artifacts in `acceptance/.state/` (ignored by Git),
+and MariaDB data in the fixed, project-scoped Docker named volume
+`dzn-delnavazan-acceptance-local_mariadb_data`. Both are disposable and
+removed by `make destroy CONFIRM=YES`.
 It uses only synthetic `@example.invalid` users and local fixture passwords;
 it has no production credentials, remote provider calls, payment actions, or
 production/database mutations.

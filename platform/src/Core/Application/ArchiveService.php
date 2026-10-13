@@ -28,6 +28,11 @@ final class ArchiveService {
         [$repository, $capability] = $this->entry($type);
         if (!current_user_can($capability)) throw new \RuntimeException('Unauthorized');
 
+        if ($type === 'teacher') {
+            (new TeacherLifecycleService())->archive($id);
+            return;
+        }
+
         $row = ($type === 'term' && $repository instanceof TermRepository) || ($type === 'lesson' && $repository instanceof LessonRepository) ? $repository->findAny($id) : $repository->find($id);
         if (!$row) throw new \InvalidArgumentException('Archive conflict');
         if ($type === 'enrolment' && ($row->record_model ?? 'legacy_phase1') !== 'legacy_phase1') {
@@ -48,6 +53,11 @@ final class ArchiveService {
     public function restore(string $type, int $id): void {
         [$repository, $capability, $restoreStatus] = $this->entry($type);
         if (!current_user_can($capability)) throw new \RuntimeException('Unauthorized');
+
+        if ($type === 'teacher') {
+            (new TeacherLifecycleService())->restore($id);
+            return;
+        }
 
         $row = ($type === 'term' && $repository instanceof TermRepository) || ($type === 'lesson' && $repository instanceof LessonRepository) ? $repository->findAny($id) : $repository->find($id);
         if (!$row) throw new \InvalidArgumentException('Record is not archived');

@@ -23,7 +23,11 @@ final class TeacherInvitationIssuanceFailure {
     public static function category(\Throwable $error): string {
         if ($error instanceof \Delnavazan\Platform\Core\Infrastructure\Repository\PersistenceException) return 'persistence_failed';
         return match ($error->getMessage()) {
-            'Invalid email address' => 'invalid_recipient',
+            // PrincipalInvitationService validates the normalized recipient at
+            // the Core boundary. Keep this mapping aligned with that message so
+            // a server-side invalid value does not fall through to the generic
+            // "no change" path after the browser's required/email checks.
+            'Invalid email address', 'Valid recipient email required' => 'invalid_recipient',
             'Multiple active teacher profiles match this email' => 'duplicate_active_teacher_profiles',
             'Teacher already has a linked account' => 'teacher_already_linked',
             'Teacher is not onboarding eligible' => 'teacher_not_onboarding_eligible',

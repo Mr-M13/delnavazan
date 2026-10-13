@@ -7,7 +7,7 @@ $root = dirname( __DIR__ );
 $migration = file_get_contents( $root . '/src/Core/Infrastructure/Migration/Migrator.php' );
 $service = file_get_contents( $root . '/src/Core/Application/PrincipalInvitationService.php' );
 $repository = file_get_contents( $root . '/src/Core/Infrastructure/Repository/PrincipalInvitationRepository.php' );
-$admin = file_get_contents( $root . '/src/Admin/Controller/OnboardingController.php' );
+$admin = file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' );
 $runtime = file_get_contents( $root . '/tests/phase-2a0-isolated-delivery-assertion.php' );
 $negative = file_get_contents( $root . '/tests/phase-2a0-isolated-negative-claim-assertion.php' );
 $readyFixture = file_get_contents( $root . '/tests/phase-2a0-isolated-ready-teacher-fixture.php' );
@@ -43,7 +43,7 @@ foreach ( ['supersedeUnclaimedGenerations', 'revokeUnclaimedGenerations', 'cance
 foreach ( ['recipient_snapshot', 'recipient_digest', 'generationForSecretForUpdate', 'anonymizeTerminalRecipientSnapshots', 'anonymizeInvitationRecipientDigest', 'hasNonterminalGeneration', 'secret_digest', 'idempotency_key', 'hasActiveTeacherAuthority', 'FOR UPDATE'] as $fragment ) if ( strpos( $repository, $fragment ) === false ) throw new RuntimeException( 'Missing repository integrity contract: ' . $fragment );
 if ( strpos( $service, 'prepareDelivery(int $generationId,string $recipient)' ) !== false ) throw new RuntimeException( 'Delivery preparation must not accept caller-supplied recipient authority' );
 if ( strpos( $service, 'beginExistingClaim(string $secret,string $recipient' ) !== false || strpos( $service, 'beginProvisioning(string $secret,string $recipient' ) !== false ) throw new RuntimeException( 'Claim flows must bind to the frozen generation recipient' );
-foreach ( ['check_admin_referer', 'dzn_manage_onboarding', 'never rendered, retained, logged, or placed in URLs'] as $fragment ) if ( strpos( $admin, $fragment ) === false ) throw new RuntimeException( 'Missing admin security contract: ' . $fragment );
+foreach ( ['check_admin_referer', 'dzn_manage_onboarding', 'never rendered, retained, logged, or placed in URLs', 'teacherInvitationPanel'] as $fragment ) if ( strpos( $admin, $fragment ) === false ) throw new RuntimeException( 'Missing consolidated admin security contract: ' . $fragment );
 if ( strpos( $admin, "['secret']" ) !== false ) throw new RuntimeException( 'Admin must not render invitation secrets' );
 $phase2a0Schema = substr( $migration, strpos( $migration, 'private static function install_principal_invitation_foundation' ), strpos( $migration, 'private static function install_teaching_eligibility_foundation' ) - strpos( $migration, 'private static function install_principal_invitation_foundation' ) );
 if ( strpos( $phase2a0Schema, 'booking_requests' ) !== false || strpos( $phase2a0Schema, 'availability_windows' ) !== false ) throw new RuntimeException( '2A.0 must not introduce booking/routing/availability tables' );

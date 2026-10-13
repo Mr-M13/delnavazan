@@ -4,7 +4,7 @@ $root = dirname( __DIR__ );
 $availability = (string) file_get_contents( $root . '/src/Core/Application/TeacherAvailabilityService.php' );
 $onboarding = (string) file_get_contents( $root . '/src/Core/Application/TeacherOnboardingService.php' );
 $invitations = (string) file_get_contents( $root . '/src/Core/Infrastructure/Repository/PrincipalInvitationRepository.php' );
-$admin = (string) file_get_contents( $root . '/src/Admin/Controller/OnboardingController.php' );
+$admin = (string) file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' );
 
 foreach ( array(
 	'(new TeacherOnboardingService())->refreshOwnProgress()',
@@ -28,6 +28,9 @@ foreach ( array(
 	if ( ! str_contains( $invitations, $needle ) ) throw new RuntimeException( 'Teacher portal readiness proof missing: ' . $needle );
 }
 foreach ( array( 'approve_teacher_onboarding', 'return_teacher_onboarding', 'reject_teacher_onboarding' ) as $legacyAction ) {
-	if ( str_contains( $admin, $legacyAction ) ) throw new RuntimeException( 'Retired admin review action unexpectedly reachable: ' . $legacyAction );
+    if ( str_contains( $admin, $legacyAction ) ) throw new RuntimeException( 'Retired admin review action unexpectedly reachable: ' . $legacyAction );
+}
+foreach ( array( 'teacherInvitationPanel', 'teacherReadinessPanel', "current_user_can('dzn_manage_onboarding')", 'Onboarding readiness' ) as $needle ) {
+	if ( ! str_contains( $admin, $needle ) ) throw new RuntimeException( 'Consolidated admin readiness UI is not reachable: ' . $needle );
 }
 echo "teacher-onboarding-readiness-gate-contract: pass\n";

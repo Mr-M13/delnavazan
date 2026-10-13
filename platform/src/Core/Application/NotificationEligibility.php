@@ -25,6 +25,8 @@ final class NotificationEligibility {
         $seen=array();
         $validated=array();
         foreach($rows as $row){
+            // Repository rule reads return stdClass rows; validate the same shape as authored arrays.
+            $row=(array)$row;
             $kind=(string)($row['rule_kind']??'');
             $code=(string)($row['rule_code']??'');
             if($kind!=='eligibility'||!isset(NotificationRule::ELIGIBILITY_RULES[$code]))throw new \InvalidArgumentException('eligibility_rule_set_incomplete');

@@ -9,7 +9,7 @@ $runner = (string) file_get_contents($root . '/runtime/bin/run-stripe-checkout-t
 $freshInstall = (string) file_get_contents($root . '/runtime/bin/run-fresh-install.sh');
 $schemaVerifier = (string) file_get_contents($root . '/runtime/bin/verify-current-schema.sh');
 
-if (strpos($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '39'") === false) {
+if (strpos($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '40'") === false) {
     throw new RuntimeException('Stripe vault width repair must publish Schema 39');
 }
 foreach (array(

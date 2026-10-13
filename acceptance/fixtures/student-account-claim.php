@@ -223,7 +223,7 @@ $requestResult = ( new BookingRequestSubmissionService() )->submitPublic( array(
 	'privacy_notice_accepted' => true, 'privacy_notice_version' => '2026-09-05',
 	'requested_times' => array( array(
 		'local_date' => gmdate( 'Y-m-d', strtotime( '+14 days' ) ),
-		'local_start_time' => '09:00', 'timezone' => 'Australia/Brisbane',
+		'local_start_time' => '18:00', 'timezone' => 'Australia/Brisbane',
 	) ),
 ), $commandKey( 'booking-request' ) );
 $requestId = (int) $wpdb->get_var( $wpdb->prepare(

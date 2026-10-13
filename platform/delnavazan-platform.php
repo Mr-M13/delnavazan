@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '39' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '40' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'academy-cashbook-v1-20261007.1' );
@@ -22,7 +22,9 @@ spl_autoload_register( static function ( $class ) {
 	$prefix = 'Delnavazan\\Platform\\';
 	if ( ! str_starts_with( $class, $prefix ) ) { return; }
 	$file = DZN_PLATFORM_DIR . 'src/' . str_replace( '\\', '/', substr( $class, strlen( $prefix ) ) ) . '.php';
-	if ( is_readable( $file ) ) { require $file; }
+	if ( is_readable( $file ) ) { require $file; return; }
+	// Portal read-model types share one historical source file.
+	if ( str_starts_with( $class, 'Delnavazan\\Platform\\Portals\\Portal' ) && is_readable( DZN_PLATFORM_DIR . 'src/Portals/PortalReadModels.php' ) ) { require_once DZN_PLATFORM_DIR . 'src/Portals/PortalReadModels.php'; }
 } );
 
 Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();

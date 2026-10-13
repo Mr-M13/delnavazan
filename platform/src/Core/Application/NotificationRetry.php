@@ -26,6 +26,7 @@ final class NotificationRetry {
         $values=array();
         $codes=array();
         foreach($rows as $row){
+            $row=(array)$row;
             $code=(string)($row['rule_code']??'');
             $codes[$code]=true;
             if($code!==NotificationRule::RETRY_CODE)throw new \InvalidArgumentException('retry_policy_invalid');

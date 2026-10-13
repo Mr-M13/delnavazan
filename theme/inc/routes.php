@@ -68,7 +68,6 @@ function dzn_theme_auth_status_message() {
 		$modifier = 'failed' === $status ? ' is-error' : ' is-success';
 		echo '<p class="dzn-route__notice' . esc_attr( $modifier ) . '" role="' . ( 'failed' === $status ? 'alert' : 'status' ) . '">' . esc_html( $messages[ $status ] ) . '</p>';
 	}
-	if ( isset($_GET['teacher_claim']) && sanitize_key(wp_unslash($_GET['teacher_claim'])) === 'password_email' ) echo '<p class="dzn-route__notice is-success" role="status">دعوت مدرس متصل شد. برای انتخاب رمز عبور، پیوند امن ارسال‌شده به ایمیل خود را باز کنید؛ سپس از همین صفحه وارد پرتال مدرس شوید.</p>';
 }
 
 function dzn_theme_render_frontend_login_form( $redirect_to ) {
@@ -260,19 +259,32 @@ function dzn_theme_dashboard_destination() {
 }
 
 function dzn_theme_render_teacher_invitation_route() {
+	$claim_state = isset( $_GET['claim_state'] ) ? sanitize_key( wp_unslash( $_GET['claim_state'] ) ) : '';
+	$claim_messages = array(
+		'password_short' => 'رمز عبور باید دست‌کم ۱۲ نویسه داشته باشد.',
+		'password_mismatch' => 'رمز عبور و تکرار آن یکسان نیستند.',
+		'existing_account' => 'برای این نشانی ایمیل از قبل حسابی وجود دارد. ابتدا با همان حساب وارد شوید، سپس به این صفحه برگردید و کد دعوت را دوباره وارد کنید. رمز حساب موجود تغییر نمی‌کند.',
+		'account_mismatch' => 'این دعوت با حسابی که اکنون وارد آن هستید مطابقت ندارد. از این حساب خارج شوید، با حساب مربوط به ایمیل دعوت وارد شوید و کد را دوباره ثبت کنید.',
+	);
+	$invitation_login = add_query_arg( 'redirect_to', home_url( '/teacher-invitation/' ), home_url( '/login/' ) );
 	?>
 	<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1">
 		<section class="dzn-route__state" aria-labelledby="dzn-route-title">
 			<p class="dzn-eyebrow">دعوت مدرس</p><h1 id="dzn-route-title">اتصال حساب مدرس</h1>
-			<p>کد یک‌بارمصرفی را که از دلنوازان دریافت کرده‌اید وارد کنید. کد در نشانی صفحه ذخیره نمی‌شود.</p>
+			<p>کد یک‌بارمصرفی را که از دلنوازان دریافت کرده‌اید وارد کنید. کد و رمز عبور در نشانی صفحه ذخیره نمی‌شوند.</p>
+			<?php if ( isset( $claim_messages[ $claim_state ] ) ) : ?><p role="alert"><?php echo esc_html( $claim_messages[ $claim_state ] ); ?></p><?php endif; ?>
 			<?php if ( isset( $_GET['dzn_notice'] ) ) : ?><p role="status"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ); ?></p><?php endif; ?>
+			<?php if ( 'existing_account' === $claim_state && ! is_user_logged_in() ) : ?><p><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( $invitation_login ); ?>">ورود با حساب موجود</a></p><?php endif; ?>
+			<?php if ( 'account_mismatch' === $claim_state && is_user_logged_in() ) : ?><p><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( wp_logout_url( $invitation_login ) ); ?>">خروج و ورود با حساب درست</a></p><?php endif; ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="dzn_teacher_invitation_claim"><?php wp_nonce_field( 'dzn_teacher_invitation_claim' ); ?>
 				<p><label>کد دعوت<br><input required autocomplete="one-time-code" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label></p>
 				<?php if ( ! is_user_logged_in() ) : ?>
-					<p>پس از اتصال دعوت، پیوند امن انتخاب رمز عبور به همین نشانی ایمیل می‌شود.</p>
-				<?php else : ?><p>این دعوت به حساب واردشدهٔ فعلی متصل می‌شود.</p><?php endif; ?>
-				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به حساب' : 'اتصال دعوت و ارسال پیوند رمز عبور'; ?></button></p>
+					<p><label>رمز عبور (حداقل ۱۲ نویسه)<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password"></label></p>
+					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password_confirmation"></label></p>
+					<p>اگر حسابی با ایمیل دعوت وجود نداشته باشد، همان ایمیل در صورت امکان نام کاربری شما می‌شود و مستقیماً به راه‌اندازی مدرس می‌روید.</p>
+				<?php else : $current_account = wp_get_current_user(); ?><p>این دعوت فقط در صورتی به حساب فعلی <strong><?php echo esc_html( (string) $current_account->user_email ); ?></strong> متصل می‌شود که ایمیل آن دقیقاً با ایمیل دعوت یکسان باشد.</p><?php endif; ?>
+				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به این حساب' : 'ساخت حساب و شروع راه‌اندازی'; ?></button></p>
 			</form>
 			<?php if ( ! is_user_logged_in() ) : ?><p><a href="<?php echo esc_url( home_url( '/login/' ) ); ?>">قبلاً حساب دارید؟ ابتدا وارد شوید</a></p><?php endif; ?>
 		</section>

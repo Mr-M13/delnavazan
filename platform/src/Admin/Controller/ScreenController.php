@@ -155,7 +155,8 @@ final class ScreenController {
             };
             NonceLifecycleDiagnostic::logStage('mutation_complete');
             $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','set_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule'];
-            self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : []);
+            $teacherLifecycleAction=in_array($action,['archive','restore'],true)&&sanitize_key($post['entity']??'')==='teacher';
+            self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : ($teacherLifecycleAction?['id'=>absint($post['id']??0)]:[]));
         } catch (\Throwable $e) {
             if ($action === 'issue_teacher_invitation_by_email' && $e->getMessage() !== 'invitation_dispatch_failed') {
                 $category = \Delnavazan\Platform\Core\Application\TeacherInvitationIssuanceFailure::category($e);
@@ -196,8 +197,8 @@ final class ScreenController {
         error_log('[Delnavazan Platform Phase 1F nonce] ' . wp_json_encode($diagnostic));
     }
 
-    private static function archive(array $post): int { (new ArchiveService())->archive(self::entityFromPost($post), absint($post['id'] ?? 0)); return 0; }
-    private static function restore(array $post): int { (new ArchiveService())->restore(self::entityFromPost($post), absint($post['id'] ?? 0)); return 0; }
+    private static function archive(array $post): int { $id=absint($post['id']??0);(new ArchiveService())->archive(self::entityFromPost($post),$id);return $id; }
+    private static function restore(array $post): int { $id=absint($post['id']??0);(new ArchiveService())->restore(self::entityFromPost($post),$id);return $id; }
     private static function schedule(array $post, bool $initial): int { $id = absint($post['lesson_id'] ?? 0); return $initial ? (new LessonScheduleService())->initial($id, $post) : (new LessonScheduleService())->reschedule($id, $post); }
     private static function transition(array $post, string $to): int { (new ExceptionService())->transition(absint($post['id'] ?? 0), $to, $post['resolution_note'] ?? null); return 0; }
     private static function retry(array $post): int { (new ExceptionService())->incrementRetry(absint($post['id'] ?? 0)); return 0; }
@@ -274,7 +275,7 @@ final class ScreenController {
         if($pages>1){$base=add_query_arg(array('page'=>'dzn-teachers-menu','teacher_search'=>$search,'teacher_status'=>$status,'teacher_sort'=>$sort,'teacher_order'=>$direction,'teacher_page'=>'%#%'),admin_url('admin.php'));echo '<nav class="tablenav"><div class="tablenav-pages">'.wp_kses_post(paginate_links(array('base'=>$base,'format'=>'','current'=>$page,'total'=>$pages,'type'=>'plain','prev_text'=>'‹ Previous','next_text'=>'Next ›'))).'</div></nav>';}
     }
 
-    private static function teacherStatus(string $status): string { return match($status){'active'=>'Active','pending'=>'Pending','inactive'=>'Inactive','archived'=>'Archived',default=>ucfirst(str_replace('_',' ',$status))}; }
+    private static function teacherStatus(string $status): string { return match($status){'active'=>'Active and ready','pending'=>'Pending','inactive'=>'Inactive','archived'=>'Archived','invitation_queued'=>'Invitation queued','invitation_available'=>'Invitation created; claim pending','onboarding_required'=>'Account linked; onboarding incomplete','access_revoked'=>'Teacher access revoked','not_invited'=>'Not invited',default=>ucfirst(str_replace('_',' ',$status))}; }
     private static function acceptingLabel(string $state): string { return match($state){'accepting'=>'Accepting students','limited'=>'Limited availability','paused'=>'Paused','not_set'=>'Not recorded',default=>ucfirst(str_replace('_',' ',$state))}; }
     private static function teacherOnboardingSummary(object $teacher): string {
         $principal = match ((string)($teacher->principal_status ?? '')) {
@@ -320,10 +321,10 @@ final class ScreenController {
             echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html(self::teacherIntegrationStatus((string)($record->google_calendar_state ?? ''))).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html(self::teacherOnboardingSummary($record)).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Weekly availability</th><td>'.esc_html((string)($record->availability_summary?:'No active weekly windows')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Current teaching</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
             self::teacherInlineControls($record); echo '<details><summary>Profile details and lifecycle actions</summary>';
             self::teacherMaintenanceForm( $record );
-            self::archiveActions($entity,$id,(string)$record->status);
+            self::teacherArchiveActions($record);
             echo '</details>';
         }
-        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) self::archiveActions($entity, $id, (string) $record->status);
+        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) { echo '<p class="notice notice-info">This Teacher is archived. Teaching and audit history is retained; invitations and Teacher access are revoked. Restore makes the profile eligible for a new invitation but does not restore access automatically.</p>'; self::teacherArchiveActions($record); }
         if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') && $entity !== 'teacher') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
@@ -368,9 +369,9 @@ final class ScreenController {
         echo '<h3>Recent invitations</h3><table class="widefat striped"><thead><tr><th>Teacher</th><th>Invitation</th><th>Delivery status</th><th>Safe actions</th></tr></thead><tbody>';
         if(!$rows)echo '<tr><td colspan="4">No invitations yet.</td></tr>';
         foreach($rows as $row){$delivery=(string)($row->delivery_status??'');$state=$delivery==='delivered'?'Accepted by WordPress mail transport; recipient delivery is not confirmed':($delivery==='failed'?'Failed: '.(string)($row->delivery_failure_reason?:'transport_failed'):($delivery==='pending'?'Queued for dispatch':($delivery==='prepared'?'Interrupted; resend creates a replacement':'No delivery recorded')));$teacherId=(int)$row->teacher_id;$teacherName=esc_html((string)$row->display_name);if(current_user_can('dzn_manage_teachers')){$profile=add_query_arg(['page'=>'dzn-teachers-menu','id'=>$teacherId],admin_url('admin.php'));$teacherName='<a href="'.esc_url($profile).'">'.$teacherName.'</a>';}
-            echo '<tr><td>'.$teacherName.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html((string)($row->invitation_status?:'none').' / '.(string)($row->generation_status?:'none')).'</td><td>'.esc_html($state).'</td><td>';
-            if(in_array((string)($row->generation_status??''),['queued_for_delivery','active'],true)&&current_user_can('dzn_revoke_teacher_invitations')){self::formStart('revoke_teacher_invitation');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacherId).'">';submit_button('Revoke','secondary','submit',false);echo '</form> ';}
-            if(in_array($delivery,['failed','prepared'],true)&&current_user_can('dzn_issue_teacher_invitations')){self::formStart('issue_teacher_invitation_by_email');echo '<input type="hidden" name="recipient" value="'.esc_attr((string)$row->email).'"><input type="hidden" name="command_key" value="'.esc_attr(wp_generate_uuid4()).'">';submit_button('Resend','secondary','submit',false);echo '</form>';}
+            echo '<tr><td>'.$teacherName.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html(self::teacherInvitationStatus((string)($row->lifecycle_status??'unavailable'))).'</td><td>'.esc_html($state).'</td><td>';
+            if(in_array((string)($row->lifecycle_status??''),['queued_for_delivery','claim_available'],true)&&current_user_can('dzn_revoke_teacher_invitations')){self::formStart('revoke_teacher_invitation');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacherId).'">';submit_button('Revoke','secondary','submit',false);echo '</form> ';}
+            if((in_array($delivery,['failed','prepared'],true)||in_array((string)($row->lifecycle_status??''),['expired','revoked'],true))&&current_user_can('dzn_issue_teacher_invitations')){self::formStart('issue_teacher_invitation_by_email');echo '<input type="hidden" name="recipient" value="'.esc_attr((string)$row->email).'"><input type="hidden" name="command_key" value="'.esc_attr(wp_generate_uuid4()).'">';submit_button('Resend as replacement','secondary','submit',false);echo '</form>';}
             echo '</td></tr>';
         }
         echo '</tbody></table>';$pages=(int)ceil($total/5);if($pages>1){$base=add_query_arg(['page'=>'dzn-teachers-menu','invitation_page'=>'%#%'],admin_url('admin.php'));echo '<p class="tablenav">'.wp_kses_post(paginate_links(['base'=>$base,'format'=>'','current'=>$page,'total'=>$pages])).'</p>';}
@@ -378,6 +379,8 @@ final class ScreenController {
         self::teacherPrincipalLinkPanel();
         echo '</section>';
     }
+
+    private static function teacherInvitationStatus(string $status):string{return match($status){'queued_for_delivery'=>'Queued for dispatch','claim_available'=>'Claim code created; account not yet linked','account_linked','claimed'=>'Claimed and account linked','expired'=>'Expired; issue a replacement if still needed','revoked'=>'Revoked','superseded'=>'Replaced by a newer invitation','teacher_archived'=>'Teacher archived; invitation revoked','unavailable'=>'No claimable invitation',default=>ucfirst(str_replace('_',' ',$status))};}
 
     private static function teacherReadinessPanel(): void {
         if (!current_user_can('dzn_manage_onboarding')) return;
@@ -423,6 +426,14 @@ final class ScreenController {
             self::formStart('set_availability_rule');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'"><input type="hidden" name="status" value="active"><input type="hidden" name="reason_code" value="teacher_admin"><label>Day <select name="weekday">';foreach(['1'=>'Mon','2'=>'Tue','3'=>'Wed','4'=>'Thu','5'=>'Fri','6'=>'Sat','7'=>'Sun'] as $d=>$label)echo '<option value="'.$d.'">'.$label.'</option>';echo '</select></label> <label>From <input required name="local_start_time" placeholder="09:00"></label> <label>To <input required name="local_end_time" placeholder="17:00"></label> <label>State <select name="state"><option value="requestable">Available on request</option><option value="preferred">Preferred</option><option value="blocked">Unavailable</option></select></label><input type="hidden" name="timezone" value="'.esc_attr((string)$teacher->timezone).'"> ';submit_button('Add weekly availability','secondary','submit',false);echo '</form>';
         }
         if(current_user_can('dzn_relink_teacher_principal')&&($teacher->wordpress_user_id??null)){self::formStart('offboard_teacher_principal');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'">';submit_button('Deactivate linked account','secondary','submit',false);echo '</form>';}
+    }
+
+    private static function teacherArchiveActions(object $teacher):void{
+        $archived=$teacher->archived_at!==null||$teacher->status==='archived';
+        self::formStart($archived?'restore':'archive');
+        echo '<input type="hidden" name="entity" value="teacher"><input type="hidden" name="id" value="'.esc_attr((string)$teacher->id).'">';
+        if(!$archived)echo '<p class="description">Archiving preserves history, revokes open invitations and Teacher-only access, and leaves other WordPress roles unchanged. Current teaching assignments must be ended first.</p>';
+        submit_button($archived?'Restore for safe re-invitation':'Archive and revoke Teacher access','secondary','submit',false);echo '</form> ';
     }
 
     private static function entityCreateForm(string $entity): void {

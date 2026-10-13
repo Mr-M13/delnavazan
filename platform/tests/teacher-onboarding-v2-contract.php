@@ -14,7 +14,7 @@ $files = array(
     'admin' => $read($root . '/src/Admin/Controller/ScreenController.php'),
 );
 $contracts = array(
-    'native password setup notification after claim' => str_contains($files['claim'], 'wp_new_user_notification') && str_contains($files['claim'], 'wp_generate_password') && !str_contains($files['claim'], "\$_POST['password']"),
+    'same-page password setup after claim' => str_contains($files['claim'], '$passwordLength < 12') && str_contains($files['claim'], 'wp_create_user( $login, $password, $recipient )') && str_contains($files['routes'], 'name="account_password"') && str_contains($files['routes'], 'minlength="12"') && !str_contains($files['claim'], 'wp_new_user_notification') && !str_contains($files['claim'], 'wp_generate_password'),
     'existing claim preserves authenticated account password' => str_contains($files['claim'], 'beginExistingClaim') && !str_contains($files['claim'], 'wp_set_password'),
     'automatic activation from complete readiness' => str_contains($files['onboarding'], "'state' => \$to, 'readiness_state' => \$progress['ready_for_activation'] ? 'ready' : 'not_ready'") && str_contains($files['onboarding'], "? 'active'"),
     'complete profile and availability activates without later review' => str_contains($files['onboarding'], "'state' => 'active', 'readiness_state' => 'ready'") && str_contains($files['onboarding'], 'reconcileLegacyReviewState') && !str_contains($files['onboarding'], 'function review('),

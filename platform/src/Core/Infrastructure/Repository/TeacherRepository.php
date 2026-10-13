@@ -49,17 +49,19 @@ final class TeacherRepository extends BaseRepository {
         $p = $wpdb->prefix . 'dzn_';
         $page = max(1, $page);
         $perPage = max(1, min(50, $perPage));
-        $sortColumns = array('name' => "COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name)", 'email' => 't.email', 'status' => 't.status', 'intake' => 'accepting_state', 'instruments' => 'instrument_names', 'availability' => 'availability_rule_count', 'classes' => 'current_class_count');
+        $sortColumns = array('name' => "COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name)", 'email' => 't.email', 'status' => 'directory_status', 'intake' => 'accepting_state', 'instruments' => 'instrument_names', 'availability' => 'availability_rule_count', 'classes' => 'current_class_count');
         if (!isset($sortColumns[$sort])) $sort = 'name';
         $sortDirection = strtolower($direction) === 'desc' ? 'DESC' : 'ASC';
         $where = array();
         $args = array();
-        if ($status === 'active' || $status === 'inactive') {
+        if ($status === 'active') {
+            $where[] = "t.status='active' AND t.archived_at IS NULL AND EXISTS(SELECT 1 FROM {$p}teacher_onboarding_states ao INNER JOIN {$p}teacher_principal_links al ON al.teacher_id=ao.teacher_id AND al.status='active' AND al.revoked_at IS NULL WHERE ao.teacher_id=t.id AND ao.state='active' AND ao.readiness_state='ready')";
+        } elseif ($status === 'inactive') {
             $where[] = 't.status = %s';
             $args[] = $status;
             $where[] = 't.archived_at IS NULL';
         } elseif ($status === 'pending') {
-            $where[] = "t.status='active' AND t.archived_at IS NULL AND (EXISTS(SELECT 1 FROM {$p}teacher_onboarding_states po WHERE po.teacher_id=t.id AND po.state<>'active') OR EXISTS(SELECT 1 FROM {$p}teacher_invitations pi INNER JOIN {$p}teacher_invitation_generations pg ON pg.invitation_id=pi.id AND pg.generation_number=pi.current_generation_number WHERE pi.teacher_id=t.id AND pg.status IN ('queued_for_delivery','active')))";
+            $where[] = "t.status='active' AND t.archived_at IS NULL AND NOT EXISTS(SELECT 1 FROM {$p}teacher_onboarding_states po INNER JOIN {$p}teacher_principal_links pl ON pl.teacher_id=po.teacher_id AND pl.status='active' AND pl.revoked_at IS NULL WHERE po.teacher_id=t.id AND po.state='active' AND po.readiness_state='ready')";
         } elseif ($status === 'archived') {
             $where[] = "(t.status = 'archived' OR t.archived_at IS NOT NULL)";
         } else {
@@ -76,7 +78,16 @@ final class TeacherRepository extends BaseRepository {
         $offset = ($page - 1) * $perPage;
         $sql = "SELECT t.id,t.reference_code,t.display_name,t.persian_name,t.english_name,t.email,t.status,t.timezone,t.archived_at,
             COALESCE(a.state,'not_set') accepting_state,
-            CASE WHEN t.archived_at IS NOT NULL OR t.status='archived' THEN 'archived' WHEN EXISTS(SELECT 1 FROM {$p}teacher_onboarding_states po WHERE po.teacher_id=t.id AND po.state<>'active') OR EXISTS(SELECT 1 FROM {$p}teacher_invitations pi INNER JOIN {$p}teacher_invitation_generations pg ON pg.invitation_id=pi.id AND pg.generation_number=pi.current_generation_number WHERE pi.teacher_id=t.id AND pg.status IN ('queued_for_delivery','active')) THEN 'pending' ELSE t.status END directory_status,
+            CASE
+                WHEN t.archived_at IS NOT NULL OR t.status='archived' THEN 'archived'
+                WHEN t.status='inactive' THEN 'inactive'
+                WHEN EXISTS(SELECT 1 FROM {$p}teacher_onboarding_states ao INNER JOIN {$p}teacher_principal_links al ON al.teacher_id=ao.teacher_id AND al.status='active' AND al.revoked_at IS NULL WHERE ao.teacher_id=t.id AND ao.state='active' AND ao.readiness_state='ready') THEN 'active'
+                WHEN EXISTS(SELECT 1 FROM {$p}teacher_invitations qi INNER JOIN {$p}teacher_invitation_generations qg ON qg.invitation_id=qi.id AND qg.generation_number=qi.current_generation_number WHERE qi.teacher_id=t.id AND qi.status='active' AND qg.status='queued_for_delivery') THEN 'invitation_queued'
+                WHEN EXISTS(SELECT 1 FROM {$p}teacher_invitations ii INNER JOIN {$p}teacher_invitation_generations ig ON ig.invitation_id=ii.id AND ig.generation_number=ii.current_generation_number WHERE ii.teacher_id=t.id AND ii.status='active' AND ig.status='active' AND ig.expires_at>UTC_TIMESTAMP()) THEN 'invitation_available'
+                WHEN EXISTS(SELECT 1 FROM {$p}teacher_principal_links ol WHERE ol.teacher_id=t.id AND ol.status='active' AND ol.revoked_at IS NULL) THEN 'onboarding_required'
+                WHEN EXISTS(SELECT 1 FROM {$p}teacher_onboarding_states oo WHERE oo.teacher_id=t.id AND oo.state='offboarded') THEN 'access_revoked'
+                ELSE 'not_invited'
+            END directory_status,
             COALESCE(ap.status,'not_set') availability_status, COALESCE(ar.rule_count,0) availability_rule_count,
             COALESCE(el.eligible_count,0) eligible_course_count, COALESCE(inst.instrument_names,'') instrument_names,
             COALESCE(av.availability_summary,'') availability_summary, COALESCE(ta.class_count,0) current_class_count

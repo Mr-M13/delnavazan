@@ -48,6 +48,14 @@ the initial Teacher Assignment. A `pre_wp_mail` guard proves that none of those
 paths reached external mail transport. The runner destroys the scoped runtime
 on exit, including after a failed assertion.
 
+`make teacher-onboarding` additionally exercises Teacher soft archive and
+restore: the invitation and Teacher principal are revoked, the Teacher-only
+WordPress role is removed while an unrelated role remains, lifecycle history is
+retained, restore does not silently restore access, and a replacement invitation
+can safely reactivate the same authenticated account without duplicating its
+principal link. The fixture prepares invitation secrets directly and records
+delivery as a local failure; it never invokes mail transport.
+
 ## CI and current gaps
 
 Run `make smoke` only on an isolated Docker-capable CI worker with the three

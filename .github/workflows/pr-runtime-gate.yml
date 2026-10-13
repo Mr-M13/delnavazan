@@ -64,6 +64,7 @@ jobs:
             platform/tests/phase-2a0-independent-review-contract.php
             platform/tests/teacher-admin-principal-link-contract.php
             platform/tests/teacher-admin-ux-contract.php
+            platform/tests/teacher-registration-lifecycle-overhaul-contract.php
             platform/tests/phase-2a1a-contract.php
             platform/tests/phase-2a1b-contract.php
             platform/tests/phase-2a1c-contract.php

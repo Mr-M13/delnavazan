@@ -3,6 +3,7 @@
 defined( 'ABSPATH' ) || exit( 1 );
 
 use Delnavazan\Platform\Core\Application\PrincipalInvitationService;
+use Delnavazan\Platform\Core\Application\ArchiveService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityService;
 use Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker;
 use Delnavazan\Platform\Core\Application\TeacherOnboardingService;
@@ -48,6 +49,7 @@ $userId = (int) $userId;
 $invitations->recordProvisioningResult( $claimCommand, $userId, true );
 $invitations->finalizeClaim( $claimCommand, $userId );
 $user = get_userdata( $userId );
+if ( $user ) $user->add_role( 'subscriber' );
 if ( $user && get_role( 'dzn_teacher' ) ) $user->add_role( 'dzn_teacher' );
 unset( $prepared['secret'] );
 
@@ -88,6 +90,39 @@ wp_set_current_user( 1 );
 $refuse( static fn() => $invitations->beginProvisioning( str_repeat( '0', 64 ), 'acceptance-invalid-claim' ), 'unknown invitation secret was accepted' );
 $refuse( fn() => $invitations->beginProvisioning( $claimedSecret, 'acceptance-replay-claim' ), 'claimed invitation was replayed' );
 unset( $claimedSecret );
+
+// Soft archive must revoke only Teacher authority, retain lifecycle history, and
+// make restoration explicitly require a replacement invitation.
+global $wpdb;
+$teacherId = (int) $issued['teacher_id'];
+$eventsBeforeArchive = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_onboarding_events WHERE teacher_id=%d", $teacherId ) );
+( new ArchiveService() )->archive( 'teacher', $teacherId );
+$archived = $wpdb->get_row( $wpdb->prepare( "SELECT status,archived_at FROM {$wpdb->prefix}dzn_teachers WHERE id=%d", $teacherId ) );
+$link = $wpdb->get_row( $wpdb->prepare( "SELECT status,wordpress_user_id FROM {$wpdb->prefix}dzn_teacher_principal_links WHERE teacher_id=%d", $teacherId ) );
+$invitationStatus = (string) $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}dzn_teacher_invitations WHERE teacher_id=%d", $teacherId ) );
+$archivedUser = get_userdata( $userId );
+$expect( $archived && $archived->status === 'archived' && $archived->archived_at !== null, 'Teacher was not soft archived' );
+$expect( $link && $link->status === 'revoked' && (int) $link->wordpress_user_id === $userId, 'Teacher principal history was not retained as revoked' );
+$expect( $invitationStatus === 'revoked', 'archive did not revoke the invitation aggregate' );
+$expect( $archivedUser && ! in_array( 'dzn_teacher', (array) $archivedUser->roles, true ) && in_array( 'subscriber', (array) $archivedUser->roles, true ), 'archive did not preserve non-Teacher WordPress roles' );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_onboarding_events WHERE teacher_id=%d", $teacherId ) ) > $eventsBeforeArchive, 'archive did not retain and append lifecycle history' );
+
+( new ArchiveService() )->restore( 'teacher', $teacherId );
+$restored = $wpdb->get_row( $wpdb->prepare( "SELECT status,archived_at FROM {$wpdb->prefix}dzn_teachers WHERE id=%d", $teacherId ) );
+$expect( $restored && $restored->status === 'active' && $restored->archived_at === null, 'Teacher was not restored for re-invitation' );
+$expect( (string) $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}dzn_teacher_principal_links WHERE teacher_id=%d", $teacherId ) ) === 'revoked', 'restore silently restored Teacher access' );
+$replacement = $invitations->issueForEmail( 'onboarding-created@example.invalid', 600, 'acceptance-restored-invitation' );
+$replacementPrepared = $invitations->prepareDelivery( (int) $replacement['generation_id'] );
+$repository->finishPreparedDelivery( (int) $replacement['generation_id'], 'failed', 'acceptance_local_no_send' );
+wp_set_current_user( $userId );
+$invitations->beginExistingClaim( (string) $replacementPrepared['secret'], $userId, 'acceptance-restored-claim' );
+$invitations->finalizeClaim( 'acceptance-restored-claim', $userId );
+$restoredUser = get_userdata( $userId ); if ( $restoredUser && get_role( 'dzn_teacher' ) ) $restoredUser->add_role( 'dzn_teacher' );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_principal_links WHERE teacher_id=%d", $teacherId ) ) === 1, 're-invitation duplicated principal history' );
+$expect( (string) $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}dzn_teacher_principal_links WHERE teacher_id=%d", $teacherId ) ) === 'active', 'matching revoked principal was not safely reactivated' );
+unset( $replacementPrepared['secret'] );
+
+wp_set_current_user( 1 );
 $targetId = wp_create_user( 'dzn-acceptance-onboarding-target', 'dzn-acceptance-local-only', 'onboarding-target@example.invalid' );
 $wrongId = wp_create_user( 'dzn-acceptance-onboarding-wrong', 'dzn-acceptance-local-only', 'onboarding-wrong@example.invalid' );
 $expect( ! is_wp_error( $targetId ) && ! is_wp_error( $wrongId ), 'synthetic existing accounts could not be created' );

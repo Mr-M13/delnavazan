@@ -8,6 +8,6 @@ foreach(array("'/admin/payment-execution/checkout-reconcile'",'RECONCILE_CAPABIL
     if(strpos($controller,$needle)===false)throw new RuntimeException('Operator reconciliation access boundary missing '.$needle);
 if(strpos($service,'StripeWebhookController')!==false||strpos($service,'checkout_state\'=>\'paid')!==false)
     throw new RuntimeException('Manual checkout reconciliation must not impersonate webhook verification or make browser state authoritative');
-foreach(array("'provider_object_reference' => $providerReference",'$this->vault->open') as $needle)
+foreach(array("'provider_object_reference' => \$providerReference",'$this->vault->open') as $needle)
     if(strpos($references,$needle)===false)throw new RuntimeException('Checkout reconciliation must use the existing encrypted provider-reference vault');
 echo "Stripe Checkout reconciliation source contract passed\n";

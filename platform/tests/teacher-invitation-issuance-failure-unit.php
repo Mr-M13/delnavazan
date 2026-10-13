@@ -7,6 +7,7 @@ use Delnavazan\Platform\Core\Application\TeacherInvitationIssuanceFailure;
 
 $cases = array(
     'Invalid email address' => 'invalid_recipient',
+    'Valid recipient email required' => 'invalid_recipient',
     'Multiple active teacher profiles match this email' => 'duplicate_active_teacher_profiles',
     'Teacher already has a linked account' => 'teacher_already_linked',
     'Teacher is not onboarding eligible' => 'teacher_not_onboarding_eligible',

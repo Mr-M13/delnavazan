@@ -151,7 +151,7 @@ if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
     || ! str_contains( $payment, 'Provider setup and readiness are under Settings.' ) ) {
     throw new RuntimeException( 'Stripe setup must live in Settings while payment operations stay in Finance' );
 }
-if ( ! str_contains( $menu, "['Teachers', 'dzn_manage_teachers', 'dzn-teachers-menu'" )
+if ( ! str_contains( $menu, "['Teachers', self::TEACHER_OPERATIONS_CAP, 'dzn-teachers-menu'" )
     || ! str_contains( $screen, 'teacherDirectory()' )
     || ! str_contains( $screen, 'teacherInvitationPanel()' )
     || ! str_contains( $catalogue, 'add_submenu_page(Menu::ROOT_SLUG' )

@@ -10,7 +10,7 @@ final class AdminShellController {
             ['Booking requests', 'dzn-booking-requests', 'dzn_view_booking_requests'],
             ['Request coordination', 'dzn-booking-request-coordination', 'dzn_manage_booking_request_coordination'],
         ]],
-        'teachers' => ['Teachers', [['Teacher directory', 'dzn-teachers-menu', 'dzn_manage_teachers']]],
+        'teachers' => ['Teachers', [['Teacher directory, onboarding & invitations', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]]],
         'students' => ['Students', [
             ['Student directory', 'dzn-student', 'dzn_manage_students'],
             ['Identity & authentication', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],

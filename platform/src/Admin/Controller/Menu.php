@@ -14,6 +14,8 @@ use Delnavazan\Platform\Core\Application\NotificationRule;
  */
 final class Menu {
     public const ROOT_SLUG = 'dzn-platform';
+    /** One consolidated Teachers route; individual controls still check their own authority. */
+    public const TEACHER_OPERATIONS_CAP = 'dzn_access_teacher_operations';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
@@ -25,10 +27,26 @@ final class Menu {
     }
 
     public static function mapMetaCap(array $caps, string $cap, int $userId, array $args): array {
+        if ($cap === self::TEACHER_OPERATIONS_CAP) return self::mappedTeacherOperationsCaps($userId);
         if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         if ($cap === self::INTEGRATION_SETTINGS_CAP) return self::mappedIntegrationCaps($userId, 'dzn_manage_provider_integrations');
         if ($cap === self::SYSTEM_HEALTH_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         return $caps;
+    }
+
+    private static function mappedTeacherOperationsCaps(int $userId): array {
+        $user = get_userdata($userId);
+        if (!$user) return ['do_not_allow'];
+        if ($user->has_cap('manage_options')) return ['manage_options'];
+        foreach ([
+            'dzn_manage_teachers',
+            'dzn_manage_onboarding',
+            'dzn_issue_teacher_invitations',
+            'dzn_revoke_teacher_invitations',
+        ] as $delegatedCap) {
+            if ($user->has_cap($delegatedCap)) return [$delegatedCap];
+        }
+        return ['do_not_allow'];
     }
 
     private static function mappedIntegrationCaps(int $userId, string $delegatedCap): array {
@@ -54,7 +72,7 @@ final class Menu {
 
             // Keep this mature URL stable: teacher list/profile links and their POST
             // handler are intentionally not moved as part of the shell work.
-            ['Teachers', 'dzn_manage_teachers', 'dzn-teachers-menu', static fn() => ScreenController::screen('teacher'), static fn() => ScreenController::handlePost('teacher')],
+            ['Teachers', self::TEACHER_OPERATIONS_CAP, 'dzn-teachers-menu', static fn() => ScreenController::screen('teacher'), static fn() => ScreenController::handlePost('teacher')],
             ['Courses', 'dzn_manage_courses', 'dzn-course', static fn() => ScreenController::screen('course'), static fn() => ScreenController::handlePost('course')],
             ['Terms', 'dzn_manage_terms', 'dzn-term', static fn() => ScreenController::screen('term'), static fn() => ScreenController::handlePost('term')],
             ['Instruments', 'dzn_manage_courses', 'dzn-instrument', static fn() => ScreenController::screen('instrument'), static fn() => ScreenController::handlePost('instrument')],

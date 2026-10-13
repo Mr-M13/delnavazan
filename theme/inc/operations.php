@@ -40,9 +40,8 @@ function dzn_theme_operations_groups() {
 			'label' => 'افراد',
 			'items' => array(
 				array( 'cap' => 'dzn_manage_students', 'slug' => 'dzn-student', 'title' => 'هنرجویان', 'description' => 'پرونده‌های هنرجو' ),
-				array( 'cap' => 'dzn_manage_teachers', 'slug' => 'dzn-teachers-menu', 'title' => 'مدرسان', 'description' => 'پرونده، دعوت، صلاحیت، زمان‌ها و پوشش تدریس' ),
+				array( 'cap' => 'dzn_access_teacher_operations', 'slug' => 'dzn-teachers-menu', 'title' => 'مدرسان', 'description' => 'پرونده، دعوت، آمادگی، صلاحیت، زمان‌ها و پوشش تدریس' ),
 				array( 'cap' => 'dzn_view_student_acceptance_eligibility', 'slug' => 'dzn-student-identity-authority', 'title' => 'هویت و اختیار هنرجو', 'description' => 'اتصال حساب و اختیار پذیرش' ),
-				array( 'cap' => 'dzn_manage_onboarding', 'slug' => 'dzn-onboarding', 'title' => 'شروع همکاری مدرس', 'description' => 'دعوت و بازبینی آمادگی مدرس' ),
 			),
 		),
 		'teaching' => array(

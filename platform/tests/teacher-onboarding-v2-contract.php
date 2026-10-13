@@ -11,7 +11,7 @@ $files = array(
     'shell' => $read(dirname($root) . '/theme/template-parts/teacher-portal/shell.php'),
     'routes' => $read(dirname($root) . '/theme/inc/routes.php'),
     'bridge' => $read(dirname($root) . '/theme/inc/platform-bridge.php'),
-    'admin' => $read($root . '/src/Admin/Controller/OnboardingController.php'),
+    'admin' => $read($root . '/src/Admin/Controller/ScreenController.php'),
 );
 $contracts = array(
     'native password setup notification after claim' => str_contains($files['claim'], 'wp_new_user_notification') && str_contains($files['claim'], 'wp_generate_password') && !str_contains($files['claim'], "\$_POST['password']"),
@@ -25,8 +25,8 @@ $contracts = array(
     'distinct four-step onboarding views' => str_contains($files['wizard'], '$current === 1') && str_contains($files['wizard'], '$current === 2') && str_contains($files['wizard'], '$current === 3') && str_contains($files['wizard'], '$current === 4'),
     'teacher menu logout and signed-out login path' => str_contains($files['shell'], 'wp_logout_url') && str_contains($files['routes'], 'redirect_to') && str_contains($files['routes'], "home_url( '/login/' )"),
     'teacher navigation has distinct route destinations' => str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'finance'") && str_contains($files['bridge'], "add_query_arg( 'teacher-view', 'settings'") && str_contains($files['routes'], "'finance', 'settings', 'onboarding'"),
-    'administrator diagnostics do not expose routine approval action' => str_contains($files['admin'], 'This table is diagnostic') && !str_contains($files['admin'], 'Approve and activate'),
-    'administrator can invite by email without selecting a Teacher ID' => str_contains($files['admin'], 'issue_teacher_invitation_by_email') && str_contains($files['admin'], 'issueForEmail') && str_contains($files['admin'], 'Teacher email <input required type="email" name="recipient"'),
+    'administrator diagnostics do not expose routine approval action' => str_contains($files['admin'], 'Readiness is diagnostic') && !str_contains($files['admin'], 'Approve and activate'),
+    'administrator can invite by email without selecting a Teacher ID' => str_contains($files['admin'], 'issue_teacher_invitation_by_email') && str_contains($files['admin'], 'issueForEmail') && str_contains($files['admin'], 'Email <input required type="email" name="recipient"'),
     'a teacher readiness refusal returns to setup rather than a generic portal error' => str_contains($files['bridge'], "'teacher_onboarding_required' === \$reason ? 'onboarding_required'") && str_contains($files['bridge'], "'not_linked','onboarding_required'"),
 );
 foreach ($contracts as $name => $passed) {

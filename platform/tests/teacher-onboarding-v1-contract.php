@@ -12,7 +12,7 @@ $files = array(
     'availability' => file_get_contents( $root . '/src/Core/Application/TeacherAvailabilityService.php' ),
     'controller' => file_get_contents( $root . '/src/Portals/TeacherOnboardingController.php' ),
     'claim_controller' => file_get_contents( $root . '/src/Portals/TeacherInvitationController.php' ),
-    'admin' => file_get_contents( $root . '/src/Admin/Controller/OnboardingController.php' ),
+    'admin' => file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' ),
     'portal' => file_get_contents( $root . '/src/Portals/PortalAuthenticatedReadService.php' ),
     'theme_bridge' => file_get_contents( dirname( $root ) . '/theme/inc/platform-bridge.php' ),
     'theme_route' => file_get_contents( dirname( $root ) . '/theme/inc/routes.php' ),
@@ -47,7 +47,7 @@ foreach ( array( 'admin_post_dzn_teacher_onboarding_profile', 'admin_post_dzn_te
 foreach ( array( 'admin_post_dzn_teacher_invitation_claim', 'admin_post_nopriv_dzn_teacher_invitation_claim', 'beginExistingClaim', 'beginProvisioning', 'recordProvisioningResult', 'finalizeClaim', 'check_admin_referer' ) as $fragment )
     if ( strpos( $files['claim_controller'], $fragment ) === false ) throw new RuntimeException( 'Invitation claim boundary missing: ' . $fragment );
 if ( strpos( $files['claim_controller'], "\$_GET['invitation_code']" ) !== false ) throw new RuntimeException( 'Invitation secret must not be accepted from a URL.' );
-foreach ( array( 'dzn_manage_onboarding', 'This table is diagnostic', 'does not gate readiness' ) as $fragment )
+foreach ( array( 'dzn_manage_onboarding', 'Readiness is diagnostic', 'teacherReadinessPanel' ) as $fragment )
     if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
 if ( strpos( $files['admin'], 'Approve and activate' ) !== false ) throw new RuntimeException( 'Routine approval action must not remain in onboarding diagnostics.' );
 

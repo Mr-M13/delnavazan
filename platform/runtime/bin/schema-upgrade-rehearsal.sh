@@ -47,5 +47,5 @@ CODE
 )"
 compare="${compare/EXPECTED_ARRAY/$expected}"
 dzn_php -r "$compare"
-"$(dirname "$BASH_SOURCE")/verify-schema33.sh"
+"$(dirname "$BASH_SOURCE")/verify-current-schema.sh"
 echo "Schema $base_schema ($base_ref) -> 33 rehearsal: PASS"

@@ -31,16 +31,16 @@ final class PrincipalInvitationService {
     }
 
     private function teacherForEmail(string $recipient):int{
-        global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=$wpdb->get_results($wpdb->prepare("SELECT id,status,archived_at FROM {$p}teachers WHERE email=%s AND archived_at IS NULL AND status<>'archived' ORDER BY id FOR UPDATE",$recipient));
+        global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=$wpdb->get_results($wpdb->prepare("SELECT id,status,archived_at FROM {$p}teachers WHERE email=%s AND archived_at IS NULL AND status<>'archived' ORDER BY id FOR UPDATE",$recipient));if($rows===null&&$wpdb->last_error!=='')throw new \RuntimeException('Persistence failed: active teacher lookup');
         if(count((array)$rows)>1)throw new \InvalidArgumentException('Multiple active teacher profiles match this email');
         if(!$rows)return 0;$teacher=$rows[0];if((string)$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');
-        $linked=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}teacher_principal_links WHERE teacher_id=%d AND status='active' LIMIT 1",(int)$teacher->id));if($linked)throw new \InvalidArgumentException('Teacher already has a linked account');
+        $linked=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}teacher_principal_links WHERE teacher_id=%d AND status='active' LIMIT 1",(int)$teacher->id));if($linked===null&&$wpdb->last_error!=='')throw new \RuntimeException('Persistence failed: teacher principal lookup');if($linked)throw new \InvalidArgumentException('Teacher already has a linked account');
         return(int)$teacher->id;
     }
 
     private function createInvitedTeacher(string $recipient,string $now):int{
         $teachers=new TeacherRepository();$data=array('uid'=>Identifier::uid(),'reference_code'=>null,'status'=>'active','persian_name'=>null,'english_name'=>null,'display_name'=>'مدرس جدید','email'=>$recipient,'phone'=>null,'whatsapp_phone'=>null,'country_code'=>null,'city'=>null,'timezone'=>null,'timezone_source'=>null,'locale'=>null,'calendar_preference'=>null,'wordpress_user_id'=>null);
-        $data=array_replace($data,$teachers->creationAuditValues($now,(int)get_current_user_id()?:null));$id=$teachers->insert($data);$teachers->assignReference($id,Identifier::reference('DZN-TCH-',$id));return$id;
+        $data=array_replace($data,$teachers->creationAuditValues($now,(int)get_current_user_id()?:null));$id=$teachers->insert($data);try{$teachers->assignReference($id,Identifier::reference('DZN-TCH-',$id));}catch(\Throwable $e){throw new \RuntimeException('Persistence failed: teacher reference assignment',0,$e);}return$id;
     }
 
     /**

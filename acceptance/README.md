@@ -30,6 +30,7 @@ policy, so a cache miss fails instead of fetching anything.
 cd acceptance
 make check-cache
 make smoke
+make student-account-claim
 make destroy CONFIRM=YES
 ```
 
@@ -37,6 +38,15 @@ make destroy CONFIRM=YES
 inspection. `bin/destroy.sh YES` refuses to remove an unexpected entry and
 removes only the known children of `acceptance/.state/`; it refuses symlinked
 state paths.
+
+`make student-account-claim` builds a fresh disposable runtime, registers a
+fixture-only notification template and workflow, and exercises claim issuance,
+idempotency, recipient binding, expiry, successful claim, and replay refusal.
+The positive path continues through a synthetic Teacher invitation and claim,
+onboarding readiness, booking acceptance, canonical Enrolment conversion, and
+the initial Teacher Assignment. A `pre_wp_mail` guard proves that none of those
+paths reached external mail transport. The runner destroys the scoped runtime
+on exit, including after a failed assertion.
 
 ## CI and current gaps
 
@@ -46,7 +56,7 @@ default GitHub source-contract workflow yet: that workflow currently does not
 provide Docker access or a preloaded-image guarantee, and silently changing its
 network/image policy would make the evidence non-reproducible.
 
-This first slice covers login routing only. It does not yet provide browser
-automation, seed courses/lessons/payments, exercise checkout/providers, or
-assert portal content beyond successful role-aware navigation. Those require
+The harness covers login routing plus the synthetic teacher and student claim
+fixtures named by their Make targets. It does not provide browser automation,
+exercise checkout/providers, or prove recipient delivery. Those require
 separate fixtures and acceptance decisions.

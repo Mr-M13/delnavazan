@@ -39,6 +39,11 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
     }
 }
 namespace Delnavazan\Platform\Integrations {
+    final class BookingGoogleCredentialRefresher {
+        public int $calls=0;
+        public function __construct(private ?\Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository $repository=null,public bool $succeeds=true) {}
+        public function refresh(int $connectionId,int $confirmationId,int $attempt): bool { $this->calls++;if($this->succeeds&&$this->repository)$this->repository->credentialRow->valid_until_utc=gmdate('Y-m-d H:i:s',time()+3600);return $this->succeeds; }
+    }
     final class GoogleCalendarProjectionTransport {
         public bool $conferenceReady=false;
         public int $dispatches=0;
@@ -65,5 +70,18 @@ namespace {
     $replay=$service->dispatch(70);
     $assert($replay['idempotent']===true&&count($repository->notifications)===1,'Confirmed projection replay must be side-effect free.');
     $assert($transport->dispatches===1&&$transport->inspections===1,'Conference recovery must inspect the deterministic event instead of posting another event.');
+
+    $refreshRepository=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $refreshRepository->credentialRow->valid_until_utc=gmdate('Y-m-d H:i:s',time()-60);
+    $refreshTransport=new \Delnavazan\Platform\Integrations\GoogleCalendarProjectionTransport();$refreshTransport->conferenceReady=true;
+    $refresher=new \Delnavazan\Platform\Integrations\BookingGoogleCredentialRefresher($refreshRepository);
+    $refreshed=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService($refreshRepository,null,null,$refreshTransport,$refresher))->dispatch(70);
+    $assert($refresher->calls===1&&$refreshed['state']==='confirmed','An expired access token must rotate through the stored refresh credential before projection.');
+
+    $failedRepository=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $failedRepository->credentialRow->valid_until_utc=gmdate('Y-m-d H:i:s',time()-60);$failedRepository->confirmationRow->attempt_count=5;
+    $failedRefresher=new \Delnavazan\Platform\Integrations\BookingGoogleCredentialRefresher($failedRepository,false);
+    $failed=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService($failedRepository,null,null,new \Delnavazan\Platform\Integrations\GoogleCalendarProjectionTransport(),$failedRefresher))->dispatch(70);
+    $assert($failed['state']==='failed'&&$failedRepository->deliveryRow->state==='pending_request','Exhausted projection attempts must terminate and reopen the Teacher request.');
     echo "Booking calendar projection unit passed\n";
 }

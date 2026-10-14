@@ -38,10 +38,10 @@ final class TeacherOnboardingRepository {
     }
     public function hasUsableGoogleConnection(int $teacherId): bool {
         global $wpdb;
-        $scopeCalendar='https://www.googleapis.com/auth/calendar.events';$scopeMeet='https://www.googleapis.com/auth/meetings.space.created';
+        $scopeCalendar='https://www.googleapis.com/auth/calendar.events';
         return (bool)$wpdb->get_var($wpdb->prepare(
-            "SELECT c.id FROM {$this->prefix}integration_connections c INNER JOIN {$this->prefix}integration_credentials k ON k.connection_id=c.id AND k.state='active' WHERE c.teacher_id=%d AND c.provider_code='google_calendar' AND c.connection_state='connected' AND c.active_slot=1 AND c.identity_state='verified' AND c.scope_snapshot LIKE %s AND c.scope_snapshot LIKE %s LIMIT 1",
-            $teacherId,'%'.$wpdb->esc_like($scopeCalendar).'%','%'.$wpdb->esc_like($scopeMeet).'%'
+            "SELECT c.id FROM {$this->prefix}integration_connections c INNER JOIN {$this->prefix}integration_credentials k ON k.connection_id=c.id AND k.state='active' WHERE c.teacher_id=%d AND c.provider_code='google_calendar' AND c.connection_state='connected' AND c.active_slot=1 AND c.identity_state='verified' AND c.scope_snapshot LIKE %s LIMIT 1",
+            $teacherId,'%'.$wpdb->esc_like($scopeCalendar).'%'
         ));
     }
 

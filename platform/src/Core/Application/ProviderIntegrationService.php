@@ -244,7 +244,11 @@ final class ProviderIntegrationService {
     /** Refresh one connected (or previously failed) connection's renewable credential. */
     public function refreshConnection(int $connectionId,array $input,string $key):array{
         $actor=$this->actor();
-        $this->requireCapability(self::MANAGE_CAPABILITY);
+        $authorizationConnection=$this->repository->connection($connectionId);
+        if(!$authorizationConnection)throw new \InvalidArgumentException('provider_connection_required');
+        $own=$this->resolvesOwnTeacher($actor,(int)$authorizationConnection->teacher_id);
+        if(!$own&&!current_user_can(self::DISPATCH_CAPABILITY))$this->requireCapability(self::MANAGE_CAPABILITY);
+        elseif($own&&!current_user_can(self::CONNECT_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $evidence=ProviderIntegrationRule::evidenceFacts($input);
         $digest=ProviderIntegrationIdempotency::key($key);
         $facts=array('domain'=>ProviderIntegrationRule::COMMAND_DOMAIN,'operation'=>'refresh_connection','connection_id'=>$connectionId);
@@ -259,8 +263,16 @@ final class ProviderIntegrationService {
             $credential=$this->repository->credential($connectionId,true);
             if(!$credential)throw new \InvalidArgumentException('provider_credential_required');
             $material=$this->secrets->open($connectionId,(string)$connection->provider_code,$credential);
-            try{
-                $refreshed=$this->oauth->refresh(array('credential_material'=>$material,'scope_snapshot'=>(string)$connection->scope_snapshot,'now_utc'=>$now));
+            try{$refreshed=$this->oauth->refresh(array('credential_material'=>$material,'scope_snapshot'=>(string)$connection->scope_snapshot,'now_utc'=>$now));}
+            catch(\Throwable$refreshFailure){
+                // A transient token endpoint failure must not destroy the only encrypted refresh
+                // token. The expired access token stays sealed and active solely so a later bounded
+                // refresh attempt can rotate it; refresh_failed removes the connection's active slot
+                // and prevents it from authorising new projections in the meantime.
+                $this->repository->updateConnection($connectionId,array('connection_state'=>'refresh_failed','active_slot'=>null,'connection_version'=>(int)$connection->connection_version+1,'failure_reason_code'=>'credential_refresh_failed','updated_at'=>$now,'updated_by'=>$actor),array());
+                $state='refresh_failed';
+            }
+            if(isset($refreshed)){
                 $replacement=$this->secrets->seal($connectionId,(string)$connection->provider_code,(string)$refreshed['credential_material']);
                 $this->repository->updateCredential((int)$credential->id,array('state'=>'quarantined','quarantined_at'=>$now,'quarantine_reason_code'=>'rotated'),array('state'=>'active'));
                 $this->repository->insertCredential(array_merge($replacement,array(
@@ -268,12 +280,8 @@ final class ProviderIntegrationService {
                     'valid_until_utc'=>$refreshed['access_valid_until_utc']??null,'quarantined_at'=>null,
                     'quarantine_reason_code'=>null,'revoked_at'=>null,'created_at'=>$now,'created_by'=>$actor,
                 )));
-                $this->repository->updateConnection($connectionId,array('connection_state'=>'connected','connection_version'=>(int)$connection->connection_version+1,'failure_reason_code'=>null,'updated_at'=>$now,'updated_by'=>$actor),array());
+                $this->repository->updateConnection($connectionId,array('connection_state'=>'connected','active_slot'=>1,'connection_version'=>(int)$connection->connection_version+1,'failure_reason_code'=>null,'updated_at'=>$now,'updated_by'=>$actor),array());
                 $state='connected';
-            }catch(\Throwable$refreshFailure){
-                $this->repository->updateCredential((int)$credential->id,array('state'=>'quarantined','quarantined_at'=>$now,'quarantine_reason_code'=>'refresh_failed'),array('state'=>'active'));
-                $this->repository->updateConnection($connectionId,array('connection_state'=>'refresh_failed','active_slot'=>null,'connection_version'=>(int)$connection->connection_version+1,'failure_reason_code'=>'credential_refresh_failed','updated_at'=>$now,'updated_by'=>$actor),array());
-                $state='refresh_failed';
             }
             $this->recordCommand($digest,$payload,'refresh_connection',(string)$connection->provider_code,(int)$connection->teacher_id,$connectionId,null,null,null,$state,$now,$actor);
             $this->repository->commit();

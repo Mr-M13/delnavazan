@@ -11,7 +11,7 @@ $attention = (string) file_get_contents(dirname($root) . '/theme/template-parts/
 $assert = static function (bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException($message);
 };
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '43'"), 'Booking response migration must retain the delivery schema and advance the platform schema.');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '44'"), 'Booking response recovery migration must retain the delivery schema and advance the platform schema.');
 foreach (array('booking_request_teacher_deliveries', 'UNIQUE KEY booking_request_id', 'KEY teacher_state') as $needle) {
     $assert(str_contains($migrator, $needle), 'Booking delivery migration contract missing: ' . $needle);
 }

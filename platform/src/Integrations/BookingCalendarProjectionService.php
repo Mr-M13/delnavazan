@@ -7,12 +7,14 @@ use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Idempotently creates the Calendar event/Meet link before an introductory booking may confirm. */
 final class BookingCalendarProjectionService {
+    private const MAX_ATTEMPTS=6;
     public function __construct(
         private ?BookingTeacherResponseRepository $repository=null,
         private ?IntegrationSecretService $credentials=null,
         private ?ProviderReferenceVault $references=null,
-        private ?GoogleCalendarProjectionTransport $transport=null
-    ){$this->repository??=new BookingTeacherResponseRepository();$this->credentials??=new IntegrationSecretService();$this->references??=new ProviderReferenceVault();$this->transport??=new GoogleCalendarProjectionTransport();}
+        private ?GoogleCalendarProjectionTransport $transport=null,
+        private ?BookingGoogleCredentialRefresher $refresher=null
+    ){$this->repository??=new BookingTeacherResponseRepository();$this->credentials??=new IntegrationSecretService();$this->references??=new ProviderReferenceVault();$this->transport??=new GoogleCalendarProjectionTransport();$this->refresher??=new BookingGoogleCredentialRefresher();}
 
     public function dispatch(int $confirmationId):array{
         $confirmation=$this->repository->confirmation($confirmationId);if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
@@ -20,7 +22,11 @@ final class BookingCalendarProjectionService {
         if(!in_array((string)$confirmation->state,array('pending_projection','awaiting_conference','retryable'),true))throw new \InvalidArgumentException('Booking confirmation is not projectable');
         try{
             $credential=$this->repository->credential((int)$confirmation->connection_id);if(!$credential)throw new \RuntimeException('provider_credential_required');
-            if($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60)throw new \RuntimeException('provider_credential_refresh_required');
+            if($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60){
+                if(!$this->refresher->refresh((int)$confirmation->connection_id,$confirmationId,(int)$confirmation->attempt_count))throw new \RuntimeException('provider_credential_refresh_required');
+                $credential=$this->repository->credential((int)$confirmation->connection_id);
+                if(!$credential||($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60))throw new \RuntimeException('provider_credential_refresh_required');
+            }
             $material=$this->credentials->open((int)$confirmation->connection_id,'google_calendar',$credential);
             if((string)$confirmation->state==='awaiting_conference'){
                 $secret=$this->repository->projectionSecret($confirmationId);if(!$secret)throw new \RuntimeException('provider_reference_required');
@@ -30,7 +36,7 @@ final class BookingCalendarProjectionService {
             return empty($provider['join_uri_reference'])?$this->awaitConference($confirmation,$provider):$this->confirm($confirmation,$provider);
         }catch(\Throwable $error){
             $code=in_array($error->getMessage(),array('provider_credential_required','provider_credential_refresh_required','provider_reference_required'),true)?$error->getMessage():'provider_projection_retryable';
-            $this->retry($confirmation,$code);return array('confirmation_id'=>$confirmationId,'state'=>'retryable','failure_reason_code'=>$code,'retryable'=>true);
+            $state=$this->retry($confirmation,$code);return array('confirmation_id'=>$confirmationId,'state'=>$state,'failure_reason_code'=>$code,'retryable'=>$state==='retryable');
         }
     }
 
@@ -51,7 +57,13 @@ final class BookingCalendarProjectionService {
         try{
             $row=$this->repository->confirmation((int)$observed->id,true);if(!$row||!in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true))throw new \RuntimeException('Booking confirmation changed concurrently');
             $secret=$this->repository->projectionSecret((int)$row->id);if(!$secret){$sealed=$this->references->seal('booking_calendar',(int)$row->id,array('provider_object_reference'=>$reference));$this->repository->insertSecret(array_merge(array('uid'=>Identifier::uid(),'mapping_kind'=>'booking_calendar','mapping_id'=>(int)$row->id,'state'=>'active','active_slot'=>1,'created_at'=>$now,'created_by'=>$actor,'retired_at'=>null,'retired_by'=>null),$sealed));}
-            $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'awaiting_conference','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>null,'attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+120),'updated_at'=>$now,'updated_by'=>$actor));
+            $attempt=(int)$row->attempt_count+1;
+            if($attempt>=self::MAX_ATTEMPTS){
+                $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>'provider_conference_unavailable','attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));
+                $this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);
+                $this->repository->commit();return array('confirmation_id'=>(int)$row->id,'state'=>'failed','failure_reason_code'=>'provider_conference_unavailable','retryable'=>false);
+            }
+            $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'awaiting_conference','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>null,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+120),'updated_at'=>$now,'updated_by'=>$actor));
             $this->repository->commit();return array('confirmation_id'=>(int)$row->id,'state'=>'awaiting_conference','retryable'=>true);
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
@@ -68,14 +80,14 @@ final class BookingCalendarProjectionService {
             $this->repository->insertSecret(array_merge(array('uid'=>Identifier::uid(),'mapping_kind'=>'booking_calendar','mapping_id'=>(int)$row->id,'state'=>'active','active_slot'=>1,'created_at'=>$now,'created_by'=>$actor,'retired_at'=>null,'retired_by'=>null),$sealed));
             $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'confirmed','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>null,'attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'confirmed_at'=>$now,'updated_at'=>$now,'updated_by'=>$actor));
             $this->repository->transitionDelivery((int)$delivery->id,'accepting','confirmed',$now);$this->repository->closeRequest((int)$delivery->booking_request_id,'teacher_confirmed',$now,$actor);
-            if(!$this->repository->notificationForDeliveryKind((int)$delivery->id,'confirmed'))$this->repository->insertNotification(array('uid'=>Identifier::uid(),'delivery_id'=>(int)$delivery->id,'confirmation_id'=>(int)$row->id,'notification_kind'=>'confirmed','state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'last_error_code'=>null,'accepted_at'=>null,'created_at'=>$now,'updated_at'=>$now));
+            if(!$this->repository->notificationForDeliveryKind((int)$delivery->id,'confirmed'))$this->repository->insertNotification(array('uid'=>Identifier::uid(),'delivery_id'=>(int)$delivery->id,'confirmation_id'=>(int)$row->id,'notification_kind'=>'confirmed','state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now));
             $this->repository->commit();return array('confirmation_id'=>(int)$row->id,'state'=>'confirmed','idempotent'=>false);
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
 
-    private function retry(object $observed,string $reason):void{
+    private function retry(object $observed,string $reason):string{
         $now=gmdate('Y-m-d H:i:s');$actor=(int)get_current_user_id();$this->repository->begin();
-        try{$row=$this->repository->confirmation((int)$observed->id,true);if($row&&in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true)){$attempt=(int)$row->attempt_count+1;$delay=min(3600,60*(2**min(5,$attempt)));$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'retryable','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+$delay),'updated_at'=>$now,'updated_by'=>$actor));}$this->repository->commit();}catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        try{$state='retryable';$row=$this->repository->confirmation((int)$observed->id,true);if($row&&in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true)){$attempt=(int)$row->attempt_count+1;if($attempt>=self::MAX_ATTEMPTS){$state='failed';$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));$this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);}else{$delay=min(3600,60*(2**min(5,$attempt)));$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'retryable','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+$delay),'updated_at'=>$now,'updated_by'=>$actor));}}$this->repository->commit();return $state;}catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
     private function rfc3339(string $utc):string{return str_replace(' ','T',substr($utc,0,19)).'Z';}
 }

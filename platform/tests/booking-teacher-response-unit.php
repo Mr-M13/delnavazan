@@ -26,6 +26,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function insertConfirmation(array $data): int { $id=$this->nextConfirmation++;$this->confirmations[$id]=(object)($data+array('id'=>$id));return $id; }
         public function insertCommand(array $data): int { $this->commands[$data['command_key_digest']] = (object) $data; return count($this->commands); }
         public function confirmation(int $id,bool $lock=false): ?object { return $this->confirmations[$id] ?? null; }
+        public function confirmationForDelivery(int $deliveryId,bool $lock=false): ?object { foreach($this->confirmations as $row)if((int)$row->delivery_id===$deliveryId)return $row;return null; }
+        public function updateConfirmation(int $id,int $version,array $data): void { $row=$this->confirmations[$id]??null;if(!$row||(int)$row->version!==$version)throw new \RuntimeException('confirmation version mismatch');foreach($data as $key=>$value)$row->{$key}=$value;$row->version=$version+1; }
         public function notificationForDeliveryKind(int $deliveryId,string $kind): ?object { return $this->notifications[$deliveryId.'|'.$kind] ?? null; }
         public function insertNotification(array $data): int { $this->notifications[$data['delivery_id'].'|'.$data['notification_kind']] = (object) $data; return count($this->notifications); }
     }
@@ -57,5 +59,11 @@ namespace {
     $declined=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($declineRepository))->respond($declineRepository->delivery->uid,'decline','decline-once');
     $assert($declined['state']==='declined' && $declineRepository->delivery->resolution_state==='teacher_declined','A linked active Teacher must be able to decline without provider readiness.');
     $assert(isset($declineRepository->notifications['41|declined']),'Decline must queue the student update atomically.');
+
+    $restartRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $first=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository))->respond($restartRepository->delivery->uid,'accept','restart-first');
+    $restartRepository->confirmations[$first['confirmation_id']]->state='failed';$restartRepository->delivery->state='pending_request';
+    $second=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository))->respond($restartRepository->delivery->uid,'accept','restart-second');
+    $assert($second['confirmation_id']===$first['confirmation_id']&&count($restartRepository->confirmations)===1&&$restartRepository->delivery->state==='accepting','A terminal projection failure must reuse and restart its confirmation without violating delivery uniqueness.');
     echo "Booking teacher response unit passed\n";
 }

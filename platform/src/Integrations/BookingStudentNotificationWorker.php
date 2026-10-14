@@ -4,9 +4,11 @@ namespace Delnavazan\Platform\Integrations;
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
 
-/** Durable, no-duplicate-retry mail hand-off for confirmed or declined introductory requests. */
+/** Durable, leased, at-least-once mail hand-off for confirmed or declined introductory requests. */
 final class BookingStudentNotificationWorker {
     public const HOOK='dzn_booking_student_notification_dispatch';
+    private const MAX_ATTEMPTS=3;
+    private const LEASE_SECONDS=600;
     public static function register():void{add_action(self::HOOK,array(__CLASS__,'run'));add_action('init',array(__CLASS__,'ensureScheduled'));}
     public static function ensureScheduled():void{if(!wp_next_scheduled(self::HOOK))wp_schedule_event(time()+90,'dzn_two_minutes',self::HOOK);}
     public static function run():void{$repository=new BookingTeacherResponseRepository();foreach($repository->queuedNotifications(10)as $row){try{self::dispatch((int)$row->id,$repository);}catch(\Throwable $error){do_action('dzn_booking_student_notification_failed',(int)$row->id,get_class($error));}}}
@@ -14,19 +16,32 @@ final class BookingStudentNotificationWorker {
     public static function dispatch(int $notificationId,?BookingTeacherResponseRepository $repository=null):array{
         $repository??=new BookingTeacherResponseRepository();$repository->begin();
         try{
-            $row=$repository->notificationPayload($notificationId,true);if(!$row||!in_array((string)$row->state,array('queued','retryable'),true))throw new \InvalidArgumentException('Booking notification is not dispatchable');
-            if(!is_email((string)$row->email)){$repository->updateNotification($notificationId,(string)$row->state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>gmdate('Y-m-d H:i:s')));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed');}
-            $from=(string)$row->state;$attempt=(int)$row->attempt_count+1;$repository->updateNotification($notificationId,$from,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'last_error_code'=>null,'updated_at'=>gmdate('Y-m-d H:i:s')));$repository->commit();
+            $row=$repository->notificationPayload($notificationId,true);if(!$row)throw new \InvalidArgumentException('Booking notification is not dispatchable');$now=gmdate('Y-m-d H:i:s');$state=(string)$row->state;
+            $stale=$state==='sending'&&$row->lease_expires_at!==null&&strtotime((string)$row->lease_expires_at.' UTC')<=time();
+            $due=in_array($state,array('queued','retryable'),true)&&($row->next_attempt_at===null||strtotime((string)$row->next_attempt_at.' UTC')<=time());
+            if(!$due&&!$stale)throw new \InvalidArgumentException('Booking notification is not dispatchable');
+            if(!is_email((string)$row->email)){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
+            if($stale&&(int)$row->attempt_count>=self::MAX_ATTEMPTS){$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'handoff_outcome_unknown','updated_at'=>$now),(string)$row->lease_token_digest);$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
+            $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
+            $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
         }catch(\Throwable $error){$repository->rollback();throw $error;}
-        try{[$subject,$body]=self::message($row,$repository);$accepted=wp_mail((string)$row->email,$subject,$body,array('Content-Type: text/plain; charset=UTF-8'));}catch(\Throwable){$accepted=false;}
+        try{[$subject,$body]=self::message($row,$repository);$accepted=wp_mail((string)$row->email,$subject,$body,self::headers($row));}catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{
-            $locked=$repository->notificationPayload($notificationId,true);if(!$locked||(string)$locked->state!=='sending')throw new \RuntimeException('Booking notification changed concurrently');$now=gmdate('Y-m-d H:i:s');
-            if($accepted)$repository->updateNotification($notificationId,'sending',array('state'=>'accepted','accepted_at'=>$now,'last_error_code'=>null,'updated_at'=>$now));
-            elseif((int)$locked->attempt_count>=3)$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'last_error_code'=>'send_refused','updated_at'=>$now));
-            else$repository->updateNotification($notificationId,'sending',array('state'=>'retryable','next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused','updated_at'=>$now));
-            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$accepted?'accepted':((int)$locked->attempt_count>=3?'failed':'retryable'),'mailer_accepted'=>$accepted);
+            $locked=$repository->notificationPayload($notificationId,true);if(!$locked||(string)$locked->state!=='sending'||!hash_equals($leaseDigest,(string)$locked->lease_token_digest))throw new \RuntimeException('Booking notification lease changed concurrently');$now=gmdate('Y-m-d H:i:s');
+            $clear=array('lease_token_digest'=>null,'lease_expires_at'=>null,'updated_at'=>$now);
+            if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>null),$leaseDigest);}
+            elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
+            else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
+            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false);
         }catch(\Throwable $error){$repository->rollback();throw $error;}
+    }
+
+    private static function headers(object $row):array{
+        $host=strtolower((string)wp_parse_url(home_url('/'),PHP_URL_HOST));
+        if(!preg_match('/^[a-z0-9.-]+$/D',$host))$host='delnavazan.invalid';
+        $identity='booking-'.strtolower((string)$row->uid).'@'.$host;
+        return array('Content-Type: text/plain; charset=UTF-8','Message-ID: <'.$identity.'>','X-Delnavazan-Notification-ID: '.(string)$row->uid);
     }
 
     private static function message(object $row,BookingTeacherResponseRepository $repository):array{

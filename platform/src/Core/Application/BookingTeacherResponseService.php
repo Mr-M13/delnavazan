@@ -35,14 +35,27 @@ final class BookingTeacherResponseService {
             if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
             $connection=$this->repository->activeConnection((int)$teacher->id,true);if(!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
             $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));
-            $confirmationId=$this->repository->insertConfirmation(array(
-                'uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'booking_request_id'=>(int)$delivery->booking_request_id,'requested_time_id'=>(int)$delivery->requested_time_id,
-                'teacher_id'=>(int)$teacher->id,'connection_id'=>(int)$connection->id,'state'=>'pending_projection','version'=>1,
-                'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
-                'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
-                'provider_code'=>'google_calendar','provider_event_digest'=>null,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,'confirmed_at'=>null,
-                'created_at'=>$now,'created_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor,
-            ));
+            $prior=$this->repository->confirmationForDelivery($deliveryId,true);
+            if($prior){
+                if((string)$prior->state!=='failed')throw new \InvalidArgumentException('Booking confirmation is not restartable');
+                $confirmationId=(int)$prior->id;
+                $resume=$prior->provider_event_digest===null?'pending_projection':'awaiting_conference';
+                $this->repository->updateConfirmation($confirmationId,(int)$prior->version,array(
+                    'connection_id'=>(int)$connection->id,'state'=>$resume,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,
+                    'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
+                    'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
+                    'updated_at'=>$now,'updated_by'=>$actor,
+                ));
+            }else{
+                $confirmationId=$this->repository->insertConfirmation(array(
+                    'uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'booking_request_id'=>(int)$delivery->booking_request_id,'requested_time_id'=>(int)$delivery->requested_time_id,
+                    'teacher_id'=>(int)$teacher->id,'connection_id'=>(int)$connection->id,'state'=>'pending_projection','version'=>1,
+                    'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
+                    'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
+                    'provider_code'=>'google_calendar','provider_event_digest'=>null,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,'confirmed_at'=>null,
+                    'created_at'=>$now,'created_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor,
+                ));
+            }
             $this->repository->transitionDelivery($deliveryId,'pending_request','accepting',$now);
             $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'accept','result_state'=>'accepting','result_confirmation_id'=>$confirmationId,'created_at'=>$now,'created_by'=>$actor));
             $this->repository->commit();
@@ -53,7 +66,7 @@ final class BookingTeacherResponseService {
 
     private function queueNotification(int $deliveryId,?int $confirmationId,string $kind,string $now):void{
         if($this->repository->notificationForDeliveryKind($deliveryId,$kind))return;
-        $this->repository->insertNotification(array('uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'notification_kind'=>$kind,'state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'last_error_code'=>null,'accepted_at'=>null,'created_at'=>$now,'updated_at'=>$now));
+        $this->repository->insertNotification(array('uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'notification_kind'=>$kind,'state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now));
     }
 
     private function replay(object $command,string $payloadDigest):array{

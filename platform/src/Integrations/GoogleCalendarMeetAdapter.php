@@ -22,7 +22,6 @@ final class GoogleCalendarMeetAdapter implements ProviderCalendarPort,ProviderMe
     public const EVIDENCE_PROVIDER_CODE='google_meet';
     /** Minimum Calendar scope set this seam is defined against; the approved set is deployment configuration. */
     public const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
-    public const MEET_SCOPE='https://www.googleapis.com/auth/meetings.space.created';
 
     /**
      * The exact authorization request shape for one consent attempt.

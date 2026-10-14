@@ -95,6 +95,8 @@ jobs:
           php platform/tests/phase-opreadiness-core-operator-entrypoint-contract.php
           php platform/tests/phase-opreadiness-core-operator-entrypoint-unit.php
           php platform/tests/booking-student-journey-contract.php
+          php platform/tests/booking-teacher-delivery-contract.php
+          php platform/tests/booking-teacher-delivery-unit.php
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-action-link-policy-contract.php

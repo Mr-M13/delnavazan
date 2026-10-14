@@ -17,6 +17,7 @@ final class AcademyOperationsController {
         $page=isset($_GET['paged'])&&is_scalar($_GET['paged'])?max(1,absint($_GET['paged'])):1;
         $result=(new AcademyJourneyReadService())->search($query,$stage,$page);$rows=$result['rows'];
         echo '<div class="wrap"><h1>Academy</h1><p>Today’s work is collected here. Review the next action for each learner journey, then open the existing operational screen to complete it. The authorised path is booking → coordination and reviewed identity → accepted Service Arrangement → Enrolment → Teacher Assignment → Term and Lessons.</p>';
+        self::pendingActions();
         echo '<form method="get"><input type="hidden" name="page" value="dzn-academy-dashboard"><label>Search name, email, booking reference, instrument or course <input type="search" name="q" value="'.esc_attr($query).'"></label> <label>Needs action <select name="stage"><option value="needs_action"'.selected($stage,'needs_action',false).'>Action queue</option><option value="">All records</option>';
         foreach(array('needs_coordination'=>'Coordination','needs_identity'=>'Student identity review','needs_acceptance'=>'Acceptance','needs_enrolment'=>'Enrolment conversion','needs_assignment'=>'Teacher assignment','complete'=>'Assignment complete')as$value=>$label)echo '<option value="'.esc_attr($value).'"'.selected($stage,$value,false).'>'.esc_html($label).'</option>';
         echo '</select></label> <button class="button">Search</button></form><p><strong>'.(int)$result['total'].'</strong> matching learner journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
@@ -31,6 +32,22 @@ final class AcademyOperationsController {
             echo '<td>'.esc_html($journey).'</td><td>'.self::attention($r).'<br>'.self::next($r).'</td></tr>';}
         if($result['pages']>1){echo '</tbody></table><nav class="tablenav"><div class="tablenav-pages">';for($n=1;$n<=$result['pages'];$n++){if(abs($n-$page)>2&&$n!==1&&$n!==$result['pages'])continue;$url=add_query_arg(array('page'=>'dzn-academy-dashboard','q'=>$query,'stage'=>$stage,'paged'=>$n),admin_url('admin.php'));echo '<a class="button'.($n===$page?' button-primary':'').'" href="'.esc_url($url).'">'.(int)$n.'</a> ';}echo '</div></nav>';}else echo '</tbody></table>';
         echo '</div>';
+    }
+    /** Prominent queues are individually capability-gated; this page never broadens authority. */
+    private static function pendingActions():void{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';$items=[];
+        if(current_user_can('dzn_manage_onboarding')){
+            $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
+            $items[]=['Teacher onboarding submissions',$count,'dzn-teachers-menu','Review and decide'];
+        }
+        if(current_user_can('dzn_manage_booking_request_coordination')){
+            $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
+            $items[]=['Teacher booking requests pending response',$count,'dzn-booking-requests','Review request delivery'];
+        }
+        if(!$items)return;
+        echo '<section class="notice notice-warning dzn-academy-pending-actions"><h2>Pending actions</h2><ul>';
+        foreach($items as[$label,$count,$page,$action])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(admin_url('admin.php?page='.$page)).'">'.esc_html($action).'</a></li>';
+        echo '</ul></section>';
     }
     private static function journeyDetail(object $r):void{
         echo '<section class="notice notice-info"><h2>Journey detail: '.esc_html((string)$r->request_ref).'</h2><p>'.esc_html((string)($r->student_name?:$r->contact_name?:'Identity unresolved')).($r->contact_email?' · '.esc_html((string)$r->contact_email):'').' · '.esc_html((string)($r->instrument_fa?:$r->instrument_en?:'Instrument unavailable')).($r->course_fa||$r->course_en?' · '.esc_html((string)($r->course_fa?:$r->course_en)):'').'</p><ol>';

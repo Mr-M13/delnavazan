@@ -54,7 +54,7 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 		&& in_array( $onboarding['state'] ?? null, array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'offboarded' ), true )
 		&& in_array( $onboarding['readiness_state'] ?? null, array( 'not_ready', 'ready' ), true )
 		&& is_bool( $onboarding['can_edit'] ?? null ) && is_bool( $onboarding['can_submit'] ?? null )
-		&& ! array_filter( array( 'profile', 'availability_profile', 'availability_rule', 'instruments' ), static fn( $key ) => ! dzn_theme_teacher_portal_text( $actions[ $key ] ?? null ) );
+		&& ! array_filter( array( 'profile', 'availability_profile', 'availability_rule', 'instruments', 'submit' ), static fn( $key ) => ! dzn_theme_teacher_portal_text( $actions[ $key ] ?? null ) );
 }
 function dzn_theme_teacher_portal_text( $value ) { return is_string( $value ) && '' !== trim( $value ); }
 function dzn_theme_teacher_portal_teacher_valid( $teacher ) {

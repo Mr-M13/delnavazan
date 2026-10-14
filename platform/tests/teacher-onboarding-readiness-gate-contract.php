@@ -13,7 +13,7 @@ foreach ( array(
 ) as $needle ) {
 	if ( ! str_contains( $availability, $needle ) ) throw new RuntimeException( 'Teacher availability readiness refresh missing: ' . $needle );
 }
-if ( ! str_contains( $onboarding, "'returned','rejected','active'") || ! str_contains( $onboarding, "? 'in_progress' : \$from" ) ) {
+if ( ! str_contains( $onboarding, "array('linked_pending','returned','active')") || ! str_contains( $onboarding, "? 'in_progress' : \$from" ) ) {
 	throw new RuntimeException( 'A no-longer-ready active teacher must return to onboarding.' );
 }
 foreach ( array(
@@ -27,9 +27,8 @@ foreach ( array(
 ) as $needle ) {
 	if ( ! str_contains( $invitations, $needle ) ) throw new RuntimeException( 'Teacher portal readiness proof missing: ' . $needle );
 }
-foreach ( array( 'approve_teacher_onboarding', 'return_teacher_onboarding', 'reject_teacher_onboarding' ) as $legacyAction ) {
-    if ( str_contains( $admin, $legacyAction ) ) throw new RuntimeException( 'Retired admin review action unexpectedly reachable: ' . $legacyAction );
-}
+foreach ( array( 'approve_teacher_onboarding', 'return_teacher_onboarding', 'reject_teacher_onboarding', 'reviewTeacherOnboarding' ) as $reviewAction )
+    if ( ! str_contains( $admin, $reviewAction ) ) throw new RuntimeException( 'Admin review action is not reachable: ' . $reviewAction );
 foreach ( array( 'teacherInvitationPanel', 'teacherReadinessPanel', "current_user_can('dzn_manage_onboarding')", 'Onboarding readiness' ) as $needle ) {
 	if ( ! str_contains( $admin, $needle ) ) throw new RuntimeException( 'Consolidated admin readiness UI is not reachable: ' . $needle );
 }

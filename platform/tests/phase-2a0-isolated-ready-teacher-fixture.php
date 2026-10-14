@@ -53,12 +53,16 @@ function dzn_phase_2a0_create_ready_teacher_fixture(): array {
         $availability->setOwnProfile( array( 'timezone' => 'Asia/Tehran' ) );
         $availability->setOwnRecurringRule( array( 'weekday' => 6, 'local_start_time' => '10:00:00', 'local_end_time' => '11:00:00', 'state' => 'requestable', 'timezone' => 'Asia/Tehran' ) );
         $onboarding->refreshOwnProgress();
-        // Onboarding v2 activates automatically once profile and availability are
-        // complete. Calling the legacy submitOwn transition after activation is invalid.
+        $onboarding->submitOwn();
         $current = $onboarding->currentForUser( $user );
-        if ( ( $current['state'] ?? null ) !== 'active' || ( $current['readiness_state'] ?? null ) !== 'ready' ) {
-            throw new RuntimeException( 'Ready-teacher fixture did not reach automatic activation.' );
+        if ( ( $current['state'] ?? null ) !== 'pending_review' || ( $current['readiness_state'] ?? null ) !== 'not_ready' ) {
+            throw new RuntimeException( 'Ready-teacher fixture did not reach review.' );
         }
+        wp_set_current_user( $admin );
+        $onboarding->review( $teacher, 'approve' );
+        wp_set_current_user( $user );
+        $current = $onboarding->currentForUser( $user );
+        if ( ( $current['state'] ?? null ) !== 'active' || ( $current['readiness_state'] ?? null ) !== 'ready' ) throw new RuntimeException( 'Ready-teacher fixture did not reach approval.' );
         if ( ! ( new PrincipalInvitationRepository() )->hasActiveTeacherAuthority( $user, $teacher ) ) throw new RuntimeException( 'Ready-teacher fixture failed.' );
         unset( $payload, $secret, $recipient );
         wp_set_current_user( $admin );

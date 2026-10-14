@@ -278,7 +278,7 @@ function dzn_theme_render_teacher_invitation_route() {
 			<?php if ( 'account_mismatch' === $claim_state && is_user_logged_in() ) : ?><p><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( wp_logout_url( $invitation_login ) ); ?>">خروج و ورود با حساب درست</a></p><?php endif; ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="dzn_teacher_invitation_claim"><?php wp_nonce_field( 'dzn_teacher_invitation_claim' ); ?>
-				<p><label>کد دعوت<br><input required autocomplete="one-time-code" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label></p>
+					<p><label>کد دعوت<br><input class="dzn-invitation-code" required dir="ltr" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label><small>کد ۶۴ نویسه‌ای را بدون فاصله در این کادر بچسبانید.</small></p>
 				<?php if ( ! is_user_logged_in() ) : ?>
 					<p><label>رمز عبور (حداقل ۱۲ نویسه)<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password"></label></p>
 					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password_confirmation"></label></p>

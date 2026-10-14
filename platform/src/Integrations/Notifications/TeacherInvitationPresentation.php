@@ -5,7 +5,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
 final class TeacherInvitationPresentation {
     public const OPTION = 'dzn_teacher_invitation_presentation_v1';
     public const SUBJECT = 'دعوت به پنل مدرس دلنوازان';
-    public const BODY = "سلام،\n\nبرای ساخت یا اتصال حساب مدرس دلنوازان، صفحه امن دعوت را باز کنید:\n{{claim_url}}\n\nکد یک‌بارمصرف دعوت: {{invitation_code}}\n\nاین کد را با دیگران به اشتراک نگذارید. اگر این پیام را انتظار نداشتید، آن را نادیده بگیرید.\n\nبا احترام،\nگروه دلنوازان";
+    public const BODY = "سلام،\n\nبرای شروع همکاری در پنل مدرس دلنوازان، کد یک‌بارمصرف زیر را کامل کپی کنید:\n\n{{invitation_code}}\n\nسپس صفحهٔ امن دعوت را باز کنید و کد را در کادر «کد دعوت» بچسبانید:\n{{claim_url}}\n\nاین کد فقط یک‌بار قابل استفاده است، تا ۷ روز اعتبار دارد و نباید با دیگران به اشتراک گذاشته شود. اگر منتظر این دعوت نبودید، این پیام را نادیده بگیرید.\n\nبا احترام،\nگروه دلنوازان";
     private const ALLOWED = array('claim_url', 'invitation_code');
 
     public static function values(): array {

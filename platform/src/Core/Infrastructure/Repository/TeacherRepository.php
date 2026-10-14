@@ -110,23 +110,20 @@ final class TeacherRepository extends BaseRepository {
     public function adminProfile(int $teacherId): ?object {
         global $wpdb;
         $p=$wpdb->prefix.'dzn_';
-        return $wpdb->get_row($wpdb->prepare("SELECT t.*,o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state,
-            l.wordpress_user_id,l.status principal_status,
-            COALESCE(a.state,'not_set') accepting_state,COALESCE(ap.status,'not_set') availability_profile_status,
-            COALESCE(i.instrument_names,'') instrument_names,COALESCE(v.availability_summary,'') availability_summary,
-            COALESCE(e.student_count,0) linked_student_count,COALESCE(e.student_names,'') linked_student_names,
-            COALESCE(x.class_count,0) class_count,COALESCE(g.connection_state,'not_connected') google_calendar_state
-            FROM {$this->table} t
-            LEFT JOIN {$p}teacher_onboarding_states o ON o.teacher_id=t.id
-            LEFT JOIN {$p}teacher_principal_links l ON l.teacher_id=t.id AND l.status='active' AND l.revoked_at IS NULL
-            LEFT JOIN {$p}teacher_accepting_states a ON a.teacher_id=t.id
-            LEFT JOIN {$p}teacher_availability_profiles ap ON ap.teacher_id=t.id
-            LEFT JOIN (SELECT e.teacher_id,GROUP_CONCAT(DISTINCT COALESCE(NULLIF(i.name_en,''),i.name_fa) ORDER BY COALESCE(NULLIF(i.name_en,''),i.name_fa) SEPARATOR ', ') instrument_names FROM {$p}teacher_course_eligibilities e INNER JOIN {$p}courses c ON c.id=e.course_id INNER JOIN {$p}instruments i ON i.id=c.instrument_id WHERE e.status='active' AND c.status='active' AND c.archived_at IS NULL AND i.status='active' AND i.archived_at IS NULL GROUP BY e.teacher_id) i ON i.teacher_id=t.id
-            LEFT JOIN (SELECT teacher_id,GROUP_CONCAT(CONCAT(ELT(weekday,'Mon','Tue','Wed','Thu','Fri','Sat','Sun'),' ',TIME_FORMAT(local_start_time,'%H:%i'),'–',TIME_FORMAT(local_end_time,'%H:%i')) ORDER BY weekday,local_start_time SEPARATOR '; ') availability_summary FROM {$p}teacher_availability_rules WHERE status='active' AND state IN ('preferred','requestable') GROUP BY teacher_id) v ON v.teacher_id=t.id
-            LEFT JOIN (SELECT e.teacher_id,COUNT(DISTINCT e.student_id) student_count,GROUP_CONCAT(DISTINCT COALESCE(NULLIF(s.display_name,''),CONCAT_WS(' ',s.first_name,s.last_name)) ORDER BY s.display_name SEPARATOR ', ') student_names FROM {$p}enrolments e LEFT JOIN {$p}students s ON s.id=e.student_id WHERE e.archived_at IS NULL GROUP BY e.teacher_id) e ON e.teacher_id=t.id
-            LEFT JOIN (SELECT teacher_id,COUNT(*) class_count FROM {$p}teacher_assignments WHERE applicable_slot=1 GROUP BY teacher_id) x ON x.teacher_id=t.id
-            LEFT JOIN (SELECT teacher_id,MAX(connection_state) connection_state FROM {$p}integration_connections WHERE provider_code='google_calendar' AND active_slot=1 GROUP BY teacher_id) g ON g.teacher_id=t.id
-            WHERE t.id=%d LIMIT 1",$teacherId));
+        // Resolve the Teacher and canonical principal first. Optional operational
+        // aggregates must never make an existing profile look like a missing row.
+        $row=$wpdb->get_row($wpdb->prepare("SELECT t.*,o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state,o.submitted_at,o.reviewed_at,o.review_reason_code,l.wordpress_user_id linked_wordpress_user_id,l.status principal_status FROM {$this->table} t LEFT JOIN {$p}teacher_onboarding_states o ON o.teacher_id=t.id LEFT JOIN {$p}teacher_principal_links l ON l.teacher_id=t.id AND l.status='active' AND l.revoked_at IS NULL WHERE t.id=%d LIMIT 1",$teacherId));
+        if(!$row)return null;
+        $row->wordpress_user_id=$row->linked_wordpress_user_id!==null?(int)$row->linked_wordpress_user_id:($row->wordpress_user_id!==null?(int)$row->wordpress_user_id:null);
+        $row->accepting_state=(string)($wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}teacher_accepting_states WHERE teacher_id=%d",$teacherId))?:'not_set');
+        $row->availability_profile_status=(string)($wpdb->get_var($wpdb->prepare("SELECT status FROM {$p}teacher_availability_profiles WHERE teacher_id=%d",$teacherId))?:'not_set');
+        $row->instrument_names=(string)($wpdb->get_var($wpdb->prepare("SELECT GROUP_CONCAT(DISTINCT COALESCE(NULLIF(i.name_en,''),i.name_fa) ORDER BY COALESCE(NULLIF(i.name_en,''),i.name_fa) SEPARATOR ', ') FROM {$p}teacher_course_eligibilities e INNER JOIN {$p}courses c ON c.id=e.course_id INNER JOIN {$p}instruments i ON i.id=c.instrument_id WHERE e.teacher_id=%d AND e.status='active' AND c.status='active' AND c.archived_at IS NULL AND i.status='active' AND i.archived_at IS NULL",$teacherId))?:'');
+        $row->availability_summary=(string)($wpdb->get_var($wpdb->prepare("SELECT GROUP_CONCAT(CONCAT(ELT(weekday,'Mon','Tue','Wed','Thu','Fri','Sat','Sun'),' ',TIME_FORMAT(local_start_time,'%%H:%%i'),'–',TIME_FORMAT(local_end_time,'%%H:%%i')) ORDER BY weekday,local_start_time SEPARATOR '; ') FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND status='active' AND state IN ('preferred','requestable')",$teacherId))?:'');
+        $row->linked_student_count=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT student_id) FROM {$p}enrolments WHERE teacher_id=%d AND archived_at IS NULL",$teacherId));
+        $row->linked_student_names=(string)($wpdb->get_var($wpdb->prepare("SELECT GROUP_CONCAT(DISTINCT COALESCE(NULLIF(s.display_name,''),CONCAT_WS(' ',s.first_name,s.last_name)) ORDER BY s.display_name SEPARATOR ', ') FROM {$p}enrolments e LEFT JOIN {$p}students s ON s.id=e.student_id WHERE e.teacher_id=%d AND e.archived_at IS NULL",$teacherId))?:'');
+        $row->class_count=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE teacher_id=%d AND applicable_slot=1",$teacherId));
+        $row->google_calendar_state=(string)($wpdb->get_var($wpdb->prepare("SELECT connection_state FROM {$p}integration_connections WHERE teacher_id=%d AND provider_code='google_calendar' AND active_slot=1 ORDER BY id DESC LIMIT 1",$teacherId))?:'not_connected');
+        return $row;
     }
 
     /** Serialize offboarding against Assignment creation/replacement on this Teacher. */

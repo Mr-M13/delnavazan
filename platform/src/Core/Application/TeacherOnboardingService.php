@@ -3,10 +3,10 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherOnboardingRepository;
 
-/** Invitation-led lifecycle from linked principal to automatically ready Teacher. */
+/** Invitation-led lifecycle with explicit Teacher submission and staff review. */
 final class TeacherOnboardingService {
-    private const EDITABLE = array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected' );
-    private const COMPLETABLE = array( 'linked_pending', 'in_progress', 'returned', 'rejected' );
+    private const EDITABLE = array( 'linked_pending', 'in_progress', 'returned', 'active' );
+    private const COMPLETABLE = array( 'linked_pending', 'in_progress', 'returned' );
 
     public function __construct(private ?TeacherOnboardingRepository $repo = null) { $this->repo ??= new TeacherOnboardingRepository(); }
 
@@ -14,13 +14,6 @@ final class TeacherOnboardingService {
         $userId ??= (int) get_current_user_id(); if ( $userId < 1 ) throw new \InvalidArgumentException( 'Authenticated teacher required' );
         $teacher = $this->repo->linkedTeacherForUser( $userId ); if ( ! $teacher ) throw new \InvalidArgumentException( 'Linked teacher principal required' );
         $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); $progress = $this->progress( $teacher );
-        if ( in_array( $state, array( 'pending_review', 'returned', 'rejected' ), true ) ) {
-            $this->reconcileLegacyReviewState( $userId );
-            $teacher = $this->repo->linkedTeacherForUser( $userId );
-            if ( ! $teacher ) throw new \InvalidArgumentException( 'Linked teacher principal required' );
-            $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' );
-            $progress = $this->progress( $teacher );
-        }
         return array(
             'teacher_id' => (int) $teacher->id,
             'state' => $state,
@@ -32,11 +25,12 @@ final class TeacherOnboardingService {
             'reviewed_at' => $teacher->reviewed_at,
             'review_reason_code' => $teacher->review_reason_code,
             'can_edit' => in_array( $state, self::EDITABLE, true ),
-            'can_submit' => false,
+            'can_submit' => in_array( $state, self::COMPLETABLE, true ) && $progress['ready_for_activation'],
             'ready_for_activation' => $progress['ready_for_activation'],
             'profile' => array(
                 'display_name' => (string) $teacher->display_name, 'persian_name' => (string) ( $teacher->persian_name ?? '' ), 'english_name' => (string) ( $teacher->english_name ?? '' ),
-                'email' => (string) ( $teacher->email ?? '' ), 'country_code' => (string) ( $teacher->country_code ?? '' ), 'city' => (string) ( $teacher->city ?? '' ),
+                'email' => (string) ( $teacher->email ?? '' ), 'phone' => (string) ( $teacher->phone ?? '' ), 'whatsapp_phone' => (string) ( $teacher->whatsapp_phone ?? '' ),
+                'country_code' => (string) ( $teacher->country_code ?? '' ), 'city' => (string) ( $teacher->city ?? '' ),
                 'timezone' => (string) ( $teacher->timezone ?? '' ), 'locale' => (string) ( $teacher->locale ?? '' ), 'calendar_preference' => (string) ( $teacher->calendar_preference ?? '' ),
             ),
             'availability_profile' => $this->profileArray( $this->repo->availabilityProfile( (int) $teacher->id ) ),
@@ -59,6 +53,8 @@ final class TeacherOnboardingService {
             $teacher = $this->repo->linkedTeacherForUser( $actor, true ); if ( ! $teacher ) throw new \InvalidArgumentException( 'Linked teacher principal required' );
             $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( ! in_array( $state, self::EDITABLE, true ) ) throw new \InvalidArgumentException( 'Teacher onboarding is not editable' );
             $data = $this->validatedProfile( $input );
+            $principal = get_userdata( $actor );
+            if ( ! $principal || ! hash_equals( strtolower( (string) $principal->user_email ), strtolower( (string) $data['email'] ) ) ) throw new \InvalidArgumentException( 'Teacher email must match the linked account' );
             $availability = $this->repo->availabilityProfile( (int) $teacher->id );
             if ( $availability && (string) $availability->timezone !== $data['timezone'] && $this->repo->availabilityHasFacts( (int) $availability->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' );
             $this->repo->updateTeacherProfile( (int) $teacher->id, $data, $now, $actor );
@@ -90,6 +86,8 @@ final class TeacherOnboardingService {
             'persian_name' => Normalizer::text( $input['persian_name'] ?? null ),
             'english_name' => Normalizer::text( $input['english_name'] ?? null ),
             'email' => Normalizer::email( $input['email'] ?? null ),
+            'phone' => Normalizer::phone( $input['phone'] ?? null ),
+            'whatsapp_phone' => Normalizer::phone( $input['whatsapp_phone'] ?? null ),
             'country_code' => Normalizer::country( $input['country_code'] ?? null ),
             'city' => Normalizer::text( $input['city'] ?? null ),
             'timezone' => Normalizer::timezone( $input['timezone'] ?? null ),
@@ -121,37 +119,51 @@ final class TeacherOnboardingService {
             $from = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( ! in_array( $from, self::COMPLETABLE, true ) ) throw new \InvalidArgumentException( 'Teacher onboarding cannot be completed' );
             $progress = $this->progress( $teacher ); if ( ! $progress['ready_for_activation'] ) throw new \InvalidArgumentException( 'Teacher onboarding is incomplete' );
             $this->repo->saveState( (int) $teacher->id, array(
-                'state' => 'active', 'readiness_state' => 'ready', 'profile_state' => $progress['profile_state'],
-                'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required', 'submitted_at' => null,
-                'reviewed_at' => null, 'reviewed_by' => null, 'review_reason_code' => null, 'activated_at' => $now,
+                'state' => 'pending_review', 'readiness_state' => 'not_ready', 'profile_state' => $progress['profile_state'],
+                'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required', 'submitted_at' => $now,
+                'reviewed_at' => null, 'reviewed_by' => null, 'review_reason_code' => null, 'activated_at' => null,
             ), $now, $actor );
-            $this->repo->appendEvent( (int) $teacher->id, $from, 'active', 'invitation_approved_and_requirements_complete', $actor, $now ); $this->repo->commit();
+            $this->repo->appendEvent( (int) $teacher->id, $from, 'pending_review', 'teacher_submitted_for_review', $actor, $now ); $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
     public function reviewRows(): array { if ( ! current_user_can( 'dzn_manage_onboarding' ) ) throw new \RuntimeException( 'Unauthorized' ); return $this->repo->reviewRows(); }
 
-    private function reconcileLegacyReviewState(int $userId): void {
+    public function review(int $teacherId, string $decision, ?string $reason = null): void {
+        if ( ! current_user_can( 'dzn_manage_onboarding' ) ) throw new \RuntimeException( 'Unauthorized' );
+        if ( ! in_array( $decision, array( 'approve', 'return', 'reject' ), true ) ) throw new \InvalidArgumentException( 'Unsupported onboarding decision' );
+        $reason = Normalizer::text( $reason, 64 );
+        if ( $decision !== 'approve' && ! $reason ) throw new \InvalidArgumentException( 'A reason is required' );
         $now = current_time( 'mysql', true ); $actor = (int) get_current_user_id(); $this->repo->begin();
         try {
-            $teacher = $this->repo->linkedTeacherForUser( $userId, true );
-            if ( $teacher ) {
-                $state = (string) ( $teacher->onboarding_state ?? '' );
-                if ( in_array( $state, array( 'pending_review', 'returned', 'rejected' ), true ) ) $this->refreshProgress( $teacher, $state, $now, $actor );
-            }
+            $teacher = $this->repo->teacherForUpdate( Normalizer::id( $teacherId ) );
+            $state = $teacher ? $this->repo->stateForUpdate( (int) $teacher->id ) : null;
+            if ( ! $teacher || $teacher->archived_at !== null || ! $state || (string) $state->state !== 'pending_review' ) throw new \InvalidArgumentException( 'Teacher onboarding is not awaiting review' );
+            $progress = $this->progress( $teacher );
+            if ( $decision === 'approve' && ! $progress['ready_for_activation'] ) throw new \InvalidArgumentException( 'Teacher onboarding is incomplete' );
+            $to = $decision === 'approve' ? 'active' : ( $decision === 'return' ? 'returned' : 'rejected' );
+            $this->repo->saveState( (int) $teacher->id, array(
+                'state' => $to, 'readiness_state' => $decision === 'approve' ? 'ready' : 'not_ready',
+                'profile_state' => $progress['profile_state'], 'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required',
+                'reviewed_at' => $now, 'reviewed_by' => $actor, 'review_reason_code' => $reason,
+                'activated_at' => $decision === 'approve' ? $now : null,
+            ), $now, $actor );
+            $this->repo->appendEvent( (int) $teacher->id, 'pending_review', $to, $decision === 'approve' ? 'administrator_approved' : $reason, $actor, $now );
             $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
     private function refreshProgress(object $teacher, string $from, string $now, int $actor): void {
-        $progress = $this->progress( $teacher ); $to = $progress['ready_for_activation'] ? 'active' : ( in_array($from,array('linked_pending','pending_review','returned','rejected','active'),true) ? 'in_progress' : $from );
+        $progress = $this->progress( $teacher );
+        $staysActive = $from === 'active' && $progress['ready_for_activation'];
+        $to = $staysActive ? 'active' : ( in_array($from,array('linked_pending','returned','active'),true) ? 'in_progress' : $from );
         $this->repo->saveState( (int) $teacher->id, array(
-            'state' => $to, 'readiness_state' => $progress['ready_for_activation'] ? 'ready' : 'not_ready', 'profile_state' => $progress['profile_state'],
+            'state' => $to, 'readiness_state' => $staysActive ? 'ready' : 'not_ready', 'profile_state' => $progress['profile_state'],
             'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required',
             'reviewed_at' => null, 'reviewed_by' => null, 'review_reason_code' => null,
-            'activated_at' => $progress['ready_for_activation'] ? $now : null,
+            'activated_at' => $staysActive ? ( $teacher->activated_at ?? $now ) : null,
         ), $now, $actor );
-        if ( $to !== $from ) $this->repo->appendEvent( (int) $teacher->id, $from, $to, $progress['ready_for_activation'] ? 'onboarding_requirements_complete' : null, $actor, $now );
+        if ( $to !== $from ) $this->repo->appendEvent( (int) $teacher->id, $from, $to, $progress['ready_for_activation'] ? 'onboarding_requirements_complete' : 'onboarding_requirements_incomplete', $actor, $now );
     }
 
     private function progress(object $teacher): array {

@@ -96,6 +96,7 @@ final class ScreenController {
             'revoke_teacher_invitation' => 'dzn_revoke_teacher_invitations',
             'admin_link_teacher_principal' => 'dzn_manage_onboarding',
             'offboard_teacher_principal' => 'dzn_relink_teacher_principal',
+            'approve_teacher_onboarding', 'return_teacher_onboarding', 'reject_teacher_onboarding' => 'dzn_manage_onboarding',
             'set_teacher_course_eligibility', 'set_teacher_accepting_state' => 'dzn_manage_teaching_eligibility',
             'set_availability_profile', 'set_availability_rule' => 'dzn_manage_teacher_availability',
             default => '',
@@ -125,6 +126,9 @@ final class ScreenController {
                 'revoke_teacher_invitation' => self::revokeTeacherInvitation($post),
                 'admin_link_teacher_principal' => self::linkTeacherPrincipal($post),
                 'offboard_teacher_principal' => self::offboardTeacherPrincipal($post),
+                'approve_teacher_onboarding' => self::reviewTeacherOnboarding($post, 'approve'),
+                'return_teacher_onboarding' => self::reviewTeacherOnboarding($post, 'return'),
+                'reject_teacher_onboarding' => self::reviewTeacherOnboarding($post, 'reject'),
                 'set_teacher_course_eligibility' => (new \Delnavazan\Platform\Core\Application\TeachingEligibilityService())->setEligibility($post),
                 'set_teacher_accepting_state' => (new \Delnavazan\Platform\Core\Application\TeacherAcceptingStateService())->set($post),
                 'set_availability_profile' => (new \Delnavazan\Platform\Core\Application\TeacherAvailabilityService())->setProfile($post),
@@ -154,7 +158,7 @@ final class ScreenController {
                 default => throw new \InvalidArgumentException('Unsupported action'),
             };
             NonceLifecycleDiagnostic::logStage('mutation_complete');
-            $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','set_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule'];
+            $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule'];
             $teacherLifecycleAction=in_array($action,['archive','restore'],true)&&sanitize_key($post['entity']??'')==='teacher';
             self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : ($teacherLifecycleAction?['id'=>absint($post['id']??0)]:[]));
         } catch (\Throwable $e) {
@@ -319,7 +323,7 @@ final class ScreenController {
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             $teacherId=(int)$record->id;
             echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html(self::teacherIntegrationStatus((string)($record->google_calendar_state ?? ''))).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html(self::teacherOnboardingSummary($record)).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Weekly availability</th><td>'.esc_html((string)($record->availability_summary?:'No active weekly windows')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Current teaching</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
-            self::teacherInlineControls($record); echo '<details><summary>Profile details and lifecycle actions</summary>';
+            self::teacherReviewControls($record); self::teacherInlineControls($record); echo '<details><summary>Profile details and lifecycle actions</summary>';
             self::teacherMaintenanceForm( $record );
             self::teacherArchiveActions($record);
             echo '</details>';
@@ -359,9 +363,10 @@ final class ScreenController {
     private static function revokeTeacherInvitation(array $post): int { (new \Delnavazan\Platform\Core\Application\PrincipalInvitationService())->revoke(absint($post['teacher_id']??0),'admin_revoked'); return absint($post['teacher_id']??0); }
     private static function linkTeacherPrincipal(array $post): int { $teacherId=absint($post['teacher_id']??0); (new \Delnavazan\Platform\Core\Application\PrincipalInvitationService())->linkExistingPrincipal($teacherId,absint($post['wordpress_user_id']??0)); return $teacherId; }
     private static function offboardTeacherPrincipal(array $post): int { (new \Delnavazan\Platform\Core\Application\PrincipalInvitationService())->offboard(absint($post['teacher_id']??0),'admin_offboarded'); return absint($post['teacher_id']??0); }
+    private static function reviewTeacherOnboarding(array $post,string $decision):int{$teacherId=absint($post['teacher_id']??0);(new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->review($teacherId,$decision,sanitize_key($post['reason_code']??''));return$teacherId;}
 
     private static function teacherInvitationPanel(): void {
-        echo '<section id="teacher-invitation"><h2>Teacher onboarding &amp; invitations <a class="page-title-action" href="#teacher-invitation">Add New</a></h2><p>Issuing creates a delivery intent; it does not mean an email was sent or received. Email is enough. Sending an invitation authorises onboarding; there is no later approval gate. “Accepted by transport” means WordPress accepted the message, not that the recipient received it. Raw invitation secrets are never rendered, retained, logged, or placed in URLs.</p>';
+        echo '<section id="teacher-invitation"><h2>Teacher onboarding &amp; invitations <a class="page-title-action" href="#teacher-invitation">Add New</a></h2><p>Issuing creates a delivery intent; it does not mean an email was sent or received. Email is enough to authorise account registration. Teaching access remains unavailable until the Teacher submits complete profile and availability details and staff approve them. “Accepted by transport” means WordPress accepted the message, not that the recipient received it. Raw invitation secrets are never rendered, retained, logged, or placed in URLs.</p>';
         if(current_user_can('dzn_issue_teacher_invitations')) { self::formStart('issue_teacher_invitation_by_email'); echo '<input type="hidden" name="command_key" value="'.esc_attr(wp_generate_uuid4()).'"><p><label>Email <input required type="email" name="recipient"></label> '; submit_button('Send Invitation','primary','submit',false); echo '</p></form>'; }
         $canReadInvitationStatus=current_user_can('dzn_manage_onboarding')||current_user_can('dzn_issue_teacher_invitations')||current_user_can('dzn_revoke_teacher_invitations');
         if(!$canReadInvitationStatus) { echo '<p>Invitation status requires invitation or onboarding access.</p></section>'; return; }
@@ -385,9 +390,9 @@ final class ScreenController {
     private static function teacherReadinessPanel(): void {
         if (!current_user_can('dzn_manage_onboarding')) return;
         $rows=(new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->reviewRows();
-        echo '<h3>Onboarding readiness</h3><p>Readiness is diagnostic. Teachers activate automatically only after their profile and usable availability are complete.</p><table class="widefat striped"><thead><tr><th>Teacher</th><th>Profile</th><th>Availability</th><th>Onboarding</th><th>Readiness</th></tr></thead><tbody>';
-        if(!$rows) echo '<tr><td colspan="5">No teachers have started onboarding.</td></tr>';
-        foreach($rows as $row){$name=esc_html((string)$row->display_name);if(current_user_can('dzn_manage_teachers')){$profile=add_query_arg(['page'=>'dzn-teachers-menu','id'=>(int)$row->teacher_id],admin_url('admin.php'));$name='<a href="'.esc_url($profile).'">'.$name.'</a>';}echo '<tr><td>'.$name.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html((string)$row->profile_state).'</td><td>'.esc_html((string)$row->availability_state).'</td><td>'.esc_html((string)$row->state).'</td><td>'.esc_html((string)$row->readiness_state).'</td></tr>';}
+        echo '<h3>Onboarding readiness</h3><p>Teachers complete their profile and weekly availability, then submit them for an explicit staff decision.</p><table class="widefat striped"><thead><tr><th>Teacher</th><th>Profile</th><th>Availability</th><th>Onboarding</th><th>Readiness</th><th>Review</th></tr></thead><tbody>';
+        if(!$rows) echo '<tr><td colspan="6">No teachers have started onboarding.</td></tr>';
+        foreach($rows as $row){$name=esc_html((string)$row->display_name);if(current_user_can('dzn_manage_teachers')){$profile=add_query_arg(['page'=>'dzn-teachers-menu','id'=>(int)$row->teacher_id],admin_url('admin.php'));$name='<a href="'.esc_url($profile).'">'.$name.'</a>';}echo '<tr><td>'.$name.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html((string)$row->profile_state).'</td><td>'.esc_html((string)$row->availability_state).'</td><td>'.esc_html((string)$row->state).'</td><td>'.esc_html((string)$row->readiness_state).'</td><td>';if((string)$row->state==='pending_review'){self::formStart('approve_teacher_onboarding');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$row->teacher_id).'">';submit_button('Approve and activate','primary','submit',false);echo '</form>';foreach(['return_teacher_onboarding'=>'Return for changes','reject_teacher_onboarding'=>'Reject'] as$action=>$label){self::formStart($action);echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$row->teacher_id).'"><label>Reason code <input required name="reason_code" maxlength="64" pattern="[a-z0-9_-]+"></label> ';submit_button($label,'secondary','submit',false);echo '</form>';}}else echo 'No decision available';echo '</td></tr>';}
         echo '</tbody></table>';
     }
 
@@ -426,6 +431,13 @@ final class ScreenController {
             self::formStart('set_availability_rule');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'"><input type="hidden" name="status" value="active"><input type="hidden" name="reason_code" value="teacher_admin"><label>Day <select name="weekday">';foreach(['1'=>'Mon','2'=>'Tue','3'=>'Wed','4'=>'Thu','5'=>'Fri','6'=>'Sat','7'=>'Sun'] as $d=>$label)echo '<option value="'.$d.'">'.$label.'</option>';echo '</select></label> <label>From <input required name="local_start_time" placeholder="09:00"></label> <label>To <input required name="local_end_time" placeholder="17:00"></label> <label>State <select name="state"><option value="requestable">Available on request</option><option value="preferred">Preferred</option><option value="blocked">Unavailable</option></select></label><input type="hidden" name="timezone" value="'.esc_attr((string)$teacher->timezone).'"> ';submit_button('Add weekly availability','secondary','submit',false);echo '</form>';
         }
         if(current_user_can('dzn_relink_teacher_principal')&&($teacher->wordpress_user_id??null)){self::formStart('offboard_teacher_principal');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'">';submit_button('Deactivate linked account','secondary','submit',false);echo '</form>';}
+    }
+
+    private static function teacherReviewControls(object $teacher):void{
+        if(!current_user_can('dzn_manage_onboarding')||(string)($teacher->onboarding_state??'')!=='pending_review')return;
+        echo '<h3>Onboarding review</h3><p>This Teacher submitted a complete profile and availability declaration. Approve to grant portal readiness, return for editable corrections, or reject the submission.</p>';
+        self::formStart('approve_teacher_onboarding');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'">';submit_button('Approve and activate','primary','submit',false);echo '</form>';
+        foreach(['return_teacher_onboarding'=>'Return for changes','reject_teacher_onboarding'=>'Reject'] as$action=>$label){self::formStart($action);echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'"><label>Reason code <input required name="reason_code" maxlength="64" pattern="[a-z0-9_-]+"></label> ';submit_button($label,'secondary','submit',false);echo '</form>';}
     }
 
     private static function teacherArchiveActions(object $teacher):void{

@@ -28,7 +28,7 @@ final class TeacherLifecycleService {
             if($link)$this->repo->update('teacher_principal_links',['status'=>'revoked','revoked_at'=>$now,'revoked_by'=>$actor,'reason_code'=>'teacher_archived'],['id'=>(int)$link->id,'status'=>'active']);
             $onboarding=$this->repo->onboardingForTeacher($teacherId);
             if($onboarding&&(string)$onboarding->state!=='offboarded'){$this->repo->update('teacher_onboarding_states',['state'=>'offboarded','readiness_state'=>'not_ready','version'=>(int)$onboarding->version+1,'updated_at'=>$now,'updated_by'=>$actor],['id'=>(int)$onboarding->id]);$this->repo->appendOnboardingEvent($teacherId,(string)$onboarding->state,'offboarded',$actor,$now);}
-            $this->repo->update('teachers',['status'=>'archived','archived_at'=>$now,'archived_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor],['id'=>$teacherId,'archived_at'=>null]);
+            $this->repo->update('teachers',['status'=>'archived','wordpress_user_id'=>null,'archived_at'=>$now,'archived_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor],['id'=>$teacherId,'archived_at'=>null]);
             $this->repo->audit('teacher',$teacherId,'teacher.archived',$actor,hash('sha256','teacher-archive:'.$teacherId.':'.wp_generate_uuid4()),'teacher_access_and_invitations_revoked');
             $this->repo->commit();
         }catch(\Throwable$e){$this->repo->rollback();throw$e;}

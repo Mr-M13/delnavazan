@@ -11,6 +11,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationReposi
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
 if ( wp_get_environment_type() !== 'local' ) throw new RuntimeException( 'Teacher onboarding acceptance is local-only.' );
+global $wpdb;
 
 $expect = static function ( bool $condition, string $message ): void {
 	if ( ! $condition ) throw new RuntimeException( 'Teacher onboarding acceptance failed: ' . $message );
@@ -48,6 +49,7 @@ $expect( ! is_wp_error( $userId ) && (int) $userId > 0, 'synthetic teacher accou
 $userId = (int) $userId;
 $invitations->recordProvisioningResult( $claimCommand, $userId, true );
 $invitations->finalizeClaim( $claimCommand, $userId );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT wordpress_user_id FROM {$wpdb->prefix}dzn_teachers WHERE id=%d", (int) $issued['teacher_id'] ) ) === $userId, 'canonical claim was not projected onto the Teacher profile' );
 $user = get_userdata( $userId );
 if ( $user ) $user->add_role( 'subscriber' );
 if ( $user && get_role( 'dzn_teacher' ) ) $user->add_role( 'dzn_teacher' );
@@ -73,8 +75,21 @@ $ruleId = $availability->setOwnRecurringRule( array(
 	'state' => 'requestable', 'timezone' => 'Australia/Brisbane',
 ) );
 $onboarding->refreshOwnProgress();
+$complete = $state( (int) $issued['teacher_id'] );
+$expect( $complete->state === 'in_progress' && $complete->profile_state === 'complete' && $complete->availability_state === 'complete', 'complete facts were not ready for submission' );
+$onboarding->submitOwn();
+$expect( $state( (int) $issued['teacher_id'] )->state === 'pending_review', 'teacher submission did not enter pending review' );
+$refuse( static fn() => $portal->teacher(), 'pending-review teacher portal was not denied' );
+wp_set_current_user( 1 );
+$onboarding->review( (int) $issued['teacher_id'], 'return', 'availability_confirmation_required' );
+$expect( $state( (int) $issued['teacher_id'] )->state === 'returned', 'administrator return did not reopen onboarding' );
+wp_set_current_user( $userId );
+$onboarding->submitOwn();
+wp_set_current_user( 1 );
+$onboarding->review( (int) $issued['teacher_id'], 'approve' );
 $ready = $state( (int) $issued['teacher_id'] );
-$expect( $ready->state === 'active' && $ready->readiness_state === 'ready', 'complete profile and availability did not activate teacher' );
+$expect( $ready->state === 'active' && $ready->readiness_state === 'ready', 'administrator approval did not activate teacher' );
+wp_set_current_user( $userId );
 $expect( ! $onboarding->requiresOnboarding(), 'active ready teacher was routed back to onboarding' );
 $expect( is_array( $portal->teacher() ), 'ready teacher portal did not open' );
 
@@ -84,6 +99,19 @@ $notReady = $state( (int) $issued['teacher_id'] );
 $expect( $notReady->state === 'in_progress' && $notReady->readiness_state === 'not_ready', 'last-rule removal left teacher ready' );
 $expect( $onboarding->requiresOnboarding(), 'last-rule removal did not restore onboarding gate' );
 $refuse( static fn() => $portal->teacher(), 'portal remained open after final usable availability was removed' );
+
+// A later complete resubmission can be rejected without granting portal access.
+$replacementRuleId = $availability->setOwnRecurringRule( array(
+	'weekday' => 2, 'local_start_time' => '09:00:00', 'local_end_time' => '11:00:00',
+	'state' => 'requestable', 'timezone' => 'Australia/Brisbane',
+) );
+$onboarding->refreshOwnProgress();
+$onboarding->submitOwn();
+wp_set_current_user( 1 );
+$onboarding->review( (int) $issued['teacher_id'], 'reject', 'application_not_approved' );
+$expect( $state( (int) $issued['teacher_id'] )->state === 'rejected', 'administrator rejection was not retained' );
+wp_set_current_user( $userId );
+$refuse( static fn() => $portal->teacher(), 'rejected teacher portal was not denied' );
 
 // A claimed secret is single-use, and an authenticated claim must bind to its frozen recipient.
 wp_set_current_user( 1 );

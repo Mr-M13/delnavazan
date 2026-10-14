@@ -1,8 +1,8 @@
 # Teacher Onboarding v2
 
-Teacher invitation is the approval decision. A linked teacher completes the profile, chooses an IANA timezone, declares recurring availability, and reviews readiness in separate portal steps. When the canonical profile and availability checks pass, `TeacherOnboardingService` stores `active / ready` and records the transition; no routine admin review is required. Admin screens retain invitation delivery and onboarding diagnostics.
+An invitation authorises a person to create or connect a Teacher account; it does not grant teaching readiness. A linked teacher completes the profile, chooses an IANA timezone, declares recurring availability, and submits the result. `TeacherOnboardingService` stores `pending_review / not_ready` until a user with `dzn_manage_onboarding` approves it. Staff may return a submission for editable corrections or reject it without granting portal access.
 
-For a new account, invitation claim creates a WordPress user with a random temporary password, finalizes the invitation claim, and asks WordPress to send its native new-user password setup email. The temporary password is never shown. An already-authenticated existing-account claim does not alter that account's password.
+For a new account, invitation claim creates a WordPress user with the password entered on the mobile-friendly claim form, finalizes the canonical principal link, signs the user in, and routes directly to onboarding. An already-authenticated existing-account claim does not alter that account's password. The invitation remains a 64-hex one-time secret accepted only in a POST body.
 
 Recurring times are entered as 24-hour `HHMM`. `0000` is midnight at the start of the day. `2400` is accepted only for an interval end and represents the next local day's midnight boundary. Recurring intervals on the same weekday use half-open semantics; overlap is rejected and adjacency is allowed. Day copying is a single canonical transaction and aborts without writes if any selected destination conflicts.
 

@@ -8,10 +8,10 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '40' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '41' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'academy-cashbook-v1-20261007.1' );
+define( 'DZN_PLATFORM_BUILD_ID', 'teacher-onboarding-review-v3-20261014.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );

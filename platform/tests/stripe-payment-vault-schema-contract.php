@@ -9,8 +9,8 @@ $runner = (string) file_get_contents($root . '/runtime/bin/run-stripe-checkout-t
 $freshInstall = (string) file_get_contents($root . '/runtime/bin/run-fresh-install.sh');
 $schemaVerifier = (string) file_get_contents($root . '/runtime/bin/verify-current-schema.sh');
 
-if (strpos($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '40'") === false) {
-    throw new RuntimeException('Stripe vault width repair must publish Schema 39');
+if (!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/", $plugin, $schema) || (int) $schema[1] < 40) {
+    throw new RuntimeException('Stripe vault width repair must remain present in Schema 40 or later');
 }
 foreach (array(
     "'039_payment_secret_cipher_version_width'=>array(__CLASS__,'install_payment_secret_cipher_version_width')",

@@ -10,6 +10,7 @@ final class TeacherOnboardingController {
         add_action( 'admin_post_dzn_teacher_onboarding_availability_profile', array( __CLASS__, 'availabilityProfile' ) );
         add_action( 'admin_post_dzn_teacher_onboarding_availability_rule', array( __CLASS__, 'availabilityRule' ) );
         add_action( 'admin_post_dzn_teacher_onboarding_copy_day', array( __CLASS__, 'copyDay' ) );
+        add_action( 'admin_post_dzn_teacher_onboarding_submit', array( __CLASS__, 'submit' ) );
     }
 
     public static function profile(): never {
@@ -19,6 +20,7 @@ final class TeacherOnboardingController {
             ( new TeacherOnboardingService() )->updateOwnProfile( array(
                 'display_name' => $post['display_name'] ?? '', 'persian_name' => $post['persian_name'] ?? '',
                 'english_name' => $post['english_name'] ?? '', 'email' => $post['email'] ?? '',
+                'phone' => $post['phone'] ?? '', 'whatsapp_phone' => $post['whatsapp_phone'] ?? '',
                 'country_code' => $post['country_code'] ?? '', 'city' => $post['city'] ?? '',
                 'timezone' => $post['timezone'] ?? '', 'locale' => $post['locale'] ?? '',
                 'calendar_preference' => $post['calendar_preference'] ?? '',
@@ -55,6 +57,12 @@ final class TeacherOnboardingController {
         self::guard('dzn_teacher_onboarding_copy_day');
         try{$post=wp_unslash($_POST);$targets=array_map('intval',(array)($post['target_weekdays']??[]));(new TeacherAvailabilityService())->copyOwnRecurringDay((int)($post['source_weekday']??0),$targets);(new TeacherOnboardingService())->refreshOwnProgress();self::redirect('بازه‌های روز مبدأ برای روزهای انتخاب‌شده ثبت شد.',false,3);}
         catch(\Throwable $e){self::redirect(str_contains($e->getMessage(),'overlaps')?'یکی از روزهای مقصد با بازهٔ موجود هم‌پوشانی دارد؛ هیچ تغییری ذخیره نشد. روزهای مقصد را بازبینی کنید.':'کپی انجام نشد؛ یک روز دارای بازه انتخاب کنید و مقصدهای معتبر را بررسی کنید.',true,3);}
+    }
+
+    public static function submit(): never {
+        self::guard( 'dzn_teacher_onboarding_submit' );
+        try { ( new TeacherOnboardingService() )->submitOwn(); self::redirect( 'اطلاعات شما برای بررسی مدیر ارسال شد.', false, 4 ); }
+        catch ( \Throwable ) { self::redirect( 'ارسال انجام نشد. ابتدا پروفایل و دسترسی هفتگی را کامل کنید.', true, 4 ); }
     }
 
     private static function guard(string $nonce): void {

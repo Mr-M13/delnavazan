@@ -307,6 +307,13 @@ function dzn_theme_platform_teacher_day_offs() {
 	try { return ( new $class() )->upcomingOwnExceptions(); } catch ( Throwable ) { return array(); }
 }
 
+/** Teacher-scoped pending booking deliveries; requests are never projected as confirmed classes. */
+function dzn_theme_platform_teacher_booking_requests() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\BookingTeacherDeliveryService';
+	if ( ! class_exists( $class ) ) { return array(); }
+	try { return ( new $class() )->ownPending(); } catch ( Throwable ) { return array(); }
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$base_url = home_url( '/teacher-portal/' );
@@ -420,6 +427,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		);
 	}
 	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_lessons,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=strtotime((string)($row['starts_at_utc']??'').' UTC');$b=strtotime((string)($row['ends_at_utc']??'').' UTC');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_display_reference']??''),$all_lessons)));
+	$bookingAttention=array_map(static function($request)use($teacherZone){
+		$start=new DateTimeImmutable((string)$request->starts_at_utc,new DateTimeZone('UTC'));
+		$teacherTime=$start->setTimezone($teacherZone)->format('l j F، H:i');
+		return array(
+			'ref'=>(string)$request->delivery_uid,'action_available'=>true,'authoritative_request'=>true,'state'=>'intro_request',
+			'title'=>'درخواست تازهٔ کلاس آشنایی',
+			'context'=>(string)$request->full_name.' · '.(string)($request->instrument_name?:$request->course_name),
+			'message'=>$teacherTime.' به وقت شما · این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.',
+			'due'=>'در انتظار پاسخ','primary'=>'مشاهدهٔ درخواست',
+		);
+	},dzn_theme_platform_teacher_booking_requests());
 	return array(
 		'available' => true,
 		'screen' => 'home',
@@ -427,7 +445,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ),
 		'navigation' => $nav,
 		'announcement' => array( 'state' => 'none' ),
-		'attention' => array(),
+		'attention' => $bookingAttention,
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)count($future),'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,
 		'calendar' => $calendar,

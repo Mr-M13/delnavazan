@@ -19,7 +19,7 @@ $files = array(
 	'css' => $read( $theme . '/assets/css/teacher-portal.css' ),
 );
 $checks = array(
-	'canonical claim synchronises compatibility principal projection' => str_contains( $files['claim'], "'wordpress_user_id'=>\$wordpressUserId" ) && str_contains( $files['migration'], '041_teacher_principal_projection_repair' ) && str_contains( $files['plugin'], "DZN_PLATFORM_SCHEMA_VERSION', '42'" ),
+	'canonical claim synchronises compatibility principal projection' => str_contains( $files['claim'], "'wordpress_user_id'=>\$wordpressUserId" ) && str_contains( $files['migration'], '041_teacher_principal_projection_repair' ) && str_contains( $files['plugin'], "DZN_PLATFORM_SCHEMA_VERSION', '43'" ),
 	'admin profile resolves base Teacher before optional aggregates' => str_contains( $files['teacher_repo'], 'Optional operational' ) && str_contains( $files['teacher_repo'], 'if(!$row)return null') && str_contains( $files['teacher_repo'], 'linked_wordpress_user_id' ),
 	'blank invited timezone cannot crash onboarding' => str_contains( $files['wizard'], "timezone_identifiers_list(), true ) ? (string) \$profile['timezone'] : 'Asia/Tehran'" ) && str_contains( $files['wizard'], 'catch ( Throwable )' ),
 	'optional catalogue and accepting reads are isolated' => str_contains( $files['bridge'], 'dzn_theme_platform_teacher_catalogue()' ) && str_contains( $files['bridge'], 'dzn_theme_platform_teacher_accepting' ) && substr_count( $files['bridge'], 'catch ( Throwable )' ) >= 3,

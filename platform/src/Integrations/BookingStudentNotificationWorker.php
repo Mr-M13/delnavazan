@@ -1,0 +1,40 @@
+<?php
+namespace Delnavazan\Platform\Integrations;
+
+use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
+
+/** Durable, no-duplicate-retry mail hand-off for confirmed or declined introductory requests. */
+final class BookingStudentNotificationWorker {
+    public const HOOK='dzn_booking_student_notification_dispatch';
+    public static function register():void{add_action(self::HOOK,array(__CLASS__,'run'));add_action('init',array(__CLASS__,'ensureScheduled'));}
+    public static function ensureScheduled():void{if(!wp_next_scheduled(self::HOOK))wp_schedule_event(time()+90,'dzn_two_minutes',self::HOOK);}
+    public static function run():void{$repository=new BookingTeacherResponseRepository();foreach($repository->queuedNotifications(10)as $row){try{self::dispatch((int)$row->id,$repository);}catch(\Throwable $error){do_action('dzn_booking_student_notification_failed',(int)$row->id,get_class($error));}}}
+
+    public static function dispatch(int $notificationId,?BookingTeacherResponseRepository $repository=null):array{
+        $repository??=new BookingTeacherResponseRepository();$repository->begin();
+        try{
+            $row=$repository->notificationPayload($notificationId,true);if(!$row||!in_array((string)$row->state,array('queued','retryable'),true))throw new \InvalidArgumentException('Booking notification is not dispatchable');
+            if(!is_email((string)$row->email)){$repository->updateNotification($notificationId,(string)$row->state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>gmdate('Y-m-d H:i:s')));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed');}
+            $from=(string)$row->state;$attempt=(int)$row->attempt_count+1;$repository->updateNotification($notificationId,$from,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'last_error_code'=>null,'updated_at'=>gmdate('Y-m-d H:i:s')));$repository->commit();
+        }catch(\Throwable $error){$repository->rollback();throw $error;}
+        try{[$subject,$body]=self::message($row,$repository);$accepted=wp_mail((string)$row->email,$subject,$body,array('Content-Type: text/plain; charset=UTF-8'));}catch(\Throwable){$accepted=false;}
+        $repository->begin();
+        try{
+            $locked=$repository->notificationPayload($notificationId,true);if(!$locked||(string)$locked->state!=='sending')throw new \RuntimeException('Booking notification changed concurrently');$now=gmdate('Y-m-d H:i:s');
+            if($accepted)$repository->updateNotification($notificationId,'sending',array('state'=>'accepted','accepted_at'=>$now,'last_error_code'=>null,'updated_at'=>$now));
+            elseif((int)$locked->attempt_count>=3)$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'last_error_code'=>'send_refused','updated_at'=>$now));
+            else$repository->updateNotification($notificationId,'sending',array('state'=>'retryable','next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused','updated_at'=>$now));
+            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$accepted?'accepted':((int)$locked->attempt_count>=3?'failed':'retryable'),'mailer_accepted'=>$accepted);
+        }catch(\Throwable $error){$repository->rollback();throw $error;}
+    }
+
+    private static function message(object $row,BookingTeacherResponseRepository $repository):array{
+        $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
+        if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no Calendar event or Meet link was created.\n\nDelnavazan");
+        if((string)$row->notification_kind!=='confirmed'||(int)$row->confirmation_record_id<1)throw new \RuntimeException('Booking confirmation notification incomplete');
+        $secret=$repository->projectionSecret((int)$row->confirmation_record_id);if(!$secret)throw new \RuntimeException('provider_reference_required');$refs=(new ProviderReferenceVault())->open('booking_calendar',(int)$row->confirmation_record_id,$secret);$join=trim((string)($refs['join_uri_reference']??''));if($join==='')throw new \RuntimeException('provider_reference_required');
+        $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;$zone=new \DateTimeZone($timezone);$start=(new \DateTimeImmutable((string)$row->starts_at_utc,new \DateTimeZone('UTC')))->setTimezone($zone);$end=(new \DateTimeImmutable((string)$row->ends_at_utc,new \DateTimeZone('UTC')))->setTimezone($zone);$when=$start->format('l j F Y, H:i').'–'.$end->format('H:i').' '.$timezone;
+        return array('Your Delnavazan lesson is confirmed',"Hello {$name},\n\nYour introductory {$course} lesson with {$teacher} is confirmed.\n\nTime: {$when}\nGoogle Meet: {$join}\n\nThe Calendar event and Meet link were created before this confirmation was issued.\n\nDelnavazan");
+    }
+}

@@ -331,11 +331,16 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
 		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
 		$parts = preg_split( '/\\s+/u', trim( $name ) );
-		$step = isset($_GET['onboarding-step']) ? max(1,min(4,absint(wp_unslash($_GET['onboarding-step'])))) : ( 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 2 : 4 ) );
+		$step = isset($_GET['onboarding-step']) ? max(1,min(5,absint(wp_unslash($_GET['onboarding-step'])))) : ( 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 3 : ( 'connected' !== ($onboarding['google_state']??'') ? 4 : 5 ) ) );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
 			'navigation' => $nav, 'current_step' => $step, 'onboarding' => $onboarding,
+			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
+			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
+			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
+			'google_disconnect_url' => admin_url( 'admin-post.php?action=dzn_google_disconnect' ),
+			'google_disconnect_nonce' => wp_create_nonce( 'dzn_google_disconnect' ),
 			'actions' => array(
 				'profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 				'availability_profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_profile' ),
@@ -371,7 +376,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ), 'navigation' => $nav,
 			'profile' => array( 'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ), 'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ), 'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ), 'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ), 'locale' => (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' ), 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'calendar' => in_array( (string) ( $onboarding['profile']['calendar_preference'] ?? '' ), array( 'gregorian', 'persian' ), true ) ? (string) $onboarding['profile']['calendar_preference'] : 'gregorian' ),
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
-			'google_state' => dzn_theme_platform_google_state( (int) ( $data['principal']['principal_id'] ?? 0 ) ),
+			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
 			'google_disconnect_url' => admin_url( 'admin-post.php?action=dzn_google_disconnect' ),
@@ -435,7 +440,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'title'=>'درخواست تازهٔ کلاس آشنایی',
 			'context'=>(string)$request->full_name.' · '.(string)($request->instrument_name?:$request->course_name),
 			'message'=>$teacherTime.' به وقت شما · این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.',
-			'due'=>'در انتظار پاسخ','primary'=>'مشاهدهٔ درخواست',
+			'due'=>'در انتظار پاسخ','primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());
 	return array(

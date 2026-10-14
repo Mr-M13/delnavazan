@@ -11,7 +11,7 @@ $attention = (string) file_get_contents(dirname($root) . '/theme/template-parts/
 $assert = static function (bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException($message);
 };
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '42'"), 'Booking delivery migration must advance the schema.');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '43'"), 'Booking response migration must retain the delivery schema and advance the platform schema.');
 foreach (array('booking_request_teacher_deliveries', 'UNIQUE KEY booking_request_id', 'KEY teacher_state') as $needle) {
     $assert(str_contains($migrator, $needle), 'Booking delivery migration contract missing: ' . $needle);
 }
@@ -27,6 +27,6 @@ $assert(str_contains($repo, 'WHERE d.teacher_id=%d') && str_contains($repo, "d.s
 $assert(str_contains($repo, "r.resolution_state='unresolved'") && str_contains($repo, 'r.privacy_erased_at IS NULL'), 'Resolved or erased requests must not remain in the Teacher inbox.');
 $assert(!str_contains($service, 'new CanonicalLesson') && !str_contains($service, 'new Google') && !str_contains($service, '->project('), 'Intake delivery must not create lessons or provider projections.');
 $assert(str_contains($bridge, 'ownPending()') && str_contains($bridge, "'authoritative_request'=>true"), 'Teacher portal must use the teacher-scoped delivery read model.');
-$assert(str_contains($attention, 'درخواست در انتظار بررسی') && str_contains($attention, 'کلاس تأییدشده نیست'), 'Teacher portal must distinguish a request from a confirmed class.');
+$assert(str_contains($attention, 'درخواست در انتظار بررسی') && str_contains($attention, 'فقط پس از موفقیت هر دو'), 'Teacher portal must distinguish a request from a confirmed class.');
 $assert(str_contains($dashboard, "current_user_can('dzn_manage_onboarding')") && str_contains($dashboard, "state='pending_review'"), 'Academy approval alert must be narrowly capability-gated and count pending review submissions.');
 echo "Booking teacher delivery contract passed\n";

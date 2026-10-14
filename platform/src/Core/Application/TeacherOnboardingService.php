@@ -20,6 +20,7 @@ final class TeacherOnboardingService {
             'readiness_state' => (string) ( $teacher->readiness_state ?: 'not_ready' ),
             'profile_state' => $progress['profile_state'],
             'availability_state' => $progress['availability_state'],
+            'google_state' => $progress['google_state'],
             'agreement_state' => (string) ( $teacher->agreement_state ?: 'not_required' ),
             'submitted_at' => $teacher->submitted_at,
             'reviewed_at' => $teacher->reviewed_at,
@@ -173,7 +174,8 @@ final class TeacherOnboardingService {
             && (bool) Normalizer::locale( $teacher->locale )
             && in_array( (string) $teacher->calendar_preference, array( 'auto', 'gregorian', 'persian' ), true );
         $availability = $profile && $this->repo->hasUsableAvailability( (int) $teacher->id, (string) $teacher->timezone );
-        return array( 'profile_state' => $profile ? 'complete' : 'incomplete', 'availability_state' => $availability ? 'complete' : 'incomplete', 'ready_for_activation' => $profile && $availability );
+        $google = $this->repo->hasUsableGoogleConnection( (int) $teacher->id );
+        return array( 'profile_state' => $profile ? 'complete' : 'incomplete', 'availability_state' => $availability ? 'complete' : 'incomplete', 'google_state' => $google ? 'connected' : 'not_connected', 'ready_for_activation' => $profile && $availability && $google );
     }
 
     private function profileArray(?object $profile): ?array {

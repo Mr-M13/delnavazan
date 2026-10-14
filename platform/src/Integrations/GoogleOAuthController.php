@@ -72,6 +72,7 @@ final class GoogleOAuthController {
                     'evidence_reference'=>'teacher-google-disconnect:'.(int)$teacher->id,
                     'evidence_at'=>gmdate('Y-m-d H:i:s'),
                 ),'teacher-google-revoke:'.(int)$connection->id.':'.wp_generate_uuid4());
+                (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
                 self::returnToPortal(($result['connection_state']??'')==='revoked'?'google_disconnected':'google_disconnect_failed');
             }
             // Configuration can disappear after a connection was established. Fail closed locally
@@ -82,6 +83,7 @@ final class GoogleOAuthController {
                 'evidence_reference'=>'teacher-google-local-disconnect:'.(int)$teacher->id,
                 'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'teacher-google-disconnect-local:'.(int)$connection->id.':'.wp_generate_uuid4());
+            (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_disconnected');
         }catch(\Throwable){self::returnToPortal('google_disconnect_failed');}
     }
@@ -116,6 +118,7 @@ final class GoogleOAuthController {
             $service->completeAuthorization(array(
                 'state'=>$state,'code'=>$code,'code_verifier'=>(string)$payload['verifier'],'redirect_uri'=>(string)$payload['redirect'],
             ),'teacher-google-complete:'.hash('sha256',$state));
+            (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_connected');
         }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
     }

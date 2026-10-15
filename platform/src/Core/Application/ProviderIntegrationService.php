@@ -81,6 +81,7 @@ final class ProviderIntegrationService {
         $redirectUri=(string)($input['redirect_uri']??'');
         if(!str_starts_with($redirectUri,'https://'))throw new \InvalidArgumentException('Exact HTTPS redirect target required');
         $scopeSnapshot=ProviderIntegrationRule::scopeSnapshot($input['scope_snapshot']??'');
+        if(!ProviderIntegrationRule::permittedScopes($providerCode,$scopeSnapshot))throw new \InvalidArgumentException('authorization_scope_not_permitted');
         $evidence=ProviderIntegrationRule::evidenceFacts($input);
         // The idempotency digest is taken over the deterministic request facts only. The one-time
         // state, the PKCE verifier and the expiry are generated strictly after the recorded-command
@@ -183,6 +184,7 @@ final class ProviderIntegrationService {
             }
             $providerCode=(string)$intent->provider_code;
             $teacherId=(int)$intent->teacher_id;
+            if(!ProviderIntegrationRule::permittedScopes($providerCode,(string)$intent->scope_snapshot))throw new \InvalidArgumentException('authorization_scope_not_permitted');
             if((string)$intent->authorization_state!=='issued')throw new \InvalidArgumentException('authorization_state_already_settled');
             if((string)$intent->expires_at<$now){$this->repository->updateAuthorization((int)$intent->id,array('authorization_state'=>'expired','failure_reason_code'=>'authorization_expired'),array());throw new \InvalidArgumentException('authorization_state_expired');}
             if(!hash_equals((string)$intent->verifier_digest,$verifierDigest))throw new \InvalidArgumentException('authorization_verifier_mismatch');
@@ -262,6 +264,17 @@ final class ProviderIntegrationService {
             if(!in_array((string)$connection->connection_state,array('connected','refresh_failed'),true))throw new \InvalidArgumentException('provider_connection_unusable');
             $credential=$this->repository->credential($connectionId,true);
             if(!$credential)throw new \InvalidArgumentException('provider_credential_required');
+            if(!ProviderIntegrationRule::permittedScopes((string)$connection->provider_code,(string)$connection->scope_snapshot)){
+                // A legacy grant with any additional scope remains valid at Google until revoked,
+                // but it must become unusable locally and must never be refreshed. A new exact-scope
+                // consent creates a new connection lifecycle without reviving this credential.
+                $this->repository->updateCredential((int)$credential->id,array('state'=>'quarantined','quarantined_at'=>$now,'quarantine_reason_code'=>'oauth_scope_reconsent_required'),array('state'=>'active'));
+                $this->repository->updateConnection($connectionId,array('connection_state'=>'disconnected','active_slot'=>null,'connection_version'=>(int)$connection->connection_version+1,'failure_reason_code'=>'oauth_scope_reconsent_required','disconnected_at'=>$now,'updated_at'=>$now,'updated_by'=>$actor),array());
+                $this->quarantineIdentityMappings((string)$connection->provider_code,(int)$connection->teacher_id,$now,$actor,'oauth_scope_reconsent_required');
+                $this->recordCommand($digest,$payload,'refresh_connection',(string)$connection->provider_code,(int)$connection->teacher_id,$connectionId,null,null,null,'disconnected',$now,$actor);
+                $this->repository->commit();
+                return array('connection_id'=>$connectionId,'connection_state'=>'disconnected','reconsent_required'=>true,'evidence'=>$evidence,'operation'=>'refresh_connection','created'=>true);
+            }
             $material=$this->secrets->open($connectionId,(string)$connection->provider_code,$credential);
             try{$refreshed=$this->oauth->refresh(array('credential_material'=>$material,'scope_snapshot'=>(string)$connection->scope_snapshot,'now_utc'=>$now));}
             catch(\Throwable$refreshFailure){
@@ -760,6 +773,7 @@ final class ProviderIntegrationService {
         if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \InvalidArgumentException('canonical_teacher_required');
         $connection=$this->repository->activeConnection($providerCode,$teacherId,true);
         if(!$connection||!ProviderIntegrationRule::usable((string)$connection->connection_state))throw new \InvalidArgumentException('provider_connection_unusable');
+        if(!ProviderIntegrationRule::permittedScopes($providerCode,(string)$connection->scope_snapshot))throw new \InvalidArgumentException('provider_connection_reconsent_required');
         if(!ProviderIntegrationValidator::connectionShape($connection))throw new \InvalidArgumentException('provider_connection_malformed');
         return $connection;
     }

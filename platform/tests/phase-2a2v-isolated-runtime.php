@@ -63,6 +63,10 @@ $assert($scopes==='https://www.googleapis.com/auth/calendar.events https://www.g
 $assert(ProviderIntegrationRule::grantedScopesMatch($scopes,$scopes),'an identical granted scope set must match');
 $assert(ProviderIntegrationRule::grantedScopesMatch($scopes,$scopes.' https://www.googleapis.com/auth/drive')===false,'an extra granted scope must never match the requested set');
 $assert(ProviderIntegrationRule::grantedScopesMatch($scopes,'https://www.googleapis.com/auth/calendar.events')===false,'a missing granted scope must never match the requested set');
+$assert(ProviderIntegrationRule::permittedScopes('google_calendar',ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE),'the exact Calendar events grant must be permitted');
+$assert(!ProviderIntegrationRule::permittedScopes('google_calendar',$scopes),'a legacy Calendar plus Meet grant must require re-consent');
+$assert(!ProviderIntegrationRule::permittedScopes('google_calendar',ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE.' https://www.googleapis.com/auth/drive'),'an additional Google scope must require re-consent');
+$assert(!ProviderIntegrationRule::permittedScopes('google_meet',ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE),'the evidence-only Meet provider must not authorize OAuth');
 $refused(fn()=>ProviderIntegrationRule::scopeSnapshot(''),'an empty scope set');
 $assert(ProviderIntegrationRule::utc('2026-09-25 10:00:00'),'a canonical UTC instant must validate');
 foreach(array('2026-09-25T10:00:00Z','2026-09-25','','2026-13-45 99:00:00') as $bad)

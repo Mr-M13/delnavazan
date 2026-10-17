@@ -25,8 +25,8 @@ dzn_compose up --pull never -d --wait db
 dzn_compose up --pull never -d wordpress
 DZN_PLUGIN_SOURCE="$base_worktree"; export DZN_PLUGIN_SOURCE
 dzn_assert_runtime_paths
-for _ in $(seq 1 30); do [ -f "$DZN_WP_DIR/wp-load.php" ] && break; sleep 1; done
-[ -f "$DZN_WP_DIR/wp-load.php" ] || { echo 'error: WordPress core was not supplied by the cached image.' >&2; exit 1; }
+for _ in $(seq 1 60); do [ -f "$DZN_WP_DIR/wp-config.php" ] && break; sleep 1; done
+[ -f "$DZN_WP_DIR/wp-config.php" ] || { echo 'error: WordPress configuration was not created by the cached image.' >&2; exit 1; }
 dzn_wp core install --url="$DZN_WP_URL" --title="Schema $base_schema rehearsal" --admin_user=admin --admin_password=local-only-not-a-secret --admin_email=admin@example.invalid --skip-email
 plugin="$DZN_WP_DIR/wp-content/plugins/delnavazan-platform"; mkdir -p "$(dirname "$plugin")"; ln -s "$base_worktree" "$plugin"
 dzn_wp plugin activate delnavazan-platform

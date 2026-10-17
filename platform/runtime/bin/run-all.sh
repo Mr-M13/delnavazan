@@ -2,6 +2,7 @@
 set -euo pipefail
 bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 "$bin/check-cache.sh"
+"$bin/../../tests/historical-migrator-fixture-contract.sh"
 "$bin/run-fresh-install.sh"
 "$bin/run-retained-migration.sh"
 "$bin/run-schema30-to-32-rehearsal.sh"

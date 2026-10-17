@@ -31,12 +31,13 @@ dzn_remove_disposable_path "$DZN_DB_DIR"; dzn_remove_disposable_path "$DZN_WP_DI
 sleep 3
 dzn_compose up --pull never -d --wait db
 dzn_compose up --pull never -d wordpress
-DZN_PLUGIN_SOURCE="$base_worktree"; export DZN_PLUGIN_SOURCE
+base_plugin="$(dzn_plugin_source_from_worktree "$base_worktree")"
+DZN_PLUGIN_SOURCE="$base_plugin"; export DZN_PLUGIN_SOURCE
 dzn_assert_runtime_paths
 for _ in $(seq 1 60); do [ -f "$DZN_WP_DIR/wp-config.php" ] && break; sleep 1; done
 [ -f "$DZN_WP_DIR/wp-config.php" ] || { echo 'error: WordPress configuration was not created by the cached image.' >&2; exit 1; }
 dzn_wp core install --url="$DZN_WP_URL" --title="Schema $base_schema rehearsal" --admin_user=admin --admin_password=local-only-not-a-secret --admin_email=admin@example.invalid --skip-email
-plugin="$DZN_WP_DIR/wp-content/plugins/delnavazan-platform"; mkdir -p "$(dirname "$plugin")"; ln -s "$base_worktree" "$plugin"
+plugin="$DZN_WP_DIR/wp-content/plugins/delnavazan-platform"; mkdir -p "$(dirname "$plugin")"; ln -s "$base_plugin" "$plugin"
 dzn_wp plugin activate delnavazan-platform
 dzn_wp eval "if ((string)get_option(\"dzn_platform_schema_version\") !== \"$base_schema\") throw new RuntimeException(\"the immutable base did not install Schema $base_schema\"); update_option(\"dzn_runtime_rehearsal_preserved_option\",\"preserve-me\",false);"
 # One snapshot shape for both sides.  The `platform_outbox` identity and rows are projected onto the
@@ -44,8 +45,9 @@ dzn_wp eval "if ((string)get_option(\"dzn_platform_schema_version\") !== \"$base
 # every other table is compared whole, with only Migrator's two ledger options excluded from `options`.
 snapshot='global $wpdb;$added=array("notification_id","workflow_key","workflow_version","intent_key","audience","scheduled_for","expires_at","deferral_count","priority","lease_token_digest","failure_reason_code");$tables=$wpdb->get_col("SHOW TABLES");sort($tables,SORT_STRING);$out=array();foreach($tables as $t){$rows=$wpdb->get_results("SELECT * FROM ".$t,ARRAY_A);if(substr($t,-8)==="options")$rows=array_values(array_filter($rows,static fn($r)=>!in_array($r["option_name"],array("dzn_platform_schema_version","dzn_platform_completed_migrations"),true)));if(substr($t,-15)==="platform_outbox"){$rows=array_map(static function($r)use($added){foreach($added as $column)unset($r[$column]);return $r;},$rows);$columns=$wpdb->get_results($wpdb->prepare("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,COLUMN_KEY,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s ORDER BY COLUMN_NAME",$t),ARRAY_A);$identity=array_values(array_filter($columns,static fn($column)=>!in_array($column["COLUMN_NAME"],$added,true)));}else{$create=$wpdb->get_row("SHOW CREATE TABLE ".$t,ARRAY_N);$identity=(string)$create[1];}$out[$t]=array("schema"=>hash("sha256",serialize($identity)),"data"=>hash("sha256",serialize($rows)));}echo wp_json_encode($out);'
 dzn_wp eval "$snapshot" >"$before"
-rm -f "$plugin"; ln -s "$DZN_PLUGIN_WORKTREE" "$plugin"
-DZN_PLUGIN_SOURCE="$DZN_PLUGIN_WORKTREE"; export DZN_PLUGIN_SOURCE
+candidate_plugin="$(dzn_plugin_source_from_worktree "$DZN_PLUGIN_WORKTREE")"
+rm -f "$plugin"; ln -s "$candidate_plugin" "$plugin"
+DZN_PLUGIN_SOURCE="$candidate_plugin"; export DZN_PLUGIN_SOURCE
 dzn_assert_runtime_paths
 dzn_wp eval '\Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();'
 dzn_wp eval "$snapshot" >"$after"

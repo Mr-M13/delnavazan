@@ -188,6 +188,30 @@ expect_accepted 'container run with a disposable plugin source' \
 docker_reached || { echo 'FAIL: docker was not started for a disposable plugin source' >&2; exit 1; }
 echo 'CHECKED   disposable paths are still accepted and reach docker'
 
+# --- historical and current plugin layouts resolve to their bootstraps -------
+# Frozen Schema 30/31 commits are plugin-root trees. Current candidates are
+# monorepo worktrees whose plugin lives under platform/. The rehearsal must
+# mount and link the resolved plugin directory after it switches revisions.
+mkdir -p "$state/historical-plugin" "$state/current-repository/platform"
+: >"$state/historical-plugin/delnavazan-platform.php"
+: >"$state/current-repository/platform/delnavazan-platform.php"
+historical_plugin="$(guarded DZN_RUNTIME_STATE_DIR="$state" DZN_PLUGIN_SOURCE="$state/plugin-src" \
+  -- 'dzn_plugin_source_from_worktree "$DZN_RUNTIME_STATE_DIR/historical-plugin"')"
+current_plugin="$(guarded DZN_RUNTIME_STATE_DIR="$state" DZN_PLUGIN_SOURCE="$state/plugin-src" \
+  -- 'dzn_plugin_source_from_worktree "$DZN_RUNTIME_STATE_DIR/current-repository"')"
+[ "$historical_plugin" = "$state/historical-plugin" ] || { echo 'FAIL: historical plugin-root layout was not resolved' >&2; exit 1; }
+[ "$current_plugin" = "$state/current-repository/platform" ] || { echo 'FAIL: current nested plugin layout was not resolved' >&2; exit 1; }
+mkdir -p "$state/not-a-plugin"
+expect_rejected 'worktree without a plugin bootstrap' \
+  guarded DZN_RUNTIME_STATE_DIR="$state" DZN_PLUGIN_SOURCE="$state/plugin-src" \
+  -- 'dzn_plugin_source_from_worktree "$DZN_RUNTIME_STATE_DIR/not-a-plugin"'
+rehearsal="$root/runtime/bin/schema-upgrade-rehearsal.sh"
+grep -q 'base_plugin="$(dzn_plugin_source_from_worktree "$base_worktree")"' "$rehearsal" || { echo 'FAIL: rehearsal does not resolve the historical plugin root' >&2; exit 1; }
+grep -q 'candidate_plugin="$(dzn_plugin_source_from_worktree "$DZN_PLUGIN_WORKTREE")"' "$rehearsal" || { echo 'FAIL: rehearsal does not resolve the candidate plugin root' >&2; exit 1; }
+grep -q 'ln -s "$candidate_plugin" "$plugin"' "$rehearsal" || { echo 'FAIL: rehearsal symlink does not target the candidate plugin root' >&2; exit 1; }
+grep -q 'DZN_PLUGIN_SOURCE="$candidate_plugin"' "$rehearsal" || { echo 'FAIL: rehearsal mount does not target the candidate plugin root' >&2; exit 1; }
+echo 'CHECKED   historical root and current nested plugin layouts survive the rehearsal switch'
+
 # --- destructive scope: dedicated state directory, owned children only --------
 # `bin/destroy.sh YES` is the only destructive entry point.  The state directory
 # itself is never a disposable path and is never `rm -rf`'d, a broad shared

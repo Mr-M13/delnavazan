@@ -20,8 +20,9 @@ dzn_require_cached_images; dzn_candidate; dzn_prepare_worktree "$base_worktree" 
 # Correct the known verifier-only defects in this disposable fixture: the
 # contradictory identity_digest nullability assertion, the literal BIGINT
 # rendering check that rejects MariaDB's equivalent bigint(20) unsigned form,
-# and the pre-3f6214d mutable-column scan of append-only event payloads. The
-# frozen commits, their actual schemas and the current verifier stay intact.
+# the pre-3f6214d mutable-column scan of append-only event payloads, the
+# derivation/vat false positive, and two false nullable-digest declarations.
+# The frozen commits, their actual schemas and the current verifier stay intact.
 python3 "$(dirname "$BASH_SOURCE")/adjust-historical-migrator.py" \
   "$base_schema" "$base_worktree/src/Core/Infrastructure/Migration/Migrator.php"
 dzn_assert_runtime_paths

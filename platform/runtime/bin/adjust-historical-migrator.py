@@ -52,6 +52,43 @@ APPEND_ONLY_UPDATE_BAN = (
     "evidence must be append-only: '.$table);"
 )
 
+UNSCOPED_FORBIDDEN_NAME_CHECK = (
+    "foreach ( $forbiddenNames as $forbidden ) if ( str_contains( $name, $forbidden ) ) "
+    "throw new \\RuntimeException('Migration verification failed: a forbidden Phase 2A.2-U "
+    "column name: '.$table.'.'.$name);"
+)
+SCOPED_FORBIDDEN_NAME_CHECK = (
+    "foreach ( $forbiddenNames as $forbidden ) if ( ! str_ends_with( $name, "
+    "'derivation_digest' ) && str_contains( $name, $forbidden ) ) throw new "
+    "\\RuntimeException('Migration verification failed: a forbidden Phase 2A.2-U "
+    "column name: '.$table.'.'.$name);"
+)
+
+CONTRADICTORY_DIGEST_OPTIONAL = (
+    "$digestOptional = array('finance_policies.evidence_reference_digest',"
+    "'finance_teacher_rates.evidence_reference_digest',"
+    "'finance_teacher_rate_events.evidence_reference_digest',"
+    "'finance_snapshot_corrections.prior_snapshot_digest',"
+    "'finance_snapshot_corrections.evidence_reference_digest',"
+    "'finance_payability_evaluations.evidence_reference_digest',"
+    "'finance_payability_overrides.prior_derivation_digest',"
+    "'finance_payability_overrides.evidence_reference_digest',"
+    "'finance_statement_events.evidence_reference_digest',"
+    "'finance_reconciliation_findings.expected_digest',"
+    "'finance_reconciliation_findings.observed_digest');"
+)
+CORRECTED_DIGEST_OPTIONAL = (
+    "$digestOptional = array('finance_policies.evidence_reference_digest',"
+    "'finance_teacher_rates.evidence_reference_digest',"
+    "'finance_teacher_rate_events.evidence_reference_digest',"
+    "'finance_snapshot_corrections.evidence_reference_digest',"
+    "'finance_payability_evaluations.evidence_reference_digest',"
+    "'finance_payability_overrides.evidence_reference_digest',"
+    "'finance_statement_events.evidence_reference_digest',"
+    "'finance_reconciliation_findings.expected_digest',"
+    "'finance_reconciliation_findings.observed_digest');"
+)
+
 
 def fail(message: str) -> None:
     raise SystemExit(f"error: {message}; refusing fixture adjustment")
@@ -125,6 +162,38 @@ def adjust(schema: str, path: Path) -> None:
             f"(unscoped={unscoped_mutable}, scoped={scoped_mutable})"
         )
 
+    # `derivation` contains the forbidden substring `vat`. These six declared
+    # digest fields therefore fail the unqualified name scan even though the
+    # frozen DDL and verifier spec both require them. Mirror the narrow production
+    # exception from 77a6a1a: only names ending in `derivation_digest` bypass that
+    # substring scan, while all other forbidden names remain rejected.
+    unscoped_forbidden = source.count(UNSCOPED_FORBIDDEN_NAME_CHECK)
+    scoped_forbidden = source.count(SCOPED_FORBIDDEN_NAME_CHECK)
+    if unscoped_forbidden == 1 and scoped_forbidden == 0:
+        source = source.replace(
+            UNSCOPED_FORBIDDEN_NAME_CHECK, SCOPED_FORBIDDEN_NAME_CHECK, 1
+        )
+    elif unscoped_forbidden != 0 or scoped_forbidden != 1:
+        fail(
+            "unexpected historical forbidden-name verifier "
+            f"(unscoped={unscoped_forbidden}, scoped={scoped_forbidden})"
+        )
+
+    # The historical verifier says two required char(64) columns may be NULL,
+    # contradicting their NOT NULL CREATE TABLE declarations. Apply the exact
+    # production correction from 54c351e to this disposable verifier only.
+    contradictory_optional = source.count(CONTRADICTORY_DIGEST_OPTIONAL)
+    corrected_optional = source.count(CORRECTED_DIGEST_OPTIONAL)
+    if contradictory_optional == 1 and corrected_optional == 0:
+        source = source.replace(
+            CONTRADICTORY_DIGEST_OPTIONAL, CORRECTED_DIGEST_OPTIONAL, 1
+        )
+    elif contradictory_optional != 0 or corrected_optional != 1:
+        fail(
+            "unexpected historical digest-nullability verifier "
+            f"(contradictory={contradictory_optional}, corrected={corrected_optional})"
+        )
+
     if len(BIGINT_CHECK.findall(source)) != 0:
         fail("historical bigint verifier remained unadjusted")
     if len(PORTABLE_BIGINT_CHECK.findall(source)) != expected_bigints:
@@ -137,6 +206,14 @@ def adjust(schema: str, path: Path) -> None:
         fail("historical mutable-column verifier adjustment count changed")
     if source.count(APPEND_ONLY_UPDATE_BAN) != 1:
         fail("historical append-only update ban changed")
+    if source.count(UNSCOPED_FORBIDDEN_NAME_CHECK) != 0:
+        fail("historical forbidden-name verifier remained unscoped")
+    if source.count(SCOPED_FORBIDDEN_NAME_CHECK) != 1:
+        fail("historical forbidden-name verifier adjustment count changed")
+    if source.count(CONTRADICTORY_DIGEST_OPTIONAL) != 0:
+        fail("historical digest-nullability verifier remained contradictory")
+    if source.count(CORRECTED_DIGEST_OPTIONAL) != 1:
+        fail("historical digest-nullability verifier adjustment count changed")
 
     path.write_text(source)
 

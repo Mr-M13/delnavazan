@@ -17,6 +17,20 @@ case "$base_schema" in
 esac
 before="$DZN_RUNTIME_STATE_DIR/rehearsal-before.json"; after="$DZN_RUNTIME_STATE_DIR/rehearsal-after.json"
 dzn_require_cached_images; dzn_candidate; dzn_prepare_worktree "$base_worktree" "$base_ref"
+# The historical Schema 30/31 snapshots contain a contradictory verifier:
+# identity_digest is checked as NOT NULL and then explicitly required NULL.
+# Correct only that assertion in this disposable fixture, leaving the original
+# Git commit and its actual database schema unchanged.
+DZN_HISTORICAL_MIGRATOR="$base_worktree/src/Core/Infrastructure/Migration/Migrator.php" python3 - <<'PY'
+import os
+from pathlib import Path
+p = Path(os.environ['DZN_HISTORICAL_MIGRATOR'])
+s = p.read_text()
+needle = "array('integration_connections','identity_digest'),array('integration_oauth_authorizations','state_digest')"
+if s.count(needle) != 1:
+    raise SystemExit('error: unexpected historical verifier; refusing fixture adjustment')
+p.write_text(s.replace(needle, "array('integration_oauth_authorizations','state_digest')", 1))
+PY
 dzn_assert_runtime_paths
 dzn_compose down --volumes --remove-orphans || true
 dzn_remove_disposable_path "$DZN_DB_DIR"; dzn_remove_disposable_path "$DZN_WP_DIR"; mkdir -p "$DZN_DB_DIR" "$DZN_WP_DIR"

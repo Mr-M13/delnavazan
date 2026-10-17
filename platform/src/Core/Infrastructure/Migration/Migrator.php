@@ -302,11 +302,12 @@ final class Migrator {
 	private const CAPABILITY_OPTION_S = 'dzn_platform_capability_version_2a2s'; private const CAPABILITY_VERSION_S = '2a2s';
 	public static function on_activation(): void { self::ensure_capabilities(); self::maybe_upgrade(); }
 	public static function maybe_upgrade(): void {
+		$completed = (array) get_option( self::COMPLETED, array() );
 		if ( in_array( '022_canonical_lesson_delivery_attendance_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_canonical_lesson_delivery_authority_schema(); }
 		if ( in_array( '023_canonical_attendance_intake_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_canonical_attendance_intake_schema(); }
 		if ( in_array( '024_post_intro_continuation_slot_reservation_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_canonical_continuation_schema(); }
 		if ( in_array( '025_commercial_purchase_funding_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_commercial_purchase_schema(); }
-		if ( in_array( '026_renewal_recurring_enrolment_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_renewal_recurring_enrolment_schema(); }
+		if ( in_array( '026_renewal_recurring_enrolment_authority', $completed, true ) ) { self::verify_renewal_recurring_enrolment_schema( ! in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) ); }
 		if ( in_array( '027_google_calendar_meet_provider_integration', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_google_calendar_meet_provider_integration_schema(); }
 		if ( in_array( '028_payment_execution_seam_provider_adapter', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_payment_execution_schema(); }
 		if ( in_array( '029_payment_event_decision_claim_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_payment_event_decision_claim_schema(); }
@@ -323,8 +324,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		$completed = (array) get_option( self::COMPLETED, array() );
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -359,7 +359,11 @@ final class Migrator {
 				self::install_booking_notification_recovery();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();
 				$done[]='044_booking_notification_recovery';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('045_renewal_cycle_automatic_charge_at',$done,true)){
+				self::install_renewal_cycle_automatic_charge_at();self::verify_renewal_recurring_enrolment_schema();
+				$done[]='045_renewal_cycle_automatic_charge_at';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -454,6 +458,11 @@ final class Migrator {
 		$unsafeAuthorizations=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}integration_oauth_authorizations WHERE provider_code='google_calendar' AND authorization_state='issued' AND (scope_snapshot IS NULL OR BINARY scope_snapshot <> BINARY %s)",$allowed));
 		if($wpdb->last_error!==''||$unsafeConnections!==0||$unsafeCredentials!==0||$unsafeMappings!==0||$unsafeAuthorizations!==0)throw new \RuntimeException('Migration verification failed: legacy Google OAuth grant still requires re-consent');
 	}
+	/** Add the durable automatic-charge instant omitted by historical migration 026. */
+	private static function install_renewal_cycle_automatic_charge_at():void{
+		global $wpdb;$table=$wpdb->prefix.'dzn_renewal_cycles';
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'automatic_charge_at'")&&$wpdb->query("ALTER TABLE {$table} ADD COLUMN automatic_charge_at datetime NULL AFTER boundary_derived_at")===false)throw new \RuntimeException('Renewal automatic-charge instant migration failed');
+	}
 	/** Expand the existing vault envelope identifier without modifying sealed values. */
 	private static function install_payment_secret_cipher_version_width(): void {
 		global $wpdb;
@@ -472,6 +481,7 @@ final class Migrator {
 		$required = array( '001_initial_core_schema', '002_principal_invitation_foundation', '003_invitation_recipient_snapshot', '004_teaching_eligibility_foundation', '005_teacher_availability_foundation', '006_booking_request_core', '007_booking_request_intake_privacy', '008_coordination_candidate_foundation', '009_teacher_availability_assent', '010_proposal_foundation', '011_provisional_acceptance_evidence', '012_student_identity_acceptance_authority', '013_final_acceptance_arrangement_foundation', '014_canonical_enrolment_foundation', '015_enrolment_conversion_authority', '016_teacher_assignment_foundation', '017_canonical_term_foundation', '018_canonical_term_authority', '019_canonical_enrolment_lifecycle_authority', '020_canonical_lesson_authority', '021_canonical_lesson_schedule_authority', '022_canonical_lesson_delivery_attendance_authority', '023_canonical_attendance_intake_authority', '024_post_intro_continuation_slot_reservation_authority', '025_commercial_purchase_funding_authority', '026_renewal_recurring_enrolment_authority', '027_google_calendar_meet_provider_integration', '028_payment_execution_seam_provider_adapter', '029_payment_event_decision_claim_authority', '030_finance_payability_rate_statement_authority', '031_portal_facing_services_principal_authorization', '032_notification_communications_authority', '033_core_dataset_technical_prerequisites', '034_teacher_onboarding_lifecycle', '035_provider_reference_vault', '036_checkout_session_authority', '037_student_account_claim_invitation_authority', '038_operational_cashbook_authority', '039_payment_secret_cipher_version_width', '040_notification_cipher_version_width', '042_booking_teacher_delivery' );
 		$required[] = '043_booking_teacher_response';
 		$required[] = '044_booking_notification_recovery';
+		$required[] = '045_renewal_cycle_automatic_charge_at';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
 		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy();
@@ -1028,7 +1038,7 @@ final class Migrator {
 	}
 
 	/** Fail closed unless the Phase-R2 renewal storage is exactly as designed. */
-	private static function verify_renewal_recurring_enrolment_schema():void{
+	private static function verify_renewal_recurring_enrolment_schema(bool $allowLegacyAutomaticChargeColumn=false):void{
 		global $wpdb; $p = $wpdb->prefix . 'dzn_';
 		$spec = array(
 			'recurring_enrolments' => array('uid','reference_code','enrolment_id','student_id','course_id','currency','region_code','collection_mode','state','rule_version','recurring_enrolment_version'),
@@ -1055,7 +1065,11 @@ final class Migrator {
 			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $physical ) ) !== $physical ) throw new \RuntimeException('Migration verification failed: missing '.$table);
 			$engine = $wpdb->get_var( $wpdb->prepare( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $physical ) );
 			if ( ! is_string( $engine ) || strcasecmp( $engine, 'InnoDB' ) !== 0 ) throw new \RuntimeException('Migration verification failed: renewal storage must use InnoDB: '.$table);
-			foreach ( $columns as $column ) if ( ! $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '{$column}'" ) ) throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			foreach ( $columns as $column ) {
+				$found = $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '{$column}'" );
+				if ( ! $found && $allowLegacyAutomaticChargeColumn && $table === 'renewal_cycles' && $column === 'automatic_charge_at' ) continue;
+				if ( ! $found ) throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			}
 			foreach ( array( 'stripe','google','paypal','braintree','provider_subscription','provider_intent' ) as $forbidden ) if ( $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '%{$forbidden}%'" ) ) throw new \RuntimeException('Migration verification failed: renewal storage must stay provider-neutral: '.$table);
 		}
 		// The phase owns exactly the storage above: no Lesson, Term, schedule or notification table may
@@ -1100,7 +1114,8 @@ final class Migrator {
 		// nullable-without-default at write time and are never dropped, renamed or retyped afterwards.
 		foreach ( array('automatic_charge_at','guarantee_deadline_at') as $instant ) {
 			$column = $wpdb->get_row("SHOW COLUMNS FROM {$p}renewal_cycles LIKE '{$instant}'");
-			if ( ! $column || strtolower( $column->Type ) !== 'datetime' || $column->Null !== 'YES' ) throw new \RuntimeException('Migration verification failed: durable tier-F instant column '.$instant);
+			if ( ! $column && $allowLegacyAutomaticChargeColumn && $instant === 'automatic_charge_at' ) continue;
+			if ( ! $column || strtolower( $column->Type ) !== 'datetime' || $column->Null !== 'YES' || $column->Default !== null || (string) $column->Extra !== '' ) throw new \RuntimeException('Migration verification failed: durable tier-F instant column '.$instant);
 		}
 	}
 

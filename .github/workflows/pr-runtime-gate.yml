@@ -103,6 +103,8 @@ jobs:
           php platform/tests/booking-student-notification-unit.php
           php platform/tests/google-oauth-scope-policy-unit.php
           php platform/tests/oauth-scope-exact-matching-contract.php
+          php platform/tests/renewal-historical-upgrade-contract.php
+          php platform/tests/renewal-historical-upgrade-unit.php
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-action-link-policy-contract.php

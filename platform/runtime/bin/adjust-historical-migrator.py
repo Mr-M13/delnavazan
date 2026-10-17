@@ -109,6 +109,9 @@ def adjust(schema: str, path: Path) -> None:
         fail(f"historical Migrator not found at {path}")
 
     source = path.read_text()
+    historical_ddl = tuple(
+        line for line in source.splitlines(keepends=True) if '"CREATE TABLE ' in line
+    )
     expected_bigints = EXPECTED_BIGINT_CHECKS[schema]
     expected_extras = EXPECTED_EXTRA_CHECKS[schema]
 
@@ -214,6 +217,9 @@ def adjust(schema: str, path: Path) -> None:
         fail("historical digest-nullability verifier remained contradictory")
     if source.count(CORRECTED_DIGEST_OPTIONAL) != 1:
         fail("historical digest-nullability verifier adjustment count changed")
+
+    if tuple(line for line in source.splitlines(keepends=True) if '"CREATE TABLE ' in line) != historical_ddl:
+        fail("historical CREATE TABLE declarations changed")
 
     path.write_text(source)
 

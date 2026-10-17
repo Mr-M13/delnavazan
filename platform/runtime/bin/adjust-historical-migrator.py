@@ -30,6 +30,28 @@ CONTRADICTORY_DIGEST = (
 )
 CORRECTED_DIGEST = "array('integration_oauth_authorizations','state_digest')"
 
+UNSCOPED_MUTABLE_CHECK = """
+\t\t\tforeach ( array('updated_at','updated_by','active_slot','status','state','superseded_at','superseded_by_statement_id','superseded_by_correction_id','superseded_by_evaluation_id','issued_at','issued_by','resolved_at','resolved_by','resolution_note','effective_until','result_evaluation_id') as $mutableColumn ) {
+\t\t\t\tif ( ! $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '{$mutableColumn}'" ) ) continue;
+\t\t\t\tif ( ! in_array( $mutableColumn, $mutable[$table] ?? array(), true ) ) throw new \\RuntimeException('Migration verification failed: an undeclared mutable column: '.$table.'.'.$mutableColumn);
+\t\t\t}
+"""
+SCOPED_MUTABLE_CHECK = """
+\t\t\tif ( ! in_array( $table, $appendOnly, true ) ) {
+\t\t\t\tforeach ( array('updated_at','updated_by','active_slot','status','state','superseded_at','superseded_by_statement_id','superseded_by_correction_id','superseded_by_evaluation_id','issued_at','issued_by','resolved_at','resolved_by','resolution_note','effective_until','result_evaluation_id') as $mutableColumn ) {
+\t\t\t\t\tif ( ! $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '{$mutableColumn}'" ) ) continue;
+\t\t\t\t\tif ( ! in_array( $mutableColumn, $mutable[$table] ?? array(), true ) ) throw new \\RuntimeException('Migration verification failed: an undeclared mutable column: '.$table.'.'.$mutableColumn);
+\t\t\t\t}
+\t\t\t}
+"""
+APPEND_ONLY_UPDATE_BAN = (
+    "if ( in_array( $table, $appendOnly, true ) && "
+    "( $wpdb->get_row( \"SHOW COLUMNS FROM {$physical} LIKE 'updated_at'\" ) || "
+    "$wpdb->get_row( \"SHOW COLUMNS FROM {$physical} LIKE 'updated_by'\" ) ) ) "
+    "throw new \\RuntimeException('Migration verification failed: Phase 2A.2-U "
+    "evidence must be append-only: '.$table);"
+)
+
 
 def fail(message: str) -> None:
     raise SystemExit(f"error: {message}; refusing fixture adjustment")
@@ -72,6 +94,9 @@ def adjust(schema: str, path: Path) -> None:
     extra_checks = len(EXTRA_CHECK.findall(source))
     if extra_checks != expected_extras:
         fail(f"unexpected historical Extra verifier count {extra_checks}")
+    append_only_bans = source.count(APPEND_ONLY_UPDATE_BAN)
+    if append_only_bans != 1:
+        fail(f"unexpected historical append-only update ban count {append_only_bans}")
 
     contradictory = source.count(CONTRADICTORY_DIGEST)
     corrected = source.count(CORRECTED_DIGEST)
@@ -83,12 +108,35 @@ def adjust(schema: str, path: Path) -> None:
             f"(contradictory={contradictory}, corrected={corrected})"
         )
 
+    # These snapshots predate the production verifier fix in 3f6214d. Their
+    # name-based mutable-column scan incorrectly inspects append-only event rows,
+    # where `effective_until` is immutable event payload. Apply the established
+    # production guard only to the disposable verifier; the historical DDL and
+    # the separate updated_at/updated_by append-only rejection remain unchanged.
+    unscoped_mutable = source.count(UNSCOPED_MUTABLE_CHECK)
+    scoped_mutable = source.count(SCOPED_MUTABLE_CHECK)
+    if unscoped_mutable == 1 and scoped_mutable == 0:
+        source = source.replace(
+            UNSCOPED_MUTABLE_CHECK, SCOPED_MUTABLE_CHECK, 1
+        )
+    elif unscoped_mutable != 0 or scoped_mutable != 1:
+        fail(
+            "unexpected historical mutable-column verifier "
+            f"(unscoped={unscoped_mutable}, scoped={scoped_mutable})"
+        )
+
     if len(BIGINT_CHECK.findall(source)) != 0:
         fail("historical bigint verifier remained unadjusted")
     if len(PORTABLE_BIGINT_CHECK.findall(source)) != expected_bigints:
         fail("historical bigint verifier adjustment count changed")
     if source.count(CONTRADICTORY_DIGEST) != 0 or source.count(CORRECTED_DIGEST) != 1:
         fail("historical identity_digest verifier remained contradictory")
+    if source.count(UNSCOPED_MUTABLE_CHECK) != 0:
+        fail("historical mutable-column verifier remained unscoped")
+    if source.count(SCOPED_MUTABLE_CHECK) != 1:
+        fail("historical mutable-column verifier adjustment count changed")
+    if source.count(APPEND_ONLY_UPDATE_BAN) != 1:
+        fail("historical append-only update ban changed")
 
     path.write_text(source)
 

@@ -9,7 +9,10 @@ trap 'rm -rf "$tmp"' EXIT
 check_fixture() {
   local schema="$1" ref="$2" expected_bigints="$3" expected_extras="$4"
   local migrator="$tmp/schema-$schema-Migrator.php"
+  local original="$migrator.original"
+  local weakened="$migrator.weakened"
   git -C "$root" show "$ref:src/Core/Infrastructure/Migration/Migrator.php" >"$migrator"
+  cp "$migrator" "$original"
 
   python3 "$adjuster" "$schema" "$migrator"
   cp "$migrator" "$migrator.first-adjustment"
@@ -20,12 +23,13 @@ check_fixture() {
   }
 
   php -l "$migrator" >/dev/null
-  python3 - "$migrator" "$expected_bigints" "$expected_extras" <<'PY'
+  python3 - "$original" "$migrator" "$expected_bigints" "$expected_extras" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-source = Path(sys.argv[1]).read_text()
+original = Path(sys.argv[1]).read_text()
+source = Path(sys.argv[2]).read_text()
 bigints = re.findall(
     r"preg_match\('/\^bigint\(\?:\\\\\(\\\\d\+\\\\\)\)\? unsigned\$/',"
     r" strtolower\(trim\(\(string\) \$[A-Za-z_][A-Za-z0-9_]*->Type\)\)\) !== 1",
@@ -36,11 +40,35 @@ extras = re.findall(
     r"\s*!==\s*'AUTO_INCREMENT'",
     source,
 )
-assert len(bigints) == int(sys.argv[2]), (len(bigints), sys.argv[2])
-assert len(extras) == int(sys.argv[3]), (len(extras), sys.argv[3])
+assert len(bigints) == int(sys.argv[3]), (len(bigints), sys.argv[3])
+assert len(extras) == int(sys.argv[4]), (len(extras), sys.argv[4])
 assert "array('integration_connections','identity_digest'),array('integration_oauth_authorizations','state_digest')" not in source
 assert source.count("array('integration_oauth_authorizations','state_digest')") == 1
+
+create_table = re.compile(r'^\s*"CREATE TABLE .*$', re.MULTILINE)
+assert create_table.findall(source) == create_table.findall(original)
+assert "'finance_teacher_rate_events' => array('rate_id','event_sequence','event_type','from_status','to_status','effective_until'" in source
+assert "'finance_teacher_rate_events'" in re.search(
+    r"\$appendOnly = array\(([^;]+)\);", source
+).group(1)
+assert source.count("if ( ! in_array( $table, $appendOnly, true ) ) {") == 1
+assert source.count("Migration verification failed: an undeclared mutable column:") == 1
+assert source.count("Migration verification failed: Phase 2A.2-U evidence must be append-only:") == 1
+
+append_only_ban = re.compile(
+    r'^\s*if \( in_array\( \$table, \$appendOnly, true \) && .*'
+    r"Phase 2A\.2-U evidence must be append-only: .*\n",
+    re.MULTILINE,
+)
+weakened, replacements = append_only_ban.subn('', source)
+assert replacements == 1
+Path(sys.argv[2] + '.weakened').write_text(weakened)
 PY
+
+  if python3 "$adjuster" "$schema" "$weakened" >/dev/null 2>&1; then
+    echo "FAIL: Schema $schema fixture adjustment accepted a weakened append-only verifier" >&2
+    exit 1
+  fi
 }
 
 check_fixture 30 86d57606cabcddba15d076edfe14fb4e7257e60f 9 6

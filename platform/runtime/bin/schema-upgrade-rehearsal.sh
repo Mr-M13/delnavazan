@@ -20,6 +20,7 @@ dzn_require_cached_images; dzn_candidate; dzn_prepare_worktree "$base_worktree" 
 dzn_assert_runtime_paths
 dzn_compose down --volumes --remove-orphans || true
 dzn_remove_disposable_path "$DZN_DB_DIR"; dzn_remove_disposable_path "$DZN_WP_DIR"; mkdir -p "$DZN_DB_DIR" "$DZN_WP_DIR"
+sleep 3
 dzn_compose up --pull never -d --wait db
 dzn_compose up --pull never -d wordpress
 DZN_PLUGIN_SOURCE="$base_worktree"; export DZN_PLUGIN_SOURCE

@@ -53,14 +53,14 @@ $previous=get_current_user_id();
 $subscriber=wp_insert_user(array('user_login'=>'dzn-v-sub-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>'subscriber'));
 wp_set_current_user((int)$subscriber);
 $ports=new ContractProviderAdapters(array());
-dzn_v_rejected(fn()=>$service($ports)->beginAuthorization(array('provider_code'=>'google_calendar','teacher_id'=>$teacherId,'client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events')+$evidence('sub-begin'),dzn_v_key('sub-begin')),'Unauthorized','a non-administrator consent initiation');
+dzn_v_rejected(fn()=>$service($ports)->beginAuthorization(array('provider_code'=>'google_calendar','teacher_id'=>$teacherId,'client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid')+$evidence('sub-begin'),dzn_v_key('sub-begin')),'Unauthorized','a non-administrator consent initiation');
 dzn_v_rejected(fn()=>$service($ports)->projectCalendarEvent(array('lesson_id'=>$lessonId,'schedule_version_id'=>$versionId,'projection_reference'=>'ref-sub')+$evidence('sub-project'),dzn_v_key('sub-project')),'Unauthorized','a non-administrator projection');
 dzn_v_rejected(fn()=>(new ProviderEventIngestService(null,$ports,null))->ingest(array('provider_code'=>'google_meet','lesson_id'=>$lessonId,'schedule_version_id'=>$versionId,'verified'=>true,'facts'=>array()),dzn_v_key('sub-ingest')),'Unauthorized','a non-administrator provider event ingestion');
 dzn_v_rejected(fn()=>(new ProviderIntegrationReadService())->connection(1),'Unauthorized','a non-administrator integration read');
 wp_set_current_user($previous);
 
 // 2. Consent initiation: server-side state and verifier, digest-only persistence, one-time binding.
-$scope='https://www.googleapis.com/auth/calendar.events';
+$scope='https://www.googleapis.com/auth/calendar.events openid';
 $begin=$service($ports)->beginAuthorization(array('provider_code'=>'google_calendar','teacher_id'=>$teacherId,'client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>$scope)+$evidence('begin'),dzn_v_key('begin'));
 $connectionId=(int)$begin['connection_id'];
 dzn_v_assert($connectionId>0&&strlen((string)$begin['state'])>20&&strlen((string)$begin['code_verifier'])>20,'consent initiation must mint an unpredictable state and verifier');

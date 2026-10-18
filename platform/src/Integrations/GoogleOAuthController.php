@@ -33,7 +33,7 @@ final class GoogleOAuthController {
             $service=new ProviderIntegrationService(null,null,$oauth,$adapter,$adapter);
             $result=$service->beginAuthorization(array(
                 'provider_code'=>GoogleCalendarMeetAdapter::PROVIDER_CODE,'teacher_id'=>(int)$teacher->id,
-                'client_reference'=>GoogleOAuthTransport::clientId(),'redirect_uri'=>$redirect,
+                'client_reference'=>GoogleOAuthTransport::clientReference(),'redirect_uri'=>$redirect,
                 'scope_snapshot'=>$scopes,'evidence_channel'=>'authenticated_platform',
                 'evidence_reference'=>'teacher-google-connect:'.(int)$teacher->id,'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'teacher-google-connect:'.get_current_user_id().':'.wp_generate_uuid4());
@@ -42,13 +42,13 @@ final class GoogleOAuthController {
                 'teacher_id'=>(int)$teacher->id,'expires_at'=>time()+900,
             )),time()+900);
             $uri=$oauth->authorizationUri(array(
-                'client_reference'=>GoogleOAuthTransport::clientId(),'redirect_uri'=>$redirect,
+                'client_reference'=>GoogleOAuthTransport::clientReference(),'redirect_uri'=>$redirect,
                 'scope_snapshot'=>$scopes,'state'=>$result['state'],'code_challenge'=>$result['code_challenge'],
             ));
             $parts=parse_url($uri);
             if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='accounts.google.com')throw new \RuntimeException('oauth_authorization_target_untrusted');
             wp_redirect($uri,302,'Delnavazan');exit;
-        }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
+        }catch(\Throwable $error){self::clearCookie();self::returnToPortal(self::connectFailureStatus($error));}
     }
     public static function disconnect():void{
         if(!is_user_logged_in())auth_redirect();
@@ -123,6 +123,17 @@ final class GoogleOAuthController {
     }
     private static function returnToPortal(string $status):never{
         wp_safe_redirect(add_query_arg(array('teacher-view'=>'account','google_status'=>$status),home_url('/teacher-portal/')));exit;
+    }
+    /** Map known, safe failure classes to teacher-facing status codes without exposing exception text. */
+    private static function connectFailureStatus(\Throwable $error):string{
+        return match($error->getMessage()){
+            'google_oauth_not_configured'=>'google_not_configured',
+            'google_oauth_client_mismatch','Controlled client reference required'=>'google_client_reference_invalid',
+            'authorization_scope_not_permitted'=>'google_scope_unavailable',
+            'Exact HTTPS redirect target required'=>'oauth_redirect_unavailable',
+            'Unauthorized'=>'google_connect_not_permitted',
+            default=>'google_connect_failed',
+        };
     }
     private static function setCookie(string $value,int $expires):void{
         setcookie(self::COOKIE,$value,array('expires'=>$expires,'path'=>'/','secure'=>true,'httponly'=>true,'samesite'=>'Lax'));

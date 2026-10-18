@@ -119,7 +119,7 @@ final class GoogleOAuthController {
             ),'teacher-google-complete:'.hash('sha256',$state));
             (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_connected');
-        }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
+        }catch(\Throwable $error){self::clearCookie();self::returnToPortal(self::completeFailureStatus($error));}
     }
     private static function returnToPortal(string $status):never{
         wp_safe_redirect(add_query_arg(array('teacher-view'=>'account','google_status'=>$status),home_url('/teacher-portal/')));exit;
@@ -131,6 +131,22 @@ final class GoogleOAuthController {
             'google_oauth_client_mismatch','Controlled client reference required'=>'google_client_reference_invalid',
             'authorization_scope_not_permitted'=>'google_scope_unavailable',
             'Exact HTTPS redirect target required'=>'oauth_redirect_unavailable',
+            'Unauthorized'=>'google_connect_not_permitted',
+            default=>'google_connect_failed',
+        };
+    }
+    /** Map callback failures to bounded status codes without rendering provider responses or secrets. */
+    private static function completeFailureStatus(\Throwable $error):string{
+        return match($error->getMessage()){
+            'oauth_callback_invalid','oauth_cookie_invalid','oauth_cookie_unavailable',
+            'authorization_state_invalid','authorization_state_already_settled','authorization_state_expired',
+            'authorization_verifier_mismatch','authorization_redirect_mismatch'=>'google_callback_invalid',
+            'oauth_principal_changed'=>'google_account_session_changed',
+            'google_oauth_transport_failed'=>'google_exchange_unavailable',
+            'google_oauth_provider_refused','google_oauth_response_incomplete','google_oauth_subject_unavailable',
+            'authorization_identity_unusable'=>'google_identity_unavailable',
+            'authorization_scope_not_permitted','authorization_scope_mismatch'=>'google_scope_unavailable',
+            'provider_identity_already_bound'=>'google_identity_already_connected',
             'Unauthorized'=>'google_connect_not_permitted',
             default=>'google_connect_failed',
         };

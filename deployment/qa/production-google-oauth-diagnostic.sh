@@ -32,10 +32,10 @@ $settingsReady = false;
 $transportConfigured = false;
 $providerReachability = "unavailable";
 try {
-    $settings = new \\Delnavazan\\Platform\\Core\\Application\\IntegrationSettingsService();
+    $settings = new \Delnavazan\Platform\Core\Application\IntegrationSettingsService();
     $settingsReady = $settings->ready("google");
-    $transportConfigured = \\Delnavazan\\Platform\\Integrations\\GoogleOAuthTransport::isConfigured();
-    $providerReachability = (new \\Delnavazan\\Platform\\Integrations\\IntegrationTestRunner())->run("google", []) ["code"] ?? "unavailable";
+    $transportConfigured = \Delnavazan\Platform\Integrations\GoogleOAuthTransport::isConfigured();
+    $providerReachability = (new \Delnavazan\Platform\Integrations\IntegrationTestRunner())->run("google", []) ["code"] ?? "unavailable";
 } catch (Throwable) {
     $providerReachability = "diagnostic_unavailable";
 }

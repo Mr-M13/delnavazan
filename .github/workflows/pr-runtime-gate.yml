@@ -102,6 +102,7 @@ jobs:
           php platform/tests/booking-calendar-projection-unit.php
           php platform/tests/booking-student-notification-unit.php
           php platform/tests/google-oauth-scope-policy-unit.php
+          php platform/tests/google-oauth-transport-unit.php
           php platform/tests/oauth-scope-exact-matching-contract.php
           php platform/tests/renewal-historical-upgrade-contract.php
           php platform/tests/renewal-historical-upgrade-unit.php

@@ -87,7 +87,7 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
             if(is_wp_error($response)||(int)wp_remote_retrieve_response_code($response)!==200)return array('usable'=>false,'provider_subject_reference'=>null,'granted_scope_snapshot'=>null,'failure_reason_code'=>'provider_inspection_failed');
             $body=json_decode((string)wp_remote_retrieve_body($response),true);
             if(!is_array($body))throw new \RuntimeException('provider_response_invalid');
-            return array('usable'=>true,'provider_subject_reference'=>$this->required($body,'sub'),'granted_scope_snapshot'=>$this->required($body,'scope'),'failure_reason_code'=>null);
+            return array('usable'=>true,'provider_subject_reference'=>$this->subjectReference($body),'granted_scope_snapshot'=>$this->required($body,'scope'),'failure_reason_code'=>null);
         }catch(\Throwable){
             return array('usable'=>false,'provider_subject_reference'=>null,'granted_scope_snapshot'=>null,'failure_reason_code'=>'provider_inspection_failed');
         }
@@ -119,7 +119,23 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
         if(is_wp_error($response)||(int)wp_remote_retrieve_response_code($response)!==200)throw new \RuntimeException('google_oauth_subject_unavailable');
         $body=json_decode((string)wp_remote_retrieve_body($response),true);
         if(!is_array($body))throw new \RuntimeException('google_oauth_subject_unavailable');
-        return $this->required($body,'sub');
+        return $this->subjectReference($body);
+    }
+
+    /**
+     * Google access-token introspection has returned both the current OpenID `sub` name and the
+     * legacy OAuth2 `user_id` name. Both represent the stable Google account identifier; neither is
+     * an e-mail address. Prefer `sub`, but accept `user_id` so a Calendar-only grant is not rejected
+     * after a successful code exchange merely because Google used the legacy field name.
+     */
+    private function subjectReference(array $body):string{
+        foreach(array('sub','user_id') as $key){
+            $raw=$body[$key]??'';
+            if(!is_scalar($raw))continue;
+            $value=trim((string)$raw);
+            if($value!=='')return $value;
+        }
+        throw new \RuntimeException('google_oauth_subject_unavailable');
     }
 
     private function encodeCredential(string $access,string $refresh,array $response):string{

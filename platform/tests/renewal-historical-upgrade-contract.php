@@ -39,9 +39,10 @@ $assert(str_contains($migrator, "array('renewal_cycle_commands','command_key_dig
 $assert(str_contains($migrator, "array('automatic_charge_at','guarantee_deadline_at')"), 'Both durable tier-F instants must remain strictly verified');
 $assert(str_contains($migrator, "\$column->Default !== null") && str_contains($migrator, "(string) \$column->Extra !== ''"), 'Tier-F instant shape verification must reject defaults or generated attributes');
 
-$assert(str_contains($rehearsal, '$renewalAdded=array("automatic_charge_at")'), 'The historical rehearsal must declare the one allowed renewal addition');
+$assert(str_contains($rehearsal, '"dzn_renewal_cycles"=>array("automatic_charge_at")'), 'The historical rehearsal must declare the one allowed renewal addition');
 $assert(str_contains($rehearsal, 'unset($r[$column])'), 'The historical rehearsal must compare all pre-existing row data');
-$assert(str_contains($rehearsal, '`automatic_charge_at` datetime DEFAULT NULL'), 'The historical rehearsal must project only the exact repaired column shape');
-$assert(str_contains($rehearsal, 'if($after[$table]!==$shape)'), 'The historical rehearsal must still reject every other schema or data change');
+$assert(str_contains($rehearsal, 'COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,COLUMN_KEY,EXTRA'), 'The historical rehearsal must compare the remaining column identities');
+$assert(str_contains($rehearsal, '!str_ends_with($table,"options")&&$after[$table]!==$shape'), 'The historical rehearsal must still reject every other business-table schema or data change');
+$assert(str_contains($rehearsal, 'preserved option changed during upgrade'), 'The historical rehearsal must retain an explicit WordPress-option preservation sentinel');
 
 echo "Historical renewal upgrade contract passed\n";

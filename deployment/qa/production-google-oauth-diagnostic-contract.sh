@@ -18,6 +18,10 @@ need "$diagnostic" 'connection_counts'
 need "$diagnostic" 'authorization_counts'
 need "$diagnostic" 'latest_connection'
 need "$diagnostic" 'latest_authorization'
+if grep -Fq '\\\\Delnavazan' "$diagnostic"; then
+  echo 'FAIL production Google OAuth diagnostic must use valid PHP namespaces' >&2
+  exit 1
+fi
 if grep -Eiq '\b(access_token|refresh_token|client_secret|client_id|state_digest|verifier_digest|credential_material|teacher_id|DELETE FROM|INSERT INTO|UPDATE .* SET|wp_update|wp_insert|maintenance-mode|rsync|scp .*deploy)' "$diagnostic"; then
   echo 'FAIL production Google OAuth diagnostic exposes protected data or is not read-only' >&2
   exit 1

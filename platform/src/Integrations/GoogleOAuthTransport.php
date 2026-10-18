@@ -17,11 +17,19 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
     private const TOKEN_INFO_URI='https://oauth2.googleapis.com/tokeninfo';
 
     public static function clientId():string{return (new IntegrationSettingsService())->value('google','client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');}
+    /**
+     * A fixed-width, non-secret reference suitable for the persisted authorization record.
+     *
+     * Google web-client IDs can exceed the legacy 64-character column, so storing the raw
+     * provider client ID made an otherwise valid consent start fail before the browser redirect.
+     */
+    public static function clientReference():string{return 'google:'.substr(hash('sha256',self::clientId()),0,48);}
     public static function isConfigured():bool{try{return self::clientId()!==''&&self::clientSecret()!=='';}catch(\Throwable){return false;}}
     private static function clientSecret():string{return (new IntegrationSettingsService())->value('google','client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');}
 
     public function authorizationUri(array $request):string{
-        $this->configuration((string)($request['client_reference']??''));
+        [$client]=$this->configuration((string)($request['client_reference']??''));
+        $request['client_reference']=$client;
         return (new GoogleCalendarMeetAdapter())->authorizationUri($request);
     }
 
@@ -85,10 +93,10 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
         }
     }
 
-    private function configuration(string $expectedClient=''):array{
+    private function configuration(string $expectedReference=''):array{
         $client=trim(self::clientId());$secret=trim(self::clientSecret());
         if($client===''||$secret==='')throw new \RuntimeException('google_oauth_not_configured');
-        if($expectedClient!==''&&!hash_equals($client,$expectedClient))throw new \RuntimeException('google_oauth_client_mismatch');
+        if($expectedReference!==''&&!hash_equals(self::clientReference(),$expectedReference))throw new \RuntimeException('google_oauth_client_mismatch');
         return array($client,$secret);
     }
 

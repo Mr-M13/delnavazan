@@ -301,6 +301,22 @@ function dzn_theme_platform_google_state( $teacher_id ) {
 	} catch ( Throwable $e ) { return 'unavailable'; }
 }
 
+/** Only controller-issued, non-sensitive Google statuses may be displayed in the teacher portal. */
+function dzn_theme_platform_google_notice() {
+	$status = isset( $_GET['google_status'] ) ? sanitize_key( wp_unslash( $_GET['google_status'] ) ) : '';
+	$messages = array(
+		'google_connected' => array( 'success', 'اتصال Google برقرار شد', 'اکنون تقویم Google برای ساخت رویداد و پیوند Meet آماده است.' ),
+		'google_not_configured' => array( 'error', 'اتصال Google آماده نیست', 'تنظیمات امن Google Calendar در سایت کامل نشده است. لطفاً با مدیر سامانه تماس بگیرید.' ),
+		'teacher_not_linked' => array( 'error', 'حساب مدرس پیدا نشد', 'این حساب به یک پروفایل معتبر مدرس متصل نیست.' ),
+		'oauth_redirect_unavailable' => array( 'error', 'نشانی بازگشت Google معتبر نیست', 'نشانی امن بازگشت به سایت در دسترس نیست. لطفاً با مدیر سامانه تماس بگیرید.' ),
+		'google_client_reference_invalid' => array( 'error', 'پیکربندی Google نیاز به بررسی دارد', 'شناسهٔ اتصال Google معتبر نیست. لطفاً با مدیر سامانه تماس بگیرید.' ),
+		'google_scope_unavailable' => array( 'error', 'مجوز Google در دسترس نیست', 'مجوز لازم برای Google Calendar در پیکربندی سایت در دسترس نیست.' ),
+		'google_connect_not_permitted' => array( 'error', 'اجازهٔ اتصال Google ندارید', 'این حساب اجازهٔ اتصال تقویم Google را ندارد.' ),
+		'google_connect_failed' => array( 'error', 'اتصال Google آغاز نشد', 'اتصال امن به Google آغاز نشد. لطفاً دوباره تلاش کنید یا با مدیر سامانه تماس بگیرید.' ),
+	);
+	return $messages[ $status ] ?? null;
+}
+
 function dzn_theme_platform_teacher_day_offs() {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilityService';
 	if ( ! class_exists( $class ) ) { return array(); }
@@ -316,6 +332,7 @@ function dzn_theme_platform_teacher_booking_requests() {
 
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
+	$google_notice = dzn_theme_platform_google_notice();
 	$base_url = home_url( '/teacher-portal/' );
 	$nav = array(
 		array( 'screen' => 'home', 'label' => 'حساب کاربری', 'url' => $base_url, 'current' => 'home' === $screen ),
@@ -338,7 +355,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'navigation' => $nav, 'current_step' => $step, 'onboarding' => $onboarding,
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
-			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
+			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
 			'google_disconnect_url' => admin_url( 'admin-post.php?action=dzn_google_disconnect' ),
 			'google_disconnect_nonce' => wp_create_nonce( 'dzn_google_disconnect' ),
 			'actions' => array(
@@ -378,7 +395,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
-			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ),
+			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
 			'google_disconnect_url' => admin_url( 'admin-post.php?action=dzn_google_disconnect' ),
 			'google_disconnect_nonce' => wp_create_nonce( 'dzn_google_disconnect' ),
 			'google_sync_url' => admin_url( 'admin-post.php?action=dzn_google_calendar_sync' ),

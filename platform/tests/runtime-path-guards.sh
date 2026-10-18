@@ -358,16 +358,15 @@ fi
 echo 'CHECKED   every docker run keeps --pull=never and every compose start keeps --pull never'
 
 # --- the harness must validate the schema this package declares -----------------
-# The package declares Schema 33, so the stored-state check, the fresh install, the
-# retained migration and both upgrade rehearsals must all target 33, the Schema-032
-# notification and Schema-033 readiness storage must be asserted, and no check may
-# still demand Schema 31 or 32 as the current identity.
+# Current candidates can advance beyond the original Schema-33 harness. Runtime
+# checks must therefore delegate to the production migrator's complete current-
+# schema verifier while retaining the locked historical upgrade assertions.
 grep -q 'dzn-platform-schema33-local' "$root/runtime/bin/common.sh" || {
   echo 'FAIL: the default state directory is not the Schema-33 one' >&2
   exit 1
 }
-grep -q 'expected Schema 33' "$root/runtime/bin/verify-schema33.sh" "$root/runtime/bin/verify-schema32.sh" || {
-  echo 'FAIL: the stored-state check does not require Schema 33' >&2
+grep -q 'verify_current_schema' "$root/runtime/bin/verify-current-schema.sh" || {
+  echo 'FAIL: the stored-state check does not invoke the production current-schema verifier' >&2
   exit 1
 }
 grep -q '032_notification_communications_authority' "$root/runtime/bin/verify-schema33.sh" "$root/runtime/bin/verify-schema32.sh" || {
@@ -386,16 +385,16 @@ grep -q 'failure_reason_code' "$root/runtime/bin/verify-schema33.sh" "$root/runt
   echo 'FAIL: the stored-state check does not assert the added outbox columns' >&2
   exit 1
 }
-grep -q 'verify-schema33.sh' "$root/runtime/bin/run-fresh-install.sh" || {
-  echo 'FAIL: the fresh install does not verify current Schema 33' >&2
+grep -q 'verify-current-schema.sh' "$root/runtime/bin/run-fresh-install.sh" || {
+  echo 'FAIL: the fresh install does not verify the current schema' >&2
   exit 1
 }
-grep -q 'verify-schema33.sh' "$root/runtime/bin/run-retained-migration.sh" || {
-  echo 'FAIL: the retained migration does not verify current Schema 33' >&2
+grep -q 'verify-current-schema.sh' "$root/runtime/bin/run-retained-migration.sh" || {
+  echo 'FAIL: the retained migration does not verify the current schema' >&2
   exit 1
 }
-grep -q "'33|33'" "$root/runtime/bin/run-retained-migration.sh" || {
-  echo 'FAIL: the retained migration does not pin the complete Schema-33 ledger' >&2
+grep -q '\[ "$before" = "$after" \]' "$root/runtime/bin/run-retained-migration.sh" || {
+  echo 'FAIL: the retained migration does not require an unchanged complete ledger' >&2
   exit 1
 }
 for rehearsal in run-schema30-to-32-rehearsal.sh run-schema31-to-32-rehearsal.sh; do
@@ -421,6 +420,10 @@ grep -q 'wp_dzn_core_dataset_reconciliation_runs' "$root/runtime/bin/run-schema3
   echo 'FAIL: the 31->32 rehearsal does not declare the Schema-033 readiness tables' >&2
   exit 1
 }
+grep -q 'wp_dzn_booking_request_student_notifications' "$root/runtime/bin/run-schema30-to-32-rehearsal.sh" || {
+  echo 'FAIL: the historical rehearsal does not declare the Schema-45 table additions' >&2
+  exit 1
+}
 if grep -rn -E 'verify-schema31|run-schema30-to-31|expected Schema 31' "$root/runtime/bin" "$root/runtime/Makefile"; then
   echo 'FAIL: the harness still targets a Schema-31 check' >&2
   exit 1
@@ -434,11 +437,19 @@ case "$pure_list" in *tests/schema-contract.php*) {
   echo 'FAIL: the stale Phase-1 schema guard would abort the acceptance sequence' >&2
   exit 1
 };; esac
-grep -q 'verify-schema33.sh' "$root/runtime/bin/schema-upgrade-rehearsal.sh" || {
-  echo 'FAIL: the upgrade rehearsal does not route to current Schema 33 verification' >&2
+grep -q 'verify-current-schema.sh' "$root/runtime/bin/schema-upgrade-rehearsal.sh" || {
+  echo 'FAIL: the upgrade rehearsal does not route to current-schema verification' >&2
   exit 1
 }
-echo 'CHECKED   the harness validates the declared Schema 33 (stored state, retained ledger and both rehearsals)'
+grep -q 'dzn_plugin_source_from_worktree' "$root/runtime/bin/run-pure-tests.sh" || {
+  echo 'FAIL: the pure-test runner does not resolve the nested plugin root' >&2
+  exit 1
+}
+grep -q 'executed zero tests' "$root/runtime/bin/run-pure-tests.sh" || {
+  echo 'FAIL: the pure-test runner can silently execute zero tests' >&2
+  exit 1
+}
+echo 'CHECKED   the harness validates the declared current schema, retained ledger and both rehearsals'
 
 # --- the documented `.env` copy workflow must keep the Schema-33 isolation -----
 # `common.sh` sources `.env` *before* it applies its Schema-33 defaults, so an

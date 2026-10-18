@@ -195,6 +195,9 @@ jobs:
           bash -n deployment/qa/production-static-serving-diagnostic.sh
           bash -n deployment/qa/production-static-serving-diagnostic-contract.sh
           bash deployment/qa/production-deployment-contract.sh
+          bash -n deployment/qa/production-google-oauth-diagnostic.sh
+          bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+          bash deployment/qa/production-google-oauth-diagnostic-contract.sh
 
   oauth-scope-database-regression:
     name: OAuth scope MariaDB regression

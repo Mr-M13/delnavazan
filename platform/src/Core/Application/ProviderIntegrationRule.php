@@ -17,8 +17,11 @@ namespace Delnavazan\Platform\Core\Application;
 final class ProviderIntegrationRule {
     public const RULE_VERSION='provider_neutral_google_calendar_meet_v1';
     public const COMMAND_DOMAIN='provider_integration_v1';
-    /** The complete OAuth grant admitted for Calendar projection. Extra scopes require re-consent. */
-    public const GOOGLE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
+    /**
+     * The complete OAuth grant admitted for Calendar projection and immutable account identity.
+     * `openid` is intentionally the only identity scope: neither profile nor e-mail is requested.
+     */
+    public const GOOGLE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events openid';
     /** Admitted provider codes at the Phase-V adapter boundary. */
     public const PROVIDER_CODES=array('google_calendar','google_meet');
     /** Provider codes Phase V may submit to the Phase-P evidence seam. */

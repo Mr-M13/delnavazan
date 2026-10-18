@@ -27,7 +27,7 @@ final class GoogleOAuthController {
         if(!str_starts_with($redirect,'https://'))self::returnToPortal('oauth_redirect_unavailable');
         // Calendar events.insert creates the conference through conferenceData, so a separate
         // Google Meet REST scope would grant capability this workflow never calls.
-        $scopes=ProviderIntegrationRule::scopeSnapshot(array(GoogleCalendarMeetAdapter::CALENDAR_SCOPE));
+        $scopes=ProviderIntegrationRule::scopeSnapshot(GoogleCalendarMeetAdapter::CALENDAR_SCOPE);
         try{
             $adapter=new GoogleCalendarMeetAdapter();$oauth=new GoogleOAuthTransport();
             $service=new ProviderIntegrationService(null,null,$oauth,$adapter,$adapter);

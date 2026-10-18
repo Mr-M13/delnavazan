@@ -25,7 +25,7 @@ $lesson=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lessons WHERE id=%d",$l
 $teacherId=(int)$lesson->teacher_id;
 $ports=new ContractProviderAdapters(array());
 $service=new ProviderIntegrationService(null,null,$ports,$ports,$ports);
-$scope='https://www.googleapis.com/auth/calendar.events';
+$scope='https://www.googleapis.com/auth/calendar.events openid';
 $evidence=static fn(string $reference):array=>array('evidence_channel'=>'staff_record','evidence_reference'=>$reference,'evidence_at'=>gmdate('Y-m-d H:i:s'));
 $connect=static function(int $teacher) use($service,$scope,$evidence,$mode):int{
     $begin=$service->beginAuthorization(array('provider_code'=>'google_calendar','teacher_id'=>$teacher,'client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>$scope)+$evidence($mode.'-setup-begin'),dzn_vcs_key($mode.'-setup-begin'));

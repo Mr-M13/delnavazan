@@ -324,7 +324,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -362,6 +362,10 @@ final class Migrator {
 			if(!in_array('045_renewal_cycle_automatic_charge_at',$done,true)){
 				self::install_renewal_cycle_automatic_charge_at();self::verify_renewal_recurring_enrolment_schema();
 				$done[]='045_renewal_cycle_automatic_charge_at';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('046_google_oauth_openid_subject',$done,true)){
+				self::install_google_oauth_openid_subject();self::verify_google_oauth_scope_policy();
+				$done[]='046_google_oauth_openid_subject';update_option(self::COMPLETED,$done,false);
 			}
 			self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
@@ -438,9 +442,13 @@ final class Migrator {
 		if($legacyAccepted&&$wpdb->query("ALTER TABLE {$table} DROP COLUMN accepted_at")===false)throw new \RuntimeException('Booking notification acceptance correction failed');
 		self::quarantine_legacy_google_oauth_grants();
 	}
-	/** Fail closed locally on every legacy Google grant that contains anything beyond Calendar events. */
+	/** Install the exact Calendar + OpenID grant by revoking every earlier or broader grant. */
+	private static function install_google_oauth_openid_subject():void{
+		self::quarantine_legacy_google_oauth_grants();
+	}
+	/** Fail closed locally on every Google grant other than the exact current allowlist. */
 	private static function quarantine_legacy_google_oauth_grants():void{
-		global $wpdb;$p=$wpdb->prefix.'dzn_';$allowed='https://www.googleapis.com/auth/calendar.events';$reason='oauth_scope_reconsent_required';
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$allowed='https://www.googleapis.com/auth/calendar.events openid';$reason='oauth_scope_reconsent_required';
 		if($wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Google OAuth scope migration transaction failed');
 		try{
 			if($wpdb->query($wpdb->prepare("UPDATE {$p}integration_oauth_authorizations SET authorization_state='rejected',consumed_at=COALESCE(consumed_at,UTC_TIMESTAMP()),consumption_result='scope_reconsent_required',failure_reason_code=%s WHERE provider_code='google_calendar' AND authorization_state='issued' AND (scope_snapshot IS NULL OR BINARY scope_snapshot <> BINARY %s)",$reason,$allowed))===false)throw new \RuntimeException('Google OAuth scope authorization quarantine failed');
@@ -451,7 +459,7 @@ final class Migrator {
 		}catch(\Throwable $error){$wpdb->query('ROLLBACK');throw $error;}
 	}
 	private static function verify_google_oauth_scope_policy():void{
-		global $wpdb;$p=$wpdb->prefix.'dzn_';$allowed='https://www.googleapis.com/auth/calendar.events';
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$allowed='https://www.googleapis.com/auth/calendar.events openid';
 		$unsafeConnections=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}integration_connections WHERE provider_code='google_calendar' AND connection_state IN ('authorizing','connected','refresh_failed') AND (scope_snapshot IS NULL OR BINARY scope_snapshot <> BINARY %s)",$allowed));
 		$unsafeCredentials=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}integration_credentials k INNER JOIN {$p}integration_connections c ON c.id=k.connection_id WHERE c.provider_code='google_calendar' AND k.state='active' AND (c.scope_snapshot IS NULL OR BINARY c.scope_snapshot <> BINARY %s)",$allowed));
 		$unsafeMappings=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_identity_mappings m INNER JOIN {$p}integration_connections c ON c.id=m.connection_id WHERE c.provider_code='google_calendar' AND m.mapping_state='verified' AND (c.scope_snapshot IS NULL OR BINARY c.scope_snapshot <> BINARY %s)",$allowed));
@@ -482,6 +490,7 @@ final class Migrator {
 		$required[] = '043_booking_teacher_response';
 		$required[] = '044_booking_notification_recovery';
 		$required[] = '045_renewal_cycle_automatic_charge_at';
+		$required[] = '046_google_oauth_openid_subject';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
 		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy();

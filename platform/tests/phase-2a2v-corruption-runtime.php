@@ -35,7 +35,7 @@ $service=new ProviderIntegrationService(null,null,$ports,$ports,$ports);
 $read=new ProviderIntegrationReadService();
 
 // Fixture: one connected integration with a sealed credential and a verified identity mapping.
-$scope='https://www.googleapis.com/auth/calendar.events';
+$scope='https://www.googleapis.com/auth/calendar.events openid';
 $begin=$service->beginAuthorization(array('provider_code'=>'google_calendar','teacher_id'=>$teacherId,'client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>$scope)+$evidence('begin'),dzn_vc_key('begin'));
 $connected=$service->completeAuthorization(array('state'=>(string)$begin['state'],'code'=>'code-corruption','code_verifier'=>(string)$begin['code_verifier'],'redirect_uri'=>'https://academy.example/cb')+$evidence('complete'),dzn_vc_key('complete'));
 $connectionId=(int)$connected['connection_id'];

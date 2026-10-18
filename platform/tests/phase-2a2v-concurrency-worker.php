@@ -15,7 +15,7 @@ wp_set_current_user(1);
 $ports=new ContractProviderAdapters(array());
 $service=new ProviderIntegrationService(null,null,$ports,$ports,$ports);
 $ingest=new ProviderEventIngestService(null,new ContractProviderAdapters(array()),null);
-$scope='https://www.googleapis.com/auth/calendar.events';
+$scope='https://www.googleapis.com/auth/calendar.events openid';
 $evidence=static fn(string $reference):array=>array('evidence_channel'=>'staff_record','evidence_reference'=>$reference,'evidence_at'=>gmdate('Y-m-d H:i:s'));
 $key=static fn(string $label):string=>'dzn-2a2v-'.$label.'-'.wp_generate_uuid4();
 $result=array('ok'=>false,'worker'=>$worker,'mode'=>$mode,'action'=>'none');

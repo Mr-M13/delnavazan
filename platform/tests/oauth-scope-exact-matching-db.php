@@ -56,8 +56,8 @@ final class DznExactScopeWpdb {
 }
 
 $wpdb=new DznExactScopeWpdb($database);
-$scope='https://www.googleapis.com/auth/calendar.events';
-$fixtures=array(1=>$scope,2=>'https://www.googleapis.com/auth/Calendar.events',3=>$scope.' openid',4=>null);
+$scope='https://www.googleapis.com/auth/calendar.events openid';
+$fixtures=array(1=>$scope,2=>'https://www.googleapis.com/auth/Calendar.events openid',3=>'https://www.googleapis.com/auth/calendar.events',4=>null);
 $assert=static function(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);};
 $tables=array('integration_credentials','provider_identity_mappings','integration_oauth_authorizations','integration_connections','retained_records');
 try{

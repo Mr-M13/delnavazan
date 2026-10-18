@@ -421,7 +421,7 @@ grep -q 'wp_dzn_core_dataset_reconciliation_runs' "$root/runtime/bin/run-schema3
   exit 1
 }
 grep -q 'wp_dzn_booking_request_student_notifications' "$root/runtime/bin/run-schema30-to-32-rehearsal.sh" || {
-  echo 'FAIL: the historical rehearsal does not declare the Schema-45 table additions' >&2
+  echo 'FAIL: the historical rehearsal does not declare the retained booking-response table additions' >&2
   exit 1
 }
 if grep -rn -E 'verify-schema31|run-schema30-to-31|expected Schema 31' "$root/runtime/bin" "$root/runtime/Makefile"; then

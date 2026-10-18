@@ -35,7 +35,7 @@ $evidence=static fn(string $reference):array=>array('evidence_channel'=>'staff_r
 $ports=new ContractProviderAdapters(array());
 $service=new ProviderIntegrationService(null,null,$ports,$ports,$ports);
 $ingestService=new ProviderEventIngestService(null,new ContractProviderAdapters(array()),null);
-$scope='https://www.googleapis.com/auth/calendar.events';
+$scope='https://www.googleapis.com/auth/calendar.events openid';
 /** One-shot write-boundary injector: the first dispatch of the named Phase-V hook throws. */
 $inject=static function(string $hook):void{
     $state=(object)array('fired'=>false);

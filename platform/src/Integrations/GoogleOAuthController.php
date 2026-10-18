@@ -25,10 +25,9 @@ final class GoogleOAuthController {
         if(!$teacher)self::returnToPortal('teacher_not_linked');
         $redirect=admin_url('admin-post.php?action=dzn_google_oauth_callback');
         if(!str_starts_with($redirect,'https://'))self::returnToPortal('oauth_redirect_unavailable');
-        $scopes=ProviderIntegrationRule::scopeSnapshot(array(
-            GoogleCalendarMeetAdapter::CALENDAR_SCOPE,
-            GoogleCalendarMeetAdapter::MEET_SCOPE,
-        ));
+        // Calendar events.insert creates the conference through conferenceData, so a separate
+        // Google Meet REST scope would grant capability this workflow never calls.
+        $scopes=ProviderIntegrationRule::scopeSnapshot(array(GoogleCalendarMeetAdapter::CALENDAR_SCOPE));
         try{
             $adapter=new GoogleCalendarMeetAdapter();$oauth=new GoogleOAuthTransport();
             $service=new ProviderIntegrationService(null,null,$oauth,$adapter,$adapter);
@@ -72,6 +71,7 @@ final class GoogleOAuthController {
                     'evidence_reference'=>'teacher-google-disconnect:'.(int)$teacher->id,
                     'evidence_at'=>gmdate('Y-m-d H:i:s'),
                 ),'teacher-google-revoke:'.(int)$connection->id.':'.wp_generate_uuid4());
+                (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
                 self::returnToPortal(($result['connection_state']??'')==='revoked'?'google_disconnected':'google_disconnect_failed');
             }
             // Configuration can disappear after a connection was established. Fail closed locally
@@ -82,6 +82,7 @@ final class GoogleOAuthController {
                 'evidence_reference'=>'teacher-google-local-disconnect:'.(int)$teacher->id,
                 'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'teacher-google-disconnect-local:'.(int)$connection->id.':'.wp_generate_uuid4());
+            (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_disconnected');
         }catch(\Throwable){self::returnToPortal('google_disconnect_failed');}
     }
@@ -116,6 +117,7 @@ final class GoogleOAuthController {
             $service->completeAuthorization(array(
                 'state'=>$state,'code'=>$code,'code_verifier'=>(string)$payload['verifier'],'redirect_uri'=>(string)$payload['redirect'],
             ),'teacher-google-complete:'.hash('sha256',$state));
+            (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_connected');
         }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
     }

@@ -54,7 +54,7 @@ final class ProviderReferenceVault {
         if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='checkout.stripe.com'||isset($parts['user'])||isset($parts['pass']))throw new \InvalidArgumentException('provider_checkout_uri_untrusted');
     }
     private function binding(string $kind,int $mappingId):void{
-        if(!in_array($kind,array('calendar_event','meeting_conference','checkout_session'),true)||$mappingId<1)throw new \InvalidArgumentException('provider_reference_binding_required');
+		if(!in_array($kind,array('calendar_event','meeting_conference','booking_calendar','checkout_session'),true)||$mappingId<1)throw new \InvalidArgumentException('provider_reference_binding_required');
     }
     private function key():string{
         $salt=wp_salt(self::DOMAIN);

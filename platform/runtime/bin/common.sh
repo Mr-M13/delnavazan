@@ -157,6 +157,18 @@ dzn_prepare_worktree(){
   mkdir -p "$DZN_RUNTIME_STATE_DIR"; git -C "$DZN_SHARED_CHECKOUT" worktree add --detach "$path" "$expected" >/dev/null
 }
 dzn_candidate(){ dzn_prepare_worktree "$DZN_PLUGIN_WORKTREE" "$DZN_TARGET_REF"; }
+dzn_plugin_source_from_worktree(){
+  # Historical schema commits are plugin-root trees, while current candidate
+  # worktrees are monorepos with the WordPress plugin below platform/.  Return
+  # the directory that actually contains the plugin bootstrap so both the
+  # WordPress symlink and the container bind mount address the same source.
+  local worktree="${1:?worktree is required}"
+  dzn_assert_not_symlink "$worktree"; dzn_assert_disposable_path "$worktree"
+  if [ -f "$worktree/delnavazan-platform.php" ]; then printf '%s\n' "$worktree"; return; fi
+  if [ -f "$worktree/platform/delnavazan-platform.php" ]; then printf '%s\n' "$worktree/platform"; return; fi
+  echo "error: plugin bootstrap not found in worktree: $worktree" >&2
+  return 1
+}
 dzn_wp(){
   dzn_assert_runtime_paths
   docker run --rm --pull=never --network "$DZN_NETWORK" -u 0 -e WP_ENVIRONMENT_TYPE=local -e WORDPRESS_DB_HOST=db -e "WORDPRESS_DB_NAME=$DZN_DB_NAME" -e "WORDPRESS_DB_USER=$DZN_DB_USER" -e "WORDPRESS_DB_PASSWORD=$DZN_DB_PASSWORD" -v "$DZN_WP_DIR:/var/www/html" -v "$DZN_PLUGIN_SOURCE:$DZN_PLUGIN_SOURCE:ro" --entrypoint php "$DZN_CLI_IMAGE" -d memory_limit=512M /usr/local/bin/wp --path=/var/www/html --allow-root "$@"

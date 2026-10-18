@@ -17,6 +17,8 @@ namespace Delnavazan\Platform\Core\Application;
 final class ProviderIntegrationRule {
     public const RULE_VERSION='provider_neutral_google_calendar_meet_v1';
     public const COMMAND_DOMAIN='provider_integration_v1';
+    /** The complete OAuth grant admitted for Calendar projection. Extra scopes require re-consent. */
+    public const GOOGLE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
     /** Admitted provider codes at the Phase-V adapter boundary. */
     public const PROVIDER_CODES=array('google_calendar','google_meet');
     /** Provider codes Phase V may submit to the Phase-P evidence seam. */
@@ -170,6 +172,13 @@ final class ProviderIntegrationRule {
 
     public static function grantedScopesMatch(string $requested,string $granted):bool{
         return hash_equals(self::scopeSnapshot($requested),self::scopeSnapshot($granted));
+    }
+
+    /** OAuth grants are provider-specific allowlists, not minimum-scope checks. */
+    public static function permittedScopes(string $providerCode,string $scopes):bool{
+        $providerCode=self::providerCode($providerCode);
+        if($providerCode!=='google_calendar')return false;
+        return hash_equals(self::GOOGLE_CALENDAR_SCOPE,self::scopeSnapshot($scopes));
     }
 
     /**

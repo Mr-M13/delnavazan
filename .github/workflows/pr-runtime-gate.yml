@@ -97,6 +97,14 @@ jobs:
           php platform/tests/booking-student-journey-contract.php
           php platform/tests/booking-teacher-delivery-contract.php
           php platform/tests/booking-teacher-delivery-unit.php
+          php platform/tests/booking-teacher-response-contract.php
+          php platform/tests/booking-teacher-response-unit.php
+          php platform/tests/booking-calendar-projection-unit.php
+          php platform/tests/booking-student-notification-unit.php
+          php platform/tests/google-oauth-scope-policy-unit.php
+          php platform/tests/oauth-scope-exact-matching-contract.php
+          php platform/tests/renewal-historical-upgrade-contract.php
+          php platform/tests/renewal-historical-upgrade-unit.php
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-action-link-policy-contract.php
@@ -186,3 +194,41 @@ jobs:
           bash -n deployment/qa/production-static-serving-diagnostic.sh
           bash -n deployment/qa/production-static-serving-diagnostic-contract.sh
           bash deployment/qa/production-deployment-contract.sh
+
+  oauth-scope-database-regression:
+    name: OAuth scope MariaDB regression
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: dzn_oauth_scope_test_ci
+          MARIADB_USER: wordpress
+          MARIADB_PASSWORD: wordpress
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=3s
+          --health-timeout=3s
+          --health-retries=30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli
+          coverage: none
+      - name: Run exact OAuth scope database regression
+        env:
+          DZN_OAUTH_SCOPE_TEST_DB_HOST: 127.0.0.1
+          DZN_OAUTH_SCOPE_TEST_DB_PORT: 3306
+          DZN_OAUTH_SCOPE_TEST_DB_NAME: dzn_oauth_scope_test_ci
+          DZN_OAUTH_SCOPE_TEST_DB_USER: wordpress
+          DZN_OAUTH_SCOPE_TEST_DB_PASSWORD: wordpress
+        run: php platform/tests/oauth-scope-exact-matching-db.php

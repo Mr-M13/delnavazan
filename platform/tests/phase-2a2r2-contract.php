@@ -42,7 +42,8 @@ foreach(array(
 ) as $needle) if(!str_contains($migration.$plugin,$needle))throw new RuntimeException('Missing Phase R2 migration contract: '.$needle);
 if(!str_contains($migration,"if(\$id==='026_renewal_recurring_enrolment_authority')self::verify_renewal_recurring_enrolment_schema();"))throw new RuntimeException('Migration 026 must invoke the Phase R2 schema verifier before it is recorded');
 if(substr_count($migration,'self::verify_renewal_recurring_enrolment_schema();')<3)throw new RuntimeException('Phase R2 verifier must run after migration 026, on current-schema verification and before schema activation');
-if(!str_contains($migration,"in_array( '026_renewal_recurring_enrolment_authority', (array) get_option( self::COMPLETED, array() ), true )"))throw new RuntimeException('Retained-026 pre-activation verification is missing');
+if(!str_contains($migration,"in_array( '026_renewal_recurring_enrolment_authority', \$completed, true )"))throw new RuntimeException('Retained-026 pre-activation verification is missing');
+if(!str_contains($migration,"verify_renewal_recurring_enrolment_schema( ! in_array( '045_renewal_cycle_automatic_charge_at', \$completed, true ) )"))throw new RuntimeException('Retained-026 verification must tolerate only the pre-045 automatic-charge absence');
 // The required list is asserted over the list itself, so an additive descendant phase may append its own
 // migration to the same array without invalidating R2's assertion about its own entry.
 $requiredStart=strpos($migration,'$required = array(');

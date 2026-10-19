@@ -12,12 +12,19 @@ production/database mutations.
 
 The first executable smoke test resets the environment, seeds one student, one
 teacher, and one account holding both principal types, then performs the
-browser-facing login form POST with cookies and a live nonce. It verifies final
-HTTP destinations, rather than inspecting source strings:
+browser-facing login form POST from a fresh cookie jar with a live nonce. It
+verifies that the first submission succeeds without a pre-seeded WordPress test
+cookie, that username and email both authenticate, and that final destinations
+come from current principal/capability links rather than source inspection:
 
 - student -> `/student-portal/`
 - teacher -> `/teacher-portal/`
 - dual-role -> `/dashboard/` (the role chooser)
+- administrator -> `/admin-operations/`
+
+It also posts one fresh request to the former `wp-login.php` form target to
+prove a stale cached form is safely intercepted before WordPress's test-cookie
+preflight.
 
 ## Local run
 

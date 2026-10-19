@@ -40,4 +40,54 @@ final class BookingTeacherDeliveryRepository {
         if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher booking inbox unavailable');
         return is_array($rows) ? $rows : array();
     }
+
+    /**
+     * Provider-complete introductory classes for one Teacher's upcoming schedule.
+     *
+     * A response is not a confirmed class merely because the Teacher accepted it.
+     * The full confirmation/delivery/request chain and its active vaulted provider
+     * reference must agree before this read projection exposes the booking.
+     */
+    public function confirmedUpcomingForTeacher(int $teacherId, int $limit = 50): array {
+        global $wpdb;
+        $limit = max(1, min(80, $limit));
+        $sql = "SELECT c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+                       c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
+                       c.provider_event_digest,c.confirmed_at,
+                       d.teacher_id delivery_teacher_id,d.state delivery_state,
+                       r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       s.full_name student_display_reference,
+                       COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
+                       secret.id projection_secret_id
+                FROM {$this->prefix}booking_request_confirmations c
+                INNER JOIN {$this->prefix}booking_request_teacher_deliveries d
+                        ON d.id=c.delivery_id
+                       AND d.booking_request_id=c.booking_request_id
+                       AND d.requested_time_id=c.requested_time_id
+                       AND d.teacher_id=c.teacher_id
+                INNER JOIN {$this->prefix}booking_requests r ON r.id=c.booking_request_id
+                INNER JOIN {$this->prefix}booking_request_contact_snapshots s
+                        ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+                INNER JOIN {$this->prefix}instruments i ON i.id=r.requested_instrument_id
+                LEFT JOIN {$this->prefix}courses course ON course.id=r.selected_intro_course_id
+                INNER JOIN {$this->prefix}provider_projection_secrets secret
+                        ON secret.mapping_kind='booking_calendar'
+                       AND secret.mapping_id=c.id
+                       AND secret.state='active'
+                       AND secret.active_slot=1
+                WHERE c.teacher_id=%d
+                  AND c.state='confirmed'
+                  AND d.state='confirmed'
+                  AND r.lifecycle_status='closed'
+                  AND r.resolution_state='teacher_confirmed'
+                  AND r.privacy_erased_at IS NULL
+                  AND c.provider_code='google_calendar'
+                  AND c.provider_event_digest IS NOT NULL
+                  AND c.confirmed_at IS NOT NULL
+                  AND c.starts_at_utc>=UTC_TIMESTAMP()
+                ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $limit));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher confirmed booking schedule unavailable');
+        return is_array($rows) ? $rows : array();
+    }
 }

@@ -26,6 +26,14 @@ This recovered fixture covers instruments, courses, teacher invitation/account c
 
 Because core entities have no dataset foreign key and many operational tables are append-only, teardown currently covers only these four core tables. Do not extend the fixture with a workflow whose records cannot be enumerated and removed safely.
 
+Wider coverage (enrolments, terms, teacher assignments, scheduled and completed
+classes, booking/intro states, test-mode payments and notifications) and a
+possible **production** venue are scoped separately in
+[`PRODUCTION-SYNTHETIC-DATASET-SCOPE.md`](./PRODUCTION-SYNTHETIC-DATASET-SCOPE.md).
+That document is a proposal only: it changes no behaviour, never creates
+courses, and production stays refused until its gates and owner decisions are
+approved.
+
 Run the source contracts with:
 
 ```sh

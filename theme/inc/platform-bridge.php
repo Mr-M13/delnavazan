@@ -382,16 +382,18 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
+	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'teacher_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
+	$all_scheduled_classes = array_merge( $all_lessons, $booking_classes );
 	if ( 'finance' === $screen ) { $finance='\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TeacherStatementReadService';$statements=array();$state='unavailable';if(class_exists($finance)){try{$statements=(new $finance())->ownStatements();$state=$statements?'available':'empty';}catch(Throwable){$state='unavailable';}}return array( 'available' => true, 'screen' => 'finance', 'source' => 'platform', 'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ), 'navigation' => $nav, 'finance_state' => $state, 'statements' => $statements ); }
 	if ( in_array( $screen, array( 'settings', 'finance' ), true ) ) {
 		$month = wp_date( 'Y-m', $now, wp_timezone() );
 		$year = wp_date( 'Y', $now, wp_timezone() );
-		$month_lessons = array_filter( $all_lessons, static fn( $row ) => 0 === strpos( dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y-m' ), $month ) );
-		$year_lessons = array_filter( $all_lessons, static fn( $row ) => dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y' ) === $year );
+		$month_lessons = array_filter( $all_scheduled_classes, static fn( $row ) => 0 === strpos( dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y-m' ), $month ) );
+		$year_lessons = array_filter( $all_scheduled_classes, static fn( $row ) => dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y' ) === $year );
 		$seconds = 0; foreach ( $month_lessons as $row ) { $a = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ); $b = strtotime( (string) ( $row['ends_at_utc'] ?? '' ) . ' UTC' ); if ( $a && $b && $b > $a ) { $seconds += $b - $a; } }
-		$students = array_unique( array_filter( array_map( static fn( $row ) => (string) ( $row['student_display_reference'] ?? '' ), $all_lessons ) ) );
+		$students = array_unique( array_filter( array_map( static fn( $row ) => (string) ( $row['student_display_reference'] ?? '' ), $all_scheduled_classes ) ) );
 		$assigned = array_unique( array_filter( array_map( static fn( $row ) => is_array( $row ) ? (string) ( $row['student_display_reference'] ?? '' ) : '', (array) ( $data['assignments'] ?? array() ) ) ) );
-		$upcoming_count = count( array_filter( $all_lessons, static fn( $row ) => strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ) >= time() ) );
+		$upcoming_count = count( array_filter( $all_scheduled_classes, static fn( $row ) => strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ) >= time() ) );
 		$nav[0]['current'] = false;
 		return array(
 			'available' => true, 'screen' => $screen, 'source' => 'platform',
@@ -415,7 +417,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}
-	$future = array_values( array_filter( (array) ( $data['lessons'] ?? array() ), static function( $row ) use ( $now ) {
+	$future = array_values( array_filter( $all_scheduled_classes, static function( $row ) use ( $now ) {
 		$start = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' );
 		return $start && $start >= $now;
 	} ) );
@@ -425,15 +427,16 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	foreach ( array_slice( $future, 0, 12 ) as $index => $lesson ) {
 		$start = strtotime( (string) $lesson['starts_at_utc'] . ' UTC' );
 		$soon = $start - $now <= HOUR_IN_SECONDS;
+		$is_booking = 'teacher_booking_class_v1' === ( $lesson['version'] ?? '' );
 		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
 		$classes[] = array(
-			'ref' => (string) ( $lesson['reference_code'] ?? 'lesson-' . $index ),
-			'start_available' => ! empty( $lesson['join_available'] ) && $soon,
+			'ref' => (string) ( $is_booking ? $lesson['confirmation_uid'] : ( $lesson['reference_code'] ?? 'lesson-' . $index ) ),
+			'start_available' => ! $is_booking && ! empty( $lesson['join_available'] ) && $soon,
 			'join_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_join_class' ),
 			'join_nonce' => wp_create_nonce( 'dzn_teacher_join_class' ),
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
 			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
-			'details_available' => true,
+			'details_available' => ! $is_booking,
 			'delivery_issue_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery_issue' ),
 			'delivery_issue_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery_issue' ),
 			'student_summary' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
@@ -443,8 +446,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'time' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'H:i' ),
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'course' => (string) ( $lesson['course_reference'] ?? '' ),
-			'progress' => (string) ( $lesson['term_reference'] ?? '' ),
-			'status' => $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو',
+			'progress' => $is_booking ? 'کلاس آشنایی' : (string) ( $lesson['term_reference'] ?? '' ),
+			'status' => $is_booking ? ( $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده' ) : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ),
 		);
 		$calendar[] = array(
 			'day' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F' ),
@@ -453,7 +456,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 		);
 	}
-	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_lessons,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=strtotime((string)($row['starts_at_utc']??'').' UTC');$b=strtotime((string)($row['ends_at_utc']??'').' UTC');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_display_reference']??''),$all_lessons)));
+	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_scheduled_classes,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=strtotime((string)($row['starts_at_utc']??'').' UTC');$b=strtotime((string)($row['ends_at_utc']??'').' UTC');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_display_reference']??''),$all_scheduled_classes)));
 	$bookingAttention=array_map(static function($request)use($teacherZone){
 		$start=new DateTimeImmutable((string)$request->starts_at_utc,new DateTimeZone('UTC'));
 		$teacherTime=$start->setTimezone($teacherZone)->format('l j F، H:i');

@@ -139,6 +139,33 @@
     border-block-start: 1px solid var(--dzn-color-border);
   }
 
+  .dzn-booking-requests__list {
+    display: grid;
+    gap: var(--dzn-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .dzn-booking-requests__item {
+    border: 1px solid var(--dzn-color-border);
+    border-radius: var(--dzn-radius-sm);
+    background: var(--dzn-color-surface);
+    padding: var(--dzn-space-4);
+  }
+
+  .dzn-booking-requests__item > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--dzn-space-3);
+  }
+
+  .dzn-booking-requests__status {
+    color: var(--dzn-color-warning);
+    font-weight: 750;
+  }
+
   .dzn-portal-section__heading,
   .dzn-upcoming__heading {
     display: flex;

@@ -128,20 +128,20 @@ function dzn_theme_platform_student_read() {
 /**
  * Decide the portal state for a successful, canonical student read.
  *
- * An account with neither enrolments nor lessons has nothing canonical to show
+ * An account with no enrolments, lessons, or pending booking requests has nothing canonical to show
  * yet, so the portal says so rather than rendering an empty shell.
  *
  * An enrolment with zero lessons is deliberately a **different** case and stays
  * a working portal: a newly enrolled learner may legitimately have no lesson
  * scheduled yet, and the schedule arrives later from the Platform. Only the
- * absence of both collections is a not-yet-enrolled state.
+ * absence of all three collections is a not-yet-enrolled state.
  *
  * @param array $lessons    Canonical lesson read models.
  * @param array $enrolments Canonical enrolment read models.
  * @return string ok|no_data
  */
-function dzn_theme_platform_student_portal_state( array $lessons, array $enrolments ) {
-	if ( ! $lessons && ! $enrolments ) {
+function dzn_theme_platform_student_portal_state( array $lessons, array $enrolments, array $booking_requests = array() ) {
+	if ( ! $lessons && ! $enrolments && ! $booking_requests ) {
 		return 'no_data';
 	}
 
@@ -189,7 +189,8 @@ function dzn_theme_platform_student_model( $screen ) {
 	$navigation = dzn_theme_platform_student_navigation( $screen );
 	$lessons = is_array( $data['lessons'] ?? null ) ? $data['lessons'] : array();
 	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
-	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments );
+	$booking_requests = is_array( $data['booking_requests'] ?? null ) ? $data['booking_requests'] : array();
+	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests );
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$past = array();
@@ -227,6 +228,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	$next_start = $next ? strtotime( (string) ( $next['starts_at_utc'] ?? '' ) . ' UTC' ) : false;
 	$enrolment = $next ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
 	$model['announcement'] = array();
+	$model['booking_requests'] = array_values( array_filter( $booking_requests, static fn( $row ) => is_array( $row ) && 'student_booking_request_v1' === ( $row['version'] ?? '' ) ) );
 	$model['upcoming_lesson'] = $next ? array(
 		'presentation_state' => dzn_theme_platform_lesson_state( $next ),
 		'lifecycle_state' => (string) ( $next['lifecycle_state'] ?? '' ),

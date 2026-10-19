@@ -38,6 +38,7 @@ cd acceptance
 make check-cache
 make smoke
 make student-account-claim
+make booking-student-account
 make destroy CONFIRM=YES
 ```
 
@@ -62,6 +63,14 @@ retained, restore does not silently restore access, and a replacement invitation
 can safely reactivate the same authenticated account without duplicating its
 principal link. The fixture prepares invitation secrets directly and records
 delivery as a local failure; it never invokes mail transport.
+
+`make booking-student-account` exercises new-account creation, WordPress-only
+password hashing, same-origin CSRF rejection, immediate session establishment,
+same-principal booking linkage, dashboard projection, credential-proved replay,
+existing-account sign-in without role changes, rejection of a teacher principal
+being bound as a student, and rollback after a deliberately invalid catalogue
+reference. It is restricted to the disposable local host and synthetic
+`@example.invalid` identities.
 
 ## CI and current gaps
 

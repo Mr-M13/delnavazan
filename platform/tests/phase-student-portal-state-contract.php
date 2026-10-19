@@ -104,13 +104,13 @@ if ( false === $decision_start ) {
 	$fail( 'the portal state decision must be an explicit, assertable function' );
 }
 $decision = substr( $bridge, $decision_start, 500 );
-if ( ! str_contains( $decision, 'if ( ! $lessons && ! $enrolments ) {' ) ) {
-	$fail( 'no_data must require both collections to be empty' );
+if ( ! str_contains( $decision, 'if ( ! $lessons && ! $enrolments && ! $booking_requests ) {' ) ) {
+	$fail( 'no_data must require lessons, enrolments, and pending booking requests to be empty' );
 }
 if ( 2 !== substr_count( $decision, "return '" ) ) {
 	$fail( 'the state decision must have exactly two outcomes: no_data and ok' );
 }
-if ( ! str_contains( $bridge, '$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments );' ) ) {
+if ( ! str_contains( $bridge, '$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests );' ) ) {
 	$fail( 'the model builder must use the asserted state decision' );
 }
 if ( str_contains( $bridge, 'if ( ! $lessons && ! $enrolments ) { return dzn_theme_platform_student_state_model' ) ) {

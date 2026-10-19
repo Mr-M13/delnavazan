@@ -103,6 +103,10 @@ jobs:
           php platform/tests/booking-upcoming-classes-contract.php
           php platform/tests/booking-upcoming-classes-unit.php
           php platform/tests/booking-upcoming-classes-theme-unit.php
+          php platform/tests/booking-intro-portal-contract.php
+          php platform/tests/booking-student-upcoming-unit.php
+          php platform/tests/booking-student-upcoming-theme-unit.php
+          php platform/tests/booking-class-join-unit.php
           php platform/tests/booking-calendar-projection-unit.php
           php platform/tests/booking-student-notification-unit.php
           php platform/tests/google-oauth-scope-policy-unit.php

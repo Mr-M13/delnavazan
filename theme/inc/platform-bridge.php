@@ -31,6 +31,20 @@ function dzn_theme_platform_local_time( $utc, $format ) {
 	return $timestamp ? wp_date( $format, $timestamp, wp_timezone() ) : '';
 }
 
+function dzn_theme_platform_zoned_time( $utc, $format, $timezone ) {
+	$timestamp = strtotime( (string) $utc . ' UTC' );
+	if ( ! $timestamp ) { return ''; }
+	try { $zone = new DateTimeZone( (string) $timezone ); } catch ( Throwable ) { $zone = wp_timezone(); }
+	return wp_date( $format, $timestamp, $zone );
+}
+
+function dzn_theme_platform_booking_join_message( array $booking, $within_window ) {
+	if ( ! empty( $booking['join_available'] ) && ! $within_window ) { return 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'; }
+	if ( 'provider_conference_unavailable' === ( $booking['join_issue'] ?? '' ) ) { return 'Google Calendar ساخته شده، اما پیوند Meet هنوز آماده نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.'; }
+	if ( empty( $booking['join_available'] ) ) { return 'پیوند امن Meet در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.'; }
+	return '';
+}
+
 function dzn_theme_platform_lesson_state( array $lesson ) {
 	$start = strtotime( (string) ( $lesson['starts_at_utc'] ?? '' ) . ' UTC' );
 	$now = time();
@@ -140,8 +154,8 @@ function dzn_theme_platform_student_read() {
  * @param array $enrolments Canonical enrolment read models.
  * @return string ok|no_data
  */
-function dzn_theme_platform_student_portal_state( array $lessons, array $enrolments, array $booking_requests = array() ) {
-	if ( ! $lessons && ! $enrolments && ! $booking_requests ) {
+function dzn_theme_platform_student_portal_state( array $lessons, array $enrolments, array $booking_requests = array(), array $booking_classes = array() ) {
+	if ( ! $lessons && ! $enrolments && ! $booking_requests && ! $booking_classes ) {
 		return 'no_data';
 	}
 
@@ -190,7 +204,8 @@ function dzn_theme_platform_student_model( $screen ) {
 	$lessons = is_array( $data['lessons'] ?? null ) ? $data['lessons'] : array();
 	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
 	$booking_requests = is_array( $data['booking_requests'] ?? null ) ? $data['booking_requests'] : array();
-	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests );
+	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'student_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
+	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes );
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$past = array();
@@ -224,32 +239,44 @@ function dzn_theme_platform_student_model( $screen ) {
 		$model['notification_archive_url'] = '';
 		return $model;
 	}
-	$next = $future[0] ?? null;
+    $booking_future = array_values( array_filter( $booking_classes, static fn( $row ) => strtotime( (string) ( $row['ends_at_utc'] ?? '' ) . ' UTC' ) + ( 2 * HOUR_IN_SECONDS ) >= time() ) );
+	$all_future = array_merge( $future, $booking_future );
+	usort( $all_future, static fn( $a, $b ) => strcmp( (string) $a['starts_at_utc'], (string) $b['starts_at_utc'] ) );
+	$next = $all_future[0] ?? null;
+	$is_booking = is_array( $next ) && 'student_booking_class_v1' === ( $next['version'] ?? '' );
 	$next_start = $next ? strtotime( (string) ( $next['starts_at_utc'] ?? '' ) . ' UTC' ) : false;
-	$enrolment = $next ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
+	$enrolment = $next && ! $is_booking ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
+    $next_end = $next ? strtotime( (string) ( $next['ends_at_utc'] ?? '' ) . ' UTC' ) : false;
+    $within_join_window = $next_start && $next_end && $now >= $next_start - HOUR_IN_SECONDS && $now <= $next_end + ( 2 * HOUR_IN_SECONDS );
+	$display_timezone = $is_booking ? (string) ( $next['schedule_timezone'] ?? 'UTC' ) : ( wp_timezone_string() ?: 'UTC' );
 	$model['announcement'] = array();
 	$model['booking_requests'] = array_values( array_filter( $booking_requests, static fn( $row ) => is_array( $row ) && 'student_booking_request_v1' === ( $row['version'] ?? '' ) ) );
 	$model['upcoming_lesson'] = $next ? array(
-		'presentation_state' => dzn_theme_platform_lesson_state( $next ),
+		'presentation_state' => $is_booking ? ( $within_join_window ? 'starting_soon' : 'upcoming' ) : dzn_theme_platform_lesson_state( $next ),
 		'lifecycle_state' => (string) ( $next['lifecycle_state'] ?? '' ),
 		'schedule_state' => 'confirmed',
 		'attendance_state' => (string) ( $next['attendance_state_summary'] ?? '' ),
-		'entitlement_state' => 'standard',
+		'entitlement_state' => $is_booking ? 'free_introductory' : 'standard',
 		'course' => (string) ( $next['course_reference'] ?? '' ),
-		'teacher' => (string) ( $enrolment['assigned_teacher_display_reference'] ?? '' ),
-		'date' => dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'l j F Y' ),
-		'time' => dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'H:i' ) . '–' . dzn_theme_platform_local_time( $next['ends_at_utc'] ?? '', 'H:i' ),
-		'timezone_label' => wp_timezone_string() ?: 'UTC',
+		'teacher' => $is_booking ? (string) ( $next['teacher_display_reference'] ?? '' ) : (string) ( $enrolment['assigned_teacher_display_reference'] ?? '' ),
+		'date' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'l j F Y', $display_timezone ),
+		'time' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'H:i', $display_timezone ) . '–' . dzn_theme_platform_zoned_time( $next['ends_at_utc'] ?? '', 'H:i', $display_timezone ),
+		'timezone_label' => $display_timezone,
 		'join_url' => '',
-		'absence_available' => 'authorised' === (string) ( $next['lifecycle_state'] ?? '' ) && $next_start && $next_start >= $now,
+		'join_available' => $is_booking && ! empty( $next['join_available'] ) && $within_join_window,
+		'join_action_url' => $is_booking ? admin_url( 'admin-post.php?action=dzn_student_join_booking_class' ) : '',
+		'join_nonce' => $is_booking ? wp_create_nonce( 'dzn_student_join_booking_class' ) : '',
+		'confirmation_uid' => $is_booking ? (string) ( $next['confirmation_uid'] ?? '' ) : '',
+		'join_message' => $is_booking ? dzn_theme_platform_booking_join_message( $next, $within_join_window ) : 'پیوند معتبر کلاس هنوز از منبع امن دریافت نشده است.',
+		'absence_available' => ! $is_booking && 'authorised' === (string) ( $next['lifecycle_state'] ?? '' ) && $next_start && $next_start >= $now,
 		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
 		'lesson_uid' => (string) ( $next['lesson_uid'] ?? '' ),
 		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
-		'notice' => ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '',
+		'notice' => $is_booking ? 'جلسهٔ معارفهٔ رایگان شما تأیید شده است.' : ( ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ),
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
-	$term_progress = dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
+	$term_progress = $is_booking ? array() : dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
 	$model['term'] = $term_progress ? array_merge( $term_progress, array(
 		'next_label' => $next ? 'کلاس بعدی: ' . dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'j F' ) : 'کلاس آینده‌ای ثبت نشده است',
 		'normal_replacement' => '',
@@ -421,6 +448,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	}
 	$future = array_values( array_filter( $all_scheduled_classes, static function( $row ) use ( $now ) {
 		$start = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' );
+		if ( 'teacher_booking_class_v1' === ( $row['version'] ?? '' ) ) {
+			$end = strtotime( (string) ( $row['ends_at_utc'] ?? '' ) . ' UTC' );
+			return $start && $end && $end + ( 2 * HOUR_IN_SECONDS ) >= $now;
+		}
 		return $start && $start >= $now;
 	} ) );
 	usort( $future, static fn( $a, $b ) => strcmp( (string) $a['starts_at_utc'], (string) $b['starts_at_utc'] ) );
@@ -430,30 +461,34 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$start = strtotime( (string) $lesson['starts_at_utc'] . ' UTC' );
 		$soon = $start - $now <= HOUR_IN_SECONDS;
 		$is_booking = 'teacher_booking_class_v1' === ( $lesson['version'] ?? '' );
+		$join_ready = $is_booking && ! empty( $lesson['join_available'] ) && $soon;
+		$class_timezone = $is_booking ? (string) ( $onboarding['profile']['timezone'] ?? $lesson['schedule_timezone'] ?? 'UTC' ) : ( wp_timezone_string() ?: 'UTC' );
 		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
 		$classes[] = array(
 			'ref' => (string) ( $is_booking ? $lesson['confirmation_uid'] : ( $lesson['reference_code'] ?? 'lesson-' . $index ) ),
-			'start_available' => ! $is_booking && ! empty( $lesson['join_available'] ) && $soon,
-			'join_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_join_class' ),
-			'join_nonce' => wp_create_nonce( 'dzn_teacher_join_class' ),
+			'start_available' => $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $soon ),
+			'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ) ),
+			'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ),
+			'confirmation_uid' => $is_booking ? (string) ( $lesson['confirmation_uid'] ?? '' ) : '',
+			'join_message' => $is_booking ? dzn_theme_platform_booking_join_message( $lesson, $soon ) : '',
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
 			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
 			'details_available' => ! $is_booking,
 			'delivery_issue_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery_issue' ),
 			'delivery_issue_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery_issue' ),
 			'student_summary' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
-			'schedule_summary' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F، H:i' ),
+			'schedule_summary' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F، H:i', $class_timezone ) . ' · ' . $class_timezone,
 			'previous_private_note' => 'یادداشت خصوصی در این نمای خواندنی ارائه نشده است.',
 			'state' => $state,
-			'time' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'H:i' ),
+			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'course' => (string) ( $lesson['course_reference'] ?? '' ),
 			'progress' => $is_booking ? 'کلاس آشنایی' : (string) ( $lesson['term_reference'] ?? '' ),
 			'status' => $is_booking ? ( $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده' ) : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ),
 		);
 		$calendar[] = array(
-			'day' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'l j F' ),
-			'time' => dzn_theme_platform_local_time( $lesson['starts_at_utc'], 'H:i' ),
+			'day' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F', $class_timezone ),
+			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
 			'label' => (string) ( $lesson['course_reference'] ?? '' ) . ' · ' . (string) ( $lesson['student_display_reference'] ?? '' ),
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 		);
@@ -470,6 +505,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'due'=>'در انتظار پاسخ','primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());
+	$upcoming_count = count( array_filter( $future, static function( $row ) use ( $now ) {
+		$start = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' );
+		return $start && $start >= $now;
+	} ) );
 	return array(
 		'available' => true,
 		'screen' => 'home',
@@ -478,7 +517,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'navigation' => $nav,
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => $bookingAttention,
-		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)count($future),'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
+		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,
 		'calendar' => $calendar,
 	);

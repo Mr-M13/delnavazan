@@ -51,14 +51,16 @@ final class BookingTeacherDeliveryRepository {
     public function confirmedUpcomingForTeacher(int $teacherId, int $limit = 50): array {
         global $wpdb;
         $limit = max(1, min(80, $limit));
-        $sql = "SELECT c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
                        c.provider_event_digest,c.confirmed_at,
                        d.teacher_id delivery_teacher_id,d.state delivery_state,
                        r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
                        s.full_name student_display_reference,
                        COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
-                       secret.id projection_secret_id
+                       secret.id projection_secret_id,secret.state projection_secret_state,
+                       secret.key_version projection_secret_key_version,secret.cipher_version projection_secret_cipher_version,
+                       secret.nonce projection_secret_nonce,secret.ciphertext projection_secret_ciphertext
                 FROM {$this->prefix}booking_request_confirmations c
                 INNER JOIN {$this->prefix}booking_request_teacher_deliveries d
                         ON d.id=c.delivery_id
@@ -70,7 +72,7 @@ final class BookingTeacherDeliveryRepository {
                         ON s.booking_request_id=r.id AND s.snapshot_sequence=1
                 INNER JOIN {$this->prefix}instruments i ON i.id=r.requested_instrument_id
                 LEFT JOIN {$this->prefix}courses course ON course.id=r.selected_intro_course_id
-                INNER JOIN {$this->prefix}provider_projection_secrets secret
+                LEFT JOIN {$this->prefix}provider_projection_secrets secret
                         ON secret.mapping_kind='booking_calendar'
                        AND secret.mapping_id=c.id
                        AND secret.state='active'
@@ -84,10 +86,89 @@ final class BookingTeacherDeliveryRepository {
                   AND c.provider_code='google_calendar'
                   AND c.provider_event_digest IS NOT NULL
                   AND c.confirmed_at IS NOT NULL
-                  AND c.starts_at_utc>=UTC_TIMESTAMP()
+                  AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR
                 ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
         $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $limit));
         if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher confirmed booking schedule unavailable');
         return is_array($rows) ? $rows : array();
+    }
+
+    /** Provider-complete introductory classes owned by one resolved Student. */
+    public function confirmedUpcomingForStudent(int $studentId, int $limit = 50): array {
+        global $wpdb;
+        $limit = max(1, min(80, $limit));
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+                       c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
+                       c.provider_event_digest,c.confirmed_at,
+                       d.teacher_id delivery_teacher_id,d.state delivery_state,
+                       r.student_id,r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       COALESCE(NULLIF(t.display_name,''),t.reference_code) teacher_display_reference,
+                       COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
+                       secret.id projection_secret_id,secret.state projection_secret_state,
+                       secret.key_version projection_secret_key_version,secret.cipher_version projection_secret_cipher_version,
+                       secret.nonce projection_secret_nonce,secret.ciphertext projection_secret_ciphertext
+                FROM {$this->prefix}booking_request_confirmations c
+                INNER JOIN {$this->prefix}booking_request_teacher_deliveries d
+                        ON d.id=c.delivery_id
+                       AND d.booking_request_id=c.booking_request_id
+                       AND d.requested_time_id=c.requested_time_id
+                       AND d.teacher_id=c.teacher_id
+                INNER JOIN {$this->prefix}booking_requests r ON r.id=c.booking_request_id
+                INNER JOIN {$this->prefix}booking_request_identity_resolution_events identity
+                        ON identity.id=r.current_identity_resolution_id
+                       AND identity.booking_request_id=r.id
+                       AND identity.student_id=r.student_id
+                       AND identity.outcome='resolved'
+                INNER JOIN {$this->prefix}teachers t ON t.id=c.teacher_id AND t.status='active' AND t.archived_at IS NULL
+                INNER JOIN {$this->prefix}instruments i ON i.id=r.requested_instrument_id
+                LEFT JOIN {$this->prefix}courses course ON course.id=r.selected_intro_course_id
+                LEFT JOIN {$this->prefix}provider_projection_secrets secret
+                        ON secret.mapping_kind='booking_calendar'
+                       AND secret.mapping_id=c.id
+                       AND secret.state='active'
+                       AND secret.active_slot=1
+                WHERE r.student_id=%d
+                  AND c.state='confirmed'
+                  AND d.state='confirmed'
+                  AND r.lifecycle_status='closed'
+                  AND r.resolution_state='teacher_confirmed'
+                  AND r.privacy_erased_at IS NULL
+                  AND c.provider_code='google_calendar'
+                  AND c.provider_event_digest IS NOT NULL
+                  AND c.confirmed_at IS NOT NULL
+                  AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR
+                ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $studentId, $limit));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Student confirmed booking schedule unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
+    /** One confirmed booking row for an authenticated join action. */
+    public function confirmedForParticipant(string $confirmationUid, string $role, int $participantId): ?object {
+        global $wpdb;
+        if (!in_array($role, array('teacher','student'), true) || $participantId < 1) return null;
+        $owner = $role === 'teacher' ? 'c.teacher_id' : 'r.student_id';
+        $identity = $role === 'student'
+            ? " INNER JOIN {$this->prefix}booking_request_identity_resolution_events identity ON identity.id=r.current_identity_resolution_id AND identity.booking_request_id=r.id AND identity.student_id=r.student_id AND identity.outcome='resolved'"
+            : '';
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+                       c.starts_at_utc,c.ends_at_utc,c.provider_code,c.provider_event_digest,c.confirmed_at,
+                       d.teacher_id delivery_teacher_id,d.state delivery_state,
+                       r.student_id,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       secret.id projection_secret_id,secret.state projection_secret_state,
+                       secret.key_version projection_secret_key_version,secret.cipher_version projection_secret_cipher_version,
+                       secret.nonce projection_secret_nonce,secret.ciphertext projection_secret_ciphertext
+                FROM {$this->prefix}booking_request_confirmations c
+                INNER JOIN {$this->prefix}booking_request_teacher_deliveries d ON d.id=c.delivery_id AND d.booking_request_id=c.booking_request_id AND d.requested_time_id=c.requested_time_id AND d.teacher_id=c.teacher_id
+                INNER JOIN {$this->prefix}booking_requests r ON r.id=c.booking_request_id
+                {$identity}
+                LEFT JOIN {$this->prefix}provider_projection_secrets secret ON secret.mapping_kind='booking_calendar' AND secret.mapping_id=c.id AND secret.state='active' AND secret.active_slot=1
+                WHERE c.uid=%s AND {$owner}=%d AND c.state='confirmed' AND d.state='confirmed'
+                  AND r.lifecycle_status='closed' AND r.resolution_state='teacher_confirmed' AND r.privacy_erased_at IS NULL
+                  AND c.provider_code='google_calendar' AND c.provider_event_digest IS NOT NULL AND c.confirmed_at IS NOT NULL
+                LIMIT 1";
+        $row = $wpdb->get_row($wpdb->prepare($sql, $confirmationUid, $participantId));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Confirmed booking join unavailable');
+        return $row ?: null;
     }
 }

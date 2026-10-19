@@ -5,28 +5,23 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRep
 
 /** Safe Teacher-owned read projection for provider-confirmed introductory bookings. */
 final class TeacherUpcomingBookingReadService {
-    public function __construct(private ?BookingTeacherDeliveryRepository $repository = null) {
+    public function __construct(
+        private ?BookingTeacherDeliveryRepository $repository = null,
+        private ?BookingUpcomingReadProjector $projector = null
+    ) {
         $this->repository ??= new BookingTeacherDeliveryRepository();
+        $this->projector ??= new BookingUpcomingReadProjector();
     }
 
     public function forTeacher(int $teacherId): array {
         if ($teacherId < 1) throw new \InvalidArgumentException('portal_principal_unresolved');
+        $principal = (new PortalPrincipalResolver())->resolve('teacher');
+        if ((int) $principal['id'] !== $teacherId) throw new \InvalidArgumentException('portal_object_not_owned');
         if (!current_user_can('dzn_view_own_portal_schedule')) throw new \InvalidArgumentException('portal_object_not_owned');
         $classes = array();
         foreach ($this->repository->confirmedUpcomingForTeacher($teacherId) as $row) {
             if (!$this->isConfirmedOwnerRow($row, $teacherId)) continue;
-            $classes[] = array(
-                'version' => 'teacher_booking_class_v1',
-                'confirmation_uid' => (string) $row->confirmation_uid,
-                'request_reference' => (string) $row->request_reference,
-                'lesson_kind' => 'intro',
-                'confirmation_state' => 'confirmed',
-                'student_display_reference' => (string) $row->student_display_reference,
-                'course_reference' => (string) $row->course_reference,
-                'starts_at_utc' => (string) $row->starts_at_utc,
-                'ends_at_utc' => (string) $row->ends_at_utc,
-                'schedule_timezone' => (string) $row->schedule_timezone,
-            );
+            $classes[] = $this->projector->project($row, 'teacher_booking_class_v1');
         }
         return $classes;
     }
@@ -44,10 +39,9 @@ final class TeacherUpcomingBookingReadService {
             && (string) ($row->provider_code ?? '') === 'google_calendar'
             && preg_match('/^[a-f0-9]{64}$/D', (string) ($row->provider_event_digest ?? '')) === 1
             && trim((string) ($row->confirmed_at ?? '')) !== ''
-            && (int) ($row->projection_secret_id ?? 0) > 0
             && preg_match('/^[0-9A-Z]{26}$/D', (string) ($row->confirmation_uid ?? '')) === 1
-            && $start !== false && $start >= time()
-            && $end !== false && $end > $start
+            && $start !== false && $end !== false && $end > $start
+            && $end + 7200 >= time()
             && trim((string) ($row->student_display_reference ?? '')) !== ''
             && trim((string) ($row->course_reference ?? '')) !== '';
     }

@@ -72,11 +72,10 @@ function dzn_theme_auth_status_message() {
 
 function dzn_theme_render_frontend_login_form( $redirect_to ) {
 	?>
-	<form id="loginform" class="dzn-login-form" name="loginform" action="<?php echo esc_url( site_url( 'wp-login.php', 'login_post' ) ); ?>" method="post">
+	<form id="loginform" class="dzn-login-form" name="loginform" action="<?php echo esc_url( home_url( '/login/' ) ); ?>" method="post">
 		<?php wp_nonce_field( 'dzn_frontend_login', 'dzn_frontend_login_nonce' ); ?>
 		<input type="hidden" name="dzn_frontend_login" value="1">
 		<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
-		<input type="hidden" name="testcookie" value="1">
 		<p class="login-username"><label for="user_login">ایمیل یا نام کاربری<input type="text" name="log" id="user_login" autocomplete="username" required></label></p>
 		<p class="login-password"><label for="user_pass">رمز عبور<input type="password" name="pwd" id="user_pass" autocomplete="current-password" required></label></p>
 		<p class="login-remember"><label><input name="rememberme" type="checkbox" value="forever"> مرا به خاطر بسپار</label></p>
@@ -93,16 +92,85 @@ function dzn_theme_validate_frontend_login_nonce( $user, $username, $password ) 
 }
 add_filter( 'authenticate', 'dzn_theme_validate_frontend_login_nonce', 1, 3 );
 
-function dzn_theme_redirect_frontend_login_failure( $username ) {
-	if ( empty( $_POST['dzn_frontend_login'] ) ) { return; }
+/** Return a generic failure destination without disclosing account existence. */
+function dzn_theme_frontend_login_failure_url() {
 	$posted_redirect = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : '';
 	$redirect_to = wp_validate_redirect( $posted_redirect, home_url( '/dashboard/' ) );
 	$failure_url = add_query_arg( 'auth', 'failed', home_url( '/login/' ) );
 	if ( $redirect_to !== home_url( '/dashboard/' ) ) { $failure_url = add_query_arg( 'redirect_to', $redirect_to, $failure_url ); }
-	wp_safe_redirect( $failure_url );
+	return $failure_url;
+}
+
+function dzn_theme_redirect_frontend_login_failure( $username ) {
+	if ( empty( $_POST['dzn_frontend_login'] ) ) { return; }
+	wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
 	exit;
 }
 add_action( 'wp_login_failed', 'dzn_theme_redirect_frontend_login_failure' );
+
+/**
+ * Preserve only claim/onboarding continuations. Ordinary sign-ins go through
+ * the dashboard on the next request, after WordPress has loaded the new auth
+ * cookie and the existing principal/capability resolvers can route the user.
+ */
+function dzn_theme_frontend_login_destination( $requested_redirect ) {
+	$default = home_url( '/dashboard/' );
+	$safe_requested = is_string( $requested_redirect ) ? wp_validate_redirect( $requested_redirect, $default ) : $default;
+	$requested_parts = wp_parse_url( $safe_requested );
+	$home_parts = wp_parse_url( home_url( '/' ) );
+	$same_origin = empty( $requested_parts['host'] ) || (
+		isset( $home_parts['host'] )
+		&& strtolower( (string) $requested_parts['host'] ) === strtolower( (string) $home_parts['host'] )
+		&& (string) ( $requested_parts['scheme'] ?? '' ) === (string) ( $home_parts['scheme'] ?? '' )
+		&& (int) ( $requested_parts['port'] ?? 0 ) === (int) ( $home_parts['port'] ?? 0 )
+	);
+
+	if ( $same_origin ) {
+		$requested_path = '/' . trim( (string) ( $requested_parts['path'] ?? '' ), '/' ) . '/';
+		foreach ( array( '/teacher-invitation/', '/student-account-claim/' ) as $continuation_path ) {
+			$local_path = '/' . trim( (string) wp_parse_url( home_url( $continuation_path ), PHP_URL_PATH ), '/' ) . '/';
+			if ( $requested_path === $local_path ) { return $safe_requested; }
+		}
+	}
+	return $default;
+}
+
+/**
+ * Authenticate through WordPress on the first-party route. This avoids the
+ * wp-login.php test-cookie preflight that made the first valid submission fail
+ * while retaining WordPress users, hashes, auth filters and session cookies as
+ * the single authentication authority.
+ */
+function dzn_theme_handle_frontend_login() {
+	if ( 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) || empty( $_POST['dzn_frontend_login'] ) ) { return; }
+	$nonce = isset( $_POST['dzn_frontend_login_nonce'] ) && is_string( $_POST['dzn_frontend_login_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_frontend_login_nonce'] ) ) : '';
+	if ( ! wp_verify_nonce( $nonce, 'dzn_frontend_login' ) ) {
+		wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
+		exit;
+	}
+
+	$identity = isset( $_POST['log'] ) && is_string( $_POST['log'] ) ? trim( (string) wp_unslash( $_POST['log'] ) ) : '';
+	$password = isset( $_POST['pwd'] ) && is_string( $_POST['pwd'] ) ? (string) wp_unslash( $_POST['pwd'] ) : '';
+	$user = wp_signon(
+		array(
+			'user_login'    => $identity,
+			'user_password' => $password,
+			'remember'      => ! empty( $_POST['rememberme'] ),
+		),
+		is_ssl()
+	);
+	if ( is_wp_error( $user ) ) {
+		wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
+		exit;
+	}
+
+	$requested_redirect = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : '';
+	wp_safe_redirect( dzn_theme_frontend_login_destination( $requested_redirect ) );
+	exit;
+}
+add_action( 'template_redirect', 'dzn_theme_handle_frontend_login', 0 );
+// Accept a stale cached copy of the old form without exposing the core screen.
+add_action( 'login_init', 'dzn_theme_handle_frontend_login', 0 );
 
 function dzn_theme_render_login_route() {
 	$action = isset( $_GET['action'] ) && is_string( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
@@ -123,7 +191,6 @@ function dzn_theme_render_login_route() {
 			<p class="dzn-eyebrow">ورود امن</p>
 			<h1 id="dzn-route-title">ورود به دلنوازان</h1>
 			<p>هنرجویان و مدرسان با همان حساب ثبت‌شده در دلنوازان وارد می‌شوند.</p>
-			<p><a href="<?php echo esc_url(home_url('/teacher-portal/')); ?>">ورود به پرتال مدرس</a></p>
 			<?php dzn_theme_auth_status_message(); ?>
 			<?php dzn_theme_render_frontend_login_form( $redirect_to ); ?>
 			<p><a href="<?php echo esc_url( wp_lostpassword_url( home_url( '/login/' ) ) ); ?>">رمز عبور را فراموش کرده‌اید؟</a></p>
@@ -169,6 +236,15 @@ function dzn_theme_branded_lostpassword_url( $url, $redirect ) {
 	return add_query_arg( $args, home_url( '/login/' ) );
 }
 add_filter( 'lostpassword_url', 'dzn_theme_branded_lostpassword_url', 10, 2 );
+
+/** Keep every WordPress-generated sign-in link on the single branded entry. */
+function dzn_theme_branded_login_url( $login_url, $redirect, $force_reauth ) {
+	$args = array();
+	if ( is_string( $redirect ) && '' !== $redirect ) { $args['redirect_to'] = wp_validate_redirect( $redirect, home_url( '/dashboard/' ) ); }
+	if ( $force_reauth ) { $args['reauth'] = '1'; }
+	return add_query_arg( $args, home_url( '/login/' ) );
+}
+add_filter( 'login_url', 'dzn_theme_branded_login_url', 10, 3 );
 
 function dzn_theme_branded_password_reset_message( $message, $key, $user_login, $user ) {
 	$url = add_query_arg( array( 'action' => 'rp', 'key' => $key, 'login' => $user_login ), home_url( '/login/' ) );

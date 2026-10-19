@@ -142,6 +142,27 @@ function dzn_theme_primary_menu_link_attributes( $attributes, $item, $args ) {
 add_filter( 'nav_menu_link_attributes', 'dzn_theme_primary_menu_link_attributes', 10, 3 );
 
 /**
+ * Retire separate legacy Teacher and Student sign-in links at render time.
+ * Stored menu data remains untouched; the branded CTA below is the only
+ * authentication entry rendered in the primary navigation.
+ */
+function dzn_theme_remove_primary_auth_menu_items( $items, $args ) {
+	if ( empty( $args->theme_location ) || 'primary' !== $args->theme_location ) { return $items; }
+	$auth_paths = array( '/login/', '/wp-login.php/', '/student-portal/', '/teacher-portal/', '/honarjo/', '/ostad/' );
+	return array_values( array_filter( $items, static function ( $item ) use ( $auth_paths ) {
+		$path = '/' . trim( (string) wp_parse_url( $item->url ?? '', PHP_URL_PATH ), '/' ) . '/';
+		return ! in_array( $path, $auth_paths, true );
+	} ) );
+}
+add_filter( 'wp_nav_menu_objects', 'dzn_theme_remove_primary_auth_menu_items', 10, 2 );
+
+function dzn_theme_append_primary_login_cta( $items, $args ) {
+	if ( empty( $args->theme_location ) || 'primary' !== $args->theme_location ) { return $items; }
+	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal" href="' . esc_url( home_url( '/login/' ) ) . '">ورود به حساب کاربری</a></li>';
+}
+add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
+
+/**
  * Render the recovered final primary navigation when a migrated environment
  * does not yet have the original WordPress menu assignment.
  *
@@ -151,8 +172,7 @@ add_filter( 'nav_menu_link_attributes', 'dzn_theme_primary_menu_link_attributes'
 function dzn_theme_primary_menu_fallback() {
 	$items = array(
 		array( 'خانه', home_url( '/' ), '' ),
-		array( 'ورود هنرجویان', home_url( '/student-portal/' ), 'dzn-nav-portal' ),
-		array( 'ورود اساتید', home_url( '/teacher-portal/' ), 'dzn-nav-portal' ),
+		array( 'ورود به حساب کاربری', home_url( '/login/' ), 'dzn-nav-portal' ),
 		array( 'مقالات', home_url( '/articles/' ), '' ),
 		array( 'ثبت نام', home_url( '/enrol/' ), 'dzn-nav-action' ),
 	);

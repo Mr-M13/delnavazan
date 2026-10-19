@@ -16,11 +16,13 @@ final class PortalAuthenticatedReadService {
         $lessons = $this->lessonsFor('student', (int) $principal['id'], $principal);
         $enrolments = $this->studentEnrolments((int) $principal['id'], $principal);
         $bookingRequests = $this->studentBookingRequests((int) $principal['id']);
+        $bookingClasses = (new StudentUpcomingBookingReadService())->forStudent((int) $principal['id']);
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
             'lessons' => $lessons,
             'enrolments' => $enrolments,
             'booking_requests' => $bookingRequests,
+            'booking_classes' => $bookingClasses,
         );
     }
 

@@ -48,7 +48,8 @@ namespace Delnavazan\Platform\Integrations {
         public bool $conferenceReady=false;
         public int $dispatches=0;
         public int $inspections=0;
-        public function dispatch(array $request,string $credentialMaterial): array { $this->dispatches++;return $this->result(); }
+        public array $lastRequest=array();
+        public function dispatch(array $request,string $credentialMaterial): array { $this->dispatches++;$this->lastRequest=$request;return $this->result(); }
         public function inspect(string $eventId,string $credentialMaterial): array { $this->inspections++;return $this->result(); }
         private function result(): array { return array('provider_object_reference'=>str_repeat('a',32),'join_uri_reference'=>$this->conferenceReady?'https://meet.google.com/abc-defg-hij':null); }
     }
@@ -66,6 +67,9 @@ namespace {
     $transport->conferenceReady=true;
     $confirmed=$service->dispatch(70);
     $assert($confirmed['state']==='confirmed'&&$repository->deliveryRow->state==='confirmed','A reinspection with Calendar and Meet must confirm the delivery.');
+    $assert(($repository->secretRow->references['provider_object_reference']??'')===str_repeat('a',32)&&($repository->secretRow->references['join_uri_reference']??'')==='https://meet.google.com/abc-defg-hij','The confirmed event id and Meet URI must be persisted together in the vault.');
+    $assert(($transport->lastRequest['body']['start']['dateTime']??'')==='2026-11-02T08:00:00Z'&&($transport->lastRequest['body']['start']['timeZone']??'')==='Australia/Brisbane','Projection must preserve the UTC instant and booking timezone.');
+    $assert(($repository->confirmationRow->provider_event_digest??'')===hash('sha256','calendar_event:'.str_repeat('a',32)),'The persisted provider event digest must bind the confirmed Calendar event.');
     $assert($repository->deliveryRow->resolution_state==='teacher_confirmed'&&isset($repository->notifications['41|confirmed']),'Confirmation must close the request and queue one student notification.');
     $replay=$service->dispatch(70);
     $assert($replay['idempotent']===true&&count($repository->notifications)===1,'Confirmed projection replay must be side-effect free.');

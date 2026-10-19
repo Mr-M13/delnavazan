@@ -13,9 +13,11 @@ namespace Delnavazan\Platform\Portals {
                     'confirmation_state' => 'confirmed',
                     'student_display_reference' => 'Owned Student',
                     'course_reference' => 'Introductory Setar',
-                    'starts_at_utc' => '2099-02-01 08:00:00',
-                    'ends_at_utc' => '2099-02-01 08:45:00',
+                    'starts_at_utc' => gmdate('Y-m-d H:i:s', time() - 1800),
+                    'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 900),
                     'schedule_timezone' => 'Australia/Brisbane',
+                    'join_available' => true,
+                    'join_issue' => null,
                 )),
             );
         }
@@ -30,7 +32,7 @@ namespace Delnavazan\Platform\Core\Application {
                 'readiness_state' => 'ready',
                 'profile_state' => 'complete',
                 'availability_state' => 'complete',
-                'profile' => array('display_name' => 'Teacher Example', 'timezone' => 'UTC'),
+                'profile' => array('display_name' => 'Teacher Example', 'timezone' => 'Australia/Brisbane'),
             );
         }
     }
@@ -58,9 +60,10 @@ namespace {
     $model = dzn_theme_platform_teacher_model('home');
     if (count($model['classes'] ?? array()) !== 1) throw new \RuntimeException('Confirmed introductory booking was absent from Upcoming Classes.');
     $class = $model['classes'][0];
-    if (($class['ref'] ?? '') !== '01ARZ3NDEKTSV4RRFFQ69G5FAV' || ($class['state'] ?? '') !== 'intro') throw new \RuntimeException('Confirmed introductory booking presentation is incorrect.');
-    if (($class['start_available'] ?? null) !== false || ($class['details_available'] ?? null) !== false) throw new \RuntimeException('Canonical Lesson actions must not be invented for booking confirmations.');
-    if (count($model['calendar'] ?? array()) !== 1 || ($model['statistics']['upcoming'] ?? '') !== '1') throw new \RuntimeException('Confirmed booking did not reach the calendar and upcoming count.');
+    if (($class['ref'] ?? '') !== '01ARZ3NDEKTSV4RRFFQ69G5FAV' || ($class['state'] ?? '') !== 'starting_soon') throw new \RuntimeException('Started introductory booking presentation is incorrect.');
+    if (($class['start_available'] ?? null) !== true || ($class['details_available'] ?? null) !== false) throw new \RuntimeException('Booking join was unavailable or canonical Lesson actions were invented.');
+    if (!str_contains((string) ($class['schedule_summary'] ?? ''), 'Australia/Brisbane')) throw new \RuntimeException('Teacher profile timezone was not used for the booking class.');
+    if (count($model['calendar'] ?? array()) !== 1 || ($model['statistics']['upcoming'] ?? '') !== '0') throw new \RuntimeException('Started booking did not remain visible without being counted as future.');
     if (!dzn_theme_teacher_portal_validate_model($model, 'home')) throw new \RuntimeException('Confirmed booking broke the Teacher Portal display contract.');
     echo "Booking upcoming classes theme unit passed\n";
 }

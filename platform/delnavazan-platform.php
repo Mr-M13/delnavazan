@@ -68,6 +68,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::register();
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
+	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureCapability(new Delnavazan\Platform\Core\Application\CanonicalLessonPortalCapabilityOwner());
 	require_once DZN_PLATFORM_DIR . 'src/Core/Application/PortalOwnerReadPorts.php';

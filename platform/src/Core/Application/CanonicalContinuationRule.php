@@ -86,8 +86,8 @@ final class CanonicalContinuationRule {
     }
 
     /** Controlled authority basis for an explicit post-intro first regular slot record. */
-    public const SLOT_AUTHORITY_BASES=array('administrator_attestation');
-    public const SLOT_REASON_CODES=array('agreed_regular_slot','intro_slot_becomes_regular','rescheduled_agreement');
+    public const SLOT_AUTHORITY_BASES=array('administrator_attestation','confirmed_booking_recurrence');
+    public const SLOT_REASON_CODES=array('agreed_regular_slot','intro_slot_becomes_regular','rescheduled_agreement','confirmed_booking_weekly_slot');
 
     /** A reservation is capacity-effective only while it is active AND its frozen expiry has not passed. */
     public static function capacityEffective(string $state,string $expiresAt,string $now):bool{

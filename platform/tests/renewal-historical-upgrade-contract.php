@@ -10,8 +10,8 @@ $assert = static function (bool $condition, string $message): void {
 	if (!$condition) throw new RuntimeException($message);
 };
 
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '47'"), 'The current additive migrations must publish Schema 47');
-$assert(str_contains($plugin, "DZN_PLATFORM_BUILD_ID', 'stripe-provider-registry-and-account-binding-20261021.1'"), 'The package needs an explicit build identity');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '48'"), 'The current additive migrations must publish Schema 48');
+$assert(str_contains($plugin, "DZN_PLATFORM_BUILD_ID', 'post-intro-enrolment-automation-20261021.2'"), 'The package needs an explicit build identity');
 
 $matched = preg_match('/^\s*("CREATE TABLE \{\$p\}renewal_cycles .*",)$/m', $migrator, $ddl);
 $assert($matched === 1, 'The historical renewal CREATE TABLE statement must remain present');

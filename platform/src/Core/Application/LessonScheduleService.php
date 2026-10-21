@@ -9,6 +9,45 @@ final class LessonScheduleService {
 
     public function initial(int $lesson,array $input):int{return $this->apply($lesson,$input,true);}
     public function reschedule(int $lesson,array $input):int{return $this->apply($lesson,$input,false);}
+    /**
+     * Import the exact occurrence of an introductory Lesson that was already confirmed by a
+     * Teacher-owned booking. This is not a scheduling decision: the booking confirmation is the
+     * authority, the occurrence is historical, and no Course-default duration is substituted.
+     * Replays converge on the identical existing current occurrence.
+     */
+    public function recordConfirmedBookingOccurrence(int $lessonId,array $input):int{
+        if(!current_user_can('dzn_manage_lessons'))throw new \RuntimeException('Unauthorized');
+        $lessons=new LessonRepository();$schedules=new LessonScheduleVersionRepository();$capacity=new CanonicalLessonScheduleRepository();
+        $bookingRequestId=Normalizer::id($input['booking_request_id']??null);
+        $start=(string)($input['starts_at_utc']??'');$end=(string)($input['ends_at_utc']??'');
+        if(!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D',$start)||!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D',$end)||$end<=$start)throw new \InvalidArgumentException('Confirmed occurrence interval required');
+        if($end>gmdate('Y-m-d H:i:s'))throw new \InvalidArgumentException('Confirmed occurrence must have ended');
+        $timezone=Normalizer::timezone($input['schedule_timezone']??null);$date=(string)($input['local_wall_date']??'');$time=(string)($input['local_wall_time']??'');
+        if(!$timezone)throw new \InvalidArgumentException('Confirmed occurrence timezone required');
+        if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$date)||!preg_match('/^\d{2}:\d{2}:\d{2}$/D',$time))throw new \InvalidArgumentException('Confirmed occurrence wall clock required');
+        $zone=new \DateTimeZone($timezone);$local=(new \DateTimeImmutable($start,new \DateTimeZone('UTC')))->setTimezone($zone);
+        if($local->format('Y-m-d')!==$date||$local->format('H:i:s')!==$time)throw new \InvalidArgumentException('Confirmed occurrence wall clock mismatch');
+        $capacity->begin();
+        try{
+            $lesson=$lessons->locked($lessonId);
+            if(!$lesson||($lesson->record_model??null)!=='legacy_phase1'||(string)$lesson->lesson_type!=='introductory'||(int)($lesson->booking_request_id??0)!==$bookingRequestId||$lesson->enrolment_id!==null||$lesson->term_id!==null||$lesson->archived_at!==null)throw new \InvalidArgumentException('confirmed_intro_lesson_required');
+            $current=$schedules->current($lessonId,true);
+            if($current){
+                if((string)$current->starts_at_utc!==$start||(string)$current->ends_at_utc!==$end||(string)$current->schedule_timezone!==$timezone||(string)$current->local_wall_date!==$date||(string)$current->local_wall_time!==$time){throw new \InvalidArgumentException('confirmed_occurrence_conflict');}
+                $capacity->commit();return(int)$current->id;
+            }
+            if($lesson->current_schedule_version_id!==null)throw new \RuntimeException('Inconsistent current schedule pointer');
+            if(in_array((string)$lesson->status,array('archived','cancelled','completed'),true))throw new \InvalidArgumentException('Lesson not schedulable');
+            $now=gmdate('Y-m-d H:i:s');$actor=get_current_user_id()?:0;
+            $capacity->ensureAndLockTeacherRoot((int)$lesson->teacher_id,$now,$actor);
+            if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$lesson->teacher_id,$start,$end,$lessonId))throw new \InvalidArgumentException('teacher_slot_conflict');
+            CanonicalContinuationCapacityAuthority::assertNoActiveHold((int)$lesson->teacher_id,$start,$end);
+            CommercialCapacityAuthority::assertNoConflictingClaim((int)$lesson->teacher_id,$start,$end);
+            $versionId=$schedules->insert(array('lesson_id'=>$lessonId,'version_number'=>1,'starts_at_utc'=>$start,'ends_at_utc'=>$end,'schedule_timezone'=>$timezone,'local_wall_date'=>$date,'local_wall_time'=>$time,'reason'=>'confirmed_introductory_booking','changed_by'=>$actor?:null,'created_at'=>$now));
+            $lessons->setCurrentSchedule($lessonId,null,$versionId,$now,$actor?:null);
+            $capacity->commit();return $versionId;
+        }catch(\Throwable$e){$capacity->rollback();throw $e;}
+    }
 
     private function apply(int $id,array $input,bool $initial):int{
         if(!current_user_can('dzn_manage_lessons'))throw new \RuntimeException('Unauthorized');

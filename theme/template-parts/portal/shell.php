@@ -122,6 +122,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 		<?php else : ?>
 			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'upcoming-lesson', array( 'lesson' => $model['upcoming_lesson'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => false ) ); ?>

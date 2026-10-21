@@ -606,6 +606,7 @@
         whatsapp_number: fieldValue('mobile'),
         privacy_notice_accepted: true,
         privacy_notice_version: dznBooking.privacyVersion,
+        adult_self_attested: Boolean(root.querySelector('[data-adult-attested]').checked),
         requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
       };
       if (accountPassword && accountPasswordConfirmation) {

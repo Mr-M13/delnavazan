@@ -8,10 +8,10 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '47' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '48' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'stripe-provider-registry-and-account-binding-20261021.1' );
+define( 'DZN_PLATFORM_BUILD_ID', 'post-intro-enrolment-automation-20261021.2' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );
@@ -86,6 +86,11 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
+	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
+	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
+	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
+	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
+	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureCapability(new Delnavazan\Platform\Core\Application\CanonicalLessonPortalCapabilityOwner());
 	require_once DZN_PLATFORM_DIR . 'src/Core/Application/PortalOwnerReadPorts.php';
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureReadPorts(new Delnavazan\Platform\Core\Application\CanonicalTeacherAssignmentPortalReadPort(),new Delnavazan\Platform\Core\Application\CanonicalLessonSchedulePortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryPortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalAttendancePortalReadPortImpl());

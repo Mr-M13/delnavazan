@@ -38,4 +38,8 @@ final class PaymentProviderRegistry {
         $key=PaymentExecutionRule::provider($providerKey);
         return $key!==null&&isset(self::$executionPorts[$key]);
     }
+    public static function hasTranslator(string $providerKey):bool{
+        $key=PaymentExecutionRule::provider($providerKey);
+        return $key!==null&&isset(self::$translators[$key]);
+    }
 }

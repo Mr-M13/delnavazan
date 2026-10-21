@@ -145,6 +145,10 @@ jobs:
           php platform/tests/stripe-checkout-webhook-contract.php
           php platform/tests/stripe-checkout-webhook-unit.php
           php platform/tests/stripe-checkout-test-mode-e2e-contract.php
+          php platform/tests/stripe-provider-registry-bootstrap-contract.php
+          php platform/tests/stripe-canonical-account-reference-contract.php
+          php platform/tests/stripe-test-activation-evidence-contract.php
+          php platform/tests/stripe-readiness-independent-checks-contract.php
           php platform/tests/checkout-session-authority-contract.php
           php platform/tests/student-checkout-initiation-contract.php
           php platform/tests/checkout-session-lifecycle-contract.php
@@ -207,6 +211,27 @@ jobs:
           bash -n deployment/qa/production-google-oauth-diagnostic.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+
+  stripe-runtime-e2e:
+    name: Stripe runtime E2E
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run offline Stripe Checkout test-mode E2E
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-stripe-runtime-e2e
+          DZN_COMPOSE_PROJECT: dzn-stripe-runtime-e2e
+        run: platform/runtime/bin/run-stripe-checkout-test-mode-e2e.sh
 
   oauth-scope-database-regression:
     name: OAuth scope MariaDB regression

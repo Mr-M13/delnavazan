@@ -48,12 +48,17 @@ final class PostIntroSettlementHook {
             if (!$repository->activeJobForPurchase($purchaseId)) throw $error;
         }
 
-        $repository->updatePreparation((int) $preparation->id, array(
-            'state' => 'payment_received',
-            'exception_code' => null,
-            'exception_detail' => null,
-            'last_attempt_at' => $now,
-            'updated_at' => $now,
-        ));
+        // An expired hold is terminal for the Student action. The verified payment is still
+        // recorded and the activation job is queued so the admin sees the exact late-capture
+        // exception; the preparation state is never silently rewritten to "payment received".
+        if ((string) $preparation->state !== 'expired') {
+            $repository->updatePreparation((int) $preparation->id, array(
+                'state' => 'payment_received',
+                'exception_code' => null,
+                'exception_detail' => null,
+                'last_attempt_at' => $now,
+                'updated_at' => $now,
+            ));
+        }
     }
 }

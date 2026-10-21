@@ -71,6 +71,12 @@ if ($standardCourse < 1) {
 }
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacherId, 'course_id' => $standardCourse, 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
 try { (new TeacherAvailabilityService())->setProfile(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'synthetic_post_intro')); } catch (Throwable $ignored) {}
+$wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_rules WHERE teacher_id=%d", $teacherId));
+$wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_exceptions WHERE teacher_id=%d", $teacherId));
+$availability = new TeacherAvailabilityService();
+foreach (array(1, 2, 3, 4, 5, 6, 7) as $weekday) {
+    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
+}
 $catalogue = new CommercialCatalogueService();
 $productId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_products WHERE course_id=%d AND status='active' AND archived_at IS NULL ORDER BY id LIMIT 1", $standardCourse));
 if ($productId < 1) {
@@ -86,7 +92,10 @@ if (!$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}commercial_prices WHERE p
  *
  * @return array{request:int,student:int,principal:int,confirmation:string,delivery:int}
  */
-$booking = function (string $label, int $daysAgo, string $wallTime) use ($wpdb, $p, $instrumentId, $introCourse, $teacherId, $actor, $suffix, $now): array {
+$bookingSequence = 0;
+$booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb, $p, $instrumentId, $introCourse, $teacherId, $actor, $suffix, $now, &$bookingSequence): array {
+    $bookingSequence++;
+    $futureDate = gmdate('Y-m-d', strtotime('+' . (14 + $bookingSequence) . ' days'));
     $submission = (new BookingRequestSubmissionService())->submitPublic(array(
         'requested_instrument_id' => $instrumentId,
         'selected_intro_course_id' => $introCourse,
@@ -102,7 +111,7 @@ $booking = function (string $label, int $daysAgo, string $wallTime) use ($wpdb, 
         'privacy_notice_accepted' => true,
         'privacy_notice_version' => '2026-09-05',
         'adult_self_attested' => true,
-        'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+14 days')), 'local_start_time' => '04:17', 'timezone' => 'UTC')),
+        'requested_times' => array(array('local_date' => $futureDate, 'local_start_time' => '04:17', 'timezone' => 'UTC')),
     ), dzn_pia_key('request-' . $label));
     $requestId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_requests WHERE reference_code=%s", (string) $submission['request_reference']));
     dzn_pia_assert($requestId > 0, 'booking request persistence');
@@ -120,8 +129,11 @@ $booking = function (string $label, int $daysAgo, string $wallTime) use ($wpdb, 
     $authority->classify($studentId, 'adult', 'self_attestation', 'authenticated_platform', $now, $actor);
     $authority->establishPrincipal($studentId, (int) $userId, 'synthetic_fixture', 'synthetic_fixture', $now, $actor);
 
-    $requestedTimeId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_request_requested_times WHERE booking_request_id=%d AND sequence_number=1", $requestId));
-    $start = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC -' . $daysAgo . ' days'));
+    $delivery = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id=%d LIMIT 1", $requestId));
+    dzn_pia_assert($delivery !== null, 'intake delivery required');
+    $deliveryId = (int) $delivery->id;
+    $requestedTimeId = (int) $delivery->requested_time_id;
+    $start = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC -' . $hoursAgo . ' hours'));
     $start = substr($start, 0, 11) . $wallTime;
     $end = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +30 minutes'));
     $occupied = gmdate('Y-m-d H:i:s', strtotime($end . ' UTC +15 minutes'));
@@ -129,9 +141,7 @@ $booking = function (string $label, int $daysAgo, string $wallTime) use ($wpdb, 
     dzn_pia_assert($wpdb->update($p . 'booking_request_requested_times', array('local_date' => $localDate, 'local_start_time' => $wallTime, 'timezone' => 'UTC', 'starts_at_utc' => $start, 'instructional_ends_at_utc' => $end, 'occupied_ends_at_utc' => $occupied), array('id' => $requestedTimeId)) === 1, 'requested time import');
     dzn_pia_assert($wpdb->update($p . 'booking_requests', array('student_id' => $studentId, 'lifecycle_status' => 'closed', 'resolution_state' => 'teacher_confirmed', 'updated_at' => $now, 'updated_by' => $actor), array('id' => $requestId)) === 1, 'booking request confirmation state');
     dzn_pia_assert($wpdb->update($p . 'booking_request_contact_snapshots', array('adult_self_attested' => 1), array('booking_request_id' => $requestId, 'snapshot_sequence' => 1)) !== false, 'adult attestation persistence');
-    $deliveryUid = \Delnavazan\Platform\Core\Support\Identifier::uid();
-    dzn_pia_assert($wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => $deliveryUid, 'booking_request_id' => $requestId, 'requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherId, 'state' => 'confirmed', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now, 'responded_at' => $now)) === 1, 'delivery persistence');
-    $deliveryId = (int) $wpdb->insert_id;
+    dzn_pia_assert($wpdb->update($p . 'booking_request_teacher_deliveries', array('state' => 'confirmed', 'updated_at' => $now, 'responded_at' => $now), array('id' => $deliveryId)) !== false, 'delivery confirmation');
     $confirmationUid = \Delnavazan\Platform\Core\Support\Identifier::uid();
     dzn_pia_assert($wpdb->insert($p . 'booking_request_confirmations', array('uid' => $confirmationUid, 'delivery_id' => $deliveryId, 'booking_request_id' => $requestId, 'requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherId, 'connection_id' => 0, 'state' => 'confirmed', 'version' => 1, 'starts_at_utc' => $start, 'ends_at_utc' => $end, 'schedule_timezone' => 'UTC', 'local_wall_date' => $localDate, 'local_wall_time' => $wallTime, 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => null, 'confirmed_at' => $now, 'created_at' => $now, 'created_by' => $actor, 'updated_at' => $now, 'updated_by' => $actor)) === 1, 'confirmation persistence');
     return array('request' => $requestId, 'student' => $studentId, 'principal' => (int) $userId, 'confirmation' => $confirmationUid, 'delivery' => $deliveryId);
@@ -143,7 +153,7 @@ $repository = new PostIntroRepository();
 
 // A. Delivered intro -> preparation, student payment action, verified settlement, activation.
 $mainWall = sprintf('04:%02d:00', 5 + (hexdec(substr($suffix, 0, 2)) % 50));
-$main = $booking('main', 3, $mainWall);
+$main = $booking('main', 2, $mainWall);
 wp_set_current_user($teacherUser);
 $outcome = $preparations->recordTeacherOutcome($main['confirmation'], $teacherId, 'delivered', 'Synthetic delivered intro');
 $prep = $repository->preparationByBooking($main['request']);
@@ -230,7 +240,7 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}com
 
 // B. No-show and cancellation never invite continuation.
 foreach (array('student_no_show', 'teacher_cancelled') as $index => $badOutcome) {
-    $badBooking = $booking('bad-' . $badOutcome, 4 + $index, '03:2' . $index . ':00');
+    $badBooking = $booking('bad-' . $badOutcome, 3 + $index, '03:2' . $index . ':00');
     wp_set_current_user($teacherUser);
     $result = $preparations->recordTeacherOutcome($badBooking['confirmation'], $teacherId, $badOutcome, 'Synthetic non-delivery');
     $bad = $repository->preparationByBooking($badBooking['request']);
@@ -241,7 +251,7 @@ foreach (array('student_no_show', 'teacher_cancelled') as $index => $badOutcome)
 }
 
 // C. Expired reservation is terminal and requires admin intervention.
-$expiredBooking = $booking('expired', 5, sprintf('06:%02d:00', 5 + (hexdec(substr($suffix, 2, 2)) % 50)));
+$expiredBooking = $booking('expired', 4, sprintf('06:%02d:00', 5 + (hexdec(substr($suffix, 2, 2)) % 50)));
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($expiredBooking['confirmation'], $teacherId, 'delivered', 'Synthetic expiry');
 $expiredPrep = $repository->preparationByBooking($expiredBooking['request']);

@@ -131,7 +131,11 @@ final class PostIntroContinuationService {
             }
 
             if (!$preparation->pattern_id) {
-                $existing = $repository->activePatternFor($studentId, (int) $preparation->standard_course_id);
+                $existing = $repository->activePatternFor($studentId, (int) $preparation->standard_course_id, (int) $preparation->teacher_id);
+                if (!$existing) {
+                    $any = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
+                    if ($any && (int) $any->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
+                }
                 if ($existing) {
                     $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $existing->id));
                 } else {

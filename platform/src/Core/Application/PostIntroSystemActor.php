@@ -83,6 +83,7 @@ final class PostIntroSystemActor {
     private static function usable(int $userId): bool {
         $user = get_user_by('id', $userId);
         if (!$user instanceof \WP_User) return false;
+        if (!in_array(self::ROLE, (array) $user->roles, true)) return false;
         foreach (self::CAPABILITIES as $capability) {
             if (!user_can($user, $capability)) return false;
         }

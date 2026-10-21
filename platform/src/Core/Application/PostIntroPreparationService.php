@@ -13,6 +13,7 @@ use Delnavazan\Platform\Core\Support\Identifier;
  * durable workflow checkpoints so a safe retry never repeats a commercial commitment.
  */
 final class PostIntroPreparationService {
+    public const ELIGIBLE_FROM = '2026-10-21 00:00:00';
     public const OUTCOME_DELIVERED = 'delivered';
     public const OUTCOME_STUDENT_NO_SHOW = 'student_no_show';
     public const OUTCOME_TEACHER_CANCELLED = 'teacher_cancelled';
@@ -47,6 +48,7 @@ final class PostIntroPreparationService {
         if ($confirmation->privacy_erased_at !== null) throw new \InvalidArgumentException('intro_booking_unavailable');
         if ($confirmation->state !== 'confirmed') throw new \InvalidArgumentException('intro_booking_not_confirmed');
         if ((string) $confirmation->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('intro_not_finished');
+        if ((string) $confirmation->ends_at_utc < self::ELIGIBLE_FROM) throw new \InvalidArgumentException('intro_outcome_outside_window');
         if ((int) ($confirmation->student_id ?? 0) < 1) throw new \InvalidArgumentException('student_identity_unresolved');
 
         $existing = $this->repository->outcomeByBooking((int) $confirmation->booking_request_id);
@@ -90,7 +92,7 @@ final class PostIntroPreparationService {
         $preparation = $this->preparationFor($outcome, $confirmation);
         if ($preparation === null) throw new \RuntimeException('post_intro_preparation_unavailable');
 
-        if (in_array((string) $preparation->state, array('prepared', 'checkout_pending', 'payment_received', 'activated'), true)) {
+        if (in_array((string) $preparation->state, array('prepared', 'checkout_pending', 'payment_received', 'activated', 'expired'), true)) {
             return array('preparation_id' => (int) $preparation->id, 'state' => (string) $preparation->state, 'created' => false);
         }
 
@@ -119,10 +121,11 @@ final class PostIntroPreparationService {
             return array('preparation_id' => (int) $preparation->id, 'state' => (string) $preparation->state, 'created' => false);
         } catch (\Throwable $error) {
             $code = $this->controlledCode($error);
+            do_action('dzn_post_intro_preparation_failed', (int) $preparation->id, get_class($error));
             $this->repository->updatePreparation((int) $preparation->id, array(
                 'state' => 'exception',
                 'exception_code' => $code,
-                'exception_detail' => mb_substr($error->getMessage(), 0, 500),
+                'exception_detail' => $this->safeDetail($error),
                 'last_attempt_at' => gmdate('Y-m-d H:i:s'),
                 'updated_at' => gmdate('Y-m-d H:i:s'),
             ));
@@ -171,6 +174,7 @@ final class PostIntroPreparationService {
                 'lesson_type' => 'introductory',
                 'status' => 'draft',
                 'booking_request_id' => $bookingId,
+                'intro_course_id' => (int) ($confirmation->selected_intro_course_id ?? 0) > 0 ? (int) $confirmation->selected_intro_course_id : null,
             ));
             $lesson = $repository->lessonForBooking($bookingId);
             if (!$lesson || (int) $lesson->id !== $lessonId) throw new \RuntimeException('intro_lesson_persistence_failed');
@@ -211,6 +215,10 @@ final class PostIntroPreparationService {
             $slot = $repository->slotAuthorityForIntro((int) $lesson->id);
         }
         if (!$slot) throw new \RuntimeException('continuation_slot_unavailable');
+        $this->assertSlotAvailable($teacherId, (string) $slot->starts_at_utc, (string) $slot->ends_at_utc);
+        if (CanonicalContinuationRule::expiresAt((string) $confirmation->ends_at_utc, (string) $slot->starts_at_utc) <= gmdate('Y-m-d H:i:s')) {
+            throw new \RuntimeException('continuation_window_expired');
+        }
         $preparation = $this->save($prepId, array('slot_authority_id' => (int) $slot->id, 'updated_at' => $now));
 
         $coordination = (new CoordinationCaseService())->open($bookingId, 'confirmed_booking');
@@ -223,7 +231,7 @@ final class PostIntroPreparationService {
         if (!$proposal) {
             $assent = $repository->currentAssentForCandidate($candidateId);
             if (!$assent) {
-                $assentResult = (new TeacherAvailabilityAssentService())->recordAdministratorAttestation(array(
+                $assentResult = (new TeacherAvailabilityAssentService())->recordConfirmedBookingAcceptance(array(
                     'candidate_id' => $candidateId,
                     'candidate_version' => (int) $candidate['version'],
                     'teacher_id' => $teacherId,
@@ -239,9 +247,10 @@ final class PostIntroPreparationService {
                     'attribution_basis' => 'confirmed_booking_teacher_acceptance',
                     'evidence_channel' => 'authenticated_platform',
                     'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
+                    'booking_confirmation_uid' => (string) $confirmation->uid,
                     'evidence_at' => $now,
                     'valid_until' => gmdate('Y-m-d H:i:s', strtotime($now . ' UTC +14 days')),
-                ));
+                ), (int) ($confirmation->created_by ?? 0));
                 $assentId = (int) $assentResult['assent_id'];
                 $fingerprint = (string) $assentResult['fingerprint'];
             } else {
@@ -334,8 +343,35 @@ final class PostIntroPreparationService {
         $zone = new \DateTimeZone($timezone);
         $start = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $date . ' ' . $time, $zone);
         if (!$start) throw new \RuntimeException('continuation_slot_wall_clock_invalid');
+        // The confirmed booking is the ongoing Teacher authority, but the weekly recurrence must
+        // still anchor on a future occurrence. A late outcome must never create a past slot.
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
         $next = $start->modify('+7 days');
+        $attempts = 0;
+        while ($next->setTimezone(new \DateTimeZone('UTC')) <= $now && $attempts < 520) {
+            $next = $next->modify('+7 days');
+            $attempts++;
+        }
+        if ($next->setTimezone(new \DateTimeZone('UTC')) <= $now) throw new \RuntimeException('continuation_slot_wall_clock_invalid');
         return array('date' => $next->format('Y-m-d'), 'time' => $next->format('H:i:s'));
+    }
+
+    /** The published Teacher availability must cover the committed weekly slot. */
+    private function assertSlotAvailable(int $teacherId, string $startsAtUtc, string $endsAtUtc): void {
+        try {
+            $segments = (new TeacherAvailabilityService())->effective($teacherId, $startsAtUtc, $endsAtUtc);
+        } catch (\Throwable $error) {
+            throw new \RuntimeException('teacher_unavailable');
+        }
+        $cursor = $startsAtUtc;
+        foreach ($segments as $segment) {
+            if ((string) ($segment['state'] ?? '') === 'blocked') continue;
+            if ((string) $segment['starts_at_utc'] > $cursor) break;
+            if ((string) $segment['ends_at_utc'] <= $cursor) continue;
+            $cursor = (string) $segment['ends_at_utc'];
+            if ($cursor >= $endsAtUtc) return;
+        }
+        throw new \RuntimeException('teacher_unavailable');
     }
 
     private function save(int $id, array $changes): object {
@@ -349,5 +385,12 @@ final class PostIntroPreparationService {
         $message = trim($error->getMessage());
         if (preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1) return $message;
         return 'post_intro_preparation_failed';
+    }
+
+    private function safeDetail(\Throwable $error): string {
+        $message = trim($error->getMessage());
+        return preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1
+            ? $message
+            : 'Preparation failed in a controlled authority; see the server log.';
     }
 }

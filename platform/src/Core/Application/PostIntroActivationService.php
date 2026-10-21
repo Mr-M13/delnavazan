@@ -85,8 +85,12 @@ final class PostIntroActivationService {
                 throw new \RuntimeException('teacher_assignment_unavailable');
             }
 
-            $pattern = $repository->activePatternFor((int) $preparation->student_id, (int) $preparation->standard_course_id);
-            if (!$pattern) throw new \RuntimeException('commercial_pattern_required');
+            $pattern = $repository->activePatternFor((int) $preparation->student_id, (int) $preparation->standard_course_id, (int) $preparation->teacher_id);
+            if (!$pattern) {
+                $any = $repository->activePatternForAnyTeacher((int) $preparation->student_id, (int) $preparation->standard_course_id);
+                if ($any) throw new \RuntimeException('commercial_pattern_teacher_conflict');
+                throw new \RuntimeException('commercial_pattern_required');
+            }
             $count = min(52, max(1, (int) ($bound['effective_sessions'] ?? 0)));
             $intervals = (new CommercialPatternService())->intervalsFor($pattern, $count);
 
@@ -110,7 +114,6 @@ final class PostIntroActivationService {
                         'local_wall_date' => (string) $interval['local_wall_date'],
                         'local_wall_time' => (string) $interval['local_wall_time'],
                         'reason_code' => 'confirmed_booking_recurrence',
-                        'confirmed_booking_recurrence' => true,
                         'evidence_channel' => 'authenticated_platform',
                         'evidence_reference' => 'post-intro:' . $uid,
                         'evidence_at' => $now,

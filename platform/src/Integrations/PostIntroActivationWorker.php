@@ -29,8 +29,9 @@ final class PostIntroActivationWorker {
             $token = bin2hex(random_bytes(16));
             $now = gmdate('Y-m-d H:i:s');
             $leaseUntil = gmdate('Y-m-d H:i:s', time() + self::LEASE_SECONDS);
-            if (!$repository->claimJob((int) $job->id, hash('sha256', $token), $now, $leaseUntil)) continue;
-            self::execute($repository, $job, $now);
+            $leaseDigest = hash('sha256', $token);
+            if (!$repository->claimJob((int) $job->id, $leaseDigest, $now, $leaseUntil)) continue;
+            self::execute($repository, $job, $now, $leaseDigest);
         }
     }
 
@@ -45,7 +46,7 @@ final class PostIntroActivationWorker {
         ));
     }
 
-    private static function execute(PostIntroRepository $repository, object $job, string $now): void {
+    private static function execute(PostIntroRepository $repository, object $job, string $now, string $leaseDigest): void {
         try {
             (new PostIntroActivationService($repository))->activate((int) $job->id);
             $repository->releaseJob((int) $job->id, 'completed', array(
@@ -55,26 +56,32 @@ final class PostIntroActivationWorker {
                 'next_attempt_at' => null,
                 'last_error_code' => null,
                 'last_error_detail' => null,
-            ));
+            ), $leaseDigest);
         } catch (\Throwable $error) {
+            if ($error->getMessage() === 'post_intro_job_lease_lost') return;
             $attempt = (int) $job->attempt_count + 1;
             $code = self::code($error);
+            do_action('dzn_post_intro_activation_failed', (int) $job->id, get_class($error));
             $retryable = self::retryable($error) && $attempt < self::MAX_ATTEMPTS;
             $preparation = $repository->preparation((int) $job->preparation_id);
             if (!$retryable && $preparation && (string) $preparation->state !== 'activated') {
                 $repository->updatePreparation((int) $preparation->id, array(
                     'state' => 'exception',
                     'exception_code' => $code,
-                    'exception_detail' => mb_substr($error->getMessage(), 0, 500),
+                    'exception_detail' => $code,
                     'updated_at' => gmdate('Y-m-d H:i:s'),
                 ));
             }
-            $repository->releaseJob((int) $job->id, $retryable ? 'retryable' : 'failed', array(
-                'attempt_count' => $attempt,
-                'next_attempt_at' => $retryable ? gmdate('Y-m-d H:i:s', time() + min(1800, 30 * (2 ** ($attempt - 1)))) : null,
-                'last_error_code' => $code,
-                'last_error_detail' => mb_substr($error->getMessage(), 0, 500),
-            ));
+            try {
+                $repository->releaseJob((int) $job->id, $retryable ? 'retryable' : 'failed', array(
+                    'attempt_count' => $attempt,
+                    'next_attempt_at' => $retryable ? gmdate('Y-m-d H:i:s', time() + min(1800, 30 * (2 ** ($attempt - 1)))) : null,
+                    'last_error_code' => $code,
+                    'last_error_detail' => $code,
+                ), $leaseDigest);
+            } catch (\Throwable $releaseError) {
+                if ($releaseError->getMessage() !== 'post_intro_job_lease_lost') throw $releaseError;
+            }
         }
     }
 

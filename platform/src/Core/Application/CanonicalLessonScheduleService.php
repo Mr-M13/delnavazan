@@ -133,12 +133,7 @@ final class CanonicalLessonScheduleService {
             'evidence_at'=>$at,
             'schedule_timezone'=>null,'local_wall_date'=>null,'local_wall_time'=>null,'duration_override'=>null,'expected_schedule_version_id'=>null,
             'availability_override'=>false,'override_reason_code'=>null,'override_evidence_channel'=>null,'override_evidence_reference_digest'=>null,'override_evidence_at'=>null,
-            'confirmed_booking_recurrence'=>false,
         );
-        if(!empty($input['confirmed_booking_recurrence'])){
-            if($reason!=='confirmed_booking_recurrence')throw new \InvalidArgumentException('confirmed_booking_recurrence_reason_required');
-            $intent['confirmed_booking_recurrence']=true;
-        }
         if($operation==='schedule_release'){
             $intent['expected_schedule_version_id']=Normalizer::id($input['expected_schedule_version_id']??null);
             return $intent;
@@ -191,7 +186,6 @@ final class CanonicalLessonScheduleService {
             'local_wall_time'=>$intent['local_wall_time'],
             'duration_override'=>$intent['duration_override'],
             'availability_override'=>(bool)$intent['availability_override'],
-            'confirmed_booking_recurrence'=>(bool)$intent['confirmed_booking_recurrence'],
             'reason_code'=>$intent['reason_code'],
             'evidence_channel'=>$intent['evidence_channel'],
             'evidence_reference_digest'=>$intent['evidence_reference_digest'],
@@ -296,17 +290,6 @@ final class CanonicalLessonScheduleService {
             if($cursor>=$ends){$covered=true;break;}
         }
         if($covered)return 'within_availability';
-        if(!empty($intent['confirmed_booking_recurrence'])){
-            // The Teacher accepted this exact weekly slot by accepting the introductory booking.
-            // That acceptance authorises the ongoing recurrence even when no matching availability
-            // rule was published, but an explicit block is still a genuine Teacher-unavailability
-            // exception and is never overridden.
-            foreach($segments as$segment){
-                if((string)($segment['state']??'')!=='blocked')continue;
-                if((string)$segment['starts_at_utc']<$ends&&(string)$segment['ends_at_utc']>$starts)throw new \InvalidArgumentException('teacher_unavailable');
-            }
-            return 'confirmed_recurrence';
-        }
         if(!empty($intent['availability_override']))return 'administrative_override';
         throw new \InvalidArgumentException('teacher_unavailable');
     }

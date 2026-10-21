@@ -64,7 +64,11 @@ A free introductory booking that the Teacher confirmed is the single authority f
 ### Invariants
 
 - The introductory booking's Teacher acceptance is the ongoing Teacher authority; the automation principal is least-privilege and is not an administrator.
-- The confirmed weekly recurrence authorises the regular slot even when no matching availability rule was published, but an explicit Teacher block still fails closed as `teacher_unavailable`.
+- The confirmed booking is the ongoing Teacher authority, but the committed weekly slot must still be covered by the Teacher's published availability. Missing or blocked availability becomes `teacher_unavailable` for admin resolution; it is never auto-overridden.
+- Only introductory lessons completed on or after `2026-10-21 00:00:00` enter the automation. Historical confirmations are not surfaced as new payment invitations.
+- The introductory Lesson records the booked introductory Course in `lessons.intro_course_id` while `lessons.course_id` carries the continuous standard Course used by the canonical continuation lineage.
+- A Student who already has an active recurring pattern for the same Course but a different Teacher fails closed as `commercial_pattern_teacher_conflict`; the automation never reuses another Teacher's slot.
+- Adult capacity is based on the booking intake's explicit adult self-attestation, with the Student Portal self-attestation as the legacy fallback. The canonical capacity classification records `self_attestation` so the policy decision remains auditable.
 - The automation never fabricates a Meet URL. A Calendar projection is pending until a provider result acknowledges it; the Student cannot join from a manufactured link.
 - Privacy-erased requests, cross-Student actions, unresolved identity, minor/guardian gaps, ambiguous Courses/products/prices, and expired holds fail closed.
 - The existing accepted-arrangement, commercial obligation, Stripe settlement, Term/Lesson, and Google integration authorities remain the only writers of their truth.

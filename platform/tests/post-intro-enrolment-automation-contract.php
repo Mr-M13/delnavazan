@@ -50,6 +50,7 @@ $contains($migrator, array(
     "adult_self_attested tinyint(1) NOT NULL DEFAULT 0",
     'booking_request_id bigint unsigned NULL',
     'ADD UNIQUE KEY booking_request_id(booking_request_id)',
+    'intro_course_id bigint unsigned NULL',
     'post_intro_preparations',
     'post_intro_activation_jobs',
     'booking_request_intro_outcomes',
@@ -79,12 +80,16 @@ $contains($preparation, array(
     "'reason_code' => 'confirmed_booking_weekly_slot'",
     'new CoordinationCaseService())->open',
     "'confirmed_booking'",
-    'recordAdministratorAttestation',
+    'recordConfirmedBookingAcceptance',
     "'confirmed_booking_teacher_acceptance'",
     'new ProposalService())->issueInitial',
     "'post_intro_invitation'",
 ), 'preparation must reuse the canonical authorities');
 $assert(str_contains($repository, 'canonical_continuation_slot_authorities'), 'the preparation must read the persisted slot authority');
+$assert(str_contains($preparation, 'assertSlotAvailable') && str_contains($preparation, "'teacher_unavailable'"), 'the committed slot must be covered by published Teacher availability');
+$assert(str_contains($preparation, 'ELIGIBLE_FROM') && str_contains($preparation, 'intro_outcome_outside_window'), 'historical intros must not enter the automation queue');
+$assert(str_contains($repository, 'activePatternForAnyTeacher') && str_contains($continuation, 'commercial_pattern_teacher_conflict'), 'a pattern for another Teacher must fail closed');
+$assert(str_contains($worker, 'post_intro_job_lease_lost'), 'job release must be fenced by the lease token');
 $assert(str_contains($preparation, 'standardCoursesForInstrument'), 'the ongoing Course must be resolved from the instrument');
 $assert(str_contains($preparation, 'count($courses) !== 1'), 'ambiguous standard Courses must fail closed');
 $assert(str_contains($preparation, 'commercial_region_unresolved'), 'an unresolved commercial region must be an exception');
@@ -139,7 +144,6 @@ $contains($activation, array(
     'intervalsFor',
     'createStandard',
     'schedule(',
-    "'confirmed_booking_recurrence' => true",
     'projectCalendarEvent',
     'GoogleCalendarProjectionService',
     "'post-intro-enrolment-activate-' . \$uid",

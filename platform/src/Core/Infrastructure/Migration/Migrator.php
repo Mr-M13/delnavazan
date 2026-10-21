@@ -696,12 +696,20 @@ final class Migrator {
 	private static function install_post_intro_enrolment_automation():void{
 		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
 		$snapshots=$p.'booking_request_contact_snapshots';
-		if(!$wpdb->get_row("SHOW COLUMNS FROM {$snapshots} LIKE 'adult_self_attested'")){
+		$attestationColumn=$wpdb->get_row("SHOW COLUMNS FROM {$snapshots} LIKE 'adult_self_attested'");
+		if(!$attestationColumn){
 			if($wpdb->query("ALTER TABLE {$snapshots} ADD COLUMN adult_self_attested tinyint(1) NOT NULL DEFAULT 0 AFTER privacy_notice_accepted_at")===false)throw new \RuntimeException('Post-intro migration failed: adult attestation field');
+		}elseif(strtolower((string)$attestationColumn->Type)!=='tinyint(1)'||(string)$attestationColumn->Null!=='NO'){
+			if($wpdb->query("ALTER TABLE {$snapshots} MODIFY COLUMN adult_self_attested tinyint(1) NOT NULL DEFAULT 0")===false)throw new \RuntimeException('Post-intro migration failed: adult attestation repair');
 		}
 		$lessons=$p.'lessons';
 		if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'booking_request_id'")){
 			if($wpdb->query("ALTER TABLE {$lessons} ADD COLUMN booking_request_id bigint unsigned NULL, ADD UNIQUE KEY booking_request_id(booking_request_id)")===false)throw new \RuntimeException('Post-intro migration failed: Lesson booking provenance field');
+		}elseif(!self::has_index($lessons,'booking_request_id',true)){
+			if($wpdb->query("ALTER TABLE {$lessons} ADD UNIQUE KEY booking_request_id(booking_request_id)")===false)throw new \RuntimeException('Post-intro migration failed: Lesson booking provenance index');
+		}
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'intro_course_id'")){
+			if($wpdb->query("ALTER TABLE {$lessons} ADD COLUMN intro_course_id bigint unsigned NULL")===false)throw new \RuntimeException('Post-intro migration failed: Lesson intro course provenance field');
 		}
 		$tables=array(
 			"CREATE TABLE {$p}booking_request_intro_outcomes (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,booking_request_id bigint unsigned NOT NULL,confirmation_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,outcome varchar(24) NOT NULL,note varchar(500) NULL,occurred_at datetime NOT NULL,source varchar(24) NOT NULL,recorded_by bigint unsigned NOT NULL,recorded_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY booking_request_id(booking_request_id),UNIQUE KEY confirmation_id(confirmation_id),KEY outcome(outcome),KEY teacher_recorded(teacher_id,recorded_at)) ENGINE=InnoDB $c",
@@ -716,6 +724,7 @@ final class Migrator {
 		$snapshots=$p.'booking_request_contact_snapshots';$row=$wpdb->get_row("SHOW COLUMNS FROM {$snapshots} LIKE 'adult_self_attested'");
 		if(!$row||strtolower($row->Type)!=='tinyint(1)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: adult self-attestation field');
 		$lessons=$p.'lessons';if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'booking_request_id'"))throw new \RuntimeException('Migration verification failed: Lesson booking provenance field');
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'intro_course_id'"))throw new \RuntimeException('Migration verification failed: Lesson intro course provenance field');
 		if(!self::has_index($lessons,'booking_request_id',true))throw new \RuntimeException('Migration verification failed: Lesson booking provenance index');
 		$tables=array(
 			'booking_request_intro_outcomes'=>array('uid','booking_request_id','confirmation_id','teacher_id','student_id','outcome','note','occurred_at','source','recorded_by','recorded_at','created_at'),

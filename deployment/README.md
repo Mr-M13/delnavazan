@@ -39,7 +39,7 @@ Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packa
 ## Post-introductory continuation automation (Schema 48)
 
 Release `post-intro-enrolment-automation-20261021.2` adds Schema 48
-(`048_post_intro_enrolment_automation`). It is additive: `lessons.booking_request_id`,
+(`048_post_intro_enrolment_automation`). It is additive: `lessons.booking_request_id`, `lessons.intro_course_id`,
 `booking_request_contact_snapshots.adult_self_attested`, and three workflow tables. Existing rows keep
 their defaults; no existing Course, product, price, Lesson, Enrolment, Term, or payment row is rewritten.
 

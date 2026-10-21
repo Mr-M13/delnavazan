@@ -9,6 +9,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository;
  * authorities; nothing here writes those tables.
  */
 final class PostIntroRepository {
+    /** Only intros completed on or after the automation release are eligible. */
+    public const ELIGIBLE_FROM = '2026-10-21 00:00:00';
     private string $p;
 
     public function __construct() {
@@ -58,10 +60,12 @@ final class PostIntroRepository {
     public function confirmationByBooking(int $bookingRequestId): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
-            "SELECT c.*, COALESCE(NULLIF(course.name_fa,''),course.name_en) course_name,
+            "SELECT c.*, s.adult_self_attested, r.privacy_erased_at,
+                    COALESCE(NULLIF(course.name_fa,''),course.name_en) course_name,
                     COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name
              FROM {$this->p}booking_request_confirmations c
              LEFT JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+             LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
              LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
              WHERE c.booking_request_id=%d AND c.state='confirmed' ORDER BY c.id DESC LIMIT 1",
@@ -173,7 +177,7 @@ final class PostIntroRepository {
         return $changed === 1;
     }
 
-    public function releaseJob(int $id, string $state, array $changes): void {
+    public function releaseJob(int $id, string $state, array $changes, ?string $leaseDigest = null): void {
         global $wpdb;
         $changes = array_merge($changes, array(
             'state' => $state,
@@ -181,7 +185,11 @@ final class PostIntroRepository {
             'lease_expires_at' => null,
             'updated_at' => gmdate('Y-m-d H:i:s'),
         ));
-        if ($wpdb->update($this->p . 'post_intro_activation_jobs', $changes, array('id' => $id)) === false) throw new \RuntimeException('post_intro_activation_job_release_failed');
+        $where = array('id' => $id);
+        if ($leaseDigest !== null) $where['lease_token_digest'] = $leaseDigest;
+        $updated = $wpdb->update($this->p . 'post_intro_activation_jobs', $changes, $where);
+        if ($updated === false) throw new \RuntimeException('post_intro_activation_job_release_failed');
+        if ($leaseDigest !== null && $updated !== 1) throw new \RuntimeException('post_intro_job_lease_lost');
     }
 
     /** @return list<object> */
@@ -411,7 +419,15 @@ final class PostIntroRepository {
         );
     }
 
-    public function activePatternFor(int $studentId, int $courseId): ?object {
+    public function activePatternFor(int $studentId, int $courseId, int $teacherId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}commercial_recurring_patterns WHERE student_id=%d AND course_id=%d AND teacher_id=%d AND state='active' ORDER BY id DESC LIMIT 1",
+            $studentId, $courseId, $teacherId
+        ));
+    }
+
+    public function activePatternForAnyTeacher(int $studentId, int $courseId): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$this->p}commercial_recurring_patterns WHERE student_id=%d AND course_id=%d AND state='active' ORDER BY id DESC LIMIT 1",
@@ -460,10 +476,10 @@ final class PostIntroRepository {
              LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
              LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.confirmation_id=c.id
-             WHERE c.teacher_id=%d AND c.state='confirmed' AND c.ends_at_utc<=%s AND o.id IS NULL
+             WHERE c.teacher_id=%d AND c.state='confirmed' AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND o.id IS NULL
                AND r.privacy_erased_at IS NULL
              ORDER BY c.ends_at_utc DESC LIMIT {$limit}",
-            $teacherId, $now
+            $teacherId, $now, self::ELIGIBLE_FROM
         )) ?: array();
     }
 
@@ -483,9 +499,9 @@ final class PostIntroRepository {
              LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
              LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.confirmation_id=c.id
-             WHERE c.state='confirmed' AND c.ends_at_utc<=%s AND o.id IS NULL AND r.privacy_erased_at IS NULL
+             WHERE c.state='confirmed' AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND o.id IS NULL AND r.privacy_erased_at IS NULL
              ORDER BY c.ends_at_utc DESC LIMIT {$limit}",
-            $now
+            $now, self::ELIGIBLE_FROM
         )) ?: array();
     }
 

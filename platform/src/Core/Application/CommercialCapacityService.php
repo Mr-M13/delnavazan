@@ -99,7 +99,7 @@ final class CommercialCapacityService {
             $reservation=$this->continuations->reservationForCase($caseId,true);
             if(!$reservation||(int)$reservation->id!==$reservationId)throw new \InvalidArgumentException('continuation_reservation_required');
             if((int)$reservation->teacher_id!==$teacherId||(int)$reservation->student_id!==$studentId)throw new \InvalidArgumentException('canonical_continuation_integrity_conflict');
-            if(!CanonicalContinuationRule::capacityEffective((string)$reservation->state,(string)$reservation->expires_at,$now))throw new \InvalidArgumentException('continuation_reservation_expired');
+            if(!CanonicalContinuationRule::capacityEffective((string)$reservation->state,(string)$reservation->expires_at,(string)$evidence['at']))throw new \InvalidArgumentException('continuation_reservation_expired');
             $this->schedules->ensureAndLockTeacherRoot($teacherId,$now,$actor);
             $pattern=$this->capacity->activePatternFor($studentId,$courseId,true);
             if($pattern!==null&&(int)$pattern->course_id!==$courseId)throw new \InvalidArgumentException('commercial_course_continuity_conflict');

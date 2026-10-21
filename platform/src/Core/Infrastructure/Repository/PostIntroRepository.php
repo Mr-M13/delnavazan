@@ -119,7 +119,10 @@ final class PostIntroRepository {
     public function preparationsForStudent(int $studentId): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$this->p}post_intro_preparations WHERE student_id=%d AND state NOT IN ('closed','cancelled') ORDER BY id DESC LIMIT 20",
+            "SELECT p.* FROM {$this->p}post_intro_preparations p
+             INNER JOIN {$this->p}booking_requests r ON r.id=p.booking_request_id
+             WHERE p.student_id=%d AND r.privacy_erased_at IS NULL AND p.state NOT IN ('closed','cancelled')
+             ORDER BY p.id DESC LIMIT 20",
             $studentId
         )) ?: array();
     }
@@ -170,7 +173,7 @@ final class PostIntroRepository {
         global $wpdb;
         $changed = $wpdb->query($wpdb->prepare(
             "UPDATE {$this->p}post_intro_activation_jobs
-             SET state='running',lease_token_digest=%s,lease_expires_at=%s,updated_at=%s
+             SET state='running',attempt_count=attempt_count+1,lease_token_digest=%s,lease_expires_at=%s,updated_at=%s
              WHERE id=%d AND (state IN ('queued','retryable') OR (state='running' AND lease_expires_at IS NOT NULL AND lease_expires_at<=%s))",
             $leaseDigest, $leaseUntil, $now, $id, $now
         ));
@@ -202,6 +205,16 @@ final class PostIntroRepository {
     public function purchase(int $purchaseId): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_purchases WHERE id=%d", $purchaseId));
+    }
+
+    /** The immutable provider occurrence instant for the purchase's verified payment. */
+    public function paymentOccurredAt(int $purchaseId): ?string {
+        global $wpdb;
+        $value = $wpdb->get_var($wpdb->prepare(
+            "SELECT MIN(occurred_at) FROM {$this->p}commercial_payment_facts WHERE purchase_id=%d",
+            $purchaseId
+        ));
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     public function offer(int $offerId): ?object {
@@ -412,11 +425,14 @@ final class PostIntroRepository {
 
     public function snapshotAdultAttestation(int $bookingRequestId, bool $attested): void {
         global $wpdb;
-        $wpdb->update(
-            $this->p . 'booking_request_contact_snapshots',
-            array('adult_self_attested' => $attested ? 1 : 0),
-            array('booking_request_id' => $bookingRequestId, 'snapshot_sequence' => 1)
-        );
+        // Never re-populate an attestation after the owning request has been privacy-erased.
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->p}booking_request_contact_snapshots s
+             INNER JOIN {$this->p}booking_requests r ON r.id=s.booking_request_id
+             SET s.adult_self_attested=%d
+             WHERE s.booking_request_id=%d AND s.snapshot_sequence=1 AND r.privacy_erased_at IS NULL",
+            $attested ? 1 : 0, $bookingRequestId
+        ));
     }
 
     public function activePatternFor(int $studentId, int $courseId, int $teacherId): ?object {

@@ -35,17 +35,20 @@ final class PostIntroContinuationService {
 
         if ($preparation->state === 'activated') return array('state' => 'activated', 'redirect_url' => null, 'message' => 'already_activated');
         if ($preparation->state === 'payment_received') return array('state' => 'payment_received', 'redirect_url' => null, 'message' => 'payment_received');
+        $confirmation = $repository->confirmationByBooking((int) $preparation->booking_request_id);
+        if (!$confirmation) throw new \InvalidArgumentException('post_intro_invitation_not_found');
+        if ($confirmation->privacy_erased_at !== null) throw new \InvalidArgumentException('post_intro_invitation_not_found');
+
         $anyPattern = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
         if ($anyPattern && (int) $anyPattern->teacher_id !== (int) $preparation->teacher_id) {
             throw new \RuntimeException('commercial_pattern_teacher_conflict');
         }
 
-        if (!in_array((string) $preparation->state, array('prepared', 'checkout_pending', 'exception'), true)) {
+        if (!in_array((string) $preparation->state, array('prepared', 'checkout_pending'), true)) {
             throw new \InvalidArgumentException('post_intro_invitation_not_ready');
         }
 
-        $confirmation = $repository->confirmationByBooking((int) $preparation->booking_request_id);
-        if (!$confirmation) throw new \InvalidArgumentException('post_intro_invitation_not_found');
+        $evidenceAt = $this->stableActionEvidenceAt($preparation);
 
         try {
             $this->assertAdultCapacity($preparation, $confirmation, $studentId, $adultAttested);
@@ -61,7 +64,7 @@ final class PostIntroContinuationService {
                     (int) $proposalUids->version_number,
                     $subjectRef,
                     'authenticated_platform',
-                    gmdate('Y-m-d H:i:s'),
+                    $evidenceAt,
                     'post-intro-provisional-' . (string) $preparation->uid
                 ));
                 $preparation = $this->save((int) $preparation->id, array('provisional_event_id' => (int) $event['event_id']));
@@ -85,7 +88,7 @@ final class PostIntroContinuationService {
                         $studentUserId,
                         'affirmed',
                         'authenticated_platform',
-                        gmdate('Y-m-d H:i:s'),
+                        $evidenceAt,
                         'post-intro-final-' . (string) $preparation->uid
                     ));
                     $preparation = $this->save((int) $preparation->id, array('arrangement_id' => (int) $accepted['arrangement_id']));
@@ -122,7 +125,7 @@ final class PostIntroContinuationService {
                             'ongoing_course_id' => (int) $preparation->standard_course_id,
                             'evidence_channel' => 'authenticated_platform',
                             'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
-                            'evidence_at' => gmdate('Y-m-d H:i:s'),
+                            'evidence_at' => $evidenceAt,
                         ),
                         'post-intro-continuation-' . (string) $preparation->uid
                     );
@@ -169,7 +172,7 @@ final class PostIntroContinuationService {
                         'course_id' => (int) $preparation->standard_course_id,
                         'evidence_channel' => 'authenticated_platform',
                         'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
-                        'evidence_at' => gmdate('Y-m-d H:i:s'),
+                        'evidence_at' => $evidenceAt,
                     ), 'post-intro-pattern-' . (string) $preparation->uid));
                     $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $pattern['pattern_id']));
                 }
@@ -191,7 +194,7 @@ final class PostIntroContinuationService {
                         'plan_kind' => 'full',
                         'evidence_channel' => 'authenticated_platform',
                         'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
-                        'evidence_at' => gmdate('Y-m-d H:i:s'),
+                        'evidence_at' => $evidenceAt,
                     ), 'post-intro-offer-' . (string) $preparation->uid));
                     $preparation = $this->save((int) $preparation->id, array(
                         'offer_id' => (int) $offer['offer_id'],
@@ -202,7 +205,11 @@ final class PostIntroContinuationService {
             }
 
             if (!in_array((string) $preparation->state, array('checkout_pending', 'payment_received', 'activated'), true)) {
-                $preparation = $this->save((int) $preparation->id, array('state' => 'checkout_pending'));
+                $preparation = $this->save((int) $preparation->id, array(
+                    'state' => 'checkout_pending',
+                    'exception_code' => null,
+                    'exception_detail' => null,
+                ));
             }
 
             $obligations = $repository->obligationsForOffer((int) $preparation->offer_id);
@@ -237,15 +244,43 @@ final class PostIntroContinuationService {
                 $this->expire($preparation);
                 throw $error;
             }
+            // A committed idempotent command or a concurrent winner is not a review exception.
+            // Leave the preparation actionable so the next Student action converges on the
+            // durable result instead of poisoning the invitation until an admin intervenes.
+            if ($this->concurrentReplay($error)) {
+                $fresh = $this->repository->preparation((int) $preparation->id);
+                if ($fresh && (string) $fresh->state === 'payment_received') return array('state' => 'payment_received', 'redirect_url' => null, 'message' => 'payment_received');
+                if ($fresh && (string) $fresh->state === 'activated') return array('state' => 'activated', 'redirect_url' => null, 'message' => 'already_activated');
+                if ($fresh && (int) $fresh->offer_id > 0) return array('state' => 'checkout_pending', 'redirect_url' => null, 'message' => 'checkout_pending');
+                throw $error;
+            }
+            $code = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'post_intro_continuation_failed';
             $this->repository->updatePreparation((int) $preparation->id, array(
                 'state' => 'exception',
-                'exception_code' => preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'post_intro_continuation_failed',
-                'exception_detail' => mb_substr($error->getMessage(), 0, 500),
+                'exception_code' => $code,
+                'exception_detail' => $code,
                 'last_attempt_at' => gmdate('Y-m-d H:i:s'),
                 'updated_at' => gmdate('Y-m-d H:i:s'),
             ));
             throw $error;
         }
+    }
+
+    private function stableActionEvidenceAt(object $preparation): string {
+        $now = gmdate('Y-m-d H:i:s');
+        foreach (array((string) ($preparation->prepared_at ?? ''), (string) ($preparation->created_at ?? '')) as $candidate) {
+            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1 && $candidate <= $now) return $candidate;
+        }
+        throw new \RuntimeException('post_intro_action_time_unavailable');
+    }
+
+    private function concurrentReplay(\Throwable $error): bool {
+        if ($error instanceof IdempotencyConflictException) return true;
+        $message = strtolower(trim($error->getMessage()));
+        foreach (array('idempotency conflict', 'already accepted', 'duplicate', 'deadlock', 'lock wait timeout') as $needle) {
+            if (str_contains($message, $needle)) return true;
+        }
+        return false;
     }
 
     private function assertPatternIdentity(object $preparation, object $pattern): void {

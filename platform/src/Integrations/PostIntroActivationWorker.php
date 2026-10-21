@@ -31,7 +31,26 @@ final class PostIntroActivationWorker {
             $leaseUntil = gmdate('Y-m-d H:i:s', time() + self::LEASE_SECONDS);
             $leaseDigest = hash('sha256', $token);
             if (!$repository->claimJob((int) $job->id, $leaseDigest, $now, $leaseUntil)) continue;
-            self::execute($repository, $job, $now, $leaseDigest);
+            $claimed = $repository->job((int) $job->id);
+            if (!$claimed) continue;
+            if ((int) $claimed->attempt_count > self::MAX_ATTEMPTS) {
+                $preparation = $repository->preparation((int) $claimed->preparation_id);
+                if ($preparation && (string) $preparation->state !== 'activated') {
+                    $repository->updatePreparation((int) $preparation->id, array(
+                        'state' => 'exception',
+                        'exception_code' => 'post_intro_attempt_limit_reached',
+                        'exception_detail' => 'post_intro_attempt_limit_reached',
+                        'updated_at' => gmdate('Y-m-d H:i:s'),
+                    ));
+                }
+                $repository->releaseJob((int) $claimed->id, 'failed', array(
+                    'next_attempt_at' => null,
+                    'last_error_code' => 'post_intro_attempt_limit_reached',
+                    'last_error_detail' => 'post_intro_attempt_limit_reached',
+                ), $leaseDigest);
+                continue;
+            }
+            self::execute($repository, $claimed, $now, $leaseDigest);
         }
     }
 
@@ -50,7 +69,7 @@ final class PostIntroActivationWorker {
         try {
             (new PostIntroActivationService($repository))->activate((int) $job->id);
             $repository->releaseJob((int) $job->id, 'completed', array(
-                'attempt_count' => (int) $job->attempt_count + 1,
+                'attempt_count' => (int) $job->attempt_count,
                 'checkpoint' => 'activated',
                 'completed_at' => gmdate('Y-m-d H:i:s'),
                 'next_attempt_at' => null,
@@ -59,7 +78,7 @@ final class PostIntroActivationWorker {
             ), $leaseDigest);
         } catch (\Throwable $error) {
             if ($error->getMessage() === 'post_intro_job_lease_lost') return;
-            $attempt = (int) $job->attempt_count + 1;
+            $attempt = (int) $job->attempt_count;
             $code = self::code($error);
             do_action('dzn_post_intro_activation_failed', (int) $job->id, get_class($error));
             $retryable = self::retryable($error) && $attempt < self::MAX_ATTEMPTS;

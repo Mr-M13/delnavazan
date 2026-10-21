@@ -207,25 +207,26 @@ dzn_pia_assert($offer !== null && (string) $offer->state === 'issued', 'offer mu
 // A mismatched payment must fail closed and must not enqueue activation.
 wp_set_current_user($actor);
 $payments = new CommercialPaymentService();
-$rejected = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provider_reference' => 'post-intro-reject-' . $suffix, 'evidence_kind' => 'success', 'amount_minor' => '1', 'currency' => 'AUD', 'obligation_reference' => (string) $offer->uid . ':1', 'provider_occurred_at' => $now, 'evidence_channel' => 'provider_evidence', 'evidence_reference' => 'post-intro-reject-evidence-' . $suffix, 'evidence_at' => $now), dzn_pia_key('rejected'));
+$paymentAt = gmdate('Y-m-d H:i:s');
+$rejected = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provider_reference' => 'post-intro-reject-' . $suffix, 'evidence_kind' => 'success', 'amount_minor' => '1', 'currency' => 'AUD', 'obligation_reference' => (string) $offer->uid . ':1', 'provider_occurred_at' => $paymentAt, 'evidence_channel' => 'provider_evidence', 'evidence_reference' => 'post-intro-reject-evidence-' . $suffix, 'evidence_at' => $now), dzn_pia_key('rejected'));
 dzn_pia_assert(($rejected['processing_state'] ?? '') === 'rejected', 'amount mismatch must be rejected');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_purchases WHERE offer_id=%d", (int) $prep->offer_id)) === 0, 'a mismatched payment must not create a purchase');
 
 // Verified settlement enqueues exactly one durable job.
-$settled = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provider_reference' => 'post-intro-success-' . $suffix, 'evidence_kind' => 'success', 'amount_minor' => (string) $obligation->amount_minor, 'currency' => (string) $obligation->currency, 'obligation_reference' => (string) $offer->uid . ':1', 'provider_occurred_at' => $now, 'evidence_channel' => 'provider_evidence', 'evidence_reference' => 'post-intro-success-evidence-' . $suffix, 'evidence_at' => $now), dzn_pia_key('success'));
+$settled = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provider_reference' => 'post-intro-success-' . $suffix, 'evidence_kind' => 'success', 'amount_minor' => (string) $obligation->amount_minor, 'currency' => (string) $obligation->currency, 'obligation_reference' => (string) $offer->uid . ':1', 'provider_occurred_at' => $paymentAt, 'evidence_channel' => 'provider_evidence', 'evidence_reference' => 'post-intro-success-evidence-' . $suffix, 'evidence_at' => $now), dzn_pia_key('success'));
 dzn_pia_assert(($settled['processing_state'] ?? '') === 'accepted', 'verified settlement must be accepted');
 $purchaseId = (int) $wpdb->get_var($wpdb->prepare("SELECT purchase_id FROM {$p}commercial_entitlements WHERE purchase_id IN (SELECT id FROM {$p}commercial_purchases WHERE offer_id=%d) LIMIT 1", (int) $prep->offer_id));
 $job = $repository->activeJobForPurchase($purchaseId);
 dzn_pia_assert($job !== null && (string) $job->state === 'queued', 'settlement must enqueue exactly one activation job');
 // Simulate a genuinely delayed worker so stable evidence is observable rather than
 // coincidentally equal to the current second.
-$activationCheckpoint = (string) $job->created_at;
+$activationCheckpoint = $paymentAt;
 sleep(2);
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'payment_received', 'verified payment must move the preparation to payment_received');
 
 // Duplicate webhook: the unique purchase job and settlement replay must not create a second path.
-$replay = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provider_reference' => 'post-intro-success-' . $suffix, 'evidence_kind' => 'success', 'amount_minor' => (string) $obligation->amount_minor, 'currency' => (string) $obligation->currency, 'obligation_reference' => (string) $offer->uid . ':1', 'provider_occurred_at' => $now, 'evidence_channel' => 'provider_evidence', 'evidence_reference' => 'post-intro-success-evidence-' . $suffix, 'evidence_at' => $now), dzn_pia_key('success'));
+$replay = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provider_reference' => 'post-intro-success-' . $suffix, 'evidence_kind' => 'success', 'amount_minor' => (string) $obligation->amount_minor, 'currency' => (string) $obligation->currency, 'obligation_reference' => (string) $offer->uid . ':1', 'provider_occurred_at' => $paymentAt, 'evidence_channel' => 'provider_evidence', 'evidence_reference' => 'post-intro-success-evidence-' . $suffix, 'evidence_at' => $now), dzn_pia_key('success'));
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}post_intro_activation_jobs WHERE purchase_id=%d", $purchaseId)) === 1, 'duplicate webhook must not duplicate the activation job');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements s INNER JOIN {$p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d", (int) $prep->offer_id)) === 1, 'duplicate webhook must not duplicate settlement');
 

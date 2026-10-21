@@ -32,6 +32,7 @@ final class AdminShellController {
             ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lessons'],
             ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_delivery'],
             ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_schedules'],
+            ['Post-intro automation', 'dzn-post-intro', 'dzn_manage_post_intro_automation'],
         ]],
         'finance' => ['Finance', [
             ['Compensation statements', 'dzn-finance-statements', 'dzn_view_finance_authority'],
@@ -66,7 +67,7 @@ final class AdminShellController {
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
         'dzn-course' => 'courses', 'dzn-term' => 'courses', 'dzn-instrument' => 'courses', 'dzn-commercial-catalogue' => 'courses',
-        'dzn-enrolment' => 'enrolments_classes', 'dzn-lesson' => 'enrolments_classes', 'dzn-attendance-review' => 'enrolments_classes', 'dzn-core-dataset-readiness' => 'enrolments_classes',
+        'dzn-enrolment' => 'enrolments_classes', 'dzn-lesson' => 'enrolments_classes', 'dzn-attendance-review' => 'enrolments_classes', 'dzn-core-dataset-readiness' => 'enrolments_classes', 'dzn-post-intro' => 'enrolments_classes',
         'dzn-finance-statements' => 'finance', 'dzn-finance-rates' => 'finance', 'dzn-finance-payability' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
         'dzn-communications' => 'communications', 'dzn-communications-templates' => 'communications',
         'dzn-integrations' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings', 'dzn-integration-sms' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-stripe-settings' => 'settings', 'dzn-system-health' => 'settings', 'dzn-exception' => 'settings', 'dzn-staff-access' => 'settings', 'dzn-portal-capabilities' => 'settings',

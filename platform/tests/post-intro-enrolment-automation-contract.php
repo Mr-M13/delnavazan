@@ -61,6 +61,7 @@ $contains($migrator, array(
     'verify_post_intro_enrolment_automation_schema',
 ), 'post-intro migration invariant missing');
 $assert(str_contains($migrator, "get_row(\"SHOW COLUMNS FROM {\$lessons} LIKE 'booking_request_id'\")"), 'Lesson provenance must be added only when absent');
+$assert(str_contains($migrator, 'dbDelta(self::dbdelta_sql($sql))'), 'Schema 48 table creation must be idempotent');
 $assert(str_contains($migrator, "ADD COLUMN adult_self_attested tinyint(1) NOT NULL DEFAULT 0"), 'adult attestation must be additive with a safe default');
 
 // 2. Booking intake self-attestation is explicit, backward compatible, and never inferred.
@@ -99,6 +100,7 @@ $assert(str_contains($validator, '$lesson->course_id===(int)$case->course_id') &
 $assert(str_contains($worker, 'post_intro_job_lease_lost'), 'job release must be fenced by the lease token');
 $assert(str_contains($preparation, 'standardCoursesForInstrument'), 'the ongoing Course must be resolved from the instrument');
 $assert(str_contains($preparation, 'count($courses) !== 1'), 'ambiguous standard Courses must fail closed');
+$assert(str_contains($preparation, "candidate->format('Y-m-d H:i:s')"), 'DST spring-forward wall clocks must fail closed instead of shifting');
 $assert(str_contains($preparation, 'commercial_region_unresolved'), 'an unresolved commercial region must be an exception');
 $assert(str_contains($preparation, 'teacher_not_eligible_for_standard_course'), 'Teacher eligibility must be re-proved');
 $assert(str_contains($preparation, "'state' => 'exception'"), 'preparation failures must become an explicit exception state');
@@ -106,7 +108,7 @@ $assert(str_contains($preparation, 'intro_student_no_show') && str_contains($pre
 $assert(str_contains($preparation, 'self::OUTCOME_DELIVERED'), 'only a delivered outcome may continue');
 $assert(str_contains($preparation, 'EU_COUNTRIES') && str_contains($preparation, "\$region = 'EU'"), 'EU member countries must resolve to the EU price region');
 $assert(str_contains($preparation, 'get_current_user_id()') && str_contains($preparation, "'teacher_portal', \$recordedBy"), 'teacher outcomes must audit the authenticated WordPress actor');
-$assert(str_contains($preparation, "if (\$existing) {\n            // The outcome may have committed") && str_contains($preparation, '$prepared = $this->prepare((int) $existing->id)'), 'replaying an existing outcome must resume preparation');
+$assert(str_contains($preparation, 'intro_outcome_already_recorded') && str_contains($preparation, '$prepared = $this->prepare((int) $existing->id)'), 'replaying an existing outcome must resume preparation without silently changing it');
 
 // 4. The Student action is owned by the Student and uses the existing commercial/checkout seam.
 $contains($continuation, array(
@@ -131,6 +133,9 @@ $assert(str_contains($continuation, 'post-intro-provisional-') && str_contains($
 $assert(str_contains($continuation, "state' => 'expired'") && str_contains($continuation, 'continuation_reservation_expired'), 'expired holds must become an explicit terminal state');
 $assert(str_contains($continuation, 'patternForSlotAuthority') && str_contains($continuation, 'assertPatternIdentity'), 'only the pattern created from this slot authority may be reused');
 $assert(str_contains($continuation, 'reservationForCase') && str_contains($continuation, 'existingReservation'), 'a replayed case must recover its durable reservation');
+$assert(str_contains($continuation, 'stableActionEvidenceAt') && str_contains($continuation, 'concurrentReplay'), 'Student commands must be replay-safe and transient conflicts must not poison the invitation');
+$assert(!str_contains($continuation, "'prepared', 'checkout_pending', 'exception'"), 'an exception preparation must require admin retry before the Student action');
+$assert(str_contains($repository, 'r.privacy_erased_at IS NULL') && str_contains($preparation, 'privacy_erased_at'), 'privacy-erased bookings must not surface a Student invitation');
 $assert(str_contains($continuation, "== 'unavailable'") && str_contains($continuation, 'checkout_temporarily_unavailable'), 'explicit checkout unavailability must not be reported as pending');
 $assert(!str_contains($continuation, 'date_of_birth'), 'the Student action must not invent demographic authority');
 
@@ -171,6 +176,8 @@ $contains($activation, array(
 ), 'activation must be replay-safe and canonical');
 $assert(str_contains($activation, "if ((string) \$mapping->projection_state !== 'pending') return;"), 'a verified projection must not be dispatched twice');
 $assert(str_contains($activation, 'stableEvidenceAt') && str_contains($activation, "evidence_at' => \$evidenceAt"), 'activation retries must reuse a stable evidence timestamp');
+$assert(str_contains($activation, 'paymentOccurredAt') && str_contains($repository, 'commercial_payment_facts'), 'activation must use the verified payment occurrence instant');
+$assert(str_contains($worker, 'attempt_count=attempt_count+1') || str_contains($repository, 'attempt_count=attempt_count+1'), 'a reclaimed lease must count as an attempt');
 $assert(str_contains($activation, 'patternForSlotAuthority') && str_contains($activation, 'commercial_pattern_conflict'), 'activation must resolve the exact slot-authority pattern');
 $assert(!str_contains($activation, 'meet.google.com') && !str_contains($activation, 'join_uri_reference' . ' = '), 'activation must never fabricate a Meet URL');
 $assert(str_contains($activation, 'provider_connection_required') || str_contains($activation, "projectCalendarEvent"), 'provider projection must go through the provider authority');
@@ -242,6 +249,8 @@ $contains($admin, array(
 ), 'the admin surface must be exception-only and nonce-protected');
 $assert(str_contains($migrator, "add_cap('dzn_manage_post_intro_automation')"), 'the admin exception capability must be installed');
 $assert(str_contains($plugin, 'PostIntroAdminController::register()'), 'the admin exception surface must be registered');
+$adminShell = $read('platform/src/Admin/Controller/AdminShellController.php');
+$assert(str_contains($adminShell, "'dzn-post-intro'") && str_contains($adminShell, "'dzn_manage_post_intro_automation'"), 'the admin exception surface must be discoverable');
 
 // 11. Notification delivery reuses the durable hand-off table and adds explicit kinds.
 $contains($notificationWorker, array(

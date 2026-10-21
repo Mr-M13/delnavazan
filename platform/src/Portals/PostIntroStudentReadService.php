@@ -38,8 +38,8 @@ final class PostIntroStudentReadService {
                 'title' => $this->title($state),
                 'message' => $this->message($state, $classification),
                 'action_label' => $state === 'ready' ? 'تکمیل پرداخت و تأیید ثبت‌نام' : 'ادامهٔ پرداخت',
-                'action_url' => admin_url('admin-post.php?action=dzn_post_intro_continue'),
-                'nonce' => wp_create_nonce('dzn_post_intro_continue'),
+                'action_url' => $actionable ? admin_url('admin-post.php?action=dzn_post_intro_continue') : null,
+                'nonce' => $actionable ? wp_create_nonce('dzn_post_intro_continue') : null,
             );
         }
         return $rows;

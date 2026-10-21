@@ -15,6 +15,9 @@ final class PostIntroTeacherOutcomeController {
         check_admin_referer(self::ACTION);
         try {
             $principal = (new PortalPrincipalResolver())->resolve('teacher');
+            if (!(new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository())->hasActiveTeacherAuthority((int) get_current_user_id(), (int) $principal['id'])) {
+                throw new \InvalidArgumentException('teacher_onboarding_required');
+            }
             $uid = sanitize_text_field((string) ($_POST['confirmation_uid'] ?? ''));
             $outcome = sanitize_key((string) ($_POST['outcome'] ?? ''));
             $note = sanitize_textarea_field((string) ($_POST['note'] ?? ''));

@@ -62,6 +62,7 @@ final class PostIntroPreparationService {
 
         $existing = $this->repository->outcomeByBooking((int) $confirmation->booking_request_id);
         if ($existing) {
+            if ((string) $existing->outcome !== $outcome) throw new \InvalidArgumentException('intro_outcome_already_recorded');
             // The outcome may have committed while preparation failed before its checkpoint was
             // saved. Replaying the Teacher command must resume preparation for the durable
             // outcome instead of returning success with no invitation path.
@@ -87,7 +88,11 @@ final class PostIntroPreparationService {
             ));
         } catch (\Throwable $error) {
             $winner = $this->repository->outcomeByBooking((int) $confirmation->booking_request_id);
-            if ($winner) return array('outcome_id' => (int) $winner->id, 'created' => false);
+            if ($winner) {
+                if ((string) $winner->outcome !== $outcome) throw new \InvalidArgumentException('intro_outcome_already_recorded');
+                $prepared = $this->prepare((int) $winner->id);
+                return array('outcome_id' => (int) $winner->id, 'created' => false, 'state' => (string) $prepared['state']);
+            }
             throw $error;
         }
 
@@ -123,28 +128,47 @@ final class PostIntroPreparationService {
             return array('preparation_id' => (int) $preparation->id, 'state' => 'exception', 'created' => false);
         }
 
-        $this->repository->updatePreparation((int) $preparation->id, array(
-            'state' => 'preparing',
-            'exception_code' => null,
-            'exception_detail' => null,
-            'last_attempt_at' => gmdate('Y-m-d H:i:s'),
-            'updated_at' => gmdate('Y-m-d H:i:s'),
-        ));
+        global $wpdb;
+        $lockName = 'dzn_post_intro_prepare_' . (int) $preparation->id;
+        $locked = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $lockName));
+        if ((string) $locked !== '1') {
+            // Another attempt owns this preparation. Return its durable state; never poison it.
+            $current = $this->repository->preparation((int) $preparation->id);
+            return array('preparation_id' => (int) $preparation->id, 'state' => $current ? (string) $current->state : 'preparing', 'created' => false);
+        }
 
         try {
-            $preparation = PostIntroSystemActor::run(fn() => $this->advance($preparation, $confirmation));
-            return array('preparation_id' => (int) $preparation->id, 'state' => (string) $preparation->state, 'created' => false);
-        } catch (\Throwable $error) {
-            $code = $this->controlledCode($error);
-            do_action('dzn_post_intro_preparation_failed', (int) $preparation->id, get_class($error));
             $this->repository->updatePreparation((int) $preparation->id, array(
-                'state' => 'exception',
-                'exception_code' => $code,
-                'exception_detail' => $this->safeDetail($error),
+                'state' => 'preparing',
+                'exception_code' => null,
+                'exception_detail' => null,
                 'last_attempt_at' => gmdate('Y-m-d H:i:s'),
                 'updated_at' => gmdate('Y-m-d H:i:s'),
             ));
-            return array('preparation_id' => (int) $preparation->id, 'state' => 'exception', 'created' => false);
+
+            try {
+                $preparation = PostIntroSystemActor::run(fn() => $this->advance($preparation, $confirmation));
+                return array('preparation_id' => (int) $preparation->id, 'state' => (string) $preparation->state, 'created' => false);
+            } catch (\Throwable $error) {
+                $code = $this->controlledCode($error);
+                do_action('dzn_post_intro_preparation_failed', (int) $preparation->id, get_class($error));
+                // A concurrent replay may have completed while this attempt failed. Never overwrite
+                // a durable prepared/paid/activated state with a spurious exception.
+                $current = $this->repository->preparation((int) $preparation->id);
+                if ($current && in_array((string) $current->state, array('prepared', 'checkout_pending', 'payment_received', 'activated', 'expired'), true)) {
+                    return array('preparation_id' => (int) $current->id, 'state' => (string) $current->state, 'created' => false);
+                }
+                $this->repository->updatePreparation((int) $preparation->id, array(
+                    'state' => 'exception',
+                    'exception_code' => $code,
+                    'exception_detail' => $this->safeDetail($error),
+                    'last_attempt_at' => gmdate('Y-m-d H:i:s'),
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
+                ));
+                return array('preparation_id' => (int) $preparation->id, 'state' => 'exception', 'created' => false);
+            }
+        } finally {
+            $wpdb->query($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lockName));
         }
     }
 
@@ -375,19 +399,28 @@ final class PostIntroPreparationService {
 
     private function nextWeeklyWallClock(string $date, string $time, string $timezone): array {
         $zone = new \DateTimeZone($timezone);
-        $start = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $date . ' ' . $time, $zone);
-        if (!$start) throw new \RuntimeException('continuation_slot_wall_clock_invalid');
+        $day = \DateTimeImmutable::createFromFormat('!Y-m-d', $date, new \DateTimeZone('UTC'));
+        if (!$day || $day->format('Y-m-d') !== $date) throw new \RuntimeException('continuation_slot_wall_clock_invalid');
         // The confirmed booking is the ongoing Teacher authority, but the weekly recurrence must
         // still anchor on a future occurrence. A late outcome must never create a past slot.
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-        $next = $start->modify('+7 days');
+        $next = $day->modify('+7 days');
         $attempts = 0;
-        while ($next->setTimezone(new \DateTimeZone('UTC')) <= $now && $attempts < 520) {
+        while ($attempts < 520) {
+            $targetDate = $next->format('Y-m-d');
+            $candidate = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $targetDate . ' ' . $time, $zone);
+            // Reject a wall clock that does not exist on the target date (a DST spring-forward
+            // gap). PHP would otherwise silently normalise 02:30 to 03:30 and move the whole
+            // recurring series by an hour.
+            if (!$candidate || $candidate->format('Y-m-d H:i:s') !== $targetDate . ' ' . $time) {
+                throw new \RuntimeException('continuation_slot_wall_clock_invalid');
+            }
+            if ($candidate->setTimezone(new \DateTimeZone('UTC')) > $now) break;
             $next = $next->modify('+7 days');
             $attempts++;
         }
-        if ($next->setTimezone(new \DateTimeZone('UTC')) <= $now) throw new \RuntimeException('continuation_slot_wall_clock_invalid');
-        return array('date' => $next->format('Y-m-d'), 'time' => $next->format('H:i:s'));
+        if ($attempts >= 520) throw new \RuntimeException('continuation_slot_wall_clock_invalid');
+        return array('date' => $targetDate, 'time' => $time);
     }
 
     /** The published Teacher availability must cover the committed weekly slot. */

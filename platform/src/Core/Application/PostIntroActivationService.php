@@ -36,7 +36,7 @@ final class PostIntroActivationService {
             $repository = $this->repository;
             $now = gmdate('Y-m-d H:i:s');
             $uid = (string) $preparation->uid;
-            $evidenceAt = $this->stableEvidenceAt($job, $preparation);
+            $evidenceAt = $this->stableEvidenceAt($job, $preparation, $repository->paymentOccurredAt((int) $purchase->id));
             $evidence = array(
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . $uid,
@@ -162,12 +162,13 @@ final class PostIntroActivationService {
      * A durable timestamp for every canonical command in this activation.
      *
      * Canonical authorities include the evidence instant in their idempotency payload, so a
-     * retry minutes later must rebuild exactly the same command. The activation job's immutable
-     * creation time is the durable settlement checkpoint and never advances between attempts.
+     * retry minutes later must rebuild exactly the same command. The verified provider payment
+     * instant is the authoritative activation checkpoint; the job's immutable creation time is
+     * the fallback for a settlement without a provider occurrence time.
      */
-    private function stableEvidenceAt(object $job, object $preparation): string {
+    private function stableEvidenceAt(object $job, object $preparation, ?string $paymentOccurredAt = null): string {
         $now = gmdate('Y-m-d H:i:s');
-        foreach (array((string) ($job->created_at ?? ''), (string) ($preparation->created_at ?? ''), (string) ($preparation->prepared_at ?? '')) as $candidate) {
+        foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? ''), (string) ($preparation->created_at ?? ''), (string) ($preparation->prepared_at ?? '')) as $candidate) {
             if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1 && $candidate <= $now) return $candidate;
         }
         throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');

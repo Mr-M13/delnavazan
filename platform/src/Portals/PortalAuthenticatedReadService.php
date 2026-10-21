@@ -17,13 +17,20 @@ final class PortalAuthenticatedReadService {
         $enrolments = $this->studentEnrolments((int) $principal['id'], $principal);
         $bookingRequests = $this->studentBookingRequests((int) $principal['id']);
         $bookingClasses = (new StudentUpcomingBookingReadService())->forStudent((int) $principal['id']);
+        try {
+            $postIntro = (new PostIntroStudentReadService())->forStudent((int) $principal['id']);
+        } catch (\Throwable $error) {
+            // A new workflow surface must never take the whole Student Portal down.
+            do_action('dzn_post_intro_student_read_failed', get_class($error));
+            $postIntro = array();
+        }
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
             'lessons' => $lessons,
             'enrolments' => $enrolments,
             'booking_requests' => $bookingRequests,
             'booking_classes' => $bookingClasses,
-            'post_intro' => (new PostIntroStudentReadService())->forStudent((int) $principal['id']),
+            'post_intro' => $postIntro,
         );
     }
 

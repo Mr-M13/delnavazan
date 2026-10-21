@@ -64,9 +64,8 @@ dzn_checkout_e2e_assert(!PaymentExecutionRule::liveExecutionAuthorised('stripe')
 
 wp_set_current_user(1);
 dzn_r1_fix_availability($fixture['teachers'] ?? array());
-$courseId = (int) $wpdb->get_var("SELECT id FROM {$p}courses ORDER BY id LIMIT 1");
-$productId = dzn_r1_fix_product($courseId, 'AU', 25000, 'checkout-e2e');
 $scenario = dzn_r1_fix_scenario($fixture['sources'][0], 'checkout-e2e', 1);
+$productId = dzn_r1_fix_product((int) $scenario['course_id'], 'AU', 25000, 'checkout-e2e');
 dzn_r1_fix_activate_enrolment((int) $scenario['enrolment_id'], 'checkout-e2e');
 dzn_r1_fix_pattern($scenario, 'checkout-e2e');
 $offer = dzn_r1_fix_offer($scenario, $productId, 'two_instalments', 'checkout-e2e');
@@ -156,16 +155,18 @@ add_filter('pre_http_request', $httpFilter, 10, 3);
 $connection = $configuration->testConnection();
 remove_filter('pre_http_request', $httpFilter, 10);
 dzn_checkout_e2e_assert(($connection['state'] ?? null) === 'success', 'Test Connection must succeed against the local sandbox-account fixture: ' . (string) ($connection['code'] ?? ''));
+$validatedCredentials = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_secret_events WHERE audit_type='validated' AND reason_code='explicit_test_connection_validation'");
+dzn_checkout_e2e_assert($validatedCredentials === 2, 'Explicit Test Connection must record non-sensitive validation evidence for both sealed credentials');
 
 $beforeActivation = (new StripeTestModeReadinessService())->read();
 dzn_checkout_e2e_assert($beforeActivation['ready'] === true, 'Configuration readiness must be provable before activation');
 dzn_checkout_e2e_assert($beforeActivation['checkout_ready'] === false, 'Checkout must stay unavailable before deliberate activation');
 dzn_checkout_e2e_assert($beforeActivation['settlement_verified'] === false, 'Unsettled configuration must never claim end-to-end settlement');
-foreach (array('translator_registered', 'execution_port_registered', 'test_vault', 'test_account', 'account_reference_binding', 'credentials_retrievable', 'webhook_endpoint', 'checkout_enabled') as $check) {
+foreach (array('translator_registered', 'execution_port_registered', 'test_vault', 'test_account', 'account_reference_binding', 'credentials_stored', 'webhook_endpoint', 'checkout_enabled') as $check) {
     dzn_checkout_e2e_assert(isset($beforeActivation['checks'][$check]), 'Readiness check missing: ' . $check);
 }
 dzn_checkout_e2e_assert($beforeActivation['checks']['translator_registered']['state'] === 'ready', 'Readiness must observe the bootstrap translator');
-dzn_checkout_e2e_assert($beforeActivation['checks']['credentials_retrievable']['state'] === 'ready', 'Readiness must decrypt the stored test credentials');
+dzn_checkout_e2e_assert($beforeActivation['checks']['credentials_stored']['state'] === 'ready', 'Readiness must report sealed credential records without decrypting them');
 dzn_checkout_e2e_assert($beforeActivation['checks']['checkout_enabled']['state'] === 'blocked', 'Readiness must report Checkout as not enabled before activation');
 
 // An authenticated operator without payment-provider authority cannot configure or inspect Stripe.

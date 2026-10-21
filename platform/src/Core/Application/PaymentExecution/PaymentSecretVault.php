@@ -126,6 +126,34 @@ final class PaymentSecretVault {
         return $pattern!==null&&preg_match($pattern,$plain)===1;
     }
 
+    /**
+     * Explicit, capability-authorised validation for the Test Connection action.
+     *
+     * Readiness rendering deliberately does not call this method: it checks the sealed-record shape only.
+     * This action decrypts each required test credential in memory, validates its constrained format and
+     * records only a non-sensitive success or failure audit fact. Plaintext never leaves this boundary.
+     */
+    public function validateStripeTestCredentials(int $apiSecretId,int $webhookSecretId):bool{
+        PaymentExecutionSupport::requireCapability(self::CAPABILITY);
+        $actor=PaymentExecutionSupport::actor();
+        foreach(array($apiSecretId=>'api_key',$webhookSecretId=>'webhook_signing_secret') as $secretId=>$secretClass){
+            $row=$this->repository->secret((int)$secretId);
+            if(!$row||(string)$row->provider_key!=='stripe'||(string)$row->secret_class!==$secretClass
+                ||(string)$row->mode!=='test'||(int)$row->active_slot!==1){
+                $this->audit('decrypt_failed','stripe',$secretClass,(int)($row->payment_provider_account_id??0),'test','secret_scope_mismatch',self::KEY_VERSION,null,$actor);
+                return false;
+            }
+            $plain=$this->decrypt($row,$secretClass);
+            $pattern=$secretClass==='api_key'?'/^sk_test_[A-Za-z0-9]{16,}$/D':'/^whsec_[A-Za-z0-9]{16,}$/D';
+            if(!is_string($plain)||preg_match($pattern,$plain)!==1){
+                $this->audit('decrypt_failed','stripe',$secretClass,(int)$row->payment_provider_account_id,'test','payment_secret_unavailable',(string)$row->key_version,null,$actor);
+                return false;
+            }
+            $this->audit('validated','stripe',$secretClass,(int)$row->payment_provider_account_id,'test','explicit_test_connection_validation',(string)$row->key_version,null,$actor);
+        }
+        return true;
+    }
+
     private function write(string $auditType,string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key,bool $stripeTestConfiguration):array{
         $providerKey=strtolower(trim($providerKey));
         $accountId=PaymentExecutionSupport::positiveInt($accountId,'Valid provider account required');

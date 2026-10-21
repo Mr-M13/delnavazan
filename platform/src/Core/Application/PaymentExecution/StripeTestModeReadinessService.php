@@ -86,10 +86,10 @@ final class StripeTestModeReadinessService {
         $add('test_publishable_key',$publishableReady,$publishableReady?'A Stripe test publishable key is configured.':'A Stripe test publishable key is required.');
         $add('test_api_key',$apiReady,$apiReady?'An active encrypted test API-key record is present.':'An active encrypted Stripe test API key is required.');
         $add('test_webhook_secret',$webhookReady,$webhookReady?'An active encrypted test webhook-signing record is present.':'An active encrypted test webhook-signing secret is required.');
-        $apiDecryptable=$apiReady&&$this->vault->canDecrypt((int)$apiSecret->id,'api_key',StripeCheckoutAdapter::PROVIDER_KEY);
-        $webhookDecryptable=$webhookReady&&$this->vault->canDecrypt((int)$webhookSecret->id,'webhook_signing_secret',StripeCheckoutAdapter::PROVIDER_KEY);
-        $retrievable=$apiDecryptable&&$webhookDecryptable;
-        $add('credentials_retrievable',$retrievable,$retrievable?'Both encrypted test credentials decrypt to valid test-mode values.':'A stored test credential cannot be decrypted or is not a valid test-mode value.');
+        // Dashboard rendering must remain a non-decrypting, side-effect-free observation. Explicit Test
+        // Connection performs the authorised in-memory validation and records a non-sensitive audit fact.
+        $credentialsStored=$apiReady&&$webhookReady;
+        $add('credentials_stored',$credentialsStored,$credentialsStored?'Both encrypted test credential records are present. Use Test Connection to perform an authorised credential validation.':'Active encrypted Stripe test credential records are required.');
 
         // --- route and platform prerequisites ----------------------------------------------------
         $webhookHook=array('Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController','register');

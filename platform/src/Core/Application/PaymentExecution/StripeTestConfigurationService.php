@@ -79,7 +79,9 @@ final class StripeTestConfigurationService {
         $accounts=array_values(array_filter($this->providers->accountsForProvider('stripe'),static fn($a)=>(string)$a->mode==='test'&&(string)$a->state==='active'));
         if(count($accounts)!==1)return array('state'=>'blocked','code'=>'test_account_unavailable');
         $secret=$this->secrets->activeSecret('stripe','api_key',(int)$accounts[0]->id,'test');
-        if(!$secret)return array('state'=>'blocked','code'=>'test_secret_unconfigured');
+        $webhook=$this->secrets->activeSecret('stripe','webhook_signing_secret',(int)$accounts[0]->id,'test');
+        if(!$secret||!$webhook)return array('state'=>'blocked','code'=>'test_secret_unconfigured');
+        if(!$this->vault->validateStripeTestCredentials((int)$secret->id,(int)$webhook->id))return array('state'=>'blocked','code'=>'test_secret_unavailable');
         $key=$this->vault->revealForStripeTestConnection((int)$secret->id);
         if(!is_string($key)||preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$key)!==1)return array('state'=>'blocked','code'=>'test_secret_unavailable');
         if(!function_exists('wp_remote_get'))return array('state'=>'blocked','code'=>'http_unavailable');

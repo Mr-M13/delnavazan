@@ -8,10 +8,10 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '46' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '47' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'google-oauth-openid-subject-20261019.1' );
+define( 'DZN_PLATFORM_BUILD_ID', 'stripe-provider-registry-and-account-binding-20261021.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );
@@ -30,6 +30,22 @@ spl_autoload_register( static function ( $class ) {
 Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
 add_action( 'plugins_loaded', static function () {
+	// Phase 2A.2-T provider seam wiring. The registry is process-local and must be populated before
+	// any REST webhook delivery is dispatched; without it every Stripe event fails closed with
+	// `unsupported_payment_provider` before a receipt can be recorded. Registration is idempotent
+	// (one adapter per provider key) and never authorises live execution: live charging remains
+	// closed by PaymentExecutionRule::LIVE_EXECUTION_PROVIDERS, which is empty in this build.
+	if ( class_exists( 'Delnavazan\\Platform\\Core\\Application\\PaymentExecution\\PaymentProviderRegistry' ) ) {
+		$dzn_payment_registry = 'Delnavazan\\Platform\\Core\\Application\\PaymentExecution\\PaymentProviderRegistry';
+		if ( ! $dzn_payment_registry::hasTranslator( 'stripe' )
+			&& class_exists( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeEventTranslator' ) ) {
+			$dzn_payment_registry::registerTranslator( new Delnavazan\Platform\Integrations\Payment\Stripe\StripeEventTranslator() );
+		}
+		if ( ! $dzn_payment_registry::hasExecutionPort( 'stripe' )
+			&& class_exists( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripePaymentAdapter' ) ) {
+			$dzn_payment_registry::registerExecutionPort( new Delnavazan\Platform\Integrations\Payment\Stripe\StripePaymentAdapter() );
+		}
+	}
 	// Full schema verification is intentionally expensive and belongs to the
 	// activation/upgrade boundary, not the request hot path. maybe_upgrade()
 	// remains the strict fail-closed verifier when explicitly invoked.

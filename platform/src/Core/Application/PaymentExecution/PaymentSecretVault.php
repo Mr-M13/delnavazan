@@ -107,6 +107,25 @@ final class PaymentSecretVault {
         return $this->decrypt($row,'api_key');
     }
 
+    /**
+     * Secret-free readiness probe: decrypt one scoped secret in memory, validate its shape and discard it.
+     *
+     * Unlike `reveal()` this writes no audit row, so a capability-gated readiness page can be opened
+     * repeatedly without manufacturing `decrypt_failed` noise. Every failure is reported only as `false`;
+     * a plaintext value never leaves this method and is never logged.
+     */
+    public function canDecrypt(int $secretId,string $secretClass,string $adapterScope):bool{
+        $row=$this->repository->secret($secretId);
+        if(!$row||(string)$row->secret_class!==$secretClass||(string)$row->provider_key!==$adapterScope
+            ||(int)$row->active_slot!==1||(string)$row->mode!=='test')return false;
+        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider((string)$row->provider_key))return false;
+        $plain=$this->decrypt($row,$secretClass);
+        if(!is_string($plain))return false;
+        $pattern=$secretClass==='api_key'?'/^sk_test_[A-Za-z0-9]{16,}$/D'
+            :($secretClass==='webhook_signing_secret'?'/^whsec_[A-Za-z0-9]{16,}$/D':null);
+        return $pattern!==null&&preg_match($pattern,$plain)===1;
+    }
+
     private function write(string $auditType,string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key,bool $stripeTestConfiguration):array{
         $providerKey=strtolower(trim($providerKey));
         $accountId=PaymentExecutionSupport::positiveInt($accountId,'Valid provider account required');

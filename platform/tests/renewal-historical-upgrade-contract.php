@@ -10,8 +10,8 @@ $assert = static function (bool $condition, string $message): void {
 	if (!$condition) throw new RuntimeException($message);
 };
 
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '46'"), 'The current additive migrations must publish Schema 46');
-$assert(str_contains($plugin, "DZN_PLATFORM_BUILD_ID', 'google-oauth-openid-subject-20261019.1'"), 'The package needs an explicit build identity');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '47'"), 'The current additive migrations must publish Schema 47');
+$assert(str_contains($plugin, "DZN_PLATFORM_BUILD_ID', 'stripe-provider-registry-and-account-binding-20261021.1'"), 'The package needs an explicit build identity');
 
 $matched = preg_match('/^\s*("CREATE TABLE \{\$p\}renewal_cycles .*",)$/m', $migrator, $ddl);
 $assert($matched === 1, 'The historical renewal CREATE TABLE statement must remain present');
@@ -25,6 +25,7 @@ foreach (array(
 	"verify_renewal_recurring_enrolment_schema( ! in_array( '045_renewal_cycle_automatic_charge_at', \$completed, true ) )",
 	"\$required[] = '045_renewal_cycle_automatic_charge_at'",
 	"\$required[] = '046_google_oauth_openid_subject'",
+	"\$required[] = '047_stripe_canonical_account_reference'",
 ) as $needle) $assert(str_contains($migrator, $needle), 'Missing historical renewal repair contract: ' . $needle);
 
 $start = strpos($migrator, 'private static function install_renewal_cycle_automatic_charge_at');

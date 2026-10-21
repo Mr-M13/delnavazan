@@ -41,6 +41,14 @@ final class CommercialPaymentRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT s.* FROM {$this->p}commercial_obligation_settlements s INNER JOIN {$this->p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d ORDER BY o.obligation_sequence{$suffix}",$offerId))?:array();
     }
     public function insertSettlement(array $data):int{return $this->insert('commercial_obligation_settlements',$data,'Obligation settlement persistence failed');}
+    /** Read-only readiness evidence: accepted settlements attributed to one provider account digest. */
+    public function acceptedSettlementCountForProviderAccount(string $providerKey,string $accountDigest):int{
+        global $wpdb;
+        return (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->p}commercial_obligation_settlements s INNER JOIN {$this->p}commercial_payment_evidence e ON e.id=s.evidence_id WHERE e.provider_key=%s AND e.processing_state='accepted' AND e.provider_account_digest=%s",
+            $providerKey,$accountDigest
+        ));
+    }
 
     public function duplicate(\Throwable $e):?string{
         if(!preg_match("/Duplicate entry .* for key ['`](?:[^'`.]+\\.)?([^'`]+)['`]/i",$e->getMessage(),$m))return null;

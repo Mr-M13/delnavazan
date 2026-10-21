@@ -63,7 +63,7 @@ final class IntegrationControlPlaneController {
             'stripe_configuration_unauthorized'=>'Your account lacks the Stripe provider-configuration capability. No credentials were saved.',
             'save_failed'=>'Stripe test configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
         );echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
-        $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/stripe_test');
+        $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/'.$configuration->webhookReference());
         echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code>'.esc_html($webhookUrl).'</code></p>';
         if($testEnvironment){echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_test_settings_save">';wp_nonce_field('dzn_stripe_test_settings_save');
         echo '<table class="form-table"><tbody><tr><th><label for="stripe-pk">Publishable key</label></th><td><input class="regular-text" id="stripe-pk" name="settings[publishable_key]" value="'.esc_attr($configuration->publishableKey()).'" placeholder="pk_test_…" autocomplete="off"></td></tr>';
@@ -76,7 +76,9 @@ final class IntegrationControlPlaneController {
         else echo '<button class="button button-secondary" name="enable_test_checkout" value="1">Enable Stripe test Checkout</button>';
         echo '</form>';
         }else{echo '<p>Credential entry and outbound test requests are unavailable in production.</p>';}
-        echo '<h2>Stripe test-mode readiness</h2><p><strong>'.esc_html($readiness['ready']?'Ready':'Setup is incomplete').'</strong></p><table class="widefat striped"><tbody>';
+        echo '<h2>Stripe test-mode readiness</h2><p><strong>'.esc_html($readiness['ready']?'Configuration ready':'Setup is incomplete').'</strong> · Checkout '.esc_html($readiness['checkout_ready']?'enabled':'not enabled').'</p>';
+        echo '<p>End-to-end settlement: <strong>'.esc_html($readiness['settlement_verified']?'verified':'not yet verified').'</strong>. '.esc_html((string)$readiness['settlement_detail']).'</p>';
+        echo '<table class="widefat striped"><tbody>';
         foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
         echo '</tbody></table><p>Payment execution and reconciliation are under Finance.</p></div>';
     }

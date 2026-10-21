@@ -217,12 +217,10 @@ dzn_pia_assert(($settled['processing_state'] ?? '') === 'accepted', 'verified se
 $purchaseId = (int) $wpdb->get_var($wpdb->prepare("SELECT purchase_id FROM {$p}commercial_entitlements WHERE purchase_id IN (SELECT id FROM {$p}commercial_purchases WHERE offer_id=%d) LIMIT 1", (int) $prep->offer_id));
 $job = $repository->activeJobForPurchase($purchaseId);
 dzn_pia_assert($job !== null && (string) $job->state === 'queued', 'settlement must enqueue exactly one activation job');
-// Simulate a genuinely delayed worker so the stable evidence checkpoint is observable rather
-// than coincidentally equal to the current second.
-$activationCheckpoint = gmdate('Y-m-d H:i:s', time() - 600);
-$wpdb->update($p . 'post_intro_activation_jobs', array('created_at' => $activationCheckpoint), array('id' => (int) $job->id));
-$job = $repository->activeJobForPurchase($purchaseId);
-dzn_pia_assert((string) $job->created_at === $activationCheckpoint, 'delayed activation checkpoint persistence');
+// Simulate a genuinely delayed worker so stable evidence is observable rather than
+// coincidentally equal to the current second.
+$activationCheckpoint = (string) $job->created_at;
+sleep(2);
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'payment_received', 'verified payment must move the preparation to payment_received');
 

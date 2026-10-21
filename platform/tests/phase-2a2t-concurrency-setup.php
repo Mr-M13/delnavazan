@@ -63,9 +63,7 @@ if(in_array($mode,array('duplicate_webhook','conflicting_duplicate_webhook','pen
     // recorded fact) and only the unique `provider_event` index and the recorded fact digest can decide.
     // [C9-1] The decision-claim races reuse the same inputs and additionally leave one durably recorded
     // event *owing its decision*, so both workers reach the one serialised decision path together.
-    $principal=wp_insert_user(array('user_login'=>'dzn-t-conc-principal-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>'subscriber'));
-    $principalUser=get_user_by('id',(int)$principal);
-    foreach(PaymentExecutionSupport::WORKER_CAPABILITIES as $capability)$principalUser->add_cap($capability);
+    $principal=wp_insert_user(array('user_login'=>'dzn-t-conc-principal-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>PaymentExecutionSupport::WORKER_ROLE));
     update_option(PaymentExecutionSupport::WORKER_PRINCIPAL_OPTION,(int)$principal,false);
     if(!defined('DZN_PLATFORM_PAYMENT_TEST_VAULT'))define('DZN_PLATFORM_PAYMENT_TEST_VAULT',true);
     $webhookSecret='whsec_test_conc_'.wp_generate_uuid4();

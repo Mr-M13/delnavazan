@@ -44,8 +44,9 @@ foreach(array(
     '028_payment_execution_seam_provider_adapter','install_payment_execution_seam','verify_payment_execution_schema',
     '029_payment_event_decision_claim_authority','install_payment_event_decision_claim_authority','verify_payment_event_decision_claim_schema',
     'dzn_manage_payment_providers','dzn_manage_payment_execution','dzn_ingest_payment_provider_events',
-    'dzn_view_payment_execution_authority','dzn_platform_capability_version_2a2t','$phaseTGrants','$teacherTRole',
+    'dzn_view_payment_execution_authority','dzn_platform_capability_version_2a2t','dzn_payment_worker','$paymentWorkerCaps','$phaseTGrants','$teacherTRole',
 ) as $needle)if(!str_contains($migration.$plugin,$needle))throw new RuntimeException('Missing Phase T migration contract: '.$needle);
+foreach(array("WORKER_ROLE='dzn_payment_worker'",'WORKER_ALLOWED_CAPABILITIES','roles!==array(self::WORKER_ROLE)','directly widened') as $needle)if(!str_contains($support,$needle))throw new RuntimeException('Payment worker least-privilege contract missing: '.$needle);
 if(!str_contains($migration,"if(\$id==='028_payment_execution_seam_provider_adapter')self::verify_payment_execution_schema();"))throw new RuntimeException('Migration 028 must invoke the Phase T schema verifier before it is recorded');
 if(substr_count($migration,'self::verify_payment_execution_schema();')<3)throw new RuntimeException('Phase T verifier must run after migration 028, on current-schema verification and before schema activation');
 if(!str_contains($migration,"in_array( '028_payment_execution_seam_provider_adapter', (array) get_option( self::COMPLETED, array() ), true )"))throw new RuntimeException('Retained-028 pre-activation verification is missing');

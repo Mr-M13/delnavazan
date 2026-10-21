@@ -295,7 +295,7 @@ final class Migrator {
 	private const CAPABILITY_OPTION_R1 = 'dzn_platform_capability_version_2a2r1'; private const CAPABILITY_VERSION_R1 = '2a2r1';
 	private const CAPABILITY_OPTION_R2 = 'dzn_platform_capability_version_2a2r2'; private const CAPABILITY_VERSION_R2 = '2a2r2';
 	private const CAPABILITY_OPTION_V = 'dzn_platform_capability_version_2a2v'; private const CAPABILITY_VERSION_V = '2a2v2';
-	private const CAPABILITY_OPTION_T = 'dzn_platform_capability_version_2a2t'; private const CAPABILITY_VERSION_T = '2a2t';
+	private const CAPABILITY_OPTION_T = 'dzn_platform_capability_version_2a2t'; private const CAPABILITY_VERSION_T = '2a2t2';
 	private const CAPABILITY_OPTION_CASH = 'dzn_platform_capability_version_cashbook'; private const CAPABILITY_VERSION_CASH = 'cashbook_v1';
 	private const CAPABILITY_OPTION_U = 'dzn_platform_capability_version_2a2u'; private const CAPABILITY_VERSION_U = '2a2u';
 	private const CAPABILITY_OPTION_W = 'dzn_platform_capability_version_2a2w'; private const CAPABILITY_VERSION_W = '2a2w';
@@ -876,6 +876,16 @@ final class Migrator {
 		if((string)get_option(self::CAPABILITY_OPTION_T)!==self::CAPABILITY_VERSION_T)throw new \RuntimeException('Payment execution capability installation failed: version marker');
 		$teacherTCheck=get_role('dzn_teacher');
 		foreach($phaseTGrants as$reserved)if($teacherTCheck&&$teacherTCheck->has_cap($reserved))throw new \RuntimeException('Payment execution capability installation failed: Teacher least privilege');
+		// The payment event worker is a non-human, single-purpose identity. It is not an
+		// administrator and it is never selected automatically: operations creates the user and
+		// explicitly records its id after reviewing the role. Repair the role on every upgrade so
+		// a legacy or manually widened role cannot remain usable.
+		$paymentWorkerCaps=array('read'=>true,'dzn_ingest_payment_provider_events'=>true,'dzn_ingest_commercial_payment_evidence'=>true,'dzn_manage_collection_intents'=>true,'dzn_manage_renewal_cycles'=>true);
+		$paymentWorker=get_role('dzn_payment_worker');if(!$paymentWorker)$paymentWorker=add_role('dzn_payment_worker','Delnavazan Payment Worker',$paymentWorkerCaps);
+		if(!$paymentWorker)throw new \RuntimeException('Payment worker capability installation failed: role');
+		foreach($paymentWorkerCaps as$capability=>$grant)if(!$paymentWorker->has_cap($capability)){$paymentWorker->add_cap($capability);$phaseTRepair=true;}
+		foreach(array_keys((array)($paymentWorker->capabilities??array()))as$capability)if(!isset($paymentWorkerCaps[$capability])&&$paymentWorker->has_cap($capability)){$paymentWorker->remove_cap($capability);$phaseTRepair=true;}
+		foreach($paymentWorkerCaps as$capability=>$grant)if(!$paymentWorker->has_cap($capability))throw new \RuntimeException('Payment worker capability installation failed: '.$capability);
 		$cashMarker=(string)get_option(self::CAPABILITY_OPTION_CASH);$cashGrants=array('dzn_view_cash_ledger','dzn_manage_cash_ledger');$cashRepair=false;
 		foreach($cashGrants as$capability)if(!$role->has_cap($capability)){$role->add_cap($capability);$cashRepair=true;}
 		foreach(array('dzn_teacher','dzn_student')as$roleName){$reservedRole=get_role($roleName);if(!$reservedRole)continue;foreach($cashGrants as$reserved)if($reservedRole->has_cap($reserved)){$reservedRole->remove_cap($reserved);$cashRepair=true;}}

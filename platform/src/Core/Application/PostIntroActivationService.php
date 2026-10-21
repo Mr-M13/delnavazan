@@ -167,11 +167,16 @@ final class PostIntroActivationService {
      * the fallback for a settlement without a provider occurrence time.
      */
     private function stableEvidenceAt(object $job, object $preparation, ?string $paymentOccurredAt = null): string {
-        $now = gmdate('Y-m-d H:i:s');
+        $candidates = array();
         foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? ''), (string) ($preparation->created_at ?? ''), (string) ($preparation->prepared_at ?? '')) as $candidate) {
-            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1 && $candidate <= $now) return $candidate;
+            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1) $candidates[] = $candidate;
         }
-        throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');
+        if (!$candidates) throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');
+        // Choose one durable instant once and forever: the earliest of the verified payment
+        // occurrence and the settlement job creation. A provider timestamp that is briefly in
+        // the future cannot make a later retry switch to a different payload.
+        sort($candidates, SORT_STRING);
+        return $candidates[0];
     }
 
     private function projectCalendar(int $lessonId, int $scheduleVersionId, string $uid, int $sequence, string $evidenceAt): void {

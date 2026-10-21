@@ -49,6 +49,8 @@ final class CommercialCapacityService {
         if(!$hint)throw new \InvalidArgumentException('commercial_entitlement_required');
         $purchaseHint=$this->authority->purchase((int)$hint->purchase_id);
         if(!$purchaseHint)throw new \InvalidArgumentException('commercial_purchase_required');
+        $authorizedAt=$this->authority->paymentOccurredAt((int)$purchaseHint->id);
+        if($authorizedAt===null)throw new \InvalidArgumentException('commercial_payment_time_required');
         $offerHint=$this->authority->offer((int)$purchaseHint->offer_id);
         if(!$offerHint)throw new \InvalidArgumentException('commercial_offer_required');
         $studentId=(int)$purchaseHint->beneficiary_student_id;
@@ -99,7 +101,7 @@ final class CommercialCapacityService {
             $reservation=$this->continuations->reservationForCase($caseId,true);
             if(!$reservation||(int)$reservation->id!==$reservationId)throw new \InvalidArgumentException('continuation_reservation_required');
             if((int)$reservation->teacher_id!==$teacherId||(int)$reservation->student_id!==$studentId)throw new \InvalidArgumentException('canonical_continuation_integrity_conflict');
-            if(!CanonicalContinuationRule::capacityEffective((string)$reservation->state,(string)$reservation->expires_at,(string)$evidence['at']))throw new \InvalidArgumentException('continuation_reservation_expired');
+            if((string)$reservation->state!=='active'||$authorizedAt>(string)$reservation->expires_at)throw new \InvalidArgumentException('continuation_reservation_expired');
             $this->schedules->ensureAndLockTeacherRoot($teacherId,$now,$actor);
             $pattern=$this->capacity->activePatternFor($studentId,$courseId,true);
             if($pattern!==null&&(int)$pattern->course_id!==$courseId)throw new \InvalidArgumentException('commercial_course_continuity_conflict');

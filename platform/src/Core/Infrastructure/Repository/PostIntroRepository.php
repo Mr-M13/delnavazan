@@ -115,6 +115,18 @@ final class PostIntroRepository {
         if ($wpdb->update($this->p . 'post_intro_preparations', $changes, array('id' => $id)) === false) throw new \RuntimeException('post_intro_preparation_update_failed');
     }
 
+    /** Persist the Student's first action instant once and return that immutable value. */
+    public function claimStudentActionAt(int $id, string $now): string {
+        global $wpdb;
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->p}post_intro_preparations SET student_action_at=%s,updated_at=%s WHERE id=%d AND student_action_at IS NULL",
+            $now, $now, $id
+        ));
+        $row = $this->preparation($id);
+        if (!$row || trim((string) ($row->student_action_at ?? '')) === '') throw new \RuntimeException('post_intro_action_time_unavailable');
+        return (string) $row->student_action_at;
+    }
+
     /** @return list<object> */
     public function preparationsForStudent(int $studentId): array {
         global $wpdb;

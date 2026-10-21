@@ -183,6 +183,8 @@ final class CommercialAuthorityRepository {
     // ------------------------------------------------------------------------ purchase/entitlement
 
     public function purchase(int $purchaseId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_purchases WHERE id=%d".($lock?' FOR UPDATE':''),$purchaseId);}
+    /** The immutable provider occurrence instant of the verified payment for this purchase. */
+    public function paymentOccurredAt(int $purchaseId):?string{global $wpdb;$value=$wpdb->get_var($wpdb->prepare("SELECT MIN(occurred_at) FROM {$this->p}commercial_payment_facts WHERE purchase_id=%d",$purchaseId));return is_string($value)&&$value!==''?$value:null;}
     public function purchaseByOffer(int $offerId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_purchases WHERE offer_id=%d".($lock?' FOR UPDATE':''),$offerId);}
     public function purchasesForBeneficiary(int $studentId):array{
         global $wpdb;

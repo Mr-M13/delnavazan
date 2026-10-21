@@ -58,6 +58,7 @@ $contains($migrator, array(
     'booking_request_intro_outcomes',
     'pattern_id',
     'teacher_notified_at',
+    'student_action_at',
     'verify_post_intro_enrolment_automation_schema',
 ), 'post-intro migration invariant missing');
 $assert(str_contains($migrator, "get_row(\"SHOW COLUMNS FROM {\$lessons} LIKE 'booking_request_id'\")"), 'Lesson provenance must be added only when absent');
@@ -133,7 +134,7 @@ $assert(str_contains($continuation, 'post-intro-provisional-') && str_contains($
 $assert(str_contains($continuation, "state' => 'expired'") && str_contains($continuation, 'continuation_reservation_expired'), 'expired holds must become an explicit terminal state');
 $assert(str_contains($continuation, 'patternForSlotAuthority') && str_contains($continuation, 'assertPatternIdentity'), 'only the pattern created from this slot authority may be reused');
 $assert(str_contains($continuation, 'reservationForCase') && str_contains($continuation, 'existingReservation'), 'a replayed case must recover its durable reservation');
-$assert(str_contains($continuation, 'stableActionEvidenceAt') && str_contains($continuation, 'concurrentReplay'), 'Student commands must be replay-safe and transient conflicts must not poison the invitation');
+$assert(str_contains($continuation, 'claimStudentActionAt') && str_contains($continuation, 'concurrentReplay'), 'Student commands must use one durable action instant and not poison the invitation');
 $assert(!str_contains($continuation, "'prepared', 'checkout_pending', 'exception'"), 'an exception preparation must require admin retry before the Student action');
 $assert(str_contains($repository, 'r.privacy_erased_at IS NULL') && str_contains($preparation, 'privacy_erased_at'), 'privacy-erased bookings must not surface a Student invitation');
 $assert(str_contains($continuation, "== 'unavailable'") && str_contains($continuation, 'checkout_temporarily_unavailable'), 'explicit checkout unavailability must not be reported as pending');

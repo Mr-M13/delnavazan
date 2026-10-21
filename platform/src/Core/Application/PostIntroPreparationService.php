@@ -131,6 +131,7 @@ final class PostIntroPreparationService {
         global $wpdb;
         $lockName = 'dzn_post_intro_prepare_' . (int) $preparation->id;
         $locked = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $lockName));
+        if ($locked === null || $locked === false) throw new \RuntimeException('post_intro_preparation_lock_unavailable');
         if ((string) $locked !== '1') {
             // Another attempt owns this preparation. Return its durable state; never poison it.
             $current = $this->repository->preparation((int) $preparation->id);

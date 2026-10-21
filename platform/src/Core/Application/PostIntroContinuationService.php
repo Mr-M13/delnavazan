@@ -48,7 +48,8 @@ final class PostIntroContinuationService {
             throw new \InvalidArgumentException('post_intro_invitation_not_ready');
         }
 
-        $evidenceAt = $this->stableActionEvidenceAt($preparation);
+        $evidenceAt = $repository->claimStudentActionAt((int) $preparation->id, gmdate('Y-m-d H:i:s'));
+        $preparation = $repository->preparation((int) $preparation->id) ?? $preparation;
 
         try {
             $this->assertAdultCapacity($preparation, $confirmation, $studentId, $adultAttested);
@@ -266,18 +267,10 @@ final class PostIntroContinuationService {
         }
     }
 
-    private function stableActionEvidenceAt(object $preparation): string {
-        $now = gmdate('Y-m-d H:i:s');
-        foreach (array((string) ($preparation->prepared_at ?? ''), (string) ($preparation->created_at ?? '')) as $candidate) {
-            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1 && $candidate <= $now) return $candidate;
-        }
-        throw new \RuntimeException('post_intro_action_time_unavailable');
-    }
-
     private function concurrentReplay(\Throwable $error): bool {
-        if ($error instanceof IdempotencyConflictException) return true;
+        if ($error instanceof IdempotencyConflictException) return false;
         $message = strtolower(trim($error->getMessage()));
-        foreach (array('idempotency conflict', 'already accepted', 'duplicate', 'deadlock', 'lock wait timeout') as $needle) {
+        foreach (array('already accepted', 'duplicate', 'deadlock', 'lock wait timeout') as $needle) {
             if (str_contains($message, $needle)) return true;
         }
         return false;

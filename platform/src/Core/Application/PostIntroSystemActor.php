@@ -10,6 +10,7 @@ namespace Delnavazan\Platform\Core\Application;
  */
 final class PostIntroSystemActor {
     public const USER_OPTION = 'dzn_post_intro_automation_user_id';
+    public const USER_MARKER = 'dzn_post_intro_automation_actor';
     public const ROLE = 'dzn_post_intro_automation';
     public const LOGIN = 'dzn_post_intro_automation';
     public const CAPABILITIES = array(
@@ -71,7 +72,13 @@ final class PostIntroSystemActor {
             ));
             if (is_wp_error($id) || (int) $id < 1) throw new \RuntimeException('post_intro_automation_user_unavailable');
             $userId = (int) $id;
+            update_user_meta($userId, self::USER_MARKER, '1');
         } else {
+            // A predictable login must never be adopted from an unrelated account. Only the
+            // plugin-created marker proves this account is the automation principal.
+            if (get_user_meta((int) $user->ID, self::USER_MARKER, true) !== '1') {
+                throw new \RuntimeException('post_intro_automation_actor_conflict');
+            }
             $userId = (int) $user->ID;
             $user->set_role(self::ROLE);
         }
@@ -83,6 +90,7 @@ final class PostIntroSystemActor {
     private static function usable(int $userId): bool {
         $user = get_user_by('id', $userId);
         if (!$user instanceof \WP_User) return false;
+        if (get_user_meta($userId, self::USER_MARKER, true) !== '1') return false;
         if (!in_array(self::ROLE, (array) $user->roles, true)) return false;
         foreach (self::CAPABILITIES as $capability) {
             if (!user_can($user, $capability)) return false;

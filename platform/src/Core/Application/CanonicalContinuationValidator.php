@@ -59,7 +59,8 @@ final class CanonicalContinuationValidator {
         if((int)$lesson->student_id!==(int)$case->student_id||(int)$lesson->teacher_id!==(int)$case->teacher_id||(int)$lesson->course_id!==(int)$case->course_id)return false;
         foreach(array('student_status'=>'active','teacher_status'=>'active')as$field=>$expected)if((string)($lesson->{$field}??'')!==$expected)return false;
         if($lesson->student_archived_at!==null||$lesson->teacher_archived_at!==null)return false;
-        if(!$course||(string)($course->course_type??'')!=='introductory'||(string)($course->status??'')!=='active'||$course->archived_at!==null)return false;
+        $bookingLinked=(int)($lesson->booking_request_id??0)>0;
+        if(!$course||( $bookingLinked ? (string)($course->course_type??'')!=='standard' : (string)($course->course_type??'')!=='introductory' )||(string)($course->status??'')!=='active'||$course->archived_at!==null)return false;
         if((int)$course->id!==(int)$case->course_id)return false;
         if((int)$lesson->current_schedule_version_id!==(int)$case->intro_schedule_version_id)return false;
         // The bound occurrence is immutable provenance: anchors and wall-clock truth must agree exactly.

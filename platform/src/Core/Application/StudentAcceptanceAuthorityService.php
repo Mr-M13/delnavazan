@@ -489,8 +489,8 @@ final class StudentAcceptanceAuthorityService {
 
     private function evidence(string $basis, string $channel, string $at): array {
         if (
-            !in_array($basis, array('human_review', 'verified_internal_record', 'legal_representative_review', 'synthetic_fixture'), true)
-            || !in_array($channel, array('internal_case', 'reviewer_attestation', 'verified_internal_record', 'synthetic_fixture'), true)
+            !in_array($basis, array('human_review', 'verified_internal_record', 'legal_representative_review', 'synthetic_fixture', 'self_attestation'), true)
+            || !in_array($channel, array('internal_case', 'reviewer_attestation', 'verified_internal_record', 'synthetic_fixture', 'authenticated_platform'), true)
         ) {
             throw new \InvalidArgumentException('Invalid reviewed evidence metadata');
         }

@@ -156,6 +156,7 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما برای تماس و هماهنگی این درخواست استفاده می‌شود. اعلان‌های واتساپ یا پیامک فقط در صورت فعال بودن آن کانال ارسال می‌شوند.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
+                        <label class="dzn-booking__privacy"><input type="checkbox" data-adult-attested required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند به‌طور مستقل درخواست ثبت‌نام را بپذیرد. برای هنرجوی زیر ۱۸ سال، لطفاً پیش از ثبت درخواست با پشتیبانی تماس بگیرید.</label>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
                             <button class="dzn-booking__button" type="button" data-next="review">مرور و تأیید درخواست</button>

@@ -23,6 +23,7 @@ final class PortalAuthenticatedReadService {
             'enrolments' => $enrolments,
             'booking_requests' => $bookingRequests,
             'booking_classes' => $bookingClasses,
+            'post_intro' => (new PostIntroStudentReadService())->forStudent((int) $principal['id']),
         );
     }
 

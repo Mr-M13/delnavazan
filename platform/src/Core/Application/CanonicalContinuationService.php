@@ -280,7 +280,12 @@ final class CanonicalContinuationService {
         if($lesson->enrolment_id!==null||$lesson->term_id!==null)throw new \InvalidArgumentException('introductory_lesson_required');
         if((string)($lesson->student_status??'')!=='active'||$lesson->student_archived_at!==null)throw new \InvalidArgumentException('student_not_active');
         if((string)($lesson->teacher_status??'')!=='active'||$lesson->teacher_archived_at!==null)throw new \InvalidArgumentException('teacher_not_available');
-        if((string)($lesson->course_type??'')!=='introductory'||(string)($lesson->course_status??'')!=='active'||$lesson->course_archived_at!==null)throw new \InvalidArgumentException('introductory_course_required');
+        $bookingRequestId=(int)($lesson->booking_request_id??0);
+        if($bookingRequestId>0){
+            if(!$this->repository->confirmedIntroBooking($bookingRequestId,(int)$lesson->student_id,(int)$lesson->teacher_id))throw new \InvalidArgumentException('confirmed_intro_booking_required');
+            if((string)($lesson->course_type??'')!=='standard')throw new \InvalidArgumentException('introductory_course_required');
+        }elseif((string)($lesson->course_type??'')!=='introductory')throw new \InvalidArgumentException('introductory_course_required');
+        if((string)($lesson->course_status??'')!=='active'||$lesson->course_archived_at!==null)throw new \InvalidArgumentException('introductory_course_required');
         $occurrence=$this->repository->introOccurrence((int)$lesson->id,$lock);
         if(!$occurrence)throw new \InvalidArgumentException('introductory_occurrence_required');
         if(!CanonicalContinuationValidator::utc($occurrence->starts_at_utc)||!CanonicalContinuationValidator::utc($occurrence->ends_at_utc))throw new \InvalidArgumentException('introductory_occurrence_required');

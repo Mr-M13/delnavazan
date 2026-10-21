@@ -207,7 +207,7 @@ final class PostIntroPreparationService {
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
                 'evidence_at' => $now,
-            ), 'post-intro-slot:' . (string) $preparation->uid);
+            ), 'post-intro-slot-' . (string) $preparation->uid);
             $slot = $repository->slotAuthorityForIntro((int) $lesson->id);
         }
         if (!$slot) throw new \RuntimeException('continuation_slot_unavailable');
@@ -251,7 +251,7 @@ final class PostIntroPreparationService {
                 $fingerprint = (string) $snapshot->arrangement_fingerprint;
             }
             $preparation = $this->save($prepId, array('assent_id' => $assentId, 'updated_at' => $now));
-            $issued = (new ProposalService())->issueInitial($candidateId, $fingerprint, 'post-intro-proposal:' . (string) $preparation->uid);
+            $issued = (new ProposalService())->issueInitial($candidateId, $fingerprint, 'post-intro-proposal-' . (string) $preparation->uid);
             $proposal = $repository->proposalVersion($issued['version_id']);
             if (!$proposal) throw new \RuntimeException('proposal_persistence_failed');
         }

@@ -57,7 +57,7 @@ final class PostIntroContinuationService {
                     $subjectRef,
                     'authenticated_platform',
                     gmdate('Y-m-d H:i:s'),
-                    'post-intro-provisional:' . (string) $preparation->uid
+                    'post-intro-provisional-' . (string) $preparation->uid
                 ));
                 $preparation = $this->save((int) $preparation->id, array('provisional_event_id' => (int) $event['event_id']));
             }
@@ -81,7 +81,7 @@ final class PostIntroContinuationService {
                         'affirmed',
                         'authenticated_platform',
                         gmdate('Y-m-d H:i:s'),
-                        'post-intro-final:' . (string) $preparation->uid
+                        'post-intro-final-' . (string) $preparation->uid
                     ));
                     $preparation = $this->save((int) $preparation->id, array('arrangement_id' => (int) $accepted['arrangement_id']));
                 }
@@ -94,7 +94,7 @@ final class PostIntroContinuationService {
                 } else {
                     $converted = PostIntroSystemActor::run(fn() => (new EnrolmentConversionService())->convert(
                         (int) $preparation->arrangement_id,
-                        'post-intro-conversion:' . (string) $preparation->uid
+                        'post-intro-conversion-' . (string) $preparation->uid
                     ));
                     $preparation = $this->save((int) $preparation->id, array('enrolment_id' => (int) $converted['enrolment_id']));
                 }
@@ -112,7 +112,7 @@ final class PostIntroContinuationService {
                             'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
                             'evidence_at' => gmdate('Y-m-d H:i:s'),
                         ),
-                        'post-intro-continuation:' . (string) $preparation->uid
+                        'post-intro-continuation-' . (string) $preparation->uid
                     );
                     $reservation = $decision['reservation'] ?? null;
                     if (!is_array($reservation) || empty($reservation['reservation_id'])) throw new \RuntimeException('continuation_reservation_required');
@@ -141,7 +141,7 @@ final class PostIntroContinuationService {
                         'evidence_channel' => 'authenticated_platform',
                         'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
                         'evidence_at' => gmdate('Y-m-d H:i:s'),
-                    ), 'post-intro-pattern:' . (string) $preparation->uid));
+                    ), 'post-intro-pattern-' . (string) $preparation->uid));
                     $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $pattern['pattern_id']));
                 }
             }
@@ -159,7 +159,7 @@ final class PostIntroContinuationService {
                         'evidence_channel' => 'authenticated_platform',
                         'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
                         'evidence_at' => gmdate('Y-m-d H:i:s'),
-                    ), 'post-intro-offer:' . (string) $preparation->uid));
+                    ), 'post-intro-offer-' . (string) $preparation->uid));
                     $preparation = $this->save((int) $preparation->id, array(
                         'offer_id' => (int) $offer['offer_id'],
                         'offer_uid' => (string) $offer['offer_uid'],

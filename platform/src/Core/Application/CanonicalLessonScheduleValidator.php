@@ -21,7 +21,7 @@ final class CanonicalLessonScheduleValidator {
     private const MODEL='canonical_term_lesson_v1';
     private const EVENT_TYPES=array('scheduled','rescheduled','released');
     private const DURATION_SOURCES=array('course_default','override');
-    private const AVAILABILITY_BASES=array('within_availability','administrative_override','confirmed_booking_recurrence');
+    private const AVAILABILITY_BASES=array('within_availability','administrative_override','confirmed_recurrence');
     private const CHANNELS=array('staff_record','authenticated_platform','document_reference');
 
     /** Hydrate and validate the complete schedule aggregate of one canonical Lesson. */

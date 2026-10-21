@@ -37,20 +37,29 @@ function dzn_pia_evidence(string $reference): array { return array('evidence_cha
 
 wp_set_current_user($actor);
 add_filter('pre_wp_mail', static fn() => true);
-$standardCourse = (new CatalogueService())->course(array(
-    'instrument_id' => $instrumentId,
-    'name_fa' => 'دورهٔ استاندارد آزمون',
-    'name_en' => 'Synthetic Standard ' . $suffix,
-    'course_type' => 'standard',
-    'status' => 'active',
-    'default_duration_minutes' => 60,
-    'default_buffer_minutes' => 15,
-));
+$standardCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}courses WHERE instrument_id=%d AND course_type='standard' AND status='active' AND archived_at IS NULL ORDER BY id LIMIT 1", $instrumentId));
+if ($standardCourse < 1) {
+    $standardCourse = (new CatalogueService())->course(array(
+        'instrument_id' => $instrumentId,
+        'name_fa' => 'دورهٔ استاندارد آزمون',
+        'name_en' => 'Synthetic Standard ' . $suffix,
+        'course_type' => 'standard',
+        'status' => 'active',
+        'default_duration_minutes' => 60,
+        'default_buffer_minutes' => 15,
+    ));
+}
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacherId, 'course_id' => $standardCourse, 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
 try { (new TeacherAvailabilityService())->setProfile(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'synthetic_post_intro')); } catch (Throwable $ignored) {}
 $catalogue = new CommercialCatalogueService();
-$product = $catalogue->createProduct(array('course_id' => $standardCourse, 'name_fa' => 'محصول آزمون', 'name_en' => 'Synthetic product', 'status' => 'active', 'evidence_channel' => 'staff_record', 'evidence_reference' => 'post-intro-product-' . $suffix, 'evidence_at' => $now), dzn_pia_key('product'));
-$catalogue->setPrice(array('product_id' => (int) $product['product_id'], 'region_code' => 'AU', 'amount_minor' => 12000, 'evidence_channel' => 'staff_record', 'evidence_reference' => 'post-intro-price-' . $suffix, 'evidence_at' => $now), dzn_pia_key('price'));
+$productId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_products WHERE course_id=%d AND status='active' AND archived_at IS NULL ORDER BY id LIMIT 1", $standardCourse));
+if ($productId < 1) {
+    $product = $catalogue->createProduct(array('course_id' => $standardCourse, 'name_fa' => 'محصول آزمون', 'name_en' => 'Synthetic product', 'status' => 'active', 'evidence_channel' => 'staff_record', 'evidence_reference' => 'post-intro-product-' . $suffix, 'evidence_at' => $now), dzn_pia_key('product'));
+    $productId = (int) $product['product_id'];
+}
+if (!$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}commercial_prices WHERE product_id=%d AND region_code='AU' AND active_slot=1 AND status='active' AND archived_at IS NULL LIMIT 1", $productId))) {
+    $catalogue->setPrice(array('product_id' => $productId, 'region_code' => 'AU', 'amount_minor' => 12000, 'evidence_channel' => 'staff_record', 'evidence_reference' => 'post-intro-price-' . $suffix, 'evidence_at' => $now), dzn_pia_key('price'));
+}
 
 /**
  * Create one synthetic confirmed introductory booking for an already-created fixture Student.
@@ -99,7 +108,7 @@ $booking = function (string $label, int $daysAgo, string $wallTime) use ($wpdb, 
     $localDate = substr($start, 0, 10);
     dzn_pia_assert($wpdb->update($p . 'booking_request_requested_times', array('local_date' => $localDate, 'local_start_time' => $wallTime, 'timezone' => 'UTC', 'starts_at_utc' => $start, 'instructional_ends_at_utc' => $end, 'occupied_ends_at_utc' => $occupied), array('id' => $requestedTimeId)) === 1, 'requested time import');
     dzn_pia_assert($wpdb->update($p . 'booking_requests', array('student_id' => $studentId, 'lifecycle_status' => 'closed', 'resolution_state' => 'teacher_confirmed', 'updated_at' => $now, 'updated_by' => $actor), array('id' => $requestId)) === 1, 'booking request confirmation state');
-    dzn_pia_assert($wpdb->update($p . 'booking_request_contact_snapshots', array('adult_self_attested' => 1), array('booking_request_id' => $requestId, 'snapshot_sequence' => 1)) === 1, 'adult attestation persistence');
+    dzn_pia_assert($wpdb->update($p . 'booking_request_contact_snapshots', array('adult_self_attested' => 1), array('booking_request_id' => $requestId, 'snapshot_sequence' => 1)) !== false, 'adult attestation persistence');
     $deliveryUid = \Delnavazan\Platform\Core\Support\Identifier::uid();
     dzn_pia_assert($wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => $deliveryUid, 'booking_request_id' => $requestId, 'requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherId, 'state' => 'confirmed', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now, 'responded_at' => $now)) === 1, 'delivery persistence');
     $deliveryId = (int) $wpdb->insert_id;
@@ -113,7 +122,8 @@ $continuations = new PostIntroContinuationService();
 $repository = new PostIntroRepository();
 
 // A. Delivered intro -> preparation, student payment action, verified settlement, activation.
-$main = $booking('main', 3, '03:17:00');
+$mainWall = sprintf('04:%02d:00', 5 + (hexdec(substr($suffix, 0, 2)) % 50));
+$main = $booking('main', 3, $mainWall);
 wp_set_current_user($teacherUser);
 $outcome = $preparations->recordTeacherOutcome($main['confirmation'], $teacherId, 'delivered', 'Synthetic delivered intro');
 $prep = $repository->preparationByBooking($main['request']);
@@ -211,7 +221,7 @@ foreach (array('student_no_show', 'teacher_cancelled') as $index => $badOutcome)
 }
 
 // C. Expired reservation is terminal and requires admin intervention.
-$expiredBooking = $booking('expired', 5, '03:41:00');
+$expiredBooking = $booking('expired', 5, sprintf('06:%02d:00', 5 + (hexdec(substr($suffix, 2, 2)) % 50)));
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($expiredBooking['confirmation'], $teacherId, 'delivered', 'Synthetic expiry');
 $expiredPrep = $repository->preparationByBooking($expiredBooking['request']);

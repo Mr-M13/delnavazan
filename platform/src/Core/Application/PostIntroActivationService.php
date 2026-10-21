@@ -3,7 +3,9 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\ProviderIntegrationRepository;
+use Delnavazan\Platform\Integrations\GoogleCalendarMeetAdapter;
 use Delnavazan\Platform\Integrations\GoogleCalendarProjectionService;
+use Delnavazan\Platform\Integrations\GoogleOAuthTransport;
 
 /**
  * Activates a verified post-intro purchase through the existing canonical authorities.
@@ -47,7 +49,7 @@ final class PostIntroActivationService {
                     (int) $enrolment->id,
                     'authorised',
                     $evidence,
-                    'post-intro-enrolment-activate:' . $uid
+                    'post-intro-enrolment-activate-' . $uid
                 );
             } elseif ((string) $enrolment->lifecycle_state !== 'current') {
                 throw new \RuntimeException('enrolment_not_activatable');
@@ -56,26 +58,26 @@ final class PostIntroActivationService {
             (new CommercialCapacityService())->handoffFromEntitlement(
                 (int) $entitlement->id,
                 $evidence,
-                'post-intro-handoff:' . $uid
+                'post-intro-handoff-' . $uid
             );
 
             $bound = (new CommercialTermFundingService())->bindEntitlementToTerm(
                 (int) $entitlement->id,
                 $evidence,
-                'post-intro-term-bind:' . $uid
+                'post-intro-term-bind-' . $uid
             );
             $termId = (int) $bound['term_id'];
             $term = $repository->term($termId);
             if (!$term) throw new \RuntimeException('canonical_term_required');
             if ((string) $term->lifecycle_state === 'authorised') {
-                (new CanonicalTermAuthorityService())->activate($termId, 'authorised', $evidence, 'post-intro-term-activate:' . $uid);
+                (new CanonicalTermAuthorityService())->activate($termId, 'authorised', $evidence, 'post-intro-term-activate-' . $uid);
             } elseif ((string) $term->lifecycle_state !== 'current') {
                 throw new \RuntimeException('term_not_activatable');
             }
 
             $assignment = $repository->assignmentForEnrolment((int) $enrolment->id);
             if (!$assignment) {
-                $assigned = (new TeacherAssignmentService())->assignInitial((int) $enrolment->id, 'post-intro-assignment:' . $uid);
+                $assigned = (new TeacherAssignmentService())->assignInitial((int) $enrolment->id, 'post-intro-assignment-' . $uid);
                 $assignmentId = (int) $assigned['assignment_id'];
             } elseif ((string) $assignment->state === 'assigned') {
                 $assignmentId = (int) $assignment->id;
@@ -96,7 +98,7 @@ final class PostIntroActivationService {
                     $termId,
                     $assignmentId,
                     $evidence,
-                    'post-intro-lesson:' . $uid . ':' . $sequence
+                    'post-intro-lesson-' . $uid . '-' . $sequence
                 );
                 $lessonId = (int) $lesson['lesson_id'];
                 $lessonIds[] = $lessonId;
@@ -113,7 +115,7 @@ final class PostIntroActivationService {
                         'evidence_reference' => 'post-intro:' . $uid,
                         'evidence_at' => $now,
                     ),
-                    'post-intro-schedule:' . $uid . ':' . $sequence
+                    'post-intro-schedule-' . $uid . '-' . $sequence
                 );
                 $projections[] = array('lesson_id' => $lessonId, 'schedule_version_id' => (int) $scheduled['schedule_version_id'], 'sequence' => $sequence);
             }
@@ -147,14 +149,20 @@ final class PostIntroActivationService {
     }
 
     private function projectCalendar(int $lessonId, int $scheduleVersionId, string $uid, int $sequence, string $now): void {
-        $projection = (new ProviderIntegrationService())->projectCalendarEvent(array(
+        $projection = (new ProviderIntegrationService(
+            null,
+            null,
+            new GoogleOAuthTransport(),
+            new GoogleCalendarMeetAdapter(),
+            new GoogleCalendarMeetAdapter()
+        ))->projectCalendarEvent(array(
             'lesson_id' => $lessonId,
             'schedule_version_id' => $scheduleVersionId,
-            'projection_reference' => 'post-intro:' . $uid . ':' . $sequence,
+            'projection_reference' => 'post-intro:' . $uid . '-' . $sequence,
             'evidence_channel' => 'authenticated_platform',
             'evidence_reference' => 'post-intro:' . $uid,
             'evidence_at' => $now,
-        ), 'post-intro-calendar:' . $uid . ':' . $sequence);
+        ), 'post-intro-calendar-' . $uid . '-' . $sequence);
 
         $mappingId = (int) ($projection['mapping_id'] ?? 0);
         if ($mappingId < 1) throw new \RuntimeException('provider_projection_mapping_required');
@@ -163,7 +171,7 @@ final class PostIntroActivationService {
         if ((string) $mapping->projection_state !== 'pending') return;
         (new GoogleCalendarProjectionService())->dispatch(
             $mappingId,
-            'post-intro-calendar-dispatch:' . $uid . ':' . $sequence
+            'post-intro-calendar-dispatch-' . $uid . '-' . $sequence
         );
     }
 

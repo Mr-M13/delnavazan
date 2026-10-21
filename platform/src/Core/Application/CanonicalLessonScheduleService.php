@@ -305,7 +305,7 @@ final class CanonicalLessonScheduleService {
                 if((string)($segment['state']??'')!=='blocked')continue;
                 if((string)$segment['starts_at_utc']<$ends&&(string)$segment['ends_at_utc']>$starts)throw new \InvalidArgumentException('teacher_unavailable');
             }
-            return 'confirmed_booking_recurrence';
+            return 'confirmed_recurrence';
         }
         if(!empty($intent['availability_override']))return 'administrative_override';
         throw new \InvalidArgumentException('teacher_unavailable');

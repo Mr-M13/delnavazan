@@ -111,7 +111,7 @@ $contains($continuation, array(
     'StudentCheckoutInitiationService',
     "'obligation_uid' => (string) \$first->uid",
 ), 'the Student continuation action must preserve ownership and reuse canonical services');
-$assert(str_contains($continuation, 'post-intro-provisional:') && str_contains($continuation, 'post-intro-final:') && str_contains($continuation, 'post-intro-conversion:') && str_contains($continuation, 'post-intro-continuation:') && str_contains($continuation, 'post-intro-pattern:') && str_contains($continuation, 'post-intro-offer:'), 'every command must use a deterministic idempotency key');
+$assert(str_contains($continuation, 'post-intro-provisional-') && str_contains($continuation, 'post-intro-final-') && str_contains($continuation, 'post-intro-conversion-') && str_contains($continuation, 'post-intro-continuation-') && str_contains($continuation, 'post-intro-pattern-') && str_contains($continuation, 'post-intro-offer-'), 'every command must use a deterministic idempotency key');
 $assert(str_contains($continuation, "state' => 'expired'") && str_contains($continuation, 'continuation_reservation_expired'), 'expired holds must become an explicit terminal state');
 $assert(!str_contains($continuation, 'date_of_birth'), 'the Student action must not invent demographic authority');
 
@@ -142,14 +142,14 @@ $contains($activation, array(
     "'confirmed_booking_recurrence' => true",
     'projectCalendarEvent',
     'GoogleCalendarProjectionService',
-    "'post-intro-enrolment-activate:' . \$uid",
-    "'post-intro-handoff:' . \$uid",
-    "'post-intro-term-bind:' . \$uid",
-    "'post-intro-term-activate:' . \$uid",
-    "'post-intro-assignment:' . \$uid",
-    "'post-intro-lesson:' . \$uid",
-    "'post-intro-schedule:' . \$uid",
-    "'post-intro-calendar:' . \$uid",
+    "'post-intro-enrolment-activate-' . \$uid",
+    "'post-intro-handoff-' . \$uid",
+    "'post-intro-term-bind-' . \$uid",
+    "'post-intro-term-activate-' . \$uid",
+    "'post-intro-assignment-' . \$uid",
+    "'post-intro-lesson-' . \$uid",
+    "'post-intro-schedule-' . \$uid",
+    "'post-intro-calendar-' . \$uid",
 ), 'activation must be replay-safe and canonical');
 $assert(str_contains($activation, "if ((string) \$mapping->projection_state !== 'pending') return;"), 'a verified projection must not be dispatched twice');
 $assert(!str_contains($activation, 'meet.google.com') && !str_contains($activation, 'join_uri_reference' . ' = '), 'activation must never fabricate a Meet URL');

@@ -22,9 +22,10 @@ $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model[
   $recovery = array(
    'signed_out' => array( 'ورود به حساب', wp_login_url( $portal_url ) ),
    'onboarding_required' => array( 'ادامهٔ شروع همکاری', add_query_arg( 'teacher-view', 'onboarding', $portal_url ) ),
+   'not_linked' => array( 'ثبت دعوت‌نامهٔ همکاری', home_url( '/teacher-invitation/' ) ),
    'error' => array( 'تلاش دوباره', $portal_url ),
   );
- ?><section class="dzn-tp-section dzn-tp-unavailable" role="<?php echo 'error' === $state ? 'alert' : 'status'; ?>"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><?php if ( isset( $recovery[ $state ] ) ) : ?><p><a class="dzn-button" href="<?php echo esc_url( $recovery[ $state ][1] ); ?>"><?php echo esc_html( $recovery[ $state ][0] ); ?></a></p><?php endif; ?></section>
+ ?><section class="dzn-tp-section dzn-tp-unavailable dzn-tp-unavailable--<?php echo esc_attr( $state ); ?>" role="<?php echo 'error' === $state ? 'alert' : 'status'; ?>"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><div class="dzn-tp-unavailable__actions"><?php if ( isset( $recovery[ $state ] ) ) : ?><a class="dzn-button" href="<?php echo esc_url( $recovery[ $state ][1] ); ?>"><?php echo esc_html( $recovery[ $state ][0] ); ?></a><?php endif; ?><?php if ( 'not_linked' === $state ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a><?php endif; ?></div></section>
  <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
  elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );

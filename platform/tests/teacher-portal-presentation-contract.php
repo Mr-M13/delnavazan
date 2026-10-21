@@ -47,7 +47,8 @@ namespace {
     };
     $class = static function (array $o = array()): array {
         return array_merge(array(
-            'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'student' => 'Student One', 'course' => 'Setar',
+            'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'date' => 'Saturday 3 October', 'starts_at_utc' => '2026-10-03 06:30:00', 'timezone' => 'Asia/Tehran',
+            'student' => 'Student One', 'course' => 'Setar',
             'progress' => 'Term 1 · 2/12', 'status' => 'پیش رو', 'student_summary' => 'Summary', 'previous_private_note' => 'No private note here',
             'schedule_summary' => 'Saturday 3 October، 10:00 · Asia/Tehran', 'start_available' => false, 'details_available' => true,
             'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_class', 'join_nonce' => 'nonce-join',
@@ -70,13 +71,13 @@ namespace {
     );
     $model = static function (array $o = array()) use ($nav): array {
         return array_merge(array(
-            'available' => true, 'screen' => 'home', 'teacher' => array('first_name' => 'Sara', 'full_name' => 'Sara Example'), 'navigation' => $nav,
+            'available' => true, 'screen' => 'home', 'teacher' => array('first_name' => 'Sara', 'full_name' => 'Sara Example'), 'teacher_timezone' => 'Asia/Tehran', 'navigation' => $nav,
             'announcement' => array('state' => 'none'), 'attention' => array(), 'classes' => array(), 'calendar' => array(),
         ), $o);
     };
 
     // 1. Upcoming lesson cards: honest heading, visible date + timezone, status text, semantic list, labelled cards.
-    $booking = $class(array('ref' => 'BK-1', 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'start_available' => false, 'join_message' => 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.', 'lesson_uid' => '', 'schedule_version_uid' => '', 'schedule_summary' => 'Sunday 4 October، 18:30 · Australia/Brisbane', 'status' => 'کلاس آشنایی تأیید شده', 'progress' => 'کلاس آشنایی'));
+    $booking = $class(array('ref' => 'BK-1', 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'start_available' => false, 'join_message' => 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.', 'lesson_uid' => '', 'schedule_version_uid' => '', 'date' => 'Sunday 4 October', 'starts_at_utc' => '2026-10-04 08:30:00', 'schedule_summary' => 'Sunday 4 October، 18:30 · Australia/Brisbane', 'status' => 'کلاس آشنایی تأیید شده', 'progress' => 'کلاس آشنایی'));
     $lesson  = $class(array('start_available' => true, 'state' => 'starting_soon', 'status' => 'به‌زودی شروع می‌شود'));
     $home = $model(array('classes' => array($booking, $lesson), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
     $check('fixture satisfies the unchanged display contract', dzn_theme_teacher_portal_validate_model($home, 'home'));
@@ -85,6 +86,10 @@ namespace {
     $check('card count is announced', str_contains($html, '2 کلاس · به ترتیب زمان'));
     $check('classes render as an ordered list of labelled articles', substr_count($html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($html, 'id="tp-class-title-0"') && str_contains($html, 'id="tp-class-title-1"'));
     $check('date and timezone are visible on a booking class that has no details panel', str_contains($html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($html, 'id="tp-details-0"'));
+    $check('lesson date badge and machine-readable start are rendered', str_contains($html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($html, 'datetime="2026-10-03 06:30:00"'));
+    $check('the teacher timezone is labelled on the lessons and calendar sections', substr_count($html, 'class="dzn-timezone-label"') === 2 && str_contains($html, 'منطقهٔ زمانی: Asia/Tehran'));
+    $withStats = $render('home', $model(array('statistics' => array('active_students' => '8', 'upcoming' => '2', 'lessons_month' => '10', 'hours_month' => '5'))));
+    $check('the home summary labels the teacher timezone', str_contains($withStats, 'class="dzn-timezone-label"') && str_contains($withStats, 'منطقهٔ زمانی: Asia/Tehran'));
     $check('status is exposed as text for assistive technology', str_contains($html, 'وضعیت: </span>کلاس آشنایی تأیید شده'));
     $check('details are collapsed by default and the toggle is wired with aria-controls', str_contains($html, 'id="tp-details-1" class="dzn-tp-class-details" hidden') && str_contains($html, 'aria-expanded="false" aria-controls="tp-details-1"'));
 
@@ -124,7 +129,7 @@ namespace {
 
     // 5. Actionable empty states.
     $empty = $render('home', $model());
-    $check('empty classes, attention and calendar each explain themselves', str_contains($empty, 'کلاسی در برنامهٔ پیش رو ندارید') && str_contains($empty, 'اکنون کار فوری‌ای ندارید') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && substr_count($empty, 'class="dzn-tp-empty" role="status"') === 3);
+    $check('empty classes, attention and calendar each explain themselves', str_contains($empty, 'کلاسی در برنامهٔ پیش رو ندارید') && str_contains($empty, 'اکنون کار فوری‌ای ندارید') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && 3 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
     $check('empty classes links to real availability settings', str_contains($empty, 'href="https://example.invalid/teacher-portal/?teacher-view=settings">بررسی زمان‌های در دسترس'));
 
     // 6. Outcome and error states reach the teacher; arbitrary query text never does.
@@ -158,13 +163,16 @@ namespace {
     $onboarding = $render('home', array('available' => false, 'state' => 'onboarding_required', 'screen' => 'home'));
     $check('onboarding-required state links to the wizard', str_contains($onboarding, 'teacher-view=onboarding">ادامهٔ شروع همکاری'));
     $notLinked = $render('home', array('available' => false, 'state' => 'not_linked', 'screen' => 'home'));
-    $check('not-linked state invents no recovery action', !str_contains($notLinked, 'class="dzn-button"'));
+    $check('not-linked state links to the canonical invitation route instead of inventing an action', str_contains($notLinked, 'href="https://example.invalid/teacher-invitation/">ثبت دعوت‌نامهٔ همکاری') && str_contains($notLinked, 'صفحهٔ اصلی') && !str_contains($notLinked, 'teacher-portal/invitation'));
 
     // 8. Source guards: boundary, accessibility and assets.
     $parts = array();
     foreach (array('classes', 'attention', 'calendar', 'shell', 'help') as $p) { $parts[$p] = (string) file_get_contents($theme . "/template-parts/teacher-portal/$p.php"); }
     $joined_src = implode("\n", $parts) . (string) file_get_contents($theme . '/inc/teacher-portal.php');
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
+    $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
+    $check('view model supplies date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_zoned_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' =>") && str_contains($bridge, "(string) ( \$onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' )"));
+    $check('shell never echoes an arbitrary dzn_notice query value', !str_contains($parts['shell'], "\$_GET['dzn_notice']") && str_contains($parts['shell'], 'dzn_theme_teacher_portal_notices'));
     $js = (string) file_get_contents($theme . '/assets/js/teacher-portal.js');
     $check('script disables the whole scope after submit, restores on bfcache return, and keeps the server as authority', str_contains($js, 'form[data-dzn-tp-submit]') && str_contains($js, "'pageshow'") && str_contains($js, 'setTimeout(() => scopeButtons(form)') && str_contains($js, 'event.persisted') && !str_contains($js, 'fetch(') && !str_contains($js, 'XMLHttpRequest'));
     $check('toggle swaps its label and keeps aria-expanded in sync', str_contains($js, 'dznTpLabelOpen') && str_contains($js, "setAttribute('aria-expanded'"));

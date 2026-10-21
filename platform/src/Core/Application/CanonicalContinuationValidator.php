@@ -64,7 +64,10 @@ final class CanonicalContinuationValidator {
         if(!$course||(string)($course->status??'')!=='active'||$course->archived_at!==null)return false;
         if((int)$lesson->course_id===(int)$case->course_id){
             if((string)($course->course_type??'')!=='introductory')return false;
-        }elseif((string)($course->course_type??'')!=='standard')return false;
+        }else{
+            if((string)($course->course_type??'')!=='standard')return false;
+            if((int)($course->instrument_id??0)!==(int)($lesson->course_instrument_id??0))return false;
+        }
         if((int)$lesson->current_schedule_version_id!==(int)$case->intro_schedule_version_id)return false;
         // The bound occurrence is immutable provenance: anchors and wall-clock truth must agree exactly.
         if(!$occurrence)return false;

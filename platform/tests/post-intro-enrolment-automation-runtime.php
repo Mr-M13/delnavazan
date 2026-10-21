@@ -257,6 +257,12 @@ $noAvailPrep = $repository->preparationByBooking($noAvailBooking['request']);
 dzn_pia_assert($noAvailPrep !== null && (string) $noAvailPrep->state === 'exception', 'missing availability must become an explicit exception');
 dzn_pia_assert((string) $noAvailPrep->exception_code === 'teacher_unavailable', 'missing availability must be teacher_unavailable, got ' . (string) $noAvailPrep->exception_code);
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind='post_intro_invitation'", (int) $noAvailBooking['delivery'])) === 0, 'missing availability must not invite payment');
+wp_set_current_user($teacherUser);
+$matchCaught = null;
+try {
+    $match = (new \Delnavazan\Platform\Core\Application\CanonicalContinuationService())->markMatchNeedsAdmin((int) $noAvailPrep->intro_lesson_id, array('evidence_channel' => 'authenticated_platform', 'evidence_reference' => 'post-intro-match:' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s')), dzn_pia_key('match'));
+} catch (Throwable $e) { $matchCaught = $e; }
+dzn_pia_assert($matchCaught === null && isset($match['case_id']) && (int) $match['case_id'] > 0, 'Teacher match-exception must open a continuation case on the no-case path: ' . ($matchCaught?->getMessage() ?? 'no case'));
 wp_set_current_user($actor);
 foreach (array(1, 2, 3, 4, 5, 6, 7) as $weekday) {
     $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));

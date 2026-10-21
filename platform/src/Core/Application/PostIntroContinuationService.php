@@ -33,13 +33,13 @@ final class PostIntroContinuationService {
         $studentUserId = (int) get_current_user_id();
         if ($studentUserId < 1) throw new \RuntimeException('Unauthorized');
 
+        if ($preparation->state === 'activated') return array('state' => 'activated', 'redirect_url' => null, 'message' => 'already_activated');
+        if ($preparation->state === 'payment_received') return array('state' => 'payment_received', 'redirect_url' => null, 'message' => 'payment_received');
         $anyPattern = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
         if ($anyPattern && (int) $anyPattern->teacher_id !== (int) $preparation->teacher_id) {
             throw new \RuntimeException('commercial_pattern_teacher_conflict');
         }
 
-        if ($preparation->state === 'activated') return array('state' => 'activated', 'redirect_url' => null, 'message' => 'already_activated');
-        if ($preparation->state === 'payment_received') return array('state' => 'payment_received', 'redirect_url' => null, 'message' => 'payment_received');
         if (!in_array((string) $preparation->state, array('prepared', 'checkout_pending', 'exception'), true)) {
             throw new \InvalidArgumentException('post_intro_invitation_not_ready');
         }
@@ -108,6 +108,7 @@ final class PostIntroContinuationService {
             if (!$preparation->continuation_case_id) {
                 $existing = $repository->continuationCaseForIntro((int) $preparation->intro_lesson_id);
                 if ($existing) {
+                    if ((int) $existing->course_id !== (int) $preparation->standard_course_id) throw new \RuntimeException('continuation_course_conflict');
                     $preparation = $this->save((int) $preparation->id, array('continuation_case_id' => (int) $existing->id));
                 } else {
                     $decision = (new CanonicalContinuationService())->continueWithTeacher(

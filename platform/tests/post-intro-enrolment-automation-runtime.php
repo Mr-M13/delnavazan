@@ -22,6 +22,26 @@ $p = $wpdb->prefix . 'dzn_';
 $actor = 1;
 $fixture = get_option('dzn_phase_2a2j_fixture');
 if (!is_array($fixture) || empty($fixture['sources'][0]) || empty($fixture['teacherUsers'][0])) throw new RuntimeException('Phase-J fixture required');
+// This is a disposable, standalone runtime. Reset only derived automation/commercial/schedule
+// storage so repeated runs are deterministic; the Phase-J accepted Enrolments themselves remain.
+foreach (array(
+    'post_intro_activation_jobs','post_intro_preparations','booking_request_intro_outcomes',
+    'provider_integration_commands','provider_calendar_event_mappings','provider_meeting_mappings','provider_identity_mappings',
+    'canonical_lesson_schedule_commands','canonical_lesson_schedule_versions','canonical_lesson_commands','canonical_lesson_lifecycle_events','lessons',
+    'teacher_assignment_commands','teacher_assignment_lifecycle_events','teacher_assignments',
+    'term_commands','term_lifecycle_events','terms',
+    'commercial_commands','commercial_capacity_claim_intervals','commercial_capacity_claims','commercial_recurring_patterns',
+    'commercial_obligation_settlements','commercial_payment_facts','commercial_payment_evidence','commercial_term_funding_plans',
+    'commercial_entitlements','commercial_purchases','commercial_offer_obligations','commercial_offer_policies','commercial_offer_adjustments',
+    'commercial_offers','commercial_promotion_redemptions','commercial_account_adjustment_events','commercial_account_adjustments',
+    'commercial_promotions','commercial_prices','commercial_products','commercial_policies','commercial_account_roots','commercial_exceptions',
+    'canonical_continuation_commands','canonical_continuation_interventions','canonical_continuation_reservations',
+    'canonical_continuation_decisions','canonical_continuation_cases','canonical_continuation_slot_authorities',
+) as $resetTable) {
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p . $resetTable)) === $p . $resetTable) {
+        $wpdb->query("DELETE FROM {$p}{$resetTable}");
+    }
+}
 $source = $fixture['sources'][0];
 $teacherId = (int) $source['teacher_id'];
 $teacherUser = (int) $fixture['teacherUsers'][0];
@@ -210,14 +230,14 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}com
 
 // B. No-show and cancellation never invite continuation.
 foreach (array('student_no_show', 'teacher_cancelled') as $index => $badOutcome) {
-    $booking = $booking('bad-' . $badOutcome, 4 + $index, '03:2' . $index . ':00');
+    $badBooking = $booking('bad-' . $badOutcome, 4 + $index, '03:2' . $index . ':00');
     wp_set_current_user($teacherUser);
-    $result = $preparations->recordTeacherOutcome($booking['confirmation'], $teacherId, $badOutcome, 'Synthetic non-delivery');
-    $bad = $repository->preparationByBooking($booking['request']);
+    $result = $preparations->recordTeacherOutcome($badBooking['confirmation'], $teacherId, $badOutcome, 'Synthetic non-delivery');
+    $bad = $repository->preparationByBooking($badBooking['request']);
     dzn_pia_assert($bad !== null && (string) $bad->state === 'exception', $badOutcome . ' must become an explicit exception');
     dzn_pia_assert((string) $bad->exception_code === ($badOutcome === 'student_no_show' ? 'intro_student_no_show' : 'intro_cancelled'), $badOutcome . ' exception code');
-    dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind='post_intro_invitation'", (int) $booking['delivery'])) === 0, $badOutcome . ' must not enqueue a continuation invitation');
-    dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE booking_request_id=%d", (int) $booking['request'])) === 0, $badOutcome . ' must not create an intro Lesson');
+    dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind='post_intro_invitation'", (int) $badBooking['delivery'])) === 0, $badOutcome . ' must not enqueue a continuation invitation');
+    dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE booking_request_id=%d", (int) $badBooking['request'])) === 0, $badOutcome . ' must not create an intro Lesson');
 }
 
 // C. Expired reservation is terminal and requires admin intervention.

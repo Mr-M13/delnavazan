@@ -324,7 +324,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -367,11 +367,15 @@ final class Migrator {
 				self::install_google_oauth_openid_subject();self::verify_google_oauth_scope_policy();
 				$done[]='046_google_oauth_openid_subject';update_option(self::COMPLETED,$done,false);
 			}
+			if(!in_array('047_stripe_canonical_account_reference',$done,true)){
+				self::install_stripe_canonical_account_reference();self::verify_stripe_canonical_account_reference();
+				$done[]='047_stripe_canonical_account_reference';update_option(self::COMPLETED,$done,false);
+			}
 			if(!in_array('048_post_intro_enrolment_automation',$done,true)){
 				self::install_post_intro_enrolment_automation();self::verify_post_intro_enrolment_automation_schema();
 				$done[]='048_post_intro_enrolment_automation';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_post_intro_enrolment_automation_schema();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -388,6 +392,50 @@ final class Migrator {
 			$row=$wpdb->get_row($wpdb->prepare('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s',$p.$table,$column));
 			if(!$row||strtolower((string)$row->COLUMN_TYPE)!=='varchar(32)')throw new \RuntimeException('Notification cipher width verification failed');
 		}
+	}
+	/**
+	 * Repair the single dashboard-managed Stripe TEST account whose authority reference predates the
+	 * canonical account reference.
+	 *
+	 * Before the reference was unified, `StripeTestConfigurationService` registered the account with
+	 * `account_reference='delnavazan-stripe-test'` while Checkout metadata carried the webhook selector
+	 * `'stripe_test'`. `account_reference_digest` therefore never matched the value the provider returned
+	 * and every verified webhook was refused as `unmapped_provider_account`. The migration is deliberately
+	 * narrow: it rewrites only a row whose stored digest proves the known legacy plaintext, refuses a
+	 * target digest that another account already claims (the unique key would collapse two accounts), and
+	 * changes no live-mode row.
+	 */
+	private static function install_stripe_canonical_account_reference():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$legacy=\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency::reference('delnavazan-stripe-test');
+		$canonical=\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency::reference('stripe_test');
+		$rows=$wpdb->get_results($wpdb->prepare(
+			"SELECT id,account_reference_digest FROM {$p}payment_provider_accounts WHERE provider_key=%s AND mode=%s AND reference_code=%s",
+			'stripe','test','stripe_test'
+		))?:array();
+		foreach($rows as $row){
+			if(!hash_equals((string)$row->account_reference_digest,$legacy))continue;
+			$collision=(int)$wpdb->get_var($wpdb->prepare(
+				"SELECT COUNT(*) FROM {$p}payment_provider_accounts WHERE provider_key=%s AND mode=%s AND account_reference_digest=%s AND id<>%d",
+				'stripe','test',$canonical,(int)$row->id
+			));
+			if($collision>0)throw new \RuntimeException('Stripe canonical account reference migration refused: digest collision');
+			$updated=$wpdb->query($wpdb->prepare(
+				"UPDATE {$p}payment_provider_accounts SET account_reference_digest=%s,account_version=account_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND account_reference_digest=%s",
+				$canonical,(int)$row->id,$legacy
+			));
+			if($updated===false)throw new \RuntimeException('Stripe canonical account reference migration failed: '.$wpdb->last_error);
+		}
+		if($wpdb->last_error!=='')throw new \RuntimeException('Stripe canonical account reference migration failed: '.$wpdb->last_error);
+	}
+	private static function verify_stripe_canonical_account_reference():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$legacy=\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency::reference('delnavazan-stripe-test');
+		$remaining=(int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$p}payment_provider_accounts WHERE provider_key='stripe' AND mode='test' AND reference_code='stripe_test' AND account_reference_digest=%s",
+			$legacy
+		));
+		if($wpdb->last_error!==''||$remaining!==0)throw new \RuntimeException('Stripe canonical account reference verification failed');
 	}
 	/** Synchronise the compatibility column from the canonical active principal link. */
 	private static function install_teacher_principal_projection_repair():void{
@@ -495,10 +543,11 @@ final class Migrator {
 		$required[] = '044_booking_notification_recovery';
 		$required[] = '045_renewal_cycle_automatic_charge_at';
 		$required[] = '046_google_oauth_openid_subject';
+		$required[] = '047_stripe_canonical_account_reference';
 		$required[] = '048_post_intro_enrolment_automation';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_post_intro_enrolment_automation_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();

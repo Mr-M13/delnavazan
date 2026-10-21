@@ -25,6 +25,7 @@ foreach (array(
 	"verify_renewal_recurring_enrolment_schema( ! in_array( '045_renewal_cycle_automatic_charge_at', \$completed, true ) )",
 	"\$required[] = '045_renewal_cycle_automatic_charge_at'",
 	"\$required[] = '046_google_oauth_openid_subject'",
+	"\$required[] = '047_stripe_canonical_account_reference'",
 ) as $needle) $assert(str_contains($migrator, $needle), 'Missing historical renewal repair contract: ' . $needle);
 
 $start = strpos($migrator, 'private static function install_renewal_cycle_automatic_charge_at');

@@ -41,6 +41,7 @@ $studentCard = $read('theme/template-parts/portal/post-intro.php');
 $teacherCard = $read('theme/template-parts/teacher-portal/post-intro-outcomes.php');
 $teacherHome = $read('theme/template-parts/teacher-portal/home.php');
 $notificationWorker = $read('platform/src/Integrations/BookingStudentNotificationWorker.php');
+$executionRule = $read('platform/src/Core/Application/PaymentExecution/PaymentExecutionRule.php');
 
 // 1. Additive migration and existing-data compatibility.
 $assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '48'"), 'Schema 48 must be published');
@@ -235,7 +236,7 @@ $contains($notificationWorker, array(
 $assert(str_contains($repository, "insertNotificationIfMissing"), 'notification enqueue must be idempotent');
 
 // 12. No live execution or secret exposure.
-$assert(!str_contains($plugin, 'LIVE_EXECUTION_PROVIDERS') || str_contains($plugin, "'LIVE_EXECUTION_PROVIDERS', array()"), 'live execution must stay closed');
+$assert(str_contains($executionRule, 'LIVE_EXECUTION_PROVIDERS=array()') && str_contains($executionRule, 'PROVISIONABLE_PROVIDERS=array()'), 'live execution must stay closed');
 $assert(!str_contains($activation, 'sk_live_') && !str_contains($continuation, 'sk_live_'), 'no live Stripe secret may appear');
 $assert(!str_contains($admin, 'exception_detail') || str_contains($admin, 'esc_html'), 'admin detail must be escaped');
 

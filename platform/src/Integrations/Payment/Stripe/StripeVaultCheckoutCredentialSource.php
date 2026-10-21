@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations\Payment\Stripe;
 
-use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentSecretVault;
+use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentProviderAccountService,PaymentSecretVault};
 use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentProviderRepository,PaymentSecretRepository};
 
 /** Resolves one deliberately enabled non-production Stripe test account from the existing secret vault. */
@@ -21,8 +21,10 @@ final class StripeVaultCheckoutCredentialSource implements StripeCheckoutCredent
         $accounts=array_values(array_filter($this->providers->accountsForProvider(StripeCheckoutAdapter::PROVIDER_KEY),static fn($account)=>(string)$account->mode==='test'&&(string)$account->state==='active'&&(string)$account->execution_state==='enabled'&&(string)$account->credential_state==='configured'));
         if(count($accounts)!==1)return null;
         $accountId=(int)$accounts[0]->id;
-        $accountReference=(string)($accounts[0]->reference_code??'');
-        if(preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$accountReference)!==1)return null;
+        // One canonical reference: the value that hashes to the account's authority digest. Never
+        // send a selector the intake cannot prove against `account_reference_digest`.
+        $accountReference=PaymentProviderAccountService::canonicalReference($accounts[0]);
+        if($accountReference===null)return null;
         $apiSecret=$this->secrets->activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'api_key',$accountId,'test');
         $webhookSecret=$this->secrets->activeSecret(StripeCheckoutAdapter::PROVIDER_KEY,'webhook_signing_secret',$accountId,'test');
         if(!$apiSecret||!$webhookSecret)return null;

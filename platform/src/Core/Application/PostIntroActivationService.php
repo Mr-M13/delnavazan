@@ -36,10 +36,11 @@ final class PostIntroActivationService {
             $repository = $this->repository;
             $now = gmdate('Y-m-d H:i:s');
             $uid = (string) $preparation->uid;
+            $evidenceAt = $this->stableEvidenceAt($job, $preparation);
             $evidence = array(
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . $uid,
-                'evidence_at' => $now,
+                'evidence_at' => $evidenceAt,
             );
 
             $enrolment = $repository->enrolment((int) $preparation->enrolment_id);
@@ -85,12 +86,18 @@ final class PostIntroActivationService {
                 throw new \RuntimeException('teacher_assignment_unavailable');
             }
 
-            $pattern = $repository->activePatternFor((int) $preparation->student_id, (int) $preparation->standard_course_id, (int) $preparation->teacher_id);
+            $pattern = $repository->patternForSlotAuthority((int) $preparation->slot_authority_id);
             if (!$pattern) {
                 $any = $repository->activePatternForAnyTeacher((int) $preparation->student_id, (int) $preparation->standard_course_id);
                 if ($any) throw new \RuntimeException('commercial_pattern_teacher_conflict');
                 throw new \RuntimeException('commercial_pattern_required');
             }
+            if ((int) $pattern->student_id !== (int) $preparation->student_id
+                || (int) $pattern->course_id !== (int) $preparation->standard_course_id
+                || (int) $pattern->source_slot_authority_id !== (int) $preparation->slot_authority_id) {
+                throw new \RuntimeException('commercial_pattern_conflict');
+            }
+            if ((int) $pattern->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
             $count = min(52, max(1, (int) ($bound['effective_sessions'] ?? 0)));
             $intervals = (new CommercialPatternService())->intervalsFor($pattern, $count);
 
@@ -116,7 +123,7 @@ final class PostIntroActivationService {
                         'reason_code' => 'confirmed_booking_recurrence',
                         'evidence_channel' => 'authenticated_platform',
                         'evidence_reference' => 'post-intro:' . $uid,
-                        'evidence_at' => $now,
+                        'evidence_at' => $evidenceAt,
                     ),
                     'post-intro-schedule-' . $uid . '-' . $sequence
                 );
@@ -143,7 +150,7 @@ final class PostIntroActivationService {
                     (int) $projection['schedule_version_id'],
                     $uid,
                     (int) $projection['sequence'],
-                    $now
+                    $evidenceAt
                 );
             }
 
@@ -151,7 +158,22 @@ final class PostIntroActivationService {
         });
     }
 
-    private function projectCalendar(int $lessonId, int $scheduleVersionId, string $uid, int $sequence, string $now): void {
+    /**
+     * A durable timestamp for every canonical command in this activation.
+     *
+     * Canonical authorities include the evidence instant in their idempotency payload, so a
+     * retry minutes later must rebuild exactly the same command. The activation job's immutable
+     * creation time is the durable settlement checkpoint and never advances between attempts.
+     */
+    private function stableEvidenceAt(object $job, object $preparation): string {
+        $now = gmdate('Y-m-d H:i:s');
+        foreach (array((string) ($job->created_at ?? ''), (string) ($preparation->created_at ?? ''), (string) ($preparation->prepared_at ?? '')) as $candidate) {
+            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1 && $candidate <= $now) return $candidate;
+        }
+        throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');
+    }
+
+    private function projectCalendar(int $lessonId, int $scheduleVersionId, string $uid, int $sequence, string $evidenceAt): void {
         $projection = (new ProviderIntegrationService(
             null,
             null,
@@ -164,7 +186,7 @@ final class PostIntroActivationService {
             'projection_reference' => 'post-intro:' . $uid . '-' . $sequence,
             'evidence_channel' => 'authenticated_platform',
             'evidence_reference' => 'post-intro:' . $uid,
-            'evidence_at' => $now,
+            'evidence_at' => $evidenceAt,
         ), 'post-intro-calendar-' . $uid . '-' . $sequence);
 
         $mappingId = (int) ($projection['mapping_id'] ?? 0);

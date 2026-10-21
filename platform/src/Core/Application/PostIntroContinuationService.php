@@ -109,7 +109,12 @@ final class PostIntroContinuationService {
                 $existing = $repository->continuationCaseForIntro((int) $preparation->intro_lesson_id);
                 if ($existing) {
                     if ((int) $existing->course_id !== (int) $preparation->standard_course_id) throw new \RuntimeException('continuation_course_conflict');
-                    $preparation = $this->save((int) $preparation->id, array('continuation_case_id' => (int) $existing->id));
+                    $existingReservation = $repository->reservationForCase((int) $existing->id);
+                    if (!$existingReservation) throw new \RuntimeException('continuation_reservation_required');
+                    $preparation = $this->save((int) $preparation->id, array(
+                        'continuation_case_id' => (int) $existing->id,
+                        'reservation_id' => (int) $existingReservation->id,
+                    ));
                 } else {
                     $decision = (new CanonicalContinuationService())->continueWithTeacher(
                         (int) $preparation->intro_lesson_id,
@@ -130,6 +135,14 @@ final class PostIntroContinuationService {
                 }
             }
 
+            // A previous invocation may have committed the continuation case but terminated before
+            // saving its reservation. Recover the durable reservation instead of failing forever.
+            if ($preparation->continuation_case_id && !(int) $preparation->reservation_id) {
+                $existingReservation = $repository->reservationForCase((int) $preparation->continuation_case_id);
+                if (!$existingReservation) throw new \RuntimeException('continuation_reservation_required');
+                $preparation = $this->save((int) $preparation->id, array('reservation_id' => (int) $existingReservation->id));
+            }
+
             $reservation = $preparation->reservation_id ? $repository->reservationForCase((int) $preparation->continuation_case_id) : null;
             if (!$reservation) throw new \RuntimeException('continuation_reservation_required');
             if (!CanonicalContinuationRule::capacityEffective((string) $reservation->state, (string) $reservation->expires_at, gmdate('Y-m-d H:i:s'))) {
@@ -138,14 +151,19 @@ final class PostIntroContinuationService {
             }
 
             if (!$preparation->pattern_id) {
-                $existing = $repository->activePatternFor($studentId, (int) $preparation->standard_course_id, (int) $preparation->teacher_id);
-                if (!$existing) {
-                    $any = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
-                    if ($any && (int) $any->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
-                }
+                // Reuse only the exact pattern materialised from this continuation's slot
+                // authority. A broad Student/Course/Teacher lookup can silently apply an old
+                // pattern's recurrence to the newly held slot.
+                $existing = $repository->patternForSlotAuthority((int) $preparation->slot_authority_id);
                 if ($existing) {
+                    $this->assertPatternIdentity($preparation, $existing);
                     $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $existing->id));
                 } else {
+                    $any = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
+                    if ($any) {
+                        if ((int) $any->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
+                        throw new \RuntimeException('commercial_pattern_exists');
+                    }
                     $pattern = PostIntroSystemActor::run(fn() => (new CommercialPatternService())->establish(array(
                         'slot_authority_id' => (int) $preparation->slot_authority_id,
                         'course_id' => (int) $preparation->standard_course_id,
@@ -155,6 +173,10 @@ final class PostIntroContinuationService {
                     ), 'post-intro-pattern-' . (string) $preparation->uid));
                     $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $pattern['pattern_id']));
                 }
+            } else {
+                $stored = $repository->pattern((int) $preparation->pattern_id);
+                if (!$stored) throw new \RuntimeException('commercial_pattern_conflict');
+                $this->assertPatternIdentity($preparation, $stored);
             }
 
             if (!$preparation->offer_id) {
@@ -202,6 +224,11 @@ final class PostIntroContinuationService {
             if (!empty($checkout['redirect_url'])) {
                 return array('state' => 'checkout_pending', 'redirect_url' => (string) $checkout['redirect_url'], 'message' => 'redirect');
             }
+            if ((string) ($checkout['checkout_state'] ?? '') === 'unavailable') {
+                // The provider explicitly has no usable session. Do not tell the Student that an
+                // ambiguous payment is pending; surface the existing temporary-unavailability copy.
+                return array('state' => 'checkout_pending', 'redirect_url' => null, 'message' => 'checkout_temporarily_unavailable');
+            }
             return array('state' => 'checkout_pending', 'redirect_url' => null, 'message' => 'checkout_pending');
         } catch (\Throwable $error) {
             $message = trim($error->getMessage());
@@ -219,6 +246,16 @@ final class PostIntroContinuationService {
             ));
             throw $error;
         }
+    }
+
+    private function assertPatternIdentity(object $preparation, object $pattern): void {
+        if ((string) $pattern->state !== 'active'
+            || (int) $pattern->student_id !== (int) $preparation->student_id
+            || (int) $pattern->course_id !== (int) $preparation->standard_course_id
+            || (int) $pattern->source_slot_authority_id !== (int) $preparation->slot_authority_id) {
+            throw new \RuntimeException('commercial_pattern_conflict');
+        }
+        if ((int) $pattern->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
     }
 
     private function assertAdultCapacity(object $preparation, object $confirmation, int $studentId, bool $adultAttested): void {

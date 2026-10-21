@@ -22,7 +22,9 @@ final class PostIntroContinuationController {
                 wp_redirect((string) $result['redirect_url'], 303);
                 exit;
             }
-            self::redirect((string) $result['state']);
+            $status = (string) $result['state'];
+            if ($status === 'checkout_pending' && !empty($result['message'])) $status = (string) $result['message'];
+            self::redirect($status);
         } catch (\Throwable $error) {
             self::redirect(self::safeStatus($error));
         }

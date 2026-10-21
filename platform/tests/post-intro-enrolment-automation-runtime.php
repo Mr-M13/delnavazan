@@ -157,6 +157,7 @@ $mainWall = sprintf('04:%02d:00', 5 + (hexdec(substr($suffix, 0, 2)) % 50));
 $main = $booking('main', 2, $mainWall);
 wp_set_current_user($teacherUser);
 $outcome = $preparations->recordTeacherOutcome($main['confirmation'], $teacherId, 'delivered', 'Synthetic delivered intro');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT recorded_by FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $main['request'])) === $teacherUser, 'teacher outcome must record the authenticated WordPress actor');
 $prep = $repository->preparationByBooking($main['request']);
 dzn_pia_assert($prep !== null, 'preparation row');
 dzn_pia_assert((string) $prep->state === 'prepared', 'delivered intro must prepare the continuation, got ' . (string) ($prep->state ?? 'missing'));
@@ -187,6 +188,13 @@ $action = $continuations->continue($prepUid, true);
 dzn_pia_assert(in_array($action['state'], array('checkout_pending', 'payment_received'), true), 'Student action must reach the canonical offer');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((int) $prep->offer_id > 0 && (int) $prep->continuation_case_id > 0 && (int) $prep->pattern_id > 0, 'Student action must create the offer, continuation case and pattern');
+// A termination between the continuation command and the preparation checkpoint must recover
+// the durable reservation on the next Student action instead of failing forever.
+$wpdb->update($p . 'post_intro_preparations', array('reservation_id' => null), array('id' => (int) $prep->id));
+$resumedAction = $continuations->continue($prepUid, true);
+$prep = $repository->preparationByUid($prepUid);
+dzn_pia_assert((int) $prep->reservation_id > 0, 'a replayed continuation must recover its durable reservation');
+dzn_pia_assert(in_array($resumedAction['state'], array('checkout_pending', 'payment_received'), true), 'a replayed Student action must remain actionable');
 $caseCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}canonical_continuation_cases WHERE id=%d", (int) $prep->continuation_case_id));
 $offerCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}commercial_offers WHERE id=%d", (int) $prep->offer_id));
 dzn_pia_assert($caseCourse === $standardCourse && $offerCourse === $standardCourse, 'continuation case and offer must carry the ongoing standard Course');
@@ -209,6 +217,12 @@ dzn_pia_assert(($settled['processing_state'] ?? '') === 'accepted', 'verified se
 $purchaseId = (int) $wpdb->get_var($wpdb->prepare("SELECT purchase_id FROM {$p}commercial_entitlements WHERE purchase_id IN (SELECT id FROM {$p}commercial_purchases WHERE offer_id=%d) LIMIT 1", (int) $prep->offer_id));
 $job = $repository->activeJobForPurchase($purchaseId);
 dzn_pia_assert($job !== null && (string) $job->state === 'queued', 'settlement must enqueue exactly one activation job');
+// Simulate a genuinely delayed worker so the stable evidence checkpoint is observable rather
+// than coincidentally equal to the current second.
+$activationCheckpoint = gmdate('Y-m-d H:i:s', time() - 600);
+$wpdb->update($p . 'post_intro_activation_jobs', array('created_at' => $activationCheckpoint), array('id' => (int) $job->id));
+$job = $repository->activeJobForPurchase($purchaseId);
+dzn_pia_assert((string) $job->created_at === $activationCheckpoint, 'delayed activation checkpoint persistence');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'payment_received', 'verified payment must move the preparation to payment_received');
 
@@ -233,6 +247,11 @@ $lessonCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}les
 dzn_pia_assert($lessonCount === 12, 'the purchased entitlement must create twelve future Lessons, got ' . $lessonCount);
 $scheduledCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id WHERE l.term_id=%d AND v.superseded_at IS NULL", $termId));
 dzn_pia_assert($scheduledCount === 12, 'every created Lesson must have a committed schedule');
+$evidenceOccurredAt = (string) $wpdb->get_var($wpdb->prepare(
+    "SELECT e.occurred_at FROM {$p}canonical_lesson_lifecycle_events e INNER JOIN {$p}lessons l ON l.id=e.lesson_id WHERE l.term_id=%d AND l.lesson_type='standard' AND e.to_state='authorised' ORDER BY e.id LIMIT 1",
+    $termId
+));
+dzn_pia_assert($evidenceOccurredAt === $activationCheckpoint, 'activation must reuse the durable settlement checkpoint as evidence time');
 $job = $repository->activeJobForPurchase($purchaseId);
 dzn_pia_assert($job !== null && in_array((string) $job->state, array('retryable', 'failed'), true), 'a missing Google connection must leave a retryable/failed job, not a fabricated projection');
 dzn_pia_assert(str_starts_with((string) $job->last_error_code, 'provider_'), 'the retryable failure must be a provider failure, got ' . (string) $job->last_error_code);
@@ -243,6 +262,11 @@ $attemptsBefore = (int) $job->attempt_count;
 $wpdb->update($p . 'post_intro_activation_jobs', array('state' => 'queued', 'next_attempt_at' => gmdate('Y-m-d H:i:s'), 'lease_token_digest' => null, 'lease_expires_at' => null), array('id' => (int) $job->id));
 PostIntroActivationWorker::run();
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d", $termId)) === $lessonCount, 'retry must not duplicate Lessons');
+$retriedEvidenceAt = (string) $wpdb->get_var($wpdb->prepare(
+    "SELECT e.occurred_at FROM {$p}canonical_lesson_lifecycle_events e INNER JOIN {$p}lessons l ON l.id=e.lesson_id WHERE l.term_id=%d AND l.lesson_type='standard' AND e.to_state='authorised' ORDER BY e.id LIMIT 1",
+    $termId
+));
+dzn_pia_assert($retriedEvidenceAt === $activationCheckpoint, 'an expected retry must reconstruct the identical canonical evidence time');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'retry must not duplicate Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d", $purchaseId)) === 1, 'retry must not duplicate Term funding');
 
@@ -305,6 +329,8 @@ dzn_pia_assert($eraseAttestation === 0, 'privacy erasure must clear the attestat
 // E. Pattern reuse is Teacher-scoped.
 $mainPattern = $repository->activePatternFor((int) $main['student'], $standardCourse, $teacherId);
 dzn_pia_assert($mainPattern !== null && (int) $mainPattern->id === (int) $prep->pattern_id, 'same-Teacher pattern must be found');
+$exactPattern = $repository->patternForSlotAuthority((int) $prep->slot_authority_id);
+dzn_pia_assert($exactPattern !== null && (int) $exactPattern->id === (int) $prep->pattern_id, 'pattern lookup must be exact for the slot authority');
 $otherTeacher = (int) $fixture['teachers'][1];
 $wpdb->update($p . 'commercial_recurring_patterns', array('teacher_id' => $otherTeacher), array('id' => (int) $mainPattern->id));
 dzn_pia_assert($repository->activePatternFor((int) $main['student'], $standardCourse, $teacherId) === null, 'a different-Teacher pattern must not be reused');
@@ -352,5 +378,14 @@ $staleRelease = null;
 try { $repository->releaseJob($jobId, 'retryable', array('next_attempt_at' => gmdate('Y-m-d H:i:s')), hash('sha256', $leaseOne)); } catch (Throwable $e) { $staleRelease = $e; }
 dzn_pia_assert($staleRelease !== null && $staleRelease->getMessage() === 'post_intro_job_lease_lost', 'a stale worker must not overwrite a reclaimed job');
 $repository->releaseJob($jobId, 'queued', array('next_attempt_at' => gmdate('Y-m-d H:i:s')), hash('sha256', $leaseThree));
+
+// G. A Teacher retry after a committed outcome with no preparation must resume the workflow.
+$replayedPrepId = (int) $prep->id;
+$wpdb->delete($p . 'post_intro_preparations', array('id' => $replayedPrepId));
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($main['confirmation'], $teacherId, 'delivered', 'Synthetic resumed outcome');
+$recoveredPrep = $repository->preparationByBooking((int) $main['request']);
+dzn_pia_assert($recoveredPrep !== null && (int) $recoveredPrep->id !== $replayedPrepId, 'replaying an existing outcome must recreate the missing preparation');
+dzn_pia_assert((string) $recoveredPrep->state === 'prepared', 'a resumed preparation must reach the prepared state');
 
 echo "Post-intro enrolment automation runtime passed\n";

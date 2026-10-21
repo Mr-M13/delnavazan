@@ -104,6 +104,9 @@ $assert(str_contains($preparation, 'teacher_not_eligible_for_standard_course'), 
 $assert(str_contains($preparation, "'state' => 'exception'"), 'preparation failures must become an explicit exception state');
 $assert(str_contains($preparation, 'intro_student_no_show') && str_contains($preparation, 'intro_cancelled'), 'no-show and cancellation must never invite continuation');
 $assert(str_contains($preparation, 'self::OUTCOME_DELIVERED'), 'only a delivered outcome may continue');
+$assert(str_contains($preparation, 'EU_COUNTRIES') && str_contains($preparation, "\$region = 'EU'"), 'EU member countries must resolve to the EU price region');
+$assert(str_contains($preparation, 'get_current_user_id()') && str_contains($preparation, "'teacher_portal', \$recordedBy"), 'teacher outcomes must audit the authenticated WordPress actor');
+$assert(str_contains($preparation, "if (\$existing) {\n            // The outcome may have committed") && str_contains($preparation, '$prepared = $this->prepare((int) $existing->id)'), 'replaying an existing outcome must resume preparation');
 
 // 4. The Student action is owned by the Student and uses the existing commercial/checkout seam.
 $contains($continuation, array(
@@ -126,6 +129,9 @@ $contains($continuation, array(
 ), 'the Student continuation action must preserve ownership and reuse canonical services');
 $assert(str_contains($continuation, 'post-intro-provisional-') && str_contains($continuation, 'post-intro-final-') && str_contains($continuation, 'post-intro-conversion-') && str_contains($continuation, 'post-intro-continuation-') && str_contains($continuation, 'post-intro-pattern-') && str_contains($continuation, 'post-intro-offer-'), 'every command must use a deterministic idempotency key');
 $assert(str_contains($continuation, "state' => 'expired'") && str_contains($continuation, 'continuation_reservation_expired'), 'expired holds must become an explicit terminal state');
+$assert(str_contains($continuation, 'patternForSlotAuthority') && str_contains($continuation, 'assertPatternIdentity'), 'only the pattern created from this slot authority may be reused');
+$assert(str_contains($continuation, 'reservationForCase') && str_contains($continuation, 'existingReservation'), 'a replayed case must recover its durable reservation');
+$assert(str_contains($continuation, "== 'unavailable'") && str_contains($continuation, 'checkout_temporarily_unavailable'), 'explicit checkout unavailability must not be reported as pending');
 $assert(!str_contains($continuation, 'date_of_birth'), 'the Student action must not invent demographic authority');
 
 // 5. Settlement enqueues exactly one durable job inside the verified transaction.
@@ -164,6 +170,8 @@ $contains($activation, array(
     "'post-intro-calendar-' . \$uid",
 ), 'activation must be replay-safe and canonical');
 $assert(str_contains($activation, "if ((string) \$mapping->projection_state !== 'pending') return;"), 'a verified projection must not be dispatched twice');
+$assert(str_contains($activation, 'stableEvidenceAt') && str_contains($activation, "evidence_at' => \$evidenceAt"), 'activation retries must reuse a stable evidence timestamp');
+$assert(str_contains($activation, 'patternForSlotAuthority') && str_contains($activation, 'commercial_pattern_conflict'), 'activation must resolve the exact slot-authority pattern');
 $assert(!str_contains($activation, 'meet.google.com') && !str_contains($activation, 'join_uri_reference' . ' = '), 'activation must never fabricate a Meet URL');
 $assert(str_contains($activation, 'provider_connection_required') || str_contains($activation, "projectCalendarEvent"), 'provider projection must go through the provider authority');
 $contains($worker, array(
@@ -214,6 +222,7 @@ $assert(!str_contains($studentRead, 'exception_detail'), 'the Student projection
 $contains($studentCard, array('dzn_post_intro_continue', 'preparation_uid', 'adult_attested', 'تکمیل پرداخت'), 'the Student card must render the payment action');
 $contains($studentShell, array("dzn_theme_portal_component( 'post-intro'"), 'the Student shell must include the continuation card');
 $contains($studentController, array('check_admin_referer', 'wp_redirect', 'safeStatus'), 'the Student action must verify the nonce and redirect safely');
+$assert(str_contains($studentController, "checkout_temporarily_unavailable") && str_contains($studentController, "\$result['message']"), 'explicit checkout unavailability must reach the portal message');
 $contains($teacherCard, array('dzn_post_intro_outcome', 'delivered', 'student_no_show', 'teacher_cancelled'), 'the Teacher card must record the real outcome');
 $contains($teacherHome, array("dzn_theme_teacher_portal_component( 'post-intro-outcomes'"), 'the Teacher portal must include the outcome control');
 $contains($teacherController, array('resolve(\'teacher\')', 'recordTeacherOutcome'), 'the Teacher outcome must be Teacher-owned');

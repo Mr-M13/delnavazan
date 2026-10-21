@@ -18,6 +18,10 @@ final class PostIntroPreparationService {
     public const OUTCOME_STUDENT_NO_SHOW = 'student_no_show';
     public const OUTCOME_TEACHER_CANCELLED = 'teacher_cancelled';
     public const OUTCOME_STUDENT_CANCELLED = 'student_cancelled';
+    private const EU_COUNTRIES = array(
+        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE',
+        'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+    );
 
     private PostIntroRepository $repository;
 
@@ -30,7 +34,12 @@ final class PostIntroPreparationService {
         $confirmation = $this->repository->confirmationByUid($confirmationUid);
         if (!$confirmation) throw new \InvalidArgumentException('intro_booking_not_found');
         if ((int) $confirmation->teacher_id !== $teacherPrincipalId) throw new \RuntimeException('Unauthorized');
-        return $this->recordOutcome($confirmation, $outcome, $note, 'teacher_portal', $teacherPrincipalId);
+        // `teachers.id` and the WordPress user ID are different identity spaces. Keep the
+        // canonical Teacher on the outcome's teacher_id column, but attribute the human audit
+        // action to the authenticated WordPress principal.
+        $recordedBy = (int) get_current_user_id();
+        if ($recordedBy < 1) throw new \RuntimeException('Unauthorized');
+        return $this->recordOutcome($confirmation, $outcome, $note, 'teacher_portal', $recordedBy);
     }
 
     /** Administrative recovery path for a Teacher who cannot use the portal. */
@@ -52,7 +61,13 @@ final class PostIntroPreparationService {
         if ((int) ($confirmation->student_id ?? 0) < 1) throw new \InvalidArgumentException('student_identity_unresolved');
 
         $existing = $this->repository->outcomeByBooking((int) $confirmation->booking_request_id);
-        if ($existing) return array('outcome_id' => (int) $existing->id, 'created' => false);
+        if ($existing) {
+            // The outcome may have committed while preparation failed before its checkpoint was
+            // saved. Replaying the Teacher command must resume preparation for the durable
+            // outcome instead of returning success with no invitation path.
+            $prepared = $this->prepare((int) $existing->id);
+            return array('outcome_id' => (int) $existing->id, 'created' => false, 'state' => (string) $prepared['state']);
+        }
 
         $now = gmdate('Y-m-d H:i:s');
         try {
@@ -333,10 +348,21 @@ final class PostIntroPreparationService {
         if (!$prices) throw new \RuntimeException('commercial_price_unresolved');
 
         $country = strtoupper(trim((string) ($confirmation->country ?? '')));
-        $regions = array('AU', 'NZ', 'US', 'CA', 'GB');
+        $directRegions = array('AU', 'NZ', 'US', 'CA', 'GB');
         $region = null;
-        if (in_array($country, $regions, true)) {
-            foreach ($prices as $price) if (strtoupper((string) $price->region_code) === $country) { $region = $country; break; }
+        if (in_array($country, $directRegions, true)) {
+            $region = $country;
+        } elseif (in_array($country, self::EU_COUNTRIES, true)) {
+            // A stored EU member country selects the supported EU price region; the raw country
+            // code is not itself a price region.
+            $region = 'EU';
+        }
+        if ($region !== null) {
+            $matched = false;
+            foreach ($prices as $price) {
+                if (strtoupper((string) $price->region_code) === $region) { $matched = true; break; }
+            }
+            if (!$matched) $region = null;
         }
         if ($region === null && count($prices) === 1) $region = strtoupper((string) $prices[0]->region_code);
         if ($region === null) throw new \RuntimeException('commercial_region_unresolved');

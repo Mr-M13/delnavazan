@@ -427,6 +427,20 @@ final class PostIntroRepository {
         ));
     }
 
+    /** The exact recurring pattern materialised from this continuation's slot authority. */
+    public function patternForSlotAuthority(int $slotAuthorityId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}commercial_recurring_patterns WHERE source_slot_authority_id=%d AND state='active' LIMIT 1",
+            $slotAuthorityId
+        ));
+    }
+
+    public function pattern(int $patternId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_recurring_patterns WHERE id=%d", $patternId));
+    }
+
     public function activePatternForAnyTeacher(int $studentId, int $courseId): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(

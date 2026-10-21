@@ -33,6 +33,11 @@ final class PostIntroContinuationService {
         $studentUserId = (int) get_current_user_id();
         if ($studentUserId < 1) throw new \RuntimeException('Unauthorized');
 
+        $anyPattern = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
+        if ($anyPattern && (int) $anyPattern->teacher_id !== (int) $preparation->teacher_id) {
+            throw new \RuntimeException('commercial_pattern_teacher_conflict');
+        }
+
         if ($preparation->state === 'activated') return array('state' => 'activated', 'redirect_url' => null, 'message' => 'already_activated');
         if ($preparation->state === 'payment_received') return array('state' => 'payment_received', 'redirect_url' => null, 'message' => 'payment_received');
         if (!in_array((string) $preparation->state, array('prepared', 'checkout_pending', 'exception'), true)) {
@@ -108,6 +113,7 @@ final class PostIntroContinuationService {
                     $decision = (new CanonicalContinuationService())->continueWithTeacher(
                         (int) $preparation->intro_lesson_id,
                         array(
+                            'ongoing_course_id' => (int) $preparation->standard_course_id,
                             'evidence_channel' => 'authenticated_platform',
                             'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
                             'evidence_at' => gmdate('Y-m-d H:i:s'),

@@ -62,7 +62,7 @@ final class CanonicalContinuationService {
             if(!$principal)throw new \RuntimeException('Unauthorized');
             $facts=array('domain'=>'canonical_continuation_v1','operation'=>'teacher_match_exception',
                 'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,
-                'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>(int)$context->lesson->course_id,
+                'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>$ongoingCourseId,
                 'decision'=>CanonicalContinuationRule::DECISION_TEACHER_UNSUITABLE,'actor_user_id'=>$actor,
                 'evidence_reference_digest'=>$evidence['digest']);
             $payload=CanonicalContinuationIdempotency::payload($facts);
@@ -114,14 +114,18 @@ final class CanonicalContinuationService {
         $this->repository->begin();
         try{
             $context=$this->hydrateIntro($introLessonId,true);
+            $ongoingCourseId=isset($input['ongoing_course_id'])?Normalizer::id($input['ongoing_course_id'],false):(int)$context->lesson->course_id;
+            $this->assertOngoingCourse($context,$ongoingCourseId);
+            $ongoingCourse=$this->repository->course($ongoingCourseId);
             $duration=$input['duration_minutes']??null;
-            $durationMinutes=$duration===null?(int)$context->course->default_duration_minutes:Normalizer::count($duration,5,480);
-            $bufferMinutes=(int)$context->course->default_buffer_minutes;
+            $durationMinutes=$duration===null?(int)($ongoingCourseId===(int)$context->lesson->course_id?$context->course->default_duration_minutes:$ongoingCourse->default_duration_minutes):Normalizer::count($duration,5,480);
+            $bufferInput=$input['buffer_minutes']??null;
+            $bufferMinutes=$bufferInput===null?(int)($ongoingCourseId===(int)$context->lesson->course_id?$context->course->default_buffer_minutes:$ongoingCourse->default_buffer_minutes):Normalizer::count($bufferInput,0,240);
             $resolved=CanonicalContinuationRule::resolveWallClock($timezone,$localDate,$localTime,$durationMinutes,$bufferMinutes);
             if($resolved['starts_at_utc']<=(string)$context->occurrence->ends_at_utc)throw new \InvalidArgumentException('first_regular_slot_not_after_introduction');
             $facts=array('domain'=>'canonical_continuation_v1','operation'=>'record_first_regular_slot',
                 'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,
-                'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>(int)$context->lesson->course_id,
+                'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>$ongoingCourseId,
                 'actor_user_id'=>$actor,'authority_basis'=>$basis,'reason_code'=>$reason,
                 'schedule_timezone'=>$resolved['schedule_timezone'],'local_wall_date'=>$resolved['local_wall_date'],'local_wall_time'=>$resolved['local_wall_time'],
                 'starts_at_utc'=>$resolved['starts_at_utc'],'ends_at_utc'=>$resolved['ends_at_utc'],'occupied_ends_at_utc'=>$resolved['occupied_ends_at_utc'],
@@ -137,7 +141,7 @@ final class CanonicalContinuationService {
             $now=gmdate('Y-m-d H:i:s');
             $id=$this->repository->insertSlotAuthority(array(
                 'uid'=>Identifier::uid(),'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,
-                'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>(int)$context->lesson->course_id,
+                'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>$ongoingCourseId,
                 'schedule_timezone'=>$resolved['schedule_timezone'],'local_wall_date'=>$resolved['local_wall_date'],'local_wall_time'=>$resolved['local_wall_time'],
                 'starts_at_utc'=>$resolved['starts_at_utc'],'ends_at_utc'=>$resolved['ends_at_utc'],'occupied_ends_at_utc'=>$resolved['occupied_ends_at_utc'],
                 'duration_minutes'=>(int)$resolved['duration_minutes'],'buffer_minutes'=>(int)$resolved['buffer_minutes'],
@@ -150,7 +154,7 @@ final class CanonicalContinuationService {
             // the authoritative slot then converges that EXISTING decision into the hold inside this one
             // transaction — no second Student decision is created and no consent is duplicated.
             $convergence=$this->convergeExistingCase($existingCase,CanonicalContinuationRule::DECISION_CONTINUE,(object)array(
-                'id'=>$id,'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,
+                'id'=>$id,'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,'course_id'=>$ongoingCourseId,
                 'starts_at_utc'=>$resolved['starts_at_utc'],'ends_at_utc'=>$resolved['ends_at_utc'],'occupied_ends_at_utc'=>$resolved['occupied_ends_at_utc'],
                 'duration_minutes'=>(int)$resolved['duration_minutes'],'buffer_minutes'=>(int)$resolved['buffer_minutes'],
                 'schedule_timezone'=>$resolved['schedule_timezone'],'local_wall_date'=>$resolved['local_wall_date'],'local_wall_time'=>$resolved['local_wall_time'],
@@ -223,10 +227,12 @@ final class CanonicalContinuationService {
             $context=$this->hydrateIntro($introLessonId,true);
             $studentId=(int)$context->lesson->student_id;
             $authority=$this->studentAuthority($studentId,$actor,true);
+            $ongoingCourseId=isset($input['ongoing_course_id'])?Normalizer::id($input['ongoing_course_id'],false):(int)$context->lesson->course_id;
+            $this->assertOngoingCourse($context,$ongoingCourseId);
             do_action('dzn_phase_2a2q_authority_held',$introLessonId,$authority['basis']);
             $facts=array('domain'=>'canonical_continuation_v1','operation'=>'student_continuation_decision',
                 'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,
-                'student_id'=>$studentId,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>(int)$context->lesson->course_id,
+                'student_id'=>$studentId,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>$ongoingCourseId,
                 'decision'=>$decision,'actor_user_id'=>$actor,'authority_basis'=>$authority['basis'],'feedback_reason'=>$feedback,
                 'evidence_reference_digest'=>$evidence['digest']);
             $payload=CanonicalContinuationIdempotency::payload($facts);
@@ -235,11 +241,12 @@ final class CanonicalContinuationService {
             $case=$this->existingCase((int)$context->lesson->id,true);
             if($case){
                 $this->assertAggregate((int)$case->id,true);
+                if((int)$case->course_id!==$ongoingCourseId)throw new \InvalidArgumentException('continuation_course_conflict');
                 $current=(string)$case->current_decision;
                 if($current===CanonicalContinuationRule::DECISION_NOT_CONTINUING)throw new \InvalidArgumentException('continuation_closed');
                 if($current===CanonicalContinuationRule::DECISION_TEACHER_UNSUITABLE)throw new \InvalidArgumentException('teacher_match_suppressed');
             }else{
-                $case=$this->openCase($context,$decision,$now,$actor);
+                $case=$this->openCase($context,$decision,$now,$actor,$ongoingCourseId);
             }
             $decisionId=$this->recordDecision($case,$decision,'student',$evidence,$authority['basis'],$authority['principal_id'],$authority['grant_id'],$now,$actor,$feedback);
             $reservation=null;$interventionId=null;
@@ -281,10 +288,8 @@ final class CanonicalContinuationService {
         if((string)($lesson->student_status??'')!=='active'||$lesson->student_archived_at!==null)throw new \InvalidArgumentException('student_not_active');
         if((string)($lesson->teacher_status??'')!=='active'||$lesson->teacher_archived_at!==null)throw new \InvalidArgumentException('teacher_not_available');
         $bookingRequestId=(int)($lesson->booking_request_id??0);
-        if($bookingRequestId>0){
-            if(!$this->repository->confirmedIntroBooking($bookingRequestId,(int)$lesson->student_id,(int)$lesson->teacher_id))throw new \InvalidArgumentException('confirmed_intro_booking_required');
-            if((string)($lesson->course_type??'')!=='standard')throw new \InvalidArgumentException('introductory_course_required');
-        }elseif((string)($lesson->course_type??'')!=='introductory')throw new \InvalidArgumentException('introductory_course_required');
+        if($bookingRequestId>0&&!$this->repository->confirmedIntroBooking($bookingRequestId,(int)$lesson->student_id,(int)$lesson->teacher_id))throw new \InvalidArgumentException('confirmed_intro_booking_required');
+        if((string)($lesson->course_type??'')!=='introductory')throw new \InvalidArgumentException('introductory_course_required');
         if((string)($lesson->course_status??'')!=='active'||$lesson->course_archived_at!==null)throw new \InvalidArgumentException('introductory_course_required');
         $occurrence=$this->repository->introOccurrence((int)$lesson->id,$lock);
         if(!$occurrence)throw new \InvalidArgumentException('introductory_occurrence_required');
@@ -299,10 +304,10 @@ final class CanonicalContinuationService {
         return $this->repository->caseForIntro($introLessonId,$lock)?:null;
     }
 
-    private function openCase(object $context,string $decision,string $now,int $actor):object{
+    private function openCase(object $context,string $decision,string $now,int $actor,int $ongoingCourseId):object{
         $lesson=$context->lesson;$occurrence=$context->occurrence;
         $enrolmentId=null;$assignmentId=null;$arrangementId=null;
-        $enrolment=$this->repository->canonicalEnrolment((int)$lesson->student_id,(int)$lesson->teacher_id,(int)$lesson->course_id);
+        $enrolment=$this->repository->canonicalEnrolment((int)$lesson->student_id,(int)$lesson->teacher_id,$ongoingCourseId);
         if($enrolment){
             $assignment=$this->repository->applicableAssignment((int)$enrolment->id);
             if($assignment){$enrolmentId=(int)$enrolment->id;$assignmentId=(int)$assignment->id;}
@@ -310,7 +315,7 @@ final class CanonicalContinuationService {
         // Accepted-arrangement lineage is optional and must never be chosen by insertion id: exactly
         // one candidate for this Student/Teacher/Course is authoritative; several are ambiguous and
         // therefore fail closed.
-        $arrangements=$this->repository->acceptedArrangements((int)$lesson->student_id,(int)$lesson->teacher_id,(int)$lesson->course_id);
+        $arrangements=$this->repository->acceptedArrangements((int)$lesson->student_id,(int)$lesson->teacher_id,$ongoingCourseId);
         if(count($arrangements)>1)throw new \InvalidArgumentException('continuation_arrangement_ambiguous');
         if(count($arrangements)===1)$arrangementId=(int)$arrangements[0]->id;
         $id=$this->repository->insertCase(array(
@@ -318,7 +323,7 @@ final class CanonicalContinuationService {
             'intro_lesson_id'=>(int)$lesson->id,'intro_schedule_version_id'=>(int)$occurrence->id,
             'intro_starts_at_utc'=>(string)$occurrence->starts_at_utc,'intro_ends_at_utc'=>(string)$occurrence->ends_at_utc,
             'intro_timezone'=>(string)$occurrence->schedule_timezone,'intro_local_wall_date'=>(string)$occurrence->local_wall_date,'intro_local_wall_time'=>(string)$occurrence->local_wall_time,
-            'student_id'=>(int)$lesson->student_id,'teacher_id'=>(int)$lesson->teacher_id,'course_id'=>(int)$lesson->course_id,
+            'student_id'=>(int)$lesson->student_id,'teacher_id'=>(int)$lesson->teacher_id,'course_id'=>$ongoingCourseId,
             'enrolment_id'=>$enrolmentId,'teacher_assignment_id'=>$assignmentId,'accepted_service_arrangement_id'=>$arrangementId,
             'rule_version'=>CanonicalContinuationRule::RULE_VERSION,
             'current_decision'=>$decision,'decision_at'=>$now,'case_version'=>1,'latest_decision_id'=>null,
@@ -336,7 +341,7 @@ final class CanonicalContinuationService {
      * The interval comes only from the authoritative slot record — never from the introduction time.
      */
     private function holdFirstRegularSlot(object $case,int $decisionId,object $slotAuthority,object $context,string $now,int $actor):array{
-        if((int)$slotAuthority->intro_lesson_id!==(int)$case->intro_lesson_id||(int)$slotAuthority->intro_schedule_version_id!==(int)$case->intro_schedule_version_id)throw new \InvalidArgumentException('canonical_continuation_integrity_conflict');
+        if((int)$slotAuthority->intro_lesson_id!==(int)$case->intro_lesson_id||(int)$slotAuthority->intro_schedule_version_id!==(int)$case->intro_schedule_version_id||(int)$slotAuthority->course_id!==(int)$case->course_id)throw new \InvalidArgumentException('canonical_continuation_integrity_conflict');
         $slot=array(
             'starts_at_utc'=>(string)$slotAuthority->starts_at_utc,'ends_at_utc'=>(string)$slotAuthority->ends_at_utc,'occupied_ends_at_utc'=>(string)$slotAuthority->occupied_ends_at_utc,
             'duration_minutes'=>(int)$slotAuthority->duration_minutes,'buffer_minutes'=>(int)$slotAuthority->buffer_minutes,
@@ -444,6 +449,17 @@ final class CanonicalContinuationService {
      * adult acts through their own active principal link, a minor through an active guardian
      * representative grant. Authority is never inferred from email, display name or payload.
      */
+    private function assertOngoingCourse(object $context,int $ongoingCourseId):void{
+        $introCourse=$this->repository->course((int)$context->lesson->course_id);
+        $ongoing=$this->repository->course($ongoingCourseId);
+        if(!$introCourse||!$ongoing)throw new \InvalidArgumentException('ongoing_course_required');
+        if((int)$ongoing->instrument_id!==(int)$introCourse->instrument_id)throw new \InvalidArgumentException('ongoing_course_instrument_conflict');
+        if((string)$ongoing->status!=='active'||$ongoing->archived_at!==null)throw new \InvalidArgumentException('ongoing_course_required');
+        if($ongoingCourseId===(int)$context->lesson->course_id){
+            if((string)$ongoing->course_type!=='introductory')throw new \InvalidArgumentException('ongoing_course_required');
+        }elseif((string)$ongoing->course_type!=='standard')throw new \InvalidArgumentException('ongoing_course_required');
+    }
+
     private function studentAuthority(int $studentId,int $actor,bool $lock):array{
         $classification=$this->repository->studentCapacityClassification($studentId);
         $value=$classification?(string)($classification->classification??''):'';

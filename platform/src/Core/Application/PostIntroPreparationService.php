@@ -165,21 +165,26 @@ final class PostIntroPreparationService {
             'updated_at' => $now,
         ));
 
+        $introCourseId = (int) ($confirmation->selected_intro_course_id ?? 0);
+        if ($introCourseId < 1) throw new \RuntimeException('intro_course_unresolved');
+        $introCourse = $repository->course($introCourseId);
+        if (!$introCourse || (string) $introCourse->course_type !== 'introductory' || (string) $introCourse->status !== 'active' || $introCourse->archived_at !== null) {
+            throw new \RuntimeException('intro_course_unresolved');
+        }
         $lesson = $repository->lessonForBooking($bookingId);
         if (!$lesson) {
             $lessonId = (new LessonService())->create(array(
                 'student_id' => $studentId,
                 'teacher_id' => $teacherId,
-                'course_id' => (int) $course->id,
+                'course_id' => $introCourseId,
                 'lesson_type' => 'introductory',
                 'status' => 'draft',
                 'booking_request_id' => $bookingId,
-                'intro_course_id' => (int) ($confirmation->selected_intro_course_id ?? 0) > 0 ? (int) $confirmation->selected_intro_course_id : null,
             ));
             $lesson = $repository->lessonForBooking($bookingId);
             if (!$lesson || (int) $lesson->id !== $lessonId) throw new \RuntimeException('intro_lesson_persistence_failed');
         }
-        if ((int) $lesson->student_id !== $studentId || (int) $lesson->teacher_id !== $teacherId || (int) $lesson->course_id !== (int) $course->id || (string) $lesson->lesson_type !== 'introductory' || (int) ($lesson->booking_request_id ?? 0) !== $bookingId) {
+        if ((int) $lesson->student_id !== $studentId || (int) $lesson->teacher_id !== $teacherId || (int) $lesson->course_id !== $introCourseId || (string) $lesson->lesson_type !== 'introductory' || (int) ($lesson->booking_request_id ?? 0) !== $bookingId) {
             throw new \RuntimeException('intro_lesson_integrity_conflict');
         }
         $preparation = $this->save($prepId, array('intro_lesson_id' => (int) $lesson->id, 'updated_at' => $now));
@@ -208,6 +213,9 @@ final class PostIntroPreparationService {
                 'local_wall_time' => $next['time'],
                 'authority_basis' => 'confirmed_booking_recurrence',
                 'reason_code' => 'confirmed_booking_weekly_slot',
+                'ongoing_course_id' => (int) $course->id,
+                'duration_minutes' => (int) $course->default_duration_minutes,
+                'buffer_minutes' => (int) $course->default_buffer_minutes,
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
                 'evidence_at' => $now,

@@ -94,6 +94,7 @@ if (!$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}commercial_prices WHERE p
  */
 $bookingSequence = 0;
 $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb, $p, $instrumentId, $introCourse, $teacherId, $actor, $suffix, $now, &$bookingSequence): array {
+    wp_set_current_user($actor);
     $bookingSequence++;
     $futureDate = gmdate('Y-m-d', strtotime('+' . (14 + $bookingSequence) . ' days'));
     $submission = (new BookingRequestSubmissionService())->submitPublic(array(
@@ -162,6 +163,9 @@ dzn_pia_assert((string) $prep->state === 'prepared', 'delivered intro must prepa
 $prepUid = (string) $prep->uid;
 dzn_pia_assert((int) $prep->intro_lesson_id > 0, 'intro lesson provenance');
 dzn_pia_assert((string) $wpdb->get_var($wpdb->prepare("SELECT status FROM {$p}lessons WHERE id=%d", (int) $prep->intro_lesson_id)) === 'completed', 'intro lesson must be genuinely completed');
+$bookedIntroCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT selected_intro_course_id FROM {$p}booking_requests WHERE id=%d", (int) $main['request']));
+$introLessonCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}lessons WHERE id=%d", (int) $prep->intro_lesson_id));
+dzn_pia_assert($bookedIntroCourse > 0 && $introLessonCourse === $bookedIntroCourse, 'the introductory Lesson must keep the booked introductory Course');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_continuation_slot_authorities WHERE intro_lesson_id=%d", (int) $prep->intro_lesson_id)) === 1, 'one first-regular-slot authority');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}proposal_versions WHERE proposal_option_id=%d", (int) $prep->proposal_option_id)) === 1, 'one initial proposal version');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind='post_intro_invitation'", (int) $main['delivery'])) === 1, 'durable continuation invitation');
@@ -183,6 +187,9 @@ $action = $continuations->continue($prepUid, true);
 dzn_pia_assert(in_array($action['state'], array('checkout_pending', 'payment_received'), true), 'Student action must reach the canonical offer');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((int) $prep->offer_id > 0 && (int) $prep->continuation_case_id > 0 && (int) $prep->pattern_id > 0, 'Student action must create the offer, continuation case and pattern');
+$caseCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}canonical_continuation_cases WHERE id=%d", (int) $prep->continuation_case_id));
+$offerCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}commercial_offers WHERE id=%d", (int) $prep->offer_id));
+dzn_pia_assert($caseCourse === $standardCourse && $offerCourse === $standardCourse, 'continuation case and offer must carry the ongoing standard Course');
 $obligations = $repository->obligationsForOffer((int) $prep->offer_id);
 dzn_pia_assert(count($obligations) === 1, 'a full plan must have one obligation');
 $obligation = $obligations[0];
@@ -216,6 +223,7 @@ $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'activated', 'core activation must complete before provider projection');
 $enrolment = $repository->enrolment((int) $prep->enrolment_id);
 dzn_pia_assert($enrolment && (string) $enrolment->lifecycle_state === 'current', 'Enrolment must be current');
+dzn_pia_assert((int) $enrolment->course_id === $standardCourse, 'the active Enrolment must use the ongoing standard Course');
 $termId = (int) $wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d LIMIT 1", $purchaseId));
 $term = $repository->term($termId);
 dzn_pia_assert($term && (string) $term->lifecycle_state === 'current', 'Term must be current');
@@ -238,7 +246,66 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}les
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'retry must not duplicate Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d", $purchaseId)) === 1, 'retry must not duplicate Term funding');
 
-// B. No-show and cancellation never invite continuation.
+
+// B. Availability is a real precondition: a delivered intro with no published slot is an admin exception.
+$noAvailWall = sprintf('07:%02d:00', 5 + (hexdec(substr($suffix, 4, 2)) % 50));
+$noAvailBooking = $booking('no-availability', 2, $noAvailWall);
+$wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_rules WHERE teacher_id=%d", $teacherId));
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($noAvailBooking['confirmation'], $teacherId, 'delivered', 'Synthetic no availability');
+$noAvailPrep = $repository->preparationByBooking($noAvailBooking['request']);
+dzn_pia_assert($noAvailPrep !== null && (string) $noAvailPrep->state === 'exception', 'missing availability must become an explicit exception');
+dzn_pia_assert((string) $noAvailPrep->exception_code === 'teacher_unavailable', 'missing availability must be teacher_unavailable, got ' . (string) $noAvailPrep->exception_code);
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind='post_intro_invitation'", (int) $noAvailBooking['delivery'])) === 0, 'missing availability must not invite payment');
+wp_set_current_user($actor);
+foreach (array(1, 2, 3, 4, 5, 6, 7) as $weekday) {
+    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
+}
+
+// C. Historical outcomes are outside the automation window.
+$cutoffBooking = $booking('cutoff', 2, sprintf('08:%02d:00', 5 + (hexdec(substr($suffix, 6, 2)) % 50)));
+$wpdb->update($p . 'booking_request_confirmations', array('starts_at_utc' => '2026-10-20 03:00:00', 'ends_at_utc' => '2026-10-20 03:30:00', 'local_wall_date' => '2026-10-20', 'local_wall_time' => '03:00:00'), array('uid' => $cutoffBooking['confirmation']));
+wp_set_current_user($teacherUser);
+$cutoffCaught = null;
+try { $preparations->recordTeacherOutcome($cutoffBooking['confirmation'], $teacherId, 'delivered', 'Synthetic historical'); } catch (Throwable $e) { $cutoffCaught = $e; }
+dzn_pia_assert($cutoffCaught !== null && $cutoffCaught->getMessage() === 'intro_outcome_outside_window', 'historical intro must be outside the automation window');
+dzn_pia_assert($repository->preparationByBooking($cutoffBooking['request']) === null, 'historical intro must not create a preparation');
+
+// D. Privacy erasure clears the not-null attestation without failing.
+wp_set_current_user($actor);
+$eraseSubmission = (new BookingRequestSubmissionService())->submitPublic(array(
+    'requested_instrument_id' => $instrumentId,
+    'selected_intro_course_id' => $introCourse,
+    'full_name' => 'Synthetic Erasure',
+    'email' => 'erase-' . $suffix . '@phase-post-intro.invalid',
+    'mobile' => '+61400000000',
+    'country' => 'AU',
+    'city' => 'Brisbane',
+    'timezone' => 'UTC',
+    'communication_language' => 'en',
+    'whatsapp_same_as_mobile' => true,
+    'whatsapp_number' => '',
+    'privacy_notice_accepted' => true,
+    'privacy_notice_version' => '2026-09-05',
+    'adult_self_attested' => true,
+    'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+40 days')), 'local_start_time' => '04:17', 'timezone' => 'UTC')),
+), dzn_pia_key('erase-request'));
+$eraseRequestId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_requests WHERE reference_code=%s", (string) $eraseSubmission['request_reference']));
+dzn_pia_assert($eraseRequestId > 0, 'erase request persistence');
+(new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestIntakeRepository())->eraseRequestPii($eraseRequestId, $actor, 'synthetic_privacy', hash('sha256', 'privacy-' . $suffix), $now);
+$eraseAttestation = (int) $wpdb->get_var($wpdb->prepare("SELECT adult_self_attested FROM {$p}booking_request_contact_snapshots WHERE booking_request_id=%d AND snapshot_sequence=1", $eraseRequestId));
+dzn_pia_assert($eraseAttestation === 0, 'privacy erasure must clear the attestation to zero');
+
+// E. Pattern reuse is Teacher-scoped.
+$mainPattern = $repository->activePatternFor((int) $main['student'], $standardCourse, $teacherId);
+dzn_pia_assert($mainPattern !== null && (int) $mainPattern->id === (int) $prep->pattern_id, 'same-Teacher pattern must be found');
+$otherTeacher = (int) $fixture['teachers'][1];
+$wpdb->update($p . 'commercial_recurring_patterns', array('teacher_id' => $otherTeacher), array('id' => (int) $mainPattern->id));
+dzn_pia_assert($repository->activePatternFor((int) $main['student'], $standardCourse, $teacherId) === null, 'a different-Teacher pattern must not be reused');
+dzn_pia_assert($repository->activePatternForAnyTeacher((int) $main['student'], $standardCourse) !== null, 'the conflicting pattern must remain visible for the exception');
+$wpdb->update($p . 'commercial_recurring_patterns', array('teacher_id' => $teacherId), array('id' => (int) $mainPattern->id));
+
+// F. No-show and cancellation never invite continuation.
 foreach (array('student_no_show', 'teacher_cancelled') as $index => $badOutcome) {
     $badBooking = $booking('bad-' . $badOutcome, 3 + $index, '03:2' . $index . ':00');
     wp_set_current_user($teacherUser);
@@ -272,5 +339,12 @@ $jobId = (int) $job->id;
 $wpdb->update($p . 'post_intro_activation_jobs', array('state' => 'queued', 'next_attempt_at' => gmdate('Y-m-d H:i:s'), 'lease_token_digest' => null, 'lease_expires_at' => null), array('id' => $jobId));
 dzn_pia_assert($repository->claimJob($jobId, hash('sha256', $leaseOne), gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s', time() + 60)) === true, 'first worker must claim the job');
 dzn_pia_assert($repository->claimJob($jobId, hash('sha256', $leaseTwo), gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s', time() + 60)) === false, 'second concurrent worker must not claim the leased job');
+$leaseThree = bin2hex(random_bytes(16));
+$wpdb->update($p . 'post_intro_activation_jobs', array('lease_expires_at' => gmdate('Y-m-d H:i:s', time() - 60)), array('id' => $jobId));
+dzn_pia_assert($repository->claimJob($jobId, hash('sha256', $leaseThree), gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s', time() + 60)) === true, 'an expired lease must be reclaimable');
+$staleRelease = null;
+try { $repository->releaseJob($jobId, 'retryable', array('next_attempt_at' => gmdate('Y-m-d H:i:s')), hash('sha256', $leaseOne)); } catch (Throwable $e) { $staleRelease = $e; }
+dzn_pia_assert($staleRelease !== null && $staleRelease->getMessage() === 'post_intro_job_lease_lost', 'a stale worker must not overwrite a reclaimed job');
+$repository->releaseJob($jobId, 'queued', array('next_attempt_at' => gmdate('Y-m-d H:i:s')), hash('sha256', $leaseThree));
 
 echo "Post-intro enrolment automation runtime passed\n";

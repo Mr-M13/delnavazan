@@ -56,12 +56,15 @@ final class CanonicalContinuationValidator {
         if((string)($lesson->lesson_type??'')!=='introductory')return false;
         if((string)($lesson->record_model??'')!=='legacy_phase1')return false;
         if($lesson->enrolment_id!==null||$lesson->term_id!==null)return false;
-        if((int)$lesson->student_id!==(int)$case->student_id||(int)$lesson->teacher_id!==(int)$case->teacher_id||(int)$lesson->course_id!==(int)$case->course_id)return false;
+        if((int)$lesson->student_id!==(int)$case->student_id||(int)$lesson->teacher_id!==(int)$case->teacher_id)return false;
         foreach(array('student_status'=>'active','teacher_status'=>'active')as$field=>$expected)if((string)($lesson->{$field}??'')!==$expected)return false;
         if($lesson->student_archived_at!==null||$lesson->teacher_archived_at!==null)return false;
-        $bookingLinked=(int)($lesson->booking_request_id??0)>0;
-        if(!$course||( $bookingLinked ? (string)($course->course_type??'')!=='standard' : (string)($course->course_type??'')!=='introductory' )||(string)($course->status??'')!=='active'||$course->archived_at!==null)return false;
-        if((int)$course->id!==(int)$case->course_id)return false;
+        if((string)($lesson->course_type??'')!=='introductory')return false;
+        if((string)($lesson->course_status??'')!=='active'||$lesson->course_archived_at!==null)return false;
+        if(!$course||(string)($course->status??'')!=='active'||$course->archived_at!==null)return false;
+        if((int)$lesson->course_id===(int)$case->course_id){
+            if((string)($course->course_type??'')!=='introductory')return false;
+        }elseif((string)($course->course_type??'')!=='standard')return false;
         if((int)$lesson->current_schedule_version_id!==(int)$case->intro_schedule_version_id)return false;
         // The bound occurrence is immutable provenance: anchors and wall-clock truth must agree exactly.
         if(!$occurrence)return false;

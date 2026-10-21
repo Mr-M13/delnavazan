@@ -23,6 +23,8 @@ $migrator = $read('platform/src/Core/Infrastructure/Migration/Migrator.php');
 $plugin = $read('platform/delnavazan-platform.php');
 $preparation = $read('platform/src/Core/Application/PostIntroPreparationService.php');
 $continuation = $read('platform/src/Core/Application/PostIntroContinuationService.php');
+$continuationService = $read('platform/src/Core/Application/CanonicalContinuationService.php');
+$validator = $read('platform/src/Core/Application/CanonicalContinuationValidator.php');
 $activation = $read('platform/src/Core/Application/PostIntroActivationService.php');
 $repository = $read('platform/src/Core/Infrastructure/Repository/PostIntroRepository.php');
 $actor = $read('platform/src/Core/Application/PostIntroSystemActor.php');
@@ -51,7 +53,6 @@ $contains($migrator, array(
     "adult_self_attested tinyint(1) NOT NULL DEFAULT 0",
     'booking_request_id bigint unsigned NULL',
     'ADD UNIQUE KEY booking_request_id(booking_request_id)',
-    'intro_course_id bigint unsigned NULL',
     'post_intro_preparations',
     'post_intro_activation_jobs',
     'booking_request_intro_outcomes',
@@ -73,6 +74,8 @@ $contains($preparation, array(
     'PostIntroSystemActor::run',
     'new LessonService())->create',
     "'lesson_type' => 'introductory'",
+    "'course_id' => \$introCourseId",
+    "'ongoing_course_id' => (int) \$course->id",
     "'booking_request_id' => \$bookingId",
     'recordConfirmedBookingOccurrence',
     'completeIntroductory',
@@ -90,6 +93,8 @@ $assert(str_contains($repository, 'canonical_continuation_slot_authorities'), 't
 $assert(str_contains($preparation, 'assertSlotAvailable') && str_contains($preparation, "'teacher_unavailable'"), 'the committed slot must be covered by published Teacher availability');
 $assert(str_contains($preparation, 'ELIGIBLE_FROM') && str_contains($preparation, 'intro_outcome_outside_window'), 'historical intros must not enter the automation queue');
 $assert(str_contains($repository, 'activePatternForAnyTeacher') && str_contains($continuation, 'commercial_pattern_teacher_conflict'), 'a pattern for another Teacher must fail closed');
+$assert(str_contains($continuationService, 'assertOngoingCourse') && str_contains($continuationService, 'ongoing_course_instrument_conflict'), 'the ongoing Course must be validated against the intro Course instrument');
+$assert(str_contains($validator, '$lesson->course_id===(int)$case->course_id') && str_contains($validator, "'standard'"), 'the continuation case must carry the ongoing standard Course while the Lesson keeps the intro Course');
 $assert(str_contains($worker, 'post_intro_job_lease_lost'), 'job release must be fenced by the lease token');
 $assert(str_contains($preparation, 'standardCoursesForInstrument'), 'the ongoing Course must be resolved from the instrument');
 $assert(str_contains($preparation, 'count($courses) !== 1'), 'ambiguous standard Courses must fail closed');
@@ -112,6 +117,7 @@ $contains($continuation, array(
     'FinalAcceptanceService',
     'EnrolmentConversionService',
     'continueWithTeacher',
+    "'ongoing_course_id' => (int) \$preparation->standard_course_id",
     'CommercialPatternService',
     'CommercialOfferService',
     'StudentCheckoutInitiationService',

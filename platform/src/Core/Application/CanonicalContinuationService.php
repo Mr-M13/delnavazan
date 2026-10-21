@@ -61,7 +61,8 @@ final class CanonicalContinuationService {
             $principal=$this->repository->activeTeacherPrincipal((int)$context->lesson->teacher_id,$actor,true);
             if(!$principal)throw new \RuntimeException('Unauthorized');
             $case=$this->existingCase((int)$context->lesson->id,true);
-            $ongoingCourseId=$case?(int)$case->course_id:(int)$context->lesson->course_id;
+            $slotAuthority=$case===null?$this->repository->slotAuthorityForIntro((int)$context->lesson->id,false):null;
+            $ongoingCourseId=$case?(int)$case->course_id:($slotAuthority?(int)$slotAuthority->course_id:(int)$context->lesson->course_id);
             $this->assertOngoingCourse($context,$ongoingCourseId);
             $facts=array('domain'=>'canonical_continuation_v1','operation'=>'teacher_match_exception',
                 'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,

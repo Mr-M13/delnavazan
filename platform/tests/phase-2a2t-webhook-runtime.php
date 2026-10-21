@@ -60,10 +60,8 @@ $opened=$intent->openManualPaymentRequired($cycleId,array('obligation_id'=>$obli
 $intentId=(int)$opened['collection_intent_id'];
 $intent->submit($intentId,dzn_tw_evidence('submit'),dzn_tw_key('submit'));
 
-// A worker principal holding exactly the four bounded capabilities, and nothing else.
-$principal=wp_insert_user(array('user_login'=>'dzn-t-principal-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>'subscriber'));
-$principalUser=get_user_by('id',(int)$principal);
-foreach(PaymentExecutionSupport::WORKER_CAPABILITIES as $capability)$principalUser->add_cap($capability);
+// A worker principal holding only the dedicated bounded worker role.
+$principal=wp_insert_user(array('user_login'=>'dzn-t-principal-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>PaymentExecutionSupport::WORKER_ROLE));
 update_option(PaymentExecutionSupport::WORKER_PRINCIPAL_OPTION,(int)$principal,false);
 // The disposable test vault is the only storage path that can hold a signing secret.
 if(!defined('DZN_PLATFORM_PAYMENT_TEST_VAULT'))define('DZN_PLATFORM_PAYMENT_TEST_VAULT',true);
@@ -210,13 +208,13 @@ dzn_tw_assert((string)$settledDrain['decision_state']==='translated','an identic
 dzn_tw_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}payment_provider_event_decisions WHERE provider_event_id=%d AND reason_code='conflicting_provider_event'",$drainEvent))===1,'a conflict must remain recorded exactly once and never be translated');
 dzn_tw_assert((string)$wpdb->get_var($wpdb->prepare("SELECT reason_code FROM {$p}payment_provider_event_decisions WHERE provider_event_id=%d ORDER BY id ASC LIMIT 1",$drainEvent))==='payment_worker_principal_required','the deferred decision must remain the first decision of the event');
 
-// 8. An over-privileged principal settles nothing.
+// 8. A directly widened or combined-role principal settles nothing.
 $principalUser=get_user_by('id',(int)$principal);
-$principalUser->add_cap('manage_options');
+$principalUser->add_cap('dzn_view_finance_authority');
 $blockedBody=$body('evt-overpriv-'.wp_generate_uuid4(),'payment_intent.requires_action',100);
 $blocked=$intake->receive('stripe',$selector,$blockedBody,$headers($blockedBody));
 $blockedEvent=(int)$wpdb->get_var("SELECT id FROM {$p}payment_provider_events ORDER BY id DESC LIMIT 1");
-dzn_tw_assert((string)$wpdb->get_var($wpdb->prepare("SELECT reason_code FROM {$p}payment_provider_event_decisions WHERE provider_event_id=%d ORDER BY id DESC LIMIT 1",$blockedEvent))==='payment_worker_principal_required','an over-privileged principal must be refused identically');
+dzn_tw_assert((string)$wpdb->get_var($wpdb->prepare("SELECT reason_code FROM {$p}payment_provider_event_decisions WHERE provider_event_id=%d ORDER BY id DESC LIMIT 1",$blockedEvent))==='payment_worker_principal_required','a directly widened principal must be refused identically');
 dzn_tw_assert((string)$blocked['verification_state']==='verified','the receipt is still recorded; only the translation is refused');
 dzn_tw_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_event_receipts WHERE verification_state='verified'")>=4,'every verified request must be receipted');
 
@@ -224,7 +222,7 @@ dzn_tw_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_eve
 // durable event row and its first decision — is completed by a redelivery, exactly once, through the one
 // serialised per-event decision claim.
 $principalUser=get_user_by('id',(int)$principal);
-$principalUser->remove_cap('manage_options');
+$principalUser->remove_cap('dzn_view_finance_authority');
 $recoveryBody=$body('evt-recorded_event_recovery-'.wp_generate_uuid4(),'payment_intent.requires_action',(int)$obligation['amount_minor']);
 delete_option(PaymentExecutionSupport::WORKER_PRINCIPAL_OPTION);
 $intake->receive('stripe',$selector,$recoveryBody,$headers($recoveryBody));

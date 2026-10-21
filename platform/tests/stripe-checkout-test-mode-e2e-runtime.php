@@ -77,10 +77,8 @@ $studentPrincipal = (int) $wpdb->get_var($wpdb->prepare("SELECT wordpress_user_i
 dzn_checkout_e2e_assert($studentId > 0 && $studentPrincipal > 0, 'A linked Student principal is required');
 
 // The worker is separate from the Student and contains exactly the bounded payment capabilities.
-$worker = wp_insert_user(array('user_login' => 'dzn-checkout-e2e-worker-' . wp_generate_uuid4(), 'user_pass' => wp_generate_password(24), 'role' => 'subscriber'));
+$worker = wp_insert_user(array('user_login' => 'dzn-checkout-e2e-worker-' . wp_generate_uuid4(), 'user_pass' => wp_generate_password(24), 'role' => PaymentExecutionSupport::WORKER_ROLE));
 dzn_checkout_e2e_assert((int) $worker > 0, 'Disposable payment worker could not be created');
-$workerUser = get_user_by('id', (int) $worker);
-foreach (PaymentExecutionSupport::WORKER_CAPABILITIES as $capability) $workerUser->add_cap($capability);
 update_option(PaymentExecutionSupport::WORKER_PRINCIPAL_OPTION, (int) $worker, false);
 
 if (!defined('DZN_PLATFORM_PAYMENT_TEST_VAULT')) define('DZN_PLATFORM_PAYMENT_TEST_VAULT', true);

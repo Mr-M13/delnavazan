@@ -2,12 +2,15 @@
 $screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $args['screen'] : 'home';
 $model = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model['teacher'] : array();
+$dzn_notice = isset( $_GET['dzn_notice'] ) ? sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) : '';
+$is_notice_error = ( $_GET['dzn_error'] ?? '' ) === '1';
 ?>
 <main id="main-content" class="site-main dzn-teacher-portal dzn-teacher-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1" dir="rtl">
  <header class="dzn-tp-masthead"><div class="dzn-container dzn-tp-masthead__inner"><div><p class="dzn-tp-kicker">مدرس دلنوازان</p><h1><?php echo esc_html( 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( ! empty( $teacher['first_name'] ) ? sprintf( 'حساب کاربری · %s', $teacher['first_name'] ) : 'حساب کاربری' ) ) ) ); ?></h1><p><?php echo esc_html( 'settings' === $screen ? 'پروفایل، دسترسی و ترجیحات شما' : ( 'finance' === $screen ? 'سوابق مالی بر پایهٔ اطلاعات معتبر سامانه' : ( 'onboarding' === $screen ? 'اطلاعات را مرحله‌به‌مرحله تکمیل و برای بررسی مدیر ارسال کنید.' : 'درخواست‌ها، کلاس‌های آینده و خلاصهٔ تدریس شما.' ) ) ); ?></p></div>
  <nav aria-label="پیمایش پرتال مدرس"><ul><?php foreach ( $model['navigation'] ?? array() as $item ) : ?><li><a href="<?php echo esc_url( $item['url'] ?? '' ); ?>"<?php if ( ! empty( $item['current'] ) ) : ?> aria-current="page"<?php endif; ?>><?php echo esc_html( $item['label'] ?? '' ); ?></a></li><?php endforeach; ?></ul></nav><?php if ( is_user_logged_in() ) : ?><p class="dzn-tp-account"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a> <a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">خروج از حساب</a></p><?php endif; ?></div></header>
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
+ <?php if ( $dzn_notice ) : ?><aside class="dzn-tp-notice <?php echo $is_notice_error ? 'is-error' : 'is-success'; ?>" role="<?php echo $is_notice_error ? 'alert' : 'status'; ?>" aria-live="polite"><p><?php echo esc_html( $dzn_notice ); ?></p></aside><?php endif; ?>
  <?php if ( empty( $model['available'] ) ) :
   $state = (string) ( $model['state'] ?? 'error' );
   $messages = array(
@@ -17,7 +20,7 @@ $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model[
    'error' => array( 'اطلاعات مدرس در دسترس نیست', 'در حال حاضر نتوانستیم اطلاعات معتبر مدرس را از سامانه دریافت کنیم. لطفاً بعداً دوباره تلاش کنید.' ),
   );
   $message = $messages[ $state ] ?? $messages['error'];
- ?><section class="dzn-tp-section dzn-tp-unavailable"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p></section>
+ ?><section class="dzn-tp-section dzn-tp-unavailable dzn-tp-unavailable--<?php echo esc_attr( $state ); ?>" role="status"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><div class="dzn-tp-unavailable__actions"><?php if ( 'signed_out' === $state ) : ?><a href="<?php echo esc_url( wp_login_url( home_url( '/teacher-portal/' ) ) ); ?>" class="dzn-button">ورود به حساب کاربری</a><?php elseif ( 'onboarding_required' === $state ) : ?><a href="<?php echo esc_url( add_query_arg( 'teacher-view', 'onboarding', home_url( '/teacher-portal/' ) ) ); ?>" class="dzn-button">تکمیل مراحل شروع همکاری</a><?php elseif ( 'not_linked' === $state ) : ?><a href="<?php echo esc_url( home_url( '/teacher-portal/invitation/' ) ); ?>" class="dzn-button">ثبت دعوت‌نامهٔ همکاری</a> <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="dzn-button dzn-button--secondary">صفحهٔ اصلی</a><?php else : ?><a href="<?php echo esc_url( home_url( '/teacher-portal/' ) ); ?>" class="dzn-button dzn-button--secondary">تلاش دوباره</a><?php endif; ?></div></section>
  <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
  elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );

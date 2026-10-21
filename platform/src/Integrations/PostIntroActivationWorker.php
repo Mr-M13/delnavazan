@@ -57,12 +57,9 @@ final class PostIntroActivationWorker {
     /** Explicit retry used by the admin exception surface. */
     public static function requeue(int $jobId): void {
         $repository = new PostIntroRepository();
-        $repository->releaseJob($jobId, 'queued', array(
-            'attempt_count' => 0,
-            'next_attempt_at' => gmdate('Y-m-d H:i:s'),
-            'last_error_code' => null,
-            'last_error_detail' => null,
-        ));
+        if (!$repository->requeueJob($jobId, gmdate('Y-m-d H:i:s'))) {
+            throw new \RuntimeException('post_intro_job_not_requeueable');
+        }
     }
 
     private static function execute(PostIntroRepository $repository, object $job, string $now, string $leaseDigest): void {

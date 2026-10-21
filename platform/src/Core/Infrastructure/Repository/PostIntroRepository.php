@@ -192,8 +192,20 @@ final class PostIntroRepository {
         return $changed === 1;
     }
 
-    public function releaseJob(int $id, string $state, array $changes, ?string $leaseDigest = null): void {
+    /** Atomically requeue an unleased failed/retryable job; never clear a live worker's lease. */
+    public function requeueJob(int $id, string $now): bool {
         global $wpdb;
+        $changed = $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->p}post_intro_activation_jobs
+             SET state='queued',attempt_count=0,next_attempt_at=%s,last_error_code=NULL,last_error_detail=NULL,
+                 lease_token_digest=NULL,lease_expires_at=NULL,updated_at=%s
+             WHERE id=%d AND state IN ('failed','retryable') AND lease_token_digest IS NULL",
+            $now, $now, $id
+        ));
+        return $changed === 1;
+    }
+
+    public function releaseJob(int $id, string $state, array $changes, ?string $leaseDigest = null): void {        global $wpdb;
         $changes = array_merge($changes, array(
             'state' => $state,
             'lease_token_digest' => null,

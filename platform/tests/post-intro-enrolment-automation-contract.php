@@ -99,6 +99,7 @@ $assert(str_contains($continuationService, 'assertOngoingCourse') && str_contain
 $assert(str_contains($continuationService, 'DECISION_TEACHER_UNSUITABLE,$now,$actor,$ongoingCourseId'), 'the Teacher match-exception path must pass the ongoing Course to openCase');
 $assert(str_contains($validator, '$lesson->course_id===(int)$case->course_id') && str_contains($validator, "'standard'"), 'the continuation case must carry the ongoing standard Course while the Lesson keeps the intro Course');
 $assert(str_contains($worker, 'post_intro_job_lease_lost'), 'job release must be fenced by the lease token');
+$assert(str_contains($repository, 'function requeueJob') && str_contains($repository, "state IN ('failed','retryable') AND lease_token_digest IS NULL"), 'admin requeue must not clear a live worker lease');
 $assert(str_contains($preparation, 'standardCoursesForInstrument'), 'the ongoing Course must be resolved from the instrument');
 $assert(str_contains($preparation, 'count($courses) !== 1'), 'ambiguous standard Courses must fail closed');
 $assert(str_contains($preparation, "candidate->format('Y-m-d H:i:s')"), 'DST spring-forward wall clocks must fail closed instead of shifting');

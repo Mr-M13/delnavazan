@@ -60,6 +60,9 @@ final class CanonicalContinuationService {
             $context=$this->hydrateIntro($introLessonId,true);
             $principal=$this->repository->activeTeacherPrincipal((int)$context->lesson->teacher_id,$actor,true);
             if(!$principal)throw new \RuntimeException('Unauthorized');
+            $case=$this->existingCase((int)$context->lesson->id,true);
+            $ongoingCourseId=$case?(int)$case->course_id:(int)$context->lesson->course_id;
+            $this->assertOngoingCourse($context,$ongoingCourseId);
             $facts=array('domain'=>'canonical_continuation_v1','operation'=>'teacher_match_exception',
                 'intro_lesson_id'=>(int)$context->lesson->id,'intro_schedule_version_id'=>(int)$context->occurrence->id,
                 'student_id'=>(int)$context->lesson->student_id,'teacher_id'=>(int)$context->lesson->teacher_id,'course_id'=>$ongoingCourseId,
@@ -68,9 +71,8 @@ final class CanonicalContinuationService {
             $payload=CanonicalContinuationIdempotency::payload($facts);
             if($winner=$this->repository->command($digest)){$result=$this->replay($winner,$payload,'teacher_match_exception');$this->repository->commit();return $result;}
             $now=gmdate('Y-m-d H:i:s');
-            $case=$this->existingCase((int)$context->lesson->id,true);
             if($case)$this->assertAggregate((int)$case->id,true);
-            else $case=$this->openCase($context,CanonicalContinuationRule::DECISION_TEACHER_UNSUITABLE,$now,$actor);
+            else $case=$this->openCase($context,CanonicalContinuationRule::DECISION_TEACHER_UNSUITABLE,$now,$actor,$ongoingCourseId);
             $current=(string)$case->current_decision;
             if($case->latest_decision_id!==null){
                 if($current===CanonicalContinuationRule::DECISION_NOT_CONTINUING)throw new \InvalidArgumentException('continuation_closed');

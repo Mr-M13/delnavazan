@@ -94,6 +94,7 @@ $assert(str_contains($preparation, 'assertSlotAvailable') && str_contains($prepa
 $assert(str_contains($preparation, 'ELIGIBLE_FROM') && str_contains($preparation, 'intro_outcome_outside_window'), 'historical intros must not enter the automation queue');
 $assert(str_contains($repository, 'activePatternForAnyTeacher') && str_contains($continuation, 'commercial_pattern_teacher_conflict'), 'a pattern for another Teacher must fail closed');
 $assert(str_contains($continuationService, 'assertOngoingCourse') && str_contains($continuationService, 'ongoing_course_instrument_conflict'), 'the ongoing Course must be validated against the intro Course instrument');
+$assert(str_contains($continuationService, 'DECISION_TEACHER_UNSUITABLE,$now,$actor,$ongoingCourseId'), 'the Teacher match-exception path must pass the ongoing Course to openCase');
 $assert(str_contains($validator, '$lesson->course_id===(int)$case->course_id') && str_contains($validator, "'standard'"), 'the continuation case must carry the ongoing standard Course while the Lesson keeps the intro Course');
 $assert(str_contains($worker, 'post_intro_job_lease_lost'), 'job release must be fenced by the lease token');
 $assert(str_contains($preparation, 'standardCoursesForInstrument'), 'the ongoing Course must be resolved from the instrument');

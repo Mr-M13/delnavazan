@@ -8,6 +8,7 @@ $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model[
  <nav aria-label="پیمایش پرتال مدرس"><ul><?php foreach ( $model['navigation'] ?? array() as $item ) : ?><li><a href="<?php echo esc_url( $item['url'] ?? '' ); ?>"<?php if ( ! empty( $item['current'] ) ) : ?> aria-current="page"<?php endif; ?>><?php echo esc_html( $item['label'] ?? '' ); ?></a></li><?php endforeach; ?></ul></nav><?php if ( is_user_logged_in() ) : ?><p class="dzn-tp-account"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a> <a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">خروج از حساب</a></p><?php endif; ?></div></header>
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
+ <?php if ( ! empty( $model['available'] ) ) : foreach ( dzn_theme_teacher_portal_notices( $screen ) as $notice ) : ?><p class="dzn-tp-notice is-<?php echo esc_attr( $notice[0] ); ?>" role="<?php echo 'error' === $notice[0] ? 'alert' : 'status'; ?>"><?php echo esc_html( $notice[1] ); ?></p><?php endforeach; endif; ?>
  <?php if ( empty( $model['available'] ) ) :
   $state = (string) ( $model['state'] ?? 'error' );
   $messages = array(
@@ -17,7 +18,13 @@ $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model[
    'error' => array( 'اطلاعات مدرس در دسترس نیست', 'در حال حاضر نتوانستیم اطلاعات معتبر مدرس را از سامانه دریافت کنیم. لطفاً بعداً دوباره تلاش کنید.' ),
   );
   $message = $messages[ $state ] ?? $messages['error'];
- ?><section class="dzn-tp-section dzn-tp-unavailable"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p></section>
+  $portal_url = home_url( '/teacher-portal/' );
+  $recovery = array(
+   'signed_out' => array( 'ورود به حساب', wp_login_url( $portal_url ) ),
+   'onboarding_required' => array( 'ادامهٔ شروع همکاری', add_query_arg( 'teacher-view', 'onboarding', $portal_url ) ),
+   'error' => array( 'تلاش دوباره', $portal_url ),
+  );
+ ?><section class="dzn-tp-section dzn-tp-unavailable" role="<?php echo 'error' === $state ? 'alert' : 'status'; ?>"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><?php if ( isset( $recovery[ $state ] ) ) : ?><p><a class="dzn-button" href="<?php echo esc_url( $recovery[ $state ][1] ); ?>"><?php echo esc_html( $recovery[ $state ][0] ); ?></a></p><?php endif; ?></section>
  <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
  elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );

@@ -17,3 +17,33 @@
 @media(max-width:35rem){.dzn-tp-masthead nav,.dzn-tp-masthead nav ul,.dzn-tp-masthead nav li,.dzn-tp-masthead nav a{inline-size:100%}.dzn-tp-masthead nav a{text-align:center}.dzn-tp-class{grid-template-columns:1fr}.dzn-tp-class-details{grid-column:1}.dzn-tp-section,.dzn-tp-banner{border-radius:.8rem}.dzn-teacher-portal button,.dzn-teacher-portal .dzn-button{inline-size:100%}}
 
 .dzn-tp-tour-entry{display:flex;justify-content:flex-end;margin-block-end:1rem}.dzn-tp-tour__steps{display:grid;gap:1rem;padding-inline-start:1.4rem}.dzn-tp-tour__steps li{padding-inline-start:.25rem}.dzn-tp-tour__steps p{margin:.25rem 0 0}
+
+/* Presentation completion: upcoming lessons, schedule clarity, states, mobile and accessibility. */
+.dzn-tp-sr{border:0;clip:rect(0 0 0 0);clip-path:inset(50%);block-size:1px;inline-size:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;white-space:nowrap}
+.dzn-tp-class-list{list-style:none;margin:0;padding:0}
+.dzn-tp-class{align-items:start;grid-template-columns:auto 1fr}
+.dzn-tp-class__time{font-size:1.25rem;font-weight:800;margin:0;min-inline-size:4.5rem}
+.dzn-tp-class__body h3{margin:0 0 .25rem;overflow-wrap:anywhere}
+.dzn-tp-class__body p{margin:.15rem 0}
+.dzn-tp-class__schedule{color:var(--dzn-color-text-secondary);overflow-wrap:anywhere}
+.dzn-tp-class__help{grid-column:1/-1;margin:0}
+.dzn-tp-class.is-starting_soon{border-inline-start:5px solid var(--dzn-color-action-primary)}
+.dzn-tp-class.is-unknown{border-inline-start:5px solid var(--dzn-color-error)}
+.dzn-tp-class .dzn-tp-actions{align-items:center;grid-column:1/-1}
+@media(min-width:48rem){.dzn-tp-class{grid-template-columns:5rem 1fr auto}.dzn-tp-class .dzn-tp-actions{grid-column:auto}.dzn-tp-class__help,.dzn-tp-class-details{grid-column:1/-1}}
+.dzn-tp-class .dzn-tp-actions form{display:contents}
+.dzn-tp-empty{border:1px dashed var(--dzn-color-border);border-radius:1rem;padding:1.25rem}
+.dzn-tp-empty h3{margin:0 0 .5rem}.dzn-tp-empty p{margin:0 0 1rem}.dzn-tp-empty :last-child{margin-block-end:0}
+.dzn-tp-calendar{list-style:none;margin:0;padding:0}
+.dzn-tp-calendar li{border-inline-start:4px solid var(--dzn-color-information);display:grid;gap:.25rem;padding:.75rem 1rem}
+.dzn-tp-calendar li p{margin:0}.dzn-tp-calendar__time{font-weight:800}.dzn-tp-calendar li strong{overflow-wrap:anywhere}
+.dzn-tp-calendar li.is-intro{border-color:var(--dzn-color-accent)}.dzn-tp-calendar li.is-replacement{border-color:var(--dzn-color-warning)}.dzn-tp-calendar li.is-student_absence,.dzn-tp-calendar li.is-unknown{border-color:var(--dzn-color-error)}
+.dzn-tp-notice{font-weight:700}
+.dzn-tp-unavailable .dzn-button{display:inline-block;text-decoration:none}
+.dzn-tp-dialog{max-block-size:90vh;overflow:auto}
+.dzn-tp-dialog .dzn-tp-actions form{margin:0}
+.dzn-teacher-portal [aria-busy=true]{cursor:progress}
+.dzn-teacher-portal button:disabled{cursor:not-allowed}
+@media(max-width:35rem){.dzn-tp-class{grid-template-columns:1fr}.dzn-tp-class__time{min-inline-size:0}.dzn-tp-class .dzn-tp-actions form{display:block;inline-size:100%}.dzn-tp-dialog{max-inline-size:100vw;inline-size:calc(100vw - 1rem)}.dzn-tp-heading>span{inline-size:100%}}
+@media(forced-colors:active){.dzn-tp-class,.dzn-tp-attention-card,.dzn-tp-calendar li{border:1px solid CanvasText}}
+@media(prefers-reduced-motion:reduce){.dzn-teacher-portal *{animation:none!important;scroll-behavior:auto!important;transition:none!important}}

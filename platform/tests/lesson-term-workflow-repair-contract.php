@@ -68,6 +68,7 @@ $contains($coreRead, array(
 ), 'canonical class choices must stay behind their own capability and read seam');
 $assert(str_contains($lessonService, 'Standard/replacement Lesson needs Enrolment and Term'), 'the legacy Lesson writer must keep its explicit relationship checks');
 $assert(str_contains($lessonService, 'Canonical Enrolment grants no Lesson or Teacher Assignment authority'), 'the legacy Lesson writer must keep refusing canonical Enrolments');
+$assert(str_contains($lessonService, 'completeScheduledIntroductory') && str_contains($lessonService, 'booking_linked_intro_requires_post_intro_outcome'), 'a standalone introductory Lesson must complete through Lesson authority while a booking-linked one must use the post-intro workflow');
 
 // 3. The introductory outcome is an authorised, visible action and routes to canonical work.
 $contains($screen, array(
@@ -75,7 +76,7 @@ $contains($screen, array(
     "private static function introductoryOutcomeForm(object \$lesson): void",
     "'record_intro_outcome' => self::recordIntroOutcome(\$post)",
     "new PostIntroPreparationService())->recordAdministrativeOutcome(",
-    "new LessonService())->completeIntroductory(",
+    "new LessonService())->completeScheduledIntroductory(",
     "'intro_not_finished'",
     "'confirmed_occurrence_required'",
     'The introductory delivery outcome is recorded as completed.',

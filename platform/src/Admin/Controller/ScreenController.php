@@ -637,7 +637,7 @@ final class ScreenController {
             return $lessonId;
         }
 
-        (new LessonService())->completeIntroductory($lessonId, (int) $schedule->id);
+        (new LessonService())->completeScheduledIntroductory($lessonId, (int) $schedule->id);
         return $lessonId;
     }
 
@@ -740,6 +740,10 @@ final class ScreenController {
             return;
         }
         $bookingLinked = (int) ($lesson->booking_request_id ?? 0) > 0;
+        if ($bookingLinked && (string) $schedule->ends_at_utc < PostIntroPreparationService::ELIGIBLE_FROM) {
+            echo '<p class="notice notice-info">This booking-linked introductory occurrence predates the post-intro automation window and cannot start a payment invitation.</p>';
+            return;
+        }
         if ($bookingLinked && !current_user_can('dzn_manage_post_intro_automation')) {
             echo '<p>Recording this booking-linked outcome requires post-intro automation access.</p>';
             return;

@@ -165,10 +165,15 @@ final class PostIntroActivationService {
      * retry minutes later must rebuild exactly the same command. The verified provider payment
      * instant is the authoritative activation checkpoint; the job's immutable creation time is
      * the fallback for a settlement without a provider occurrence time.
+     *
+     * Preparation timestamps are deliberately not candidates. A preparation is created before
+     * the Student action converts the Enrolment, so using it could stamp canonical activation
+     * evidence before the Enrolment's own conversion event and fail the lifecycle history's
+     * non-decreasing-time invariant.
      */
     private function stableEvidenceAt(object $job, object $preparation, ?string $paymentOccurredAt = null): string {
         $candidates = array();
-        foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? ''), (string) ($preparation->created_at ?? ''), (string) ($preparation->prepared_at ?? '')) as $candidate) {
+        foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? '')) as $candidate) {
             if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1) $candidates[] = $candidate;
         }
         if (!$candidates) throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');

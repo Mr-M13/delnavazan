@@ -28,6 +28,7 @@ $portalBridge = $read('theme/inc/platform-bridge.php');
 $termService = $read('platform/src/Core/Application/TermService.php');
 $lessonService = $read('platform/src/Core/Application/LessonService.php');
 $postIntro = $read('platform/src/Core/Application/PostIntroPreparationService.php');
+$postIntroActivation = $read('platform/src/Core/Application/PostIntroActivationService.php');
 
 // 1. Canonical Term creation is the primary operator path; legacy remains compatibility-only.
 $contains($screen, array(
@@ -82,6 +83,7 @@ $contains($screen, array(
     'The introductory delivery outcome is recorded as completed.',
 ), 'the introductory outcome action must be visible, time-bounded and update its canonical workflow');
 $assert(str_contains($postIntro, 'self::OUTCOME_DELIVERED') && str_contains($postIntro, 'completeIntroductory'), 'only a delivered introductory outcome may continue and complete the introductory Lesson');
+$assert(str_contains($postIntroActivation, 'stableEvidenceAt') && !str_contains($postIntroActivation, '$preparation->created_at') && !str_contains($postIntroActivation, '$preparation->prepared_at'), 'activation evidence must never predate the Enrolment conversion event');
 
 // 4. Unscheduled canonical Lessons must not break portal reads; scheduled classes stay authoritative.
 $contains($portalRead, array(

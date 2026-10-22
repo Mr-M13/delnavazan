@@ -234,11 +234,21 @@ $contains($actor, array(
     'post_intro_automation_capability_forbidden',
     'post_intro_automation_administrator_required',
     'post_intro_automation_identity_not_effective',
-    'public static function provision(',
-    'public static function bootstrap(',
-    'assertAdministrator',
+    'public static function provision(): int',
+    'public static function bootstrap(): int',
+    'requireAuthenticatedAdministrator',
+    'requireCliBootstrapPrincipal',
+    'isRealCliBootstrapContext',
+    'get_current_user_id()',
+    "current_user_can('manage_options')",
+    "PHP_SAPI === 'cli'",
+    "defined('WP_CLI')",
+    "class_exists('WP_CLI', false)",
     "'manage_options'",
 ), 'the actor must fail closed on widened, directly granted or improperly configured identities and provision only explicitly');
+$assert(!str_contains($actor, 'PROVISION_CHANNELS'), 'provisioning must not trust a caller-supplied channel label');
+$assert(!str_contains($actor, 'function provision(int $administratorId'), 'provisioning must not trust a caller-supplied administrator ID');
+$assert(!str_contains($actor, 'function bootstrap(int $administratorId'), 'bootstrap must not trust a caller-supplied administrator ID');
 
 // 9. Student and Teacher portal projections expose no internal identifiers or raw errors.
 $contains($studentRead, array(

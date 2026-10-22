@@ -66,16 +66,11 @@ $expectActorFailure = static function (string $code, callable $attempt): void {
 };
 $bootstrapActorId = (int) get_option(PostIntroSystemActor::USER_OPTION);
 dzn_pia_assert($bootstrapActorId > 0, 'the controlled bootstrap must provision the actor before runtime');
-$bootstrapOption = $bootstrapActorId;
-$bootstrapUsers = count(get_users(array('fields' => 'ID')));
-$bootstrapRoleCaps = get_role(PostIntroSystemActor::ROLE)->capabilities;
-$expectActorFailure('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision(0, 'wp_cli'));
-$expectActorFailure('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($teacherUser, 'wp_cli'));
-dzn_pia_assert((int) get_option(PostIntroSystemActor::USER_OPTION) === $bootstrapOption, 'an unauthorised provision attempt must not rebind the actor');
-dzn_pia_assert(get_role(PostIntroSystemActor::ROLE)->capabilities === $bootstrapRoleCaps, 'an unauthorised provision attempt must not change role capabilities');
-dzn_pia_assert(count(get_users(array('fields' => 'ID'))) === $bootstrapUsers, 'an unauthorised provision attempt must not create a user');
 
-$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+// This runtime is a genuine WP-CLI process, so the real-context bootstrap may provision. The
+// impersonation regression (a web subscriber supplying an administrator ID/channel) is exercised
+// by post-intro-system-actor-unit.php, where the non-WP-CLI context can be represented exactly.
+$actorId = PostIntroSystemActor::provision();
 dzn_pia_assert($actorId === $bootstrapActorId, 'explicit provisioning must be idempotent');
 dzn_pia_assert($actorId > 0 && (int) get_option(PostIntroSystemActor::USER_OPTION) === $actorId, 'explicit administrator provisioning must bind the actor option');
 $actorUser = get_user_by('id', $actorId);

@@ -79,8 +79,6 @@ final class PostIntroSystemActor {
         'dzn_manage_payment_execution',
         'dzn_manage_payment_providers',
     );
-    public const PROVISION_CHANNELS = array('administrator', 'admin_action', 'wp_cli');
-
     /**
      * Run one unit of work under the already provisioned principal.
      *
@@ -122,16 +120,34 @@ final class PostIntroSystemActor {
     }
 
     /**
-     * Provision or repair the dedicated identity. Only an explicitly authorised administrator may
-     * invoke this, and the caller must name the controlled channel that authorised the change.
-     * No request, cron, webhook or background worker path calls this method.
+     * Provision or repair the dedicated identity.
+     *
+     * Authorisation is derived from the real execution context, never from a caller-supplied ID
+     * or channel string. A web request must carry an actually authenticated current user with
+     * `manage_options`; a bootstrap must be a genuine WP-CLI process. No request, cron, webhook or
+     * background worker path calls this method.
      */
-    public static function provision(int $administratorId, string $channel = 'administrator'): int {
-        if (!in_array($channel, self::PROVISION_CHANNELS, true)) {
-            throw new \RuntimeException('post_intro_automation_provision_channel_invalid');
+    public static function provision(): int {
+        if (self::isRealCliBootstrapContext()) {
+            // A real CLI process is required, but a non-administrator current-user context inside
+            // that process is still refused. This blocks a subscriber/Student/Teacher request that
+            // somehow reaches a WP-CLI execution path from invoking privileged repair.
+            self::requireCliBootstrapPrincipal();
+            return self::applyProvision();
         }
-        self::assertAdministrator($administratorId);
+        // A caller cannot name an administrator. The current WordPress principal must itself be
+        // authenticated as an administrator, so subscriber/student/teacher contexts fail closed
+        // even when they know a legitimate administrator ID.
+        self::requireAuthenticatedAdministrator();
+        return self::applyProvision();
+    }
 
+    /** Alias for the controlled bootstrap entry point. */
+    public static function bootstrap(): int {
+        return self::provision();
+    }
+
+    private static function applyProvision(): int {
         $role = get_role(self::ROLE);
         if (!$role) {
             $role = add_role(self::ROLE, 'Delnavazan Post-Intro Automation', array_fill_keys(self::CAPABILITIES, true));
@@ -178,11 +194,6 @@ final class PostIntroSystemActor {
         }
         update_option(self::USER_OPTION, $userId, false);
         return self::validate($userId);
-    }
-
-    /** Alias for the controlled bootstrap entry point. */
-    public static function bootstrap(int $administratorId, string $channel = 'administrator'): int {
-        return self::provision($administratorId, $channel);
     }
 
     /** Reject any identity that is not exactly one dedicated role with no direct grants. */
@@ -232,7 +243,34 @@ final class PostIntroSystemActor {
         return $userId;
     }
 
-    private static function assertAdministrator(int $administratorId): void {
+    /**
+     * A genuine WP-CLI process, proved by the CLI SAPI plus WP-CLI's own constant and class.
+     * A web request cannot opt into this branch with a string, request field or function argument.
+     */
+    private static function isRealCliBootstrapContext(): bool {
+        return PHP_SAPI === 'cli'
+            && defined('WP_CLI')
+            && WP_CLI === true
+            && class_exists('WP_CLI', false)
+            && method_exists('WP_CLI', 'get_runner');
+    }
+
+    /** A CLI bootstrap may run anonymously, or as an actual administrator; never as a lesser role. */
+    private static function requireCliBootstrapPrincipal(): void {
+        $principalId = (int) get_current_user_id();
+        if ($principalId < 1) return;
+        $principal = get_user_by('id', $principalId);
+        if (!$principal instanceof \WP_User
+            || (isset($principal->user_status) && (int) $principal->user_status !== 0)
+            || !current_user_can('manage_options')
+            || !user_can($principal, 'manage_options')) {
+            throw new \RuntimeException('post_intro_automation_administrator_required');
+        }
+    }
+
+    /** Require the actual authenticated WordPress principal, never a caller-supplied ID. */
+    private static function requireAuthenticatedAdministrator(): void {
+        $administratorId = (int) get_current_user_id();
         if ($administratorId < 1) {
             throw new \RuntimeException('post_intro_automation_administrator_required');
         }
@@ -243,7 +281,7 @@ final class PostIntroSystemActor {
         if (isset($administrator->user_status) && (int) $administrator->user_status !== 0) {
             throw new \RuntimeException('post_intro_automation_administrator_required');
         }
-        if (!user_can($administrator, 'manage_options')) {
+        if (!current_user_can('manage_options') || !user_can($administrator, 'manage_options')) {
             throw new \RuntimeException('post_intro_automation_administrator_required');
         }
     }

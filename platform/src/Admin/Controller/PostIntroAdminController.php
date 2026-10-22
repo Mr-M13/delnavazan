@@ -138,7 +138,7 @@ final class PostIntroAdminController {
         try {
             if ($operation === 'provision_actor') {
                 if (!current_user_can('manage_options')) throw new \RuntimeException('Unauthorized');
-                PostIntroSystemActor::provision((int) get_current_user_id(), 'admin_action');
+                PostIntroSystemActor::provision();
             } elseif ($operation === 'retry_preparation') {
                 (new PostIntroPreparationService())->retry((int) ($_POST['preparation_id'] ?? 0));
             } elseif ($operation === 'retry_activation') {

@@ -117,10 +117,17 @@ function pi_expect_code(string $expected, callable $attempt): void {
     }
 }
 
+/** WP-CLI's real runner surface; the WP_CLI constant stays undefined until the CLI test. */
+class WP_CLI {
+    public static function get_runner(): object { return new stdClass(); }
+}
+
 pi_add_role('administrator', array('manage_options' => true, 'read' => true));
 pi_add_role('subscriber', array('read' => true));
+pi_add_role('dzn_teacher', array('read' => true, 'dzn_submit_own_delivery_claim' => true));
 $admin = pi_add_user('admin', 'administrator');
 $student = pi_add_user('student', 'subscriber');
+$teacher = pi_add_user('teacher', 'dzn_teacher');
 
 require dirname(__DIR__) . '/src/Core/Application/PostIntroSystemActor.php';
 
@@ -128,15 +135,23 @@ use Delnavazan\Platform\Core\Application\PostIntroSystemActor;
 
 // 1. Unconfigured runtime fails closed and never creates anything.
 pi_expect_code('post_intro_automation_unconfigured', static fn() => PostIntroSystemActor::run(static fn() => true));
-// 2. Provisioning requires an administrator through an explicit channel.
-pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision(0, 'wp_cli'));
-pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($student->ID, 'wp_cli'));
-pi_expect_code('post_intro_automation_provision_channel_invalid', static fn() => PostIntroSystemActor::provision($admin->ID, 'request'));
-if (get_role(PostIntroSystemActor::ROLE) !== null) throw new RuntimeException('an unauthorised provision created the role');
-if (get_user_by('login', PostIntroSystemActor::LOGIN) !== false) throw new RuntimeException('an unauthorised provision created the actor user');
+// 2. Reproduce the confirmed impersonation: a non-administrator context supplies a legitimate
+// administrator ID and the old "wp_cli" channel label. Both are now inert; only the actual
+// authenticated principal and the real execution context can authorise provisioning.
+wp_set_current_user(0);
+pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($admin->ID, 'wp_cli'));
+wp_set_current_user($student->ID);
+pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($admin->ID, 'wp_cli'));
+pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::bootstrap($admin->ID, 'wp_cli'));
+wp_set_current_user($teacher->ID);
+pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($admin->ID, 'admin_action'));
+if (get_role(PostIntroSystemActor::ROLE) !== null) throw new RuntimeException('an impersonated provision created the role');
+if (get_user_by('login', PostIntroSystemActor::LOGIN) !== false) throw new RuntimeException('an impersonated provision created the actor user');
+if ((int) get_option(PostIntroSystemActor::USER_OPTION, 0) !== 0) throw new RuntimeException('an impersonated provision bound the actor option');
 
-// 3. Explicit administrator provisioning creates exactly one role and the exact allowlist.
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+// 3. The actual authenticated administrator may provision; the caller still supplies no identity.
+wp_set_current_user($admin->ID);
+$actorId = PostIntroSystemActor::provision();
 $actor = get_user_by('id', $actorId);
 if (!$actor instanceof WP_User) throw new RuntimeException('the provisioned actor is missing');
 if ((int) get_option(PostIntroSystemActor::USER_OPTION) !== $actorId) throw new RuntimeException('the actor option is not bound');
@@ -155,37 +170,37 @@ if ($ranAs !== $actorId) throw new RuntimeException('the actor did not run under
 $actor->add_role('subscriber');
 pi_expect_code('post_intro_automation_actor_role_invalid', static fn() => PostIntroSystemActor::run(static fn() => true));
 if ((int) get_option(PostIntroSystemActor::USER_OPTION) !== $actorId) throw new RuntimeException('runtime silently rebound a widened actor');
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 
 // 5. Direct user grants are rejected, even allowlisted ones.
 $actor = get_user_by('id', $actorId);
 $actor->add_cap('manage_options');
 pi_expect_code('post_intro_automation_actor_direct_grant', static fn() => PostIntroSystemActor::run(static fn() => true));
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 $actor = get_user_by('id', $actorId);
 $actor->add_cap('read');
 pi_expect_code('post_intro_automation_actor_direct_grant', static fn() => PostIntroSystemActor::run(static fn() => true));
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 
 // 6. An unexpected role capability is rejected.
 get_role(PostIntroSystemActor::ROLE)->add_cap('edit_posts');
 pi_expect_code('post_intro_automation_role_capability_invalid', static fn() => PostIntroSystemActor::run(static fn() => true));
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 
 // 7. A forbidden administrative capability is rejected on the role.
 get_role(PostIntroSystemActor::ROLE)->add_cap('dzn_manage_post_intro_automation');
 pi_expect_code('post_intro_automation_capability_forbidden', static fn() => PostIntroSystemActor::run(static fn() => true));
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 
 // 8. A missing required permission is rejected rather than granted at runtime.
 get_role(PostIntroSystemActor::ROLE)->remove_cap('dzn_manage_canonical_lessons');
 pi_expect_code('post_intro_automation_capability_missing', static fn() => PostIntroSystemActor::run(static fn() => true));
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 
 // 9. An unmarked account is never adopted as the automation identity.
 update_user_meta($actorId, PostIntroSystemActor::USER_MARKER, '0');
 pi_expect_code('post_intro_automation_actor_unverified', static fn() => PostIntroSystemActor::run(static fn() => true));
-$actorId = PostIntroSystemActor::provision($admin->ID, 'administrator');
+$actorId = PostIntroSystemActor::provision();
 
 // 10. Missing configuration never triggers silent provisioning or repair.
 $optionBefore = (int) get_option(PostIntroSystemActor::USER_OPTION);
@@ -206,4 +221,18 @@ if (array_keys($actor->caps) !== array(PostIntroSystemActor::ROLE)) throw new Ru
 $granted = array_keys(array_filter((array) get_role(PostIntroSystemActor::ROLE)->capabilities)); sort($granted);
 if ($granted !== $expected) throw new RuntimeException('repair left an unexpected role capability');
 
-echo "Post-intro system actor least-privilege contract passed\n";
+// 12. A real WP-CLI process (CLI SAPI + WP_CLI constant/class) is the only bootstrap branch. It
+// cannot be selected by a request field, supplied ID or channel string, and a lesser current-user
+// context inside that process is still refused.
+if (!defined('WP_CLI')) define('WP_CLI', true);
+wp_set_current_user($student->ID);
+pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($admin->ID, 'wp_cli'));
+pi_expect_code('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::bootstrap($admin->ID, 'wp_cli'));
+wp_set_current_user(0);
+$cliActorId = PostIntroSystemActor::bootstrap();
+if ($cliActorId !== $actorId) throw new RuntimeException('real WP-CLI bootstrap did not repair the same actor');
+$actor = get_user_by('id', $cliActorId);
+if (array_values(array_unique(array_map('strval', (array) $actor->roles))) !== array(PostIntroSystemActor::ROLE)) throw new RuntimeException('CLI bootstrap left an extra role');
+if (array_keys($actor->caps) !== array(PostIntroSystemActor::ROLE)) throw new RuntimeException('CLI bootstrap left a direct grant');
+
+echo "Post-intro system actor least-privilege and impersonation contract passed\n";

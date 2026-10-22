@@ -5,5 +5,5 @@
 set -euo pipefail
 source "$(dirname "$BASH_SOURCE")/common.sh"
 
-dzn_wp_env DZN_POST_INTRO_ACTOR_BOOTSTRAP=1 -- eval 'Delnavazan\Platform\Core\Application\PostIntroSystemActor::provision(1, "wp_cli");'
+dzn_wp_env DZN_POST_INTRO_ACTOR_BOOTSTRAP=1 -- eval 'Delnavazan\Platform\Core\Application\PostIntroSystemActor::provision();'
 echo 'Post-intro automation identity: PASS'

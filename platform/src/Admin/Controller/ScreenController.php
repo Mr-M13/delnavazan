@@ -5,6 +5,7 @@ use Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic;
 use Delnavazan\Platform\Core\Application\{
     ArchiveService,
     CanonicalEnrolmentLifecycleService,
+    CanonicalLessonAuthorityService,
     CanonicalTermAuthorityService,
     CatalogueService,
     CoreReadService,
@@ -12,6 +13,7 @@ use Delnavazan\Platform\Core\Application\{
     ExceptionService,
     LessonScheduleService,
     LessonService,
+    PostIntroPreparationService,
     StudentService,
     TeacherService,
     TermService
@@ -66,9 +68,10 @@ final class ScreenController {
         } else {
             if ($screen === 'student') self::studentCreateDisclosure();
             elseif ($screen === 'enrolment') echo '<p>Enrolments are read-only. Generic creation is disabled; canonical conversion authority is not part of this phase.</p>';
+            elseif ($screen === 'term') self::termCreateSection();
+            elseif ($screen === 'lesson') self::classCreateSection();
             elseif ($screen !== 'teacher') self::entityCreateForm($screen);
             self::entityList($screen);
-            if ($screen === 'term' && current_user_can('dzn_manage_canonical_terms')) self::canonicalTermCreateForm();
         }
         echo '</div>';
     }
@@ -146,6 +149,8 @@ final class ScreenController {
                 'close_canonical_term' => self::canonicalTermTransition($post, 'close'),
                 'cancel_canonical_term' => self::canonicalTermTransition($post, 'cancel'),
                 'create_lesson' => (new LessonService())->create(self::createPayload('lesson', $post)),
+                'create_canonical_lesson' => self::canonicalLessonCreate($post),
+                'record_intro_outcome' => self::recordIntroOutcome($post),
                 'schedule_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_initial'),
                 'revise_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_revise'),
                 'release_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_release'),
@@ -342,7 +347,7 @@ final class ScreenController {
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
-        if ($entity === 'lesson') { if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
+        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
     }
 
     private static function updateTeacherProfile(array $post): int {
@@ -448,6 +453,40 @@ final class ScreenController {
         submit_button($archived?'Restore for safe re-invitation':'Archive and revoke Teacher access','secondary','submit',false);echo '</form> ';
     }
 
+    /**
+     * Canonical authority first. The legacy creator remains available only as a labelled
+     * compatibility path and only when a real legacy Enrolment can satisfy it.
+     */
+    private static function termCreateSection(): void {
+        $canonical = current_user_can('dzn_manage_canonical_terms');
+        if ($canonical) self::canonicalTermCreateForm();
+        try { $legacy = (new CoreReadService())->legacyEnrolmentOptionsForTerm(); }
+        catch (\Throwable) { $legacy = array(); }
+        if (!$legacy) {
+            if ($canonical) echo '<p class="description">Canonical Terms are the current workflow. The legacy Term form is unavailable because no legacy Enrolment exists; create the Term above instead.</p>';
+            else self::entityCreateForm('term');
+            return;
+        }
+        echo '<details class="dzn-legacy-term-create"><summary class="button">Legacy Term compatibility</summary>';
+        echo '<p class="description">This compatibility form accepts legacy Enrolments only. For a converted Enrolment, use <strong>Create canonical Term</strong> above.</p>';
+        self::entityCreateForm('term');
+        echo '</details>';
+    }
+
+    /**
+     * Canonical class issuance is the primary workflow. Introductory/legacy class setup stays
+     * available because an introductory Lesson is deliberately outside a Term.
+     */
+    private static function classCreateSection(): void {
+        $canonical = current_user_can('dzn_manage_canonical_lessons');
+        if ($canonical) self::canonicalLessonCreateForm();
+        if (!$canonical) { self::entityCreateForm('lesson'); return; }
+        echo '<details class="dzn-legacy-class-create"><summary class="button">Create introductory or legacy class</summary>';
+        echo '<p class="description">An introductory class may be created without an Enrolment or Term. Standard paid classes are issued from the canonical Term above, and a replacement class from an eligible cancelled standard class.</p>';
+        self::entityCreateForm('lesson');
+        echo '</details>';
+    }
+
     private static function entityCreateForm(string $entity): void {
         echo '<h2>Create</h2>'; self::formStart('create_' . $entity);
         match ($entity) {
@@ -526,6 +565,82 @@ final class ScreenController {
         return (int)$result['term_id'];
     }
 
+    /**
+     * Issue one canonical standard or replacement Lesson for a current Term and current Teacher
+     * Assignment. Lifecycle starts at `authorised`; the class type is never a status value.
+     */
+    private static function canonicalLessonCreate(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lessons')) throw new \RuntimeException('Unauthorized');
+        $type = sanitize_key((string) ($post['lesson_type'] ?? 'standard'));
+        if (!in_array($type, array('standard', 'replacement'), true)) throw new \InvalidArgumentException('Controlled class type required');
+        $evidence = self::canonicalEvidence($post);
+        $key = (string) ($post['idempotency_key'] ?? '');
+        $service = new CanonicalLessonAuthorityService();
+        if ($type === 'replacement') {
+            $originId = absint($post['replacement_for_lesson_id'] ?? 0);
+            if ($originId < 1) throw new \InvalidArgumentException('Eligible original class required');
+            $origin = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($originId);
+            if (!$origin) throw new \InvalidArgumentException('Eligible original class required');
+            $assignment = (new \Delnavazan\Platform\Core\Infrastructure\Repository\TeacherAssignmentRepository())->currentForEnrolment((int) $origin->enrolment_id);
+            if (!$assignment) throw new \InvalidArgumentException('Current Teacher Assignment required');
+            $result = $service->createReplacement((int) $origin->term_id, (int) $assignment->id, $originId, $evidence, $key);
+            return (int) $result['lesson_id'];
+        }
+        $termId = absint($post['term_id'] ?? 0);
+        $assignmentId = absint($post['teacher_assignment_id'] ?? 0);
+        if ($termId < 1) throw new \InvalidArgumentException('Canonical Term required');
+        if ($assignmentId < 1) {
+            // The form carries the current Assignment; resolve it only as a safe fallback so the
+            // service can still prove the same expected Assignment under its locks.
+            $term = (new \Delnavazan\Platform\Core\Infrastructure\Repository\TermRepository())->findAny($termId);
+            $assignment = $term ? (new \Delnavazan\Platform\Core\Infrastructure\Repository\TeacherAssignmentRepository())->currentForEnrolment((int) $term->enrolment_id) : null;
+            if (!$assignment) throw new \InvalidArgumentException('Current Teacher Assignment required');
+            $assignmentId = (int) $assignment->id;
+        }
+        $result = $service->createStandard($termId, $assignmentId, $evidence, $key);
+        return (int) $result['lesson_id'];
+    }
+
+    /**
+     * Record a real introductory delivery outcome. A booking-linked introduction goes through the
+     * post-intro authority so a delivered outcome starts the existing continuation workflow; a
+     * standalone introductory Lesson is completed through the existing Lesson authority.
+     */
+    private static function recordIntroOutcome(array $post): int {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['id'] ?? 0);
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\LessonRepository())->findAny($lessonId);
+        if (!$lesson || ($lesson->record_model ?? 'legacy_phase1') !== 'legacy_phase1'
+            || (string) $lesson->lesson_type !== 'introductory' || $lesson->archived_at !== null) {
+            throw new \InvalidArgumentException('introductory_lesson_required');
+        }
+        if ((string) $lesson->status === 'completed') return $lessonId;
+        if (!in_array((string) $lesson->status, array('draft', 'scheduled'), true)) throw new \InvalidArgumentException('introductory_lesson_not_completable');
+
+        $schedule = (new \Delnavazan\Platform\Core\Infrastructure\Repository\LessonScheduleVersionRepository())->current($lessonId);
+        if (!$schedule || (int) $lesson->current_schedule_version_id !== (int) $schedule->id) throw new \InvalidArgumentException('confirmed_occurrence_required');
+        if ((string) $schedule->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('intro_not_finished');
+
+        $outcome = sanitize_key((string) ($post['outcome'] ?? ''));
+        $bookingId = (int) ($lesson->booking_request_id ?? 0);
+        $allowed = $bookingId > 0
+            ? array('delivered', 'student_no_show', 'teacher_cancelled', 'student_cancelled')
+            : array('delivered');
+        if (!in_array($outcome, $allowed, true)) throw new \InvalidArgumentException('intro_outcome_invalid');
+
+        if ($bookingId > 0) {
+            if (!current_user_can('dzn_manage_post_intro_automation')) throw new \RuntimeException('Unauthorized');
+            $confirmation = (new \Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository())->confirmationByBooking($bookingId);
+            if (!$confirmation || (string) $confirmation->state !== 'confirmed') throw new \InvalidArgumentException('intro_booking_not_confirmed');
+            $note = sanitize_textarea_field((string) ($post['note'] ?? ''));
+            (new PostIntroPreparationService())->recordAdministrativeOutcome((string) $confirmation->uid, (int) get_current_user_id(), $outcome, $note);
+            return $lessonId;
+        }
+
+        (new LessonService())->completeIntroductory($lessonId, (int) $schedule->id);
+        return $lessonId;
+    }
+
     private static function canonicalEnrolmentTransition(array $post, string $operation): int {
         if (!current_user_can('dzn_manage_canonical_enrolment_lifecycle')) throw new \RuntimeException('Unauthorized');
         $service = new CanonicalEnrolmentLifecycleService();
@@ -571,6 +686,79 @@ final class ScreenController {
         echo '<p class="description">The latest closed or cancelled Term is checked automatically before creation.</p>';
         self::canonicalEvidenceFields(); submit_button('Create canonical Term'); echo '</form>';
         echo '<script>(function(){const f=document.querySelector("input[name=\'dzn_action\'][value=\'create_canonical_term\']")?.form;if(!f)return;const s=f.querySelector("select[name=\'enrolment_id\']"),i=f.querySelector("[name=\'expected_latest_term_id\']"),t=f.querySelector("[name=\'expected_latest_state\']");const sync=()=>{const o=s.options[s.selectedIndex];i.value=o?.dataset.expectedTerm||"";t.value=o?.dataset.expectedState||"";};s.addEventListener("change",sync);sync();})();</script>';
+    }
+
+    private static function canonicalLessonCreateForm(): void {
+        $options = (new CoreReadService())->canonicalLessonIssueOptions();
+        $terms = array_values(array_filter($options['terms'] ?? array(), static fn(array $term): bool => (int) ($term['standard_remaining'] ?? 0) > 0));
+        $replacements = $options['replacements'] ?? array();
+        echo '<h2>Create class</h2>';
+        echo '<p class="description">A standard paid class is issued against a current canonical Term and its current Teacher Assignment. A replacement class is issued from an eligible cancelled standard class. Both begin in the authorised lifecycle state; class type is never a status.</p>';
+        if (!$terms && !$replacements) {
+            echo '<p>No current canonical Term with a current Teacher Assignment is ready. Create and activate the canonical Term first, or use the introductory class setup below.</p>';
+            return;
+        }
+        self::formStart('create_canonical_lesson');
+        echo '<p><label>Class type<br><select name="lesson_type">';
+        if ($terms) echo '<option value="standard">Standard paid class</option>';
+        if ($replacements) echo '<option value="replacement">Replacement class</option>';
+        echo '</select></label></p>';
+        if ($terms) {
+            echo '<p><label>Course, Term and Teacher Assignment<br><select required name="term_id" id="dzn-canonical-lesson-term">';
+            foreach ($terms as $term) {
+                echo '<option value="' . esc_attr((string) $term['term_id']) . '" data-assignment-id="' . esc_attr((string) $term['assignment_id']) . '">' . esc_html((string) $term['label']) . '</option>';
+            }
+            echo '</select><br><span class="description">Only current Terms with a current Teacher Assignment are listed.</span></label></p>';
+            echo '<input type="hidden" name="teacher_assignment_id" id="dzn-canonical-lesson-assignment" value="' . esc_attr((string) ($terms[0]['assignment_id'] ?? '')) . '">';
+        }
+        if ($replacements) {
+            echo '<p><label>Replacement for<br><select name="replacement_for_lesson_id"><option value="">Choose an eligible cancelled class</option>';
+            foreach ($replacements as $replacement) {
+                echo '<option value="' . esc_attr((string) $replacement['lesson_id']) . '">' . esc_html((string) $replacement['label']) . '</option>';
+            }
+            echo '</select><br><span class="description">Only a cancelled standard class with controlled replacement eligibility and no existing replacement is listed.</span></label></p>';
+        }
+        self::canonicalEvidenceFields();
+        submit_button('Create class');
+        echo '</form>';
+        if ($terms) {
+            echo '<script>(function(){const f=document.querySelector("input[name=\'dzn_action\'][value=\'create_canonical_lesson\']")?.form;if(!f)return;const s=f.querySelector("#dzn-canonical-lesson-term"),a=f.querySelector("#dzn-canonical-lesson-assignment");const sync=()=>{const o=s.options[s.selectedIndex];if(a)a.value=o?.dataset.assignmentId||"";};s.addEventListener("change",sync);sync();})();</script>';
+        }
+    }
+
+    private static function introductoryOutcomeForm(object $lesson): void {
+        if (($lesson->record_model ?? 'legacy_phase1') !== 'legacy_phase1' || (string) $lesson->lesson_type !== 'introductory' || $lesson->archived_at !== null) return;
+        if ((string) $lesson->status === 'completed') { echo '<p class="notice notice-success">The introductory delivery outcome is recorded as completed.</p>'; return; }
+        if (!in_array((string) $lesson->status, array('draft', 'scheduled'), true)) return;
+        $schedule = (new \Delnavazan\Platform\Core\Infrastructure\Repository\LessonScheduleVersionRepository())->current((int) $lesson->id);
+        if (!$schedule || (int) $lesson->current_schedule_version_id !== (int) $schedule->id) {
+            echo '<p class="notice notice-info">A confirmed occurrence is required before the delivery outcome can be recorded.</p>';
+            return;
+        }
+        if ((string) $schedule->ends_at_utc > gmdate('Y-m-d H:i:s')) {
+            echo '<p class="notice notice-info">The delivery outcome can be recorded after the scheduled introductory occurrence ends.</p>';
+            return;
+        }
+        $bookingLinked = (int) ($lesson->booking_request_id ?? 0) > 0;
+        if ($bookingLinked && !current_user_can('dzn_manage_post_intro_automation')) {
+            echo '<p>Recording this booking-linked outcome requires post-intro automation access.</p>';
+            return;
+        }
+        echo '<h2>Introductory delivery outcome</h2>';
+        echo '<p class="description">Record what actually happened. Only a delivered outcome starts the continuation workflow; a no-show or cancellation is retained as an exception and never sends a payment invitation.</p>';
+        self::formStart('record_intro_outcome');
+        echo '<input type="hidden" name="id" value="' . esc_attr((string) $lesson->id) . '">';
+        echo '<p><label>Outcome<br><select name="outcome" required>';
+        echo '<option value="delivered">Delivered</option>';
+        if ($bookingLinked) {
+            echo '<option value="student_no_show">Student no-show</option>';
+            echo '<option value="student_cancelled">Student cancelled</option>';
+            echo '<option value="teacher_cancelled">Teacher cancelled</option>';
+        }
+        echo '</select></label></p>';
+        echo '<p><label>Note (optional)<br><textarea name="note" rows="3" cols="60"></textarea></label></p>';
+        submit_button('Record outcome');
+        echo '</form>';
     }
 
     private static function canonicalTermLifecycleForm(object $term): void {
@@ -619,7 +807,7 @@ final class ScreenController {
         echo '</select></label></p>';
     }
 
-    private static function legacyEnrolmentSelector(string $label, bool $required): void { $rows=(new CoreReadService())->legacyEnrolmentOptionsForTerm(); echo '<p><label>'.esc_html($label).'<br><select name="enrolment_id"'.($required?' required':'').'><option value="">Choose a legacy Enrolment</option>'; foreach($rows as$row){$text=(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.(string)($row->teacher?:'Teacher');if($row->status!=='active')$text.=' ('.str_replace('_',' ',(string)$row->status).')';echo '<option value="'.esc_attr((string)$row->id).'">'.esc_html($text).'</option>';}echo '</select><br><span class="description">Only legacy Enrolments are accepted by this Term workflow.</span></label></p>'; }
+    private static function legacyEnrolmentSelector(string $label, bool $required): void { $rows=(new CoreReadService())->legacyEnrolmentOptionsForTerm(); echo '<p><label>'.esc_html($label).'<br><select name="enrolment_id"'.($required?' required':'').'><option value="">Choose a legacy Enrolment</option>'; foreach($rows as$row){$text=(string)($row->student?:'Student').' · '.(string)($row->course?:'Course').' · '.(string)($row->teacher?:'Teacher');if($row->status!=='active')$text.=' ('.str_replace('_',' ',(string)$row->status).')';echo '<option value="'.esc_attr((string)$row->id).'">'.esc_html($text).'</option>';}echo '</select><br><span class="description">This compatibility form accepts legacy Enrolments only. Use the canonical Term workflow above for a converted Enrolment.</span></label></p>'; }
 
     private static function lessonSchedules(int $lessonId, string $lessonStatus, int $schedulePointer): void {
         $state = (new CoreReadService())->lessonSchedule($lessonId);

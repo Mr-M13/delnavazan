@@ -136,6 +136,12 @@ final class CoreReadService {
         return (new LessonOperationsReadService())->recent();
     }
 
+    /** Capability-gated Term/Assignment choices for canonical standard and replacement Lessons. */
+    public function canonicalLessonIssueOptions(): array {
+        if (!current_user_can('dzn_manage_canonical_lessons')) throw new \RuntimeException('Unauthorized');
+        return (new CanonicalLessonIssueReadService())->options();
+    }
+
     public function canonicalLesson(int $lessonId): ?object {
         return (new LessonOperationsReadService())->canonicalLesson($lessonId);
     }

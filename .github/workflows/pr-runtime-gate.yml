@@ -140,6 +140,9 @@ jobs:
           php platform/tests/stripe-checkout-adapter-unit.php
           php platform/tests/stripe-prelaunch-production-mode-unit.php
           php platform/tests/stripe-test-save-error-classification-unit.php
+          php platform/tests/stripe-test-connection-unit.php
+          php platform/tests/stripe-readiness-summary-unit.php
+          php platform/tests/payment-worker-principal-unit.php
           php platform/tests/stripe-payment-vault-schema-contract.php
           php platform/tests/stripe-checkout-reconciliation-contract.php
           php platform/tests/stripe-checkout-webhook-contract.php

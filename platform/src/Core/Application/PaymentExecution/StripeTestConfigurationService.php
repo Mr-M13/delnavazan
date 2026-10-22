@@ -72,7 +72,7 @@ final class StripeTestConfigurationService {
         return array('account_id'=>$accountId,'stored'=>$stored,'publishable_key_saved'=>$publishable!=='');
     }
 
-    /** A bounded authenticated read of Stripe's sandbox account; provider text and credentials are never surfaced. */
+    /** A bounded authenticated read of Stripe's test balance; provider text and credentials are never surfaced. */
     public function testConnection():array{
         PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
         if(!self::testEnvironmentAllowed())return array('state'=>'blocked','code'=>'stripe_test_environment_required');
@@ -81,15 +81,27 @@ final class StripeTestConfigurationService {
         $secret=$this->secrets->activeSecret('stripe','api_key',(int)$accounts[0]->id,'test');
         $webhook=$this->secrets->activeSecret('stripe','webhook_signing_secret',(int)$accounts[0]->id,'test');
         if(!$secret||!$webhook)return array('state'=>'blocked','code'=>'test_secret_unconfigured');
-        if(!$this->vault->validateStripeTestCredentials((int)$secret->id,(int)$webhook->id))return array('state'=>'blocked','code'=>'test_secret_unavailable');
-        $key=$this->vault->revealForStripeTestConnection((int)$secret->id);
+        try{
+            if(!$this->vault->validateStripeTestCredentials((int)$secret->id,(int)$webhook->id))return array('state'=>'blocked','code'=>'test_secret_unavailable');
+            $key=$this->vault->revealForStripeTestConnection((int)$secret->id);
+        }catch(\Throwable){return array('state'=>'blocked','code'=>'test_secret_validation_failed');}
         if(!is_string($key)||preg_match('/^sk_test_[A-Za-z0-9]{16,}$/D',$key)!==1)return array('state'=>'blocked','code'=>'test_secret_unavailable');
         if(!function_exists('wp_remote_get'))return array('state'=>'blocked','code'=>'http_unavailable');
-        $response=wp_remote_get('https://api.stripe.com/v1/account',array('timeout'=>15,'redirection'=>0,'sslverify'=>true,'headers'=>array('Authorization'=>'Bearer '.$key,'Accept'=>'application/json')));
-        unset($key);
+        // Account objects have no livemode field. Balance explicitly proves the authenticated mode.
+        try{
+            $response=wp_remote_get('https://api.stripe.com/v1/balance',array('timeout'=>15,'redirection'=>0,'sslverify'=>true,'headers'=>array('Authorization'=>'Bearer '.$key,'Accept'=>'application/json')));
+        }catch(\Throwable){return array('state'=>'failed','code'=>'stripe_transport_failed');}
+        finally{unset($key);}
         if(is_wp_error($response))return array('state'=>'failed','code'=>'stripe_unreachable');
         $status=(int)wp_remote_retrieve_response_code($response);$body=json_decode((string)wp_remote_retrieve_body($response),true);
-        if($status!==200||!is_array($body)||!array_key_exists('livemode',$body)||$body['livemode']!==false)return array('state'=>'failed','code'=>'stripe_test_authentication_failed');
+        if($status===401)return array('state'=>'failed','code'=>'stripe_test_authentication_failed');
+        if($status===403)return array('state'=>'failed','code'=>'stripe_test_permission_denied');
+        if($status===429)return array('state'=>'failed','code'=>'stripe_rate_limited');
+        if($status>=500)return array('state'=>'failed','code'=>'stripe_api_unavailable');
+        if($status!==200)return array('state'=>'failed','code'=>'stripe_api_request_failed');
+        if(!is_array($body)||($body['object']??null)!=='balance'||!array_key_exists('livemode',$body)||!is_bool($body['livemode']))
+            return array('state'=>'failed','code'=>'stripe_response_invalid');
+        if($body['livemode']!==false)return array('state'=>'failed','code'=>'stripe_test_mode_mismatch');
         return array('state'=>'success','code'=>'stripe_test_account_reachable');
     }
 

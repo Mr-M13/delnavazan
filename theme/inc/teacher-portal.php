@@ -165,5 +165,51 @@ function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 		'calendar' => array( array( 'day' => 'فردا', 'time' => '۱۷:۰۰', 'label' => 'کلاس معمول · سه‌تار', 'state' => 'regular' ), array( 'day' => 'دوشنبه', 'time' => '۱۸:۳۰', 'label' => 'کلاس آشنایی · پیانو', 'state' => 'intro' ), array( 'day' => 'سه‌شنبه', 'time' => '۲۰:۰۰', 'label' => 'جلسهٔ جایگزین · تار', 'state' => 'replacement' ), array( 'day' => 'چهارشنبه', 'time' => '۱۶:۰۰', 'label' => 'غیبت اطلاع‌داده‌شده · سنتور', 'state' => 'student_absence' ) ),
 	) );
 }
-function dzn_theme_render_teacher_portal( $screen, array $model ) { get_template_part( 'template-parts/teacher-portal/shell', null, array( 'screen' => $screen, 'model' => $model ) ); }
+function dzn_theme_render_teacher_portal( $screen, array $model ) { dzn_theme_teacher_portal_context( $model ); get_template_part( 'template-parts/teacher-portal/shell', null, array( 'screen' => $screen, 'model' => $model ) ); }
 function dzn_theme_teacher_portal_component( $component, array $args = array() ) { get_template_part( 'template-parts/teacher-portal/' . sanitize_key( $component ), null, $args ); }
+
+/**
+ * Presentation context shared with template parts without widening their view-model arguments.
+ * Demo-only controls may render only outside production, so a mislabelled model cannot show fake actions to a real teacher.
+ */
+function dzn_theme_teacher_portal_context( $model = null ) {
+	static $context = array( 'demo' => false, 'settings_url' => '' );
+	if ( is_array( $model ) ) {
+		$settings = '';
+		foreach ( (array) ( $model['navigation'] ?? array() ) as $item ) {
+			if ( is_array( $item ) && 'settings' === ( $item['screen'] ?? null ) && is_string( $item['url'] ?? null ) ) { $settings = $item['url']; }
+		}
+		$context = array( 'demo' => ! empty( $model['is_demo'] ) && 'production' !== wp_get_environment_type(), 'settings_url' => $settings );
+	}
+	return $context;
+}
+/** Exact outcome messages issued by TeacherBookingResponseController; anything else in the query string is never echoed. */
+function dzn_theme_teacher_portal_response_notice_allowlist() {
+	return array(
+		'کلاس تأیید شد و جزئیات برای هنرجو در صف ارسال قرار گرفت.',
+		'درخواست رد شد و اطلاع‌رسانی هنرجو در صف قرار گرفت.',
+		'ساخت تقویم کامل نشد؛ درخواست دوباره برای تلاش پس از بررسی اتصال Google باز شد.',
+		'پذیرش ثبت شد؛ کلاس تا ساخته‌شدن تقویم و پیوند Meet تأیید نمی‌شود.',
+		'برای پذیرش کلاس، ابتدا اتصال Google Calendar را کامل کنید.',
+		'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.',
+	);
+}
+/** Outcome notices for the home screen: array of array( 'success'|'error', message ). Only allowlisted, server-issued text is rendered. */
+function dzn_theme_teacher_portal_notices( $screen ) {
+	$notices = array();
+	if ( 'home' !== $screen ) { return $notices; }
+	$status = isset( $_GET['class_status'] ) ? sanitize_key( (string) wp_unslash( $_GET['class_status'] ) ) : '';
+	$class_messages = array(
+		'delivery_issue_recorded'    => array( 'success', 'گزارش مشکل برگزاری کلاس ثبت شد.' ),
+		'delivery_issue_unavailable' => array( 'error', 'ثبت گزارش برای این کلاس در حال حاضر امکان‌پذیر نیست.' ),
+		'join_unavailable'           => array( 'error', 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.' ),
+	);
+	if ( isset( $class_messages[ $status ] ) ) { $notices[] = $class_messages[ $status ]; }
+	if ( isset( $_GET['dzn_notice'] ) ) {
+		$text = sanitize_text_field( (string) wp_unslash( $_GET['dzn_notice'] ) );
+		if ( in_array( $text, dzn_theme_teacher_portal_response_notice_allowlist(), true ) ) {
+			$notices[] = array( '1' === (string) wp_unslash( $_GET['dzn_error'] ?? '' ) ? 'error' : 'success', $text );
+		}
+	}
+	return $notices;
+}

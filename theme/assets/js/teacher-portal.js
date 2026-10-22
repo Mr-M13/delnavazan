@@ -28,7 +28,40 @@
     if (!panel) return;
     panel.hidden = !panel.hidden;
     button.setAttribute('aria-expanded', String(!panel.hidden));
+    const label = panel.hidden ? button.dataset.dznTpLabelClosed : button.dataset.dznTpLabelOpen;
+    if (label) button.textContent = label;
   }));
+  // Real backend-authorised forms: show progress and block double submission. The server remains the only authority;
+  // this changes presentation only and never alters the submitted fields.
+  const busyForms = document.querySelectorAll('form[data-dzn-tp-submit]');
+  const scopeButtons = (form) => Array.from((form.closest('dialog, article') || form).querySelectorAll('button[type="submit"]'));
+  const restore = (form) => {
+    scopeButtons(form).forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (button.dataset.dznTpLabel) button.textContent = button.dataset.dznTpLabel;
+    });
+    const status = (form.closest('dialog, article') || form).querySelector('.dzn-tp-action-status');
+    if (status) status.textContent = '';
+  };
+  busyForms.forEach((form) => form.addEventListener('submit', () => {
+    const submitter = form.querySelector('button[type="submit"]');
+    const label = submitter && submitter.dataset.dznTpBusyLabel;
+    const scope = form.closest('dialog, article') || form;
+    const status = scope.querySelector('.dzn-tp-action-status');
+    if (submitter && label) {
+      submitter.dataset.dznTpLabel = submitter.textContent;
+      submitter.textContent = label;
+      submitter.setAttribute('aria-busy', 'true');
+    }
+    if (status && label) status.textContent = label;
+    // Disable after the browser has captured the submission so the request is never dropped.
+    window.setTimeout(() => scopeButtons(form).forEach((button) => { button.disabled = true; }), 0);
+    const delay = parseInt(form.dataset.dznTpReenable || '', 10);
+    if (delay > 0) window.setTimeout(() => restore(form), delay);
+  }));
+  // Returning via the back button restores a cached page; never leave a form stuck in its busy state.
+  window.addEventListener('pageshow', (event) => { if (event.persisted) busyForms.forEach(restore); });
   const tour = document.querySelector('[data-dzn-tp-tour-auto="1"]');
   if (tour) {
     const key = 'dznTeacherPortalTourV1';

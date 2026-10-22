@@ -216,8 +216,29 @@ $contains($actor, array(
     "'dzn_manage_provider_integrations'",
     'wp_set_current_user',
 ), 'the system actor must hold exactly the existing canonical capabilities');
-$assert(!str_contains($actor, "'manage_options'"), 'the automation principal must not be an administrator');
-$assert(!str_contains($actor, "'dzn_override_canonical_lesson_schedule_availability'"), 'the automation must not hold the schedule override capability');
+$assert(str_contains($actor, 'ALLOWED_CAPABILITIES') && str_contains($actor, 'FORBIDDEN_CAPABILITIES'), 'the actor must publish an explicit capability allowlist and forbidden set');
+$allowlistSource = substr($actor, (int) strpos($actor, 'public const CAPABILITIES'), (int) strpos($actor, 'public const FORBIDDEN_CAPABILITIES') - (int) strpos($actor, 'public const CAPABILITIES'));
+$assert(!str_contains($allowlistSource, "'manage_options'"), 'the automation principal must not be an administrator');
+$assert(!str_contains($allowlistSource, "'dzn_manage_post_intro_automation'"), 'the automation must not hold the administrative recovery capability');
+$assert(!str_contains($allowlistSource, "'dzn_override_canonical_lesson_schedule_availability'"), 'the automation must not hold the schedule override capability');
+// Runtime validation is read-only; only the explicit administrator entry point may provision.
+$provisionStart = (int) strpos($actor, 'public static function provision(');
+$runtimeActor = substr($actor, 0, $provisionStart);
+$assert(!str_contains($runtimeActor, 'wp_insert_user') && !str_contains($runtimeActor, 'add_role(') && !str_contains($runtimeActor, 'update_option(self::USER_OPTION'), 'ordinary runtime must never provision or repair the actor');
+$contains($actor, array(
+    'post_intro_automation_unconfigured',
+    'post_intro_automation_actor_role_invalid',
+    'post_intro_automation_actor_direct_grant',
+    'post_intro_automation_role_capability_invalid',
+    'post_intro_automation_capability_missing',
+    'post_intro_automation_capability_forbidden',
+    'post_intro_automation_administrator_required',
+    'post_intro_automation_identity_not_effective',
+    'public static function provision(',
+    'public static function bootstrap(',
+    'assertAdministrator',
+    "'manage_options'",
+), 'the actor must fail closed on widened, directly granted or improperly configured identities and provision only explicitly');
 
 // 9. Student and Teacher portal projections expose no internal identifiers or raw errors.
 $contains($studentRead, array(

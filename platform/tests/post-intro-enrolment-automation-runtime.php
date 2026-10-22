@@ -13,7 +13,7 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 
@@ -57,6 +57,79 @@ function dzn_pia_evidence(string $reference): array { return array('evidence_cha
 
 wp_set_current_user($actor);
 add_filter('pre_wp_mail', static fn() => true);
+
+// A. Actor identity is explicitly provisioned and ordinary runtime never creates or repairs it.
+$expectActorFailure = static function (string $code, callable $attempt): void {
+    $caught = null;
+    try { $attempt(); } catch (Throwable $error) { $caught = $error; }
+    dzn_pia_assert($caught !== null && $caught->getMessage() === $code, 'expected actor failure ' . $code . ', got ' . ($caught?->getMessage() ?? 'none'));
+};
+$bootstrapActorId = (int) get_option(PostIntroSystemActor::USER_OPTION);
+dzn_pia_assert($bootstrapActorId > 0, 'the controlled bootstrap must provision the actor before runtime');
+$bootstrapOption = $bootstrapActorId;
+$bootstrapUsers = count(get_users(array('fields' => 'ID')));
+$bootstrapRoleCaps = get_role(PostIntroSystemActor::ROLE)->capabilities;
+$expectActorFailure('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision(0, 'wp_cli'));
+$expectActorFailure('post_intro_automation_administrator_required', static fn() => PostIntroSystemActor::provision($teacherUser, 'wp_cli'));
+dzn_pia_assert((int) get_option(PostIntroSystemActor::USER_OPTION) === $bootstrapOption, 'an unauthorised provision attempt must not rebind the actor');
+dzn_pia_assert(get_role(PostIntroSystemActor::ROLE)->capabilities === $bootstrapRoleCaps, 'an unauthorised provision attempt must not change role capabilities');
+dzn_pia_assert(count(get_users(array('fields' => 'ID'))) === $bootstrapUsers, 'an unauthorised provision attempt must not create a user');
+
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+dzn_pia_assert($actorId === $bootstrapActorId, 'explicit provisioning must be idempotent');
+dzn_pia_assert($actorId > 0 && (int) get_option(PostIntroSystemActor::USER_OPTION) === $actorId, 'explicit administrator provisioning must bind the actor option');
+$actorUser = get_user_by('id', $actorId);
+dzn_pia_assert($actorUser instanceof WP_User, 'provisioned actor must exist');
+dzn_pia_assert(get_user_meta($actorId, PostIntroSystemActor::USER_MARKER, true) === '1', 'provisioned actor must carry the plugin marker');
+dzn_pia_assert(array_values(array_unique(array_map('strval', (array) $actorUser->roles))) === array(PostIntroSystemActor::ROLE), 'the actor must hold exactly one dedicated role');
+$actorRole = get_role(PostIntroSystemActor::ROLE);
+$actorRoleCaps = array_keys(array_filter((array) $actorRole->capabilities));
+sort($actorRoleCaps);
+$expectedActorCaps = PostIntroSystemActor::CAPABILITIES;
+sort($expectedActorCaps);
+dzn_pia_assert($actorRoleCaps === $expectedActorCaps, 'the actor role must hold exactly the allowlisted capability set');
+$ranAs = 0;
+PostIntroSystemActor::run(static function (int $id) use (&$ranAs): void { $ranAs = $id; });
+dzn_pia_assert($ranAs === $actorId, 'the validated actor must run under its own principal');
+
+// An extra role is a widened identity and must be rejected, not silently repaired at runtime.
+$actorUser->add_role('administrator');
+$expectActorFailure('post_intro_automation_actor_role_invalid', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// A direct user grant is rejected even when it is not part of the dedicated role.
+$actorUser = get_user_by('id', $actorId);
+$actorUser->add_cap('manage_options');
+$expectActorFailure('post_intro_automation_actor_direct_grant', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// An unexpected capability on the dedicated role is rejected.
+$actorRole = get_role(PostIntroSystemActor::ROLE);
+$actorRole->add_cap('edit_posts');
+$expectActorFailure('post_intro_automation_role_capability_invalid', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// A missing required permission is rejected rather than being added at runtime.
+$actorRole = get_role(PostIntroSystemActor::ROLE);
+$actorRole->remove_cap('dzn_manage_canonical_lessons');
+$expectActorFailure('post_intro_automation_capability_missing', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// An unmarked account can never be adopted as the automation identity.
+update_user_meta($actorId, PostIntroSystemActor::USER_MARKER, '0');
+$expectActorFailure('post_intro_automation_actor_unverified', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// Missing configuration must fail closed without provisioning silently during runtime.
+$roleBefore = get_role(PostIntroSystemActor::ROLE)->capabilities;
+$usersBefore = count(get_users(array('fields' => 'ID')));
+update_option(PostIntroSystemActor::USER_OPTION, 0, false);
+$expectActorFailure('post_intro_automation_unconfigured', static fn() => PostIntroSystemActor::run(static fn() => true));
+dzn_pia_assert((int) get_option(PostIntroSystemActor::USER_OPTION) === 0, 'runtime must not rewrite the actor option');
+dzn_pia_assert(get_role(PostIntroSystemActor::ROLE)->capabilities === $roleBefore, 'runtime must not repair role capabilities');
+dzn_pia_assert(count(get_users(array('fields' => 'ID'))) === $usersBefore, 'runtime must not create an actor user');
+update_option(PostIntroSystemActor::USER_OPTION, $actorId, false);
+PostIntroSystemActor::run(static fn() => true);
 $standardCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}courses WHERE instrument_id=%d AND course_type='standard' AND status='active' AND archived_at IS NULL ORDER BY id LIMIT 1", $instrumentId));
 if ($standardCourse < 1) {
     $standardCourse = (new CatalogueService())->course(array(

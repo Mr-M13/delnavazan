@@ -2,14 +2,27 @@
 namespace Delnavazan\Platform\Core\Application;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{StudentRepository,TeacherRepository,CourseRepository,EnrolmentRepository,TermRepository,LessonRepository};
 final class LessonService { public function create(array $d):int{if(!current_user_can('dzn_manage_lessons'))throw new \RuntimeException('Unauthorized');foreach([['student_id',StudentRepository::class],['teacher_id',TeacherRepository::class],['course_id',CourseRepository::class]]as[$f,$c]){ $d[$f]=Normalizer::id($d[$f]??null);if(!(new $c)->usable($d[$f]))throw new \InvalidArgumentException('Usable '.$f.' required'); }$type=Normalizer::one($d['lesson_type']??'',['introductory','standard','replacement'],'lesson type');$d['status']=Normalizer::one($d['status']??'draft',['draft','scheduled','cancelled','completed'],'lesson state');$bookingRequestId=isset($d['booking_request_id'])?Normalizer::id($d['booking_request_id']):null;if($bookingRequestId!==null&&$type!=='introductory')throw new \InvalidArgumentException('Only introductory Lessons may reference a Booking Request');$d['booking_request_id']=$bookingRequestId;$enrolment=isset($d['enrolment_id'])?Normalizer::id($d['enrolment_id'],false):null;$term=isset($d['term_id'])?Normalizer::id($d['term_id'],false):null;$original=Normalizer::id($d['replacement_for_lesson_id']??null,false);if($term&&!$enrolment)throw new \InvalidArgumentException('Term requires Enrolment');if($type!=='introductory'&&(!$enrolment||!$term))throw new \InvalidArgumentException('Standard/replacement Lesson needs Enrolment and Term');if($type!=='replacement'&&$original!==null)throw new \InvalidArgumentException('Only replacement Lessons may reference an original Lesson');if($enrolment){$e=(new EnrolmentRepository)->usable($enrolment);if(!$e)throw new \InvalidArgumentException('Canonical Enrolment grants no Lesson or Teacher Assignment authority');if($e->student_id!=$d['student_id']||$e->teacher_id!=$d['teacher_id']||$e->course_id!=$d['course_id'])throw new \InvalidArgumentException('Lesson identity snapshot mismatch');if($term){$t=(new TermRepository)->usable($term);if(!$t||$t->enrolment_id!=$enrolment)throw new \InvalidArgumentException('Invalid Term/Enrolment relationship');}}$d['enrolment_id']=$enrolment;$d['term_id']=$term;$d['replacement_for_lesson_id']=$original;if($type==='replacement'){ if($original===null)throw new \InvalidArgumentException('Replacement Lesson requires original Lesson');$o=(new LessonRepository)->find($original);if(!$o||$original===($d['id']??0)||$o->enrolment_id!=$enrolment||$o->term_id!=$term||$o->student_id!=$d['student_id']||$o->teacher_id!=$d['teacher_id']||$o->course_id!=$d['course_id'])throw new \InvalidArgumentException('Invalid replacement original');}return Creator::create(new LessonRepository,$d,'DZN-LSN-');}
+	/** Complete the introductory Lesson created by the confirmed booking / post-intro workflow. */
 	public function completeIntroductory(int $lessonId,int $expectedScheduleVersionId):void{
+		$this->completeLegacyIntroductory($lessonId,$expectedScheduleVersionId,true);
+	}
+
+	/** Complete a standalone introductory Lesson that was not created from a Booking Request. */
+	public function completeScheduledIntroductory(int $lessonId,int $expectedScheduleVersionId):void{
+		$this->completeLegacyIntroductory($lessonId,$expectedScheduleVersionId,false);
+	}
+
+	private function completeLegacyIntroductory(int $lessonId,int $expectedScheduleVersionId,bool $bookingConfirmed):void{
 		if(!current_user_can('dzn_manage_lessons'))throw new \RuntimeException('Unauthorized');
 		if($lessonId<1||$expectedScheduleVersionId<1)throw new \InvalidArgumentException('Introductory Lesson and occurrence required');
 		global $wpdb;$table=$wpdb->prefix.'dzn_lessons';$now=gmdate('Y-m-d H:i:s');$actor=get_current_user_id();
 		$wpdb->query('START TRANSACTION');
 		try{
 			$lesson=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d FOR UPDATE",$lessonId));
-			if(!$lesson||($lesson->record_model??null)!=='legacy_phase1'||(string)$lesson->lesson_type!=='introductory'||(int)($lesson->booking_request_id??0)<1||$lesson->enrolment_id!==null||$lesson->term_id!==null||$lesson->archived_at!==null)throw new \InvalidArgumentException('confirmed_intro_lesson_required');
+			if(!$lesson||($lesson->record_model??null)!=='legacy_phase1'||(string)$lesson->lesson_type!=='introductory'||$lesson->enrolment_id!==null||$lesson->term_id!==null||$lesson->archived_at!==null)throw new \InvalidArgumentException('confirmed_intro_lesson_required');
+			$bookingRequestId=(int)($lesson->booking_request_id??0);
+			if($bookingConfirmed&&$bookingRequestId<1)throw new \InvalidArgumentException('confirmed_intro_lesson_required');
+			if(!$bookingConfirmed&&$bookingRequestId>0)throw new \InvalidArgumentException('booking_linked_intro_requires_post_intro_outcome');
 			if((int)$lesson->current_schedule_version_id!==$expectedScheduleVersionId)throw new \InvalidArgumentException('confirmed_occurrence_required');
 			if((string)$lesson->status==='completed'){$wpdb->query('COMMIT');return;}
 			if(!in_array((string)$lesson->status,array('draft','scheduled'),true))throw new \InvalidArgumentException('Lesson not completable');

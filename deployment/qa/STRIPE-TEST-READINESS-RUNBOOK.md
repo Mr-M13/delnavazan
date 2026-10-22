@@ -4,10 +4,23 @@
 
 Investigated `main` at `625b78c1ca0b795cedfd12a23de846dd424023f6`.
 PR #330 commit `7f47198f3f1a01378652225dbdd8d0bf11d075db` and merge
-`80846a9b` are ancestors of that main. This proves source inclusion, not production deployment.
-GitHub API access is blocked by the onboarding network policy, and no production SSH binding is
-present in this environment. Production SHA, role state, principal option and accepted settlement
-are therefore **unverified** here. The reported dashboard observations are not fresh runtime evidence.
+`80846a9b` are ancestors of that main. GitHub confirms #330 merged at `2026-10-21T12:08:05Z`.
+
+Production Actions records show successful deployments of the #330 merge itself
+([run 39597437009](https://github.com/Mr-M13/delnavazan/actions/runs/39597437009)) and then
+current main `625b78c1ca0b795cedfd12a23de846dd424023f6`
+([run 39607917223](https://github.com/Mr-M13/delnavazan/actions/runs/39607917223)).
+The latter reports success for exact-SHA validation, deployment, production smoke and record preservation.
+`production-deploy.sh` runs `Migrator::maybe_upgrade()` and verifies schema/build before success;
+#330's role bootstrap therefore belongs to the successfully executed release path. This is deployment
+evidence, not a fresh inspection proving the role has not drifted or that a principal was provisioned.
+
+GitHub API access now works after initially returning Forbidden; PR
+[#334](https://github.com/Mr-M13/delnavazan/pull/334) is open. Actions log downloads are separately
+blocked at `results-receiver.actions.githubusercontent.com` (domain addition saved in the environment
+draft). No production SSH binding is present here. Current host SHA, role grants, principal option
+and accepted settlement remain **unverified directly**. Reported dashboard observations are not fresh
+runtime evidence.
 
 #330 is a capability bootstrap repair, **not a numbered database migration**. It changes the Phase T
 capability marker to `2a2t2` and installs/repairs `dzn_payment_worker` in `Migrator::ensure_capabilities()`.

@@ -36,7 +36,7 @@ final class PostIntroActivationService {
             $repository = $this->repository;
             $now = gmdate('Y-m-d H:i:s');
             $uid = (string) $preparation->uid;
-            $evidenceAt = $this->stableEvidenceAt($job, $preparation, $repository->paymentOccurredAt((int) $purchase->id));
+            $evidenceAt = $this->stableEvidenceAt($job, $repository->paymentOccurredAt((int) $purchase->id));
             $evidence = array(
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . $uid,
@@ -171,7 +171,7 @@ final class PostIntroActivationService {
      * evidence before the Enrolment's own conversion event and fail the lifecycle history's
      * non-decreasing-time invariant.
      */
-    private function stableEvidenceAt(object $job, object $preparation, ?string $paymentOccurredAt = null): string {
+    private function stableEvidenceAt(object $job, ?string $paymentOccurredAt = null): string {
         $candidates = array();
         foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? '')) as $candidate) {
             if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1) $candidates[] = $candidate;

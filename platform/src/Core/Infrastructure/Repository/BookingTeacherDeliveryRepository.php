@@ -1,8 +1,10 @@
 <?php
 namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 
+use Delnavazan\Platform\Core\Application\ConfirmedIntroBookingReadPort;
+
 /** Persistence and bounded read projection for teacher-facing booking requests. */
-final class BookingTeacherDeliveryRepository {
+final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingReadPort {
     private string $prefix;
 
     public function __construct() { global $wpdb; $this->prefix = $wpdb->prefix . 'dzn_'; }
@@ -140,6 +142,62 @@ final class BookingTeacherDeliveryRepository {
                 ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
         $rows = $wpdb->get_results($wpdb->prepare($sql, $studentId, $limit));
         if ($wpdb->last_error !== '') throw new \RuntimeException('Student confirmed booking schedule unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
+    /**
+     * Provider-confirmed introductory bookings for the operator Classes/Academy schedule.
+     *
+     * The booking is authoritative in its own confirmation chain until the post-intro workflow
+     * creates the canonical Lesson. This read deliberately does not select provider ciphertext:
+     * only the presence of a join reference is exposed as a safe boolean.
+     */
+    public function confirmedUpcomingForOperator(int $limit = 80): array {
+        global $wpdb;
+        $limit = max(1, min(80, $limit));
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+                       c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.local_wall_date,c.local_wall_time,
+                       c.provider_code,c.confirmed_at,
+                       d.state delivery_state,r.id booking_request_id,r.student_id,
+                       r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       COALESCE(NULLIF(s.display_name,''),NULLIF(snap.full_name,'')) student_display_reference,
+                       COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_display_reference,
+                       COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
+                       secret.id projection_secret_id
+                FROM {$this->prefix}booking_request_confirmations c
+                INNER JOIN {$this->prefix}booking_request_teacher_deliveries d
+                        ON d.id=c.delivery_id
+                       AND d.booking_request_id=c.booking_request_id
+                       AND d.requested_time_id=c.requested_time_id
+                       AND d.teacher_id=c.teacher_id
+                INNER JOIN {$this->prefix}booking_requests r ON r.id=c.booking_request_id
+                INNER JOIN {$this->prefix}booking_request_contact_snapshots snap
+                        ON snap.booking_request_id=r.id AND snap.snapshot_sequence=1
+                INNER JOIN {$this->prefix}instruments i ON i.id=r.requested_instrument_id
+                LEFT JOIN {$this->prefix}students s ON s.id=r.student_id
+                LEFT JOIN {$this->prefix}teachers t ON t.id=c.teacher_id
+                LEFT JOIN {$this->prefix}courses course ON course.id=r.selected_intro_course_id
+                LEFT JOIN {$this->prefix}provider_projection_secrets secret
+                        ON secret.mapping_kind='booking_calendar'
+                       AND secret.mapping_id=c.id
+                       AND secret.state='active'
+                       AND secret.active_slot=1
+                WHERE c.state='confirmed'
+                  AND d.state='confirmed'
+                  AND r.lifecycle_status='closed'
+                  AND r.resolution_state='teacher_confirmed'
+                  AND r.privacy_erased_at IS NULL
+                  AND c.provider_code='google_calendar'
+                  AND c.provider_event_digest IS NOT NULL
+                  AND c.confirmed_at IS NOT NULL
+                  AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {$this->prefix}lessons l
+                      WHERE l.booking_request_id=r.id AND l.archived_at IS NULL
+                  )
+                ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $limit));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Operator confirmed booking schedule unavailable');
         return is_array($rows) ? $rows : array();
     }
 

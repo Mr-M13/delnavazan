@@ -13,7 +13,9 @@ $general = $read('GeneralSettingsController.php');
 $rate = $read('FinanceRateController.php');
 $statement = $read('FinanceStatementController.php');
 $payability = $read('FinancePayabilityController.php');
+$academy = $read('AcademyOperationsController.php');
 $options = (string) file_get_contents($root . '/src/Core/Application/Finance/Read/FinanceTeacherOptionsReadService.php');
+$coreRead = (string) file_get_contents($root . '/src/Core/Application/CoreReadService.php');
 $operations = (string) file_get_contents($root . '/../theme/inc/operations.php');
 
 $contains($shell, array(
@@ -51,6 +53,24 @@ $contains($menu, array(
     "['General', GeneralSettingsController::CAPABILITY",
     "['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'",
 ), 'route registration must retain every protected destination and add one General page');
+$contains($academy, array(
+    "private static function classOperationalState(string \$view = 'overview'): void",
+    "'Today and upcoming lessons'",
+    "'Attention needed'",
+    '(new CoreReadService())->classOperatorRows()',
+    'self::classUrl($row)',
+    "'confirmed_intro_booking_v1'",
+    "'Open booking'",
+    'schedule_starts_at_utc',
+    'scheduleUtcInstant',
+    'setTimezone(new \\DateTimeZone($timezone))',
+), 'Academy views must preserve confirmed-intro visibility, booking links, chronological UTC ordering and timezone-aware classification');
+$contains($coreRead, array(
+    'private function sortClassRows(array $rows): array',
+    'schedule_starts_at_utc',
+    'classRowTieBreak',
+    'utcScheduleTimestamp',
+), 'the new Academy navigation must reuse the chronological composite Classes read seam');
 $contains($general, array('class GeneralSettingsController', "CAPABILITY = 'manage_options'", 'Read-only platform identity', 'DiagnosticsService'), 'General must be a read-only administrator page');
 
 $contains($options, array(

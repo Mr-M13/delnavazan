@@ -9,6 +9,7 @@ $contains = static function (string $haystack, array $needles, string $message) 
 
 $repository = $read('Core/Infrastructure/Repository/BookingTeacherDeliveryRepository.php');
 $service = $read('Core/Application/ConfirmedIntroBookingReadService.php');
+$lessonOps = $read('Core/Application/LessonOperationsReadService.php');
 $coreRead = $read('Core/Application/CoreReadService.php');
 $screen = $read('Admin/Controller/ScreenController.php');
 $academy = $read('Admin/Controller/AcademyOperationsController.php');
@@ -42,7 +43,13 @@ $contains($service, array(
     'booking_request_id',
     'has_join_reference',
     'end + 7200 < time()',
+    'schedule_starts_at_utc',
 ), 'confirmed-intro operator service must be capability-gated, bounded and operator-readable');
+$contains($lessonOps, array(
+    'legacy.starts_at_utc schedule_starts_at_utc',
+    '$row->schedule_starts_at_utc=(string)$active->starts_at_utc',
+    '$row->schedule_timezone=(string)$active->schedule_timezone',
+), 'Lesson rows must expose their authoritative UTC schedule start for ordering');
 foreach (array('INSERT ', 'UPDATE ', 'DELETE ', 'LessonService', 'wp_insert', 'insertLesson', 'schedule(') as $forbidden) {
     $expect(!str_contains($service, $forbidden), 'confirmed-intro read service must not write or fabricate class truth: ' . $forbidden);
 }
@@ -52,7 +59,14 @@ $contains($coreRead, array(
     'new LessonOperationsReadService())->recent()',
     'new ConfirmedIntroBookingReadService())->upcoming()',
     "current_user_can('dzn_view_booking_requests')",
-), 'the composite Classes read seam must merge confirmed intros into the existing Lesson projection');
+    'private function sortClassRows(array $rows): array',
+    'utcScheduleTimestamp',
+    'classRowTieBreak',
+    "'canonical_term_lesson_v1' => 0",
+    "'legacy_phase1' => 1",
+    "'confirmed_intro_booking_v1' => 2",
+    '$unscheduled[] = $row',
+), 'the composite Classes read seam must merge and chronologically sort both projections with deterministic tie-breaks');
 $contains($screen, array(
     'classOperatorRows()',
     'confirmed_intro_booking_v1',
@@ -64,6 +78,9 @@ $contains($academy, array(
     'confirmed_intro_booking_v1',
     'classUrl',
     "page' => 'dzn-booking-requests'",
-), 'Academy today/upcoming must reuse the same composite Classes projection');
+    'scheduleUtcInstant',
+    'setTimezone(new \\DateTimeZone($timezone))',
+    'validScheduleTimezone',
+), 'Academy today/upcoming must use the composite projection and classify dates through the row schedule timezone');
 
 echo "PASS confirmed introductory bookings in Admin Classes/Academy without Lesson fabrication\n";

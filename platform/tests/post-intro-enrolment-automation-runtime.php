@@ -343,6 +343,12 @@ $retriedEvidenceAt = (string) $wpdb->get_var($wpdb->prepare(
 dzn_pia_assert($retriedEvidenceAt === $activationCheckpoint, 'an expected retry must reconstruct the identical canonical evidence time');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'retry must not duplicate Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d", $purchaseId)) === 1, 'retry must not duplicate Term funding');
+// Once the canonical Lesson exists the operator projection must hand off, not duplicate the booking.
+wp_set_current_user($actor);
+foreach ((new \Delnavazan\Platform\Core\Application\ConfirmedIntroBookingReadService())->upcoming() as $operatorRow) {
+    dzn_pia_assert((string) $operatorRow->confirmation_uid !== (string) $main['confirmation'], 'a canonical Lesson must replace its confirmed-intro operator row');
+}
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE booking_request_id=%d", (int) $main['request'])) === 1, 'the canonical intro Lesson must be the single schedule record');
 
 
 // B. Availability is a real precondition: a delivered intro with no published slot is an admin exception.

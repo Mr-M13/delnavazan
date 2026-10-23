@@ -38,6 +38,7 @@ final class ConfirmedIntroBookingReadService {
             $row->teacher_name = (string) $row->teacher_display_reference;
             $row->course_name = (string) $row->course_reference;
             $row->class_status = 'Confirmed intro';
+            $row->schedule_starts_at_utc = (string) $row->starts_at_utc;
             $row->schedule_label = (string) $row->local_wall_date . ' · ' . substr((string) $row->local_wall_time, 0, 5) . ' ' . $timezone;
             $row->next_action = 'Open booking';
             $row->booking_request_id = (int) $row->booking_request_id;

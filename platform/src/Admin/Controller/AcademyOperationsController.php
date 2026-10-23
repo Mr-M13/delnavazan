@@ -92,14 +92,38 @@ final class AcademyOperationsController {
         return add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
     }
     private static function scheduleDate(object $row): string {
+        $instant = self::scheduleUtcInstant((string) ($row->schedule_starts_at_utc ?? ''));
+        $timezone = (string) ($row->schedule_timezone ?? '');
+        if ($instant !== null && self::validScheduleTimezone($timezone)) {
+            return $instant->setTimezone(new \DateTimeZone($timezone))->format('Y-m-d');
+        }
         $label = (string) ($row->schedule_label ?? '');
         return preg_match('/^([0-9]{4}-[0-9]{2}-[0-9]{2}) · /', $label, $matches) ? $matches[1] : '';
     }
     private static function todayInScheduleTimezone(object $row): string {
+        $timezone = (string) ($row->schedule_timezone ?? '');
+        if (self::validScheduleTimezone($timezone)) {
+            return (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
+        }
         $label = (string) ($row->schedule_label ?? '');
-        $timezone = substr($label, (int) strrpos($label, ' ') + 1);
-        try { return (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d'); }
-        catch (\Exception) { return gmdate('Y-m-d'); }
+        $fallback = substr($label, (int) strrpos($label, ' ') + 1);
+        if (self::validScheduleTimezone($fallback)) {
+            return (new \DateTimeImmutable('now', new \DateTimeZone($fallback)))->format('Y-m-d');
+        }
+        return gmdate('Y-m-d');
+    }
+    private static function scheduleUtcInstant(string $value): ?\DateTimeImmutable {
+        $value = trim($value);
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $value) !== 1) return null;
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC'));
+        $errors = \DateTimeImmutable::getLastErrors();
+        if ($date === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) return null;
+        return $date;
+    }
+    private static function validScheduleTimezone(string $timezone): bool {
+        if ($timezone === '') return false;
+        try { new \DateTimeZone($timezone); return true; }
+        catch (\Throwable) { return false; }
     }
     private static function attention(object $r):string{
         if(!$r->match_attention_code)return '<span aria-label="No active matching attention">—</span>';

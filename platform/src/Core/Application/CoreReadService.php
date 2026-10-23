@@ -142,6 +142,19 @@ final class CoreReadService {
         return (new CanonicalLessonIssueReadService())->options();
     }
 
+    /**
+     * Composite operator class schedule: canonical/legacy Lessons plus confirmed introductory
+     * bookings that have not yet produced a Lesson. Confirmed intros remain read-only booking
+     * rows; this seam never fabricates a Lesson merely to make the schedule visible.
+     */
+    public function classOperatorRows(): array {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        $lessons = $this->lessonOperatorRows();
+        if (!current_user_can('dzn_view_booking_requests')) return $lessons;
+        $intros = (new ConfirmedIntroBookingReadService())->upcoming();
+        return array_merge($intros, $lessons);
+    }
+
     public function canonicalLesson(int $lessonId): ?object {
         return (new LessonOperationsReadService())->canonicalLesson($lessonId);
     }

@@ -208,6 +208,9 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
     $requestedTimeId = (int) $delivery->requested_time_id;
     $start = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC -' . $hoursAgo . ' hours'));
     $start = substr($start, 0, 11) . $wallTime;
+    // The wall-clock override must still be in the past even when the current UTC hour is
+    // earlier than the scenario wall time (for example a 02:01 CI run with a 04:xx slot).
+    if ($start >= $now) $start = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC -1 day'));
     $end = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +30 minutes'));
     $occupied = gmdate('Y-m-d H:i:s', strtotime($end . ' UTC +15 minutes'));
     $localDate = substr($start, 0, 10);
@@ -345,6 +348,34 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}com
 // B. Availability is a real precondition: a delivered intro with no published slot is an admin exception.
 $noAvailWall = sprintf('07:%02d:00', 5 + (hexdec(substr($suffix, 4, 2)) % 50));
 $noAvailBooking = $booking('no-availability', 2, $noAvailWall);
+// Admin Classes/Academy must see a future confirmed intro before any Lesson exists. Move this
+// synthetic confirmation forward for the read-only assertion, then restore its delivery facts.
+$adminOriginal = $wpdb->get_row($wpdb->prepare("SELECT starts_at_utc,ends_at_utc,local_wall_date,local_wall_time,provider_event_digest FROM {$p}booking_request_confirmations WHERE uid=%s", $noAvailBooking['confirmation']));
+$adminFutureStart = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC +24 hours'));
+$adminFutureEnd = gmdate('Y-m-d H:i:s', strtotime($adminFutureStart . ' UTC +30 minutes'));
+dzn_pia_assert($adminOriginal !== null && $wpdb->update($p . 'booking_request_confirmations', array(
+    'starts_at_utc' => $adminFutureStart,
+    'ends_at_utc' => $adminFutureEnd,
+    'local_wall_date' => substr($adminFutureStart, 0, 10),
+    'local_wall_time' => substr($adminFutureStart, 11, 8),
+    'provider_event_digest' => hash('sha256', 'operator-visible-' . $noAvailBooking['confirmation']),
+), array('uid' => $noAvailBooking['confirmation'])) !== false, 'future admin-visible confirmation fixture');
+wp_set_current_user($actor);
+$adminIntros = (new \Delnavazan\Platform\Core\Application\ConfirmedIntroBookingReadService())->upcoming();
+$adminIntro = null;
+foreach ($adminIntros as $candidate) if ((string) $candidate->confirmation_uid === (string) $noAvailBooking['confirmation']) { $adminIntro = $candidate; break; }
+dzn_pia_assert($adminIntro !== null, 'confirmed introductory booking must be visible to the operator schedule');
+dzn_pia_assert((string) $adminIntro->record_model === 'confirmed_intro_booking_v1' && (string) $adminIntro->class_status === 'Confirmed intro', 'operator intro row must be explicit and not a fabricated Lesson');
+dzn_pia_assert((int) $adminIntro->booking_request_id === (int) $noAvailBooking['request'], 'operator intro row must link to its booking request');
+dzn_pia_assert((string) $adminIntro->schedule_timezone === 'UTC', 'operator intro row must preserve the confirmation schedule timezone');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE booking_request_id=%d", (int) $noAvailBooking['request'])) === 0, 'admin visibility must not fabricate an introductory Lesson');
+$wpdb->update($p . 'booking_request_confirmations', array(
+    'starts_at_utc' => $adminOriginal->starts_at_utc,
+    'ends_at_utc' => $adminOriginal->ends_at_utc,
+    'local_wall_date' => $adminOriginal->local_wall_date,
+    'local_wall_time' => $adminOriginal->local_wall_time,
+    'provider_event_digest' => $adminOriginal->provider_event_digest,
+), array('uid' => $noAvailBooking['confirmation']));
 $wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_rules WHERE teacher_id=%d", $teacherId));
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($noAvailBooking['confirmation'], $teacherId, 'delivered', 'Synthetic no availability');

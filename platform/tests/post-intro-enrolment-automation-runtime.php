@@ -180,7 +180,11 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
         'privacy_notice_accepted' => true,
         'privacy_notice_version' => '2026-09-05',
         'adult_self_attested' => true,
-        'requested_times' => array(array('local_date' => $futureDate, 'local_start_time' => '04:17', 'timezone' => 'UTC')),
+        // Intake delivery happens before this fixture rewrites the confirmed time below. Keep
+        // that temporary request outside the continuation's protected recurring slot (04:xx),
+        // otherwise a later scenario is correctly declined as unavailable before its own
+        // historical confirmation can be installed.
+        'requested_times' => array(array('local_date' => $futureDate, 'local_start_time' => '12:17', 'timezone' => 'UTC')),
     ), dzn_pia_key('request-' . $label));
     $requestId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_requests WHERE reference_code=%s", (string) $submission['request_reference']));
     dzn_pia_assert($requestId > 0, 'booking request persistence');

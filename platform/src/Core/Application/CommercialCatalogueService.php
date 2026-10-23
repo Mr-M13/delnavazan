@@ -16,7 +16,7 @@ final class CommercialCatalogueService {
     private const CAPABILITY='dzn_manage_commercial_catalogue';
     public function __construct(private ?CommercialAuthorityRepository $repository=null){$this->repository??=new CommercialAuthorityRepository();}
 
-    public function createProduct(array $input,string $key):array{
+    public function createProduct(array $input,string $key,bool $withinTransaction=false):array{
         CommercialSupport::requireCapability(self::CAPABILITY);
         $actor=CommercialSupport::actor();
         $courseId=CommercialSupport::positiveInt($input['course_id']??null,'Usable standard Course required');
@@ -25,9 +25,9 @@ final class CommercialCatalogueService {
         if(!in_array($status,array('active','inactive'),true))throw new \InvalidArgumentException('Controlled product state required');
         $digest=CommercialSupport::keyString($key);
         $payload=CommercialIdempotency::payload(array('course_id'=>$courseId,'status'=>$status,'name_fa'=>(string)($input['name_fa']??''),'name_en'=>(string)($input['name_en']??''),'evidence_reference_digest'=>$evidence['digest']));
-        $this->repository->begin();
+        if(!$withinTransaction)$this->repository->begin();
         try{
-            if($winner=$this->repository->command($digest)){$result=$this->replayProduct($winner,$payload);$this->repository->commit();return $result;}
+            if($winner=$this->repository->command($digest)){$result=$this->replayProduct($winner,$payload);if(!$withinTransaction)$this->repository->commit();return $result;}
             $course=$this->standardCourse($courseId);
             foreach($this->repository->productsForCourse($courseId) as $existing){
                 if((string)$existing->status==='active'&&$existing->archived_at===null)throw new \InvalidArgumentException('commercial_product_exists');
@@ -44,11 +44,11 @@ final class CommercialCatalogueService {
                 'command_key_digest'=>$digest,'command_payload_digest'=>$payload,'result_state'=>'active','result_id'=>$id,
                 'created_at'=>$now,'created_by'=>$actor,
             ));
-            $this->repository->commit();
+            if(!$withinTransaction)$this->repository->commit();
             return array('product_id'=>$id,'course_id'=>(int)$course->id,'status'=>$status,'created'=>true);
         }catch(\Throwable$e){
-            $this->repository->rollback();
-            if($this->repository->duplicate($e)==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replayProduct($winner,$payload);
+            if(!$withinTransaction)$this->repository->rollback();
+            if(!$withinTransaction&&$this->repository->duplicate($e)==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replayProduct($winner,$payload);
             throw $e;
         }
     }

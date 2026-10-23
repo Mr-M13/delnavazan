@@ -16,6 +16,11 @@ final class InstrumentRepository extends BaseRepository {
         ));
     }
 
+    public function bySlug(string $slug): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table} WHERE slug=%s LIMIT 1",$slug));
+    }
+
     /** Instruments an operator may select when creating a Course; IDs stay in form values only. */
     public function optionsForCourse(): array {
         global $wpdb;

@@ -34,7 +34,7 @@ final class ScreenController {
     private const CREATE_FIELDS = [
         'teacher' => ['persian_name', 'english_name', 'display_name', 'email', 'phone', 'whatsapp_phone', 'country_code', 'city', 'timezone', 'timezone_source', 'locale', 'calendar_preference', 'status'],
         'student' => ['first_name', 'last_name', 'display_name', 'email', 'phone', 'whatsapp_phone', 'country_code', 'city', 'timezone', 'timezone_source', 'locale', 'calendar_preference', 'status'],
-        'instrument' => ['slug', 'name_fa', 'name_en', 'status'],
+        'instrument' => ['name', 'standard_duration_minutes', 'introductory_lesson_billing', 'gap_between_lessons_minutes'],
         'course' => ['instrument_id', 'name_fa', 'name_en', 'course_type', 'status', 'default_duration_minutes', 'default_buffer_minutes'],
         'term' => ['enrolment_id', 'sequence_number', 'status', 'lesson_allocation', 'replacement_allowance', 'payment_state'],
         'lesson' => ['student_id', 'teacher_id', 'course_id', 'lesson_type', 'status', 'enrolment_id', 'term_id', 'replacement_for_lesson_id'],
@@ -137,7 +137,7 @@ final class ScreenController {
                 'set_availability_profile' => (new \Delnavazan\Platform\Core\Application\TeacherAvailabilityService())->setProfile($post),
                 'set_availability_rule' => (new \Delnavazan\Platform\Core\Application\TeacherAvailabilityService())->setRecurringRule($post),
                 'create_student' => (new StudentService())->create(self::createPayload('student', $post)),
-                'create_instrument' => (new CatalogueService())->instrument(self::createPayload('instrument', $post)),
+                'create_instrument' => (new CatalogueService())->setupInstrument(self::createPayload('instrument', $post))['instrument_id'],
                 'create_course' => (new CatalogueService())->course(self::createPayload('course', $post)),
                 'create_term' => (new TermService())->create(self::createPayload('term', $post)),
                 'create_canonical_term' => self::canonicalTermCreate($post),
@@ -789,7 +789,7 @@ final class ScreenController {
         self::input('first_name', 'First name'); self::input('last_name', 'Last name'); self::input('display_name', 'Display name', true); self::input('email', 'Email', false, 'email'); self::input('phone', 'Phone'); self::input('whatsapp_phone', 'WhatsApp'); self::input('country_code', 'Country code', false, 'text', 'AU'); self::input('city', 'City'); self::input('timezone', 'Timezone', false, 'text', 'Australia/Brisbane'); self::select('timezone_source', 'Timezone source', ['admin_selected', 'student_selected', 'imported', 'system_suggested'], 'admin_selected'); self::input('locale', 'Locale', false, 'text', 'en_AU'); self::select('calendar_preference', 'Calendar', ['gregorian', 'persian', 'auto'], 'gregorian'); self::select('status', 'Status', ['active', 'inactive'], 'active');
     }
 
-    private static function instrumentFields(): void { self::input('slug', 'Slug', true); self::input('name_fa', 'Persian name'); self::input('name_en', 'English name'); self::select('status', 'Status', ['active', 'inactive'], 'active'); }
+    private static function instrumentFields(): void { self::input('name', 'Instrument name', true); self::input('standard_duration_minutes', 'Standard lesson duration (minutes)', true, 'number', '30'); echo '<p><strong>Introductory lesson:</strong> Free<input type="hidden" name="introductory_lesson_billing" value="free"></p><p class="description">Paid introductions are unavailable because no pre-introduction checkout authority exists.</p>'; self::input('gap_between_lessons_minutes', 'Gap between lessons (minutes)', true, 'number', '15'); echo '<p class="description">The introductory Course uses this same duration and gap. This creates or safely reconciles the introductory and standard Courses, the standard commercial product, and the public introductory default. Set regional prices separately in Commercial Catalogue.</p>'; }
     private static function courseFields(): void { self::instrumentSelector(); self::input('name_fa', 'Persian name', true); self::input('name_en', 'English name', true); self::select('course_type', 'Course type', ['standard', 'introductory'], 'standard'); self::select('status', 'Status', ['active', 'inactive'], 'active'); self::input('default_duration_minutes', 'Duration minutes', true, 'number', '30'); self::input('default_buffer_minutes', 'Buffer minutes', true, 'number', '15'); }
     private static function instrumentSelector(): void {
         $instruments = (new CoreReadService())->instrumentOptionsForCourse();

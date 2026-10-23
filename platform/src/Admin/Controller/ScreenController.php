@@ -221,11 +221,16 @@ final class ScreenController {
     private static function entityList(string $entity): void {
         if ($entity === 'student') { self::studentList(); return; }
         if($entity==='lesson'){
-            $records=(new CoreReadService())->lessonOperatorRows();
-            echo '<h2>Classes and schedule</h2><p>Review each learner, teacher, class state and next scheduling handoff. Schedule changes stay with the authorised schedule workflow.</p>';
+            $records=(new CoreReadService())->classOperatorRows();
+            echo '<h2>Classes and schedule</h2><p>Review each learner, teacher, class state and next scheduling handoff. Schedule changes stay with the authorised schedule workflow. Confirmed introductory bookings are shown from their booking confirmation until the post-intro workflow creates the canonical Lesson.</p>';
             if(!$records){echo '<p>No classes to review.</p>';return;}
             echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Student / course</th><th>Teacher</th><th>Class status</th><th>Schedule</th><th>Next step</th></tr></thead><tbody>';
-            foreach($records as$row){$url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->id),admin_url('admin.php'));$label=(string)($row->reference_code?:'Class');echo '<tr><td><a href="'.esc_url($url).'">'.esc_html($label).'</a></td><td>'.esc_html((string)($row->student_name?:'Student')).'<br>'.esc_html((string)($row->course_name?:'Course')).'</td><td>'.esc_html((string)($row->teacher_name?:'Teacher')).'</td><td>'.esc_html((string)$row->class_status).'</td><td>'.esc_html((string)$row->schedule_label).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html((string)$row->next_action).'</a></td></tr>';}
+            foreach($records as$row){
+                $intro=($row->record_model??'')==='confirmed_intro_booking_v1';
+                $url=$intro?add_query_arg(array('page'=>'dzn-booking-requests','request_id'=>(int)$row->booking_request_id),admin_url('admin.php')):add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->id),admin_url('admin.php'));
+                $label=(string)($row->reference_code?:($intro?'Confirmed intro':'Class'));
+                echo '<tr><td><a href="'.esc_url($url).'">'.esc_html($label).'</a></td><td>'.esc_html((string)($row->student_name?:'Student')).'<br>'.esc_html((string)($row->course_name?:'Course')).'</td><td>'.esc_html((string)($row->teacher_name?:'Teacher')).'</td><td>'.esc_html((string)$row->class_status).'</td><td>'.esc_html((string)$row->schedule_label).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html((string)$row->next_action).'</a></td></tr>';
+            }
             echo '</tbody></table>';return;
         }
         if ($entity === 'teacher') { self::teacherInvitationPanel(); if (current_user_can('dzn_manage_teachers')) self::teacherDirectory(); self::teacherCoverage(); return; }

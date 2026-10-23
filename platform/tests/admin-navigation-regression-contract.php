@@ -81,13 +81,13 @@ if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
     || ! str_contains( $shell, 'Keep it intact; CSS hides only the legacy sidebar links.' )
     || ! str_contains( $shell, '#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}' )
-    || ! str_contains( $shell, "'courses' => ['Courses'" )
-    || ! str_contains( $shell, "'enrolments_classes' => ['Enrolments / Classes'" ) ) {
+    || ! str_contains( $shell, "'enrolment' => ['Enrolment'" )
+    || ! str_contains( $shell, "'finance' => ['Finance'" ) ) {
     throw new RuntimeException( 'Application tabs must preserve WordPress route registration while hiding the legacy sidebar visually.' );
 }
-if ( ! str_contains( $shell, "['Course catalogue and pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']" )
+if ( ! str_contains( $shell, "['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']" )
     || ! str_contains( $shell, "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']" )
-    || ! str_contains( $shell, "['Stripe setup', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]" )
+    || ! str_contains( $shell, "['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]" )
     || ! str_contains( $shell, "['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities']" )
     || ! str_contains( $shell, 'dzn-admin-shell__subtabs' )
     || ! str_contains( $shell, 'private static function hasRequiredCapabilities' )
@@ -121,7 +121,7 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
     || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {
     throw new RuntimeException( 'Academy dashboard data must come from its capability-gated application read projection.' );
 }
-if ( ! str_contains( $operations, 'private static function classOperationalState(): void' )
+if ( ! str_contains( $operations, "private static function classOperationalState(string \$view = 'overview'): void" )
     || ! str_contains( $operations, "current_user_can('dzn_manage_lessons')" )
     || ! str_contains( $operations, '(new CoreReadService())->lessonOperatorRows()' )
     || ! str_contains( $operations, 'Classes: today and next' )
@@ -148,8 +148,8 @@ if ( ! str_contains( $dataset, 'private static function contextId( string $name 
     throw new RuntimeException( 'Workflow prefill must be ID-only and preserve human-reviewed identity resolution' );
 }
 if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
-    || ! str_contains( $payment, 'Provider setup and readiness are under Settings.' ) ) {
-    throw new RuntimeException( 'Stripe setup must live in Settings while payment operations stay in Finance' );
+    || ! str_contains( $payment, 'Provider setup and readiness are under Finance' ) ) {
+    throw new RuntimeException( 'Stripe integration must live in Finance while payment operations remain there' );
 }
 if ( ! str_contains( $menu, "['Teachers', self::TEACHER_OPERATIONS_CAP, 'dzn-teachers-menu'" )
     || ! str_contains( $screen, 'teacherDirectory()' )
@@ -302,10 +302,8 @@ foreach ( array(
     "'academy' => ['Academy'",
     "'teachers' => ['Teachers'",
     "'students' => ['Students'",
-    "'courses' => ['Courses'",
-    "'enrolments_classes' => ['Enrolments / Classes'",
+    "'enrolment' => ['Enrolment'",
     "'finance' => ['Finance'",
-    "'communications' => ['Communications'",
     "'settings' => ['Settings'",
 ) as $required_tab ) {
     if ( ! str_contains( $shell, $required_tab ) ) throw new RuntimeException( 'Missing application navigation tab: ' . $required_tab );
@@ -328,7 +326,7 @@ foreach ( array(
 if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'" )
     || str_contains( $menu, "['dzn-platform', 'Booking requests'")
     || str_contains( $menu, "['dzn-platform', 'Request coordination'")
-    || ! str_contains( $shell, "'dzn-exception' => 'settings'")
+    || ! str_contains( $shell, "'dzn-exception' => 'enrolment'")
     || ! str_contains( $shell, "'dzn-system-health' => 'settings'") ) {
     throw new RuntimeException( 'Academy must use one dashboard entry and Settings must retain protected diagnostics destinations.' );
 }

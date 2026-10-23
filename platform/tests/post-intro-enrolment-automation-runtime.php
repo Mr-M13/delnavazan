@@ -208,6 +208,9 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
     $requestedTimeId = (int) $delivery->requested_time_id;
     $start = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC -' . $hoursAgo . ' hours'));
     $start = substr($start, 0, 11) . $wallTime;
+    // The wall-clock override must still be in the past even when the current UTC hour is
+    // earlier than the scenario wall time (for example a 02:01 CI run with a 04:xx slot).
+    if ($start >= $now) $start = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC -1 day'));
     $end = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +30 minutes'));
     $occupied = gmdate('Y-m-d H:i:s', strtotime($end . ' UTC +15 minutes'));
     $localDate = substr($start, 0, 10);

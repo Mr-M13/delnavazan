@@ -188,6 +188,7 @@ jobs:
             php platform/tests/teacher-portal-phase2-contract.php
           fi
           php platform/tests/admin-navigation-regression-contract.php
+          php platform/tests/admin-navigation-teacher-finance-contract.php
           php platform/tests/admin-shell-route-capability-runtime.php
           php platform/tests/admin-read-capability-authority.php
           php platform/tests/student-operations-journey-contract.php

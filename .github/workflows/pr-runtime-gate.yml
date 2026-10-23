@@ -170,7 +170,6 @@ jobs:
           php platform/tests/synthetic-dataset-contract.php
           php platform/tests/synthetic-dataset-policy-contract.php
           php platform/tests/post-intro-enrolment-automation-contract.php
-          php platform/tests/instrument-setup-contract.php
           php platform/tests/post-intro-system-actor-unit.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php

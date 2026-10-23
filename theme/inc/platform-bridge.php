@@ -61,8 +61,9 @@ function dzn_theme_platform_history_item( array $lesson ) {
 		'not_recorded' => 'وضعیت برگزاری ثبت نشده',
 		'cancelled' => 'لغو شده',
 	);
+	$timezone = (string) ( $lesson['schedule_timezone'] ?? '' ) ?: ( wp_timezone_string() ?: 'UTC' );
 	return array(
-		'date' => dzn_theme_platform_local_time( $lesson['starts_at_utc'] ?? '', 'j F Y' ),
+		'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'] ?? '', 'j F Y', $timezone ),
 		'title' => (string) ( $lesson['course_reference'] ?? '' ),
 		'outcome' => $labels[ $outcome ] ?? $outcome,
 		'tone' => in_array( $outcome, array( 'completed', 'delivered' ), true ) ? 'success' : 'muted',
@@ -249,7 +250,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	$enrolment = $next && ! $is_booking ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
     $next_end = $next ? strtotime( (string) ( $next['ends_at_utc'] ?? '' ) . ' UTC' ) : false;
     $within_join_window = $next_start && $next_end && $now >= $next_start - HOUR_IN_SECONDS && $now <= $next_end + ( 2 * HOUR_IN_SECONDS );
-	$display_timezone = $is_booking ? (string) ( $next['schedule_timezone'] ?? 'UTC' ) : ( wp_timezone_string() ?: 'UTC' );
+	$display_timezone = (string) ( $next['schedule_timezone'] ?? '' ) ?: ( wp_timezone_string() ?: 'UTC' );
 	$model['announcement'] = array();
 	$model['booking_requests'] = array_values( array_filter( $booking_requests, static fn( $row ) => is_array( $row ) && 'student_booking_request_v1' === ( $row['version'] ?? '' ) ) );
 	$model['upcoming_lesson'] = $next ? array(
@@ -279,7 +280,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	) : array( 'presentation_state' => 'none' );
 	$term_progress = $is_booking ? array() : dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
 	$model['term'] = $term_progress ? array_merge( $term_progress, array(
-		'next_label' => $next ? 'کلاس بعدی: ' . dzn_theme_platform_local_time( $next['starts_at_utc'] ?? '', 'j F' ) : 'کلاس آینده‌ای ثبت نشده است',
+		'next_label' => $next ? 'کلاس بعدی: ' . dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'j F', $display_timezone ) : 'کلاس آینده‌ای ثبت نشده است',
 		'normal_replacement' => '',
 		'academy_owed_remedial' => '',
 		'academy_owed_tone' => 'muted',

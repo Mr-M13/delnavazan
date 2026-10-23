@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\PostIntroPreparationService;
+use Delnavazan\Platform\Core\Application\PostIntroSystemActor;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 
@@ -29,11 +30,29 @@ final class PostIntroAdminController {
         $jobs = $repository->failedJobs();
         $pending = $repository->pendingOutcomeConfirmations();
         $status = sanitize_key((string) ($_GET['post_intro_admin'] ?? ''));
+        $actorState = 'unconfigured';
+        try {
+            $actorState = 'ready (#' . PostIntroSystemActor::ensure() . ')';
+        } catch (\Throwable $error) {
+            $actorState = preg_match('/^[a-z0-9_]{3,64}$/D', trim($error->getMessage())) === 1 ? trim($error->getMessage()) : 'invalid';
+        }
         ?>
         <div class="wrap">
             <h1>Post-intro automation</h1>
             <?php if ($status !== '') : ?><div class="notice notice-info"><p><?php echo esc_html($status); ?></p></div><?php endif; ?>
             <p>Only genuine exceptions are listed here. Canonical Lesson, Enrolment, Term, payment, and Teacher-assignment truth must be repaired in its owning authority before retrying.</p>
+
+            <h2>Automation identity</h2>
+            <p>Status: <code><?php echo esc_html($actorState); ?></code></p>
+            <?php if (current_user_can('manage_options')) : ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
+                    <input type="hidden" name="operation" value="provision_actor">
+                    <?php wp_nonce_field(self::ACTION); ?>
+                    <button class="button">Provision or repair automation identity</button>
+                </form>
+                <p>This explicit administrator action creates or repairs the dedicated role and identity. Ordinary Teacher, Student, worker and webhook requests never do this.</p>
+            <?php endif; ?>
 
             <h2>Preparation exceptions</h2>
             <table class="widefat striped"><thead><tr><th>Booking</th><th>State</th><th>Reason</th><th>Updated</th><th>Action</th></tr></thead><tbody>
@@ -117,7 +136,10 @@ final class PostIntroAdminController {
         check_admin_referer(self::ACTION);
         $operation = sanitize_key((string) ($_POST['operation'] ?? ''));
         try {
-            if ($operation === 'retry_preparation') {
+            if ($operation === 'provision_actor') {
+                if (!current_user_can('manage_options')) throw new \RuntimeException('Unauthorized');
+                PostIntroSystemActor::provision();
+            } elseif ($operation === 'retry_preparation') {
                 (new PostIntroPreparationService())->retry((int) ($_POST['preparation_id'] ?? 0));
             } elseif ($operation === 'retry_activation') {
                 PostIntroActivationWorker::requeue((int) ($_POST['job_id'] ?? 0));

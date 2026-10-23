@@ -88,9 +88,14 @@ final class PortalAuthenticatedReadService {
         global $wpdb;
         $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
         $table = $wpdb->prefix . 'dzn_lessons';
+        $schedules = $wpdb->prefix . 'dzn_canonical_lesson_schedule_versions';
+        // A canonical Lesson becomes portal-visible when its occurrence is scheduled. An
+        // authorised but unscheduled Lesson has no date/time to present and must not make the
+        // whole portal read fail closed; the canonical schedule read still validates every row
+        // that is selected.
         $ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT id FROM {$table} WHERE {$column}=%d AND record_model='canonical_term_lesson_v1' ORDER BY id DESC LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1' ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT %d",
                 $principalId,
                 self::LIMIT
             )

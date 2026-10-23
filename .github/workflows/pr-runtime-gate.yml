@@ -171,6 +171,7 @@ jobs:
           php platform/tests/synthetic-dataset-policy-contract.php
           php platform/tests/post-intro-enrolment-automation-contract.php
           php platform/tests/instrument-setup-contract.php
+          php platform/tests/post-intro-system-actor-unit.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php
           else
@@ -192,6 +193,8 @@ jobs:
           php platform/tests/admin-read-capability-authority.php
           php platform/tests/student-operations-journey-contract.php
           php platform/tests/lesson-operator-workflow-contract.php
+          php platform/tests/lesson-introductory-outcome-unit.php
+          php platform/tests/lesson-term-workflow-repair-contract.php
           php platform/tests/operational-cashbook-rule-unit.php
           php platform/tests/operational-cashbook-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then

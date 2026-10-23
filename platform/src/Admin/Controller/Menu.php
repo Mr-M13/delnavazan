@@ -16,6 +16,8 @@ final class Menu {
     public const ROOT_SLUG = 'dzn-platform';
     /** One consolidated Teachers route; individual controls still check their own authority. */
     public const TEACHER_OPERATIONS_CAP = 'dzn_access_teacher_operations';
+    /** One visible entry for the existing canonical workflow command screen. */
+    public const CORE_WORKFLOW_CAP = 'dzn_access_core_workflow';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
@@ -28,6 +30,7 @@ final class Menu {
 
     public static function mapMetaCap(array $caps, string $cap, int $userId, array $args): array {
         if ($cap === self::TEACHER_OPERATIONS_CAP) return self::mappedTeacherOperationsCaps($userId);
+        if ($cap === self::CORE_WORKFLOW_CAP) return self::mappedCoreWorkflowCaps($userId);
         if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         if ($cap === self::INTEGRATION_SETTINGS_CAP) return self::mappedIntegrationCaps($userId, 'dzn_manage_provider_integrations');
         if ($cap === self::SYSTEM_HEALTH_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
@@ -43,6 +46,24 @@ final class Menu {
             'dzn_manage_onboarding',
             'dzn_issue_teacher_invitations',
             'dzn_revoke_teacher_invitations',
+        ] as $delegatedCap) {
+            if ($user->has_cap($delegatedCap)) return [$delegatedCap];
+        }
+        return ['do_not_allow'];
+    }
+
+    private static function mappedCoreWorkflowCaps(int $userId): array {
+        $user = get_userdata($userId);
+        if (!$user) return ['do_not_allow'];
+        if ($user->has_cap('manage_options')) return ['manage_options'];
+        foreach ([
+            'dzn_convert_service_arrangements_to_enrolments',
+            'dzn_issue_student_account_claims',
+            'dzn_manage_teacher_assignments',
+            'dzn_manage_canonical_terms',
+            'dzn_manage_canonical_lessons',
+            'dzn_manage_canonical_lesson_delivery',
+            'dzn_manage_canonical_lesson_schedules',
         ] as $delegatedCap) {
             if ($user->has_cap($delegatedCap)) return [$delegatedCap];
         }
@@ -82,6 +103,7 @@ final class Menu {
             ['Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],
+            ['General', GeneralSettingsController::CAPABILITY, GeneralSettingsController::MENU_SLUG, [GeneralSettingsController::class, 'render'], null],
             ['Integrations', self::INTEGRATIONS_OVERVIEW_CAP, 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
             ['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
             ['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],

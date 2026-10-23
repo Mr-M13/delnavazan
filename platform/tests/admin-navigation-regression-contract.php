@@ -123,7 +123,7 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
 }
 if ( ! str_contains( $operations, 'private static function classOperationalState(): void' )
     || ! str_contains( $operations, "current_user_can('dzn_manage_lessons')" )
-    || ! str_contains( $operations, '(new CoreReadService())->lessonOperatorRows()' )
+    || ! str_contains( $operations, '(new CoreReadService())->classOperatorRows()' )
     || ! str_contains( $operations, 'Classes: today and next' )
     || ! str_contains( $operations, 'private static function scheduleDate(object $row): string' )
     || str_contains( $operations, 'FROM {$p}lessons' )

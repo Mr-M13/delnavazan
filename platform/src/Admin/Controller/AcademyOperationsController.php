@@ -61,7 +61,7 @@ final class AcademyOperationsController {
      */
     private static function classOperationalState(): void {
         if (!current_user_can('dzn_manage_lessons')) return;
-        $rows = (new CoreReadService())->lessonOperatorRows();
+        $rows = (new CoreReadService())->classOperatorRows();
         $attention = array_values(array_filter($rows, static fn(object $row): bool => in_array((string) $row->class_status, array('Integrity review needed', 'Schedule needs review', 'Ready to schedule'), true)));
         $todayRows = array_values(array_filter($rows, static fn(object $row): bool => self::scheduleDate($row) !== '' && self::scheduleDate($row) === self::todayInScheduleTimezone($row)));
         $upcoming = array_values(array_filter($rows, static fn(object $row): bool => self::scheduleDate($row) > self::todayInScheduleTimezone($row)));
@@ -69,7 +69,7 @@ final class AcademyOperationsController {
         if ($attention) {
             echo '<h3>Class attention</h3><ul>';
             foreach (array_slice($attention, 0, 3) as $row) {
-                $url = add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
+                $url = self::classUrl($row);
                 $label = (string) ($row->student_name ?: $row->course_name ?: 'Class');
                 echo '<li><a href="'.esc_url($url).'">'.esc_html($label).'</a> · '.esc_html((string) $row->class_status).'</li>';
             }
@@ -79,20 +79,51 @@ final class AcademyOperationsController {
         if (!$todayRows && !$upcoming) { echo '<p>No scheduled classes are currently visible in the Classes workflow.</p><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>'; return; }
         echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student / course</th><th>Teacher</th><th>Class state</th><th></th></tr></thead><tbody>';
         foreach (array_slice(array_merge($todayRows, $upcoming), 0, 6) as $row) {
-            $url = add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
-            echo '<tr><td>'.esc_html((string) $row->schedule_label).'</td><td>'.esc_html((string) ($row->student_name ?: 'Student')).'<br><small>'.esc_html((string) ($row->course_name ?: 'Course')).'</small></td><td>'.esc_html((string) ($row->teacher_name ?: 'Teacher')).'</td><td>'.esc_html((string) $row->class_status).'</td><td><a class="button" href="'.esc_url($url).'">Open class</a></td></tr>';
+            $url = self::classUrl($row);
+            $action = ($row->record_model ?? '') === 'confirmed_intro_booking_v1' ? 'Open booking' : 'Open class';
+            echo '<tr><td>'.esc_html((string) $row->schedule_label).'</td><td>'.esc_html((string) ($row->student_name ?: 'Student')).'<br><small>'.esc_html((string) ($row->course_name ?: 'Course')).'</small></td><td>'.esc_html((string) ($row->teacher_name ?: 'Teacher')).'</td><td>'.esc_html((string) $row->class_status).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html($action).'</a></td></tr>';
         }
         echo '</tbody></table><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>';
     }
+    private static function classUrl(object $row): string {
+        if (($row->record_model ?? '') === 'confirmed_intro_booking_v1') {
+            return add_query_arg(array('page' => 'dzn-booking-requests', 'request_id' => (int) $row->booking_request_id), admin_url('admin.php'));
+        }
+        return add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
+    }
     private static function scheduleDate(object $row): string {
+        $instant = self::scheduleUtcInstant((string) ($row->schedule_starts_at_utc ?? ''));
+        $timezone = (string) ($row->schedule_timezone ?? '');
+        if ($instant !== null && self::validScheduleTimezone($timezone)) {
+            return $instant->setTimezone(new \DateTimeZone($timezone))->format('Y-m-d');
+        }
         $label = (string) ($row->schedule_label ?? '');
         return preg_match('/^([0-9]{4}-[0-9]{2}-[0-9]{2}) · /', $label, $matches) ? $matches[1] : '';
     }
     private static function todayInScheduleTimezone(object $row): string {
+        $timezone = (string) ($row->schedule_timezone ?? '');
+        if (self::validScheduleTimezone($timezone)) {
+            return (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
+        }
         $label = (string) ($row->schedule_label ?? '');
-        $timezone = substr($label, (int) strrpos($label, ' ') + 1);
-        try { return (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d'); }
-        catch (\Exception) { return gmdate('Y-m-d'); }
+        $fallback = substr($label, (int) strrpos($label, ' ') + 1);
+        if (self::validScheduleTimezone($fallback)) {
+            return (new \DateTimeImmutable('now', new \DateTimeZone($fallback)))->format('Y-m-d');
+        }
+        return gmdate('Y-m-d');
+    }
+    private static function scheduleUtcInstant(string $value): ?\DateTimeImmutable {
+        $value = trim($value);
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $value) !== 1) return null;
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC'));
+        $errors = \DateTimeImmutable::getLastErrors();
+        if ($date === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) return null;
+        return $date;
+    }
+    private static function validScheduleTimezone(string $timezone): bool {
+        if ($timezone === '') return false;
+        try { new \DateTimeZone($timezone); return true; }
+        catch (\Throwable) { return false; }
     }
     private static function attention(object $r):string{
         if(!$r->match_attention_code)return '<span aria-label="No active matching attention">—</span>';

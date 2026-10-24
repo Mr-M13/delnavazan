@@ -25,16 +25,15 @@ final class GoogleOAuthController {
         if(!$teacher)self::returnToPortal('teacher_not_linked');
         $redirect=admin_url('admin-post.php?action=dzn_google_oauth_callback');
         if(!str_starts_with($redirect,'https://'))self::returnToPortal('oauth_redirect_unavailable');
-        $scopes=ProviderIntegrationRule::scopeSnapshot(array(
-            GoogleCalendarMeetAdapter::CALENDAR_SCOPE,
-            GoogleCalendarMeetAdapter::MEET_SCOPE,
-        ));
+        // Calendar events.insert creates the conference through conferenceData, so a separate
+        // Google Meet REST scope would grant capability this workflow never calls.
+        $scopes=ProviderIntegrationRule::scopeSnapshot(GoogleCalendarMeetAdapter::CALENDAR_SCOPE);
         try{
             $adapter=new GoogleCalendarMeetAdapter();$oauth=new GoogleOAuthTransport();
             $service=new ProviderIntegrationService(null,null,$oauth,$adapter,$adapter);
             $result=$service->beginAuthorization(array(
                 'provider_code'=>GoogleCalendarMeetAdapter::PROVIDER_CODE,'teacher_id'=>(int)$teacher->id,
-                'client_reference'=>GoogleOAuthTransport::clientId(),'redirect_uri'=>$redirect,
+                'client_reference'=>GoogleOAuthTransport::clientReference(),'redirect_uri'=>$redirect,
                 'scope_snapshot'=>$scopes,'evidence_channel'=>'authenticated_platform',
                 'evidence_reference'=>'teacher-google-connect:'.(int)$teacher->id,'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'teacher-google-connect:'.get_current_user_id().':'.wp_generate_uuid4());
@@ -43,13 +42,13 @@ final class GoogleOAuthController {
                 'teacher_id'=>(int)$teacher->id,'expires_at'=>time()+900,
             )),time()+900);
             $uri=$oauth->authorizationUri(array(
-                'client_reference'=>GoogleOAuthTransport::clientId(),'redirect_uri'=>$redirect,
+                'client_reference'=>GoogleOAuthTransport::clientReference(),'redirect_uri'=>$redirect,
                 'scope_snapshot'=>$scopes,'state'=>$result['state'],'code_challenge'=>$result['code_challenge'],
             ));
             $parts=parse_url($uri);
             if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='accounts.google.com')throw new \RuntimeException('oauth_authorization_target_untrusted');
             wp_redirect($uri,302,'Delnavazan');exit;
-        }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
+        }catch(\Throwable $error){self::clearCookie();self::returnToPortal(self::connectFailureStatus($error));}
     }
     public static function disconnect():void{
         if(!is_user_logged_in())auth_redirect();
@@ -72,6 +71,7 @@ final class GoogleOAuthController {
                     'evidence_reference'=>'teacher-google-disconnect:'.(int)$teacher->id,
                     'evidence_at'=>gmdate('Y-m-d H:i:s'),
                 ),'teacher-google-revoke:'.(int)$connection->id.':'.wp_generate_uuid4());
+                (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
                 self::returnToPortal(($result['connection_state']??'')==='revoked'?'google_disconnected':'google_disconnect_failed');
             }
             // Configuration can disappear after a connection was established. Fail closed locally
@@ -82,6 +82,7 @@ final class GoogleOAuthController {
                 'evidence_reference'=>'teacher-google-local-disconnect:'.(int)$teacher->id,
                 'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'teacher-google-disconnect-local:'.(int)$connection->id.':'.wp_generate_uuid4());
+            (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_disconnected');
         }catch(\Throwable){self::returnToPortal('google_disconnect_failed');}
     }
@@ -116,11 +117,39 @@ final class GoogleOAuthController {
             $service->completeAuthorization(array(
                 'state'=>$state,'code'=>$code,'code_verifier'=>(string)$payload['verifier'],'redirect_uri'=>(string)$payload['redirect'],
             ),'teacher-google-complete:'.hash('sha256',$state));
+            (new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->refreshOwnProgress();
             self::returnToPortal('google_connected');
-        }catch(\Throwable){self::clearCookie();self::returnToPortal('google_connect_failed');}
+        }catch(\Throwable $error){self::clearCookie();self::returnToPortal(self::completeFailureStatus($error));}
     }
     private static function returnToPortal(string $status):never{
         wp_safe_redirect(add_query_arg(array('teacher-view'=>'account','google_status'=>$status),home_url('/teacher-portal/')));exit;
+    }
+    /** Map known, safe failure classes to teacher-facing status codes without exposing exception text. */
+    private static function connectFailureStatus(\Throwable $error):string{
+        return match($error->getMessage()){
+            'google_oauth_not_configured'=>'google_not_configured',
+            'google_oauth_client_mismatch','Controlled client reference required'=>'google_client_reference_invalid',
+            'authorization_scope_not_permitted'=>'google_scope_unavailable',
+            'Exact HTTPS redirect target required'=>'oauth_redirect_unavailable',
+            'Unauthorized'=>'google_connect_not_permitted',
+            default=>'google_connect_failed',
+        };
+    }
+    /** Map callback failures to bounded status codes without rendering provider responses or secrets. */
+    private static function completeFailureStatus(\Throwable $error):string{
+        return match($error->getMessage()){
+            'oauth_callback_invalid','oauth_cookie_invalid','oauth_cookie_unavailable',
+            'authorization_state_invalid','authorization_state_already_settled','authorization_state_expired',
+            'authorization_verifier_mismatch','authorization_redirect_mismatch'=>'google_callback_invalid',
+            'oauth_principal_changed'=>'google_account_session_changed',
+            'google_oauth_transport_failed'=>'google_exchange_unavailable',
+            'google_oauth_provider_refused','google_oauth_response_incomplete','google_oauth_subject_unavailable',
+            'authorization_identity_unusable'=>'google_identity_unavailable',
+            'authorization_scope_not_permitted','authorization_scope_mismatch'=>'google_scope_unavailable',
+            'provider_identity_already_bound'=>'google_identity_already_connected',
+            'Unauthorized'=>'google_connect_not_permitted',
+            default=>'google_connect_failed',
+        };
     }
     private static function setCookie(string $value,int $expires):void{
         setcookie(self::COOKIE,$value,array('expires'=>$expires,'path'=>'/','secure'=>true,'httponly'=>true,'samesite'=>'Lax'));

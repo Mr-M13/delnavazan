@@ -14,14 +14,22 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 final class GoogleOAuthTransport implements ProviderOAuthPort {
     private const TOKEN_URI='https://oauth2.googleapis.com/token';
     private const REVOKE_URI='https://oauth2.googleapis.com/revoke';
-    private const TOKEN_INFO_URI='https://oauth2.googleapis.com/tokeninfo';
+    private const USER_INFO_URI='https://openidconnect.googleapis.com/v1/userinfo';
 
     public static function clientId():string{return (new IntegrationSettingsService())->value('google','client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');}
+    /**
+     * A fixed-width, non-secret reference suitable for the persisted authorization record.
+     *
+     * Google web-client IDs can exceed the legacy 64-character column, so storing the raw
+     * provider client ID made an otherwise valid consent start fail before the browser redirect.
+     */
+    public static function clientReference():string{return 'google:'.substr(hash('sha256',self::clientId()),0,48);}
     public static function isConfigured():bool{try{return self::clientId()!==''&&self::clientSecret()!=='';}catch(\Throwable){return false;}}
     private static function clientSecret():string{return (new IntegrationSettingsService())->value('google','client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');}
 
     public function authorizationUri(array $request):string{
-        $this->configuration((string)($request['client_reference']??''));
+        [$client]=$this->configuration((string)($request['client_reference']??''));
+        $request['client_reference']=$client;
         return (new GoogleCalendarMeetAdapter())->authorizationUri($request);
     }
 
@@ -75,20 +83,18 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
     public function inspect(array $connection):array{
         try{
             $credential=$this->decodeCredential((string)($connection['credential_material']??''));
-            $response=wp_remote_get(self::TOKEN_INFO_URI.'?'.http_build_query(array('access_token'=>$credential['access_token']),'','&',PHP_QUERY_RFC3986),array('timeout'=>15,'redirection'=>0));
-            if(is_wp_error($response)||(int)wp_remote_retrieve_response_code($response)!==200)return array('usable'=>false,'provider_subject_reference'=>null,'granted_scope_snapshot'=>null,'failure_reason_code'=>'provider_inspection_failed');
-            $body=json_decode((string)wp_remote_retrieve_body($response),true);
-            if(!is_array($body))throw new \RuntimeException('provider_response_invalid');
-            return array('usable'=>true,'provider_subject_reference'=>$this->required($body,'sub'),'granted_scope_snapshot'=>$this->required($body,'scope'),'failure_reason_code'=>null);
+            $scope=trim((string)($connection['scope_snapshot']??''));
+            if($scope==='')throw new \RuntimeException('provider_scope_unavailable');
+            return array('usable'=>true,'provider_subject_reference'=>$this->subject($credential['access_token']),'granted_scope_snapshot'=>$scope,'failure_reason_code'=>null);
         }catch(\Throwable){
             return array('usable'=>false,'provider_subject_reference'=>null,'granted_scope_snapshot'=>null,'failure_reason_code'=>'provider_inspection_failed');
         }
     }
 
-    private function configuration(string $expectedClient=''):array{
+    private function configuration(string $expectedReference=''):array{
         $client=trim(self::clientId());$secret=trim(self::clientSecret());
         if($client===''||$secret==='')throw new \RuntimeException('google_oauth_not_configured');
-        if($expectedClient!==''&&!hash_equals($client,$expectedClient))throw new \RuntimeException('google_oauth_client_mismatch');
+        if($expectedReference!==''&&!hash_equals(self::clientReference(),$expectedReference))throw new \RuntimeException('google_oauth_client_mismatch');
         return array($client,$secret);
     }
 
@@ -107,11 +113,18 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
     }
 
     private function subject(string $access):string{
-        $response=wp_remote_get(self::TOKEN_INFO_URI.'?'.http_build_query(array('access_token'=>$access),'','&',PHP_QUERY_RFC3986),array('timeout'=>15,'redirection'=>0));
+        $response=wp_remote_get(self::USER_INFO_URI,array(
+            'timeout'=>15,'redirection'=>0,
+            'headers'=>array('Authorization'=>'Bearer '.$access,'Accept'=>'application/json'),
+        ));
         if(is_wp_error($response)||(int)wp_remote_retrieve_response_code($response)!==200)throw new \RuntimeException('google_oauth_subject_unavailable');
         $body=json_decode((string)wp_remote_retrieve_body($response),true);
         if(!is_array($body))throw new \RuntimeException('google_oauth_subject_unavailable');
-        return $this->required($body,'sub');
+        $raw=$body['sub']??'';
+        if(!is_scalar($raw))throw new \RuntimeException('google_oauth_subject_unavailable');
+        $subject=trim((string)$raw);
+        if($subject===''||strlen($subject)>255||preg_match('/[\x00-\x1F\x7F]/',$subject))throw new \RuntimeException('google_oauth_subject_unavailable');
+        return $subject;
     }
 
     private function encodeCredential(string $access,string $refresh,array $response):string{

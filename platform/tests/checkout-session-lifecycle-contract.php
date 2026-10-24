@@ -5,7 +5,7 @@ $schema=file_get_contents(dirname(__DIR__).'/src/Core/Infrastructure/Migration/M
 $adapter=file_get_contents(dirname(__DIR__).'/src/Integrations/Payment/Stripe/StripeCheckoutAdapter.php');
 foreach(array('providerIdempotencyKey','active->uid','same durable attempt','Provider outcome is ambiguous','recordOpen','PaymentExecutionIdempotency::reference','safeStripeUrl','PROVIDER_IDEMPOTENCY_REPLAY_SECONDS','Commercial facts changed after the attempt was made') as $needle)
     if(strpos($service,$needle)===false)throw new RuntimeException('Checkout lifecycle retry contract missing '.$needle);
-foreach(array("array('creating','open')", "'state'=>'open'", "'provider_reference_digest'=>$providerReferenceDigest", "'active_slot'=>1", "array('completed','expired','failed')") as $needle)
+foreach(array("array('creating','open')", "'state'=>'open'", "'provider_reference_digest'=>\$providerReferenceDigest", "'active_slot'=>1", "array('completed','expired','failed')") as $needle)
     if(strpos($repository,$needle)===false)throw new RuntimeException('Checkout lifecycle persistence contract missing '.$needle);
 foreach(array('provider_reference_digest','active_slot','obligation_active') as $needle)
     if(strpos($schema,$needle)===false)throw new RuntimeException('Checkout lifecycle must use existing authority schema: '.$needle);

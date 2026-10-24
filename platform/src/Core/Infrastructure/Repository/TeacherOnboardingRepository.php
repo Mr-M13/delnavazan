@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 
+use Delnavazan\Platform\Core\Application\ProviderIntegrationRule;
+
 /** Persistence boundary for the invitation-only teacher onboarding lifecycle. */
 final class TeacherOnboardingRepository {
     private string $prefix;
@@ -35,6 +37,13 @@ final class TeacherOnboardingRepository {
             $teacherId,
             $timezone
         ) );
+    }
+    public function hasUsableGoogleConnection(int $teacherId): bool {
+        global $wpdb;
+        return (bool)$wpdb->get_var($wpdb->prepare(
+            "SELECT c.id FROM {$this->prefix}integration_connections c INNER JOIN {$this->prefix}integration_credentials k ON k.connection_id=c.id AND k.state='active' WHERE c.teacher_id=%d AND c.provider_code='google_calendar' AND c.connection_state='connected' AND c.active_slot=1 AND c.identity_state='verified' AND BINARY c.scope_snapshot = BINARY %s LIMIT 1",
+            $teacherId,ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE
+        ));
     }
 
     public function updateTeacherProfile(int $teacherId, array $data, string $now, int $actor): void {

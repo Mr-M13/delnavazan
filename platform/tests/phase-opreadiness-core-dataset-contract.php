@@ -27,7 +27,7 @@ $recorded=strpos($migrator,'$done[]=$id;');
 $advanced=strpos($migrator,'update_option( self::OPTION, DZN_PLATFORM_SCHEMA_VERSION, false );');
 dzn_readiness_assert($verified!==false&&$recorded!==false&&$advanced!==false,'The migration loop must verify Schema 033, record it and advance the option');
 dzn_readiness_assert($verified<$recorded&&$recorded<$advanced,'Schema 033 must be verified before it is recorded and before the schema option advances');
-dzn_readiness_assert(str_contains($migrator,"'032_notification_communications_authority', '033_core_dataset_technical_prerequisites' );"),'The current-schema check must require the Schema-033 ledger entry');
+dzn_readiness_assert(str_contains($migrator,"'032_notification_communications_authority', '033_core_dataset_technical_prerequisites',"),'The current-schema check must require the Schema-033 ledger entry');
 dzn_readiness_assert(str_contains($migrator,'self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema();'),'The current-schema check must run the Schema-033 verifier');
 dzn_readiness_assert(!str_contains($migrator,'ensure_core_dataset_technical_prerequisites')&&!str_contains($plugin,'ensure_core_dataset_technical_prerequisites'),'The separate post-upgrade installation path must be gone');
 

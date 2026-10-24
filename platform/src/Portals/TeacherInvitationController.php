@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Portals;
 
 use Delnavazan\Platform\Core\Application\PrincipalInvitationService;
+use Delnavazan\Platform\Core\Application\TeacherInvitationAccountMismatch;
 
 /** One-time code claim boundary; invitation secrets are accepted only in POST bodies. */
 final class TeacherInvitationController {
@@ -21,30 +22,56 @@ final class TeacherInvitationController {
                 $service->beginExistingClaim( $secret, $userId, $command );
                 $service->finalizeClaim( $command, $userId );
             } else {
+                $password = (string) ( $post['account_password'] ?? '' );
+                $confirmation = (string) ( $post['account_password_confirmation'] ?? '' );
+                $passwordLength = function_exists( 'mb_strlen' ) ? mb_strlen( $password ) : strlen( $password );
+                if ( $passwordLength < 12 ) self::redirectState( 'password_short' );
+                if ( ! hash_equals( $password, $confirmation ) ) self::redirectState( 'password_mismatch' );
+                if ( $service->requiresExistingAccountAuthentication( $secret ) ) self::redirectState( 'existing_account' );
                 $claim = $service->beginProvisioning( $secret, $command ); $recipient = (string) $claim['recipient'];
-                if ( email_exists( $recipient ) ) throw new \InvalidArgumentException( 'Existing account must authenticate first' );
-                $base = sanitize_user( strstr( $recipient, '@', true ) ?: 'teacher', true ); if ( $base === '' ) $base = 'teacher';
-                $login = $base; for ( $i = 0; username_exists( $login ) && $i < 20; $i++ ) $login = $base . wp_rand( 1000, 999999 );
+                if ( email_exists( $recipient ) ) { $service->recordExistingAccountRequired( $command ); self::redirectState( 'existing_account' ); }
+                $login = sanitize_user( $recipient, true );
+                if ( $login !== $recipient || strlen( $login ) > 60 || username_exists( $login ) ) {
+                    $base = substr( sanitize_user( strstr( $recipient, '@', true ) ?: 'teacher', true ), 0, 40 ); if ( $base === '' ) $base = 'teacher';
+                    $login = $base; for ( $i = 0; username_exists( $login ) && $i < 20; $i++ ) $login = $base . wp_rand( 1000, 999999 );
+                }
                 if ( username_exists( $login ) ) throw new \RuntimeException( 'Unable to allocate account identity' );
                 if ( ! function_exists( 'wp_create_user' ) ) require_once ABSPATH . 'wp-admin/includes/user.php';
-                $temporaryPassword = wp_generate_password( 48, true, true );
-                $userId = wp_create_user( $login, $temporaryPassword, $recipient );
-                if ( is_wp_error( $userId ) || ! $userId ) throw new \RuntimeException( 'Account creation failed' );
+                $userId = wp_create_user( $login, $password, $recipient );
+                if ( is_wp_error( $userId ) && in_array( 'existing_user_login', $userId->get_error_codes(), true ) && ! email_exists( $recipient ) ) {
+                    $base = substr( sanitize_user( strstr( $recipient, '@', true ) ?: 'teacher', true ), 0, 40 ); if ( $base === '' ) $base = 'teacher';
+                    for ( $i = 0; $i < 5 && is_wp_error( $userId ) && in_array( 'existing_user_login', $userId->get_error_codes(), true ); $i++ ) {
+                        $login = $base . wp_rand( 1000, 999999 ); if ( ! username_exists( $login ) ) $userId = wp_create_user( $login, $password, $recipient );
+                    }
+                }
+                if ( is_wp_error( $userId ) || ! $userId ) {
+                    $codes = is_wp_error( $userId ) ? $userId->get_error_codes() : array();
+                    if ( in_array( 'existing_user_email', $codes, true ) || ( in_array( 'existing_user_login', $codes, true ) && email_exists( $recipient ) ) ) { $service->recordExistingAccountRequired( $command ); self::redirectState( 'existing_account' ); }
+                    $service->recordProvisioningResult( $command, null, false );
+                    throw new \RuntimeException( 'Account creation failed' );
+                }
                 $userId = (int) $userId;
                 $service->recordProvisioningResult( $command, $userId, true );
                 $service->finalizeClaim( $command, $userId );
-                unset($temporaryPassword);
-                if ( function_exists('wp_new_user_notification') ) wp_new_user_notification($userId, null, 'user');
             }
             $user = get_userdata( $userId ); if ( $user && get_role( 'dzn_teacher' ) ) $user->add_role( 'dzn_teacher' );
-            unset( $secret, $temporaryPassword );
-            if ( isset($recipient) ) { wp_safe_redirect( add_query_arg( 'teacher_claim', 'password_email', home_url('/login/') ) ); exit; }
+            if ( ! is_user_logged_in() ) { wp_set_current_user( $userId ); wp_set_auth_cookie( $userId, true, is_ssl() ); }
+            unset( $secret, $password, $confirmation );
             wp_safe_redirect( add_query_arg( 'teacher-view', 'onboarding', home_url( '/teacher-portal/' ) ) ); exit;
+        } catch ( TeacherInvitationAccountMismatch $e ) {
+            unset( $secret, $password, $confirmation );
+            self::redirectState( 'account_mismatch' );
         } catch ( \Throwable $e ) {
-            unset( $secret, $temporaryPassword );
+            unset( $secret, $password, $confirmation );
             $message = is_user_logged_in() ? 'اتصال حساب انجام نشد. کد را بررسی کنید یا با مدیر تماس بگیرید.' : 'ساخت یا اتصال حساب انجام نشد. اگر قبلاً حساب دارید، ابتدا وارد شوید و دوباره کد را ثبت کنید.';
             self::redirect( $message, true );
         }
+    }
+
+    private static function redirectState(string $state): never {
+        $url = add_query_arg( 'claim_state', sanitize_key( $state ), home_url( '/teacher-invitation/' ) );
+        nocache_headers(); if ( wp_safe_redirect( $url ) ) exit;
+        wp_die( 'Teacher invitation requires another step.', 'Delnavazan', array( 'response' => 400 ) );
     }
 
     private static function redirect(string $notice, bool $error = false): never {

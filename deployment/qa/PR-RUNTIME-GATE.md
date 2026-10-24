@@ -69,6 +69,8 @@ test ! -f platform/tests/phase-student-portal-state-contract.php || \
   php platform/tests/phase-student-portal-state-contract.php
 test ! -f platform/tests/teacher-onboarding-v1-contract.php || \
   php platform/tests/teacher-onboarding-v1-contract.php
+test ! -f platform/tests/teacher-onboarding-production-blockers-contract.php || \
+  php platform/tests/teacher-onboarding-production-blockers-contract.php
 test ! -f platform/tests/phase-operations-portal-contract.php || \
   php platform/tests/phase-operations-portal-contract.php
 git diff --check HEAD^1 HEAD

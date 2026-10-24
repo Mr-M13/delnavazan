@@ -64,6 +64,7 @@ jobs:
             platform/tests/phase-2a0-independent-review-contract.php
             platform/tests/teacher-admin-principal-link-contract.php
             platform/tests/teacher-admin-ux-contract.php
+            platform/tests/teacher-registration-lifecycle-overhaul-contract.php
             platform/tests/phase-2a1a-contract.php
             platform/tests/phase-2a1b-contract.php
             platform/tests/phase-2a1c-contract.php
@@ -94,11 +95,31 @@ jobs:
           php platform/tests/phase-opreadiness-core-operator-entrypoint-contract.php
           php platform/tests/phase-opreadiness-core-operator-entrypoint-unit.php
           php platform/tests/booking-student-journey-contract.php
+          php platform/tests/booking-student-account-contract.php
+          php platform/tests/booking-teacher-delivery-contract.php
+          php platform/tests/booking-teacher-delivery-unit.php
+          php platform/tests/booking-teacher-response-contract.php
+          php platform/tests/booking-teacher-response-unit.php
+          php platform/tests/booking-upcoming-classes-contract.php
+          php platform/tests/booking-upcoming-classes-unit.php
+          php platform/tests/booking-upcoming-classes-theme-unit.php
+          php platform/tests/booking-intro-portal-contract.php
+          php platform/tests/booking-student-upcoming-unit.php
+          php platform/tests/booking-student-upcoming-theme-unit.php
+          php platform/tests/booking-class-join-unit.php
+          php platform/tests/booking-calendar-projection-unit.php
+          php platform/tests/booking-student-notification-unit.php
+          php platform/tests/google-oauth-scope-policy-unit.php
+          php platform/tests/google-oauth-transport-unit.php
+          php platform/tests/oauth-scope-exact-matching-contract.php
+          php platform/tests/renewal-historical-upgrade-contract.php
+          php platform/tests/renewal-historical-upgrade-unit.php
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-action-link-policy-contract.php
           php platform/tests/teacher-invitation-presentation-contract.php
           php platform/tests/branded-password-reset-contract.php
+          php platform/tests/unified-login-contract.php
           php platform/tests/homepage-instrument-belt-contract.php
           php platform/tests/notification-transport-routing-contract.php
           php platform/tests/notification-composite-transport-contract.php
@@ -109,6 +130,7 @@ jobs:
           php platform/tests/notification-runtime-factory-contract.php
           php platform/tests/notification-worker-bootstrap-contract.php
           php platform/tests/teacher-invitation-worker-scheduling-unit.php
+          php platform/tests/teacher-invitation-issuance-failure-unit.php
           php platform/tests/notification-delivery-evidence-contract.php
           php platform/tests/notification-delivery-state-contract.php
           php platform/tests/notification-handoff-reconciliation-contract.php
@@ -118,10 +140,18 @@ jobs:
           php platform/tests/stripe-checkout-adapter-unit.php
           php platform/tests/stripe-prelaunch-production-mode-unit.php
           php platform/tests/stripe-test-save-error-classification-unit.php
+          php platform/tests/stripe-test-connection-unit.php
+          php platform/tests/stripe-readiness-summary-unit.php
+          php platform/tests/payment-worker-principal-unit.php
+          php platform/tests/stripe-payment-vault-schema-contract.php
           php platform/tests/stripe-checkout-reconciliation-contract.php
           php platform/tests/stripe-checkout-webhook-contract.php
           php platform/tests/stripe-checkout-webhook-unit.php
           php platform/tests/stripe-checkout-test-mode-e2e-contract.php
+          php platform/tests/stripe-provider-registry-bootstrap-contract.php
+          php platform/tests/stripe-canonical-account-reference-contract.php
+          php platform/tests/stripe-test-activation-evidence-contract.php
+          php platform/tests/stripe-readiness-independent-checks-contract.php
           php platform/tests/checkout-session-authority-contract.php
           php platform/tests/student-checkout-initiation-contract.php
           php platform/tests/checkout-session-lifecycle-contract.php
@@ -131,6 +161,7 @@ jobs:
           php platform/tests/student-notification-recipient-authority-contract.php
           php platform/tests/notification-copy-integrity-contract.php
           php platform/tests/student-account-claim-notification-atomic-contract.php
+          php platform/tests/student-account-claim-acceptance-harness-contract.php
           php platform/tests/phase-opreadiness-core-operator-entrypoint-contract.php
           php platform/tests/phase-opreadiness-core-operator-entrypoint-unit.php
           php platform/tests/booking-canonical-alias-contract.php
@@ -138,6 +169,12 @@ jobs:
           php platform/tests/booking-day-grid-theme-contract.php
           php platform/tests/synthetic-dataset-contract.php
           php platform/tests/synthetic-dataset-policy-contract.php
+          php platform/tests/post-intro-enrolment-automation-contract.php
+          php platform/tests/post-intro-system-actor-unit.php
+          php platform/tests/catalogue-auto-naming-reconciliation-contract.php
+          php platform/tests/booking-admin-class-visibility-contract.php
+          php platform/tests/booking-admin-class-visibility-unit.php
+          php platform/tests/booking-admin-class-ordering-unit.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php
           else
@@ -150,13 +187,21 @@ jobs:
           fi
           if [[ -f platform/tests/teacher-onboarding-v2-contract.php ]]; then
             php platform/tests/teacher-onboarding-v2-contract.php
+            php platform/tests/teacher-onboarding-readiness-gate-contract.php
+            php platform/tests/teacher-onboarding-production-blockers-contract.php
             php platform/tests/teacher-portal-phase2-contract.php
           fi
           php platform/tests/admin-navigation-regression-contract.php
+          php platform/tests/record-action-token-unit.php
+          php platform/tests/record-action-registry-unit.php
+          php platform/tests/record-action-foundation-contract.php
+          php platform/tests/admin-navigation-teacher-finance-contract.php
           php platform/tests/admin-shell-route-capability-runtime.php
           php platform/tests/admin-read-capability-authority.php
           php platform/tests/student-operations-journey-contract.php
           php platform/tests/lesson-operator-workflow-contract.php
+          php platform/tests/lesson-introductory-outcome-unit.php
+          php platform/tests/lesson-term-workflow-repair-contract.php
           php platform/tests/operational-cashbook-rule-unit.php
           php platform/tests/operational-cashbook-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
@@ -178,3 +223,123 @@ jobs:
           bash -n deployment/qa/production-static-serving-diagnostic.sh
           bash -n deployment/qa/production-static-serving-diagnostic-contract.sh
           bash deployment/qa/production-deployment-contract.sh
+          bash -n deployment/qa/production-google-oauth-diagnostic.sh
+          bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+          bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+
+  stripe-runtime-e2e:
+    name: Stripe runtime E2E
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run offline Stripe Checkout test-mode E2E
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-stripe-runtime-e2e
+          DZN_COMPOSE_PROJECT: dzn-stripe-runtime-e2e
+        run: platform/runtime/bin/run-stripe-checkout-test-mode-e2e.sh
+
+  post-intro-runtime:
+    name: Post-intro runtime lifecycle
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run disposable post-intro lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-post-intro-runtime
+          DZN_COMPOSE_PROJECT: dzn-post-intro-runtime
+          DZN_WP_PORT: 18080
+        run: platform/runtime/bin/run-post-intro-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-post-intro-runtime
+          DZN_COMPOSE_PROJECT: dzn-post-intro-runtime
+          DZN_WP_PORT: 18080
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  catalogue-runtime:
+    name: Catalogue runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run disposable automatic catalogue lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-catalogue-runtime
+          DZN_COMPOSE_PROJECT: dzn-catalogue-runtime
+          DZN_WP_PORT: 18084
+        run: platform/runtime/bin/run-catalogue-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-catalogue-runtime
+          DZN_COMPOSE_PROJECT: dzn-catalogue-runtime
+          DZN_WP_PORT: 18084
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  oauth-scope-database-regression:
+    name: OAuth scope MariaDB regression
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: dzn_oauth_scope_test_ci
+          MARIADB_USER: wordpress
+          MARIADB_PASSWORD: wordpress
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=3s
+          --health-timeout=3s
+          --health-retries=30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli
+          coverage: none
+      - name: Run exact OAuth scope database regression
+        env:
+          DZN_OAUTH_SCOPE_TEST_DB_HOST: 127.0.0.1
+          DZN_OAUTH_SCOPE_TEST_DB_PORT: 3306
+          DZN_OAUTH_SCOPE_TEST_DB_NAME: dzn_oauth_scope_test_ci
+          DZN_OAUTH_SCOPE_TEST_DB_USER: wordpress
+          DZN_OAUTH_SCOPE_TEST_DB_PASSWORD: wordpress
+        run: php platform/tests/oauth-scope-exact-matching-db.php

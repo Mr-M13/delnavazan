@@ -28,10 +28,18 @@ final class NotificationSchedule {
         if(!in_array($tier,array('F','P'),true))throw new \InvalidArgumentException('schedule_composition_invalid');
         $codes=array();
         foreach($rows as $row){
+            $row=(array)$row;
             $code=(string)($row['rule_code']??'');
             $ordinal=(int)($row['ordinal']??0);
             if(!NotificationRule::scheduleCode($code))throw new \InvalidArgumentException('schedule_composition_invalid');
             $parameters=NotificationRule::scheduleParameters($code);
+            // Parameterless schedule anchors are represented by one ordinal-1 row.
+            if($parameters===array()&&$ordinal===1){
+                if(isset($codes[$code]))throw new \InvalidArgumentException('schedule_composition_invalid');
+                if(($row['parameter_a']??null)!==null||($row['parameter_b']??null)!==null||($row['parameter_c']??null)!==null||($row['parameter_d']??null)!==null)throw new \InvalidArgumentException('schedule_composition_invalid');
+                $codes[$code]=array();
+                continue;
+            }
             if($ordinal<1||!array_key_exists($ordinal,$parameters))throw new \InvalidArgumentException('schedule_composition_invalid');
             if(($row['parameter_b']??null)!==null||($row['parameter_c']??null)!==null||($row['parameter_d']??null)!==null)throw new \InvalidArgumentException('schedule_composition_invalid');
             if(isset($codes[$code][$ordinal]))throw new \InvalidArgumentException('schedule_composition_invalid');
@@ -46,7 +54,7 @@ final class NotificationSchedule {
         }
         $anchorCode=$tier==='F'?NotificationRule::SCHEDULE_SLOTS['anchor_F']:NotificationRule::SCHEDULE_SLOTS['anchor_P'];
         $oppositeAnchor=$tier==='F'?NotificationRule::SCHEDULE_SLOTS['anchor_P']:NotificationRule::SCHEDULE_SLOTS['anchor_F'];
-        if(isset($codes[$oppositeAnchor])||!isset($codes[$anchorCode]))throw new \InvalidArgumentException('schedule_composition_invalid');
+        if(isset($codes[$oppositeAnchor])||!array_key_exists($anchorCode,$codes))throw new \InvalidArgumentException('schedule_composition_invalid');
         if(!isset($codes['expiry']))throw new \InvalidArgumentException('schedule_expiry_missing');
         $composition=array(
             'tier'=>$tier,

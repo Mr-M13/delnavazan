@@ -13,6 +13,8 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\CommercialAuthorityReposi
 final class PaymentExecutionSupport {
     /** The option naming the bounded, non-human service principal of §9.7. */
     public const WORKER_PRINCIPAL_OPTION='dzn_platform_payment_worker_principal';
+    /** The sole WordPress role a payment-event worker may hold. */
+    public const WORKER_ROLE='dzn_payment_worker';
     /** The exact four capabilities the worker principal must hold: no more, no fewer. */
     public const WORKER_CAPABILITIES=array(
         'dzn_ingest_payment_provider_events','dzn_ingest_commercial_payment_evidence',
@@ -20,6 +22,11 @@ final class PaymentExecutionSupport {
     );
     /** An administrative capability on the worker principal refuses it (§9.7). */
     public const WORKER_FORBIDDEN_CAPABILITIES=array('manage_options','dzn_manage_payment_execution','dzn_manage_payment_providers');
+    /** `read` is WordPress's non-administrative baseline; every other grant is payment-specific. */
+    public const WORKER_ALLOWED_CAPABILITIES=array(
+        'read','dzn_ingest_payment_provider_events','dzn_ingest_commercial_payment_evidence',
+        'dzn_manage_collection_intents','dzn_manage_renewal_cycles','dzn_payment_worker',
+    );
 
     public static function requireCapability(string $capability):void{
         if(!current_user_can($capability))throw new \RuntimeException('Unauthorized');
@@ -101,9 +108,17 @@ final class PaymentExecutionSupport {
         $user=function_exists('get_user_by')?get_user_by('id',$principalId):null;
         if(!$user)return 0;
         if(isset($user->user_status)&&(int)$user->user_status!==0)return 0;
+        // Direct grants and combined roles are deliberately refused. The bounded identity is
+        // provisioned only through the role maintained by the capability bootstrap, so a later
+        // administrator grant or an unrelated role cannot silently widen webhook authority.
+        $roles=array_values(array_unique(array_map('strval',(array)($user->roles??array()))));
+        if($roles!==array(self::WORKER_ROLE))return 0;
+        // WordPress stores the role slug in `caps`; any additional entry is a direct user grant.
+        foreach((array)($user->caps??array()) as $capability=>$granted)if($granted&&(string)$capability!==self::WORKER_ROLE)return 0;
         $userCaps=(array)($user->allcaps??array());
         foreach(self::WORKER_CAPABILITIES as $capability)if(empty($userCaps[$capability]))return 0;
         foreach(self::WORKER_FORBIDDEN_CAPABILITIES as $capability)if(!empty($userCaps[$capability]))return 0;
+        foreach($userCaps as $capability=>$granted)if($granted&&!in_array((string)$capability,self::WORKER_ALLOWED_CAPABILITIES,true))return 0;
         return $principalId;
     }
 }

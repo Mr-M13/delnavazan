@@ -11,6 +11,11 @@ function dzn_theme_booking_options(): array {
 }
 
 function dzn_theme_render_booking_route(): void {
+    // This page embeds a per-render request token, so it must never be served
+    // from a shared cache. The cookie is HttpOnly; JavaScript receives only the
+    // matching signed value injected below.
+    nocache_headers();
+    $booking_csrf = dzn_theme_booking_csrf_token();
     $options = dzn_theme_booking_options();
     $belt_order = array( 'سه‌تار', 'تار', 'پیانو', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
     $belt_rank = array_flip( $belt_order );
@@ -22,6 +27,9 @@ function dzn_theme_render_booking_route(): void {
     $requested = isset( $_GET['instrument'] ) && is_string( $_GET['instrument'] ) ? sanitize_text_field( wp_unslash( $_GET['instrument'] ) ) : '';
     $requested_name = isset( $_GET['instrument_name'] ) && is_string( $_GET['instrument_name'] ) ? sanitize_text_field( wp_unslash( $_GET['instrument_name'] ) ) : '';
     $selected = null;
+    $booking_user = is_user_logged_in() ? wp_get_current_user() : null;
+    $booking_name = $booking_user ? trim( (string) $booking_user->display_name ) : '';
+    $booking_email = $booking_user ? trim( (string) $booking_user->user_email ) : '';
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
@@ -112,8 +120,12 @@ function dzn_theme_render_booking_route(): void {
                         <p class="dzn-booking__kicker">مرحلهٔ سوم</p>
                         <h2 id="dzn-booking-contact-title" tabindex="-1">اطلاعات کاربری خود را وارد کنید</h2>
                         <div class="dzn-booking__fields">
-                            <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" required></div>
-                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" required><p class="dzn-booking__field-help">این ایمیل برای پیگیری درخواست شما استفاده می‌شود. اگر حساب هنرجویی برای شما فعال شود، راهنمای ورود جداگانه ارسال خواهد شد.</p></div>
+                            <div><label for="dzn-booking-name">نام کامل</label><input id="dzn-booking-name" data-contact="full_name" autocomplete="name" maxlength="191" value="<?php echo esc_attr( $booking_name ); ?>" required></div>
+                            <div><label for="dzn-booking-email">ایمیل</label><input id="dzn-booking-email" data-contact="email" type="email" autocomplete="email" maxlength="191" value="<?php echo esc_attr( $booking_email ); ?>" <?php echo $booking_user ? 'readonly' : ''; ?> required><p class="dzn-booking__field-help"><?php echo $booking_user ? 'این درخواست به حساب واردشده و پروندهٔ هنرجویی همان حساب متصل می‌شود.' : 'با این ایمیل یک حساب هنرجویی ساخته می‌شود؛ اگر از قبل حساب دارید، رمز همان حساب ورود شما را تأیید می‌کند.'; ?></p></div>
+                            <?php if ( ! $booking_user ) : ?>
+                            <div><label for="dzn-booking-password">رمز حساب</label><input id="dzn-booking-password" data-account-password type="password" autocomplete="new-password" minlength="12" maxlength="4096" required><p class="dzn-booking__field-help">حداقل ۱۲ نویسه. رمز فقط برای ساخت یا ورود امن به حساب به WordPress فرستاده می‌شود و در درخواست رزرو ذخیره نمی‌شود.</p></div>
+                            <div><label for="dzn-booking-password-confirmation">تکرار رمز حساب</label><input id="dzn-booking-password-confirmation" data-account-password-confirmation type="password" autocomplete="new-password" minlength="12" maxlength="4096" required></div>
+                            <?php endif; ?>
                             <div><label for="dzn-booking-country">کشور محل زندگی</label><select id="dzn-booking-country" data-contact="country" autocomplete="country" required>
                                 <option value="">انتخاب کشور</option>
                                 <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
@@ -144,6 +156,7 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما برای تماس و هماهنگی این درخواست استفاده می‌شود. اعلان‌های واتساپ یا پیامک فقط در صورت فعال بودن آن کانال ارسال می‌شوند.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
+                        <label class="dzn-booking__privacy"><input type="checkbox" data-adult-attested required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند به‌طور مستقل درخواست ثبت‌نام را بپذیرد. برای هنرجوی زیر ۱۸ سال، لطفاً پیش از ثبت درخواست با پشتیبانی تماس بگیرید.</label>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
                             <button class="dzn-booking__button" type="button" data-next="review">مرور و تأیید درخواست</button>
@@ -177,8 +190,8 @@ function dzn_theme_render_booking_route(): void {
                         <p class="dzn-booking__reference" data-reference dir="ltr"></p>
                         <p>زمان‌های پیشنهادی شما:</p>
                         <ul class="dzn-booking__success-times" data-success-times></ul>
-                        <p>هنوز زمان جلسه تأیید یا رزرو نشده است. تیم دلنوازان برای بررسی درخواست و هماهنگی با شما تماس می‌گیرد. ثبت درخواست به‌تنهایی حساب هنرجویی یا پرداختی ایجاد نمی‌کند. اگر ادامهٔ دوره برای شما مناسب باشد، مراحل بعدی پس از هماهنگی به شما گفته می‌شود.</p>
-                        <a class="dzn-booking__button" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
+                        <p>هنوز زمان جلسه تأیید یا رزرو نشده است. درخواست در حساب هنرجویی شما با وضعیت در انتظار بررسی نمایش داده می‌شود.</p>
+                        <a class="dzn-booking__button" data-dashboard-link href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>">رفتن به داشبورد هنرجو</a>
                     </section>
                 </section>
             <?php endif; ?>
@@ -192,5 +205,23 @@ function dzn_theme_enqueue_booking_assets(): void {
     $style_path = get_theme_file_path( 'assets/css/booking.css' );
     wp_enqueue_style( 'delnavazan-booking', get_theme_file_uri( 'assets/css/booking.css' ), array( 'delnavazan-theme' ), file_exists( $style_path ) ? (string) filemtime( $style_path ) : wp_get_theme()->get( 'Version' ) );
     wp_enqueue_script( 'delnavazan-booking', get_theme_file_uri( 'assets/js/booking.js' ), array(), file_exists( $script_path ) ? (string) filemtime( $script_path ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
-    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05' ) );
+    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05', 'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '', 'csrfToken' => dzn_theme_booking_csrf_token() ) );
+}
+
+function dzn_theme_booking_csrf_token(): string {
+    static $token = null;
+    if ( is_string( $token ) ) { return $token; }
+    $controller = '\\Delnavazan\\Platform\\Public\\BookingRequestRestController';
+    if ( ! class_exists( $controller ) || headers_sent() ) { return $token = ''; }
+    $token = $controller::issueCsrfToken();
+    setcookie( 'dzn_booking_csrf', $token, array(
+        'expires' => 0,
+        'path' => defined( 'COOKIEPATH' ) && COOKIEPATH ? COOKIEPATH : '/',
+        'domain' => defined( 'COOKIE_DOMAIN' ) ? COOKIE_DOMAIN : '',
+        'secure' => is_ssl(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ) );
+    $_COOKIE['dzn_booking_csrf'] = $token;
+    return $token;
 }

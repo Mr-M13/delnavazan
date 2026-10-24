@@ -68,16 +68,14 @@ function dzn_theme_auth_status_message() {
 		$modifier = 'failed' === $status ? ' is-error' : ' is-success';
 		echo '<p class="dzn-route__notice' . esc_attr( $modifier ) . '" role="' . ( 'failed' === $status ? 'alert' : 'status' ) . '">' . esc_html( $messages[ $status ] ) . '</p>';
 	}
-	if ( isset($_GET['teacher_claim']) && sanitize_key(wp_unslash($_GET['teacher_claim'])) === 'password_email' ) echo '<p class="dzn-route__notice is-success" role="status">دعوت مدرس متصل شد. برای انتخاب رمز عبور، پیوند امن ارسال‌شده به ایمیل خود را باز کنید؛ سپس از همین صفحه وارد پرتال مدرس شوید.</p>';
 }
 
 function dzn_theme_render_frontend_login_form( $redirect_to ) {
 	?>
-	<form id="loginform" class="dzn-login-form" name="loginform" action="<?php echo esc_url( site_url( 'wp-login.php', 'login_post' ) ); ?>" method="post">
+	<form id="loginform" class="dzn-login-form" name="loginform" action="<?php echo esc_url( home_url( '/login/' ) ); ?>" method="post">
 		<?php wp_nonce_field( 'dzn_frontend_login', 'dzn_frontend_login_nonce' ); ?>
 		<input type="hidden" name="dzn_frontend_login" value="1">
 		<input type="hidden" name="redirect_to" value="<?php echo esc_url( $redirect_to ); ?>">
-		<input type="hidden" name="testcookie" value="1">
 		<p class="login-username"><label for="user_login">ایمیل یا نام کاربری<input type="text" name="log" id="user_login" autocomplete="username" required></label></p>
 		<p class="login-password"><label for="user_pass">رمز عبور<input type="password" name="pwd" id="user_pass" autocomplete="current-password" required></label></p>
 		<p class="login-remember"><label><input name="rememberme" type="checkbox" value="forever"> مرا به خاطر بسپار</label></p>
@@ -94,16 +92,85 @@ function dzn_theme_validate_frontend_login_nonce( $user, $username, $password ) 
 }
 add_filter( 'authenticate', 'dzn_theme_validate_frontend_login_nonce', 1, 3 );
 
-function dzn_theme_redirect_frontend_login_failure( $username ) {
-	if ( empty( $_POST['dzn_frontend_login'] ) ) { return; }
+/** Return a generic failure destination without disclosing account existence. */
+function dzn_theme_frontend_login_failure_url() {
 	$posted_redirect = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : '';
 	$redirect_to = wp_validate_redirect( $posted_redirect, home_url( '/dashboard/' ) );
 	$failure_url = add_query_arg( 'auth', 'failed', home_url( '/login/' ) );
 	if ( $redirect_to !== home_url( '/dashboard/' ) ) { $failure_url = add_query_arg( 'redirect_to', $redirect_to, $failure_url ); }
-	wp_safe_redirect( $failure_url );
+	return $failure_url;
+}
+
+function dzn_theme_redirect_frontend_login_failure( $username ) {
+	if ( empty( $_POST['dzn_frontend_login'] ) ) { return; }
+	wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
 	exit;
 }
 add_action( 'wp_login_failed', 'dzn_theme_redirect_frontend_login_failure' );
+
+/**
+ * Preserve only claim/onboarding continuations. Ordinary sign-ins go through
+ * the dashboard on the next request, after WordPress has loaded the new auth
+ * cookie and the existing principal/capability resolvers can route the user.
+ */
+function dzn_theme_frontend_login_destination( $requested_redirect ) {
+	$default = home_url( '/dashboard/' );
+	$safe_requested = is_string( $requested_redirect ) ? wp_validate_redirect( $requested_redirect, $default ) : $default;
+	$requested_parts = wp_parse_url( $safe_requested );
+	$home_parts = wp_parse_url( home_url( '/' ) );
+	$same_origin = empty( $requested_parts['host'] ) || (
+		isset( $home_parts['host'] )
+		&& strtolower( (string) $requested_parts['host'] ) === strtolower( (string) $home_parts['host'] )
+		&& (string) ( $requested_parts['scheme'] ?? '' ) === (string) ( $home_parts['scheme'] ?? '' )
+		&& (int) ( $requested_parts['port'] ?? 0 ) === (int) ( $home_parts['port'] ?? 0 )
+	);
+
+	if ( $same_origin ) {
+		$requested_path = '/' . trim( (string) ( $requested_parts['path'] ?? '' ), '/' ) . '/';
+		foreach ( array( '/teacher-invitation/', '/student-account-claim/' ) as $continuation_path ) {
+			$local_path = '/' . trim( (string) wp_parse_url( home_url( $continuation_path ), PHP_URL_PATH ), '/' ) . '/';
+			if ( $requested_path === $local_path ) { return $safe_requested; }
+		}
+	}
+	return $default;
+}
+
+/**
+ * Authenticate through WordPress on the first-party route. This avoids the
+ * wp-login.php test-cookie preflight that made the first valid submission fail
+ * while retaining WordPress users, hashes, auth filters and session cookies as
+ * the single authentication authority.
+ */
+function dzn_theme_handle_frontend_login() {
+	if ( 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) || empty( $_POST['dzn_frontend_login'] ) ) { return; }
+	$nonce = isset( $_POST['dzn_frontend_login_nonce'] ) && is_string( $_POST['dzn_frontend_login_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_frontend_login_nonce'] ) ) : '';
+	if ( ! wp_verify_nonce( $nonce, 'dzn_frontend_login' ) ) {
+		wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
+		exit;
+	}
+
+	$identity = isset( $_POST['log'] ) && is_string( $_POST['log'] ) ? trim( (string) wp_unslash( $_POST['log'] ) ) : '';
+	$password = isset( $_POST['pwd'] ) && is_string( $_POST['pwd'] ) ? (string) wp_unslash( $_POST['pwd'] ) : '';
+	$user = wp_signon(
+		array(
+			'user_login'    => $identity,
+			'user_password' => $password,
+			'remember'      => ! empty( $_POST['rememberme'] ),
+		),
+		is_ssl()
+	);
+	if ( is_wp_error( $user ) ) {
+		wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
+		exit;
+	}
+
+	$requested_redirect = isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ? wp_unslash( $_POST['redirect_to'] ) : '';
+	wp_safe_redirect( dzn_theme_frontend_login_destination( $requested_redirect ) );
+	exit;
+}
+add_action( 'template_redirect', 'dzn_theme_handle_frontend_login', 0 );
+// Accept a stale cached copy of the old form without exposing the core screen.
+add_action( 'login_init', 'dzn_theme_handle_frontend_login', 0 );
 
 function dzn_theme_render_login_route() {
 	$action = isset( $_GET['action'] ) && is_string( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
@@ -124,7 +191,6 @@ function dzn_theme_render_login_route() {
 			<p class="dzn-eyebrow">ورود امن</p>
 			<h1 id="dzn-route-title">ورود به دلنوازان</h1>
 			<p>هنرجویان و مدرسان با همان حساب ثبت‌شده در دلنوازان وارد می‌شوند.</p>
-			<p><a href="<?php echo esc_url(home_url('/teacher-portal/')); ?>">ورود به پرتال مدرس</a></p>
 			<?php dzn_theme_auth_status_message(); ?>
 			<?php dzn_theme_render_frontend_login_form( $redirect_to ); ?>
 			<p><a href="<?php echo esc_url( wp_lostpassword_url( home_url( '/login/' ) ) ); ?>">رمز عبور را فراموش کرده‌اید؟</a></p>
@@ -170,6 +236,15 @@ function dzn_theme_branded_lostpassword_url( $url, $redirect ) {
 	return add_query_arg( $args, home_url( '/login/' ) );
 }
 add_filter( 'lostpassword_url', 'dzn_theme_branded_lostpassword_url', 10, 2 );
+
+/** Keep every WordPress-generated sign-in link on the single branded entry. */
+function dzn_theme_branded_login_url( $login_url, $redirect, $force_reauth ) {
+	$args = array();
+	if ( is_string( $redirect ) && '' !== $redirect ) { $args['redirect_to'] = wp_validate_redirect( $redirect, home_url( '/dashboard/' ) ); }
+	if ( $force_reauth ) { $args['reauth'] = '1'; }
+	return add_query_arg( $args, home_url( '/login/' ) );
+}
+add_filter( 'login_url', 'dzn_theme_branded_login_url', 10, 3 );
 
 function dzn_theme_branded_password_reset_message( $message, $key, $user_login, $user ) {
 	$url = add_query_arg( array( 'action' => 'rp', 'key' => $key, 'login' => $user_login ), home_url( '/login/' ) );
@@ -260,19 +335,32 @@ function dzn_theme_dashboard_destination() {
 }
 
 function dzn_theme_render_teacher_invitation_route() {
+	$claim_state = isset( $_GET['claim_state'] ) ? sanitize_key( wp_unslash( $_GET['claim_state'] ) ) : '';
+	$claim_messages = array(
+		'password_short' => 'رمز عبور باید دست‌کم ۱۲ نویسه داشته باشد.',
+		'password_mismatch' => 'رمز عبور و تکرار آن یکسان نیستند.',
+		'existing_account' => 'برای این نشانی ایمیل از قبل حسابی وجود دارد. ابتدا با همان حساب وارد شوید، سپس به این صفحه برگردید و کد دعوت را دوباره وارد کنید. رمز حساب موجود تغییر نمی‌کند.',
+		'account_mismatch' => 'این دعوت با حسابی که اکنون وارد آن هستید مطابقت ندارد. از این حساب خارج شوید، با حساب مربوط به ایمیل دعوت وارد شوید و کد را دوباره ثبت کنید.',
+	);
+	$invitation_login = add_query_arg( 'redirect_to', home_url( '/teacher-invitation/' ), home_url( '/login/' ) );
 	?>
 	<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1">
 		<section class="dzn-route__state" aria-labelledby="dzn-route-title">
 			<p class="dzn-eyebrow">دعوت مدرس</p><h1 id="dzn-route-title">اتصال حساب مدرس</h1>
-			<p>کد یک‌بارمصرفی را که از دلنوازان دریافت کرده‌اید وارد کنید. کد در نشانی صفحه ذخیره نمی‌شود.</p>
+			<p>کد یک‌بارمصرفی را که از دلنوازان دریافت کرده‌اید وارد کنید. کد و رمز عبور در نشانی صفحه ذخیره نمی‌شوند.</p>
+			<?php if ( isset( $claim_messages[ $claim_state ] ) ) : ?><p role="alert"><?php echo esc_html( $claim_messages[ $claim_state ] ); ?></p><?php endif; ?>
 			<?php if ( isset( $_GET['dzn_notice'] ) ) : ?><p role="status"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ); ?></p><?php endif; ?>
+			<?php if ( 'existing_account' === $claim_state && ! is_user_logged_in() ) : ?><p><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( $invitation_login ); ?>">ورود با حساب موجود</a></p><?php endif; ?>
+			<?php if ( 'account_mismatch' === $claim_state && is_user_logged_in() ) : ?><p><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( wp_logout_url( $invitation_login ) ); ?>">خروج و ورود با حساب درست</a></p><?php endif; ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="dzn_teacher_invitation_claim"><?php wp_nonce_field( 'dzn_teacher_invitation_claim' ); ?>
-				<p><label>کد دعوت<br><input required autocomplete="one-time-code" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label></p>
+					<p><label>کد دعوت<br><input class="dzn-invitation-code" required dir="ltr" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label><small>کد ۶۴ نویسه‌ای را بدون فاصله در این کادر بچسبانید.</small></p>
 				<?php if ( ! is_user_logged_in() ) : ?>
-					<p>پس از اتصال دعوت، پیوند امن انتخاب رمز عبور به همین نشانی ایمیل می‌شود.</p>
-				<?php else : ?><p>این دعوت به حساب واردشدهٔ فعلی متصل می‌شود.</p><?php endif; ?>
-				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به حساب' : 'اتصال دعوت و ارسال پیوند رمز عبور'; ?></button></p>
+					<p><label>رمز عبور (حداقل ۱۲ نویسه)<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password"></label></p>
+					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password_confirmation"></label></p>
+					<p>اگر حسابی با ایمیل دعوت وجود نداشته باشد، همان ایمیل در صورت امکان نام کاربری شما می‌شود و مستقیماً به راه‌اندازی مدرس می‌روید.</p>
+				<?php else : $current_account = wp_get_current_user(); ?><p>این دعوت فقط در صورتی به حساب فعلی <strong><?php echo esc_html( (string) $current_account->user_email ); ?></strong> متصل می‌شود که ایمیل آن دقیقاً با ایمیل دعوت یکسان باشد.</p><?php endif; ?>
+				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به این حساب' : 'ساخت حساب و شروع راه‌اندازی'; ?></button></p>
 			</form>
 			<?php if ( ! is_user_logged_in() ) : ?><p><a href="<?php echo esc_url( home_url( '/login/' ) ); ?>">قبلاً حساب دارید؟ ابتدا وارد شوید</a></p><?php endif; ?>
 		</section>

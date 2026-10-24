@@ -7,16 +7,18 @@ Teacher onboarding is invitation-only. Platform services remain authoritative; t
 | State | Meaning | Allowed next state |
 |---|---|---|
 | `linked_pending` | Invitation claim linked a WordPress principal; normal portal access is denied | `in_progress` |
-| `in_progress` | Teacher may edit the canonical profile and own availability | `active` when profile and availability are complete |
-| `pending_review` / `returned` / `rejected` | Legacy states from the former review workflow; reconciled on the next teacher read | `active` or `in_progress` |
-| `active` | Invitation-approved and readiness is `ready` | `offboarded` through existing authority |
+| `in_progress` | Teacher may edit the canonical profile and own availability | `pending_review` after explicit submission |
+| `pending_review` | Complete submission is locked while staff reviews it | `active`, `returned`, or `rejected` |
+| `returned` | Staff requested corrections; Teacher may edit and resubmit | `pending_review` |
+| `rejected` | Staff declined the submitted profile; portal access remains denied | archive/re-invitation workflow |
+| `active` | Staff-approved and readiness is `ready` | `in_progress` if required availability is removed, or `offboarded` |
 | `offboarded` | Principal authority revoked | terminal in v1 |
 
 Every lifecycle transition is appended to `teacher_onboarding_events`. Progress-only updates increment the existing onboarding aggregate version.
 
 ## Readiness gate
 
-Automatic activation requires all conditions:
+Submission and approval require all conditions:
 
 - canonical Teacher is active and not archived;
 - display name, valid email, country code, IANA timezone, locale and existing calendar preference are present;
@@ -24,15 +26,15 @@ Automatic activation requires all conditions:
 - at least one active `preferred` or `requestable` recurring availability rule exists;
 - agreement state is `not_required` for v1 because the repository defines no concrete agreement or document requirement.
 
-A claimed account is deliberately `linked_pending / not_ready`. Normal teacher portal reads call the existing principal authority check and fail closed until the teacher's completed profile and availability produce `active / ready`. The invitation is the approval decision; no later staff review is required.
+A claimed account is deliberately `linked_pending / not_ready`. Normal teacher portal reads call the existing principal authority check and fail closed until the teacher submits complete information and staff records approval as `active / ready`.
 
 ## Boundaries
 
 - Invitation issue/reissue/revoke, recipient binding, digest storage, claim attempts and principal linking continue to use `PrincipalInvitationService`.
 - Teacher availability mutations continue to use `TeacherAvailabilityService`; self-service methods scope commands to the logged-in linked Teacher.
-- `dzn_manage_onboarding` controls invitation operations and diagnostics; it does not approve or reject completed profiles.
+- `dzn_manage_onboarding` controls approve, return and reject decisions after submission.
 - The Theme contains no lifecycle decisions or duplicate readiness calculation.
-- Historical returned and rejected teachers may correct their profile and availability; completion activates them automatically.
+- Returned teachers may correct and resubmit. Rejected submissions remain denied until the controlled archive/re-invitation workflow establishes a new onboarding cycle.
 
 ## Invitation delivery
 
@@ -45,6 +47,6 @@ Issuing creates a delivery intent in the existing outbox. The admin screen expos
 3. Prepare/deliver the code through the authorized delivery boundary, then claim at `/teacher-invitation/`.
 4. Confirm claim produces `linked_pending / not_ready` and redirects the first login to onboarding.
 5. Save canonical profile, synchronize timezone and add a requestable/preferred rule.
-6. Confirm completion produces `active / ready` and normal teacher portal access without a staff review step.
-7. Confirm legacy `pending_review`, `returned`, and `rejected` records become active when complete or return to setup when incomplete.
+6. Submit and confirm `pending_review / not_ready`; verify normal portal access remains denied.
+7. Exercise return and resubmission, then approve and confirm `active / ready`. Exercise rejection on a separate submission and confirm access remains denied.
 8. Offboard; confirm authority and portal access are revoked and an event is appended.

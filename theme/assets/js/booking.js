@@ -16,6 +16,8 @@
   const country = root.querySelector('[data-contact="country"]');
   const city = root.querySelector('[data-contact="city"]');
   const cityList = root.querySelector('[data-city-list]');
+  const accountPassword = root.querySelector('[data-account-password]');
+  const accountPasswordConfirmation = root.querySelector('[data-account-password-confirmation]');
   let availableTimes = [];
   let availabilityGridState = 'idle';
   let gridAvailabilityRequestId = 0;
@@ -604,11 +606,19 @@
         whatsapp_number: fieldValue('mobile'),
         privacy_notice_accepted: true,
         privacy_notice_version: dznBooking.privacyVersion,
+        adult_self_attested: Boolean(root.querySelector('[data-adult-attested]').checked),
         requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))
       };
+      if (accountPassword && accountPasswordConfirmation) {
+        payload.account_password = accountPassword.value;
+        payload.account_password_confirmation = accountPasswordConfirmation.value;
+      }
+      const headers = { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey };
+      if (dznBooking.csrfToken) headers['X-DZN-Booking-CSRF'] = dznBooking.csrfToken;
+      if (dznBooking.restNonce) headers['X-WP-Nonce'] = dznBooking.restNonce;
       const { response, result } = await fetchWithTimeout(apiUrl('delnavazan-platform/v1/booking-requests'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+        headers,
         body: JSON.stringify(payload)
       }, async (response) => ({ response, result: await response.json() }));
       if (!response.ok || !result.success || !result.request_reference) {
@@ -630,13 +640,18 @@
         }
         successTimes.append(item);
       });
+      const dashboardLink = root.querySelector('[data-dashboard-link]');
+      if (dashboardLink && result.dashboard_url) dashboardLink.href = result.dashboard_url;
       goTo('success');
+      if (result.dashboard_url) location.assign(result.dashboard_url);
     } catch (error) {
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
         blocked_time: 'زمان انتخاب‌شده طبق سیاست دلنوازان قابل درخواست نیست. زمان دیگری انتخاب کنید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
+        csrf_invalid: 'اعتبار فرم منقضی شده است. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.',
+        account_authentication_failed: 'ساخت یا ورود به حساب انجام نشد. ایمیل و رمز را بررسی کنید؛ اگر قبلاً حساب دارید می‌توانید از صفحهٔ ورود یا بازیابی رمز استفاده کنید.',
         submission_unavailable: 'سامانه نتوانست ثبت درخواست را تأیید کند. اطلاعات این فرم باقی مانده است؛ همین صفحه را با همین اطلاعات دوباره ارسال کنید.'
       };
       const code = error instanceof Error ? error.message : '';

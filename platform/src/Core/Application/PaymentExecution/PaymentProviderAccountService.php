@@ -98,6 +98,24 @@ final class PaymentProviderAccountService {
         return $account;
     }
 
+    /**
+     * The one canonical, non-secret account reference used for Checkout correlation (contract §8, §10).
+     *
+     * `account_reference_digest` is the authority column. A reference may only be presented to a provider
+     * — in Checkout metadata and therefore in the webhook envelope — when it hashes to that stored digest;
+     * otherwise the intake would rightly refuse the event as `unmapped_provider_account`. The webhook
+     * selector (`reference_code`) is the only account reference this build retains in plaintext, so an
+     * account is correlatable exactly when its registered `account_reference` is that same value. Any
+     * other shape fails closed instead of sending metadata that can never be verified.
+     */
+    public static function canonicalReference(object $account):?string{
+        $reference=trim((string)($account->reference_code??''));
+        if(preg_match('/^[A-Za-z0-9_-]{1,32}$/D',$reference)!==1)return null;
+        $digest=trim((string)($account->account_reference_digest??''));
+        if($digest===''||!hash_equals($digest,PaymentExecutionIdempotency::reference($reference)))return null;
+        return $reference;
+    }
+
     private function transition(int $accountId,string $toState,string $eventType,array $input,string $key,int $actor):array{
         $digest=PaymentExecutionSupport::keyString($key);
         $payload=PaymentExecutionIdempotency::payload(array('domain'=>PaymentExecutionRule::DOMAIN,'operation'=>$eventType,'payment_provider_account_id'=>$accountId,'to_state'=>$toState));

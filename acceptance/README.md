@@ -12,12 +12,19 @@ production/database mutations.
 
 The first executable smoke test resets the environment, seeds one student, one
 teacher, and one account holding both principal types, then performs the
-browser-facing login form POST with cookies and a live nonce. It verifies final
-HTTP destinations, rather than inspecting source strings:
+browser-facing login form POST from a fresh cookie jar with a live nonce. It
+verifies that the first submission succeeds without a pre-seeded WordPress test
+cookie, that username and email both authenticate, and that final destinations
+come from current principal/capability links rather than source inspection:
 
 - student -> `/student-portal/`
 - teacher -> `/teacher-portal/`
 - dual-role -> `/dashboard/` (the role chooser)
+- administrator -> `/admin-operations/`
+
+It also posts one fresh request to the former `wp-login.php` form target to
+prove a stale cached form is safely intercepted before WordPress's test-cookie
+preflight.
 
 ## Local run
 
@@ -30,6 +37,8 @@ policy, so a cache miss fails instead of fetching anything.
 cd acceptance
 make check-cache
 make smoke
+make student-account-claim
+make booking-student-account
 make destroy CONFIRM=YES
 ```
 
@@ -37,6 +46,31 @@ make destroy CONFIRM=YES
 inspection. `bin/destroy.sh YES` refuses to remove an unexpected entry and
 removes only the known children of `acceptance/.state/`; it refuses symlinked
 state paths.
+
+`make student-account-claim` builds a fresh disposable runtime, registers a
+fixture-only notification template and workflow, and exercises claim issuance,
+idempotency, recipient binding, expiry, successful claim, and replay refusal.
+The positive path continues through a synthetic Teacher invitation and claim,
+onboarding readiness, booking acceptance, canonical Enrolment conversion, and
+the initial Teacher Assignment. A `pre_wp_mail` guard proves that none of those
+paths reached external mail transport. The runner destroys the scoped runtime
+on exit, including after a failed assertion.
+
+`make teacher-onboarding` additionally exercises Teacher soft archive and
+restore: the invitation and Teacher principal are revoked, the Teacher-only
+WordPress role is removed while an unrelated role remains, lifecycle history is
+retained, restore does not silently restore access, and a replacement invitation
+can safely reactivate the same authenticated account without duplicating its
+principal link. The fixture prepares invitation secrets directly and records
+delivery as a local failure; it never invokes mail transport.
+
+`make booking-student-account` exercises new-account creation, WordPress-only
+password hashing, same-origin CSRF rejection, immediate session establishment,
+same-principal booking linkage, dashboard projection, credential-proved replay,
+existing-account sign-in without role changes, rejection of a teacher principal
+being bound as a student, and rollback after a deliberately invalid catalogue
+reference. It is restricted to the disposable local host and synthetic
+`@example.invalid` identities.
 
 ## CI and current gaps
 
@@ -46,7 +80,7 @@ default GitHub source-contract workflow yet: that workflow currently does not
 provide Docker access or a preloaded-image guarantee, and silently changing its
 network/image policy would make the evidence non-reproducible.
 
-This first slice covers login routing only. It does not yet provide browser
-automation, seed courses/lessons/payments, exercise checkout/providers, or
-assert portal content beyond successful role-aware navigation. Those require
+The harness covers login routing plus the synthetic teacher and student claim
+fixtures named by their Make targets. It does not provide browser automation,
+exercise checkout/providers, or prove recipient delivery. Those require
 separate fixtures and acceptance decisions.

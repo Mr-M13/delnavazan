@@ -63,6 +63,11 @@ $assert($scopes==='https://www.googleapis.com/auth/calendar.events https://www.g
 $assert(ProviderIntegrationRule::grantedScopesMatch($scopes,$scopes),'an identical granted scope set must match');
 $assert(ProviderIntegrationRule::grantedScopesMatch($scopes,$scopes.' https://www.googleapis.com/auth/drive')===false,'an extra granted scope must never match the requested set');
 $assert(ProviderIntegrationRule::grantedScopesMatch($scopes,'https://www.googleapis.com/auth/calendar.events')===false,'a missing granted scope must never match the requested set');
+$assert(ProviderIntegrationRule::permittedScopes('google_calendar',ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE),'the exact Calendar and OpenID grant must be permitted');
+$assert(!ProviderIntegrationRule::permittedScopes('google_calendar','https://www.googleapis.com/auth/calendar.events'),'a Calendar-only grant must require re-consent');
+$assert(!ProviderIntegrationRule::permittedScopes('google_calendar',$scopes),'a legacy Calendar plus Meet grant must require re-consent');
+$assert(!ProviderIntegrationRule::permittedScopes('google_calendar',ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE.' https://www.googleapis.com/auth/drive'),'an additional Google scope must require re-consent');
+$assert(!ProviderIntegrationRule::permittedScopes('google_meet',ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE),'the evidence-only Meet provider must not authorize OAuth');
 $refused(fn()=>ProviderIntegrationRule::scopeSnapshot(''),'an empty scope set');
 $assert(ProviderIntegrationRule::utc('2026-09-25 10:00:00'),'a canonical UTC instant must validate');
 foreach(array('2026-09-25T10:00:00Z','2026-09-25','','2026-13-45 99:00:00') as $bad)
@@ -162,11 +167,11 @@ $assert($redacted['sealed']===true&&!str_contains((string)wp_json_encode($redact
 
 // 7. Google translation seam: pure, exact, PKCE-bound, translation-only, and never an I/O client.
 $adapter=new GoogleCalendarMeetAdapter();
-$uri=$adapter->authorizationUri(array('client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events','state'=>'state-value','code_challenge'=>'challenge-value'));
+$uri=$adapter->authorizationUri(array('client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid','state'=>'state-value','code_challenge'=>'challenge-value'));
 foreach(array('client_id=client-1','redirect_uri=https%3A%2F%2Facademy.example%2Fcb','code_challenge=challenge-value','code_challenge_method=S256','state=state-value') as $needle)
     $assert(str_contains($uri,$needle),'the authorization request must carry '.$needle);
-$refused(fn()=>$adapter->authorizationUri(array('client_reference'=>'client-1','redirect_uri'=>'http://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events','state'=>'s','code_challenge'=>'c')),'an insecure redirect target');
-$refused(fn()=>$adapter->authorizationUri(array('client_reference'=>'','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events','state'=>'s','code_challenge'=>'c')),'a request without a client reference');
+$refused(fn()=>$adapter->authorizationUri(array('client_reference'=>'client-1','redirect_uri'=>'http://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid','state'=>'s','code_challenge'=>'c')),'an insecure redirect target');
+$refused(fn()=>$adapter->authorizationUri(array('client_reference'=>'','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid','state'=>'s','code_challenge'=>'c')),'a request without a client reference');
 $projection=$adapter->project(array('provider_code'=>'google_calendar','operation'=>'project','lesson_id'=>7,'schedule_version_id'=>91,'starts_at_utc'=>'2026-09-25 08:00:00','ends_at_utc'=>'2026-09-25 09:00:00','schedule_timezone'=>'Australia/Brisbane','local_wall_date'=>'2026-09-25','local_wall_time'=>'18:00:00','projection_reference'=>'ref-1','now_utc'=>'2026-09-25 07:00:00'));
 $assert(($projection['provider_request']['body']['start']['dateTime']??'')==='2026-09-25T08:00:00Z','the provider write must carry the exact canonical start instant');
 $assert(($projection['provider_request']['body']['end']['dateTime']??'')==='2026-09-25T09:00:00Z','the provider write must carry the exact canonical end instant');
@@ -192,11 +197,11 @@ $refused(fn()=>$adapter->normalise($authenticated(array('event_key'=>'e-1','part
 
 // 8. Deterministic contract adapters: in-memory only, call-recording, credential-redacting.
 $oauth=new ContractProviderAdapters(array('material-1'=>'subject-1'));
-$exchanged=$oauth->exchange(array('client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','code'=>'code-1','code_verifier'=>'verifier-1','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events'));
+$exchanged=$oauth->exchange(array('client_reference'=>'client-1','redirect_uri'=>'https://academy.example/cb','code'=>'code-1','code_verifier'=>'verifier-1','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid'));
 $assert(ProviderIntegrationRule::digest(ProviderIntegrationIdempotency::subject($exchanged['provider_subject_reference'],'connection_identity')),'an exchanged subject reference must be digestible into a mapping value');
 $assert($oauth->count('oauth')===1,'the contract adapter must record exactly the calls it received');
 $assert(!str_contains((string)wp_json_encode($oauth->calls()),'material-1'),'the contract adapter must never record credential material');
-$inspection=$oauth->inspect(array('credential_material'=>'material-1','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events'));
+$inspection=$oauth->inspect(array('credential_material'=>'material-1','scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid'));
 $assert($inspection['usable']===true&&$inspection['provider_subject_reference']==='subject-1','the contract adapter must validate only the credentials it was given');
 $assert($oauth->inspect(array('credential_material'=>'material-unknown'))['usable']===false,'an unknown credential must never inspect as usable');
 $deterministicA=$oauth->project(array('provider_code'=>'google_meet','operation'=>'project','lesson_id'=>7,'schedule_version_id'=>91,'now_utc'=>'2026-09-25 07:00:00'));
@@ -223,7 +228,7 @@ $translation=$translationOnly->project(array('provider_code'=>'google_calendar',
 $assert(isset($translation['provider_request'])&&!isset($translation['provider_object_reference'])&&ProviderIntegrationRule::digest($translation['provider_facts_digest']),'a translation-only transport must return a request and no provider reference');
 
 // 9. Fail-closed shape validation over stored rows.
-$connection=(object)array('id'=>1,'provider_code'=>'google_calendar','teacher_id'=>5,'connection_state'=>'connected','connection_version'=>2,'lifecycle_sequence'=>1,'identity_state'=>'verified','active_slot'=>1,'identity_digest'=>str_repeat('b',64),'scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events');
+$connection=(object)array('id'=>1,'provider_code'=>'google_calendar','teacher_id'=>5,'connection_state'=>'connected','connection_version'=>2,'lifecycle_sequence'=>1,'identity_state'=>'verified','active_slot'=>1,'identity_digest'=>str_repeat('b',64),'scope_snapshot'=>'https://www.googleapis.com/auth/calendar.events openid');
 $assert(ProviderIntegrationValidator::connectionShape($connection),'a fully connected, mapped connection must validate');
 foreach(array('active_slot','identity_digest','scope_snapshot','connection_version','identity_state','connection_state') as $field){
     $broken=clone $connection;$broken->{$field}=$field==='active_slot'?null:($field==='connection_version'?0:null);

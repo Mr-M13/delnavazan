@@ -8,7 +8,7 @@ foreach(array('036_checkout_session_authority','checkout_sessions','UNIQUE KEY o
 foreach(array('stripe_session_id','checkout_url','client_secret','provider_payload') as $n)if(strpos($m,"foreach(array('stripe_session_id','checkout_url','client_secret','provider_payload','provider_reference') as \$forbidden")===false)throw new RuntimeException('Checkout forbidden-field verifier missing');
 if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$b,$schema)||(int)$schema[1]<37)throw new RuntimeException('Schema identity must include student account claim authority');
 if(strpos($m,"'036_checkout_session_authority'")===false||strpos($m,'verify_checkout_session_authority_schema();')===false)throw new RuntimeException('Checkout schema must be required and verified on current schema');
-foreach(array('activeForObligation','byRequestDigest','active_slot'=>null) as $n)if(strpos($r,$n)===false)throw new RuntimeException('Checkout repository contract missing '.$n);
+foreach(array('activeForObligation','byRequestDigest',"'active_slot'=>null") as $n)if(strpos($r,$n)===false)throw new RuntimeException('Checkout repository contract missing '.$n);
 $diagnosticQuery=strpos($r,'SELECT uid,state,provider_key,created_at,expires_at FROM');
 if($diagnosticQuery===false||strpos(substr($r,$diagnosticQuery,strpos($r,';', $diagnosticQuery)-$diagnosticQuery),'SELECT *')!==false)throw new RuntimeException('Checkout diagnostic query must select only safe local lifecycle fields');
 foreach(array('requireCapability','activeForDiagnostics','stale_creating','expired_open','age_seconds','needs_attention') as $n)if(strpos($d,$n)===false)throw new RuntimeException('Checkout operational diagnostics missing '.$n);

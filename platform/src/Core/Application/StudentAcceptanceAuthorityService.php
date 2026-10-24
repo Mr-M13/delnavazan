@@ -93,7 +93,7 @@ final class StudentAcceptanceAuthorityService {
         return $this->transaction(function()use($digest,$userId):int{
             $now=current_time('mysql',true);$context=$this->claimInvitations->claimContextForTokenForUpdate($digest);
             if(!$context||$context->invitation_state!=='active'||$context->state!=='active'||(int)$context->active_slot!==1||(int)$context->current_generation!==(int)$context->generation_number||$context->expires_at<=$now)throw new \InvalidArgumentException('Account claim token is invalid, expired, revoked, replaced, or already used');
-            $studentId=(int)$context->student_id;$locks=$this->authorityLocks($studentId,array($userId));
+            $studentId=(int)$context->student_id;$student=$this->claimInvitations->studentForUpdate($studentId);if(!$student||$student->archived_at!==null||$student->status!=='active'||trim((string)$student->uid)===''||trim((string)$student->reference_code)==='')throw new \InvalidArgumentException('Student is not eligible for account claim');$account=$this->claimInvitations->wordpressUserForUpdate($userId);if(!$account)throw new \InvalidArgumentException('Authenticated principal is unavailable');if(!is_email((string)$student->email)||strcasecmp(trim((string)$account->user_email),trim((string)$student->email))!==0)throw new \InvalidArgumentException('Authenticated account does not match account claim recipient');$locks=$this->authorityLocks($studentId,array($userId));
             if($this->activePrincipalForStudent($locks['principals'],$studentId)||$this->activePrincipalForUser($locks['principals'],$userId)||$this->activeGuardianForUser($locks['grants'],$userId,$now))throw new \InvalidArgumentException('A current Student principal or guardian authority already exists');
             do_action('dzn_student_account_claim_authority_locks_held');$this->records->expireElapsedGrants($locks['grants'],$userId,$now);
             $linkId=$this->records->insertPrincipal($this->principalData($studentId,$userId,'verified_internal_record','verified_internal_record',$now,$userId,$now));
@@ -489,8 +489,8 @@ final class StudentAcceptanceAuthorityService {
 
     private function evidence(string $basis, string $channel, string $at): array {
         if (
-            !in_array($basis, array('human_review', 'verified_internal_record', 'legal_representative_review', 'synthetic_fixture'), true)
-            || !in_array($channel, array('internal_case', 'reviewer_attestation', 'verified_internal_record', 'synthetic_fixture'), true)
+            !in_array($basis, array('human_review', 'verified_internal_record', 'legal_representative_review', 'synthetic_fixture', 'self_attestation'), true)
+            || !in_array($channel, array('internal_case', 'reviewer_attestation', 'verified_internal_record', 'synthetic_fixture', 'authenticated_platform'), true)
         ) {
             throw new \InvalidArgumentException('Invalid reviewed evidence metadata');
         }

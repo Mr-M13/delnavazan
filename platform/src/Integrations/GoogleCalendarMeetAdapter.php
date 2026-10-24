@@ -20,9 +20,8 @@ use Delnavazan\Platform\Core\Application\Port\{ProviderCalendarPort,ProviderEven
 final class GoogleCalendarMeetAdapter implements ProviderCalendarPort,ProviderMeetingPort,ProviderEventNormalizer {
     public const PROVIDER_CODE='google_calendar';
     public const EVIDENCE_PROVIDER_CODE='google_meet';
-    /** Minimum Calendar scope set this seam is defined against; the approved set is deployment configuration. */
-    public const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
-    public const MEET_SCOPE='https://www.googleapis.com/auth/meetings.space.created';
+    /** Complete Calendar scope set. An extra grant is unusable until the Teacher re-consents. */
+    public const CALENDAR_SCOPE=ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE;
 
     /**
      * The exact authorization request shape for one consent attempt.

@@ -12,7 +12,7 @@ $files = array(
     'availability' => file_get_contents( $root . '/src/Core/Application/TeacherAvailabilityService.php' ),
     'controller' => file_get_contents( $root . '/src/Portals/TeacherOnboardingController.php' ),
     'claim_controller' => file_get_contents( $root . '/src/Portals/TeacherInvitationController.php' ),
-    'admin' => file_get_contents( $root . '/src/Admin/Controller/OnboardingController.php' ),
+    'admin' => file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' ),
     'portal' => file_get_contents( $root . '/src/Portals/PortalAuthenticatedReadService.php' ),
     'theme_bridge' => file_get_contents( dirname( $root ) . '/theme/inc/platform-bridge.php' ),
     'theme_route' => file_get_contents( dirname( $root ) . '/theme/inc/routes.php' ),
@@ -30,9 +30,9 @@ foreach ( array( "'state'=>'linked_pending'", "'readiness_state'=>'not_ready'", 
     if ( strpos( $finalize, $fragment ) === false ) throw new RuntimeException( 'Claim does not produce linked-pending onboarding: ' . $fragment );
 if ( strpos( $finalize, "'state'=>'active','readiness_state'=>'ready'" ) !== false ) throw new RuntimeException( 'Claim must not activate a Teacher.' );
 
-foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'reconcileLegacyReviewState', 'invitation_approved_and_requirements_complete', "'agreement_state' => 'not_required'", "'readiness_state' => 'ready'", "'can_submit' => false" ) as $fragment )
+foreach ( array( 'linked_pending', 'in_progress', 'pending_review', 'returned', 'rejected', 'active', 'submitOwn', 'teacher_submitted_for_review', 'administrator_approved', "'agreement_state' => 'not_required'", "'readiness_state' => \$decision === 'approve' ? 'ready'", 'can_submit' ) as $fragment )
     if ( strpos( $files['service'], $fragment ) === false ) throw new RuntimeException( 'Missing lifecycle contract: ' . $fragment );
-if ( strpos( $files['service'], 'function review(' ) !== false || strpos( $files['admin'], '->review(' ) !== false ) throw new RuntimeException( 'Teacher onboarding must not have a later review stage.' );
+if ( strpos( $files['service'], 'function review(' ) === false || strpos( $files['admin'], '->review(' ) === false ) throw new RuntimeException( 'Teacher onboarding review stage is missing.' );
 foreach ( array( "'state'=>'offboarded'", 'appendOnboardingEvent' ) as $fragment )
     if ( strpos( $files['claim'], $fragment ) === false ) throw new RuntimeException( 'Canonical teacher offboarding contract missing: ' . $fragment );
 
@@ -47,9 +47,8 @@ foreach ( array( 'admin_post_dzn_teacher_onboarding_profile', 'admin_post_dzn_te
 foreach ( array( 'admin_post_dzn_teacher_invitation_claim', 'admin_post_nopriv_dzn_teacher_invitation_claim', 'beginExistingClaim', 'beginProvisioning', 'recordProvisioningResult', 'finalizeClaim', 'check_admin_referer' ) as $fragment )
     if ( strpos( $files['claim_controller'], $fragment ) === false ) throw new RuntimeException( 'Invitation claim boundary missing: ' . $fragment );
 if ( strpos( $files['claim_controller'], "\$_GET['invitation_code']" ) !== false ) throw new RuntimeException( 'Invitation secret must not be accepted from a URL.' );
-foreach ( array( 'dzn_manage_onboarding', 'This table is diagnostic', 'does not gate readiness' ) as $fragment )
+foreach ( array( 'dzn_manage_onboarding', 'Approve and activate', 'teacherReadinessPanel' ) as $fragment )
     if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
-if ( strpos( $files['admin'], 'Approve and activate' ) !== false ) throw new RuntimeException( 'Routine approval action must not remain in onboarding diagnostics.' );
 
 if ( strpos( $files['portal'], 'hasActiveTeacherAuthority' ) === false || strpos( $files['portal'], 'teacher_onboarding_required' ) === false ) throw new RuntimeException( 'Normal Teacher portal readiness gate missing.' );
 foreach ( array( 'currentForUser', "'onboarding' === \$screen", 'dzn_teacher_onboarding_profile' ) as $fragment )

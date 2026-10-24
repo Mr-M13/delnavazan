@@ -15,11 +15,59 @@ final class PortalAuthenticatedReadService {
         $principal = (new PortalPrincipalResolver())->resolve('student');
         $lessons = $this->lessonsFor('student', (int) $principal['id'], $principal);
         $enrolments = $this->studentEnrolments((int) $principal['id'], $principal);
+        $bookingRequests = $this->studentBookingRequests((int) $principal['id']);
+        $bookingClasses = (new StudentUpcomingBookingReadService())->forStudent((int) $principal['id']);
+        try {
+            $postIntro = (new PostIntroStudentReadService())->forStudent((int) $principal['id']);
+        } catch (\Throwable $error) {
+            // A new workflow surface must never take the whole Student Portal down.
+            do_action('dzn_post_intro_student_read_failed', get_class($error));
+            $postIntro = array();
+        }
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
             'lessons' => $lessons,
             'enrolments' => $enrolments,
+            'booking_requests' => $bookingRequests,
+            'booking_classes' => $bookingClasses,
+            'post_intro' => $postIntro,
         );
+    }
+
+    /** Pending introductory requests are scoped by both the canonical Student and its resolution event. */
+    private function studentBookingRequests(int $studentId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $requests = (array) $wpdb->get_results( $wpdb->prepare(
+            "SELECT r.id,r.uid,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,i.name_fa instrument_name_fa,i.name_en instrument_name_en,c.name_fa course_name_fa,c.name_en course_name_en
+             FROM {$p}booking_requests r
+             INNER JOIN {$p}booking_request_identity_resolution_events e ON e.id=r.current_identity_resolution_id AND e.booking_request_id=r.id AND e.student_id=r.student_id AND e.outcome='resolved'
+             INNER JOIN {$p}instruments i ON i.id=r.requested_instrument_id
+             LEFT JOIN {$p}courses c ON c.id=r.selected_intro_course_id
+             WHERE r.student_id=%d AND r.lifecycle_status='submitted' AND r.privacy_erased_at IS NULL
+             ORDER BY r.id DESC LIMIT %d",
+            $studentId,
+            self::LIMIT
+        ) );
+        $result = array();
+        foreach ( $requests as $request ) {
+            $times = (array) $wpdb->get_results( $wpdb->prepare(
+                "SELECT local_date,local_start_time,timezone FROM {$p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number ASC LIMIT 3",
+                (int) $request->id
+            ), ARRAY_A );
+            $result[] = array(
+                'version' => 'student_booking_request_v1',
+                'uid' => (string) $request->uid,
+                'reference' => (string) $request->reference_code,
+                'lifecycle_status' => (string) $request->lifecycle_status,
+                'resolution_state' => (string) $request->resolution_state,
+                'instrument' => (string) ( $request->instrument_name_fa ?: $request->instrument_name_en ),
+                'course' => (string) ( $request->course_name_fa ?: $request->course_name_en ),
+                'requested_times' => array_map( static fn( array $time ): array => array( 'local_date' => (string) $time['local_date'], 'local_start_time' => substr( (string) $time['local_start_time'], 0, 5 ), 'timezone' => (string) $time['timezone'] ), $times ),
+                'created_at' => (string) $request->created_at,
+            );
+        }
+        return $result;
     }
 
     public function teacher(): array {
@@ -27,10 +75,12 @@ final class PortalAuthenticatedReadService {
         if ( ! ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository() )->hasActiveTeacherAuthority( (int) get_current_user_id(), (int) $principal['id'] ) ) throw new \InvalidArgumentException( 'teacher_onboarding_required' );
         $lessons = $this->lessonsFor('teacher', (int) $principal['id'], $principal);
         $assignments = $this->teacherAssignments((int) $principal['id'], $principal);
+        $bookingClasses = (new TeacherUpcomingBookingReadService())->forTeacher((int) $principal['id']);
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
             'lessons' => $lessons,
             'assignments' => $assignments,
+            'booking_classes' => $bookingClasses,
         );
     }
 
@@ -38,9 +88,14 @@ final class PortalAuthenticatedReadService {
         global $wpdb;
         $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
         $table = $wpdb->prefix . 'dzn_lessons';
+        $schedules = $wpdb->prefix . 'dzn_canonical_lesson_schedule_versions';
+        // A canonical Lesson becomes portal-visible when its occurrence is scheduled. An
+        // authorised but unscheduled Lesson has no date/time to present and must not make the
+        // whole portal read fail closed; the canonical schedule read still validates every row
+        // that is selected.
         $ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT id FROM {$table} WHERE {$column}=%d AND record_model='canonical_term_lesson_v1' ORDER BY id DESC LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1' ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT %d",
                 $principalId,
                 self::LIMIT
             )

@@ -11,7 +11,7 @@ namespace Delnavazan\Platform\Admin\Controller;
  */
 final class EnrolmentWorkspaceController {
     public static function screen(): void {
-        if (!current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) wp_die('Forbidden', 403);
+        if (!current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
         echo '<div class="wrap"><h1>Bookings &amp; Enrolments</h1>';
         echo '<p>Follow a learner from booking request through coordination, accepted arrangement, Enrolment and Term. Each card opens the existing authorised workflow; no booking or Enrolment authority is merged here.</p>';
         echo '<div class="dzn-workspace-grid">';

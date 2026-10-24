@@ -10,7 +10,7 @@ namespace Delnavazan\Platform\Admin\Controller;
  */
 final class CatalogueWorkspaceController {
     public static function screen(): void {
-        if (!current_user_can(Menu::CATALOGUE_WORKSPACE_CAP)) wp_die('Forbidden', 403);
+        if (!current_user_can(Menu::CATALOGUE_WORKSPACE_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
         echo '<div class="wrap"><h1>Courses &amp; Instruments</h1>';
         echo '<p>Review the learning offer as instruments, their introductory and standard Courses, and the related commercial pricing and exceptions.</p>';
         echo '<div class="dzn-workspace-grid">';

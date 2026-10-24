@@ -34,6 +34,8 @@ $contains($shell, array(
     "['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']",
     "['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority']",
     "['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger']",
+    "['Teacher rates (temporary)', 'dzn-finance-rates', 'dzn_view_finance_authority']",
+    "['Teacher statements (temporary)', 'dzn-finance-statements', 'dzn_view_finance_authority']",
     "['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]",
     "'settings' => ['Settings'",
     "['General', 'dzn-general', 'manage_options']",

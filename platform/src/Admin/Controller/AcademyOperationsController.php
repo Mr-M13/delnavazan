@@ -44,15 +44,15 @@ final class AcademyOperationsController {
         global $wpdb;$p=$wpdb->prefix.'dzn_';$items=[];
         if(current_user_can('dzn_manage_onboarding')){
             $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
-            $items[]=['Teacher onboarding submissions',$count,'dzn-teachers-menu','Review and decide'];
+            $items[]=['Teacher onboarding submissions',$count,'dzn-teachers-menu','Review and decide',['view'=>'onboarding']];
         }
         if(current_user_can('dzn_manage_booking_request_coordination')){
             $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
-            $items[]=['Teacher booking requests pending response',$count,'dzn-booking-requests','Review request delivery'];
+            $items[]=['Teacher booking requests pending response',$count,'dzn-booking-requests','Review request delivery',[]];
         }
         if(!$items)return;
         echo '<section class="notice notice-warning dzn-academy-pending-actions"><h2>Pending actions</h2><ul>';
-        foreach($items as[$label,$count,$page,$action])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(admin_url('admin.php?page='.$page)).'">'.esc_html($action).'</a></li>';
+        foreach($items as[$label,$count,$page,$action,$args])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(add_query_arg(array_merge(['page'=>$page],$args),admin_url('admin.php'))).'">'.esc_html($action).'</a></li>';
         echo '</ul></section>';
     }
     private static function journeyDetail(object $r):void{

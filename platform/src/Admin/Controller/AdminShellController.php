@@ -28,6 +28,8 @@ final class AdminShellController {
             ['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority'],
             ['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger'],
             ['Reconciliation', 'dzn-finance-reconciliation', 'dzn_view_finance_authority'],
+            ['Teacher rates (temporary)', 'dzn-finance-rates', 'dzn_view_finance_authority'],
+            ['Teacher statements (temporary)', 'dzn-finance-statements', 'dzn_view_finance_authority'],
             ['Finance policies', 'dzn-finance-policies', 'dzn_view_finance_authority'],
             ['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']],
         ]],

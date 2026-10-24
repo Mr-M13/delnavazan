@@ -40,7 +40,7 @@ $contains($shell, array(
     "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
 ), 'Teachers tabs must be Overview and Onboarding & Invitations');
 $test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teacher tabs must not contain finance or legacy directory workflows');
-$contains($screen, array("if (\$view === 'onboarding')", 'Menu::TEACHER_ONBOARDING_CAP', 'self::teacherInvitationPanel();'), 'Teacher onboarding must be a gated view of the existing authority');
+$contains($screen, array("\$view === ''", "!current_user_can('dzn_manage_teachers')", 'Menu::TEACHER_ONBOARDING_CAP', "\$view === 'onboarding'", 'self::teacherInvitationPanel();'), 'Teacher onboarding must be a gated view of the existing authority, including legacy generic links');
 
 // Enrolment has exactly four tabs with the agreed destinations.
 $status = preg_match_all("/\\['(?:Classes & Schedules|Bookings & Enrolments|Courses & Instruments|Attendance & Post-intro)'/", $shell);
@@ -63,6 +63,8 @@ $contains($shell, array(
     "['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority']",
     "['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger']",
     "['Reconciliation', 'dzn-finance-reconciliation', 'dzn_view_finance_authority']",
+    "['Teacher rates (temporary)', 'dzn-finance-rates', 'dzn_view_finance_authority']",
+    "['Teacher statements (temporary)', 'dzn-finance-statements', 'dzn_view_finance_authority']",
     "['Finance policies', 'dzn-finance-policies', 'dzn_view_finance_authority']",
     "['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]",
     "'settings' => ['Settings'",
@@ -81,8 +83,10 @@ $contains($menu, array(
     "'dzn_view_booking_requests'",
     "'dzn_manage_booking_request_coordination'",
     "'dzn_manage_enrolments'",
+    "'dzn_manage_terms'",
     "'dzn_manage_courses'",
     "'dzn_manage_commercial_catalogue'",
+    "'dzn_manage_exceptions'",
     "'dzn_manage_canonical_attendance_review'",
     "'dzn_manage_post_intro_automation'",
     'return [\'do_not_allow\'];',

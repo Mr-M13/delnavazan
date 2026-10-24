@@ -45,10 +45,12 @@ final class Menu {
             'dzn_view_booking_requests',
             'dzn_manage_booking_request_coordination',
             'dzn_manage_enrolments',
+            'dzn_manage_terms',
         ]);
         if ($cap === self::CATALOGUE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
             'dzn_manage_courses',
             'dzn_manage_commercial_catalogue',
+            'dzn_manage_exceptions',
         ]);
         if ($cap === self::ATTENDANCE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
             'dzn_manage_canonical_attendance_review',

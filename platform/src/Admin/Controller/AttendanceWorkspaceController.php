@@ -10,7 +10,7 @@ namespace Delnavazan\Platform\Admin\Controller;
  */
 final class AttendanceWorkspaceController {
     public static function screen(): void {
-        if (!current_user_can(Menu::ATTENDANCE_WORKSPACE_CAP)) wp_die('Forbidden', 403);
+        if (!current_user_can(Menu::ATTENDANCE_WORKSPACE_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
         echo '<div class="wrap"><h1>Attendance &amp; Post-intro</h1>';
         echo '<p>Review canonical attendance evidence, introductory delivery outcomes and post-intro preparation exceptions. These are separate backend workflows; this page does not merge their authority.</p>';
         echo '<div class="dzn-workspace-grid">';

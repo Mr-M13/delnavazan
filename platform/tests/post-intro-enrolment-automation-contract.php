@@ -283,7 +283,8 @@ $contains($admin, array(
 $assert(str_contains($migrator, "add_cap('dzn_manage_post_intro_automation')"), 'the admin exception capability must be installed');
 $assert(str_contains($plugin, 'PostIntroAdminController::register()'), 'the admin exception surface must be registered');
 $adminShell = $read('platform/src/Admin/Controller/AdminShellController.php');
-$assert(str_contains($adminShell, "'dzn-post-intro'") && str_contains($adminShell, "'dzn_manage_post_intro_automation'"), 'the admin exception surface must be discoverable');
+$attendanceWorkspace = $read('platform/src/Admin/Controller/AttendanceWorkspaceController.php');
+$assert(str_contains($adminShell, "'dzn-post-intro'") && str_contains($attendanceWorkspace, "'dzn-post-intro'") && str_contains($attendanceWorkspace, "'dzn_manage_post_intro_automation'"), 'the admin exception surface must remain discoverable through the consolidated Attendance & Post-intro workspace');
 
 // 11. Notification delivery reuses the durable hand-off table and adds explicit kinds.
 $contains($notificationWorker, array(

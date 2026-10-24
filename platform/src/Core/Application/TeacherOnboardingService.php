@@ -128,6 +128,12 @@ final class TeacherOnboardingService {
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
+    /** Read-only progress for an already-loaded Teacher row in the onboarding workspace. */
+    public function progressForAdministrator(object $teacher): array {
+        if (!current_user_can('dzn_manage_onboarding')) throw new \RuntimeException('Unauthorized');
+        return $this->progress($teacher);
+    }
+
     public function reviewRows(): array { if ( ! current_user_can( 'dzn_manage_onboarding' ) ) throw new \RuntimeException( 'Unauthorized' ); return $this->repo->reviewRows(); }
 
     public function review(int $teacherId, string $decision, ?string $reason = null): void {

@@ -465,7 +465,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$soon = $start - $now <= HOUR_IN_SECONDS;
 		$is_booking = 'teacher_booking_class_v1' === ( $lesson['version'] ?? '' );
 		$join_ready = $is_booking && ! empty( $lesson['join_available'] ) && $soon;
-		$class_timezone = $is_booking ? (string) ( $onboarding['profile']['timezone'] ?? $lesson['schedule_timezone'] ?? 'UTC' ) : ( wp_timezone_string() ?: 'UTC' );
+		$class_timezone = $is_booking ? (string) ( $onboarding['profile']['timezone'] ?? $lesson['schedule_timezone'] ?? 'UTC' ) : (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
 		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
 		$classes[] = array(
 			'ref' => (string) ( $is_booking ? $lesson['confirmation_uid'] : ( $lesson['reference_code'] ?? 'lesson-' . $index ) ),
@@ -484,6 +484,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'previous_private_note' => 'یادداشت خصوصی در این نمای خواندنی ارائه نشده است.',
 			'state' => $state,
 			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
+			'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F', $class_timezone ),
+			'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
+			'timezone' => $class_timezone,
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'course' => (string) ( $lesson['course_reference'] ?? '' ),
 			'progress' => $is_booking ? 'کلاس آشنایی' : (string) ( $lesson['term_reference'] ?? '' ),
@@ -541,6 +544,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,
 		'calendar' => $calendar,
+		'teacher_timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ),
 	);
 }
 

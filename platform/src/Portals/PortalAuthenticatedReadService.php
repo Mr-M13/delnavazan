@@ -89,6 +89,7 @@ final class PortalAuthenticatedReadService {
         $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
         $table = $wpdb->prefix . 'dzn_lessons';
         $schedules = $wpdb->prefix . 'dzn_canonical_lesson_schedule_versions';
+        $legacySchedules = $wpdb->prefix . 'dzn_lesson_schedule_versions';
         // A canonical Lesson becomes portal-visible when its occurrence is scheduled. An
         // authorised but unscheduled Lesson has no date/time to present and must not make the
         // whole portal read fail closed; the canonical schedule read still validates every row
@@ -109,8 +110,57 @@ final class PortalAuthenticatedReadService {
                 $principal
             );
         }
+        // Older staff-entered classes are a separate, read-only compatibility projection. They
+        // must have the exact current legacy schedule pointer and never acquire canonical portal
+        // capabilities (join/absence) merely by becoming visible.
+        $legacyIds = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT l.id FROM {$table} l INNER JOIN {$legacySchedules} v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT %d",
+                $principalId,
+                self::LIMIT
+            )
+        );
+        foreach ((array) $legacyIds as $id) $rows[] = $this->legacyLessonFor($kind, (int) $id, $principalId);
         usort($rows, static fn(array $a, array $b): int => strcmp((string) $a['starts_at_utc'], (string) $b['starts_at_utc']));
         return $rows;
+    }
+
+    /** A legacy class is visible only to its exact canonical portal principal and is read-only. */
+    private function legacyLessonFor(string $kind, int $lessonId, int $principalId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,v.id schedule_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,c.reference_code course_reference,s.reference_code student_reference FROM {$p}lessons l INNER JOIN {$p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}students s ON s.id=l.student_id WHERE l.id=%d AND l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL",
+            $lessonId,
+            $principalId
+        ));
+        if (!$row || $wpdb->last_error !== '') throw new \InvalidArgumentException('portal_object_not_portal_visible');
+        if ((int) $row->id < 1 || (int) $row->schedule_id < 1 || trim((string) $row->starts_at_utc) === '' || trim((string) $row->ends_at_utc) === '' || trim((string) $row->schedule_timezone) === '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        return array(
+            'version' => 'portal_lesson_v1',
+            'lesson_uid' => trim((string) $row->uid) ?: 'legacy-' . (int) $row->id,
+            'reference_code' => trim((string) $row->reference_code) ?: 'Class #' . (int) $row->id,
+            'lesson_kind' => (string) $row->lesson_type,
+            // Do not present a legacy class as canonical-authorised: no absence or public
+            // capability action may be created from this compatibility projection.
+            'lifecycle_state' => (string) $row->status === 'completed' ? 'completed' : 'scheduled',
+            'enrolment_uid' => '',
+            'course_reference' => trim((string) $row->course_reference) ?: 'Course',
+            'term_reference' => '',
+            'starts_at_utc' => (string) $row->starts_at_utc,
+            'ends_at_utc' => (string) $row->ends_at_utc,
+            'schedule_timezone' => (string) $row->schedule_timezone,
+            'schedule_version_uid' => 'legacy-schedule-' . (int) $row->schedule_id,
+            'delivery_state_summary' => (string) $row->status === 'completed' ? 'completed' : 'not_recorded',
+            'attendance_state_summary' => 'not_recorded',
+            'join_available' => false,
+            'join_refusal_reason' => 'legacy_class_read_only',
+            'absence_available' => false,
+            'absence_refusal_reason' => 'legacy_class_read_only',
+            'assignment_state' => $kind === 'teacher' ? 'legacy_read_only' : null,
+            'student_display_reference' => $kind === 'teacher' ? (trim((string) $row->student_reference) ?: 'Student') : null,
+        );
     }
 
     private function studentEnrolments(int $studentId, array $principal): array {

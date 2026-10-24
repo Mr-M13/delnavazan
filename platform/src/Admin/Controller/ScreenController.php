@@ -84,9 +84,11 @@ final class ScreenController {
         $action = sanitize_key($post['dzn_action'] ?? '');
         $capability = $screen === 'teacher'
             ? self::teacherActionCapability($action)
+            : ($screen === 'lesson' && $action === 'complete_canonical_lesson'
+            ? 'dzn_manage_canonical_lessons'
             : ($screen === 'exception'
             ? 'dzn_manage_exceptions'
-            : (self::ENTITIES[$screen][1] ?? ''));
+            : (self::ENTITIES[$screen][1] ?? '')));
         if ($capability === '' || !current_user_can($capability)) {
             wp_die('Access denied.', 'Delnavazan', ['response' => 403]);
         }
@@ -152,6 +154,7 @@ final class ScreenController {
                 'cancel_canonical_term' => self::canonicalTermTransition($post, 'cancel'),
                 'create_lesson' => (new LessonService())->create(self::createPayload('lesson', $post)),
                 'create_canonical_lesson' => self::canonicalLessonCreate($post),
+                'complete_canonical_lesson' => self::completeCanonicalLesson($post),
                 'record_intro_outcome' => self::recordIntroOutcome($post),
                 'schedule_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_initial'),
                 'revise_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_revise'),
@@ -381,7 +384,7 @@ final class ScreenController {
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
-        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
+        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){self::canonicalLessonCompletionForm($record);if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
     }
 
     private static function updateTeacherProfile(array $post): int {
@@ -683,6 +686,26 @@ final class ScreenController {
             $assignmentId = (int) $assignment->id;
         }
         $result = $service->createStandard($termId, $assignmentId, $evidence, $key);
+        return (int) $result['lesson_id'];
+    }
+
+    /** Completion remains canonical, evidence-backed and unavailable before the scheduled end. */
+    private static function completeCanonicalLesson(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lessons')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['lesson_id'] ?? 0);
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
+        if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
+        if ((string) $lesson->lifecycle_state !== 'authorised') throw new \InvalidArgumentException('stale_lesson_state');
+        $state = (new CanonicalLessonScheduleReadService())->forLesson($lessonId);
+        $active = $state['active_version'] ?? null;
+        if (!$active) throw new \InvalidArgumentException('confirmed_occurrence_required');
+        if ((string) $active->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('class_not_finished');
+        $result = (new CanonicalLessonAuthorityService())->complete(
+            $lessonId,
+            'authorised',
+            self::canonicalEvidence($post),
+            (string) ($post['idempotency_key'] ?? '')
+        );
         return (int) $result['lesson_id'];
     }
 
@@ -1030,6 +1053,26 @@ final class ScreenController {
         self::input('reason_code', 'Reason code', true);
         self::canonicalEvidenceFields();
         submit_button('Release canonical schedule');
+        echo '</form>';
+    }
+
+    /** Contextual manual completion is independent of schedule-edit access. */
+    private static function canonicalLessonCompletionForm(object $lesson): void {
+        if (!current_user_can('dzn_manage_canonical_lessons') || (string) $lesson->lifecycle_state !== 'authorised') return;
+        try { $state = (new CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
+        catch (\InvalidArgumentException $exception) {
+            if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
+            echo '<p class="notice notice-error">Class completion is unavailable because the schedule failed integrity validation.</p>';
+            return;
+        }
+        $active = $state['active_version'] ?? null;
+        if (!$active) { echo '<p class="notice notice-info">Mark as completed becomes available after a canonical schedule is confirmed.</p>'; return; }
+        if ((string) $active->ends_at_utc > gmdate('Y-m-d H:i:s')) { echo '<p class="notice notice-info">Mark as completed becomes available after the scheduled class ends.</p>'; return; }
+        echo '<h2>Class completion</h2><p>Record the completed class with an operator evidence reference. This final action remains subject to the canonical delivery integrity checks.</p>';
+        self::formStart('complete_canonical_lesson');
+        echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+        self::canonicalEvidenceFields();
+        submit_button('Mark class as completed', 'primary');
         echo '</form>';
     }
 }

@@ -208,8 +208,8 @@ final class ScreenController {
         error_log('[Delnavazan Platform Phase 1F nonce] ' . wp_json_encode($diagnostic));
     }
 
-    private static function archive(array $post): int { $id=absint($post['id']??0);(new ArchiveService())->archive(self::entityFromPost($post),$id);return $id; }
-    private static function restore(array $post): int { $id=absint($post['id']??0);(new ArchiveService())->restore(self::entityFromPost($post),$id);return $id; }
+    private static function archive(array $post): int { $entity=self::entityFromPost($post);if($entity==='teacher')throw new \InvalidArgumentException('Use the authorised Teacher record action');$id=absint($post['id']??0);(new ArchiveService())->archive($entity,$id);return $id; }
+    private static function restore(array $post): int { $entity=self::entityFromPost($post);if($entity==='teacher')throw new \InvalidArgumentException('Use the authorised Teacher record action');$id=absint($post['id']??0);(new ArchiveService())->restore($entity,$id);return $id; }
     private static function schedule(array $post, bool $initial): int { $id = absint($post['lesson_id'] ?? 0); return $initial ? (new LessonScheduleService())->initial($id, $post) : (new LessonScheduleService())->reschedule($id, $post); }
     private static function transition(array $post, string $to): int { (new ExceptionService())->transition(absint($post['id'] ?? 0), $to, $post['resolution_note'] ?? null); return 0; }
     private static function retry(array $post): int { (new ExceptionService())->incrementRetry(absint($post['id'] ?? 0)); return 0; }
@@ -356,10 +356,10 @@ final class ScreenController {
             echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html(self::teacherIntegrationStatus((string)($record->google_calendar_state ?? ''))).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html(self::teacherOnboardingSummary($record)).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Weekly availability</th><td>'.esc_html((string)($record->availability_summary?:'No active weekly windows')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Current teaching</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
             self::teacherReviewControls($record); self::teacherInlineControls($record); echo '<details><summary>Profile details and lifecycle actions</summary>';
             self::teacherMaintenanceForm( $record );
-            self::teacherArchiveActions($record);
+            \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::render('teacher', $record, 'dzn-teachers-menu');
             echo '</details>';
         }
-        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) { echo '<p class="notice notice-info">This Teacher is archived. Teaching and audit history is retained; invitations and Teacher access are revoked. Restore makes the profile eligible for a new invitation but does not restore access automatically.</p>'; self::teacherArchiveActions($record); }
+        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) { echo '<p class="notice notice-info">This Teacher is archived. Teaching and audit history is retained; invitations and Teacher access are revoked. Restore makes the profile eligible for a new invitation but does not restore access automatically.</p>'; \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::render('teacher', $record, 'dzn-teachers-menu'); }
         if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') && $entity !== 'teacher') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
@@ -471,14 +471,6 @@ final class ScreenController {
         foreach(['return_teacher_onboarding'=>'Return for changes','reject_teacher_onboarding'=>'Reject'] as$action=>$label){self::formStart($action);echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'"><label>Reason code <input required name="reason_code" maxlength="64" pattern="[a-z0-9_-]+"></label> ';submit_button($label,'secondary','submit',false);echo '</form>';}
     }
 
-    private static function teacherArchiveActions(object $teacher):void{
-        $archived=$teacher->archived_at!==null||$teacher->status==='archived';
-        self::formStart($archived?'restore':'archive');
-        echo '<input type="hidden" name="entity" value="teacher"><input type="hidden" name="id" value="'.esc_attr((string)$teacher->id).'">';
-        if(!$archived)echo '<p class="description">Archiving preserves history, revokes open invitations and Teacher-only access, and leaves other WordPress roles unchanged. Current teaching assignments must be ended first.</p>';
-        submit_button($archived?'Restore for safe re-invitation':'Archive and revoke Teacher access','secondary','submit',false);echo '</form> ';
-    }
-
     /**
      * Canonical authority first. The legacy creator remains available only as a labelled
      * compatibility path and only when a real legacy Enrolment can satisfy it.
@@ -580,7 +572,7 @@ final class ScreenController {
             echo '<p>Communication history is not available on this profile.</p>';
         } else {
             echo '<h3>Administration</h3><p>Archiving removes this student from active operational lists. Existing records remain available.</p>';
-            \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::render('student', $student, 'dzn-student');
+            self::archiveActions('student',$id,(string)$student->status);
         }
     }
 

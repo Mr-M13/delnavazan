@@ -22,7 +22,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         global $wpdb;
         $limit = max(1, min(50, $limit));
         $sql = "SELECT d.uid delivery_uid,d.state delivery_state,d.match_strength,d.created_at,
-                       r.reference_code request_reference,s.full_name,
+                       r.id booking_request_id,r.reference_code request_reference,s.full_name,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
                        COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,
                        rt.local_date,rt.local_start_time,rt.timezone student_timezone,

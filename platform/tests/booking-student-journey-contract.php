@@ -7,6 +7,7 @@ $notification=file_get_contents($root.'/src/Core/Application/StudentAccountClaim
 $claim=file_get_contents($root.'/src/Portals/StudentAccountClaimController.php');
 $validation=file_get_contents($root.'/src/Core/Application/StudentAccountClaimValidationService.php');
 $booking=file_get_contents(dirname($root).'/theme/inc/booking.php');
+$bookingScript=file_get_contents(dirname($root).'/theme/assets/js/booking.js');
 $routes=file_get_contents(dirname($root).'/theme/inc/routes.php');
 $assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
 $assert(!str_contains($booking, 'برای ورود به حساب هنرجویی و پیگیری درخواست شما استفاده خواهد شد'),'Booking must not promise that the submitted email is already the student-account login');
@@ -21,4 +22,7 @@ $assert(str_contains($validation,'account_claim_expired') && str_contains($valid
 $assert(str_contains($claim,'/student-portal/?account_claim=success') && str_contains($claim,"?'expired':") && str_contains($claim,"?'login':"),'Student claim controller must provide success and recovery states without putting the secret in a URL.');
 $assert(str_contains($routes,"'student-account-claim'") && str_contains($routes,'name="claim_code"') && str_contains($routes,'account_claim') ,'Student-facing claim route must offer authenticated redemption and post-claim handoff.');
 $assert(!str_contains($booking,'اعلان‌های کلاس را از طریق واتساپ دریافت می‌کنید'),'Booking confirmation must not promise a notification channel before its transport authority exists.');
+$assert(str_contains($bookingScript, 'const prefilledCountry = country.value') && str_contains($bookingScript, "country.value = prefilledCountry"), 'Returning-student country prefill must survive rebuilding localized country options.');
+$assert(str_contains($bookingScript, 'current === suggestedPhonePrefix'), 'An untouched suggested phone prefix should follow country changes without overwriting an edited number.');
+$assert(str_contains($bookingScript, 'validateAccountPassword') && str_contains($bookingScript, 'تکرار رمز با رمز حساب یکسان نیست.'), 'Password confirmation must identify the mismatched field without disclosing account existence.');
 echo "Booking to student journey contract passed\n";

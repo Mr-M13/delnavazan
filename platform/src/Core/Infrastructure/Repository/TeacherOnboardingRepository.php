@@ -82,13 +82,16 @@ final class TeacherOnboardingRepository {
         global $wpdb;
         $limit = max(1, min(200, $limit));
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT t.id teacher_id,t.display_name,t.email,t.country_code,t.timezone,t.locale,t.calendar_preference,t.status teacher_status,t.archived_at,
+            "SELECT t.id teacher_id,t.reference_code,t.display_name,t.email,t.country_code,t.timezone,t.locale,t.calendar_preference,t.status teacher_status,t.archived_at,
                     o.state,o.readiness_state,o.profile_state,o.availability_state,o.agreement_state,o.submitted_at,o.reviewed_at,o.review_reason_code,
-                    l.wordpress_user_id linked_user_id,l.status principal_status
+                    l.wordpress_user_id linked_user_id,l.status principal_status,
+                    i.status invitation_status,g.status generation_status,g.expires_at generation_expires_at
              FROM {$this->prefix}teachers t
              LEFT JOIN {$this->prefix}teacher_onboarding_states o ON o.teacher_id=t.id
              LEFT JOIN {$this->prefix}teacher_principal_links l ON l.teacher_id=t.id AND l.status='active' AND l.revoked_at IS NULL
-             WHERE t.archived_at IS NULL
+             LEFT JOIN {$this->prefix}teacher_invitations i ON i.teacher_id=t.id
+             LEFT JOIN {$this->prefix}teacher_invitation_generations g ON g.invitation_id=i.id AND g.generation_number=i.current_generation_number
+             WHERE t.archived_at IS NULL AND (o.id IS NOT NULL OR i.id IS NOT NULL OR l.id IS NOT NULL)
              ORDER BY CASE WHEN o.state='pending_review' THEN 0 WHEN o.id IS NOT NULL THEN 1 ELSE 2 END,o.updated_at DESC,t.id DESC
              LIMIT %d",
             $limit

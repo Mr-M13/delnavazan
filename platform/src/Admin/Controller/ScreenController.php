@@ -167,7 +167,8 @@ final class ScreenController {
             NonceLifecycleDiagnostic::logStage('mutation_complete');
             $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule'];
             $teacherLifecycleAction=in_array($action,['archive','restore'],true)&&sanitize_key($post['entity']??'')==='teacher';
-            self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : ($teacherLifecycleAction?['id'=>absint($post['id']??0)]:[]));
+            $currentPage=sanitize_key(wp_unslash($_GET['page']??''));
+            self::redirectNotice('Saved' . ($id && $currentPage !== 'dzn-teachers-menu' ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : ($teacherLifecycleAction?['id'=>absint($post['id']??0)]:[]));
         } catch (\Throwable $e) {
             if ($action === 'issue_teacher_invitation_by_email' && $e->getMessage() !== 'invitation_dispatch_failed') {
                 $category = \Delnavazan\Platform\Core\Application\TeacherInvitationIssuanceFailure::category($e);
@@ -305,8 +306,10 @@ final class ScreenController {
             echo '<td>'.esc_html($availability).'</td><td>'.esc_html(number_format_i18n((int)$row->current_class_count)).'</td>';
             echo '<td><details><summary>Expand</summary><p><strong>Instruments:</strong> '.esc_html((string)$row->instrument_names!==''?(string)$row->instrument_names:'None recorded').'</p><p><strong>Weekly availability ('.esc_html((string)($row->timezone?:'timezone not set')).'):</strong> '.esc_html((string)$row->availability_summary!==''?(string)$row->availability_summary:'No active weekly windows').'</p><p><a href="'.esc_url($url).'">Open teacher profile and controls</a></p></details></td>';
             $actionsUrl = $url . '#teacher-actions';
-            $onboardingUrl = add_query_arg(array('page' => 'dzn-teachers-menu', 'view' => 'onboarding'), admin_url('admin.php')) . '#dzn-teacher-onboarding-' . (int) $row->id;
-            echo '<td><a class="button" href="' . esc_url($actionsUrl) . '">Manage</a> <a class="button" href="' . esc_url($onboardingUrl) . '">Onboarding</a></td></tr>';
+            $onboardingAnchor = in_array((string) ($row->directory_status ?? ''), array('not_invited', 'archived'), true) ? '' : '#' . self::teacherAnchor($row);
+            $onboardingUrl = add_query_arg(array('page' => 'dzn-teachers-menu', 'view' => 'onboarding'), admin_url('admin.php')) . $onboardingAnchor;
+            $onboardingButton = current_user_can(Menu::TEACHER_ONBOARDING_CAP) ? ' <a class="button" href="' . esc_url($onboardingUrl) . '">Onboarding</a>' : '';
+            echo '<td><a class="button" href="' . esc_url($actionsUrl) . '">Manage</a>' . $onboardingButton . '</td></tr>';
         }
         echo '</tbody></table>';
         $pages=(int)ceil($result['total']/$result['per_page']);
@@ -390,8 +393,10 @@ final class ScreenController {
 
     /** Invitation is the authorization decision. A mail failure is surfaced as a failure, never as "sent". */
     private static function issueTeacherInvitation(array $post): int {
+        $formId=sanitize_text_field($post['invitation_form_id']??'');
+        if(!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i',$formId))throw new \InvalidArgumentException('invitation_form_expired');
         $service=new \Delnavazan\Platform\Core\Application\PrincipalInvitationService();
-        $result=$service->issueForEmail(sanitize_email($post['recipient']??''),604800,sanitize_text_field($post['command_key']??'')?:wp_generate_uuid4());
+        $result=$service->issueForEmail(sanitize_email($post['recipient']??''),604800,hash('sha256','dzn_teacher_invitation_form:'.$formId));
         $generation=(int)($result['generation_id']??0);
         if($generation>0&&\Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker::dispatchNow($generation)==='failed')throw new \RuntimeException('invitation_dispatch_failed');
         return (int)($result['teacher_id']??0);
@@ -403,7 +408,7 @@ final class ScreenController {
 
     private static function teacherInvitationPanel(): void {
         echo '<section id="teacher-invitation"><h2>Teacher onboarding &amp; invitations <a class="page-title-action" href="#teacher-invitation">Add New</a></h2><p>Issuing creates a delivery intent; it does not mean an email was sent or received. Email is enough to authorise account registration. Teaching access remains unavailable until the Teacher submits complete profile and availability details and staff approve them. “Accepted by transport” means WordPress accepted the message, not that the recipient received it. Raw invitation secrets are never rendered, retained, logged, or placed in URLs.</p>';
-        if(current_user_can('dzn_issue_teacher_invitations')) { self::formStart('issue_teacher_invitation_by_email'); echo '<p><label>Email <input required type="email" name="recipient"></label> '; submit_button('Send Invitation','primary','submit',false); echo '</p></form>'; }
+        if(current_user_can('dzn_issue_teacher_invitations')) { self::formStart('issue_teacher_invitation_by_email'); echo '<input type="hidden" name="invitation_form_id" value="'.esc_attr(wp_generate_uuid4()).'"><p><label>Email <input required type="email" name="recipient"></label> '; submit_button('Send Invitation','primary','submit',false); echo '</p></form>'; }
         $canReadInvitationStatus=current_user_can('dzn_manage_onboarding')||current_user_can('dzn_issue_teacher_invitations')||current_user_can('dzn_revoke_teacher_invitations');
         if(!$canReadInvitationStatus) { echo '<p>Invitation status requires invitation or onboarding access.</p></section>'; return; }
         $page=max(1,absint($_GET['invitation_page']??1));$read=new \Delnavazan\Platform\Core\Application\PrincipalInvitationReadService();$rows=$read->rows($page,5);$total=$read->count();
@@ -412,10 +417,10 @@ final class ScreenController {
         foreach($rows as $row){$delivery=(string)($row->delivery_status??'');$state=$delivery==='delivered'?'Accepted by WordPress mail transport; recipient delivery is not confirmed':($delivery==='failed'?'Failed: '.(string)($row->delivery_failure_reason?:'transport_failed'):($delivery==='pending'?'Queued for dispatch':($delivery==='prepared'?'Interrupted; resend creates a replacement':'No delivery recorded')));$teacherId=(int)$row->teacher_id;$teacherName=esc_html((string)$row->display_name);if(current_user_can('dzn_manage_teachers')){$profile=add_query_arg(['page'=>'dzn-teachers-menu','id'=>$teacherId],admin_url('admin.php'));$teacherName='<a href="'.esc_url($profile).'">'.$teacherName.'</a>';}
             echo '<tr><td>'.$teacherName.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html(self::teacherInvitationStatus((string)($row->lifecycle_status??'unavailable'))).'</td><td>'.esc_html((string)($row->generation_expires_at?:'—')).'</td><td>'.esc_html($state).'</td><td>';
             if(in_array((string)($row->lifecycle_status??''),['queued_for_delivery','claim_available'],true)&&current_user_can('dzn_revoke_teacher_invitations')){self::formStart('revoke_teacher_invitation');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacherId).'">';submit_button('Revoke','secondary','submit',false);echo '</form> ';}
-            if((in_array($delivery,['failed','prepared'],true)||in_array((string)($row->lifecycle_status??''),['expired','revoked'],true))&&current_user_can('dzn_issue_teacher_invitations')){self::formStart('issue_teacher_invitation_by_email');echo '<input type="hidden" name="recipient" value="'.esc_attr((string)$row->email).'">';submit_button('Resend as replacement','secondary','submit',false);echo '</form>';}
+            if((in_array($delivery,['failed','prepared'],true)||in_array((string)($row->lifecycle_status??''),['expired','revoked'],true))&&current_user_can('dzn_issue_teacher_invitations')){self::formStart('issue_teacher_invitation_by_email');echo '<input type="hidden" name="recipient" value="'.esc_attr((string)$row->email).'"><input type="hidden" name="invitation_form_id" value="'.esc_attr(wp_generate_uuid4()).'">';submit_button('Resend as replacement','secondary','submit',false);echo '</form>';}
             echo '</td></tr>';
         }
-        echo '</tbody></table>';$pages=(int)ceil($total/5);if($pages>1){$base=add_query_arg(['page'=>'dzn-teachers-menu','invitation_page'=>'%#%'],admin_url('admin.php'));echo '<p class="tablenav">'.wp_kses_post(paginate_links(['base'=>$base,'format'=>'','current'=>$page,'total'=>$pages])).'</p>';}
+        echo '</tbody></table>';$pages=(int)ceil($total/5);if($pages>1){$base=add_query_arg(['page'=>'dzn-teachers-menu','view'=>'onboarding','invitation_page'=>'%#%'],admin_url('admin.php'));echo '<p class="tablenav">'.wp_kses_post(paginate_links(['base'=>$base,'format'=>'','current'=>$page,'total'=>$pages])).'</p>';}
         self::teacherReadinessPanel();
         self::teacherPrincipalLinkPanel();
         echo '</section>';
@@ -428,11 +433,11 @@ final class ScreenController {
             echo '<p>Onboarding progress requires onboarding access. Invitation status remains available above.</p>';
             return;
         }
-        $rows = (new \Delnavazan\Platform\Core\Application\TeacherOnboardingWorkspaceReadService())->rows();
+        $rows = (new \Delnavazan\Platform\Core\Application\TeacherOnboardingWorkspaceReadService())->rows(50);
         echo '<h3>Onboarding readiness</h3><p>Teachers complete their profile and weekly availability, then submit them for an explicit staff decision. Blockers and the next required action are shown for each Teacher.</p>';
         echo '<p class="description">A connected Google account is not proof that Google Meet works. Calendar and Meet columns report verified projection evidence only; “no evidence” means readiness is unproven, not failed.</p>';
         echo '<table class="widefat striped"><thead><tr><th>Teacher</th><th>Account</th><th>Profile</th><th>Availability</th><th>Google account</th><th>Calendar</th><th>Meet</th><th>Blockers / next action</th><th>Review</th></tr></thead><tbody>';
-        if (!$rows) echo '<tr><td colspan="9">No teachers have started onboarding.</td></tr>';
+        if (!$rows) echo '<tr><td colspan="9">No teachers are available for onboarding review.</td></tr>';
         foreach ($rows as $item) {
             $teacher = $item['teacher'];
             $progress = $item['progress'];
@@ -442,7 +447,7 @@ final class ScreenController {
                 $name = '<a href="' . esc_url($profile) . '">' . $name . '</a>';
             }
             $account = (string) ($teacher->principal_status ?? '') === 'active' ? 'Linked' : 'Not linked';
-            echo '<tr id="dzn-teacher-onboarding-' . (int) $teacher->id . '"><td>' . $name . '<br><small>' . esc_html((string) $teacher->email) . '</small></td>';
+            echo '<tr id="' . esc_attr(self::teacherAnchor($teacher)) . '"><td>' . $name . '<br><small>' . esc_html((string) $teacher->email) . '</small></td>';
             echo '<td>' . esc_html($account) . '</td>';
             echo '<td>' . esc_html(self::readinessLabel((string) $progress['profile_state'])) . '</td>';
             echo '<td>' . esc_html(self::readinessLabel((string) $progress['availability_state'])) . '</td>';
@@ -467,6 +472,11 @@ final class ScreenController {
             echo '</td></tr>';
         }
         echo '</tbody></table>';
+    }
+
+    private static function teacherAnchor(object $teacher): string {
+        $label = (string) ($teacher->reference_code ?: $teacher->email ?: $teacher->display_name ?: 'teacher');
+        return 'dzn-teacher-onboarding-' . sanitize_title($label);
     }
 
     private static function readinessLabel(string $state): string {

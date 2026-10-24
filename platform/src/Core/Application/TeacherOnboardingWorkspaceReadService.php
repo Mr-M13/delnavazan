@@ -36,7 +36,7 @@ final class TeacherOnboardingWorkspaceReadService {
                 'progress' => $progress,
                 'profile_issues' => $profileIssues,
                 'blockers' => $blockers,
-                'next_action' => $this->nextAction($row, $progress, $profileIssues),
+                'next_action' => $this->nextAction($row, $progress, $profileIssues, $blockers),
                 'google' => $this->googleState($google, $progress),
                 'calendar' => $this->projectionLabel($projections['calendar'], 'calendar event'),
                 'meeting' => $this->projectionLabel($projections['meeting'], 'meeting'),
@@ -63,7 +63,6 @@ final class TeacherOnboardingWorkspaceReadService {
             return array('Teacher account is not linked.');
         }
         $state = (string) ($row->state ?? '');
-        if ($state === 'pending_review') return array();
         if ($state === 'rejected') return array('Onboarding was rejected; a new submission or invitation is required.');
         if ($state === 'offboarded') return array('Teacher access is offboarded; restore the profile and issue a new invitation.');
         $blockers = array();
@@ -73,13 +72,25 @@ final class TeacherOnboardingWorkspaceReadService {
         return $blockers;
     }
 
-    private function nextAction(object $row, array $progress, array $profileIssues): string {
+    private function nextAction(object $row, array $progress, array $profileIssues, array $blockers): string {
         $state = (string) ($row->state ?? '');
-        if ((string) ($row->principal_status ?? '') !== 'active') return 'Send an invitation or link a verified existing account.';
-        if ($state === 'pending_review') return 'Review and decide on the submitted onboarding.';
-        if ($state === 'rejected') return 'Issue a replacement invitation or correct the submission.';
+        if ((string) ($row->principal_status ?? '') !== 'active') {
+            $generation = (string) ($row->generation_status ?? '');
+            $expiresAt = (string) ($row->generation_expires_at ?? '');
+            if (in_array($generation, array('queued_for_delivery', 'active'), true) && $expiresAt > gmdate('Y-m-d H:i:s')) {
+                return 'Invitation is active; await delivery and account claim.';
+            }
+            if (in_array($generation, array('failed', 'expired', 'revoked', 'superseded'), true)) {
+                return 'Issue a replacement invitation or link a verified existing account.';
+            }
+            return 'Send an invitation or link a verified existing account.';
+        }
+        if ($state === 'pending_review') {
+            return $blockers ? 'Resolve the blockers before approval; the Teacher may need to resubmit.' : 'Review and decide on the submitted onboarding.';
+        }
+        if ($state === 'rejected') return 'Offboard or relink the account, then issue a new invitation or correct the submission.';
         if ($state === 'offboarded') return 'Restore the Teacher profile, then issue a new invitation.';
-        if ($state === 'active' && (string) $progress['readiness_state'] === 'ready') return 'No onboarding action required.';
+        if ($state === 'active' && ((string) ($row->readiness_state ?? '') === 'ready' || !empty($progress['ready_for_activation']))) return 'No onboarding action required.';
         if ($profileIssues) return 'Teacher to complete the missing profile fields.';
         if ((string) $progress['availability_state'] !== 'complete') return 'Teacher to complete weekly availability.';
         if ((string) $progress['google_state'] !== 'connected') return 'Teacher to connect a Google account.';

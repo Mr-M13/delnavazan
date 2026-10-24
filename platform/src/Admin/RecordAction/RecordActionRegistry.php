@@ -65,7 +65,7 @@ final class RecordActionRegistry {
                 'capability' => 'dzn_manage_teaching_eligibility',
                 'submit_label' => 'Save student intake',
                 'consequence' => 'Student intake affects matching and availability decisions. It does not change teaching eligibility or existing assignments.',
-                'fields' => static fn(object $record): array => array(self::selectField('state', 'Student intake', array('accepting' => 'Accepting students', 'limited' => 'Limited availability', 'paused' => 'Paused'), (string) ($record->accepting_state ?? 'not_set'), 'Paused stops new matching; existing lessons are unchanged.')),
+                'fields' => static fn(object $record): array => array(self::selectField('state', 'Student intake', array('' => 'Choose student intake', 'accepting' => 'Accepting students', 'limited' => 'Limited availability', 'paused' => 'Paused'), in_array((string) ($record->accepting_state ?? ''), array('accepting', 'limited', 'paused'), true) ? (string) $record->accepting_state : '', 'Paused stops new matching; existing lessons are unchanged.')),
                 'visible' => static fn(object $record): bool => ($record->archived_at ?? null) === null && (string) ($record->status ?? '') !== 'archived',
             ),
             'teacher-eligibility' => array(
@@ -131,7 +131,7 @@ final class RecordActionRegistry {
                 'confirmation' => 'I have reviewed the profile, availability and Google connection evidence.',
                 'consequence' => 'Approval grants portal readiness. A Google account connection alone is not evidence that Google Meet works.',
                 'fields' => array(),
-                'visible' => static fn(object $record): bool => (string) ($record->onboarding_state ?? '') === 'pending_review',
+                'visible' => static fn(object $record): bool => ($record->archived_at ?? null) === null && (string) ($record->onboarding_state ?? '') === 'pending_review',
             ),
             'teacher-return-onboarding' => array(
                 'label' => 'Return for changes',
@@ -142,7 +142,7 @@ final class RecordActionRegistry {
                 'submit_label' => 'Return for changes',
                 'consequence' => 'The teacher becomes editable again and readiness remains not ready.',
                 'fields' => static fn(object $record): array => array(self::field('reason_code', 'Reason code', '', true, 'text', 'A short controlled reason for the teacher.')),
-                'visible' => static fn(object $record): bool => (string) ($record->onboarding_state ?? '') === 'pending_review',
+                'visible' => static fn(object $record): bool => ($record->archived_at ?? null) === null && (string) ($record->onboarding_state ?? '') === 'pending_review',
             ),
             'teacher-reject-onboarding' => array(
                 'label' => 'Reject onboarding',
@@ -155,7 +155,7 @@ final class RecordActionRegistry {
                 'confirmation' => 'I understand that rejection keeps the teacher not ready.',
                 'consequence' => 'Rejection keeps the teacher not ready. A new submission or invitation may be required.',
                 'fields' => static fn(object $record): array => array(self::field('reason_code', 'Reason code', '', true, 'text', 'A short controlled reason for the teacher.')),
-                'visible' => static fn(object $record): bool => (string) ($record->onboarding_state ?? '') === 'pending_review',
+                'visible' => static fn(object $record): bool => ($record->archived_at ?? null) === null && (string) ($record->onboarding_state ?? '') === 'pending_review',
             ),
         );
     }

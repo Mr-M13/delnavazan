@@ -94,6 +94,7 @@ final class RecordActionController {
             'record_read_forbidden' => 'You no longer have permission to open this record.',
             'record_action_unavailable' => 'This action is no longer available for the record’s current state.',
             'record_action_confirmation_required' => 'Confirm the consequence before continuing.',
+            'Teacher onboarding is incomplete' => 'Onboarding cannot be approved: profile, availability or Google connection evidence is incomplete.',
             'Record is not archived' => 'This record is not archived.',
             'Record is not archivable' => 'This record can no longer be archived.',
             'active_future_schedule_exists' => 'This Teacher has an active future schedule. Reschedule or release it before archiving.',

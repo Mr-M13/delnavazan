@@ -2,7 +2,6 @@
 namespace Delnavazan\Platform\Admin\RecordAction;
 
 use Delnavazan\Platform\Core\Application\CoreReadService;
-use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherRepository;
 
 /**
  * Re-resolves the record from its server-side type and id.
@@ -33,7 +32,7 @@ final class RecordActionResolver {
         $read = new CoreReadService();
         $record = match ($recordType) {
             'student' => $read->find('student', $recordId),
-            'teacher' => current_user_can('dzn_manage_teachers') ? $read->teacherAdminProfile($recordId) : (new TeacherRepository())->adminProfile($recordId),
+            'teacher' => current_user_can('dzn_manage_teachers') ? $read->teacherAdminProfile($recordId) : $read->teacherOnboardingProfile($recordId),
             'lesson' => $read->lessonOperatorRecord($recordId),
             default => $read->find($recordType, $recordId),
         };

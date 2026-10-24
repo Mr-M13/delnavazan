@@ -39,7 +39,8 @@ $expect(!str_contains($screen, "self::formStart('update_teacher_profile')"), 'Te
 $contains($screen, array("self::formStart('issue_teacher_invitation_by_email')"), 'Invitation creation remains a deliberate invitation action.');
 $expect(!str_contains($screen, 'teacherArchiveActions('), 'Teacher lifecycle must not retain a parallel archive form.');
 $expect(!str_contains($screen, 'name="command_key"'), 'Invitation idempotency keys must be generated server-side, not exposed in the form.');
-$contains($screen, array('Google account', 'Calendar', 'Meet', 'Blockers / next action', 'meet_caveat', 'generation_expires_at'), 'Onboarding must render Google account, Calendar, Meet, blockers, next action and invitation expiry with the Meet caveat.');
+$contains($screen, array('Google account', 'Calendar', 'Meet', 'Blockers / next action', 'meet_caveat', 'generation_expires_at', 'invitation_form_id', 'teacherAnchor'), 'Onboarding must render Google account, Calendar, Meet, blockers, next action, invitation expiry and human anchors with the Meet caveat.');
+$expect(!str_contains($screen, "'#dzn-teacher-onboarding-' . (int)"), 'Onboarding anchors must not expose raw Teacher identifiers.');
 
 $contains($registry, array(
     "'teacher-profile'",
@@ -57,8 +58,10 @@ $contains($registry, array(
 foreach (array("'name' => 'teacher_id'", "'name' => 'idempotency_key'", "'name' => 'evidence_reference'", "'name' => 'evidence_at'", "'name' => 'evidence_channel'") as $forbidden) {
     $expect(!str_contains($registry, $forbidden), 'Ordinary Teacher actions must not ask administrators for technical identifiers or evidence fields: ' . $forbidden);
 }
-$contains($resolver, array("'teacher' => array('dzn_manage_teachers', 'dzn_manage_onboarding')", 'TeacherRepository', 'adminProfile'), 'Onboarding-scoped Teacher reads must be allowed without widening Teacher maintenance.');
+$contains($resolver, array("'teacher' => array('dzn_manage_teachers', 'dzn_manage_onboarding')", 'teacherOnboardingProfile'), 'Onboarding-scoped Teacher reads must be allowed without widening Teacher maintenance.');
 
+$expect(!str_contains($onboarding, "\$progress['readiness_state']"), 'Next-action logic must use the stored readiness state, not a missing progress key.');
+$expect(!str_contains($onboarding, "if (\$state === 'pending_review') return array();"), 'Pending-review rows must still compute blockers.');
 $contains($onboarding, array(
     'workspaceRows',
     'progressForAdministrator',

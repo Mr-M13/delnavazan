@@ -144,15 +144,15 @@ dzn_checkout_e2e_assert($sealedClasses === array('api_key', 'webhook_signing_sec
 dzn_checkout_e2e_assert((string) get_option('dzn_stripe_test_publishable_key') === $publishable, 'The publishable test key was not persisted');
 
 // Test Connection is answered locally through WordPress's pre_http_request short-circuit; no network call.
-$accountResponse = array('id' => 'acct_' . str_repeat('T', 16), 'object' => 'account', 'livemode' => false, 'charges_enabled' => true, 'payouts_enabled' => true, 'country' => 'AU', 'default_currency' => 'aud');
-$httpFilter = static function ($pre, $args, $url) use ($accountResponse) {
-    if (strpos((string) $url, '/v1/account') === false) return $pre;
-    return array('headers' => array(), 'body' => wp_json_encode($accountResponse), 'response' => array('code' => 200, 'message' => 'OK'), 'cookies' => array(), 'filename' => null);
+$balanceResponse = array('object' => 'balance', 'livemode' => false, 'available' => array(), 'pending' => array());
+$httpFilter = static function ($pre, $args, $url) use ($balanceResponse) {
+    if (strpos((string) $url, '/v1/balance') === false) return $pre;
+    return array('headers' => array(), 'body' => wp_json_encode($balanceResponse), 'response' => array('code' => 200, 'message' => 'OK'), 'cookies' => array(), 'filename' => null);
 };
 add_filter('pre_http_request', $httpFilter, 10, 3);
 $connection = $configuration->testConnection();
 remove_filter('pre_http_request', $httpFilter, 10);
-dzn_checkout_e2e_assert(($connection['state'] ?? null) === 'success', 'Test Connection must succeed against the local sandbox-account fixture: ' . (string) ($connection['code'] ?? ''));
+dzn_checkout_e2e_assert(($connection['state'] ?? null) === 'success', 'Test Connection must succeed against the local sandbox-balance fixture: ' . (string) ($connection['code'] ?? ''));
 $validatedCredentials = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_secret_events WHERE audit_type='validated' AND reason_code='explicit_test_connection_validation'");
 dzn_checkout_e2e_assert($validatedCredentials === 2, 'Explicit Test Connection must record non-sensitive validation evidence for both sealed credentials');
 

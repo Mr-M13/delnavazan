@@ -47,8 +47,8 @@ function dzn_theme_operations_groups() {
 		'teaching' => array(
 			'label' => 'تدریس و زمان‌بندی',
 			'items' => array(
-				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teaching-eligibility', 'title' => 'صلاحیت تدریس', 'description' => 'دسترسی مدرس به دوره‌ها' ),
-				array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teacher-availability', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی' ),
+				array( 'cap' => 'dzn_manage_teaching_eligibility', 'slug' => 'dzn-teachers-menu', 'title' => 'صلاحیت تدریس', 'description' => 'دسترسی مدرس به دوره‌ها در پروندهٔ مدرس' ),
+				array( 'cap' => 'dzn_manage_teacher_availability', 'slug' => 'dzn-teachers-menu', 'title' => 'زمان‌های مدرس', 'description' => 'دسترسی و ظرفیت زمانی در پروندهٔ مدرس' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-course', 'title' => 'دوره‌ها', 'description' => 'دوره‌های آموزشگاه' ),
 				array( 'cap' => 'dzn_manage_courses', 'slug' => 'dzn-instrument', 'title' => 'سازها', 'description' => 'فهرست سازها' ),
 			),

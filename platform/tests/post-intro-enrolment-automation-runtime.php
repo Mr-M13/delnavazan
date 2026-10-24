@@ -13,7 +13,7 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 
@@ -57,6 +57,74 @@ function dzn_pia_evidence(string $reference): array { return array('evidence_cha
 
 wp_set_current_user($actor);
 add_filter('pre_wp_mail', static fn() => true);
+
+// A. Actor identity is explicitly provisioned and ordinary runtime never creates or repairs it.
+$expectActorFailure = static function (string $code, callable $attempt): void {
+    $caught = null;
+    try { $attempt(); } catch (Throwable $error) { $caught = $error; }
+    dzn_pia_assert($caught !== null && $caught->getMessage() === $code, 'expected actor failure ' . $code . ', got ' . ($caught?->getMessage() ?? 'none'));
+};
+$bootstrapActorId = (int) get_option(PostIntroSystemActor::USER_OPTION);
+dzn_pia_assert($bootstrapActorId > 0, 'the controlled bootstrap must provision the actor before runtime');
+
+// This runtime is a genuine WP-CLI process, so the real-context bootstrap may provision. The
+// impersonation regression (a web subscriber supplying an administrator ID/channel) is exercised
+// by post-intro-system-actor-unit.php, where the non-WP-CLI context can be represented exactly.
+$actorId = PostIntroSystemActor::provision();
+dzn_pia_assert($actorId === $bootstrapActorId, 'explicit provisioning must be idempotent');
+dzn_pia_assert($actorId > 0 && (int) get_option(PostIntroSystemActor::USER_OPTION) === $actorId, 'explicit administrator provisioning must bind the actor option');
+$actorUser = get_user_by('id', $actorId);
+dzn_pia_assert($actorUser instanceof WP_User, 'provisioned actor must exist');
+dzn_pia_assert(get_user_meta($actorId, PostIntroSystemActor::USER_MARKER, true) === '1', 'provisioned actor must carry the plugin marker');
+dzn_pia_assert(array_values(array_unique(array_map('strval', (array) $actorUser->roles))) === array(PostIntroSystemActor::ROLE), 'the actor must hold exactly one dedicated role');
+$actorRole = get_role(PostIntroSystemActor::ROLE);
+$actorRoleCaps = array_keys(array_filter((array) $actorRole->capabilities));
+sort($actorRoleCaps);
+$expectedActorCaps = PostIntroSystemActor::CAPABILITIES;
+sort($expectedActorCaps);
+dzn_pia_assert($actorRoleCaps === $expectedActorCaps, 'the actor role must hold exactly the allowlisted capability set');
+$ranAs = 0;
+PostIntroSystemActor::run(static function (int $id) use (&$ranAs): void { $ranAs = $id; });
+dzn_pia_assert($ranAs === $actorId, 'the validated actor must run under its own principal');
+
+// An extra role is a widened identity and must be rejected, not silently repaired at runtime.
+$actorUser->add_role('administrator');
+$expectActorFailure('post_intro_automation_actor_role_invalid', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// A direct user grant is rejected even when it is not part of the dedicated role.
+$actorUser = get_user_by('id', $actorId);
+$actorUser->add_cap('manage_options');
+$expectActorFailure('post_intro_automation_actor_direct_grant', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// An unexpected capability on the dedicated role is rejected.
+$actorRole = get_role(PostIntroSystemActor::ROLE);
+$actorRole->add_cap('edit_posts');
+$expectActorFailure('post_intro_automation_role_capability_invalid', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// A missing required permission is rejected rather than being added at runtime.
+$actorRole = get_role(PostIntroSystemActor::ROLE);
+$actorRole->remove_cap('dzn_manage_canonical_lessons');
+$expectActorFailure('post_intro_automation_capability_missing', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// An unmarked account can never be adopted as the automation identity.
+update_user_meta($actorId, PostIntroSystemActor::USER_MARKER, '0');
+$expectActorFailure('post_intro_automation_actor_unverified', static fn() => PostIntroSystemActor::run(static fn() => true));
+$actorId = PostIntroSystemActor::provision($actor, 'wp_cli');
+
+// Missing configuration must fail closed without provisioning silently during runtime.
+$roleBefore = get_role(PostIntroSystemActor::ROLE)->capabilities;
+$usersBefore = count(get_users(array('fields' => 'ID')));
+update_option(PostIntroSystemActor::USER_OPTION, 0, false);
+$expectActorFailure('post_intro_automation_unconfigured', static fn() => PostIntroSystemActor::run(static fn() => true));
+dzn_pia_assert((int) get_option(PostIntroSystemActor::USER_OPTION) === 0, 'runtime must not rewrite the actor option');
+dzn_pia_assert(get_role(PostIntroSystemActor::ROLE)->capabilities === $roleBefore, 'runtime must not repair role capabilities');
+dzn_pia_assert(count(get_users(array('fields' => 'ID'))) === $usersBefore, 'runtime must not create an actor user');
+update_option(PostIntroSystemActor::USER_OPTION, $actorId, false);
+PostIntroSystemActor::run(static fn() => true);
 $standardCourse = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}courses WHERE instrument_id=%d AND course_type='standard' AND status='active' AND archived_at IS NULL ORDER BY id LIMIT 1", $instrumentId));
 if ($standardCourse < 1) {
     $standardCourse = (new CatalogueService())->course(array(
@@ -112,7 +180,11 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
         'privacy_notice_accepted' => true,
         'privacy_notice_version' => '2026-09-05',
         'adult_self_attested' => true,
-        'requested_times' => array(array('local_date' => $futureDate, 'local_start_time' => '04:17', 'timezone' => 'UTC')),
+        // Intake delivery happens before this fixture rewrites the confirmed time below. Keep
+        // that temporary request outside the continuation's protected recurring slot (04:xx),
+        // otherwise a later scenario is correctly declined as unavailable before its own
+        // historical confirmation can be installed.
+        'requested_times' => array(array('local_date' => $futureDate, 'local_start_time' => '12:17', 'timezone' => 'UTC')),
     ), dzn_pia_key('request-' . $label));
     $requestId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_requests WHERE reference_code=%s", (string) $submission['request_reference']));
     dzn_pia_assert($requestId > 0, 'booking request persistence');
@@ -136,6 +208,9 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
     $requestedTimeId = (int) $delivery->requested_time_id;
     $start = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC -' . $hoursAgo . ' hours'));
     $start = substr($start, 0, 11) . $wallTime;
+    // The wall-clock override must still be in the past even when the current UTC hour is
+    // earlier than the scenario wall time (for example a 02:01 CI run with a 04:xx slot).
+    if ($start >= $now) $start = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC -1 day'));
     $end = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +30 minutes'));
     $occupied = gmdate('Y-m-d H:i:s', strtotime($end . ' UTC +15 minutes'));
     $localDate = substr($start, 0, 10);
@@ -268,11 +343,45 @@ $retriedEvidenceAt = (string) $wpdb->get_var($wpdb->prepare(
 dzn_pia_assert($retriedEvidenceAt === $activationCheckpoint, 'an expected retry must reconstruct the identical canonical evidence time');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'retry must not duplicate Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d", $purchaseId)) === 1, 'retry must not duplicate Term funding');
+// Once the canonical Lesson exists the operator projection must hand off, not duplicate the booking.
+wp_set_current_user($actor);
+foreach ((new \Delnavazan\Platform\Core\Application\ConfirmedIntroBookingReadService())->upcoming() as $operatorRow) {
+    dzn_pia_assert((string) $operatorRow->confirmation_uid !== (string) $main['confirmation'], 'a canonical Lesson must replace its confirmed-intro operator row');
+}
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE booking_request_id=%d", (int) $main['request'])) === 1, 'the canonical intro Lesson must be the single schedule record');
 
 
 // B. Availability is a real precondition: a delivered intro with no published slot is an admin exception.
 $noAvailWall = sprintf('07:%02d:00', 5 + (hexdec(substr($suffix, 4, 2)) % 50));
 $noAvailBooking = $booking('no-availability', 2, $noAvailWall);
+// Admin Classes/Academy must see a future confirmed intro before any Lesson exists. Move this
+// synthetic confirmation forward for the read-only assertion, then restore its delivery facts.
+$adminOriginal = $wpdb->get_row($wpdb->prepare("SELECT starts_at_utc,ends_at_utc,local_wall_date,local_wall_time,provider_event_digest FROM {$p}booking_request_confirmations WHERE uid=%s", $noAvailBooking['confirmation']));
+$adminFutureStart = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC +24 hours'));
+$adminFutureEnd = gmdate('Y-m-d H:i:s', strtotime($adminFutureStart . ' UTC +30 minutes'));
+dzn_pia_assert($adminOriginal !== null && $wpdb->update($p . 'booking_request_confirmations', array(
+    'starts_at_utc' => $adminFutureStart,
+    'ends_at_utc' => $adminFutureEnd,
+    'local_wall_date' => substr($adminFutureStart, 0, 10),
+    'local_wall_time' => substr($adminFutureStart, 11, 8),
+    'provider_event_digest' => hash('sha256', 'operator-visible-' . $noAvailBooking['confirmation']),
+), array('uid' => $noAvailBooking['confirmation'])) !== false, 'future admin-visible confirmation fixture');
+wp_set_current_user($actor);
+$adminIntros = (new \Delnavazan\Platform\Core\Application\ConfirmedIntroBookingReadService())->upcoming();
+$adminIntro = null;
+foreach ($adminIntros as $candidate) if ((string) $candidate->confirmation_uid === (string) $noAvailBooking['confirmation']) { $adminIntro = $candidate; break; }
+dzn_pia_assert($adminIntro !== null, 'confirmed introductory booking must be visible to the operator schedule');
+dzn_pia_assert((string) $adminIntro->record_model === 'confirmed_intro_booking_v1' && (string) $adminIntro->class_status === 'Confirmed intro', 'operator intro row must be explicit and not a fabricated Lesson');
+dzn_pia_assert((int) $adminIntro->booking_request_id === (int) $noAvailBooking['request'], 'operator intro row must link to its booking request');
+dzn_pia_assert((string) $adminIntro->schedule_timezone === 'UTC', 'operator intro row must preserve the confirmation schedule timezone');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE booking_request_id=%d", (int) $noAvailBooking['request'])) === 0, 'admin visibility must not fabricate an introductory Lesson');
+$wpdb->update($p . 'booking_request_confirmations', array(
+    'starts_at_utc' => $adminOriginal->starts_at_utc,
+    'ends_at_utc' => $adminOriginal->ends_at_utc,
+    'local_wall_date' => $adminOriginal->local_wall_date,
+    'local_wall_time' => $adminOriginal->local_wall_time,
+    'provider_event_digest' => $adminOriginal->provider_event_digest,
+), array('uid' => $noAvailBooking['confirmation']));
 $wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_rules WHERE teacher_id=%d", $teacherId));
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($noAvailBooking['confirmation'], $teacherId, 'delivered', 'Synthetic no availability');

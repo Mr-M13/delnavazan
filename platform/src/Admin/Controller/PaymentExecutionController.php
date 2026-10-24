@@ -58,7 +58,7 @@ final class PaymentExecutionController {
         $decisionClaims=$intake->outstandingDecisionClaims();
         $checkoutAttempts=(new CheckoutSessionDiagnosticsService())->activeAttempts();
         echo '<div class="wrap"><h1>Payment Execution</h1>';
-        echo '<p>Provider-neutral payment operations and reconciliation. Provider setup and readiness are under Settings.</p>';
+        echo '<p>Provider-neutral payment operations and reconciliation. Provider setup and readiness are under Finance → Stripe integration.</p>';
         echo '<h2>Active Checkout attempts</h2><p>Only local attempt identifiers and lifecycle timing are shown; Stripe references, URLs and student details are not exposed.</p><table class="widefat"><thead><tr><th>Attempt UID</th><th>Provider</th><th>State</th><th>Age</th><th>Expiry</th><th>Attention</th></tr></thead><tbody>';
         foreach($checkoutAttempts as $attempt)echo '<tr><td><code>'.esc_html((string)$attempt['attempt_uid']).'</code></td><td>'.esc_html((string)$attempt['provider_key']).'</td><td>'.esc_html((string)$attempt['state']).'</td><td>'.esc_html((string)$attempt['age_seconds']).'s</td><td>'.esc_html((string)($attempt['expires_at']??'')).'</td><td>'.esc_html($attempt['needs_attention']?'Review':'No').'</td></tr>';
         if(!$checkoutAttempts)echo '<tr><td colspan="6">No active Checkout attempts.</td></tr>';

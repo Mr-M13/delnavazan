@@ -16,6 +16,12 @@ final class CourseRepository extends BaseRepository {
         ));
     }
 
+    /** @return list<object> */
+    public function activeForInstrumentAndType(int $instrumentId,string $courseType): array {
+        global $wpdb;
+        return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->table} WHERE instrument_id=%d AND course_type=%s AND status='active' AND archived_at IS NULL ORDER BY id",$instrumentId,$courseType)) ?: array();
+    }
+
     /** Human-labelled Course choices for Teacher eligibility administration. */
     public function operatorOptions(): array {
         global $wpdb;

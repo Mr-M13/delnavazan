@@ -32,7 +32,10 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
     if($fallback!==array())return $this->tryBindings($fallback,$command,$contact);
     return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
    }
-   $transportCommand=$command+array('channel'=>$channel,'to'=>(string)($contact[$channel]??''),'subject'=>(string)($rendered['subject']??''),'body'=>(string)$rendered['body']);
+   // These fields are transport-bound facts. Array union would retain an
+   // accidentally supplied command value, allowing an upstream caller to
+   // redirect a resolved recipient or replace reviewed copy.
+   $transportCommand=array_merge($command,array('channel'=>$channel,'to'=>(string)($contact[$channel]??''),'subject'=>(string)($rendered['subject']??''),'body'=>(string)$rendered['body']));
    $result=$binding['port']->handoff($transportCommand);
    if(!empty($result['acknowledged']))return array('acknowledged'=>true,'permanent_failure'=>null);
    $failure=$result['permanent_failure']??null;

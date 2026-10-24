@@ -12,6 +12,10 @@ $t=new CompositeNotificationTransport($router,new C(),fn($c)=>array('route'=>'mo
 $r=$t->handoff(array('template_version_id'=>7,'parameters'=>array('name'=>'ندا'),'notification_key_digest'=>'x','attempt_sequence'=>1,'audience'=>'student','variable_codes'=>array('name')));
 if(empty($r['acknowledged'])||count($wa->seen)!==1||count($sms->seen)!==1)throw new RuntimeException('Permanent WhatsApp failure must fall back once to SMS');
 if(($sms->seen[0]['body']??'')!=='hello ندا')throw new RuntimeException('Copy must render at transport boundary');
+$waSafe=new P(array('acknowledged'=>true,'permanent_failure'=>null));
+$safe=new CompositeNotificationTransport(new NotificationTransportRouter(array(array('channel'=>'whatsapp','configured'=>true,'port'=>$waSafe))),new C(),fn($c)=>array('route'=>'mobile','locale'=>'fa-IR','whatsapp_eligible'=>true,'whatsapp'=>'+61400123456'));
+$safe->handoff(array('template_version_id'=>7,'parameters'=>array('name'=>'ندا'),'channel'=>'sms','to'=>'+19999999999','subject'=>'unsafe subject','body'=>'unsafe body'));
+if(($waSafe->seen[0]['channel']??'')!=='whatsapp'||($waSafe->seen[0]['to']??'')!=='+61400123456'||($waSafe->seen[0]['subject']??'')!=='s'||($waSafe->seen[0]['body']??'')!=='hello ندا')throw new RuntimeException('Resolved channel, recipient, and rendered copy must override untrusted handoff fields');
 $retry=new P(array('acknowledged'=>false,'permanent_failure'=>null));$sms2=new P(array('acknowledged'=>true,'permanent_failure'=>null));
 $t2=new CompositeNotificationTransport(new NotificationTransportRouter(array(array('channel'=>'whatsapp','configured'=>true,'port'=>$retry),array('channel'=>'sms','configured'=>true,'port'=>$sms2))),new C(),fn($c)=>array('route'=>'mobile','locale'=>'fa-IR','whatsapp_eligible'=>true,'sms_eligible'=>true,'whatsapp'=>'+1','sms'=>'+1'));
 $r2=$t2->handoff(array('template_version_id'=>7,'parameters'=>array('name'=>'ندا')));

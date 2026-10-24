@@ -197,6 +197,7 @@ jobs:
           php platform/tests/record-action-request-unit.php
           php platform/tests/record-action-registry-unit.php
           php platform/tests/record-action-foundation-contract.php
+          php platform/tests/teacher-workspaces-contract.php
           php platform/tests/admin-navigation-teacher-finance-contract.php
           php platform/tests/admin-navigation-target-contract.php
           php platform/tests/admin-navigation-composite-cap-unit.php

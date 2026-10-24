@@ -11,13 +11,20 @@ final class RecordActionRenderer {
     private static $scriptPrinted = false;
 
     public static function render(string $recordType, object $record, string $page): void {
+        self::renderSelected($recordType, $record, $page, array_keys(RecordActionRegistry::forRecord($recordType, $record)));
+    }
+
+    /** @param array<int, string> $keys */
+    public static function renderSelected(string $recordType, object $record, string $page, array $keys): void {
         $actions = RecordActionRegistry::forRecord($recordType, $record);
         if (!$actions) return;
         $recordId = (int) ($record->id ?? 0);
         if ($recordId < 1) return;
-        foreach ($actions as $key => $definition) {
+        foreach ($keys as $key) {
+            if (!isset($actions[$key])) continue;
+            $definition = $actions[$key];
             if (!current_user_can((string) $definition['capability']) || !current_user_can((string) $definition['record_capability'])) continue;
-            self::renderAction((string) $key, $definition, $recordType, $recordId, $page);
+            self::renderAction((string) $key, $definition, $recordType, $recordId, $page, $record);
         }
         self::script();
     }
@@ -31,7 +38,7 @@ final class RecordActionRenderer {
     }
 
     /** @param array<string, mixed> $definition */
-    private static function renderAction(string $key, array $definition, string $recordType, int $recordId, string $page): void {
+    private static function renderAction(string $key, array $definition, string $recordType, int $recordId, string $page, object $record): void {
         $safeKey = sanitize_key($key);
         $dialogId = 'dzn-record-action-' . $safeKey . '-' . $recordId;
         $titleId = $dialogId . '-title';
@@ -53,7 +60,7 @@ final class RecordActionRenderer {
         echo '<div class="dzn-record-action-dialog__body">';
         echo '<p id="' . esc_attr($descriptionId) . '">' . esc_html((string) $definition['description']) . '</p>';
         if (!empty($definition['consequence'])) echo '<div class="dzn-record-action-consequence" role="note"><strong>What changes:</strong> ' . esc_html((string) $definition['consequence']) . '</div>';
-        self::renderFields((array) ($definition['fields'] ?? array()), $dialogId);
+        self::renderFields(RecordActionRegistry::fieldsFor($key, $record), $dialogId);
         if (!empty($definition['require_confirmation'])) {
             echo '<p class="dzn-record-action-confirmation"><label><input type="checkbox" name="confirm" value="1" required> ' . esc_html((string) ($definition['confirmation'] ?? 'I confirm this action.')) . '</label></p>';
         }

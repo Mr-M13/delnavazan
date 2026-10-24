@@ -43,7 +43,7 @@ final class RecordActionController {
                 throw new RecordActionException('record_action_confirmation_required');
             }
             $input = array();
-            foreach ((array) ($definition['fields'] ?? array()) as $field) {
+            foreach (RecordActionRegistry::fieldsFor($key, $record) as $field) {
                 $name = sanitize_key((string) ($field['name'] ?? ''));
                 if ($name === '') continue;
                 $input[$name] = self::fieldValue($field);
@@ -57,10 +57,12 @@ final class RecordActionController {
                 $record
             );
             $result = RecordActionRegistry::handle($key, $context, $input);
-            self::redirect($request['page'], $request['record_id'], (string) ($result['message'] ?? 'Record action completed.'), false);
+            $target = self::redirectTarget($key, $request);
+            self::redirect($target['page'], $target['record_id'], (string) ($result['message'] ?? 'Record action completed.'), false, $target['extra']);
         } catch (\Throwable $exception) {
             error_log('[Delnavazan record action] ' . $key . ' ' . get_class($exception));
-            self::redirect($request['page'], $request['record_id'], self::safeMessage($exception), true);
+            $target = self::redirectTarget($key, $request);
+            self::redirect($target['page'], $target['record_id'], self::safeMessage($exception), true, $target['extra']);
         }
     }
 
@@ -92,6 +94,7 @@ final class RecordActionController {
             'record_read_forbidden' => 'You no longer have permission to open this record.',
             'record_action_unavailable' => 'This action is no longer available for the record’s current state.',
             'record_action_confirmation_required' => 'Confirm the consequence before continuing.',
+            'Teacher onboarding is incomplete' => 'Onboarding cannot be approved: profile, availability or Google connection evidence is incomplete.',
             'Record is not archived' => 'This record is not archived.',
             'Record is not archivable' => 'This record can no longer be archived.',
             'active_future_schedule_exists' => 'This Teacher has an active future schedule. Reschedule or release it before archiving.',
@@ -99,12 +102,20 @@ final class RecordActionController {
         };
     }
 
-    private static function redirect(string $page, int $recordId, string $message, bool $error): never {
-        $args = array(
+    /** @return array{page:string,record_id:int,extra:array<string,string>} */
+    private static function redirectTarget(string $key, array $request): array {
+        if (in_array($key, array('teacher-approve-onboarding', 'teacher-return-onboarding', 'teacher-reject-onboarding'), true)) {
+            return array('page' => 'dzn-teachers-menu', 'record_id' => 0, 'extra' => array('view' => 'onboarding'));
+        }
+        return array('page' => (string) $request['page'], 'record_id' => (int) $request['record_id'], 'extra' => array());
+    }
+
+    private static function redirect(string $page, int $recordId, string $message, bool $error, array $extra = array()): never {
+        $args = array_merge(array(
             'page' => $page,
             'dzn_record_action_notice' => $message,
             'dzn_record_action_error' => $error ? '1' : '0',
-        );
+        ), $extra);
         if ($recordId > 0) $args['id'] = $recordId;
         $url = add_query_arg($args, admin_url('admin.php'));
         nocache_headers();

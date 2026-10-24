@@ -77,6 +77,57 @@ final class TeacherOnboardingRepository {
         if ( $ok === false ) throw new \RuntimeException( 'Teacher onboarding event persistence failed: ' . $wpdb->last_error );
     }
 
+    /** Read-only onboarding workspace projection: no credentials, tokens or provider references. */
+    public function workspaceRows(int $limit = 100): array {
+        global $wpdb;
+        $limit = max(1, min(200, $limit));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT t.id teacher_id,t.reference_code,t.display_name,t.email,t.country_code,t.timezone,t.locale,t.calendar_preference,t.status teacher_status,t.archived_at,
+                    o.state,o.readiness_state,o.profile_state,o.availability_state,o.agreement_state,o.submitted_at,o.reviewed_at,o.review_reason_code,
+                    l.wordpress_user_id linked_user_id,l.status principal_status,
+                    i.status invitation_status,g.status generation_status,g.expires_at generation_expires_at
+             FROM {$this->prefix}teachers t
+             LEFT JOIN {$this->prefix}teacher_onboarding_states o ON o.teacher_id=t.id
+             LEFT JOIN {$this->prefix}teacher_principal_links l ON l.teacher_id=t.id AND l.status='active' AND l.revoked_at IS NULL
+             LEFT JOIN {$this->prefix}teacher_invitations i ON i.teacher_id=t.id
+             LEFT JOIN {$this->prefix}teacher_invitation_generations g ON g.invitation_id=i.id AND g.generation_number=i.current_generation_number
+             WHERE t.archived_at IS NULL AND (o.id IS NOT NULL OR i.id IS NOT NULL OR l.id IS NOT NULL)
+             ORDER BY CASE WHEN o.state='pending_review' THEN 0 WHEN o.id IS NOT NULL THEN 1 ELSE 2 END,o.updated_at DESC,t.id DESC
+             LIMIT %d",
+            $limit
+        ) ) ?: array();
+    }
+
+    /** Latest Google account connection shape without credential material. */
+    public function googleConnection(int $teacherId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT connection_state,identity_state,scope_snapshot,connected_at,failure_reason_code,updated_at
+             FROM {$this->prefix}integration_connections
+             WHERE teacher_id=%d AND provider_code='google_calendar' AND active_slot=1 ORDER BY id DESC LIMIT 1",
+            $teacherId
+        ) );
+    }
+
+    /** Counts only. Provider event/calendar/meeting references never leave this repository. */
+    public function projectionReadiness(int $teacherId): array {
+        global $wpdb;
+        $calendar = $wpdb->get_row($wpdb->prepare(
+            "SELECT COUNT(*) total,COALESCE(SUM(CASE WHEN m.projection_state='verified' AND m.active_slot=1 AND m.revoked_at IS NULL THEN 1 ELSE 0 END),0) verified,COALESCE(SUM(CASE WHEN m.projection_state='pending' AND m.revoked_at IS NULL THEN 1 ELSE 0 END),0) pending,MAX(m.updated_at) last_at
+             FROM {$this->prefix}provider_calendar_event_mappings m INNER JOIN {$this->prefix}lessons l ON l.id=m.lesson_id WHERE l.teacher_id=%d",
+            $teacherId
+        ) );
+        $meeting = $wpdb->get_row($wpdb->prepare(
+            "SELECT COUNT(*) total,COALESCE(SUM(CASE WHEN m.projection_state='verified' AND m.active_slot=1 AND m.revoked_at IS NULL THEN 1 ELSE 0 END),0) verified,COALESCE(SUM(CASE WHEN m.projection_state='pending' AND m.revoked_at IS NULL THEN 1 ELSE 0 END),0) pending,MAX(m.updated_at) last_at
+             FROM {$this->prefix}provider_meeting_mappings m INNER JOIN {$this->prefix}lessons l ON l.id=m.lesson_id WHERE l.teacher_id=%d",
+            $teacherId
+        ) );
+        return array(
+            'calendar' => array('total' => (int) ($calendar->total ?? 0), 'verified' => (int) ($calendar->verified ?? 0), 'pending' => (int) ($calendar->pending ?? 0), 'last_at' => $calendar->last_at ?? null),
+            'meeting' => array('total' => (int) ($meeting->total ?? 0), 'verified' => (int) ($meeting->verified ?? 0), 'pending' => (int) ($meeting->pending ?? 0), 'last_at' => $meeting->last_at ?? null),
+        );
+    }
+
     public function reviewRows(): array {
         global $wpdb;
         return $wpdb->get_results(

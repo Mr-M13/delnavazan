@@ -10,7 +10,7 @@ use Delnavazan\Platform\Core\Support\Identifier;
 /** Records only immutable accepted_pending_conditions evidence; it has no final-acceptance or conversion authority. */
 final class ProposalAcceptanceService {
     private const CAPABILITY='dzn_record_booking_request_provisional_acceptance';
-    private const CHANNELS=array('email_reference','message_reference','phone','in_person','other_reference');
+    private const CHANNELS=array('email_reference','message_reference','phone','in_person','other_reference','authenticated_platform');
     public function __construct(private ?BookingRequestRepository $requests=null,private ?CoordinationCaseRepository $cases=null,private ?ProposalRepository $proposals=null,private ?ProposalAcceptanceRepository $events=null){$this->requests??=new BookingRequestRepository();$this->cases??=new CoordinationCaseRepository();$this->proposals??=new ProposalRepository();$this->events??=new ProposalAcceptanceRepository();}
     public function record(string $familyUid,string $optionUid,int $versionNumber,string $prospectiveSubjectRef,string $channel,string $evidenceAt,string $key):array{
         if(!current_user_can(self::CAPABILITY))throw new \RuntimeException('Unauthorized');$actor=get_current_user_id();if($actor<1)throw new \RuntimeException('Acceptance actor is unavailable');

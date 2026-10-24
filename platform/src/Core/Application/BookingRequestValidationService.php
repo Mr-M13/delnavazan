@@ -8,9 +8,9 @@ final class BookingRequestValidationService {
     public const BLOCKED_TIME_MESSAGE = 'Requested interval overlaps Iran quiet hours';
 
     public function normalizePublic(array $input): array {
-        $allowed = array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version', 'requested_times' );
+        $allowed = array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version', 'adult_self_attested', 'requested_times' );
         if ( array_diff( array_keys( $input ), $allowed ) ) throw new \InvalidArgumentException( 'Unsupported public intake field' );
-        $this->assertScalarFields( $input, array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version' ) );
+        $this->assertScalarFields( $input, array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version', 'adult_self_attested' ) );
         $times = $input['requested_times'] ?? null; if ( ! is_array( $times ) || ! $times ) throw new \InvalidArgumentException( 'At least one requested time required' ); if ( count( $times ) > self::MAX_REQUESTED_TIMES ) throw new \InvalidArgumentException( 'Too many requested times' );
         $canonicalTimes = array(); foreach ( $times as $time ) {
             if ( ! is_array( $time ) || array_diff( array_keys( $time ), array( 'local_date', 'local_start_time', 'timezone' ) ) ) throw new \InvalidArgumentException( 'Malformed requested time' );
@@ -23,7 +23,9 @@ final class BookingRequestValidationService {
         $same = filter_var( $input['whatsapp_same_as_mobile'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE ); if ( $same === null ) throw new \InvalidArgumentException( 'WhatsApp mobile relationship required' );
         $whatsapp = $same ? $mobile : $this->contactPhone( Normalizer::phone( $input['whatsapp_number'] ?? null ) ); if ( ! $this->phone( $whatsapp ) ) throw new \InvalidArgumentException( 'Valid WhatsApp number required' );
         if ( ($input['privacy_notice_accepted'] ?? null) !== true ) throw new \InvalidArgumentException( 'Privacy notice acknowledgement required' ); if ( isset( $input['privacy_notice_version'] ) && (string) $input['privacy_notice_version'] !== '2026-09-05' ) throw new \InvalidArgumentException( 'Unsupported privacy notice version' );
-        return array( 'instrument_id' => $instrument, 'course_id' => $course, 'contact' => array( 'full_name' => $full, 'email' => $email, 'mobile' => $mobile, 'country' => $country, 'city' => $city, 'timezone' => $timezone, 'communication_language' => $language, 'whatsapp_same_as_mobile' => $same ? 1 : 0, 'whatsapp_number' => $whatsapp ), 'requested_times' => $canonicalTimes );
+        $adultAttested = filter_var( $input['adult_self_attested'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
+        if ( $adultAttested === null ) throw new \InvalidArgumentException( 'Adult self-attestation must be boolean' );
+        return array( 'instrument_id' => $instrument, 'course_id' => $course, 'contact' => array( 'full_name' => $full, 'email' => $email, 'mobile' => $mobile, 'country' => $country, 'city' => $city, 'timezone' => $timezone, 'communication_language' => $language, 'whatsapp_same_as_mobile' => $same ? 1 : 0, 'whatsapp_number' => $whatsapp, 'adult_self_attested' => $adultAttested ? 1 : 0 ), 'requested_times' => $canonicalTimes );
     }
 
     /** Resolves one coherent, locked catalogue state for every requested-time child. */

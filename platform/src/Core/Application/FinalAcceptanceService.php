@@ -11,7 +11,7 @@ use Delnavazan\Platform\Core\Support\Identifier;
 /** Creates one immutable, PII-free Accepted Service Arrangement from current canonical authority. */
 final class FinalAcceptanceService {
     private const CAPABILITY = 'dzn_finalize_service_arrangements';
-    private const CHANNELS = array('in_person', 'phone', 'email_reference', 'message_reference', 'other_reference');
+    private const CHANNELS = array('in_person', 'phone', 'email_reference', 'message_reference', 'other_reference', 'authenticated_platform');
     private const CLOSED_CASES = array('withdrawn', 'declined', 'unable_to_arrange', 'abandoned');
 
     public function __construct(
@@ -88,7 +88,8 @@ final class FinalAcceptanceService {
     private function acceptLocked(int $requestId, int $caseId, string $familyUid, string $optionUid, int $versionNumber, string $provisionalUid, int $studentId, int $principalId, string $channel, string $confirmedAt, int $actor, string $keyDigest, string $payloadDigest): array {
         $now = gmdate('Y-m-d H:i:s');
         $request = $this->cases->requestForUpdate($requestId);
-        if (!$request || $request->lifecycle_status !== 'submitted' || $request->resolution_state !== 'unresolved' || $request->privacy_erased_at !== null || (int) $request->student_id !== $studentId) throw new \InvalidArgumentException('Booking Request is unavailable for final acceptance');
+        $requestStateAllowed = $request && ( ( $request->lifecycle_status === 'submitted' && $request->resolution_state === 'unresolved' ) || ( $request->lifecycle_status === 'closed' && $request->resolution_state === 'teacher_confirmed' ) );
+        if (!$requestStateAllowed || $request->privacy_erased_at !== null || (int) $request->student_id !== $studentId) throw new \InvalidArgumentException('Booking Request is unavailable for final acceptance');
         $case = $this->cases->caseForUpdate($caseId);
         if (!$case || (int) $case->booking_request_id !== $requestId || in_array($case->state, self::CLOSED_CASES, true)) throw new \InvalidArgumentException('Coordination Case is unavailable for final acceptance');
         $family = $this->proposals->familyForCaseForUpdate($caseId);

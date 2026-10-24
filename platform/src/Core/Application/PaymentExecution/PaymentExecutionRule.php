@@ -62,11 +62,11 @@ final class PaymentExecutionRule {
     public const CIPHER='sodium_secretbox_v1';
     /** The only providers whose secrets this build may store. Empty: no credential is writable. */
     public const PROVISIONABLE_PROVIDERS=array();
-    /** Secret-vault audit vocabulary: one audit row per write, rotation, retire or reveal failure. */
-    public const SECRET_AUDIT_TYPES=array('stored','rotated','retired','revoked','write_refused','decrypt_failed');
+    /** Secret-vault audit vocabulary: one audit row per write, rotation, retire, explicit validation or reveal failure. */
+    public const SECRET_AUDIT_TYPES=array('stored','rotated','retired','revoked','write_refused','decrypt_failed','validated');
     public const SECRET_REASONS=array(
         'provider_secret_write_not_authorised','payment_secret_unavailable','unknown_cipher_version',
-        'unknown_key_version','secret_scope_mismatch','test_vault_override_active',
+        'unknown_key_version','secret_scope_mismatch','test_vault_override_active','explicit_test_connection_validation',
     );
     /** Webhook verification outcome and the controlled receipt reason codes of §9.2/§9.4. */
     public const VERIFICATION_STATES=array('verified','refused');

@@ -140,11 +140,18 @@ jobs:
           php platform/tests/stripe-checkout-adapter-unit.php
           php platform/tests/stripe-prelaunch-production-mode-unit.php
           php platform/tests/stripe-test-save-error-classification-unit.php
+          php platform/tests/stripe-test-connection-unit.php
+          php platform/tests/stripe-readiness-summary-unit.php
+          php platform/tests/payment-worker-principal-unit.php
           php platform/tests/stripe-payment-vault-schema-contract.php
           php platform/tests/stripe-checkout-reconciliation-contract.php
           php platform/tests/stripe-checkout-webhook-contract.php
           php platform/tests/stripe-checkout-webhook-unit.php
           php platform/tests/stripe-checkout-test-mode-e2e-contract.php
+          php platform/tests/stripe-provider-registry-bootstrap-contract.php
+          php platform/tests/stripe-canonical-account-reference-contract.php
+          php platform/tests/stripe-test-activation-evidence-contract.php
+          php platform/tests/stripe-readiness-independent-checks-contract.php
           php platform/tests/checkout-session-authority-contract.php
           php platform/tests/student-checkout-initiation-contract.php
           php platform/tests/checkout-session-lifecycle-contract.php
@@ -162,6 +169,12 @@ jobs:
           php platform/tests/booking-day-grid-theme-contract.php
           php platform/tests/synthetic-dataset-contract.php
           php platform/tests/synthetic-dataset-policy-contract.php
+          php platform/tests/post-intro-enrolment-automation-contract.php
+          php platform/tests/post-intro-system-actor-unit.php
+          php platform/tests/catalogue-auto-naming-reconciliation-contract.php
+          php platform/tests/booking-admin-class-visibility-contract.php
+          php platform/tests/booking-admin-class-visibility-unit.php
+          php platform/tests/booking-admin-class-ordering-unit.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then
             php platform/tests/phase-student-portal-state-contract.php
           else
@@ -179,10 +192,16 @@ jobs:
             php platform/tests/teacher-portal-phase2-contract.php
           fi
           php platform/tests/admin-navigation-regression-contract.php
+          php platform/tests/record-action-token-unit.php
+          php platform/tests/record-action-registry-unit.php
+          php platform/tests/record-action-foundation-contract.php
+          php platform/tests/admin-navigation-teacher-finance-contract.php
           php platform/tests/admin-shell-route-capability-runtime.php
           php platform/tests/admin-read-capability-authority.php
           php platform/tests/student-operations-journey-contract.php
           php platform/tests/lesson-operator-workflow-contract.php
+          php platform/tests/lesson-introductory-outcome-unit.php
+          php platform/tests/lesson-term-workflow-repair-contract.php
           php platform/tests/operational-cashbook-rule-unit.php
           php platform/tests/operational-cashbook-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
@@ -207,6 +226,85 @@ jobs:
           bash -n deployment/qa/production-google-oauth-diagnostic.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+
+  stripe-runtime-e2e:
+    name: Stripe runtime E2E
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run offline Stripe Checkout test-mode E2E
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-stripe-runtime-e2e
+          DZN_COMPOSE_PROJECT: dzn-stripe-runtime-e2e
+        run: platform/runtime/bin/run-stripe-checkout-test-mode-e2e.sh
+
+  post-intro-runtime:
+    name: Post-intro runtime lifecycle
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run disposable post-intro lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-post-intro-runtime
+          DZN_COMPOSE_PROJECT: dzn-post-intro-runtime
+          DZN_WP_PORT: 18080
+        run: platform/runtime/bin/run-post-intro-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-post-intro-runtime
+          DZN_COMPOSE_PROJECT: dzn-post-intro-runtime
+          DZN_WP_PORT: 18080
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  catalogue-runtime:
+    name: Catalogue runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run disposable automatic catalogue lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-catalogue-runtime
+          DZN_COMPOSE_PROJECT: dzn-catalogue-runtime
+          DZN_WP_PORT: 18084
+        run: platform/runtime/bin/run-catalogue-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-catalogue-runtime
+          DZN_COMPOSE_PROJECT: dzn-catalogue-runtime
+          DZN_WP_PORT: 18084
+        run: platform/runtime/bin/destroy.sh YES || true
 
   oauth-scope-database-regression:
     name: OAuth scope MariaDB regression

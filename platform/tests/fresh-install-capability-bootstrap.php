@@ -73,6 +73,9 @@ if (!$fiTeacher) throw new RuntimeException('Fresh install did not create the dz
 foreach ($fiTeacherOwned as $cap) if (!$fiTeacher->has_cap($cap)) throw new RuntimeException('Fresh install missing Teacher grant: ' . $cap);
 foreach ($fiTeacherReserved as $cap) if ($fiTeacher->has_cap($cap)) throw new RuntimeException('Fresh install leaked reserved capability to Teacher: ' . $cap);
 foreach ($fiAdminGrants as $cap) if (!$fiAdmin->has_cap($cap)) throw new RuntimeException('Fresh install missing Administrator grant: ' . $cap);
+$fiPaymentWorker = get_role('dzn_payment_worker');
+if (!$fiPaymentWorker) throw new RuntimeException('Fresh install did not create the payment worker role');
+foreach (array('read', 'dzn_ingest_payment_provider_events', 'dzn_ingest_commercial_payment_evidence', 'dzn_manage_collection_intents', 'dzn_manage_renewal_cycles') as $cap) if (!$fiPaymentWorker->has_cap($cap)) throw new RuntimeException('Fresh install missing payment worker grant: ' . $cap);
 foreach (array('CAPABILITY_OPTION', 'CAPABILITY_OPTION_O', 'CAPABILITY_OPTION_P', 'CAPABILITY_OPTION_Q', 'CAPABILITY_OPTION_R1') as $option) {
     $marker = $fiConst($option);
     $version = $fiConst(str_replace('OPTION', 'VERSION', $option));
@@ -82,8 +85,9 @@ foreach (array('CAPABILITY_OPTION', 'CAPABILITY_OPTION_O', 'CAPABILITY_OPTION_P'
 // 2. Complete role: a second run must be a harmless no-op (idempotent).
 $fiAdminAdds = $fiAdmin->adds;
 $fiTeacherAdds = $fiTeacher->adds;
+$fiPaymentWorkerAdds = $fiPaymentWorker->adds;
 $fiMethod->invoke(null);
-if ($fiAdmin->adds !== $fiAdminAdds || $fiTeacher->adds !== $fiTeacherAdds) throw new RuntimeException('Complete capability state was not idempotent');
+if ($fiAdmin->adds !== $fiAdminAdds || $fiTeacher->adds !== $fiTeacherAdds || $fiPaymentWorker->adds !== $fiPaymentWorkerAdds) throw new RuntimeException('Complete capability state was not idempotent');
 
 // 3. Partially missing Teacher Phase-P/Phase-Q grants must be repaired.
 $fiTeacher->remove_cap('dzn_submit_own_delivery_claim');

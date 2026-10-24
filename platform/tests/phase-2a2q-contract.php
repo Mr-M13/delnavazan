@@ -41,7 +41,7 @@ foreach(array('student_requested_different_teacher','student_requested_contact',
 // explicit authoritative slot record is required before any capacity may be held.
 if(str_contains($rule,'+7 days')||str_contains($rule,'expectedFirstRegularSlot'))throw new RuntimeException('Phase Q must never derive a future paid slot from the introduction time');
 if(!str_contains($rule,'public static function resolveWallClock')||str_contains($rule,'$next='))throw new RuntimeException('The slot rule must only resolve an explicitly authorised wall clock');
-foreach(array("SLOT_AUTHORITY_BASES=array('administrator_attestation')",'first_regular_slot_authority_required')as$n)if(!str_contains($rule,$n))throw new RuntimeException('Missing Phase Q slot-authority contract: '.$n);
+foreach(array("SLOT_AUTHORITY_BASES=array('administrator_attestation','confirmed_booking_recurrence')",'first_regular_slot_authority_required')as$n)if(!str_contains($rule,$n))throw new RuntimeException('Missing Phase Q slot-authority contract: '.$n);
 if(!str_contains($service,'recordFirstRegularSlot')||!str_contains($service,'first_regular_slot_not_after_introduction')||!str_contains($service,'first_regular_slot_already_authorised'))throw new RuntimeException('Phase Q must expose one explicit first-regular-slot authority command');
 if(!str_contains($repo,'canonical_continuation_slot_authorities')||!str_contains($validator,'slotAuthority')||!str_contains($validator,'resolveWallClock'))throw new RuntimeException('The slot authority must be persisted and validated');
 // Q-3: accepted-arrangement lineage is optional and never chosen by insertion id.

@@ -85,9 +85,7 @@ $wpdb->query($wpdb->prepare("DELETE FROM {$p}payment_provider_event_decision_cla
 $wpdb->query($wpdb->prepare("DELETE FROM {$p}payment_provider_events WHERE id=%d",$failureEvent));
 $wpdb->query($wpdb->prepare("DELETE FROM {$p}payment_provider_event_receipts WHERE id=%d",$failureReceipt));
 $previous=get_current_user_id();
-$principal=wp_insert_user(array('user_login'=>'dzn-t-fail-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>'subscriber'));
-$user=get_user_by('id',(int)$principal);
-foreach(PaymentExecutionSupport::WORKER_CAPABILITIES as $capability)$user->add_cap($capability);
+$principal=wp_insert_user(array('user_login'=>'dzn-t-fail-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(24),'role'=>PaymentExecutionSupport::WORKER_ROLE));
 update_option(PaymentExecutionSupport::WORKER_PRINCIPAL_OPTION,(int)$principal,false);
 $raised=null;
 try{

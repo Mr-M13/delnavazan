@@ -6,70 +6,70 @@ final class AdminShellController {
     /** The visible primary navigation follows academy work, never table layout. */
     private const TABS = [
         'academy' => ['Academy', [
-            ['Academy dashboard', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
-            ['Booking requests', 'dzn-booking-requests', 'dzn_view_booking_requests'],
-            ['Request coordination', 'dzn-booking-request-coordination', 'dzn_manage_booking_request_coordination'],
+            ['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests', ['view' => 'overview']],
+            ['Today and upcoming lessons', 'dzn-academy-dashboard', 'dzn_manage_lessons', ['view' => 'upcoming']],
+            ['Attention needed', 'dzn-academy-dashboard', 'dzn_manage_lessons', ['view' => 'attention']],
         ]],
-        'teachers' => ['Teachers', [['Teacher directory, onboarding & invitations', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]]],
+        'teachers' => ['Teachers', [
+            ['Teacher directory and profiles', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP],
+            ['Teacher-specific rates', 'dzn-finance-rates', 'dzn_view_finance_authority'],
+            ['Lesson payability', 'dzn-finance-payability', 'dzn_view_finance_authority'],
+            ['Teacher reconciliation', 'dzn-finance-statements', 'dzn_view_finance_authority'],
+        ]],
         'students' => ['Students', [
             ['Student directory', 'dzn-student', 'dzn_manage_students'],
-            ['Identity & authentication', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
+            ['Profiles and learning progress', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
         ]],
-        'courses' => ['Courses', [
-            ['Courses', 'dzn-course', 'dzn_manage_courses'],
-            ['Terms', 'dzn-term', 'dzn_manage_terms'],
-            ['Instruments', 'dzn-instrument', 'dzn_manage_courses'],
-            ['Course catalogue and pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue'],
-        ]],
-        'enrolments_classes' => ['Enrolments / Classes', [
+        'enrolment' => ['Enrolment', [
+            ['Classes and schedule', 'dzn-lesson', 'dzn_manage_lessons'],
+            ['Booking requests', 'dzn-booking-requests', 'dzn_view_booking_requests'],
+            ['Request coordination', 'dzn-booking-request-coordination', 'dzn_manage_booking_request_coordination'],
             ['Enrolments', 'dzn-enrolment', 'dzn_manage_enrolments'],
-            ['Classes', 'dzn-lesson', 'dzn_manage_lessons'],
+            ['Terms', 'dzn-term', 'dzn_manage_terms'],
+            ['Courses and instruments', 'dzn-course', 'dzn_manage_courses'],
+            ['Instruments', 'dzn-instrument', 'dzn_manage_courses'],
             ['Attendance review', 'dzn-attendance-review', 'dzn_manage_canonical_attendance_review'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_convert_service_arrangements_to_enrolments'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_issue_student_account_claims'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_teacher_assignments'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_terms'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lessons'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_delivery'],
-            ['Canonical workflow actions', 'dzn-core-dataset-readiness', 'dzn_manage_canonical_lesson_schedules'],
+            ['Catalogue and operational exceptions', 'dzn-exception', 'dzn_manage_exceptions'],
+            ['Canonical workflow actions', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP],
+            ['Post-intro automation', 'dzn-post-intro', 'dzn_manage_post_intro_automation'],
         ]],
         'finance' => ['Finance', [
-            ['Compensation statements', 'dzn-finance-statements', 'dzn_view_finance_authority'],
-            ['Teacher rates', 'dzn-finance-rates', 'dzn_view_finance_authority'],
-            ['Lesson payability', 'dzn-finance-payability', 'dzn_view_finance_authority'],
+            ['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue'],
+            ['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority'],
+            ['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger'],
+            ['Reconciliation', 'dzn-finance-reconciliation', 'dzn_view_finance_authority'],
             ['Finance policies', 'dzn-finance-policies', 'dzn_view_finance_authority'],
-            ['Finance reconciliation', 'dzn-finance-reconciliation', 'dzn_view_finance_authority'],
-            ['Payment execution', 'dzn-payment-execution', 'dzn_view_payment_execution_authority'],
-            ['Academy account balances', 'dzn-finance-cashbook', 'dzn_view_cash_ledger'],
-        ]],
-        'communications' => ['Communications', [
-            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
-            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
+            ['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']],
         ]],
         'settings' => ['Settings', [
-            ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
+            ['General', 'dzn-general', 'manage_options'],
             ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
             ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
             ['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
+            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
+            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
+            ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
             ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings'],
-            ['Stripe setup', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']],
-            ['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities'],
-            ['Exceptions', 'dzn-exception', 'dzn_manage_exceptions'],
-            ['System health', 'dzn-system-health', 'dzn_access_system_health'],
             ['Staff access', 'dzn-staff-access', 'manage_options'],
+            ['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
+            ['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities'],
         ]],
     ];
 
     /** Pages share their tab while retaining their original, protected callback. */
     private const PAGE_TABS = [
-        'dzn-platform' => 'academy', 'dzn-academy-dashboard' => 'academy', 'dzn-booking-requests' => 'academy', 'dzn-booking-request-coordination' => 'academy',
-        'dzn-teachers-menu' => 'teachers',
+        'dzn-platform' => 'academy', 'dzn-academy-dashboard' => 'academy',
+        'dzn-teachers-menu' => 'teachers', 'dzn-finance-rates' => 'teachers', 'dzn-finance-payability' => 'teachers', 'dzn-finance-statements' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
-        'dzn-course' => 'courses', 'dzn-term' => 'courses', 'dzn-instrument' => 'courses', 'dzn-commercial-catalogue' => 'courses',
-        'dzn-enrolment' => 'enrolments_classes', 'dzn-lesson' => 'enrolments_classes', 'dzn-attendance-review' => 'enrolments_classes', 'dzn-core-dataset-readiness' => 'enrolments_classes',
-        'dzn-finance-statements' => 'finance', 'dzn-finance-rates' => 'finance', 'dzn-finance-payability' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
-        'dzn-communications' => 'communications', 'dzn-communications-templates' => 'communications',
-        'dzn-integrations' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings', 'dzn-integration-sms' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-stripe-settings' => 'settings', 'dzn-system-health' => 'settings', 'dzn-exception' => 'settings', 'dzn-staff-access' => 'settings', 'dzn-portal-capabilities' => 'settings',
+        'dzn-lesson' => 'enrolment', 'dzn-booking-requests' => 'enrolment', 'dzn-booking-request-coordination' => 'enrolment',
+        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'enrolment', 'dzn-instrument' => 'enrolment',
+        'dzn-attendance-review' => 'enrolment', 'dzn-exception' => 'enrolment', 'dzn-core-dataset-readiness' => 'enrolment', 'dzn-post-intro' => 'enrolment',
+        'dzn-commercial-catalogue' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
+        'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
+        'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
+        'dzn-integration-sms' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
+        'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
+        'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings',
     ];
 
     public static function register(): void {
@@ -107,11 +107,17 @@ final class AdminShellController {
         if (isset(self::TABS[$active])) {
             echo '<nav class="dzn-admin-shell__subtabs" aria-label="' . esc_attr(self::TABS[$active][0]) . ' pages">';
             $seen = [];
-            foreach (self::TABS[$active][1] as [$routeLabel, $slug, $requiredCapabilities]) {
-                if (isset($seen[$slug]) || !self::hasRequiredCapabilities($requiredCapabilities)) continue;
-                $seen[$slug] = true;
-                $current = $slug === $page || ($page === Menu::ROOT_SLUG && $slug === 'dzn-academy-dashboard');
-                echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url(admin_url('admin.php?page=' . rawurlencode($slug))) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($routeLabel) . '</a>';
+            $requestedView = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
+            foreach (self::TABS[$active][1] as $destination) {
+                [$routeLabel, $slug, $requiredCapabilities] = $destination;
+                $args = isset($destination[3]) && is_array($destination[3]) ? $destination[3] : [];
+                $key = $slug . '?' . http_build_query($args);
+                if (isset($seen[$key]) || !self::hasRequiredCapabilities($requiredCapabilities)) continue;
+                $seen[$key] = true;
+                $current = $slug === $page && ($args['view'] ?? '') === $requestedView;
+                if ($page === Menu::ROOT_SLUG && $slug === 'dzn-academy-dashboard' && ($args['view'] ?? '') === 'overview') $current = true;
+                $url = admin_url('admin.php?' . http_build_query(array_merge(array('page' => $slug), $args)));
+                echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url($url) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($routeLabel) . '</a>';
             }
             echo '</nav>';
         }

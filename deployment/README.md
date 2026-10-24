@@ -35,3 +35,30 @@ The live staging environment is being retired separately after its hosting accou
 - `.github/workflows/deploy-production.yml` -> protected, manual production release
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.
+
+## Post-introductory continuation automation (Schema 48)
+
+Release `post-intro-enrolment-automation-20261021.2` adds Schema 48
+(`048_post_intro_enrolment_automation`). It is additive: `lessons.booking_request_id`,
+`booking_request_contact_snapshots.adult_self_attested`, and three workflow tables. Existing rows keep
+their defaults; no existing Course, product, price, Lesson, Enrolment, Term, or payment row is rewritten.
+
+The migration is forward-only and is run by the standard protected `Migrator::maybe_upgrade()` path.
+Do not run it outside that path. After deployment, verify:
+
+1. The exact `origin/main` SHA and build identity.
+2. `dzn_platform_schema_version` is `48` and the migration ledger contains
+   `048_post_intro_enrolment_automation`.
+3. Administrator role has `dzn_manage_post_intro_automation`.
+4. The `post_intro_preparations`, `post_intro_activation_jobs`, and
+   `booking_request_intro_outcomes` tables exist with InnoDB.
+5. `Post-intro automation` opens read-only and lists no unexpected exceptions.
+6. A synthetic post-intro delivery reaches `prepared`, a synthetic verified settlement reaches
+   `payment_received`, and activation reaches `activated` with 12 scheduled Lessons. If Google is not
+   connected, the activation job must remain retryable with a `provider_*` code and must not create a
+   verified mapping or a fabricated Meet URL.
+
+The automation is driven by the existing WP-Cron notification and activation workers. Confirm that
+`dzn_post_intro_activation_dispatch` is scheduled after the release. If it is not, run the standard
+WP-Cron recovery process; do not create Lessons, Enrolments, Terms, Assignments, or provider mappings
+by hand. Use the admin retry surface only after repairing the owning authority named by the exception.

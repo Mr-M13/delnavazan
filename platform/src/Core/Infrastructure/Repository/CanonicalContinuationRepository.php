@@ -95,7 +95,15 @@ final class CanonicalContinuationRepository {
 
     /** The authoritative introductory Lesson: a legacy-classified `introductory` Lesson with no Term. */
     public function introductoryLesson(int $lessonId,bool $lock=false):?object{
-        return $this->one("SELECT l.*, c.course_type AS course_type, c.default_duration_minutes AS course_duration_minutes, c.default_buffer_minutes AS course_buffer_minutes, c.status AS course_status, c.archived_at AS course_archived_at, s.status AS student_status, s.archived_at AS student_archived_at, t.status AS teacher_status, t.archived_at AS teacher_archived_at FROM {$this->p}lessons l LEFT JOIN {$this->p}courses c ON c.id=l.course_id LEFT JOIN {$this->p}students s ON s.id=l.student_id LEFT JOIN {$this->p}teachers t ON t.id=l.teacher_id WHERE l.id=%d".($lock?' FOR UPDATE':''),$lessonId);
+        return $this->one("SELECT l.*, c.course_type AS course_type, c.default_duration_minutes AS course_duration_minutes, c.default_buffer_minutes AS course_buffer_minutes, c.status AS course_status, c.archived_at AS course_archived_at, c.instrument_id AS course_instrument_id, s.status AS student_status, s.archived_at AS student_archived_at, t.status AS teacher_status, t.archived_at AS teacher_archived_at FROM {$this->p}lessons l LEFT JOIN {$this->p}courses c ON c.id=l.course_id LEFT JOIN {$this->p}students s ON s.id=l.student_id LEFT JOIN {$this->p}teachers t ON t.id=l.teacher_id WHERE l.id=%d".($lock?' FOR UPDATE':''),$lessonId);
+    }
+    /**
+     * The exact confirmed introductory booking that authorises a booking-linked legacy Lesson.
+     * The Lesson keeps the booked introductory Course; the ongoing standard Course is carried
+     * separately by the continuation case and slot authority.
+     */
+    public function confirmedIntroBooking(int $bookingRequestId,int $studentId,int $teacherId):?object{
+        return $this->one("SELECT c.* FROM {$this->p}booking_request_confirmations c INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id WHERE c.booking_request_id=%d AND c.teacher_id=%d AND c.state='confirmed' AND r.student_id=%d AND r.lifecycle_status='closed' AND r.resolution_state='teacher_confirmed' AND r.privacy_erased_at IS NULL LIMIT 1",$bookingRequestId,$teacherId,$studentId);
     }
     /** The single current (non-superseded) scheduled occurrence of a legacy introductory Lesson. */
     public function introOccurrence(int $lessonId,bool $lock=false):?object{

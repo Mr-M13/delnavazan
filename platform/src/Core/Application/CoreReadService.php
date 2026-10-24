@@ -136,6 +136,74 @@ final class CoreReadService {
         return (new LessonOperationsReadService())->recent();
     }
 
+    /** Capability-gated Term/Assignment choices for canonical standard and replacement Lessons. */
+    public function canonicalLessonIssueOptions(): array {
+        if (!current_user_can('dzn_manage_canonical_lessons')) throw new \RuntimeException('Unauthorized');
+        return (new CanonicalLessonIssueReadService())->options();
+    }
+
+    /**
+     * Composite operator class schedule: canonical/legacy Lessons plus confirmed introductory
+     * bookings that have not yet produced a Lesson. Confirmed intros remain read-only booking
+     * rows; this seam never fabricates a Lesson merely to make the schedule visible.
+     */
+    public function classOperatorRows(): array {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        $lessons = $this->lessonOperatorRows();
+        if (!current_user_can('dzn_view_booking_requests')) return $lessons;
+        $intros = (new ConfirmedIntroBookingReadService())->upcoming();
+        return $this->sortClassRows(array_merge($intros, $lessons));
+    }
+
+    /**
+     * Chronological operator schedule. The authoritative instant is each row's UTC schedule
+     * start; rows without a valid instant remain visible after scheduled rows and never receive
+     * an invented date. Ties use record type and stable identity for deterministic output.
+     */
+    private function sortClassRows(array $rows): array {
+        $scheduled = array();
+        $unscheduled = array();
+        foreach ($rows as $row) {
+            $timestamp = self::utcScheduleTimestamp((string) ($row->schedule_starts_at_utc ?? ''));
+            if ($timestamp === null) { $unscheduled[] = $row; continue; }
+            $scheduled[] = array($timestamp, $row);
+        }
+        usort($scheduled, static function (array $a, array $b): int {
+            return ($a[0] <=> $b[0]) ?: self::classRowTieBreak($a[1], $b[1]);
+        });
+        usort($unscheduled, static fn(object $a, object $b): int => self::classRowTieBreak($a, $b));
+        return array_merge(array_map(static fn(array $item): object => $item[1], $scheduled), $unscheduled);
+    }
+
+    private static function utcScheduleTimestamp(string $value): ?int {
+        $value = trim($value);
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $value) !== 1) return null;
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC'));
+        $errors = \DateTimeImmutable::getLastErrors();
+        if ($date === false || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) return null;
+        return $date->getTimestamp();
+    }
+
+    private static function classRowTieBreak(object $a, object $b): int {
+        $rank = static fn(object $row): int => match ((string) ($row->record_model ?? '')) {
+            'canonical_term_lesson_v1' => 0,
+            'legacy_phase1' => 1,
+            'confirmed_intro_booking_v1' => 2,
+            default => 3,
+        };
+        $order = $rank($a) <=> $rank($b);
+        if ($order !== 0) return $order;
+        $identity = static function (object $row): string {
+            if ((string) ($row->record_model ?? '') === 'confirmed_intro_booking_v1') {
+                return (string) ($row->confirmation_uid ?? ('booking-' . (int) ($row->booking_request_id ?? 0)));
+            }
+            return str_pad((string) (int) ($row->id ?? 0), 20, '0', STR_PAD_LEFT);
+        };
+        return strcmp($identity($a), $identity($b))
+            ?: strcmp((string) ($a->reference_code ?? ''), (string) ($b->reference_code ?? ''))
+            ?: strcmp((string) ($a->schedule_label ?? ''), (string) ($b->schedule_label ?? ''));
+    }
+
     public function canonicalLesson(int $lessonId): ?object {
         return (new LessonOperationsReadService())->canonicalLesson($lessonId);
     }

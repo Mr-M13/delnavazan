@@ -295,7 +295,7 @@ final class Migrator {
 	private const CAPABILITY_OPTION_R1 = 'dzn_platform_capability_version_2a2r1'; private const CAPABILITY_VERSION_R1 = '2a2r1';
 	private const CAPABILITY_OPTION_R2 = 'dzn_platform_capability_version_2a2r2'; private const CAPABILITY_VERSION_R2 = '2a2r2';
 	private const CAPABILITY_OPTION_V = 'dzn_platform_capability_version_2a2v'; private const CAPABILITY_VERSION_V = '2a2v2';
-	private const CAPABILITY_OPTION_T = 'dzn_platform_capability_version_2a2t'; private const CAPABILITY_VERSION_T = '2a2t';
+	private const CAPABILITY_OPTION_T = 'dzn_platform_capability_version_2a2t'; private const CAPABILITY_VERSION_T = '2a2t2';
 	private const CAPABILITY_OPTION_CASH = 'dzn_platform_capability_version_cashbook'; private const CAPABILITY_VERSION_CASH = 'cashbook_v1';
 	private const CAPABILITY_OPTION_U = 'dzn_platform_capability_version_2a2u'; private const CAPABILITY_VERSION_U = '2a2u';
 	private const CAPABILITY_OPTION_W = 'dzn_platform_capability_version_2a2w'; private const CAPABILITY_VERSION_W = '2a2w';
@@ -324,7 +324,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -367,7 +367,15 @@ final class Migrator {
 				self::install_google_oauth_openid_subject();self::verify_google_oauth_scope_policy();
 				$done[]='046_google_oauth_openid_subject';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('047_stripe_canonical_account_reference',$done,true)){
+				self::install_stripe_canonical_account_reference();self::verify_stripe_canonical_account_reference();
+				$done[]='047_stripe_canonical_account_reference';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('048_post_intro_enrolment_automation',$done,true)){
+				self::install_post_intro_enrolment_automation();self::verify_post_intro_enrolment_automation_schema();
+				$done[]='048_post_intro_enrolment_automation';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -384,6 +392,50 @@ final class Migrator {
 			$row=$wpdb->get_row($wpdb->prepare('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s',$p.$table,$column));
 			if(!$row||strtolower((string)$row->COLUMN_TYPE)!=='varchar(32)')throw new \RuntimeException('Notification cipher width verification failed');
 		}
+	}
+	/**
+	 * Repair the single dashboard-managed Stripe TEST account whose authority reference predates the
+	 * canonical account reference.
+	 *
+	 * Before the reference was unified, `StripeTestConfigurationService` registered the account with
+	 * `account_reference='delnavazan-stripe-test'` while Checkout metadata carried the webhook selector
+	 * `'stripe_test'`. `account_reference_digest` therefore never matched the value the provider returned
+	 * and every verified webhook was refused as `unmapped_provider_account`. The migration is deliberately
+	 * narrow: it rewrites only a row whose stored digest proves the known legacy plaintext, refuses a
+	 * target digest that another account already claims (the unique key would collapse two accounts), and
+	 * changes no live-mode row.
+	 */
+	private static function install_stripe_canonical_account_reference():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$legacy=\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency::reference('delnavazan-stripe-test');
+		$canonical=\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency::reference('stripe_test');
+		$rows=$wpdb->get_results($wpdb->prepare(
+			"SELECT id,account_reference_digest FROM {$p}payment_provider_accounts WHERE provider_key=%s AND mode=%s AND reference_code=%s",
+			'stripe','test','stripe_test'
+		))?:array();
+		foreach($rows as $row){
+			if(!hash_equals((string)$row->account_reference_digest,$legacy))continue;
+			$collision=(int)$wpdb->get_var($wpdb->prepare(
+				"SELECT COUNT(*) FROM {$p}payment_provider_accounts WHERE provider_key=%s AND mode=%s AND account_reference_digest=%s AND id<>%d",
+				'stripe','test',$canonical,(int)$row->id
+			));
+			if($collision>0)throw new \RuntimeException('Stripe canonical account reference migration refused: digest collision');
+			$updated=$wpdb->query($wpdb->prepare(
+				"UPDATE {$p}payment_provider_accounts SET account_reference_digest=%s,account_version=account_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND account_reference_digest=%s",
+				$canonical,(int)$row->id,$legacy
+			));
+			if($updated===false)throw new \RuntimeException('Stripe canonical account reference migration failed: '.$wpdb->last_error);
+		}
+		if($wpdb->last_error!=='')throw new \RuntimeException('Stripe canonical account reference migration failed: '.$wpdb->last_error);
+	}
+	private static function verify_stripe_canonical_account_reference():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$legacy=\Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency::reference('delnavazan-stripe-test');
+		$remaining=(int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$p}payment_provider_accounts WHERE provider_key='stripe' AND mode='test' AND reference_code='stripe_test' AND account_reference_digest=%s",
+			$legacy
+		));
+		if($wpdb->last_error!==''||$remaining!==0)throw new \RuntimeException('Stripe canonical account reference verification failed');
 	}
 	/** Synchronise the compatibility column from the canonical active principal link. */
 	private static function install_teacher_principal_projection_repair():void{
@@ -491,9 +543,11 @@ final class Migrator {
 		$required[] = '044_booking_notification_recovery';
 		$required[] = '045_renewal_cycle_automatic_charge_at';
 		$required[] = '046_google_oauth_openid_subject';
+		$required[] = '047_stripe_canonical_account_reference';
+		$required[] = '048_post_intro_enrolment_automation';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -688,6 +742,43 @@ final class Migrator {
 	private static function verify_canonical_term_authority_schema():void{global$wpdb;$p=$wpdb->prefix.'dzn_';$table=$p.'term_commands';if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table||strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: canonical Term command table');foreach(array('uid','command_domain','operation','command_key_digest','command_payload_digest','enrolment_id','expected_term_id','expected_from_state','result_term_id','result_state','created_at','created_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: canonical Term command field '.$column);foreach(array(array('uid',true,array('uid')),array('command_key_digest',true,array('command_key_digest')),array('enrolment_operation',false,array('enrolment_id','operation')),array('result_term_id',false,array('result_term_id')))as$index)if(!self::has_index_columns($table,$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: canonical Term command index '.$index[0]);foreach(array('command_key_digest','command_payload_digest')as$column){$row=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'");if(!$row||strtolower($row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: canonical Term command digest '.$column);}if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'"))throw new \RuntimeException('Migration verification failed: canonical Term commands must be immutable');}
 	private static function verify_canonical_enrolment_lifecycle_authority_schema():void{global$wpdb;$table=$wpdb->prefix.'dzn_enrolment_lifecycle_commands';if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table||strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: Enrolment lifecycle command table');foreach(array('uid','command_domain','operation','command_key_digest','command_payload_digest','enrolment_id','expected_from_state','result_state','result_event_id','created_at','created_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: Enrolment lifecycle command field '.$column);foreach(array(array('uid',true,array('uid')),array('command_key_digest',true,array('command_key_digest')),array('result_event_id',true,array('result_event_id')),array('enrolment_operation',false,array('enrolment_id','operation')))as$index)if(!self::has_index_columns($table,$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: Enrolment lifecycle command index '.$index[0]);foreach(array('command_key_digest','command_payload_digest')as$column){$row=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'");if(!$row||strtolower($row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: Enrolment lifecycle command digest '.$column);}foreach(array('updated_at','raw_key','evidence_reference')as$column)if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: Enrolment lifecycle commands must be immutable and digest-only');}
 	private static function verify_canonical_lesson_authority_schema():void{global$wpdb;$p=$wpdb->prefix.'dzn_';$lessons=$p.'lessons';if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$lessons)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: Lesson table must use InnoDB');foreach(array('record_model','lifecycle_state','canonical_sequence','teacher_assignment_id','canonical_replacement_origin_lesson_id')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: canonical Lesson field '.$column);$model=$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'record_model'");if(!$model||$model->Default!=='legacy_phase1')throw new \RuntimeException('Migration verification failed: legacy Lesson classification default');foreach(array(array('term_canonical_sequence',true,array('term_id','canonical_sequence')),array('canonical_replacement_origin',true,array('canonical_replacement_origin_lesson_id')))as$index)if(!self::has_index_columns($lessons,$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: canonical Lesson index '.$index[0]);foreach(array('canonical_lesson_lifecycle_events'=>array('uid','lesson_id','event_sequence','from_state','to_state','reason_code','evidence_channel','evidence_reference_digest','occurred_at','recorded_at','recorded_by','created_at','created_by'),'canonical_lesson_commands'=>array('uid','command_domain','operation','command_key_digest','command_payload_digest','enrolment_id','term_id','result_lesson_id','result_state','created_at','created_by'))as$table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical||strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: canonical Lesson table '.$table);foreach($columns as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: canonical Lesson field '.$table.'.'.$column);}foreach(array(array($p.'canonical_lesson_lifecycle_events','lesson_sequence',true,array('lesson_id','event_sequence')),array($p.'canonical_lesson_commands','command_key_digest',true,array('command_key_digest')))as$index)if(!self::has_index_columns($index[0],$index[1],$index[2],$index[3]))throw new \RuntimeException('Migration verification failed: canonical Lesson evidence index '.$index[1]);}
+	private static function install_post_intro_enrolment_automation():void{
+		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
+		$snapshots=$p.'booking_request_contact_snapshots';
+		$attestationColumn=$wpdb->get_row("SHOW COLUMNS FROM {$snapshots} LIKE 'adult_self_attested'");
+		if(!$attestationColumn){
+			if($wpdb->query("ALTER TABLE {$snapshots} ADD COLUMN adult_self_attested tinyint(1) NOT NULL DEFAULT 0 AFTER privacy_notice_accepted_at")===false)throw new \RuntimeException('Post-intro migration failed: adult attestation field');
+		}elseif(strtolower((string)$attestationColumn->Type)!=='tinyint(1)'||(string)$attestationColumn->Null!=='NO'){
+			if($wpdb->query("ALTER TABLE {$snapshots} MODIFY COLUMN adult_self_attested tinyint(1) NOT NULL DEFAULT 0")===false)throw new \RuntimeException('Post-intro migration failed: adult attestation repair');
+		}
+		$lessons=$p.'lessons';
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'booking_request_id'")){
+			if($wpdb->query("ALTER TABLE {$lessons} ADD COLUMN booking_request_id bigint unsigned NULL, ADD UNIQUE KEY booking_request_id(booking_request_id)")===false)throw new \RuntimeException('Post-intro migration failed: Lesson booking provenance field');
+		}elseif(!self::has_index($lessons,'booking_request_id',true)){
+			if($wpdb->query("ALTER TABLE {$lessons} ADD UNIQUE KEY booking_request_id(booking_request_id)")===false)throw new \RuntimeException('Post-intro migration failed: Lesson booking provenance index');
+		}
+		$tables=array(
+			"CREATE TABLE {$p}booking_request_intro_outcomes (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,booking_request_id bigint unsigned NOT NULL,confirmation_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,outcome varchar(24) NOT NULL,note varchar(500) NULL,occurred_at datetime NOT NULL,source varchar(24) NOT NULL,recorded_by bigint unsigned NOT NULL,recorded_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY booking_request_id(booking_request_id),UNIQUE KEY confirmation_id(confirmation_id),KEY outcome(outcome),KEY teacher_recorded(teacher_id,recorded_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}post_intro_preparations (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,booking_request_id bigint unsigned NOT NULL,outcome_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,intro_lesson_id bigint unsigned NULL,standard_course_id bigint unsigned NULL,product_id bigint unsigned NULL,region_code char(2) NULL,coordination_case_id bigint unsigned NULL,candidate_id bigint unsigned NULL,assent_id bigint unsigned NULL,proposal_family_id bigint unsigned NULL,proposal_option_id bigint unsigned NULL,proposal_version_id bigint unsigned NULL,provisional_event_id bigint unsigned NULL,arrangement_id bigint unsigned NULL,enrolment_id bigint unsigned NULL,continuation_case_id bigint unsigned NULL,slot_authority_id bigint unsigned NULL,reservation_id bigint unsigned NULL,offer_id bigint unsigned NULL,offer_uid char(26) NULL,pattern_id bigint unsigned NULL,state varchar(32) NOT NULL,exception_code varchar(64) NULL,exception_detail varchar(500) NULL,prepared_at datetime NULL,student_action_at datetime NULL,teacher_notified_at datetime NULL,last_attempt_at datetime NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY booking_request_id(booking_request_id),UNIQUE KEY outcome_id(outcome_id),KEY state(state),KEY arrangement(arrangement_id),KEY continuation_case(continuation_case_id),KEY intro_lesson(intro_lesson_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}post_intro_activation_jobs (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,purchase_id bigint unsigned NOT NULL,preparation_id bigint unsigned NOT NULL,offer_id bigint unsigned NOT NULL,entitlement_id bigint unsigned NULL,state varchar(24) NOT NULL,attempt_count int unsigned NOT NULL DEFAULT 0,next_attempt_at datetime NULL,lease_token_digest char(64) NULL,lease_expires_at datetime NULL,last_error_code varchar(64) NULL,last_error_detail varchar(500) NULL,checkpoint varchar(48) NULL,completed_at datetime NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY purchase_id(purchase_id),KEY dispatch_state(state,next_attempt_at),KEY preparation_id(preparation_id)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Post-intro migration failed: table creation');}
+		self::verify_post_intro_enrolment_automation_schema();
+	}
+	private static function verify_post_intro_enrolment_automation_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		$snapshots=$p.'booking_request_contact_snapshots';$row=$wpdb->get_row("SHOW COLUMNS FROM {$snapshots} LIKE 'adult_self_attested'");
+		if(!$row||strtolower($row->Type)!=='tinyint(1)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: adult self-attestation field');
+		$lessons=$p.'lessons';if(!$wpdb->get_row("SHOW COLUMNS FROM {$lessons} LIKE 'booking_request_id'"))throw new \RuntimeException('Migration verification failed: Lesson booking provenance field');
+		if(!self::has_index($lessons,'booking_request_id',true))throw new \RuntimeException('Migration verification failed: Lesson booking provenance index');
+		$tables=array(
+			'booking_request_intro_outcomes'=>array('uid','booking_request_id','confirmation_id','teacher_id','student_id','outcome','note','occurred_at','source','recorded_by','recorded_at','created_at'),
+			'post_intro_preparations'=>array('uid','booking_request_id','outcome_id','student_id','teacher_id','intro_lesson_id','standard_course_id','product_id','region_code','coordination_case_id','candidate_id','assent_id','proposal_family_id','proposal_option_id','proposal_version_id','provisional_event_id','arrangement_id','enrolment_id','continuation_case_id','slot_authority_id','reservation_id','offer_id','offer_uid','pattern_id','state','exception_code','exception_detail','prepared_at','student_action_at','teacher_notified_at','last_attempt_at','created_at','updated_at'),
+			'post_intro_activation_jobs'=>array('uid','purchase_id','preparation_id','offer_id','entitlement_id','state','attempt_count','next_attempt_at','lease_token_digest','lease_expires_at','last_error_code','last_error_detail','checkpoint','completed_at','created_at','updated_at'),
+		);
+		foreach($tables as $table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: post-intro table must use InnoDB: '.$table);foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);}
+		foreach(array(array('booking_request_intro_outcomes','uid',true,array('uid')),array('booking_request_intro_outcomes','booking_request_id',true,array('booking_request_id')),array('booking_request_intro_outcomes','confirmation_id',true,array('confirmation_id')),array('post_intro_preparations','uid',true,array('uid')),array('post_intro_preparations','booking_request_id',true,array('booking_request_id')),array('post_intro_preparations','outcome_id',true,array('outcome_id')),array('post_intro_preparations','state',false,array('state')),array('post_intro_activation_jobs','uid',true,array('uid')),array('post_intro_activation_jobs','purchase_id',true,array('purchase_id')),array('post_intro_activation_jobs','dispatch_state',false,array('state','next_attempt_at')))as$index)if(!self::has_index_columns($p.$index[0],$index[1],$index[2],$index[3]))throw new \RuntimeException('Migration verification failed: post-intro index '.$index[0].'.'.$index[1]);
+	}
 	private static function dbdelta_sql(string $sql):string{
 		$open=strpos($sql,'(');$engine=strripos($sql,') ENGINE=');if($open===false||$engine===false||$engine<=$open)return $sql;
 		$head=substr($sql,0,$open+1);$body=substr($sql,$open+1,$engine-$open-1);$tail=substr($sql,$engine);$parts=array();$buf='';$depth=0;$len=strlen($body);
@@ -785,6 +876,16 @@ final class Migrator {
 		if((string)get_option(self::CAPABILITY_OPTION_T)!==self::CAPABILITY_VERSION_T)throw new \RuntimeException('Payment execution capability installation failed: version marker');
 		$teacherTCheck=get_role('dzn_teacher');
 		foreach($phaseTGrants as$reserved)if($teacherTCheck&&$teacherTCheck->has_cap($reserved))throw new \RuntimeException('Payment execution capability installation failed: Teacher least privilege');
+		// The payment event worker is a non-human, single-purpose identity. It is not an
+		// administrator and it is never selected automatically: operations creates the user and
+		// explicitly records its id after reviewing the role. Repair the role on every upgrade so
+		// a legacy or manually widened role cannot remain usable.
+		$paymentWorkerCaps=array('read'=>true,'dzn_ingest_payment_provider_events'=>true,'dzn_ingest_commercial_payment_evidence'=>true,'dzn_manage_collection_intents'=>true,'dzn_manage_renewal_cycles'=>true);
+		$paymentWorker=get_role('dzn_payment_worker');if(!$paymentWorker)$paymentWorker=add_role('dzn_payment_worker','Delnavazan Payment Worker',$paymentWorkerCaps);
+		if(!$paymentWorker)throw new \RuntimeException('Payment worker capability installation failed: role');
+		foreach($paymentWorkerCaps as$capability=>$grant)if(!$paymentWorker->has_cap($capability)){$paymentWorker->add_cap($capability);$phaseTRepair=true;}
+		foreach(array_keys((array)($paymentWorker->capabilities??array()))as$capability)if(!isset($paymentWorkerCaps[$capability])&&$paymentWorker->has_cap($capability)){$paymentWorker->remove_cap($capability);$phaseTRepair=true;}
+		foreach($paymentWorkerCaps as$capability=>$grant)if(!$paymentWorker->has_cap($capability))throw new \RuntimeException('Payment worker capability installation failed: '.$capability);
 		$cashMarker=(string)get_option(self::CAPABILITY_OPTION_CASH);$cashGrants=array('dzn_view_cash_ledger','dzn_manage_cash_ledger');$cashRepair=false;
 		foreach($cashGrants as$capability)if(!$role->has_cap($capability)){$role->add_cap($capability);$cashRepair=true;}
 		foreach(array('dzn_teacher','dzn_student')as$roleName){$reservedRole=get_role($roleName);if(!$reservedRole)continue;foreach($cashGrants as$reserved)if($reservedRole->has_cap($reserved)){$reservedRole->remove_cap($reserved);$cashRepair=true;}}
@@ -825,6 +926,7 @@ final class Migrator {
 		if($phaseSRepair||$phaseSMarker!==self::CAPABILITY_VERSION_S)update_option(self::CAPABILITY_OPTION_S,self::CAPABILITY_VERSION_S,false);
 		foreach($phaseSGrants as$capability)if(!$role->has_cap($capability))throw new \RuntimeException('Notification authority capability installation failed: '.$capability);
 		if((string)get_option(self::CAPABILITY_OPTION_S)!==self::CAPABILITY_VERSION_S)throw new \RuntimeException('Notification authority capability installation failed: version marker');
+		if(!$role->has_cap('dzn_manage_post_intro_automation'))$role->add_cap('dzn_manage_post_intro_automation');
 		$markerCurrent=(string)get_option(self::CAPABILITY_OPTION)===self::CAPABILITY_VERSION;
 		if($markerCurrent&&$role->has_cap('dzn_issue_student_account_claims')&&$teacher&&$teacher->has_cap('dzn_record_own_availability_assent')&&$teacher->has_cap('dzn_accept_own_teacher_assignments')&&$role->has_cap('dzn_manage_terms')&&$role->has_cap('dzn_manage_canonical_terms')&&$role->has_cap('dzn_manage_canonical_enrolment_lifecycle')&&$role->has_cap('dzn_manage_canonical_lessons')&&$role->has_cap('dzn_manage_canonical_lesson_schedules')&&$role->has_cap('dzn_override_canonical_lesson_schedule_availability')&&$role->has_cap('dzn_prepare_booking_request_matches')&&$role->has_cap('dzn_manage_booking_request_coordination')&&$role->has_cap('dzn_manage_teacher_availability_assent')&&$role->has_cap('dzn_issue_booking_request_proposals')&&$role->has_cap('dzn_record_booking_request_provisional_acceptance')&&$role->has_cap('dzn_resolve_booking_request_student_identity')&&$role->has_cap('dzn_manage_student_acceptance_authority')&&$role->has_cap('dzn_view_student_acceptance_eligibility')&&$role->has_cap('dzn_finalize_service_arrangements')&&$role->has_cap('dzn_convert_service_arrangements_to_enrolments')&&$role->has_cap('dzn_manage_teacher_assignments'))return;
 		foreach(array('dzn_manage_platform','dzn_issue_student_account_claims','dzn_manage_students','dzn_manage_teachers','dzn_manage_courses','dzn_manage_enrolments','dzn_manage_terms','dzn_manage_lessons','dzn_manage_exceptions','dzn_view_diagnostics','dzn_manage_onboarding','dzn_issue_teacher_invitations','dzn_revoke_teacher_invitations','dzn_view_onboarding_audit','dzn_relink_teacher_principal','dzn_manage_teaching_eligibility','dzn_manage_teacher_availability','dzn_view_booking_requests','dzn_review_booking_request_duplicates','dzn_erase_booking_request_pii','dzn_prepare_booking_request_matches','dzn_manage_booking_request_coordination','dzn_manage_teacher_availability_assent','dzn_issue_booking_request_proposals','dzn_record_booking_request_provisional_acceptance','dzn_resolve_booking_request_student_identity','dzn_manage_student_acceptance_authority','dzn_view_student_acceptance_eligibility','dzn_finalize_service_arrangements','dzn_convert_service_arrangements_to_enrolments','dzn_manage_teacher_assignments','dzn_manage_canonical_terms','dzn_manage_canonical_enrolment_lifecycle','dzn_manage_canonical_lessons','dzn_manage_canonical_lesson_schedules','dzn_override_canonical_lesson_schedule_availability')as$cap)$role->add_cap($cap);

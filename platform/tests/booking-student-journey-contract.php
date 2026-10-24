@@ -24,5 +24,6 @@ $assert(str_contains($routes,"'student-account-claim'") && str_contains($routes,
 $assert(!str_contains($booking,'اعلان‌های کلاس را از طریق واتساپ دریافت می‌کنید'),'Booking confirmation must not promise a notification channel before its transport authority exists.');
 $assert(str_contains($bookingScript, 'const prefilledCountry = country.value') && str_contains($bookingScript, "country.value = prefilledCountry"), 'Returning-student country prefill must survive rebuilding localized country options.');
 $assert(str_contains($bookingScript, 'current === suggestedPhonePrefix'), 'An untouched suggested phone prefix should follow country changes without overwriting an edited number.');
+$assert(str_contains($bookingScript, "if (prefix !== '+…') suggestedPhonePrefix = prefix"), 'A generic placeholder must not replace the last concrete auto-suggested phone prefix.');
 $assert(str_contains($bookingScript, 'validateAccountPassword') && str_contains($bookingScript, 'تکرار رمز با رمز حساب یکسان نیست.'), 'Password confirmation must identify the mismatched field without disclosing account existence.');
 echo "Booking to student journey contract passed\n";

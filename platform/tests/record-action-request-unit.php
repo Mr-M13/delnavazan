@@ -59,6 +59,13 @@ try {
 } catch (RecordActionException $e) { $failed = $e->getMessage() === 'context_invalid'; }
 $assert($failed, 'A tampered record id must invalidate the signed context.');
 
+$tamperedPage = $post; $tamperedPage['page'] = 'dzn-student';
+$failed = false;
+try {
+    RecordActionRequest::fromPost('teacher-archive', $definition, $tamperedPage, 7, static fn(string $cap): bool => true, static fn(): bool => true);
+} catch (RecordActionException $e) { $failed = $e->getMessage() === 'context_invalid'; }
+$assert($failed, 'A tampered page must invalidate the signed context.');
+
 $wrongType = $post; $wrongType['record_type'] = 'student';
 $failed = false;
 try {

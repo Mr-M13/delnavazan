@@ -16,7 +16,7 @@ final class RecordActionRenderer {
         $recordId = (int) ($record->id ?? 0);
         if ($recordId < 1) return;
         foreach ($actions as $key => $definition) {
-            if (!current_user_can((string) $definition['capability'])) continue;
+            if (!current_user_can((string) $definition['capability']) || !current_user_can((string) $definition['record_capability'])) continue;
             self::renderAction((string) $key, $definition, $recordType, $recordId, $page);
         }
         self::script();

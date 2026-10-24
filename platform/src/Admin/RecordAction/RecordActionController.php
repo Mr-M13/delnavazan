@@ -29,7 +29,7 @@ final class RecordActionController {
                 static fn(string $actionKey): bool => wp_verify_nonce(
                     isset($_POST['_wpnonce']) && is_string($_POST['_wpnonce']) ? wp_unslash($_POST['_wpnonce']) : '',
                     'dzn_record_action_' . $actionKey
-                ) === 1
+                ) !== false
             );
         } catch (RecordActionException $exception) {
             self::requestFailure($exception);

@@ -33,6 +33,8 @@ $tampered = $context; $tampered['record_id'] = 43;
 $assert(!RecordActionToken::verify($issued['context_token'], $tampered, 7), 'A client cannot retarget the action to another record.');
 $tampered = $context; $tampered['idempotency_key'] = '11111111-1111-4111-8111-111111111111';
 $assert(!RecordActionToken::verify($issued['context_token'], $tampered, 7), 'A client cannot substitute its own idempotency key.');
+$tampered = $context; $tampered['page'] = 'dzn-student';
+$assert(!RecordActionToken::verify($issued['context_token'], $tampered, 7), 'A client cannot retarget the action to another admin page.');
 $assert(!RecordActionToken::verify($issued['context_token'], $context, 8), 'A token cannot be replayed by another actor.');
 $assert(!RecordActionToken::verify('', $context, 7), 'A missing token must fail closed.');
 $assert(!RecordActionToken::verify($issued['context_token'], $context, 7, (int) $issued['issued_at'] + 7201), 'Expired action forms must fail closed.');

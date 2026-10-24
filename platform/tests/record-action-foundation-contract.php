@@ -39,7 +39,7 @@ $contains($request, array(
     'RecordActionToken::verify($contextToken, $context, $userId)',
     "throw new RecordActionException('context_invalid')",
 ), 'The request boundary must check capability before CSRF and CSRF/signature before dispatch');
-$contains($controller, array('wp_verify_nonce(', "'dzn_record_action_' . \$actionKey"), 'CSRF must be an explicit WordPress nonce verification');
+$contains($controller, array('wp_verify_nonce(', "'dzn_record_action_' . \$actionKey", ') !== false'), 'CSRF must accept both valid WordPress nonce ticks and reject a failed verification');
 
 $contains($token, array(
     'wp_generate_uuid4()',

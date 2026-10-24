@@ -885,7 +885,10 @@ final class ScreenController {
     private static function operatorValue(string $field,mixed $value):string { if(in_array($field,['status','lifecycle_state','from_state','to_state'],true))return match((string)$value){'active'=>'Active','inactive'=>'Inactive','archived'=>'Archived','authorised'=>'Authorised','current'=>'Current','paused'=>'Paused','closed'=>'Closed','cancelled'=>'Cancelled',default=>self::displayValue($value)}; if($field==='course_type')return match((string)$value){'introductory'=>'Introductory Course','standard'=>'Standard Course',default=>self::displayValue($value)}; if($field==='lesson_type')return match((string)$value){'introductory'=>'Introductory class','standard'=>'Regular class','replacement'=>'Replacement class',default=>self::displayValue($value)}; return self::displayValue($value); }
     private static function displayValue(mixed $value): string { return ($value === null || $value === '' || !is_scalar($value)) ? '—' : (string) $value; }
     private static function redirectNotice(string $notice, bool $error = false, array $extra = []): never {
-        $url = add_query_arg(array_merge(['page' => sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform')), 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $extra), admin_url('admin.php'));
+        $page = sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform'));
+        $view = sanitize_key(wp_unslash($_GET['view'] ?? ''));
+        $viewArgs = $page === 'dzn-teachers-menu' && $view === 'onboarding' ? ['view' => 'onboarding'] : [];
+        $url = add_query_arg(array_merge(['page' => $page, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $viewArgs, $extra), admin_url('admin.php'));
         NonceLifecycleDiagnostic::logStage('redirect_enter');
         nocache_headers();
         if (wp_safe_redirect($url)) exit;

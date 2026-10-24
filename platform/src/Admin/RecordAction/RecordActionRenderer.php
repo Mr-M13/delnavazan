@@ -15,7 +15,10 @@ final class RecordActionRenderer {
         if (!$actions) return;
         $recordId = (int) ($record->id ?? 0);
         if ($recordId < 1) return;
-        foreach ($actions as $key => $definition) self::renderAction((string) $key, $definition, $recordType, $recordId, $page);
+        foreach ($actions as $key => $definition) {
+            if (!current_user_can((string) $definition['capability'])) continue;
+            self::renderAction((string) $key, $definition, $recordType, $recordId, $page);
+        }
         self::script();
     }
 
@@ -50,7 +53,7 @@ final class RecordActionRenderer {
         echo '<div class="dzn-record-action-dialog__body">';
         echo '<p id="' . esc_attr($descriptionId) . '">' . esc_html((string) $definition['description']) . '</p>';
         if (!empty($definition['consequence'])) echo '<div class="dzn-record-action-consequence" role="note"><strong>What changes:</strong> ' . esc_html((string) $definition['consequence']) . '</div>';
-        self::renderFields((array) ($definition['fields'] ?? array()));
+        self::renderFields((array) ($definition['fields'] ?? array()), $dialogId);
         if (!empty($definition['require_confirmation'])) {
             echo '<p class="dzn-record-action-confirmation"><label><input type="checkbox" name="confirm" value="1" required> ' . esc_html((string) ($definition['confirmation'] ?? 'I confirm this action.')) . '</label></p>';
         }
@@ -59,28 +62,29 @@ final class RecordActionRenderer {
     }
 
     /** @param array<int, array<string, mixed>> $fields */
-    private static function renderFields(array $fields): void {
+    private static function renderFields(array $fields, string $dialogId): void {
         foreach ($fields as $field) {
             $name = sanitize_key((string) ($field['name'] ?? ''));
             if ($name === '') continue;
+            $fieldId = $dialogId . '-field-' . $name;
             $label = (string) ($field['label'] ?? $name);
             $type = (string) ($field['type'] ?? 'text');
             $required = !empty($field['required']);
             $value = (string) ($field['value'] ?? '');
             $description = (string) ($field['description'] ?? '');
-            echo '<p><label for="dzn-record-action-field-' . esc_attr($name) . '">' . esc_html($label) . '</label>';
+            echo '<p><label for="' . esc_attr($fieldId) . '">' . esc_html($label) . '</label>';
             if ($type === 'textarea') {
-                echo '<textarea id="dzn-record-action-field-' . esc_attr($name) . '" name="' . esc_attr($name) . '" rows="4"' . ($required ? ' required' : '') . '>' . esc_textarea($value) . '</textarea>';
+                echo '<textarea id="' . esc_attr($fieldId) . '" name="' . esc_attr($name) . '" rows="4"' . ($required ? ' required' : '') . '>' . esc_textarea($value) . '</textarea>';
             } elseif ($type === 'select') {
-                echo '<select id="dzn-record-action-field-' . esc_attr($name) . '" name="' . esc_attr($name) . '"' . ($required ? ' required' : '') . '>';
+                echo '<select id="' . esc_attr($fieldId) . '" name="' . esc_attr($name) . '"' . ($required ? ' required' : '') . '>';
                 foreach ((array) ($field['options'] ?? array()) as $optionValue => $optionLabel) {
                     echo '<option value="' . esc_attr((string) $optionValue) . '"' . selected($value, (string) $optionValue, false) . '>' . esc_html((string) $optionLabel) . '</option>';
                 }
                 echo '</select>';
             } elseif ($type === 'checkbox') {
-                echo '<input id="dzn-record-action-field-' . esc_attr($name) . '" type="checkbox" name="' . esc_attr($name) . '" value="1"' . checked($value, '1', false) . '>';
+                echo '<input id="' . esc_attr($fieldId) . '" type="checkbox" name="' . esc_attr($name) . '" value="1"' . checked($value, '1', false) . ($required ? ' required' : '') . '>';
             } else {
-                echo '<input id="dzn-record-action-field-' . esc_attr($name) . '" type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . ($required ? ' required' : '') . '>';
+                echo '<input id="' . esc_attr($fieldId) . '" type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . ($required ? ' required' : '') . '>';
             }
             if ($description !== '') echo '<br><span class="description">' . esc_html($description) . '</span>';
             echo '</p>';
@@ -90,6 +94,6 @@ final class RecordActionRenderer {
     private static function script(): void {
         if (self::$scriptPrinted) return;
         self::$scriptPrinted = true;
-        echo '<script>(function(){if(window.dznRecordActionDialogs)return;window.dznRecordActionDialogs=true;document.addEventListener("click",function(event){var trigger=event.target.closest("[data-dzn-record-action-open]");if(trigger){var dialog=document.getElementById(trigger.getAttribute("data-dzn-record-action-open"));if(dialog){event.preventDefault();if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");}return;}var close=event.target.closest("[data-dzn-record-action-close]");if(close){var owner=close.closest("dialog");if(owner){event.preventDefault();if(typeof owner.close==="function")owner.close();else owner.removeAttribute("open");}}});document.querySelectorAll("dialog[data-dzn-record-action-dialog]").forEach(function(dialog){dialog.addEventListener("click",function(event){if(event.target===dialog){if(typeof dialog.close==="function")dialog.close();else dialog.removeAttribute("open");}});});})();</script>';
+        echo '<script>(function(){if(window.dznRecordActionDialogs)return;window.dznRecordActionDialogs=true;document.addEventListener("click",function(event){var trigger=event.target.closest("[data-dzn-record-action-open]");if(trigger){var dialog=document.getElementById(trigger.getAttribute("data-dzn-record-action-open"));if(dialog){event.preventDefault();if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");}return;}var close=event.target.closest("[data-dzn-record-action-close]");if(close){var owner=close.closest("dialog");if(owner){event.preventDefault();if(typeof owner.close==="function")owner.close();else owner.removeAttribute("open");}return;}if(event.target.matches("dialog[data-dzn-record-action-dialog]")){var backdrop=event.target;if(typeof backdrop.close==="function")backdrop.close();else backdrop.removeAttribute("open");}});})();</script>';
     }
 }

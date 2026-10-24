@@ -28,7 +28,7 @@ final class RecordActionToken {
     }
 
     public static function sign(array $context): string {
-        return wp_hash(self::payload($context), 'auth');
+        return hash_hmac('sha256', 'dzn_record_action:v1:' . self::payload($context), wp_salt('dzn_record_action'));
     }
 
     public static function verify(string $token, array $context, int $userId, ?int $now = null): bool {
@@ -50,6 +50,6 @@ final class RecordActionToken {
             'issued_at' => (int) ($context['issued_at'] ?? 0),
             'user_id' => (int) ($context['user_id'] ?? 0),
         );
-        return implode('|', $fields);
+        return (string) json_encode($fields, JSON_UNESCAPED_SLASHES);
     }
 }

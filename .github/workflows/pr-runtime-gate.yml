@@ -194,6 +194,7 @@ jobs:
           php platform/tests/teacher-portal-presentation-contract.php
           php platform/tests/admin-navigation-regression-contract.php
           php platform/tests/record-action-token-unit.php
+          php platform/tests/record-action-request-unit.php
           php platform/tests/record-action-registry-unit.php
           php platform/tests/record-action-foundation-contract.php
           php platform/tests/admin-navigation-teacher-finance-contract.php

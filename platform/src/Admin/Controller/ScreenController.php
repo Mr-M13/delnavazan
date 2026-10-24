@@ -235,7 +235,26 @@ final class ScreenController {
             }
             echo '</tbody></table>';return;
         }
-        if ($entity === 'teacher') { self::teacherInvitationPanel(); if (current_user_can('dzn_manage_teachers')) self::teacherDirectory(); self::teacherCoverage(); return; }
+        if ($entity === 'teacher') {
+            $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
+            // Generic onboarding links (Academy, dashboard widgets and the operations portal)
+            // predate the two-tab Teachers shell. Land onboarding-only staff on their own view.
+            if ($view === '' && !current_user_can('dzn_manage_teachers') && current_user_can(Menu::TEACHER_ONBOARDING_CAP)) {
+                $view = 'onboarding';
+            }
+            if ($view === 'onboarding') {
+                if (!current_user_can(Menu::TEACHER_ONBOARDING_CAP)) { self::forbidden(); return; }
+                self::teacherInvitationPanel();
+                return;
+            }
+            if (!current_user_can('dzn_manage_teachers')) {
+                echo '<p>Teacher overview requires teacher maintenance access. Use <strong>Onboarding &amp; Invitations</strong> for your permitted work.</p>';
+                return;
+            }
+            self::teacherDirectory();
+            self::teacherCoverage();
+            return;
+        }
         try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
         catch (\InvalidArgumentException $exception) {
             if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
@@ -858,7 +877,10 @@ final class ScreenController {
     private static function operatorValue(string $field,mixed $value):string { if(in_array($field,['status','lifecycle_state','from_state','to_state'],true))return match((string)$value){'active'=>'Active','inactive'=>'Inactive','archived'=>'Archived','authorised'=>'Authorised','current'=>'Current','paused'=>'Paused','closed'=>'Closed','cancelled'=>'Cancelled',default=>self::displayValue($value)}; if($field==='course_type')return match((string)$value){'introductory'=>'Introductory Course','standard'=>'Standard Course',default=>self::displayValue($value)}; if($field==='lesson_type')return match((string)$value){'introductory'=>'Introductory class','standard'=>'Regular class','replacement'=>'Replacement class',default=>self::displayValue($value)}; return self::displayValue($value); }
     private static function displayValue(mixed $value): string { return ($value === null || $value === '' || !is_scalar($value)) ? '—' : (string) $value; }
     private static function redirectNotice(string $notice, bool $error = false, array $extra = []): never {
-        $url = add_query_arg(array_merge(['page' => sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform')), 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $extra), admin_url('admin.php'));
+        $page = sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform'));
+        $view = sanitize_key(wp_unslash($_GET['view'] ?? ''));
+        $viewArgs = $page === 'dzn-teachers-menu' && $view === 'onboarding' ? ['view' => 'onboarding'] : [];
+        $url = add_query_arg(array_merge(['page' => $page, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $viewArgs, $extra), admin_url('admin.php'));
         NonceLifecycleDiagnostic::logStage('redirect_enter');
         nocache_headers();
         if (wp_safe_redirect($url)) exit;

@@ -80,6 +80,9 @@ final class NonceLifecycleDiagnostic {
             'dzn-enrolment' => 'dzn_manage_enrolments',
             'dzn-term' => 'dzn_manage_terms',
             'dzn-lesson' => 'dzn_manage_lessons',
+            'dzn-enrolment-workspace' => \Delnavazan\Platform\Admin\Controller\Menu::ENROLMENT_WORKSPACE_CAP,
+            'dzn-catalogue-workspace' => \Delnavazan\Platform\Admin\Controller\Menu::CATALOGUE_WORKSPACE_CAP,
+            'dzn-attendance-workspace' => \Delnavazan\Platform\Admin\Controller\Menu::ATTENDANCE_WORKSPACE_CAP,
             'dzn-exception' => 'dzn_manage_exceptions',
         ][$page] ?? '';
     }

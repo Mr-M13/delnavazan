@@ -23,7 +23,11 @@ final class AcademyOperationsController {
         echo '<form method="get"><input type="hidden" name="page" value="dzn-academy-dashboard"><label>Search name, email, booking reference, instrument or course <input type="search" name="q" value="'.esc_attr($query).'"></label> <label>Needs action <select name="stage"><option value="needs_action"'.selected($stage,'needs_action',false).'>Action queue</option><option value="">All records</option>';
         foreach(array('needs_coordination'=>'Coordination','needs_identity'=>'Student identity review','needs_acceptance'=>'Acceptance','needs_enrolment'=>'Enrolment conversion','needs_assignment'=>'Teacher assignment','complete'=>'Assignment complete')as$value=>$label)echo '<option value="'.esc_attr($value).'"'.selected($stage,$value,false).'>'.esc_html($label).'</option>';
         echo '</select></label> <button class="button">Search</button></form><p><strong>'.(int)$result['total'].'</strong> matching learner journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
-        self::classOperationalState($view);
+        self::classOperationalState();
+        if (in_array($view, array('upcoming', 'attention'), true)) {
+            $target = $view === 'upcoming' ? 'dzn-academy-today-upcoming' : 'dzn-academy-attention';
+            echo '<script>document.getElementById(' . wp_json_encode($target) . ')?.scrollIntoView();</script>';
+        }
         echo '<h2>Needs attention</h2>';
         $detailId=isset($_GET['detail_request_id'])&&is_scalar($_GET['detail_request_id'])?absint($_GET['detail_request_id']):0;
         if($detailId>0)foreach($rows as$r)if((int)$r->request_id===$detailId){self::journeyDetail($r);break;}
@@ -40,15 +44,15 @@ final class AcademyOperationsController {
         global $wpdb;$p=$wpdb->prefix.'dzn_';$items=[];
         if(current_user_can('dzn_manage_onboarding')){
             $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
-            $items[]=['Teacher onboarding submissions',$count,'dzn-teachers-menu','Review and decide'];
+            $items[]=['Teacher onboarding submissions',$count,'dzn-teachers-menu','Review and decide',['view'=>'onboarding']];
         }
         if(current_user_can('dzn_manage_booking_request_coordination')){
             $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
-            $items[]=['Teacher booking requests pending response',$count,'dzn-booking-requests','Review request delivery'];
+            $items[]=['Teacher booking requests pending response',$count,'dzn-booking-requests','Review request delivery',[]];
         }
         if(!$items)return;
         echo '<section class="notice notice-warning dzn-academy-pending-actions"><h2>Pending actions</h2><ul>';
-        foreach($items as[$label,$count,$page,$action])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(admin_url('admin.php?page='.$page)).'">'.esc_html($action).'</a></li>';
+        foreach($items as[$label,$count,$page,$action,$args])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(add_query_arg(array_merge(['page'=>$page],$args),admin_url('admin.php'))).'">'.esc_html($action).'</a></li>';
         echo '</ul></section>';
     }
     private static function journeyDetail(object $r):void{
@@ -61,37 +65,39 @@ final class AcademyOperationsController {
      * intentionally does not query lesson tables or expose class data to an actor
      * who cannot open the existing Classes authority screen.
      */
-    private static function classOperationalState(string $view = 'overview'): void {
+    private static function classOperationalState(): void {
         if (!current_user_can('dzn_manage_lessons')) return;
         $rows = (new CoreReadService())->classOperatorRows();
         $attention = array_values(array_filter($rows, static fn(object $row): bool => in_array((string) $row->class_status, array('Integrity review needed', 'Schedule needs review', 'Ready to schedule'), true)));
         $todayRows = array_values(array_filter($rows, static fn(object $row): bool => self::scheduleDate($row) !== '' && self::scheduleDate($row) === self::todayInScheduleTimezone($row)));
         $upcoming = array_values(array_filter($rows, static fn(object $row): bool => self::scheduleDate($row) > self::todayInScheduleTimezone($row)));
-        $heading = $view === 'upcoming' ? 'Today and upcoming lessons' : ($view === 'attention' ? 'Attention needed' : 'Classes: today and next');
-        echo '<section class="dzn-academy-class-state"><h2>'.esc_html($heading).'</h2><p>Live class state from the existing Classes read model. Times remain in each class’s scheduled time zone.</p><div class="dzn-academy-class-state__summary"><strong>'.(int) count($attention).'</strong> class'.(count($attention) === 1 ? '' : 'es').' need scheduling or integrity review · <strong>'.(int) count($todayRows).'</strong> scheduled today</div>';
-        if ($view !== 'upcoming') {
-            if ($attention) {
-                echo '<h3>Class attention</h3><ul>';
-                foreach (array_slice($attention, 0, $view === 'attention' ? 20 : 3) as $row) {
-                    $url = self::classUrl($row);
-                    $label = (string) ($row->student_name ?: $row->course_name ?: 'Class');
-                    echo '<li><a href="'.esc_url($url).'">'.esc_html($label).'</a> · '.esc_html((string) $row->class_status).'</li>';
-                }
-                if ($view !== 'attention' && count($attention) > 3) echo '<li>Plus '.(int) (count($attention) - 3).' more in Classes.</li>';
-                echo '</ul>';
-            } elseif ($view === 'attention') {
-                echo '<p>No classes currently need scheduling or integrity review.</p>';
+        echo '<section class="dzn-academy-class-state" id="dzn-academy-classes"><h2>Classes: today and next</h2><p>Live class state from the existing Classes read model. Times remain in each class’s scheduled time zone.</p><div class="dzn-academy-class-state__summary"><strong>'.(int) count($attention).'</strong> class'.(count($attention) === 1 ? '' : 'es').' need scheduling or integrity review · <strong>'.(int) count($todayRows).'</strong> scheduled today</div>';
+        echo '<div id="dzn-academy-attention"><h3>Attention needed</h3>';
+        if ($attention) {
+            echo '<ul>';
+            foreach (array_slice($attention, 0, 20) as $row) {
+                $url = self::classUrl($row);
+                $label = (string) ($row->student_name ?: $row->course_name ?: 'Class');
+                echo '<li><a href="'.esc_url($url).'">'.esc_html($label).'</a> · '.esc_html((string) $row->class_status).'</li>';
             }
+            if (count($attention) > 20) echo '<li>Plus '.(int) (count($attention) - 20).' more in Classes.</li>';
+            echo '</ul>';
+        } else {
+            echo '<p>No classes currently need scheduling or integrity review.</p>';
         }
-        if ($view === 'attention') { echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>'; return; }
-        if (!$todayRows && !$upcoming) { echo '<p>No scheduled classes are currently visible in the Classes workflow.</p><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>'; return; }
-        echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student / course</th><th>Teacher</th><th>Class state</th><th></th></tr></thead><tbody>';
-        foreach (array_slice(array_merge($todayRows, $upcoming), 0, $view === 'upcoming' ? 20 : 6) as $row) {
-            $url = self::classUrl($row);
-            $action = ($row->record_model ?? '') === 'confirmed_intro_booking_v1' ? 'Open booking' : 'Open class';
-            echo '<tr><td>'.esc_html((string) $row->schedule_label).'</td><td>'.esc_html((string) ($row->student_name ?: 'Student')).'<br><small>'.esc_html((string) ($row->course_name ?: 'Course')).'</small></td><td>'.esc_html((string) ($row->teacher_name ?: 'Teacher')).'</td><td>'.esc_html((string) $row->class_status).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html($action).'</a></td></tr>';
+        echo '</div><div id="dzn-academy-today-upcoming"><h3>Today and upcoming lessons</h3>';
+        if (!$todayRows && !$upcoming) {
+            echo '<p>No scheduled classes are currently visible in the Classes workflow.</p>';
+        } else {
+            echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student / course</th><th>Teacher</th><th>Class state</th><th></th></tr></thead><tbody>';
+            foreach (array_slice(array_merge($todayRows, $upcoming), 0, 20) as $row) {
+                $url = self::classUrl($row);
+                $action = ($row->record_model ?? '') === 'confirmed_intro_booking_v1' ? 'Open booking' : 'Open class';
+                echo '<tr><td>'.esc_html((string) $row->schedule_label).'</td><td>'.esc_html((string) ($row->student_name ?: 'Student')).'<br><small>'.esc_html((string) ($row->course_name ?: 'Course')).'</small></td><td>'.esc_html((string) ($row->teacher_name ?: 'Teacher')).'</td><td>'.esc_html((string) $row->class_status).'</td><td><a class="button" href="'.esc_url($url).'">'.esc_html($action).'</a></td></tr>';
+            }
+            echo '</tbody></table>';
         }
-        echo '</tbody></table><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>';
+        echo '</div><p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-lesson')).'">Open Classes</a></p></section>';
     }
     private static function classUrl(object $row): string {
         if (($row->record_model ?? '') === 'confirmed_intro_booking_v1') {

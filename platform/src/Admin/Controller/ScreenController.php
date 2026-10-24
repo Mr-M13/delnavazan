@@ -235,7 +235,21 @@ final class ScreenController {
             }
             echo '</tbody></table>';return;
         }
-        if ($entity === 'teacher') { self::teacherInvitationPanel(); if (current_user_can('dzn_manage_teachers')) self::teacherDirectory(); self::teacherCoverage(); return; }
+        if ($entity === 'teacher') {
+            $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
+            if ($view === 'onboarding') {
+                if (!current_user_can(Menu::TEACHER_ONBOARDING_CAP)) { self::forbidden(); return; }
+                self::teacherInvitationPanel();
+                return;
+            }
+            if (!current_user_can('dzn_manage_teachers')) {
+                echo '<p>Teacher overview requires teacher maintenance access. Use <strong>Onboarding &amp; Invitations</strong> for your permitted work.</p>';
+                return;
+            }
+            self::teacherDirectory();
+            self::teacherCoverage();
+            return;
+        }
         try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
         catch (\InvalidArgumentException $exception) {
             if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;

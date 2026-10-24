@@ -20,20 +20,17 @@ $operations = (string) file_get_contents($root . '/../theme/inc/operations.php')
 
 $contains($shell, array(
     "'academy' => ['Academy'",
-    "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests', ['view' => 'overview']]",
-    "['Today and upcoming lessons', 'dzn-academy-dashboard', 'dzn_manage_lessons', ['view' => 'upcoming']]",
-    "['Attention needed', 'dzn-academy-dashboard', 'dzn_manage_lessons', ['view' => 'attention']]",
+    "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "'teachers' => ['Teachers'",
-    "['Teacher-specific rates', 'dzn-finance-rates', 'dzn_view_finance_authority']",
-    "['Lesson payability', 'dzn-finance-payability', 'dzn_view_finance_authority']",
-    "['Teacher reconciliation', 'dzn-finance-statements', 'dzn_view_finance_authority']",
+    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
+    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
     "'enrolment' => ['Enrolment'",
-    "['Classes and schedule', 'dzn-lesson', 'dzn_manage_lessons']",
-    "['Booking requests', 'dzn-booking-requests', 'dzn_view_booking_requests']",
-    "['Enrolments', 'dzn-enrolment', 'dzn_manage_enrolments']",
-    "['Terms', 'dzn-term', 'dzn_manage_terms']",
-    "['Catalogue and operational exceptions', 'dzn-exception', 'dzn_manage_exceptions']",
+    "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
+    "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
+    "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
     "'finance' => ['Finance'",
+    "['Lesson payability', 'dzn-finance-payability', 'dzn_view_finance_authority']",
     "['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']",
     "['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority']",
     "['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger']",
@@ -41,22 +38,40 @@ $contains($shell, array(
     "'settings' => ['Settings'",
     "['General', 'dzn-general', 'manage_options']",
     "['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health']",
+    "['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP]",
     'http_build_query',
     'Menu::CORE_WORKFLOW_CAP',
 ), 'navigation must consolidate into Academy, Teachers, Students, Enrolment, Finance and Settings while retaining protected routes');
 foreach (array("'courses' => ['Courses'", "'communications' => ['Communications'", "'enrolments_classes' => ['Enrolments / Classes'") as $removedTab) {
     $expect(!str_contains($shell, $removedTab), 'redundant top-level tab must be consolidated, not duplicated: ' . $removedTab);
 }
+$expect(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
+$expect(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teachers must expose exactly Overview and Onboarding & Invitations');
 $contains($menu, array(
     'CORE_WORKFLOW_CAP',
     'mappedCoreWorkflowCaps',
+    'TEACHER_ONBOARDING_CAP',
+    'ENROLMENT_WORKSPACE_CAP',
+    'CATALOGUE_WORKSPACE_CAP',
+    'ATTENDANCE_WORKSPACE_CAP',
+    "['Bookings and enrolments', self::ENROLMENT_WORKSPACE_CAP, 'dzn-enrolment-workspace'",
+    "['Courses and instruments', self::CATALOGUE_WORKSPACE_CAP, 'dzn-catalogue-workspace'",
+    "['Attendance and post-intro', self::ATTENDANCE_WORKSPACE_CAP, 'dzn-attendance-workspace'",
     "['General', GeneralSettingsController::CAPABILITY",
     "['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'",
-), 'route registration must retain every protected destination and add one General page');
+), 'route registration must retain every protected destination and add the consolidated workspace routes');
+$enrolmentWorkspace = $read('EnrolmentWorkspaceController.php');
+$catalogueWorkspace = $read('CatalogueWorkspaceController.php');
+$attendanceWorkspace = $read('AttendanceWorkspaceController.php');
+$contains($enrolmentWorkspace, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must preserve the authorised booking, coordination, enrolment and Term workflows');
+$contains($catalogueWorkspace, array('dzn-course', 'dzn-instrument', 'dzn-commercial-catalogue', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must preserve catalogue, instrument, pricing and exception workflows');
+$contains($attendanceWorkspace, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must preserve attendance, post-intro and class-outcome workflows');
 $contains($academy, array(
-    "private static function classOperationalState(string \$view = 'overview'): void",
-    "'Today and upcoming lessons'",
-    "'Attention needed'",
+    "private static function classOperationalState(): void",
+    '>Today and upcoming lessons<',
+    '>Attention needed<',
+    "'dzn-academy-attention'",
+    "'dzn-academy-today-upcoming'",
     '(new CoreReadService())->classOperatorRows()',
     'self::classUrl($row)',
     "'confirmed_intro_booking_v1'",
@@ -64,7 +79,7 @@ $contains($academy, array(
     'schedule_starts_at_utc',
     'scheduleUtcInstant',
     'setTimezone(new \\DateTimeZone($timezone))',
-), 'Academy views must preserve confirmed-intro visibility, booking links, chronological UTC ordering and timezone-aware classification');
+), 'Academy must render the combined dashboard with confirmed-intro visibility, booking links, chronological UTC ordering and timezone-aware classification');
 $contains($coreRead, array(
     'private function sortClassRows(array $rows): array',
     'schedule_starts_at_utc',

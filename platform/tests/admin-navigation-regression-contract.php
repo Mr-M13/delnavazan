@@ -121,7 +121,7 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
     || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {
     throw new RuntimeException( 'Academy dashboard data must come from its capability-gated application read projection.' );
 }
-if ( ! str_contains( $operations, "private static function classOperationalState(string \$view = 'overview'): void" )
+if ( ! str_contains( $operations, "private static function classOperationalState(): void" )
     || ! str_contains( $operations, "current_user_can('dzn_manage_lessons')" )
     || ! str_contains( $operations, '(new CoreReadService())->classOperatorRows()' )
     || ! str_contains( $operations, 'Classes: today and next' )

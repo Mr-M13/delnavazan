@@ -14,29 +14,29 @@ final class RecordActionRegistry {
     /** @return array<string, array<string, mixed>> */
     public static function definitions(): array {
         return array(
-            'student-archive' => array(
-                'label' => 'Archive student',
-                'description' => 'Remove this student from active operational lists while preserving their history.',
-                'record_type' => 'student',
-                'record_capability' => 'dzn_manage_students',
-                'capability' => 'dzn_manage_students',
-                'submit_label' => 'Archive student',
+            'teacher-archive' => array(
+                'label' => 'Archive teacher',
+                'description' => 'Archive this teacher, revoke open invitations and Teacher-only access, and preserve teaching and audit history.',
+                'record_type' => 'teacher',
+                'record_capability' => 'dzn_manage_teachers',
+                'capability' => 'dzn_manage_teachers',
+                'submit_label' => 'Archive teacher',
                 'require_confirmation' => true,
-                'confirmation' => 'I understand that the student will leave active lists and existing records will remain in history.',
-                'consequence' => 'Archiving stops this student appearing in active lists. It does not delete the student, enrolments, lessons, payments or audit history. A dependent enrolment or schedule may block archiving.',
+                'confirmation' => 'I understand that this revokes open invitations and Teacher-only access while preserving history.',
+                'consequence' => 'Archiving preserves the Teacher and all teaching/audit records, revokes open invitations and the Teacher-only WordPress role, and leaves other roles unchanged. Current teaching assignments or active future schedules may block archiving.',
                 'fields' => array(),
                 'visible' => static fn(object $record): bool => ($record->archived_at ?? null) === null && (string) ($record->status ?? '') !== 'archived',
             ),
-            'student-restore' => array(
-                'label' => 'Restore student',
-                'description' => 'Return this archived student to the active student directory.',
-                'record_type' => 'student',
-                'record_capability' => 'dzn_manage_students',
-                'capability' => 'dzn_manage_students',
-                'submit_label' => 'Restore student',
+            'teacher-restore' => array(
+                'label' => 'Restore teacher',
+                'description' => 'Restore this archived teacher profile so a new invitation can be issued.',
+                'record_type' => 'teacher',
+                'record_capability' => 'dzn_manage_teachers',
+                'capability' => 'dzn_manage_teachers',
+                'submit_label' => 'Restore teacher',
                 'require_confirmation' => true,
-                'confirmation' => 'I understand that restoring changes the student status but does not recreate any deleted records.',
-                'consequence' => 'Restoring returns this student to the active directory. Existing archival history and audit evidence remain.',
+                'confirmation' => 'I understand that restoring does not automatically restore Teacher access.',
+                'consequence' => 'Restoring makes the profile eligible for a new invitation. It does not restore Teacher access automatically; a new invitation and onboarding decision are still required. Existing archival and audit history remains.',
                 'fields' => array(),
                 'visible' => static fn(object $record): bool => ($record->archived_at ?? null) !== null || (string) ($record->status ?? '') === 'archived',
             ),
@@ -68,12 +68,12 @@ final class RecordActionRegistry {
         }
         $archive = new ArchiveService();
         return match ($key) {
-            'student-archive' => self::run(static function () use ($archive, $context): void {
-                $archive->archive('student', $context->recordId());
-            }, 'Student archived.'),
-            'student-restore' => self::run(static function () use ($archive, $context): void {
-                $archive->restore('student', $context->recordId());
-            }, 'Student restored.'),
+            'teacher-archive' => self::run(static function () use ($archive, $context): void {
+                $archive->archive('teacher', $context->recordId());
+            }, 'Teacher archived.'),
+            'teacher-restore' => self::run(static function () use ($archive, $context): void {
+                $archive->restore('teacher', $context->recordId());
+            }, 'Teacher restored.'),
             default => throw new RecordActionException('unsupported_record_action'),
         };
     }

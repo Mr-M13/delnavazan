@@ -57,7 +57,9 @@ final class ScreenController {
         NonceLifecycleDiagnostic::logStage('submenu_callback');
         if ($screen === 'exception') { self::exceptionScreen(); return; }
         if (!isset(self::ENTITIES[$screen]) || !current_user_can(self::ENTITIES[$screen][1])) { self::forbidden(); return; }
-        self::renderMessages(); $id = absint($_GET['id'] ?? 0);
+        self::renderMessages();
+        \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderNotices();
+        $id = absint($_GET['id'] ?? 0);
         echo '<div class="wrap"><h1>Delnavazan ' . esc_html(self::ENTITIES[$screen][0]) . '</h1>';
         if ($id) {
             try { self::entityDetail($screen, $id); }
@@ -559,7 +561,7 @@ final class ScreenController {
             echo '<p>Communication history is not available on this profile.</p>';
         } else {
             echo '<h3>Administration</h3><p>Archiving removes this student from active operational lists. Existing records remain available.</p>';
-            self::archiveActions('student',$id,(string)$student->status);
+            \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::render('student', $student, 'dzn-student');
         }
     }
 

@@ -73,7 +73,7 @@
   const minDate = localDate(tomorrow);
   const maxDate = localDate(latest);
   const detectedZone = detectZone();
-  if (detectedZone && Array.from(timezone.options).some((option) => option.value === detectedZone)) timezone.value = detectedZone;
+  if (!timezone.dataset.prefilled && detectedZone && Array.from(timezone.options).some((option) => option.value === detectedZone)) timezone.value = detectedZone;
   dateCursor = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), 1);
 
   const copy = {
@@ -102,7 +102,10 @@
     const mobile = root.querySelector('[data-contact="mobile"]');
     const prefix = phoneExamples[country.value] || '+…';
     if (hint) hint.textContent = 'کد تماس بین‌المللی را وارد کنید؛ برای این کشور معمولاً ' + prefix + '.';
-    if (mobile) mobile.placeholder = prefix + ' …';
+    if (mobile) {
+      mobile.placeholder = prefix + ' …';
+      if (!mobile.value.trim() && prefix !== '+…') mobile.value = prefix;
+    }
   };
 
   const countryCodes = 'AF AL DZ AD AO AG AR AM AU AT AZ BS BH BD BB BY BE BZ BJ BT BO BA BW BR BN BG BF BI CV KH CM CA CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI XK KW KG LA LV LB LS LR LY LI LT LU MG MW MY MV ML MT MH MR MU MX FM MD MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG KP MK NO OM PK PW PA PG PY PE PH PL PT QA RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA KR SS ES LK SD SR SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TV UG UA AE GB US UY UZ VU VA VE VN YE ZM ZW'.split(' ');
@@ -150,7 +153,7 @@
       else if ((detectedZone || '').startsWith('Pacific/')) region = 'NZ';
       else if (detectedZone === 'Asia/Tehran') region = 'IR';
     }
-    if (region && country.querySelector('option[value="' + region + '"]')) country.value = region;
+    if (!country.value && region && country.querySelector('option[value="' + region + '"]')) country.value = region;
     updatePhoneHint();
     populateCities();
   };

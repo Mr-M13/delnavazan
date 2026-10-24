@@ -43,6 +43,20 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         return is_array($rows) ? $rows : array();
     }
 
+    /** All ranked student preferences remain visible to the selected Teacher. */
+    public function requestedTimes(int $requestId): array {
+        global $wpdb;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT sequence_number,local_date,local_start_time,timezone,starts_at_utc
+             FROM {$this->prefix}booking_request_requested_times
+             WHERE booking_request_id=%d
+             ORDER BY sequence_number ASC LIMIT 3",
+            $requestId
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher booking preference read unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
     /**
      * Provider-complete introductory classes for one Teacher's upcoming schedule.
      *

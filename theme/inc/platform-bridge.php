@@ -205,6 +205,9 @@ function dzn_theme_platform_student_model( $screen ) {
 	$lessons = is_array( $data['lessons'] ?? null ) ? $data['lessons'] : array();
 	$enrolments = is_array( $data['enrolments'] ?? null ) ? $data['enrolments'] : array();
 	$booking_requests = is_array( $data['booking_requests'] ?? null ) ? $data['booking_requests'] : array();
+	$student_profile = is_array( $data['profile'] ?? null ) ? $data['profile'] : array();
+	$student_timezone = (string) ( $student_profile['timezone'] ?? '' );
+	if ( ! in_array( $student_timezone, timezone_identifiers_list(), true ) ) { $student_timezone = wp_timezone_string() ?: 'UTC'; }
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'student_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
 	$post_intro = array_values( array_filter( (array) ( $data['post_intro'] ?? array() ), 'is_array' ) );
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes, $post_intro );
@@ -223,16 +226,16 @@ function dzn_theme_platform_student_model( $screen ) {
 		'state' => 'ok',
 		'screen' => $screen,
 		'source' => 'platform',
-		'student' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ),
+		'student' => array( 'first_name' => $identity['first_name'], 'full_name' => (string) ( $student_profile['full_name'] ?? $identity['full_name'] ) ),
 		'navigation' => $navigation,
 	);
 	if ( 'account' === $screen ) {
 		$model['profile'] = array(
-			'full_name' => $identity['full_name'],
-			'email' => $identity['email'],
-			'mobile' => '',
-			'timezone_label' => wp_timezone_string() ?: 'UTC',
-			'timezone' => wp_timezone_string() ?: 'UTC',
+			'full_name' => (string) ( $student_profile['full_name'] ?? $identity['full_name'] ),
+			'email' => (string) ( $student_profile['email'] ?? $identity['email'] ),
+			'mobile' => (string) ( $student_profile['mobile'] ?? '' ),
+			'timezone_label' => $student_timezone,
+			'timezone' => $student_timezone,
 			'password_url' => wp_lostpassword_url(),
 		);
 		$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 20 ) );
@@ -250,7 +253,9 @@ function dzn_theme_platform_student_model( $screen ) {
 	$enrolment = $next && ! $is_booking ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
     $next_end = $next ? strtotime( (string) ( $next['ends_at_utc'] ?? '' ) . ' UTC' ) : false;
     $within_join_window = $next_start && $next_end && $now >= $next_start - HOUR_IN_SECONDS && $now <= $next_end + ( 2 * HOUR_IN_SECONDS );
-	$display_timezone = (string) ( $next['schedule_timezone'] ?? '' ) ?: ( wp_timezone_string() ?: 'UTC' );
+	// Lesson schedules are UTC facts. Students always see them in their own
+	// canonical profile timezone, never in the teacher's schedule timezone.
+	$display_timezone = $student_timezone;
 	$model['announcement'] = array();
 	$model['booking_requests'] = array_values( array_filter( $booking_requests, static fn( $row ) => is_array( $row ) && 'student_booking_request_v1' === ( $row['version'] ?? '' ) ) );
 	$model['upcoming_lesson'] = $next ? array(
@@ -503,11 +508,16 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$bookingAttention=array_map(static function($request)use($teacherZone){
 		$start=new DateTimeImmutable((string)$request->starts_at_utc,new DateTimeZone('UTC'));
 		$teacherTime=$start->setTimezone($teacherZone)->format('l j F، H:i');
+		$preferences=array();
+		foreach((array)($request->requested_times??array()) as $preference){
+			try{$at=new DateTimeImmutable((string)($preference['starts_at_utc']??''),new DateTimeZone('UTC'));$preferences[]=$at->setTimezone($teacherZone)->format('l j F، H:i');}catch(Throwable){}
+		}
+		$preferenceText=$preferences?' اولویت‌های هنرجو: '.implode(' · ',$preferences).'.':'';
 		return array(
 			'ref'=>(string)$request->delivery_uid,'action_available'=>true,'authoritative_request'=>true,'state'=>'intro_request',
 			'title'=>'درخواست تازهٔ کلاس آشنایی',
 			'context'=>(string)$request->full_name.' · '.(string)($request->instrument_name?:$request->course_name),
-			'message'=>$teacherTime.' به وقت شما · این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.',
+			'message'=>$teacherTime.' به وقت شما · این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.'.$preferenceText,
 			'due'=>'در انتظار پاسخ','primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());

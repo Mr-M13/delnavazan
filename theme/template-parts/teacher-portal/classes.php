@@ -54,6 +54,7 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 	</div>
 	<?php if ( $valid ) : ?>
 	<div class="dzn-tp-actions">
+		<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>">افزودن به تقویم</a><?php endif; ?>
 		<?php if ( true === $item['start_available'] ) : ?>
 			<form method="post" target="_blank" rel="noopener noreferrer" action="<?php echo esc_url( (string) ( $item['join_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit data-dzn-tp-reenable="5000"><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['join_nonce'] ?? '' ) ); ?>"><?php if ( ! empty( $item['confirmation_uid'] ) ) : ?><input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) $item['confirmation_uid'] ); ?>"><?php else : ?><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><?php endif; ?><button class="dzn-button dzn-tp-btn-join" type="submit" data-dzn-tp-busy-label="در حال باز کردن کلاس…"><span aria-hidden="true">▶</span> شروع کلاس</button></form>
 		<?php else : ?>

@@ -126,8 +126,6 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			<?php dzn_theme_portal_component( 'upcoming-lesson', array( 'lesson' => $model['upcoming_lesson'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => false ) ); ?>
-			<?php dzn_theme_portal_component( 'feedback' ); ?>
-			<?php dzn_theme_portal_component( 'contact', array( 'contact' => $model['contact'] ?? array() ) ); ?>
 		<?php endif; ?>
 	</div>
 </main>

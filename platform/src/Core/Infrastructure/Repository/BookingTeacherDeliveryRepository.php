@@ -22,7 +22,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         global $wpdb;
         $limit = max(1, min(50, $limit));
         $sql = "SELECT d.uid delivery_uid,d.state delivery_state,d.match_strength,d.created_at,
-                       r.reference_code request_reference,s.full_name,
+                       r.id booking_request_id,r.reference_code request_reference,s.full_name,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
                        COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,
                        rt.local_date,rt.local_start_time,rt.timezone student_timezone,
@@ -40,6 +40,20 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                 ORDER BY rt.starts_at_utc ASC,d.id ASC LIMIT %d";
         $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $limit));
         if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher booking inbox unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
+    /** All ranked student preferences remain visible to the selected Teacher. */
+    public function requestedTimes(int $requestId): array {
+        global $wpdb;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT sequence_number,local_date,local_start_time,timezone,starts_at_utc
+             FROM {$this->prefix}booking_request_requested_times
+             WHERE booking_request_id=%d
+             ORDER BY sequence_number ASC LIMIT 3",
+            $requestId
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher booking preference read unavailable');
         return is_array($rows) ? $rows : array();
     }
 

@@ -71,7 +71,14 @@ final class BookingTeacherDeliveryService {
         if ($user < 1) throw new \RuntimeException('Unauthorized');
         $teacher = (new \Delnavazan\Platform\Core\Infrastructure\Repository\TeacherAvailabilityRepository())->activeTeacherIdForUser($user);
         if (!$teacher) throw new \RuntimeException('Active ready Teacher required');
-        return $this->deliveries->pendingForTeacher($teacher);
+        $deliveries = $this->deliveries->pendingForTeacher($teacher);
+        foreach ($deliveries as $delivery) {
+            // The delivery retains one matchable time for the authoritative
+            // response action, while the read projection exposes every ranked
+            // preference for the teacher's informed choice.
+            $delivery->requested_times = $this->deliveries->requestedTimes((int) $delivery->booking_request_id);
+        }
+        return $deliveries;
     }
 
     private function coverageState(int $teacherId, string $start, string $end): ?string {

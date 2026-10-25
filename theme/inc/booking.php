@@ -28,8 +28,18 @@ function dzn_theme_render_booking_route(): void {
     $requested_name = isset( $_GET['instrument_name'] ) && is_string( $_GET['instrument_name'] ) ? sanitize_text_field( wp_unslash( $_GET['instrument_name'] ) ) : '';
     $selected = null;
     $booking_user = is_user_logged_in() ? wp_get_current_user() : null;
-    $booking_name = $booking_user ? trim( (string) $booking_user->display_name ) : '';
-    $booking_email = $booking_user ? trim( (string) $booking_user->user_email ) : '';
+    $booking_profile = array();
+    if ( $booking_user && function_exists( 'dzn_theme_platform_student_read' ) ) {
+        $student_read = dzn_theme_platform_student_read();
+        if ( 'ok' === ( $student_read['state'] ?? '' ) && is_array( $student_read['data']['profile'] ?? null ) ) { $booking_profile = $student_read['data']['profile']; }
+    }
+    $booking_name = trim( (string) ( $booking_profile['full_name'] ?? ( $booking_user ? $booking_user->display_name : '' ) ) );
+    $booking_email = trim( (string) ( $booking_profile['email'] ?? ( $booking_user ? $booking_user->user_email : '' ) ) );
+    $booking_country = strtoupper( (string) ( $booking_profile['country_code'] ?? '' ) );
+    $booking_city = (string) ( $booking_profile['city'] ?? '' );
+    $booking_mobile = (string) ( $booking_profile['mobile'] ?? '' );
+    $booking_timezone = (string) ( $booking_profile['timezone'] ?? '' );
+    if ( ! in_array( $booking_timezone, timezone_identifiers_list(), true ) ) { $booking_timezone = ''; }
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
@@ -128,16 +138,16 @@ function dzn_theme_render_booking_route(): void {
                             <?php endif; ?>
                             <div><label for="dzn-booking-country">کشور محل زندگی</label><select id="dzn-booking-country" data-contact="country" autocomplete="country" required>
                                 <option value="">انتخاب کشور</option>
-                                <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
+                                <option value="AU" <?php selected( $booking_country, 'AU' ); ?>>استرالیا</option><option value="BR" <?php selected( $booking_country, 'BR' ); ?>>برزیل</option><option value="CA" <?php selected( $booking_country, 'CA' ); ?>>کانادا</option><option value="FR" <?php selected( $booking_country, 'FR' ); ?>>فرانسه</option><option value="DE" <?php selected( $booking_country, 'DE' ); ?>>آلمان</option><option value="IR" <?php selected( $booking_country, 'IR' ); ?>>ایران</option><option value="NZ" <?php selected( $booking_country, 'NZ' ); ?>>نیوزیلند</option><option value="SE" <?php selected( $booking_country, 'SE' ); ?>>سوئد</option><option value="TR" <?php selected( $booking_country, 'TR' ); ?>>ترکیه</option><option value="AE" <?php selected( $booking_country, 'AE' ); ?>>امارات متحدهٔ عربی</option><option value="GB" <?php selected( $booking_country, 'GB' ); ?>>بریتانیا</option><option value="US" <?php selected( $booking_country, 'US' ); ?>>ایالات متحده</option>
                             </select></div>
-                            <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" list="dzn-booking-city-list" maxlength="191" required><datalist id="dzn-booking-city-list" data-city-list></datalist></div>
-                            <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" required><p class="dzn-booking__field-help">کد کشور را هم وارد کنید؛ نمونه برای استرالیا ‎+61.</p></div>
+                            <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" list="dzn-booking-city-list" maxlength="191" value="<?php echo esc_attr( $booking_city ); ?>" required><datalist id="dzn-booking-city-list" data-city-list></datalist></div>
+                            <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" value="<?php echo esc_attr( $booking_mobile ); ?>" required><p class="dzn-booking__field-help" data-phone-hint>پیش‌شمارهٔ بین‌المللی از کشور شما پیشنهاد می‌شود و قابل ویرایش است.</p></div>
                         <div class="dzn-booking__timezone dzn-booking__field--wide" data-timezone-note>
                             <strong>منطقهٔ زمانی انتخاب‌شده</strong><span class="dzn-booking__timezone-copy">همهٔ تاریخ‌ها و ساعت‌های درخواست بر اساس این منطقهٔ زمانی نمایش داده می‌شوند.</span>
                             <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
-                            <select id="dzn-booking-timezone" data-timezone required>
+                            <select id="dzn-booking-timezone" data-timezone<?php echo $booking_timezone ? ' data-prefilled="1"' : ''; ?> required>
                                 <optgroup label="مناطق پرکاربرد دلنوازان">
-                                    <option value="Australia/Brisbane">استرالیا — بریزبن</option>
+                                    <option value="Australia/Brisbane" <?php selected( $booking_timezone, 'Australia/Brisbane' ); ?>>استرالیا — بریزبن</option>
                                     <option value="Australia/Sydney">استرالیا — سیدنی / ملبورن</option>
                                     <option value="Pacific/Auckland">نیوزیلند — اوکلند</option>
                                     <option value="America/Los_Angeles">آمریکا / کانادا — غرب</option>
@@ -148,7 +158,7 @@ function dzn_theme_render_booking_route(): void {
                                     <option value="Asia/Tehran">ایران — تهران</option>
                                 </optgroup>
                                 <optgroup label="همهٔ مناطق زمانی">
-                                <?php echo wp_timezone_choice( $default_timezone, get_user_locale() ); ?>
+                                <?php echo wp_timezone_choice( $booking_timezone ?: $default_timezone, get_user_locale() ); ?>
                                 </optgroup>
                             </select>
                             <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>

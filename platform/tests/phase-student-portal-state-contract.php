@@ -27,6 +27,7 @@ $portal  = $read( $theme . '/inc/portal.php' );
 $bridge  = $read( $theme . '/inc/platform-bridge.php' );
 $shell   = $read( $theme . '/template-parts/portal/shell.php' );
 $profile = $read( $theme . '/template-parts/portal/profile.php' );
+$portal_read = $read( $root . '/platform/src/Portals/PortalAuthenticatedReadService.php' );
 
 /*
  * 1. The view model never promotes an arbitrary model to "available".
@@ -149,6 +150,14 @@ if ( ! str_contains( $bridge, "dzn_theme_platform_student_term_progress( \$enrol
 	|| ! str_contains( $bridge, "\$model['term'] = \$term_progress ? array_merge( \$term_progress" )
 	|| ! str_contains( $bridge, ") : array();" ) ) {
 	$fail( 'the student model must omit the term timeline when term identity is unavailable' );
+}
+
+/* 3d. Student-facing times must be based on the student's canonical profile. */
+if ( ! str_contains( $portal_read, "'profile' => \$this->studentProfile") || ! str_contains( $portal_read, 'SELECT display_name,email,phone,whatsapp_phone,country_code,city,timezone,locale,calendar_preference' ) ) {
+	$fail( 'the authenticated student read must include only the student-owned canonical profile fields' );
+}
+if ( ! str_contains( $bridge, "\$student_timezone = (string) ( \$student_profile['timezone'] ?? '' );" ) || ! str_contains( $bridge, '$display_timezone = $student_timezone;' ) ) {
+	$fail( 'student profile and lesson displays must use the canonical student timezone' );
 }
 
 /* 4. The shell renders each state distinctly and keeps a logout route. */

@@ -73,14 +73,4 @@
       if (event.target === dialog) closeDialog(dialog);
     });
   });
-
-  document.querySelectorAll('[data-dzn-presentation-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const statusId = button.getAttribute('aria-describedby');
-      const status = statusId ? document.getElementById(statusId) : null;
-      if (status) {
-        status.textContent = 'این کنترل نمایشی است؛ هیچ اطلاعاتی ثبت یا ارسال نشد.';
-      }
-    });
-  });
 })();

@@ -92,8 +92,9 @@ $contains($portalRead, array(
     'authorised but unscheduled Lesson has no date/time to present',
 ), 'portal lesson reads must select scheduled canonical classes rather than failing on an unscheduled one');
 $contains($portalBridge, array(
-    "\$display_timezone = (string) ( \$next['schedule_timezone'] ?? '' ) ?: ( wp_timezone_string() ?: 'UTC' );",
+    "\$student_timezone = (string) ( \$student_profile['timezone'] ?? '' );",
+    "\$display_timezone = \$student_timezone;",
     "dzn_theme_platform_zoned_time( \$lesson['starts_at_utc'] ?? '', 'j F Y', \$timezone )",
-), 'the Student Portal must present the canonical schedule timezone');
+), 'the Student Portal must present upcoming lessons in the canonical Student timezone while retaining authoritative UTC schedule facts');
 
 echo "PASS Terms, Classes, introductory outcome and portal visibility workflow repair\n";

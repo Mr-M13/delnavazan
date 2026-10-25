@@ -12,7 +12,7 @@ $state_is_valid = in_array( $state, $approved_states, true );
 $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course'] );
 ?>
 <section class="dzn-portal-section dzn-upcoming" aria-labelledby="dzn-upcoming-title">
-	<?php $absence_status = sanitize_key( (string) ( $_GET['absence_status'] ?? '' ) ); $join_status = sanitize_key( (string) ( $_GET['join_status'] ?? '' ) ); if ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'ثبت غیبت برای این جلسه در حال حاضر امکان‌پذیر نیست.', 'delnavazan-theme' ); ?></p><?php elseif ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
+	<?php $absence_status = sanitize_key( (string) ( $_GET['absence_status'] ?? '' ) ); $join_status = sanitize_key( (string) ( $_GET['join_status'] ?? '' ) ); $calendar_status = sanitize_key( (string) ( $_GET['calendar_status'] ?? '' ) ); if ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'ثبت غیبت برای این جلسه در حال حاضر امکان‌پذیر نیست.', 'delnavazan-theme' ); ?></p><?php elseif ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'export_unavailable' === $calendar_status ) : ?><p class="dzn-portal-action-status" aria-live="polite"><?php esc_html_e( 'دریافت فایل تقویم برای این کلاس ممکن نشد. لطفاً صفحه را تازه کنید و دوباره تلاش کنید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 	<div class="dzn-upcoming__heading">
 		<div>
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مهم‌ترین قرار شما', 'delnavazan-theme' ); ?></p>
@@ -63,7 +63,7 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 			<?php else : ?>
 				<button class="dzn-button dzn-button--secondary" type="button" disabled><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 			<?php endif; ?>
-			<button class="dzn-portal-text-action" type="button" data-dzn-dialog-open="dzn-calendar-dialog"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></button>
+			<?php if ( ! empty( $lesson['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action" href="<?php echo esc_url( (string) $lesson['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
 		</div>
 		<?php if ( empty( $lesson['join_url'] ) && empty( $lesson['join_available'] ) ) : ?><p id="dzn-join-pending" class="dzn-portal-help"><?php echo esc_html( (string) ( $lesson['join_message'] ?? 'پیوند معتبر کلاس هنوز از منبع امن دریافت نشده است.' ) ); ?></p><?php endif; ?>
 	<?php endif; ?>
@@ -80,18 +80,6 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 				<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $lesson['schedule_version_uid'] ?? '' ) ); ?>">
 				<button class="dzn-button" type="submit"><?php esc_html_e( 'ثبت اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 			</form>
-		</div>
-	</dialog>
-
-	<dialog id="dzn-calendar-dialog" class="dzn-portal-dialog" aria-labelledby="dzn-calendar-title">
-		<div class="dzn-portal-dialog__body">
-			<button class="dzn-portal-icon-button dzn-portal-dialog__close" type="button" data-dzn-dialog-close aria-label="<?php esc_attr_e( 'بستن', 'delnavazan-theme' ); ?>">×</button>
-			<h2 id="dzn-calendar-title"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></h2>
-			<p><?php esc_html_e( 'اتصال امن Google Calendar و دریافت پروندهٔ Apple Calendar در مرحلهٔ آینده فراهم می‌شود.', 'delnavazan-theme' ); ?></p>
-			<div class="dzn-portal-dialog__actions" aria-label="<?php esc_attr_e( 'گزینه‌های تقویم در آینده', 'delnavazan-theme' ); ?>">
-				<button class="dzn-button" type="button" disabled><?php esc_html_e( 'Google Calendar', 'delnavazan-theme' ); ?></button>
-				<button class="dzn-button dzn-button--secondary" type="button" disabled><?php esc_html_e( 'Apple Calendar', 'delnavazan-theme' ); ?></button>
-			</div>
 		</div>
 	</dialog>
 	<?php endif; ?>

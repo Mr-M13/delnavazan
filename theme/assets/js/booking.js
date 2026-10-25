@@ -18,6 +18,8 @@
   const cityList = root.querySelector('[data-city-list]');
   const accountPassword = root.querySelector('[data-account-password]');
   const accountPasswordConfirmation = root.querySelector('[data-account-password-confirmation]');
+  const prefilledCountry = country.value;
+  let suggestedPhonePrefix = '';
   let availableTimes = [];
   let availabilityGridState = 'idle';
   let gridAvailabilityRequestId = 0;
@@ -73,7 +75,7 @@
   const minDate = localDate(tomorrow);
   const maxDate = localDate(latest);
   const detectedZone = detectZone();
-  if (detectedZone && Array.from(timezone.options).some((option) => option.value === detectedZone)) timezone.value = detectedZone;
+  if (!timezone.dataset.prefilled && detectedZone && Array.from(timezone.options).some((option) => option.value === detectedZone)) timezone.value = detectedZone;
   dateCursor = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), 1);
 
   const copy = {
@@ -102,7 +104,15 @@
     const mobile = root.querySelector('[data-contact="mobile"]');
     const prefix = phoneExamples[country.value] || '+…';
     if (hint) hint.textContent = 'کد تماس بین‌المللی را وارد کنید؛ برای این کشور معمولاً ' + prefix + '.';
-    if (mobile) mobile.placeholder = prefix + ' …';
+    if (mobile) {
+      mobile.placeholder = prefix + ' …';
+      const current = mobile.value.trim();
+      if ((!current || current === suggestedPhonePrefix) && prefix !== '+…') mobile.value = prefix;
+    }
+    // An unsupported country's generic placeholder is not a real suggestion.
+    // Retain the last concrete prefix so a later supported-country change can
+    // still replace it, provided the student has not edited the number.
+    if (prefix !== '+…') suggestedPhonePrefix = prefix;
   };
 
   const countryCodes = 'AF AL DZ AD AO AG AR AM AU AT AZ BS BH BD BB BY BE BZ BJ BT BO BA BW BR BN BG BF BI CV KH CM CA CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI XK KW KG LA LV LB LS LR LY LI LT LU MG MW MY MV ML MT MH MR MU MX FM MD MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG KP MK NO OM PK PW PA PG PY PE PH PL PT QA RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA KR SS ES LK SD SR SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TV UG UA AE GB US UY UZ VU VA VE VN YE ZM ZW'.split(' ');
@@ -150,7 +160,8 @@
       else if ((detectedZone || '').startsWith('Pacific/')) region = 'NZ';
       else if (detectedZone === 'Asia/Tehran') region = 'IR';
     }
-    if (region && country.querySelector('option[value="' + region + '"]')) country.value = region;
+    if (prefilledCountry && country.querySelector('option[value="' + prefilledCountry + '"]')) country.value = prefilledCountry;
+    else if (region && country.querySelector('option[value="' + region + '"]')) country.value = region;
     updatePhoneHint();
     populateCities();
   };
@@ -484,6 +495,17 @@
     invalid.focus();
     return false;
   };
+  const validateAccountPassword = () => {
+    if (!accountPassword || !accountPasswordConfirmation) return true;
+    accountPasswordConfirmation.setCustomValidity('');
+    if (accountPassword.value === accountPasswordConfirmation.value) return true;
+    accountPasswordConfirmation.setCustomValidity('تکرار رمز با رمز حساب یکسان نیست.');
+    accountPasswordConfirmation.reportValidity();
+    accountPasswordConfirmation.focus();
+    showError('رمز حساب و تکرار آن باید یکسان باشند.');
+    return false;
+  };
+  if (accountPasswordConfirmation) accountPasswordConfirmation.addEventListener('input', () => accountPasswordConfirmation.setCustomValidity(''));
   const fieldValue = (name) => root.querySelector('[data-contact="' + name + '"]').value.trim();
   const buildReview = () => {
     const panel = root.querySelector('[data-review]');
@@ -536,7 +558,7 @@
     }
     if (currentStep() === 'contact') {
       if (timezoneRefreshPending || availabilityPreviewPending) return;
-      if (!validateSection('contact')) return;
+      if (!validateSection('contact') || !validateAccountPassword()) return;
       if (!await assessSlots()) {
         if (timezoneRefreshPending) return;
         goTo('availability');
@@ -576,7 +598,7 @@
 
   root.querySelector('[data-submit]').addEventListener('click', async (event) => {
     showError('');
-    if (submissionPending || !validateSection('contact')) return;
+    if (submissionPending || !validateSection('contact') || !validateAccountPassword()) return;
     submissionPending = true;
     const button = event.currentTarget;
     button.disabled = true;

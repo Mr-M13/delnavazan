@@ -26,11 +26,38 @@ final class PortalAuthenticatedReadService {
         }
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
+            // The Theme must not substitute the site timezone (or the WordPress
+            // display name) for this student's canonical profile facts.
+            'profile' => $this->studentProfile((int) $principal['id']),
             'lessons' => $lessons,
             'enrolments' => $enrolments,
             'booking_requests' => $bookingRequests,
             'booking_classes' => $bookingClasses,
             'post_intro' => $postIntro,
+        );
+    }
+
+    /** A deliberately small, self-owned profile projection for portal presentation. */
+    private function studentProfile(int $studentId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT display_name,email,phone,whatsapp_phone,country_code,city,timezone,locale,calendar_preference
+             FROM {$p}students
+             WHERE id=%d AND status='active' AND archived_at IS NULL",
+            $studentId
+        ), ARRAY_A);
+        if (!is_array($row) || $wpdb->last_error !== '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        return array(
+            'full_name' => (string) ($row['display_name'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+            'mobile' => (string) ($row['phone'] ?? ''),
+            'whatsapp_phone' => (string) ($row['whatsapp_phone'] ?? ''),
+            'country_code' => (string) ($row['country_code'] ?? ''),
+            'city' => (string) ($row['city'] ?? ''),
+            'timezone' => (string) ($row['timezone'] ?? ''),
+            'locale' => (string) ($row['locale'] ?? ''),
+            'calendar_preference' => (string) ($row['calendar_preference'] ?? ''),
         );
     }
 

@@ -17,10 +17,12 @@ $studentRead = array('booking_classes' => array(array(
     'schedule_timezone' => 'Australia/Brisbane',
 )));
 $export = $service->export($studentRead, 'student', 'booking', '01KABCDEF0123456789ABCDEFX', '2026-10-25 00:00:00');
-$assert($export['filename'] === 'delnavazan-class.ics', 'Calendar filename must be stable and safe.');
+$assert($export['filename'] === 'delnavazan-calendar.ics', 'Calendar filename must be stable and safe.');
 $assert(str_contains($export['content'], "DTSTART:20261101T083000Z\r\n"), 'Calendar start must use the canonical UTC instant.');
 $assert(str_contains($export['content'], "DTEND:20261101T091500Z\r\n"), 'Calendar end must use the canonical UTC instant.');
 $assert(str_contains($export['content'], 'SUMMARY:Setar\\, level 1 · Teacher\\nInjected'), 'Calendar text must escape commas and embedded newlines.');
+$assert(str_contains($export['content'], 'CLASS:PRIVATE'), 'Calendar exports must be marked private.');
+$assert(str_contains(str_replace("\r\n ", '', $export['content']), '@calendar.delnavazan.com'), 'Calendar UID must use the site domain.');
 $assert(substr_count($export['content'], 'BEGIN:VEVENT') === 1, 'One request must export exactly one event.');
 $longRead = $studentRead;
 $longRead['booking_classes'][0]['course_reference'] = str_repeat('سه‌تار ', 20);
@@ -49,5 +51,18 @@ $refused = static function (callable $callback, string $message): void {
 $refused(fn() => $service->export($studentRead, 'student', 'booking', '01KNOTOWNED000000000000000', '2026-10-25 00:00:00'), 'An unowned event identifier must fail closed.');
 $refused(fn() => $service->export($studentRead, 'teacher', 'booking', '01KABCDEF0123456789ABCDEFX', '2026-10-25 00:00:00'), 'A role/version mismatch must fail closed.');
 $refused(fn() => PortalCalendarExportService::nonceAction('student', 'booking', '../unsafe'), 'Unsafe event identifiers must be rejected.');
+$cancelled = $studentRead;
+$cancelled['booking_classes'][0]['confirmation_state'] = 'cancelled';
+$refused(fn() => $service->export($cancelled, 'student', 'booking', '01KABCDEF0123456789ABCDEFX', '2026-10-25 00:00:00'), 'Cancelled classes must not export as confirmed events.');
+$canonical = array('lessons' => array(array(
+    'version' => 'portal_lesson_v1', 'lesson_uid' => 'canonical-safe-1', 'course_reference' => 'Tar',
+    'teacher_display_reference' => 'Teacher B', 'lifecycle_state' => 'cancelled',
+    'starts_at_utc' => '2026-12-02 01:00:00', 'ends_at_utc' => '2026-12-02 02:00:00', 'schedule_timezone' => 'UTC',
+)));
+$refused(fn() => $service->export($canonical, 'student', 'lesson', 'canonical-safe-1', '2026-10-25 00:00:00'), 'Cancelled canonical lessons must fail closed.');
+$controls = $studentRead;
+$controls['booking_classes'][0]['teacher_display_reference'] = "Teacher\x01\x7f B";
+$sanitised = $service->export($controls, 'student', 'booking', '01KABCDEF0123456789ABCDEFX', '2026-10-25 00:00:00');
+$assert(!str_contains($sanitised['content'], "\x01") && !str_contains($sanitised['content'], "\x7f"), 'Calendar text must remove non-newline control characters.');
 
 echo "Portal calendar export unit passed\n";

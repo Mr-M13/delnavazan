@@ -27,6 +27,10 @@ final class PortalCalendarExportService {
             break;
         }
         if (!$event) throw new \InvalidArgumentException('calendar_export_not_available');
+        if ((string) ($event['lifecycle_state'] ?? '') === 'cancelled'
+            || (string) ($event['confirmation_state'] ?? '') === 'cancelled') {
+            throw new \InvalidArgumentException('calendar_export_cancelled');
+        }
 
         $start = $this->utc((string) ($event['starts_at_utc'] ?? ''));
         $end = $this->utc((string) ($event['ends_at_utc'] ?? ''));
@@ -37,7 +41,7 @@ final class PortalCalendarExportService {
         $summary = $participant === '' ? $course : $course . ' · ' . $participant;
         $timezone = trim((string) ($event['schedule_timezone'] ?? 'UTC')) ?: 'UTC';
         $stamp = $this->utc($nowUtc ?? gmdate('Y-m-d H:i:s'));
-        $uid = hash('sha256', $source . ':' . $eventId) . '@calendar.delnavazan';
+        $uid = hash('sha256', $source . ':' . $eventId) . '@calendar.delnavazan.com';
         $description = 'Delnavazan class · Timezone: ' . $timezone;
         $lines = array(
             'BEGIN:VCALENDAR',
@@ -45,6 +49,7 @@ final class PortalCalendarExportService {
             'PRODID:-//Delnavazan//Portal Calendar Export//EN',
             'CALSCALE:GREGORIAN',
             'METHOD:PUBLISH',
+            'CLASS:PRIVATE',
             'BEGIN:VEVENT',
             'UID:' . $uid,
             'DTSTAMP:' . $stamp->format('Ymd\\THis\\Z'),
@@ -55,7 +60,7 @@ final class PortalCalendarExportService {
             'END:VEVENT',
             'END:VCALENDAR',
         );
-        return array('content' => implode("\r\n", array_map(array($this, 'fold'), $lines)) . "\r\n", 'filename' => 'delnavazan-class.ics');
+        return array('content' => implode("\r\n", array_map(array($this, 'fold'), $lines)) . "\r\n", 'filename' => 'delnavazan-calendar.ics');
     }
 
     private function utc(string $value): \DateTimeImmutable {
@@ -70,6 +75,8 @@ final class PortalCalendarExportService {
     }
 
     private function text(string $value): string {
+        // RFC 5545 text must not retain C0/C1 controls. CR/LF are represented as an escaped newline.
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', '', $value) ?? '';
         return str_replace(array('\\', ';', ',', "\r", "\n"), array('\\\\', '\\;', '\\,', '', '\\n'), $value);
     }
 

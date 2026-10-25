@@ -17,7 +17,7 @@ set -euo pipefail
 source "$(dirname "$BASH_SOURCE")/common.sh"
 dzn_require_cached_images; dzn_candidate; dzn_assert_runtime_paths
 plugin_root="$(dzn_plugin_source_from_worktree "$DZN_PLUGIN_WORKTREE")"
-tests=(tests/static.php tests/google-oauth-browser-flow-contract.php tests/google-oauth-transport-unit.php tests/phase-2a3-iran-quiet-hours.php tests/phase-2a3-day-availability-contract.php tests/booking-availability-timezone-dst-contract.php tests/phase-2a2w-contract.php tests/phase-opreadiness-core-dataset-contract.php tests/phase-opreadiness-core-operator-entrypoint-contract.php tests/phase-opreadiness-core-operator-entrypoint-unit.php tests/student-operations-journey-contract.php)
+tests=(tests/static.php tests/portal-calendar-export-contract.php tests/portal-calendar-export-unit.php tests/google-oauth-browser-flow-contract.php tests/google-oauth-transport-unit.php tests/phase-2a3-iran-quiet-hours.php tests/phase-2a3-day-availability-contract.php tests/booking-availability-timezone-dst-contract.php tests/phase-2a2w-contract.php tests/phase-opreadiness-core-dataset-contract.php tests/phase-opreadiness-core-operator-entrypoint-contract.php tests/phase-opreadiness-core-operator-entrypoint-unit.php tests/student-operations-journey-contract.php)
 executed=0
 for test in "${tests[@]}"; do
   [ -f "$plugin_root/$test" ] || continue

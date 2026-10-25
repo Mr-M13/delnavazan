@@ -195,6 +195,28 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 	);
 }
 
+/** Build a signed calendar download URL only from an already authorised portal row. */
+function dzn_theme_platform_calendar_export_url( $role, array $row ) {
+	$class = '\\Delnavazan\\Platform\\Portals\\PortalCalendarExportService';
+	$is_booking = str_contains( (string) ( $row['version'] ?? '' ), '_booking_class_v1' );
+	$source = $is_booking ? 'booking' : 'lesson';
+	$event_id = (string) ( $row[ $is_booking ? 'confirmation_uid' : 'lesson_uid' ] ?? '' );
+	if ( ! class_exists( $class ) || '' === $event_id ) { return ''; }
+	try {
+		$action = $class::nonceAction( (string) $role, $source, $event_id );
+		return add_query_arg(
+			array(
+				'action' => 'dzn_portal_calendar_export',
+				'role' => (string) $role,
+				'source' => $source,
+				'event' => $event_id,
+				'_wpnonce' => wp_create_nonce( $action ),
+			),
+			admin_url( 'admin-post.php' )
+		);
+	} catch ( Throwable ) { return ''; }
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -280,6 +302,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
 		'lesson_uid' => (string) ( $next['lesson_uid'] ?? '' ),
 		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
+		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $next ),
 		'notice' => $is_booking ? 'جلسهٔ معارفهٔ رایگان شما تأیید شده است.' : ( ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ),
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
@@ -292,7 +315,6 @@ function dzn_theme_platform_student_model( $screen ) {
 	) ) : array();
 	$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 5 ) );
 	$model['post_intro'] = $post_intro;
-	$model['contact'] = array();
 	return $model;
 }
 add_filter( 'dzn_theme_student_portal_view_model', function( $model, $screen ) {
@@ -492,6 +514,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F', $class_timezone ),
 			'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
 			'timezone' => $class_timezone,
+			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'course' => (string) ( $lesson['course_reference'] ?? '' ),
 			'progress' => $is_booking ? 'کلاس آشنایی' : (string) ( $lesson['term_reference'] ?? '' ),
@@ -502,6 +525,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
 			'label' => (string) ( $lesson['course_reference'] ?? '' ) . ' · ' . (string) ( $lesson['student_display_reference'] ?? '' ),
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
+			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 		);
 	}
 	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_scheduled_classes,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=strtotime((string)($row['starts_at_utc']??'').' UTC');$b=strtotime((string)($row['ends_at_utc']??'').' UTC');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_display_reference']??''),$all_scheduled_classes)));

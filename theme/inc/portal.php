@@ -295,11 +295,6 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				'academy_owed_tone'       => 'success',
 			),
 			'history' => $history,
-			'contact' => array(
-				'whatsapp_url' => 'https://contact.example.invalid/whatsapp',
-				'email_url'    => 'mailto:student-portal@example.invalid',
-				'instagram_url'=> 'https://social.example.invalid/instagram',
-			),
 		)
 	);
 }

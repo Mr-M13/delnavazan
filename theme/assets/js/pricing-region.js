@@ -10,6 +10,7 @@
   const amount = ledger.querySelector('[data-dzn-pricing-amount]');
   const region = ledger.querySelector('[data-dzn-pricing-region]');
   const status = ledger.querySelector('[data-dzn-pricing-status]');
+  const intro = ledger.querySelector('[data-dzn-pricing-intro]');
   const storageKey = String(config.storageKey || 'dzn-pricing-region');
   let manuallySelected = false;
 
@@ -21,6 +22,7 @@
   const showNeutral = (message) => {
     if (amount) amount.textContent = 'منطقهٔ خود را انتخاب کنید';
     if (region) region.textContent = 'برای نمایش شهریه، یکی از مناطق فعال را انتخاب کنید.';
+    if (intro) intro.textContent = '';
     if (status) status.textContent = message;
   };
 
@@ -28,8 +30,16 @@
     const selected = config.regions[code];
     if (!selected) { showNeutral('منطقه‌ای را از فهرست انتخاب کنید.'); return; }
     if (select) select.value = code;
+    if (!selected.configured) {
+      if (amount) amount.textContent = 'قیمت این منطقه در حال تنظیم است';
+      if (region) region.textContent = 'برای مشاهدهٔ شهریه با ما تماس بگیرید.';
+      if (intro) intro.textContent = '';
+      if (status) status.textContent = 'شهریهٔ این منطقه هنوز توسط آکادمی ثبت نشده است.';
+      return;
+    }
     if (amount) amount.textContent = selected.displayPersian || selected.display;
     if (region) region.textContent = 'برای یک ترم، برای همهٔ دوره‌ها';
+    if (intro) intro.textContent = selected.introductoryLabel || '';
     if (status) status.textContent = source === 'manual'
       ? 'انتخاب شما در این دستگاه ذخیره شد.'
       : 'این منطقه فقط بر اساس موقعیت تقریبی پیشنهاد شده است؛ می‌توانید آن را تغییر دهید.';
@@ -41,6 +51,19 @@
     showRegion(stored, 'manual');
   } else {
     showNeutral('واحد پول بر اساس موقعیت تقریبی دستگاه شما پیشنهاد می‌شود. اگر نادرست است، منطقه را تغییر دهید یا با ما تماس بگیرید.');
+  }
+
+  if (select) {
+    const selected = String(select.value || '');
+    select.innerHTML = '<option value="">منطقهٔ خود را انتخاب کنید</option>';
+    Object.keys(config.regions).forEach((code) => {
+      const item = config.regions[code] || {};
+      const option = document.createElement('option');
+      option.value = code;
+      option.textContent = String(item.label || code) + (item.configured ? '' : ' — در حال تنظیم');
+      select.appendChild(option);
+    });
+    if (selected && config.regions[selected]) select.value = selected;
   }
 
   if (select) select.addEventListener('change', () => {

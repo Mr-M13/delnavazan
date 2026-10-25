@@ -287,6 +287,63 @@ final class Migrator {
 			$invalidCommands=$wpdb->get_var("SELECT count(*) FROM {$p}finance_cash_commands command_row LEFT JOIN {$p}finance_cash_transactions tx ON command_row.result_type='transaction' AND tx.id=command_row.result_id LEFT JOIN {$p}finance_cash_transfers transfer ON command_row.result_type='transfer' AND transfer.id=command_row.result_id LEFT JOIN {$p}finance_cash_reconciliations reconciliation ON command_row.result_type='reconciliation' AND reconciliation.id=command_row.result_id WHERE command_row.command_domain<>'academy_cashbook_v1' OR (command_row.result_type='transaction' AND tx.id IS NULL) OR (command_row.result_type='transfer' AND transfer.id IS NULL) OR (command_row.result_type='reconciliation' AND reconciliation.id IS NULL) OR command_row.result_type NOT IN ('transaction','transfer','reconciliation')");if((int)$invalidCommands!==0)throw new \RuntimeException('Migration verification failed: invalid cashbook command result');
 	}
 
+	/**
+	 * Schema 049: the single regional student-price authority and consolidated finance settings.
+	 *
+	 * Additive only. It creates no offer, purchase, payment, lesson, statement or ledger row. On a
+	 * live installation it seeds one regional row only where every active standard Course already
+	 * agrees on exactly one currency and one amount; a conflicting region is left unset and is
+	 * reported for explicit administrator resolution in Finance → Settings.
+	 */
+	private static function install_finance_administration():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}finance_regional_prices (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,region_code varchar(8) NOT NULL,currency char(3) NOT NULL,standard_amount_minor bigint unsigned NOT NULL,introductory_mode varchar(8) NOT NULL,introductory_amount_minor bigint unsigned NULL,status varchar(16) NOT NULL,active_slot tinyint unsigned NULL,effective_from datetime NOT NULL,effective_until datetime NULL,reason_code varchar(64) NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY region_active(region_code,active_slot),KEY currency(currency),KEY status(status)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}finance_settings (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,setting_key varchar(64) NOT NULL,setting_type varchar(32) NOT NULL,setting_value mediumtext NOT NULL,setting_version int unsigned NOT NULL,status varchar(16) NOT NULL,active_slot tinyint unsigned NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY setting_active(setting_key,active_slot),KEY key_version(setting_key,setting_version)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Finance administration migration failed: '.$wpdb->last_error);}
+		// Seed only where the existing commercial catalogue is unambiguous. The query intentionally
+		// excludes introductory and archived Courses: they are not part of the standard price rule.
+		$regions=$wpdb->get_results(
+			"SELECT price.region_code,MIN(price.currency) currency,MIN(price.amount_minor) amount_minor,COUNT(DISTINCT price.currency) currencies,COUNT(DISTINCT price.amount_minor) amounts
+			 FROM {$p}commercial_prices price
+			 INNER JOIN {$p}commercial_products product ON product.id=price.product_id AND product.archived_at IS NULL AND product.status='active'
+			 INNER JOIN {$p}courses course ON course.id=product.course_id AND course.archived_at IS NULL AND course.status='active' AND course.course_type='standard'
+			 WHERE price.active_slot=1 AND price.status='active' AND price.archived_at IS NULL
+			 GROUP BY price.region_code"
+		) ?: array();
+		$now=gmdate('Y-m-d H:i:s');
+		foreach($regions as $region){
+			if((int)$region->currencies!==1||(int)$region->amounts!==1||(int)$region->amount_minor<1)continue;
+			$code=strtoupper((string)$region->region_code);
+			if($wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}finance_regional_prices WHERE region_code=%s AND active_slot=1",$code))!==null)continue;
+			$wpdb->insert($p.'finance_regional_prices',array(
+				'uid'=>\Delnavazan\Platform\Core\Support\Identifier::uid(),'region_code'=>$code,'currency'=>strtoupper((string)$region->currency),
+				'standard_amount_minor'=>(int)$region->amount_minor,'introductory_mode'=>'free','introductory_amount_minor'=>null,
+				'status'=>'active','active_slot'=>1,'effective_from'=>$now,'effective_until'=>null,'reason_code'=>'phase_finance_administration_seed',
+				'created_at'=>$now,'created_by'=>0,'updated_at'=>$now,'updated_by'=>0,
+			));
+			if($wpdb->last_error!=='')throw new \RuntimeException('Finance administration seed failed: '.$wpdb->last_error);
+		}
+	}
+	private static function verify_finance_administration_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		foreach(array('finance_regional_prices','finance_settings') as $short){
+			$table=$p.$short;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing '.$short);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$short.' must use InnoDB');
+			if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'")===null)throw new \RuntimeException('Migration verification failed: '.$short.' audit timestamp');
+		}
+		foreach(array('region_code','currency','standard_amount_minor','introductory_mode','introductory_amount_minor','active_slot','effective_from','effective_until') as $column)
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_regional_prices LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: regional price field '.$column);
+		foreach(array('setting_key','setting_type','setting_value','setting_version','active_slot') as $column)
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_settings LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: finance setting field '.$column);
+		if(!self::has_index($p.'finance_regional_prices','region_active',true))throw new \RuntimeException('Migration verification failed: one active regional price per region');
+		if(!self::has_index($p.'finance_settings','setting_active',true))throw new \RuntimeException('Migration verification failed: one active setting version per key');
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_regional_prices WHERE standard_amount_minor<1 OR introductory_mode NOT IN ('free','paid') OR (introductory_mode='paid' AND (introductory_amount_minor IS NULL OR introductory_amount_minor<1)) OR (introductory_mode='free' AND introductory_amount_minor IS NOT NULL)");
+		if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid regional introductory pricing');
+	}
+
 	private const OPTION = 'dzn_platform_schema_version'; private const LOCK = 'dzn_platform_migration_lock'; private const COMPLETED = 'dzn_platform_completed_migrations';
 	private const CAPABILITY_OPTION = 'dzn_platform_capability_version'; private const CAPABILITY_VERSION = '2a2n';
 	private const CAPABILITY_OPTION_O = 'dzn_platform_capability_version_2a2o'; private const CAPABILITY_VERSION_O = '2a2o';
@@ -324,7 +381,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -375,7 +432,11 @@ final class Migrator {
 				self::install_post_intro_enrolment_automation();self::verify_post_intro_enrolment_automation_schema();
 				$done[]='048_post_intro_enrolment_automation';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('049_finance_administration',$done,true)){
+				self::install_finance_administration();self::verify_finance_administration_schema();
+				$done[]='049_finance_administration';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -545,9 +606,10 @@ final class Migrator {
 		$required[] = '046_google_oauth_openid_subject';
 		$required[] = '047_stripe_canonical_account_reference';
 		$required[] = '048_post_intro_enrolment_automation';
+		$required[] = '049_finance_administration';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();

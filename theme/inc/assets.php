@@ -18,6 +18,8 @@ function dzn_theme_enqueue_assets() {
 	$stylesheet_stamp = file_exists( $stylesheet_path ) ? (string) filemtime( $stylesheet_path ) : $version;
 	$navigation_path  = get_theme_file_path( 'assets/js/navigation.js' );
 	$navigation_stamp = file_exists( $navigation_path ) ? (string) filemtime( $navigation_path ) : $version;
+	$pricing_path     = get_theme_file_path( 'assets/js/pricing-region.js' );
+	$pricing_stamp    = file_exists( $pricing_path ) ? (string) filemtime( $pricing_path ) : $version;
 
 	wp_enqueue_style(
 		'delnavazan-theme',
@@ -38,7 +40,7 @@ function dzn_theme_enqueue_assets() {
 		'delnavazan-pricing-region',
 		get_theme_file_uri( 'assets/js/pricing-region.js' ),
 		array(),
-		$version,
+		$pricing_stamp,
 		array( 'strategy' => 'defer', 'in_footer' => true )
 	);
 	wp_localize_script( 'delnavazan-pricing-region', 'dznThemePricing', dzn_theme_pricing_presentation_config() );

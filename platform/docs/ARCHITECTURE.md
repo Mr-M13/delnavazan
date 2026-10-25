@@ -1,5 +1,10 @@
 # Delnavazan Platform Architecture
 
+> **Finance administration candidate (2026-10-26):** the current feature branch adds Schema 49 /
+> `049_finance_administration` (regional student-price authority and consolidated finance settings) and
+> the four-tab Finance workspace documented in [FINANCE-ADMINISTRATION.md](FINANCE-ADMINISTRATION.md).
+> This is additive on the Schema-48 baseline and creates no offer, payment, statement or ledger row.
+
 > **Current-source reconciliation (2026-09-27):** the reviewed local `main` baseline at
 > `5bd376881769b15a27f5b20a5c02cef5bad0397c` (tree `f6dac0bd978e62ecef3247a5f64e8957b1b96d5a`)
 > declares **Schema 33** with the unchanged build

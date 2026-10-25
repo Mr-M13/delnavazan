@@ -33,9 +33,9 @@ $contains($catalogue, array(
     'begin()',
     'commit()',
     'rollback()',
-    'paid_introductory_lesson_unsupported',
 ), 'automatic catalogue creation must preserve the atomic setup path and generate exact Persian names');
 $expect(!str_contains($catalogue, 'setPrice('), 'instrument setup must not invent regional prices');
+$expect(!str_contains($catalogue, 'paid_introductory_lesson_unsupported'), 'introductory pricing must be a Finance setting, not an instrument rejection');
 foreach (array('DELETE ', 'TRUNCATE', 'DROP TABLE') as $forbidden) $expect(!str_contains($catalogue, $forbidden), 'catalogue setup must never delete rows: ' . $forbidden);
 $contains($screen, array(
     'setupInstrument',

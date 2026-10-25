@@ -52,24 +52,22 @@ $contains($shell, array(
     "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
 ), 'Enrolment must use the four agreed destinations');
 $contains($enrolment, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must retain the existing authorised workflows');
-$contains($catalogue, array('dzn-course', 'dzn-instrument', 'dzn-commercial-catalogue', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must retain catalogue, instrument, pricing and exception workflows');
+$contains($catalogue, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must retain catalogue, instrument, finance-settings and exception workflows');
 $contains($attendance, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must retain the existing authorised workflows');
 
 // Finance owns lesson payability; Settings owns restricted Advanced Recovery.
 $contains($shell, array(
     "'finance' => ['Finance'",
-    "['Lesson payability', 'dzn-finance-payability', 'dzn_view_finance_authority']",
-    "['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']",
-    "['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority']",
-    "['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger']",
-    "['Reconciliation', 'dzn-finance-reconciliation', 'dzn_view_finance_authority']",
-    "['Teacher rates (temporary)', 'dzn-finance-rates', 'dzn_view_finance_authority']",
-    "['Teacher statements (temporary)', 'dzn-finance-statements', 'dzn_view_finance_authority']",
-    "['Finance policies', 'dzn-finance-policies', 'dzn_view_finance_authority']",
-    "['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]",
+    "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
     "['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP]",
-), 'Finance must own payability and Settings must own restricted Advanced Recovery');
+), 'Finance must have exactly one visible destination and the four tabs must live inside it');
+$finance = $controller('FinanceAdminController.php');
+$contains($finance, array(
+    "self::TAB_PAYMENTS => 'Payments'", "self::TAB_LEDGER => 'Central Ledger'",
+    "self::TAB_STATEMENTS => 'Teacher Statements'", "self::TAB_SETTINGS => 'Settings'",
+    'Global regional pricing', 'Teacher compensation', 'Statement Template Settings',
+), 'Finance must expose exactly four tabs and consolidated settings');
 
 // The composite navigation capabilities must map to existing narrow capabilities only.
 $contains($menu, array(
@@ -77,6 +75,7 @@ $contains($menu, array(
     'ENROLMENT_WORKSPACE_CAP',
     'CATALOGUE_WORKSPACE_CAP',
     'ATTENDANCE_WORKSPACE_CAP',
+    'FINANCE_WORKSPACE_CAP',
     "'dzn_manage_onboarding'",
     "'dzn_issue_teacher_invitations'",
     "'dzn_revoke_teacher_invitations'",

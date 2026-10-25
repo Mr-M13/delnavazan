@@ -23,7 +23,7 @@ final class OperationalCashbookController {
         catch(\InvalidArgumentException $error){$status='invalid';$message=$error->getMessage();}
         catch(\Throwable){$status='not-recorded';$message='The entry was not recorded. Check the account history and try again with a new command.';}
         $account=in_array(($input['account_key']??''),array('australia','iran'),true)?$input['account_key']:'australia';
-        $url=add_query_arg(array('page'=>self::MENU_SLUG,'account'=>$account,'cashbook_result'=>$status),admin_url('admin.php'));if(isset($message))$url=add_query_arg('cashbook_message',rawurlencode($message),$url);
+        $url=add_query_arg(array('page'=>'dzn-finance','tab'=>'ledger','cashbook_account'=>$account,'cashbook_result'=>$status),admin_url('admin.php'));if(isset($message))$url=add_query_arg('cashbook_message',rawurlencode($message),$url);
         wp_safe_redirect($url);exit;
     }
     public static function screen():void{

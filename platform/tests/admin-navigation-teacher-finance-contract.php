@@ -30,13 +30,7 @@ $contains($shell, array(
     "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
     "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
     "'finance' => ['Finance'",
-    "['Lesson payability', 'dzn-finance-payability', 'dzn_view_finance_authority']",
-    "['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']",
-    "['Payments', 'dzn-payment-execution', 'dzn_view_payment_execution_authority']",
-    "['Central ledger', 'dzn-finance-cashbook', 'dzn_view_cash_ledger']",
-    "['Teacher rates (temporary)', 'dzn-finance-rates', 'dzn_view_finance_authority']",
-    "['Teacher statements (temporary)', 'dzn-finance-statements', 'dzn_view_finance_authority']",
-    "['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]",
+    "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
     "['General', 'dzn-general', 'manage_options']",
     "['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health']",
@@ -44,6 +38,7 @@ $contains($shell, array(
     'http_build_query',
     'Menu::CORE_WORKFLOW_CAP',
 ), 'navigation must consolidate into Academy, Teachers, Students, Enrolment, Finance and Settings while retaining protected routes');
+$contains((string)file_get_contents($root.'/src/Admin/Controller/FinanceAdminController.php'),array('Teacher Statements','Teacher compensation','Statement Template Settings','Global regional pricing'),'the single Finance page must contain the four consolidated tabs and settings');
 foreach (array("'courses' => ['Courses'", "'communications' => ['Communications'", "'enrolments_classes' => ['Enrolments / Classes'") as $removedTab) {
     $expect(!str_contains($shell, $removedTab), 'redundant top-level tab must be consolidated, not duplicated: ' . $removedTab);
 }
@@ -61,12 +56,13 @@ $contains($menu, array(
     "['Attendance and post-intro', self::ATTENDANCE_WORKSPACE_CAP, 'dzn-attendance-workspace'",
     "['General', GeneralSettingsController::CAPABILITY",
     "['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'",
+    "['Finance', self::FINANCE_WORKSPACE_CAP, 'dzn-finance'",
 ), 'route registration must retain every protected destination and add the consolidated workspace routes');
 $enrolmentWorkspace = $read('EnrolmentWorkspaceController.php');
 $catalogueWorkspace = $read('CatalogueWorkspaceController.php');
 $attendanceWorkspace = $read('AttendanceWorkspaceController.php');
 $contains($enrolmentWorkspace, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must preserve the authorised booking, coordination, enrolment and Term workflows');
-$contains($catalogueWorkspace, array('dzn-course', 'dzn-instrument', 'dzn-commercial-catalogue', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must preserve catalogue, instrument, pricing and exception workflows');
+$contains($catalogueWorkspace, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must preserve catalogue, instrument, finance-settings and exception workflows');
 $contains($attendanceWorkspace, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must preserve attendance, post-intro and class-outcome workflows');
 $contains($academy, array(
     "private static function classOperationalState(): void",

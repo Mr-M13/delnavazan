@@ -169,10 +169,10 @@
           <div class="dzn-price-ledger" data-dzn-pricing="">
             <div class="dzn-price-ledger__feature">
               <h2 id="dzn-story-price-title" class="dzn-story__title dzn-story__title--price">شهریهٔ یک ترم</h2>
-              <p class="dzn-price-ledger__price" data-dzn-pricing-amount="" aria-live="polite">۲۵۰ دلار آمریکا</p>
+              <p class="dzn-price-ledger__price" data-dzn-pricing-amount="" aria-live="polite">برای نمایش شهریه، منطقهٔ خود را انتخاب کنید</p>
               <p class="dzn-price-ledger__local" data-dzn-pricing-region="" aria-live="polite">قیمت پایه در صورت عدم شناسایی موقعیت</p>
               <p class="dzn-story__copy">یک ترم شامل ۱۲ جلسهٔ خصوصی است.</p>
-              <p class="dzn-story__copy">جلسهٔ معارفه برای هنرجویان جدید رایگان است.</p>
+              <p class="dzn-story__copy" data-dzn-pricing-intro=""><?php echo esc_html( dzn_theme_introductory_pricing_note() ); ?></p>
             </div>
             <div class="dzn-pricing-region">
               <p class="dzn-pricing-region__label">منطقهٔ قیمت‌گذاری</p>

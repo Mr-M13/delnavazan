@@ -14,8 +14,8 @@ final class CatalogueService {
         $this->requireSetupCapabilities();
         $name=Normalizer::text($input['name']??'',191,true);$duration=Normalizer::count($input['standard_duration_minutes']??0,5,480);$buffer=Normalizer::count($input['gap_between_lessons_minutes']??0,0,240);
         $billing=Normalizer::one($input['introductory_lesson_billing']??'free',['free','paid'],'introductory lesson billing');
-        // The public booking and continuation authorities only support a free introductory lesson.
-        if($billing!=='free')throw new \InvalidArgumentException('paid_introductory_lesson_unsupported');
+        // Introductory pricing is now a global Finance setting, not an instrument field. The legacy
+        // input is accepted for compatibility but never becomes a second pricing authority.
         $slug=sanitize_title($name);if($slug==='')$slug='instrument-'.substr(hash('sha256',$name),0,16);
         $lock=$this->acquireSetupLock($slug);$instruments=new InstrumentRepository();
         $transaction=false;

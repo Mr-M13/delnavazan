@@ -14,6 +14,8 @@ $owed = isset( $args['owed'] ) ? (string) $args['owed'] : '';
 $states = array(
 	'upcoming'           => array( 'label' => 'کلاس پیشِ رو', 'tone' => 'information' ),
 	'starting_soon'      => array( 'label' => 'به‌زودی آغاز می‌شود', 'tone' => 'accent' ),
+	'in_progress'        => array( 'label' => 'کلاس در حال برگزاری است', 'tone' => 'accent' ),
+	'awaiting_outcome'   => array( 'label' => 'کلاس پایان یافته؛ نتیجهٔ حضور در حال بررسی است', 'tone' => 'muted' ),
 	'absence_notified'   => array( 'label' => 'غیبت شما اطلاع داده شده', 'tone' => 'muted' ),
 	'time_changed'       => array( 'label' => 'زمان کلاس تغییر کرده', 'tone' => 'warning' ),
 	'academy_cancelled'  => array( 'label' => 'کلاس از سوی مدرس یا آموزشگاه لغو شده', 'tone' => 'error' ),

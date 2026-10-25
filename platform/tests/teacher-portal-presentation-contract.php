@@ -101,6 +101,9 @@ namespace {
     $check('unavailable start is a disabled button explained by visible text', str_contains($html, 'disabled aria-describedby="tp-join-0"') && str_contains($html, 'id="tp-join-0" class="dzn-tp-help dzn-tp-class__help">ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'));
     $generic = $render('home', $model(array('classes' => array($class()))));
     $check('a lesson that cannot start still explains why', str_contains($generic, 'disabled aria-describedby="tp-join-0"') && str_contains($generic, 'id="tp-join-0"') && str_contains($generic, 'سامانه ورود امن را تأیید کرده'));
+	$inProgress = $render('home', $model(array('classes' => array($class(array('state' => 'in_progress', 'status' => 'در حال برگزاری'))))));
+	$awaitingOutcome = $render('home', $model(array('classes' => array($class(array('state' => 'awaiting_outcome', 'status' => 'پایان یافته؛ ثبت نتیجه لازم است'))))));
+	$check('booking wall-clock phases are displayed without inventing an attendance result', str_contains($inProgress, 'در حال برگزاری') && str_contains($awaitingOutcome, 'پایان یافته؛ ثبت نتیجه لازم است'));
     $check('delivery issue report keeps its nonce and identifiers', str_contains($html, 'name="_wpnonce" value="nonce-issue"') && str_contains($html, 'name="lesson_uid" value="LESSON-UID"') && str_contains($html, 'name="schedule_version_uid" value="SCHEDULE-UID"'));
     $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 2 && str_contains($html, 'data-dzn-tp-busy-label="در حال باز کردن کلاس…"'));
 

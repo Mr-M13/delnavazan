@@ -43,6 +43,7 @@ namespace {
     $lesson = $model['upcoming_lesson'] ?? array();
     if (($lesson['entitlement_state'] ?? '') !== 'free_introductory' || ($lesson['teacher'] ?? '') !== 'Teacher Example') throw new \RuntimeException('Confirmed intro presentation is incomplete.');
     if (empty($lesson['join_available']) || ($lesson['confirmation_uid'] ?? '') !== '01ARZ3NDEKTSV4RRFFQ69G5FAV') throw new \RuntimeException('Confirmed intro inside the late window did not receive its secure join action.');
+    if (($lesson['presentation_state'] ?? '') !== 'awaiting_outcome' || !str_contains((string) ($lesson['notice'] ?? ''), 'نتیجهٔ حضور')) throw new \RuntimeException('Finished introductory booking must await an authoritative outcome rather than claim completion.');
     if (($lesson['timezone_label'] ?? '') !== 'America/New_York') throw new \RuntimeException('Canonical Student timezone did not override the booking schedule timezone.');
     if (!empty($model['term'])) throw new \RuntimeException('A free intro fabricated a paid enrolment term.');
     echo "Booking student upcoming theme unit passed\n";

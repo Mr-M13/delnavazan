@@ -105,7 +105,7 @@ function dzn_theme_teacher_portal_attention_valid( $item ) {
 	return ! isset( $markers[ $item['state'] ] ) || true === ( $item[ $markers[ $item['state'] ] ] ?? false );
 }
 function dzn_theme_teacher_portal_class_valid( $item ) {
-	$states = array( 'upcoming', 'starting_soon', 'student_absence', 'replacement', 'intro', 'flexible' );
+	$states = array( 'upcoming', 'starting_soon', 'in_progress', 'awaiting_outcome', 'student_absence', 'replacement', 'intro', 'flexible' );
 	if ( ! is_array( $item ) || ! in_array( $item['state'] ?? null, $states, true ) ) { return false; }
 	foreach ( array( 'ref', 'time', 'student', 'course', 'progress', 'status', 'student_summary', 'schedule_summary', 'previous_private_note' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
 	return is_bool( $item['start_available'] ?? null ) && is_bool( $item['details_available'] ?? null );

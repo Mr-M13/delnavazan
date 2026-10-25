@@ -7,7 +7,7 @@
 
 $lesson = isset( $args['lesson'] ) && is_array( $args['lesson'] ) ? $args['lesson'] : array();
 $state = isset( $lesson['presentation_state'] ) ? (string) $lesson['presentation_state'] : 'none';
-$approved_states = array( 'upcoming', 'starting_soon', 'absence_notified', 'time_changed', 'academy_cancelled', 'awaiting_reschedule', 'none' );
+$approved_states = array( 'upcoming', 'starting_soon', 'in_progress', 'awaiting_outcome', 'absence_notified', 'time_changed', 'academy_cancelled', 'awaiting_reschedule', 'none' );
 $state_is_valid = in_array( $state, $approved_states, true );
 $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course'] );
 ?>

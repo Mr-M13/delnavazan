@@ -2445,7 +2445,7 @@ final class Migrator {
 		}
 		// Rule 10: Phase 2A.2-U owns only its declared finance tables. Later migrations may add
 		// separately verified finance namespaces; do not make the older verifier reject them.
-		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations');
+		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations','finance_regional_prices','finance_settings');
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $p . 'finance_%' ) ) as $table ) {
 			$short = substr( (string) $table, strlen( $p ) );
 			if ( ! isset( $spec[ $short ] ) && ! in_array( $short, $laterFinanceTables, true ) ) throw new \RuntimeException('Migration verification failed: table outside the declared Phase 2A.2-U set: '.$short);

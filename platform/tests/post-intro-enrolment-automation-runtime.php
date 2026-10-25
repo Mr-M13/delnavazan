@@ -208,10 +208,14 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
     $requestedTimeId = (int) $delivery->requested_time_id;
     $start = gmdate('Y-m-d H:i:s', strtotime($now . ' UTC -' . $hoursAgo . ' hours'));
     $start = substr($start, 0, 11) . $wallTime;
-    // The wall-clock override must still be in the past even when the current UTC hour is
-    // earlier than the scenario wall time (for example a 02:01 CI run with a 04:xx slot).
-    if ($start >= $now) $start = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC -1 day'));
+    // The outcome service correctly refuses a class until it has ended. A start earlier in the
+    // same hour can still have a future end (for example, a 04:05–04:35 class at 04:23), so the
+    // fixture must prove the full confirmed interval is historical, not only its start.
     $end = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +30 minutes'));
+    if ($end > $now) {
+        $start = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC -1 day'));
+        $end = gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +30 minutes'));
+    }
     $occupied = gmdate('Y-m-d H:i:s', strtotime($end . ' UTC +15 minutes'));
     $localDate = substr($start, 0, 10);
     dzn_pia_assert($wpdb->update($p . 'booking_request_requested_times', array('local_date' => $localDate, 'local_start_time' => $wallTime, 'timezone' => 'UTC', 'starts_at_utc' => $start, 'instructional_ends_at_utc' => $end, 'occupied_ends_at_utc' => $occupied), array('id' => $requestedTimeId)) === 1, 'requested time import');

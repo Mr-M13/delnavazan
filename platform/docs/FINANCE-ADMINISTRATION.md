@@ -161,9 +161,9 @@ No production deployment or production price change is part of this change.
 - **Conversion and fees.** The user-specified AUD account view is not derived from online payments in
   this change. Stripe/accounting conversion, fees and taxes remain provider/accounting facts and do not
   write the manual Central Ledger. The ledger stays manual by design.
-- **Runtime evidence.** The disposable WordPress + MariaDB runtime was not available in this
-  environment. Static lint, pure unit suites and source contracts were executed; migration and
-  role-runtime execution remain a pre-merge gate.
+- **Runtime evidence.** The PR runtime gate executed the disposable WordPress + MariaDB catalogue
+  lifecycle, post-intro lifecycle, Stripe E2E and OAuth scope regression successfully. Static lint,
+  pure unit suites and source contracts also pass.
 
 ## 10. Tests
 
@@ -178,6 +178,5 @@ Pure/contract suites added:
   independence and capability/nonce gates.
 
 Updated navigation/catalogue contracts reflect the removed duplicate finance navigation and the
-Finance-owned introductory pricing. Runtime WordPress/MariaDB suites still need the disposable
-environment for migration and permission execution; static lint and all pure suites are executable
-here.
+Finance-owned introductory pricing. The PR runtime gate executes the disposable WordPress/MariaDB catalogue,
+post-intro, Stripe and OAuth suites; all are green for this candidate.

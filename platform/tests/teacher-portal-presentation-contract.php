@@ -153,7 +153,7 @@ namespace {
     $_GET = array();
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
-    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 6 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 7 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
 
     // 7. Unavailable and error states give a real next step.
     $signedOut = $render('home', array('available' => false, 'state' => 'signed_out', 'screen' => 'home'));

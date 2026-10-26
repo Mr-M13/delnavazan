@@ -89,7 +89,7 @@ function dzn_theme_render_booking_route(): void {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <p class="dzn-booking__help">جلسهٔ معارفه رایگان است؛ انتخاب ساز هنوز زمان کلاس را رزرو نمی‌کند.</p>
+                        <p class="dzn-booking__help"><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?>؛ انتخاب ساز هنوز زمان کلاس را رزرو نمی‌کند.</p>
                         <div class="dzn-booking__actions">
                             <a class="dzn-booking__back" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                             <button class="dzn-booking__button" type="button" data-next="availability">انتخاب زمان</button>
@@ -107,7 +107,7 @@ function dzn_theme_render_booking_route(): void {
                             <div class="dzn-booking__calendar-grid" data-calendar-weekdays aria-hidden="true"></div>
                             <div class="dzn-booking__calendar-grid" data-calendar role="group" aria-label="انتخاب روز" tabindex="-1"></div>
                         </div>
-                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفهٔ رایگان انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. در این مرحله هیچ پرداختی انجام نمی‌دهید.</p>
+                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفه انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. هیچ پرداختی در این مرحله انجام نمی‌شود.</p>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
                                                         <div class="dzn-booking__time-options" data-time-options></div>
@@ -179,9 +179,9 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
                             <aside class="dzn-booking__notice dzn-booking__summary-note">
-                                <h4>جلسهٔ معارفه رایگان است</h4>
+                                <h4><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?></h4>
                                 <ul>
-                                    <li>در این مرحله هیچ پرداختی ندارید.</li>
+                                    <li>در این مرحله پرداختی انجام نمی‌شود؛ جزئیات پرداخت پس از تأیید استاد اعلام می‌شود.</li>
                                     <li>زمان‌های انتخابی اولویت شما هستند و پس از بررسی استاد تأیید می‌شوند.</li>
                                     <li>نتیجهٔ هماهنگی از طریق اطلاعات تماسی که وارد کرده‌اید با شما در میان گذاشته می‌شود.</li>
                                     <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از جلسهٔ معارفه هماهنگ می‌شود.</li>

@@ -45,7 +45,8 @@ namespace {
     require_once dirname(__DIR__) . '/src/Core/Application/BookingTeacherResponseService.php';
     $assert = static function(bool $ok,string $message): void { if(!$ok)throw new \RuntimeException($message); };
     $repository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
-    $service = new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($repository);
+    $freePricing = static fn(int $id): array => array('configured'=>false,'mode'=>'free','amount_minor'=>0,'currency'=>null,'region_code'=>null);
+    $service = new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($repository,null,$freePricing);
     $accepted = $service->respond($repository->delivery->uid,'accept','accept-once');
     $assert($accepted['state']==='accepting' && $repository->delivery->state==='accepting','Acceptance must enter provider projection before confirmation.');
     $confirmationId=(int)$accepted['confirmation_id'];
@@ -56,14 +57,24 @@ namespace {
 
     $declineRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $declineRepository->teacher->onboarding_state='in_progress';$declineRepository->teacher->readiness_state='not_ready';$declineRepository->connection=null;
-    $declined=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($declineRepository))->respond($declineRepository->delivery->uid,'decline','decline-once');
+    $declined=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($declineRepository,null,$freePricing))->respond($declineRepository->delivery->uid,'decline','decline-once');
     $assert($declined['state']==='declined' && $declineRepository->delivery->resolution_state==='teacher_declined','A linked active Teacher must be able to decline without provider readiness.');
     $assert(isset($declineRepository->notifications['41|declined']),'Decline must queue the student update atomically.');
 
     $restartRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
-    $first=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository))->respond($restartRepository->delivery->uid,'accept','restart-first');
+    $first=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-first');
     $restartRepository->confirmations[$first['confirmation_id']]->state='failed';$restartRepository->delivery->state='pending_request';
-    $second=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository))->respond($restartRepository->delivery->uid,'accept','restart-second');
+    $second=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-second');
     $assert($second['confirmation_id']===$first['confirmation_id']&&count($restartRepository->confirmations)===1&&$restartRepository->delivery->state==='accepting','A terminal projection failure must reuse and restart its confirmation without violating delivery uniqueness.');
+
+    $paidRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $paidRepository->delivery->student_id = 55;
+    $paidRepository->delivery->selected_intro_course_id = 77;
+    $paidPricing = static fn(int $id): array => array('configured'=>true,'mode'=>'paid','amount_minor'=>4000,'currency'=>'AUD','region_code'=>'AU');
+    $paidPayment = static fn(array $context,string $key,bool $within): array => array('obligation_id'=>1,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAB','reference'=>'DZN-INTRO-01ARZ3NDEKTSV4RRFFQ69G5FAB','state'=>'pending','amount_minor'=>4000,'currency'=>'AUD','created'=>true);
+    $paid = (new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($paidRepository,null,$paidPricing,$paidPayment))->respond($paidRepository->delivery->uid,'accept','paid-accept-once');
+    $assert($paid['state']==='awaiting_payment' && ($paid['payment_required']??false)===true,'Paid acceptance must stop at the payment gate.');
+    $assert($paidRepository->confirmations[$paid['confirmation_id']]->state==='awaiting_payment','Paid confirmation must not be projectable before payment.');
+    $assert($paidRepository->delivery->state==='accepting','Paid acceptance must retain the accepted delivery while awaiting payment.');
     echo "Booking teacher response unit passed\n";
 }

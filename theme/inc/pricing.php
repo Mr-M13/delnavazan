@@ -1,9 +1,10 @@
 <?php
 /**
- * Non-authoritative regional tuition presentation configuration.
+ * Regional tuition presentation configuration.
  *
- * This is Theme UI data only. Platform must revalidate any future selected
- * region and authoritative price before enrolment or payment.
+ * Amounts come from the Platform's single regional pricing authority. This file performs
+ * no price calculation and no currency conversion; when the authority is unavailable the
+ * homepage asks the visitor to choose a region instead of showing a stale hardcoded amount.
  *
  * @package DelnavazanTheme
  */
@@ -18,23 +19,39 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return array<string, mixed>
  */
 function dzn_theme_pricing_presentation_config() {
+	$class = 'Delnavazan\\Platform\\Core\\Application\\Finance\\Pricing\\RegionalPricingService';
+	if ( class_exists( $class ) ) {
+		try {
+			return ( new $class() )->publicConfig();
+		} catch ( Throwable $error ) {
+			// Fall through to the neutral configuration below. A pricing read failure never
+			// invents a price or converts one currency into another in the browser.
+		}
+	}
 	return array(
 		'storageKey' => 'dzn-pricing-region',
 		'detectUrl'  => 'https://ipwho.is/',
-		'regions'    => array(
-			'AU' => array( 'label' => 'استرالیا', 'currency' => 'AUD', 'display' => 'A$250', 'displayPersian' => '۲۵۰ دلار استرالیا', 'amount' => 250 ),
-			'NZ' => array( 'label' => 'نیوزیلند', 'currency' => 'NZD', 'display' => 'NZ$250', 'displayPersian' => '۲۵۰ دلار نیوزیلند', 'amount' => 250 ),
-			'US' => array( 'label' => 'ایالات متحده', 'currency' => 'USD', 'display' => 'US$250', 'displayPersian' => '۲۵۰ دلار آمریکا', 'amount' => 250 ),
-			'CA' => array( 'label' => 'کانادا', 'currency' => 'CAD', 'display' => 'C$250', 'displayPersian' => '۲۵۰ دلار کانادا', 'amount' => 250 ),
-			'EU' => array( 'label' => 'منطقهٔ یورو', 'currency' => 'EUR', 'display' => '€150', 'displayPersian' => '۱۵۰ یورو', 'amount' => 150 ),
-			'GB' => array( 'label' => 'بریتانیا', 'currency' => 'GBP', 'display' => '£150', 'displayPersian' => '۱۵۰ پوند بریتانیا', 'amount' => 150 ),
-		),
-		'countryToRegion' => array(
-			'AU' => 'AU', 'NZ' => 'NZ', 'US' => 'US', 'CA' => 'CA', 'GB' => 'GB',
-			'DE' => 'EU', 'FR' => 'EU', 'NL' => 'EU', 'ES' => 'EU', 'IT' => 'EU',
-			'AT' => 'EU', 'BE' => 'EU', 'IE' => 'EU', 'PT' => 'EU', 'FI' => 'EU',
-			'GR' => 'EU', 'LU' => 'EU', 'CY' => 'EU', 'SK' => 'EU', 'SI' => 'EU',
-			'EE' => 'EU', 'LV' => 'EU', 'LT' => 'EU',
-		),
+		'regions'    => array(),
+		'countryToRegion' => array(),
 	);
+}
+
+/**
+ * A safe, configuration-driven introductory-lesson note for the public site.
+ */
+function dzn_theme_introductory_pricing_note( $region_code = '' ) {
+	$config = dzn_theme_pricing_presentation_config();
+	$regions = isset( $config['regions'] ) && is_array( $config['regions'] ) ? $config['regions'] : array();
+	$region = $region_code !== '' && isset( $regions[ $region_code ] ) ? $regions[ $region_code ] : null;
+	if ( $region && ! empty( $region['introductoryLabel'] ) ) {
+		return (string) $region['introductoryLabel'];
+	}
+	$configured = array_values( array_filter( $regions, static fn( $item ) => ! empty( $item['configured'] ) ) );
+	if ( $configured !== array() ) {
+		$modes = array_unique( array_map( static fn( $item ) => (string) ( $item['introductoryMode'] ?? 'free' ), $configured ) );
+		if ( $modes === array( 'free' ) ) {
+			return 'جلسهٔ معارفه رایگان است.';
+		}
+	}
+	return 'جلسهٔ معارفه — هزینهٔ آن بر اساس منطقهٔ شما نمایش داده می‌شود.';
 }

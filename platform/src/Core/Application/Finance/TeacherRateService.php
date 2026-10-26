@@ -34,10 +34,13 @@ final class TeacherRateService {
         $currency=strtoupper((string)($input['currency']??''));
         $effectiveFrom=(string)($input['effective_from']??'');
         $basis=(string)($input['compensation_basis']??'per_session');
+        $origin=(string)($input['rate_origin']??'explicit');
+        if(!in_array($origin,array('explicit','global_inherited'),true))throw new \InvalidArgumentException('teacher_rate_origin_invalid');
+        $originSettingVersion=isset($input['origin_setting_version'])&&(int)$input['origin_setting_version']>0?(int)$input['origin_setting_version']:null;
         $payload=FinanceSupport::payload(array('teacher_id'=>$teacherId,'scope_kind'=>$scopeKind,'course_scope_id'=>$courseScopeId,'amount_minor'=>$amount,'currency'=>$currency,'effective_from'=>$effectiveFrom,'compensation_basis'=>$basis));
         $command=array('command_domain'=>FinanceRule::DOMAIN,'operation'=>'record','command_key_digest'=>$digest,'command_payload_digest'=>$payload,'teacher_id'=>$teacherId,'rate_id'=>null,'scope_kind'=>$scopeKind,'course_scope_id'=>$courseScopeId,'result_state'=>FinanceRule::commandSuccessState('record'),'result_rate_id'=>null,'reason_code'=>null,'created_at'=>$now,'created_by'=>$actor);
         $lock=static fn()=>FinanceSupport::lockTeacherRoot($teacherId,$actor);
-        return FinanceSupport::runCommand($lock,'finance_teacher_rate_commands',$command,function()use($teacherId,$input,$scopeKind,$courseScopeId,$amount,$currency,$effectiveFrom,$basis,$actor,$now,$payload,$digest,&$command){
+        return FinanceSupport::runCommand($lock,'finance_teacher_rate_commands',$command,function()use($teacherId,$input,$scopeKind,$courseScopeId,$amount,$currency,$effectiveFrom,$basis,$origin,$originSettingVersion,$actor,$now,$payload,$digest,&$command){
             $this->facts->teacher($teacherId,true);
             if(!FinanceRule::member($scopeKind,FinanceRule::RATE_SCOPE_KINDS))throw new FinanceRefusalException('finance_vocabulary_member_not_allowed','A rate scope is one of the declared kinds');
             if(!FinanceRule::scopeValid($scopeKind,$courseScopeId))throw new FinanceRefusalException('rate_scope_violation','A teacher-scoped rate carries the declared zero sentinel and a course-scoped rate a real Course',array('teacher_id'=>$teacherId));
@@ -70,7 +73,7 @@ final class TeacherRateService {
             $rateId=$this->rates->insertRate(array(
                 'uid'=>Identifier::uid(),'reference_code'=>null,'teacher_id'=>$teacherId,'scope_kind'=>$scopeKind,
                 'course_scope_id'=>$courseScopeId,'compensation_basis'=>$basis,'amount_minor'=>$amount,'currency'=>$currency,
-                'effective_from'=>$effectiveFrom,'effective_until'=>null,'status'=>'active','reason_code'=>null,
+                'effective_from'=>$effectiveFrom,'effective_until'=>null,'status'=>'active','rate_origin'=>$origin,'origin_setting_version'=>$originSettingVersion,'reason_code'=>null,
                 'evidence_channel'=>$proof['channel'],'evidence_reference_digest'=>$proof['digest'],'evidence_at'=>$proof['at'],
                 'rate_version'=>$version,'active_slot'=>1,'recorded_at'=>$now,'recorded_by'=>$actor,'created_at'=>$now,'created_by'=>$actor,'updated_at'=>$now,
             ));
@@ -179,7 +182,7 @@ final class TeacherRateService {
             'course_scope_id'=>(int)$rate->course_scope_id,'compensation_basis'=>(string)$rate->compensation_basis,
             'amount_minor'=>(int)$rate->amount_minor,'currency'=>(string)$rate->currency,
             'effective_from'=>(string)$rate->effective_from,'effective_until'=>$rate->effective_until===null?null:(string)$rate->effective_until,
-            'status'=>(string)$rate->status,'active_slot'=>$rate->active_slot===null?null:(int)$rate->active_slot,
+            'status'=>(string)$rate->status,'rate_origin'=>isset($rate->rate_origin)&&$rate->rate_origin!==null?(string)$rate->rate_origin:null,'origin_setting_version'=>isset($rate->origin_setting_version)&&$rate->origin_setting_version!==null?(int)$rate->origin_setting_version:null,'active_slot'=>$rate->active_slot===null?null:(int)$rate->active_slot,
         );
         return array('teacher_id'=>$teacherId,'rates'=>$rows);
     }

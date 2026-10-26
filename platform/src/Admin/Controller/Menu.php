@@ -22,6 +22,8 @@ final class Menu {
     public const ENROLMENT_WORKSPACE_CAP = 'dzn_access_enrolment_workspace';
     public const CATALOGUE_WORKSPACE_CAP = 'dzn_access_catalogue_workspace';
     public const ATTENDANCE_WORKSPACE_CAP = 'dzn_access_attendance_workspace';
+    /** One Finance page with four tabs; individual tabs still enforce narrow capabilities. */
+    public const FINANCE_WORKSPACE_CAP = 'dzn_access_finance_workspace';
     /** One visible entry for the existing canonical workflow command screen. */
     public const CORE_WORKFLOW_CAP = 'dzn_access_core_workflow';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
@@ -55,6 +57,12 @@ final class Menu {
         if ($cap === self::ATTENDANCE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
             'dzn_manage_canonical_attendance_review',
             'dzn_manage_post_intro_automation',
+        ]);
+        if ($cap === self::FINANCE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_view_finance_authority',
+            'dzn_view_payment_execution_authority',
+            'dzn_view_cash_ledger',
+            'dzn_manage_commercial_catalogue',
         ]);
         if ($cap === self::CORE_WORKFLOW_CAP) return self::mappedCoreWorkflowCaps($userId);
         if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
@@ -121,6 +129,7 @@ final class Menu {
 
         $pages = [
             ['Academy', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
+            ['Finance', self::FINANCE_WORKSPACE_CAP, 'dzn-finance', [FinanceAdminController::class, 'screen'], null],
             ['Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
             ['Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
 

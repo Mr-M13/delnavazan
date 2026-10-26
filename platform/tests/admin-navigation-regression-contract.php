@@ -85,9 +85,9 @@ if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || ! str_contains( $shell, "'finance' => ['Finance'" ) ) {
     throw new RuntimeException( 'Application tabs must preserve WordPress route registration while hiding the legacy sidebar visually.' );
 }
-if ( ! str_contains( $shell, "['Student pricing', 'dzn-commercial-catalogue', 'dzn_manage_commercial_catalogue']" )
+if ( ! str_contains( $shell, "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]" )
     || ! str_contains( $shell, "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']" )
-    || ! str_contains( $shell, "['Stripe integration', 'dzn-stripe-settings', ['dzn_view_payment_execution_authority', 'dzn_manage_payment_providers']]" )
+    || ! str_contains( $shell, "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]" )
     || ! str_contains( $shell, "['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities']" )
     || ! str_contains( $shell, 'dzn-admin-shell__subtabs' )
     || ! str_contains( $shell, 'private static function hasRequiredCapabilities' )

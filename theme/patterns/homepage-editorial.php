@@ -169,10 +169,10 @@
           <div class="dzn-price-ledger" data-dzn-pricing="">
             <div class="dzn-price-ledger__feature">
               <h2 id="dzn-story-price-title" class="dzn-story__title dzn-story__title--price">شهریهٔ یک ترم</h2>
-              <p class="dzn-price-ledger__price" data-dzn-pricing-amount="" aria-live="polite">۲۵۰ دلار آمریکا</p>
+              <p class="dzn-price-ledger__price" data-dzn-pricing-amount="" aria-live="polite">برای نمایش شهریه، منطقهٔ خود را انتخاب کنید</p>
               <p class="dzn-price-ledger__local" data-dzn-pricing-region="" aria-live="polite">قیمت پایه در صورت عدم شناسایی موقعیت</p>
               <p class="dzn-story__copy">یک ترم شامل ۱۲ جلسهٔ خصوصی است.</p>
-              <p class="dzn-story__copy">جلسهٔ معارفه برای هنرجویان جدید رایگان است.</p>
+              <p class="dzn-story__copy" data-dzn-pricing-intro=""><?php echo esc_html( dzn_theme_introductory_pricing_note() ); ?></p>
             </div>
             <div class="dzn-pricing-region">
               <p class="dzn-pricing-region__label">منطقهٔ قیمت‌گذاری</p>
@@ -268,7 +268,7 @@
 
 <!-- wp:details -->
 <details class="wp-block-details"><summary><strong>استادان شما چه کسانی هستند؟ می‌توانیم نمونه کار استادها را ببینیم؟</strong></summary><!-- wp:paragraph -->
-<p>برای حفظ کیفیت و روند آموزشی، معرفی استاد و برگزاری جلسه آشنایی پس از ثبت‌نام انجام می‌شود. خوشبختانه ثبت‌نام اولیه و جلسه معارفه کاملاً رایگان است و شما پیش از پرداخت هرگونه هزینه، با استاد خود آشنا می‌شوید و می‌توانید درباره شیوه تدریس و برنامه آموزشی گفت‌وگو کنید. در صورت عدم تمایل به ادامه کلاس، امکان لغو بدون هیچ هزینه‌ای وجود دارد.</p>
+<p>برای حفظ کیفیت و روند آموزشی، معرفی استاد و برگزاری جلسه آشنایی پس از ثبت‌نام انجام می‌شود. <?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?> و شما پیش از ادامه، با استاد خود آشنا می‌شوید و می‌توانید درباره شیوه تدریس و برنامه آموزشی گفت‌وگو کنید. در صورت عدم تمایل به ادامه کلاس، امکان لغو بدون هزینهٔ ترم وجود دارد.</p>
 <!-- /wp:paragraph --></details>
 <!-- /wp:details -->
 
@@ -286,7 +286,7 @@
 
 <!-- wp:details -->
 <details class="wp-block-details"><summary><strong>هزینهٔ ترم چه زمانی پرداخت می‌شود؟</strong></summary><!-- wp:paragraph -->
-<p>جلسهٔ معارفه رایگان و جدا از ترم است. اگر پس از آن تصمیم به ادامه بگیرید، هزینهٔ ترم پیش از آغاز ۱۲ جلسهٔ آموزشی پرداخت می‌شود.</p>
+<p><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?> و جدا از ترم است. اگر پس از آن تصمیم به ادامه بگیرید، هزینهٔ ترم پیش از آغاز ۱۲ جلسهٔ آموزشی پرداخت می‌شود.</p>
 <!-- /wp:paragraph --></details>
 <!-- /wp:details -->
 

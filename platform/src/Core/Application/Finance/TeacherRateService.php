@@ -40,7 +40,7 @@ final class TeacherRateService {
         $payload=FinanceSupport::payload(array('teacher_id'=>$teacherId,'scope_kind'=>$scopeKind,'course_scope_id'=>$courseScopeId,'amount_minor'=>$amount,'currency'=>$currency,'effective_from'=>$effectiveFrom,'compensation_basis'=>$basis));
         $command=array('command_domain'=>FinanceRule::DOMAIN,'operation'=>'record','command_key_digest'=>$digest,'command_payload_digest'=>$payload,'teacher_id'=>$teacherId,'rate_id'=>null,'scope_kind'=>$scopeKind,'course_scope_id'=>$courseScopeId,'result_state'=>FinanceRule::commandSuccessState('record'),'result_rate_id'=>null,'reason_code'=>null,'created_at'=>$now,'created_by'=>$actor);
         $lock=static fn()=>FinanceSupport::lockTeacherRoot($teacherId,$actor);
-        return FinanceSupport::runCommand($lock,'finance_teacher_rate_commands',$command,function()use($teacherId,$input,$scopeKind,$courseScopeId,$amount,$currency,$effectiveFrom,$basis,$actor,$now,$payload,$digest,&$command){
+        return FinanceSupport::runCommand($lock,'finance_teacher_rate_commands',$command,function()use($teacherId,$input,$scopeKind,$courseScopeId,$amount,$currency,$effectiveFrom,$basis,$origin,$originSettingVersion,$actor,$now,$payload,$digest,&$command){
             $this->facts->teacher($teacherId,true);
             if(!FinanceRule::member($scopeKind,FinanceRule::RATE_SCOPE_KINDS))throw new FinanceRefusalException('finance_vocabulary_member_not_allowed','A rate scope is one of the declared kinds');
             if(!FinanceRule::scopeValid($scopeKind,$courseScopeId))throw new FinanceRefusalException('rate_scope_violation','A teacher-scoped rate carries the declared zero sentinel and a course-scoped rate a real Course',array('teacher_id'=>$teacherId));

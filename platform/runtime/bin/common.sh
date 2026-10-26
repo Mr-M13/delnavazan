@@ -111,10 +111,20 @@ dzn_remove_disposable_path(){
   # The one deletion primitive.  Every removal re-validates the physical path it
   # is about to delete, so there is no code path that deletes anything that is not
   # a real, non-symlinked child of the dedicated state directory.
-  local path="${1:?disposable path is required}"
+  local path="${1:?disposable path is required}" physical relative
   dzn_assert_not_symlink "$path"
   dzn_assert_disposable_path "$path"
-  rm -rf "$path"
+  rm -rf "$path" 2>/dev/null && return
+
+  # MariaDB writes its bind mount as root. If that leaves a host-unwritable
+  # child, use the already-required local CLI image to remove only the same
+  # validated physical child through a bind of the dedicated state directory.
+  physical="$(dzn_canonicalize_path "$path")" || exit 1
+  case "$physical" in "$DZN_RUNTIME_STATE_DIR"/*) relative="${physical#"$DZN_RUNTIME_STATE_DIR"/}";; *) exit 1;; esac
+  docker run --rm --pull=never -u 0 \
+    --mount "type=bind,src=$DZN_RUNTIME_STATE_DIR,dst=/runtime-state" \
+    --entrypoint sh "$DZN_CLI_IMAGE" \
+    -c 'rm -rf -- "/runtime-state/$1"' sh "$relative"
 }
 dzn_assert_runtime_paths(){
   # Every worktree, database, WordPress and plugin-source path this harness

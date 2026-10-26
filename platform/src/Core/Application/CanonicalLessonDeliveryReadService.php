@@ -47,7 +47,9 @@ final class CanonicalLessonDeliveryReadService {
             // `presumed` is a lifecycle completion from elapsed scheduled time only. It is never
             // reported as verified attendance, and Finance keeps it non-payable until reviewed.
             'completion_basis'=>$completionBasis,
-            'attendance_verified'=>$truth==='delivered'&&$effective!==null,
+            // Verified attendance requires an explicit delivered outcome. A no-show, interruption
+            // or presumed completion is not the same fact.
+            'attendance_verified'=>$effective!==null&&(string)$effective->outcome_code==='delivered',
             'outcomes'=>$outcomes,
             'obligations'=>$obligations,
         );

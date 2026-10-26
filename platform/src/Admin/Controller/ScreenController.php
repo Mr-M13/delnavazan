@@ -835,6 +835,14 @@ final class ScreenController {
                 submit_button('Mark completion disputed', 'secondary');
                 echo '</form>';
             }
+        } elseif ($effective) {
+            self::formStart('correct_canonical_delivery');
+            echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '"><input type="hidden" name="expected_outcome_id" value="' . esc_attr((string) $effective->id) . '">';
+            echo '<p><label>Correct effective outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+            self::input('reason_code', 'Reason code', true, 'text', 'administrator_correction');
+            self::canonicalEvidenceFields();
+            submit_button('Append corrected outcome', 'secondary');
+            echo '</form>';
         } elseif ((string) $lesson->lifecycle_state === 'authorised' && !$effective) {
             try { $schedule = (new \Delnavazan\Platform\Core\Application\CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
             catch (\Throwable) { $schedule = array('active_version' => null); }

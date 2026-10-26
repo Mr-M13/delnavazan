@@ -23,6 +23,8 @@ final class LessonCompletionAutomationWorker {
         'occurrence_not_ended',
         'schedule_required_for_completion_presumption',
         'delivery_outcome_exists',
+        'lesson_not_delivered',
+        'lesson_delivery_review_required',
         'attendance_issue_unresolved',
         'attendance_conflict_unresolved',
         'canonical_lesson_integrity_conflict',

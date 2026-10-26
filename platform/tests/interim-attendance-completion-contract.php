@@ -49,6 +49,10 @@ $assert(str_contains($worker, "'lesson-completion-presumption:'.\$lesson->uid.':
 $assert(!str_contains($worker, 'google') && !str_contains($worker, 'meet'), 'Completion automation must not depend on Google Meet');
 $assert(str_contains($worker, 'PostIntroSystemActor::run'), 'Automation must use the existing provisioned system-identity seam');
 $assert(str_contains($worker, 'CanonicalLessonAuthorityService') && !str_contains($worker, '$wpdb->update'), 'The worker must delegate to canonical authority, never write lifecycle or attendance itself');
+$assert(str_contains($worker, "'lesson_not_delivered'") && str_contains($worker, "'lesson_delivery_review_required'"), 'Blocking delivery outcomes must be classified as skips, not recurring worker errors');
+$repository = $read('src/Core/Infrastructure/Repository/CanonicalLessonAuthorityRepository.php');
+$assert(str_contains($repository, 'canonical_lesson_delivery_outcomes d WHERE d.lesson_id=l.id'), 'Candidate selection must exclude Lessons that already have an outcome');
+$assert(str_contains($repository, "c.state IN ('open','ready_for_review','settlement_pending')"), 'Candidate selection must exclude unresolved attendance reviews so a bounded batch cannot starve newer Lessons');
 
 // Late reports become append-only corrections, never deleted history.
 $assert(str_contains($delivery, 'function dispute('), 'A completed occurrence must support an explicit dispute correction');
@@ -71,6 +75,7 @@ $assert(str_contains($screen, 'dzn_manage_canonical_lesson_delivery'), 'Administ
 
 // Presumed completion is never automatically payable or statement-releasable.
 $assert(str_contains($financeFacts, "'completion_presumed'"), 'Finance facts must carry the completion basis');
+$assert(str_contains($read('src/Core/Application/CanonicalLessonDeliveryReadService.php'), "(string)\$effective->outcome_code==='delivered'"), 'Only an explicit delivered outcome may be reported as verified attendance');
 $assert(str_contains($payability, "case 'presumed_completion':"), 'Payability must explicitly evaluate presumed completion');
 $assert(str_contains($financeRule, "array('row'=>6,'fact'=>'presumed_completion','disposition'=>'pending','basis_code'=>'presumed_completion_review'"), 'Presumed completion must remain pending, not payable');
 

@@ -88,7 +88,7 @@ foreach ( array(
     "AMOUNT_EXACTNESS='exact_integer'",
     "FINANCE_TIMEZONE_SOURCE='recorded_policy'",
     "POLICY_ADMISSIBILITY_RULE='later_than_recorded_consumption'",
-    "PAYABILITY_DERIVATION_VERSION='finance_payability_v1'",
+    "PAYABILITY_DERIVATION_VERSION='finance_payability_v2'",
     "UNSET_POLICY_KEY='FINANCE_STATEMENT_TIMEZONE'",
 ) as $needle ) dzn_u_contract( str_contains( preg_replace( '/\s+/', '', $rule ), $needle ), 'missing locked vocabulary: ' . $needle );
 foreach ( array( 'INTRO_PAYABILITY_POLICY', 'STUDENT_NO_SHOW_COMPENSATION_POLICY', 'INTERRUPTION_COMPENSATION_POLICY', 'FINANCE_STATEMENT_TIMEZONE' ) as $key ) dzn_u_contract( str_contains( $rule, "'" . $key . "'" ), 'missing declared policy key: ' . $key );

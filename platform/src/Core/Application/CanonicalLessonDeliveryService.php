@@ -164,6 +164,9 @@ final class CanonicalLessonDeliveryService {
             if(!$effective||(int)$effective->id!==$expectedOutcomeId)throw new \InvalidArgumentException('stale_delivery_outcome');
             $reconciled=$effective->reconciles_completion_event_id===null?null:(int)$effective->reconciles_completion_event_id;
             if($state==='completed'&&CanonicalLessonDeliveryValidator::blocksCompletion((string)$intent['outcome_code'])&&$reconciled===null)throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
+            // Preserve the original O-D8 refusal for an academy non-delivery. Only a disputed
+            // completion (review_required) may be resolved into verified delivery below.
+            if($reconciled!==null&&(string)$effective->outcome_code==='teacher_non_delivery'&&$profile['remedy_class']!=='academy_obligation')throw new \InvalidArgumentException('completion_reconciliation_cannot_be_undone');
             if((string)CanonicalLessonDeliveryValidator::profile((string)$effective->outcome_code)['remedy_class']==='academy_obligation'&&$profile['remedy_class']!=='academy_obligation')throw new \InvalidArgumentException('academy_obligation_cannot_be_removed');
             // A later verified delivery resolves a disputed completion; the historical review
             // outcome stays append-only, while the new fact no longer contradicts completion.

@@ -30,8 +30,11 @@ final class CanonicalLessonAuthorityRepository {
         global $wpdb;
         if(!\Delnavazan\Platform\Core\Application\CanonicalLessonScheduleValidator::utc($nowUtc))throw new \InvalidArgumentException('canonical_completion_instant_required');
         $limit=max(1,min(100,(int)$limit));
+        // Permanently ineligible Lessons are excluded in the candidate query itself. A skipped
+        // Lesson stays `authorised`, so if it were returned every run, a bounded batch would starve
+        // every newer occurrence once enough old outcomes/reviews existed.
         $rows=$wpdb->get_col($wpdb->prepare(
-            "SELECT l.id FROM {$this->p}lessons l INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.id=(SELECT MAX(latest.id) FROM {$this->p}canonical_lesson_schedule_versions latest WHERE latest.lesson_id=l.id) WHERE l.record_model='canonical_term_lesson_v1' AND l.lifecycle_state='authorised' AND l.archived_at IS NULL AND v.starts_at_utc<=%s AND v.ends_at_utc<=%s ORDER BY v.ends_at_utc ASC,l.id ASC LIMIT {$limit}",
+            "SELECT l.id FROM {$this->p}lessons l INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.id=(SELECT MAX(latest.id) FROM {$this->p}canonical_lesson_schedule_versions latest WHERE latest.lesson_id=l.id) WHERE l.record_model='canonical_term_lesson_v1' AND l.lifecycle_state='authorised' AND l.archived_at IS NULL AND v.starts_at_utc<=%s AND v.ends_at_utc<=%s AND NOT EXISTS (SELECT 1 FROM {$this->p}canonical_lesson_delivery_outcomes d WHERE d.lesson_id=l.id) AND NOT EXISTS (SELECT 1 FROM {$this->p}canonical_attendance_cases c WHERE c.lesson_id=l.id AND c.state IN ('open','ready_for_review','settlement_pending')) ORDER BY v.ends_at_utc ASC,l.id ASC LIMIT {$limit}",
             $nowUtc,
             $nowUtc
         ));

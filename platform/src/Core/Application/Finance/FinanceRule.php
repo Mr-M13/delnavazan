@@ -15,7 +15,7 @@ final class FinanceRule {
     public const DOMAIN='finance_v1';
 
     /** The derivation version that binds the §5.3 payability table. */
-    public const PAYABILITY_DERIVATION_VERSION='finance_payability_v1';
+    public const PAYABILITY_DERIVATION_VERSION='finance_payability_v2';
     /** The rule version recorded on every immutable per-Lesson snapshot. */
     public const SNAPSHOT_RULE_VERSION='finance_snapshot_v1';
     /** The rule version recorded on every statement. */

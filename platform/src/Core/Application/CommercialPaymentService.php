@@ -255,7 +255,7 @@ final class CommercialPaymentService {
             ));
             $this->payments->updateEvidenceAttribution((int)$evidence->id,array(
                 'evidence_fact_digest'=>$factDigest,'obligation_reference_digest'=>$obligationDigest,
-                'processing_state'=>'accepted','reason_code'=>null,
+                'processing_state'=>'accepted','reason_code'=>null,'ingested_at'=>$now,
                 'offer_id'=>(int)$offer->id,'obligation_id'=>(int)$obligation->id,
             ));
             $purchase=$this->repository->purchaseByOffer((int)$offer->id,true);
@@ -266,6 +266,64 @@ final class CommercialPaymentService {
             $this->repository->commit();
             $result['repaired']=true;
             return $result;
+        }catch(\Throwable$e){
+            $this->repository->rollback();
+            $constraint=$this->repository->duplicate($e)??$this->payments->duplicate($e);
+            if($constraint==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replay($winner,$payload);
+            throw $e;
+        }
+    }
+
+    /**
+     * Align an accepted evidence ingestion instant with the already-recorded settlement instant.
+     *
+     * This is a narrow repair for evidence accepted before a reconciliation settlement existed. It
+     * changes only the platform ingestion timestamp, never the provider reference, amount, currency,
+     * occurrence instant or account digest, and re-proves the settlement/fact/purchase linkage.
+     *
+     * @return array<string,mixed>
+     */
+    public function alignAcceptedEvidenceIngestionTime(int $evidenceId,string $key):array{
+        CommercialSupport::requireCapability(self::CAPABILITY);
+        $actor=CommercialSupport::actor();
+        $now=CommercialSupport::now();
+        if($evidenceId<1||trim($key)==='')throw new \InvalidArgumentException('commercial_evidence_repair_required');
+        $digest=CommercialSupport::keyString($key);
+        $payload=CommercialIdempotency::payload(array(
+            'domain'=>CommercialRule::DOMAIN,'operation'=>'ingest_payment_evidence','timeline_repair'=>true,'evidence_id'=>$evidenceId,
+        ));
+        $this->repository->begin();
+        try{
+            if($winner=$this->repository->command($digest)){$result=$this->replay($winner,$payload);$this->repository->commit();return $result;}
+            $evidence=$this->payments->evidence($evidenceId,true);
+            if(!$evidence||!CommercialValidator::evidenceValid($evidence))throw new \InvalidArgumentException('commercial_evidence_required');
+            if((string)$evidence->processing_state!=='accepted'||(string)$evidence->evidence_kind!=='success'
+                ||$evidence->obligation_id===null||$evidence->offer_id===null)throw new \InvalidArgumentException('commercial_evidence_not_repairable');
+            $obligation=$this->repository->obligation((int)$evidence->obligation_id,true);
+            $offer=$this->repository->offer((int)$evidence->offer_id,true);
+            if(!$obligation||!$offer)throw new \InvalidArgumentException('commercial_obligation_required');
+            $settlement=$this->payments->settlementForObligation((int)$obligation->id,true);
+            $fact=$this->payments->factForEvidence($evidenceId,true);
+            if(!$settlement||(int)$settlement->evidence_id!==$evidenceId||!$fact||(int)$fact->evidence_id!==$evidenceId)throw new \InvalidArgumentException('commercial_evidence_not_repairable');
+            $purchase=$this->repository->purchase((int)$fact->purchase_id,true);
+            if(!$purchase||(int)$purchase->first_evidence_id!==$evidenceId)throw new \InvalidArgumentException('commercial_evidence_not_repairable');
+            if((int)$settlement->amount_minor!==(int)$evidence->amount_minor||(string)$settlement->currency!==(string)$evidence->currency)throw new \InvalidArgumentException('commercial_evidence_conflict');
+            $settledAt=(string)$settlement->settled_at;
+            if(!CommercialValidator::utc($settledAt)||$settledAt<(string)$evidence->ingested_at)throw new \InvalidArgumentException('commercial_evidence_timeline_conflict');
+            if($settledAt!==(string)$evidence->ingested_at){
+                $this->payments->updateEvidenceAttribution($evidenceId,array('ingested_at'=>$settledAt));
+                $entitlement=$this->repository->entitlementForPurchase((int)$purchase->id);
+                $this->repository->insertCommand(array(
+                    'uid'=>Identifier::uid(),'command_domain'=>CommercialRule::DOMAIN,'operation'=>'ingest_payment_evidence',
+                    'command_key_digest'=>$digest,'command_payload_digest'=>$payload,'student_id'=>(int)$purchase->beneficiary_student_id,
+                    'teacher_id'=>(int)$offer->teacher_id,'offer_id'=>(int)$offer->id,'obligation_id'=>(int)$obligation->id,
+                    'purchase_id'=>(int)$purchase->id,'entitlement_id'=>$entitlement?(int)$entitlement->id:null,'claim_id'=>null,'term_id'=>null,
+                    'result_state'=>'settled','result_id'=>$evidenceId,'created_at'=>$now,'created_by'=>$actor,
+                ));
+            }
+            $this->repository->commit();
+            $fresh=$this->payments->evidence($evidenceId);
+            return $this->evidenceOutcome($fresh??$evidence);
         }catch(\Throwable$e){
             $this->repository->rollback();
             $constraint=$this->repository->duplicate($e)??$this->payments->duplicate($e);

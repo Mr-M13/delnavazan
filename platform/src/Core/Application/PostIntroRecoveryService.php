@@ -56,6 +56,17 @@ final class PostIntroRecoveryService {
             if (!$status['payment_verified']) throw new \RuntimeException('verified_payment_required');
         }
 
+        // An accepted evidence row from an earlier reconciliation may predate its settlement row.
+        // Align only the platform ingestion timestamp so the canonical commitment timeline is valid;
+        // provider amount/currency/occurrence/account facts are never changed.
+        $settlementEvidenceId = (int) ($status['settlement_evidence_id'] ?? 0);
+        if ($settlementEvidenceId > 0) {
+            (new CommercialPaymentService())->alignAcceptedEvidenceIngestionTime(
+                $settlementEvidenceId,
+                'post-intro-align-evidence-' . $settlementEvidenceId
+            );
+        }
+
         if (!$status['schedule_ready']) throw new \RuntimeException('authoritative_schedule_missing');
 
         if ((int) $status['job_id'] < 1) {

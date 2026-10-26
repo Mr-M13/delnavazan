@@ -68,6 +68,15 @@ final class CanonicalLessonDeliveryService {
         return $this->apply('reconcile_completion_non_delivery',$lessonId,0,$this->intent(array_merge($input,array('outcome_code'=>'teacher_non_delivery')))+array('expected_lesson_state'=>'completed'),$rawKey);
     }
 
+    /**
+     * Explicitly dispute a completed occurrence after a late report. The immutable completion event
+     * is preserved; the new effective outcome is `review_required`, which blocks payability and
+     * statement issuance until an administrator records delivered or non-delivery.
+     */
+    public function dispute(int $lessonId,array $input,string $rawKey):array{
+        return $this->apply('dispute_completion',$lessonId,0,$this->intent(array_merge($input,array('outcome_code'=>'review_required')))+array('expected_lesson_state'=>null),$rawKey);
+    }
+
     private function apply(string $operation,int $lessonId,int $expectedOutcomeId,array $intent,string $rawKey):array{
         $this->capability();
         $actor=$this->actor();
@@ -89,7 +98,7 @@ final class CanonicalLessonDeliveryService {
                 if(!$versions)throw new \InvalidArgumentException('schedule_required_for_delivery_outcome');
                 $version=$versions[count($versions)-1];
                 $this->assertOccurrenceEnded($version,$now);
-                if($profile['delivery_state']==='not_delivered'&&$state==='completed')throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
+                if(CanonicalLessonDeliveryValidator::blocksCompletion((string)$intent['outcome_code'])&&$state==='completed')throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
                 $outcomeId=$this->insertOutcome($lesson,$profile,$version,$facts,null,$now,$actor);
                 do_action('dzn_phase_2a2o_after_outcome_insert',$operation,$lessonId);
                 if($profile['remedy_class']==='academy_obligation')$this->oweAcademyOccurrence($lessonId,$outcomeId,null,$facts);
@@ -126,13 +135,42 @@ final class CanonicalLessonDeliveryService {
                 return array('lesson_id'=>(int)$lesson->id,'outcome_id'=>$outcomeId,'superseded_outcome_id'=>$effective?(int)$effective->id:null,'reconciled'=>true,'created'=>true,'operation'=>$operation);
             }
 
+            if($operation==='dispute_completion'){
+                if($state!=='completed')throw new \InvalidArgumentException('lesson_not_completed_for_reconciliation');
+                if((string)$intent['outcome_code']!=='review_required')throw new \InvalidArgumentException('Controlled delivery outcome code required');
+                if(!CanonicalLessonAuthorityValidator::valid($lesson,$lifecycle,$this->lessons))throw new \InvalidArgumentException('canonical_lesson_integrity_conflict');
+                $terminalCompletion=$lifecycle[count($lifecycle)-1];
+                if((string)($terminalCompletion->to_state??'')!=='completed')throw new \InvalidArgumentException('completion_event_missing');
+                $completionEventId=(int)$terminalCompletion->id;
+                $effective=CanonicalLessonDeliveryValidator::effective($outcomes);
+                if($effective&&(string)$effective->outcome_code==='teacher_non_delivery')throw new \InvalidArgumentException('academy_obligation_cannot_be_removed');
+                if($effective&&(string)$effective->outcome_code==='review_required')throw new \InvalidArgumentException('already_disputed');
+                $version=$this->applicableVersionFor($effective,$versions);
+                $this->assertOccurrenceEnded($version,$now);
+                if($effective){
+                    $this->repository->supersede((int)$effective->id,$now,null);
+                    do_action('dzn_phase_2a2o_after_outcome_supersede',$operation,$lessonId);
+                }
+                $outcomeId=$this->insertOutcome($lesson,$profile,$version,$facts,$completionEventId,$now,$actor);
+                if($effective)$this->repository->setSuccessor((int)$effective->id,$outcomeId);
+                do_action('dzn_phase_2a2o_after_outcome_insert',$operation,$lessonId);
+                $this->insertCommand($digest,$payload,$operation,$facts,$effective?(int)$effective->id:null,'disputed',$outcomeId,$now,$actor);
+                do_action('dzn_phase_2a2o_after_command_insert',$operation,$lessonId);
+                return array('lesson_id'=>(int)$lesson->id,'outcome_id'=>$outcomeId,'superseded_outcome_id'=>$effective?(int)$effective->id:null,'disputed'=>true,'created'=>true,'operation'=>$operation);
+            }
+
             if(!in_array($state,self::CORRECTABLE_STATES,true))throw new \InvalidArgumentException('lesson_not_delivery_recordable');
             $effective=CanonicalLessonDeliveryValidator::effective($outcomes);
             if(!$effective||(int)$effective->id!==$expectedOutcomeId)throw new \InvalidArgumentException('stale_delivery_outcome');
-            if($profile['delivery_state']==='not_delivered'&&$state==='completed')throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
             $reconciled=$effective->reconciles_completion_event_id===null?null:(int)$effective->reconciles_completion_event_id;
-            if($reconciled!==null&&$profile['delivery_state']!=='not_delivered')throw new \InvalidArgumentException('completion_reconciliation_cannot_be_undone');
+            if($state==='completed'&&CanonicalLessonDeliveryValidator::blocksCompletion((string)$intent['outcome_code'])&&$reconciled===null)throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
             if((string)CanonicalLessonDeliveryValidator::profile((string)$effective->outcome_code)['remedy_class']==='academy_obligation'&&$profile['remedy_class']!=='academy_obligation')throw new \InvalidArgumentException('academy_obligation_cannot_be_removed');
+            // A later verified delivery resolves a disputed completion; the historical review
+            // outcome stays append-only, while the new fact no longer contradicts completion.
+            // A reconciled academy non-delivery remains protected by the existing
+            // completion_reconciliation_cannot_be_undone / academy_obligation_cannot_be_removed
+            // rule, so it can never be converted into a payable verified delivery in place.
+            if($reconciled!==null&&!CanonicalLessonDeliveryValidator::blocksCompletion((string)$intent['outcome_code']))$reconciled=null;
             $version=$this->applicableVersionFor($effective,$versions);
             $this->repository->supersede((int)$effective->id,$now,null);
             do_action('dzn_phase_2a2o_after_outcome_supersede',$operation,$lessonId);
@@ -309,7 +347,7 @@ final class CanonicalLessonDeliveryService {
         if(!$outcomeId)throw new \RuntimeException('Contaminated canonical delivery result');
         $outcome=$this->repository->outcome($outcomeId);
         if(!$outcome||(int)$outcome->lesson_id!==$lessonId)throw new \RuntimeException('Contaminated canonical delivery result');
-        $expectedState=match($op){'correct_outcome'=>'corrected','reconcile_completion_non_delivery'=>'reconciled',default=>'recorded'};
+        $expectedState=match($op){'correct_outcome'=>'corrected','reconcile_completion_non_delivery'=>'reconciled','dispute_completion'=>'disputed',default=>'recorded'};
         if((string)$c->result_state!==$expectedState)throw new \RuntimeException('Contaminated canonical delivery result');
         if((int)($c->schedule_version_id??0)!==(int)$outcome->schedule_version_id)throw new \RuntimeException('Contaminated canonical delivery result');
         if(self::nullableInt($c->reconciles_completion_event_id??null)!==self::nullableInt($outcome->reconciles_completion_event_id??null))throw new \RuntimeException('Contaminated canonical delivery result');
@@ -332,9 +370,20 @@ final class CanonicalLessonDeliveryService {
             $matched=false;
             foreach($this->lessons->events($lessonId)as$event)if((int)$event->id===$completionEventId&&(string)$event->to_state==='completed')$matched=true;
             if(!$matched)throw new \RuntimeException('Contaminated canonical delivery result');
+        }elseif($op==='dispute_completion'){
+            $completionEventId=$outcome->reconciles_completion_event_id===null?null:(int)$outcome->reconciles_completion_event_id;
+            if(!$completionEventId||(string)$outcome->outcome_code!=='review_required')throw new \RuntimeException('Contaminated canonical delivery result');
+            $prior=$c->supersedes_outcome_id===null?null:(int)$c->supersedes_outcome_id;
+            if($prior){
+                $superseded=$this->repository->outcome($prior);
+                if(!$superseded||(int)($superseded->superseded_by_outcome_id??0)!==$outcomeId||(int)($superseded->applicable_slot??0)!==0)throw new \RuntimeException('Contaminated canonical delivery result');
+            }
+            $matched=false;
+            foreach($this->lessons->events($lessonId)as$event)if((int)$event->id===$completionEventId&&(string)$event->to_state==='completed')$matched=true;
+            if(!$matched)throw new \RuntimeException('Contaminated canonical delivery result');
         }elseif(($c->supersedes_outcome_id??null)!==null)throw new \RuntimeException('Contaminated canonical delivery command');
         if(!CanonicalLessonDeliveryValidator::validForLesson($lessonId,$this->repository,$this->schedules,$this->lessons))throw new \RuntimeException('Contaminated canonical delivery result');
-        return array('lesson_id'=>$lessonId,'outcome_id'=>$outcomeId,'superseded_outcome_id'=>($c->supersedes_outcome_id??null)===null?null:(int)$c->supersedes_outcome_id,'reconciled'=>$op==='reconcile_completion_non_delivery','created'=>false,'idempotent'=>true,'operation'=>$op);
+        return array('lesson_id'=>$lessonId,'outcome_id'=>$outcomeId,'superseded_outcome_id'=>($c->supersedes_outcome_id??null)===null?null:(int)$c->supersedes_outcome_id,'reconciled'=>$op==='reconcile_completion_non_delivery','disputed'=>$op==='dispute_completion','created'=>false,'idempotent'=>true,'operation'=>$op);
     }
 
     private static function nullableInt(mixed $value):?int{return $value===null?null:(int)$value;}

@@ -203,6 +203,7 @@ function dzn_theme_teacher_portal_notices( $screen ) {
 	if ( 'home' !== $screen ) { return $notices; }
 	$status = isset( $_GET['class_status'] ) ? sanitize_key( (string) wp_unslash( $_GET['class_status'] ) ) : '';
 	$class_messages = array(
+		'delivery_recorded'          => array( 'success', 'گزارش برگزاری کلاس ثبت شد و برای بررسی مدیر در دسترس است.' ),
 		'delivery_issue_recorded'    => array( 'success', 'گزارش مشکل برگزاری کلاس ثبت شد.' ),
 		'delivery_issue_unavailable' => array( 'error', 'ثبت گزارش برای این کلاس در حال حاضر امکان‌پذیر نیست.' ),
 		'join_unavailable'           => array( 'error', 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.' ),

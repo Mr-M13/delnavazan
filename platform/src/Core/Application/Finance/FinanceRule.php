@@ -264,12 +264,13 @@ final class FinanceRule {
         array('row'=>3,'fact'=>'outcome_review_required','disposition'=>'pending','basis_code'=>'delivery_review_required','blocks_issue'=>true,'policy_key'=>null),
         array('row'=>4,'fact'=>'outcome_teacher_non_delivery','disposition'=>'non_payable','basis_code'=>'teacher_non_delivery','blocks_issue'=>false,'policy_key'=>null),
         array('row'=>5,'fact'=>'introductory_non_payable','disposition'=>'non_payable','basis_code'=>'introductory_policy_non_payable','blocks_issue'=>false,'policy_key'=>'INTRO_PAYABILITY_POLICY'),
-        array('row'=>6,'fact'=>'completed_without_outcome','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
-        array('row'=>7,'fact'=>'outcome_delivered','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
-        array('row'=>8,'fact'=>'outcome_student_no_show','disposition'=>'policy','basis_code'=>'student_no_show','blocks_issue'=>false,'policy_key'=>'STUDENT_NO_SHOW_COMPENSATION_POLICY'),
-        array('row'=>9,'fact'=>'outcome_interruption','disposition'=>'policy','basis_code'=>'interruption','blocks_issue'=>false,'policy_key'=>'INTERRUPTION_COMPENSATION_POLICY'),
-        array('row'=>10,'fact'=>'cancelled_before_occurrence','disposition'=>'non_payable','basis_code'=>'occurrence_not_attempted','blocks_issue'=>false,'policy_key'=>null),
-        array('row'=>11,'fact'=>'administrator_override','disposition'=>'override','basis_code'=>'administrator_override','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>6,'fact'=>'presumed_completion','disposition'=>'pending','basis_code'=>'presumed_completion_review','blocks_issue'=>true,'policy_key'=>null),
+        array('row'=>7,'fact'=>'completed_without_outcome','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>8,'fact'=>'outcome_delivered','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>9,'fact'=>'outcome_student_no_show','disposition'=>'policy','basis_code'=>'student_no_show','blocks_issue'=>false,'policy_key'=>'STUDENT_NO_SHOW_COMPENSATION_POLICY'),
+        array('row'=>10,'fact'=>'outcome_interruption','disposition'=>'policy','basis_code'=>'interruption','blocks_issue'=>false,'policy_key'=>'INTERRUPTION_COMPENSATION_POLICY'),
+        array('row'=>11,'fact'=>'cancelled_before_occurrence','disposition'=>'non_payable','basis_code'=>'occurrence_not_attempted','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>12,'fact'=>'administrator_override','disposition'=>'override','basis_code'=>'administrator_override','blocks_issue'=>false,'policy_key'=>null),
     );
 
     /** The two policy-governed compensation keys and the recorded value each accepts. */

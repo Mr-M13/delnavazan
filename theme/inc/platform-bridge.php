@@ -58,16 +58,25 @@ function dzn_theme_platform_history_item( array $lesson ) {
 	$labels = array(
 		'completed' => 'برگزار شد',
 		'delivered' => 'برگزار شد',
+		'presumed_completed' => 'پایان زمان‌بندی‌شده؛ حضور تأیید نشده',
 		'not_recorded' => 'وضعیت برگزاری ثبت نشده',
 		'cancelled' => 'لغو شده',
 	);
 	$timezone = (string) ( $lesson['schedule_timezone'] ?? '' ) ?: ( wp_timezone_string() ?: 'UTC' );
+	$end = strtotime( (string) ( $lesson['ends_at_utc'] ?? '' ) . ' UTC' );
+	$canonical = ! str_contains( (string) ( $lesson['version'] ?? '' ), 'booking_class' )
+		&& in_array( (string) ( $lesson['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true );
 	return array(
 		'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'] ?? '', 'j F Y', $timezone ),
 		'title' => (string) ( $lesson['course_reference'] ?? '' ),
 		'outcome' => $labels[ $outcome ] ?? $outcome,
 		'tone' => in_array( $outcome, array( 'completed', 'delivered' ), true ) ? 'success' : 'muted',
 		'detail' => (string) ( $lesson['term_reference'] ?? '' ),
+		'report_issue_available' => $canonical && $end && $end <= time(),
+		'report_issue_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_lesson_issue' ),
+		'report_issue_nonce' => wp_create_nonce( 'dzn_student_report_lesson_issue' ),
+		'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
+		'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
 	);
 }
 
@@ -551,6 +560,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'details_available' => ! $is_booking,
 			'delivery_issue_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery_issue' ),
 			'delivery_issue_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery_issue' ),
+			'delivery_recorded_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery' ),
+			'delivery_recorded_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery' ),
 			'student_summary' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
 			'schedule_summary' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F، H:i', $class_timezone ) . ' · ' . $class_timezone,
 			'previous_private_note' => 'یادداشت خصوصی در این نمای خواندنی ارائه نشده است.',

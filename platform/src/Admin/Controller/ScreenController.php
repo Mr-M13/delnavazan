@@ -802,7 +802,7 @@ final class ScreenController {
         }
         $effective = $history['effective'];
         if ((string) $lesson->lifecycle_state === 'completed') {
-            if ($effective) {
+            if ($effective && (string) $effective->outcome_code !== 'teacher_non_delivery') {
                 self::formStart('correct_canonical_delivery');
                 echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '"><input type="hidden" name="expected_outcome_id" value="' . esc_attr((string) $effective->id) . '">';
                 echo '<p><label>Correct effective outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
@@ -810,6 +810,8 @@ final class ScreenController {
                 self::canonicalEvidenceFields();
                 submit_button('Append corrected outcome', 'secondary');
                 echo '</form>';
+            } elseif ($effective) {
+                echo '<p class="notice notice-info">A reconciled academy non-delivery is protected from conversion into verified delivery by the append-only O-D8 rule.</p>';
             } else {
                 self::formStart('record_canonical_delivery');
                 echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
@@ -827,7 +829,7 @@ final class ScreenController {
                 submit_button('Reconcile completion as not delivered', 'secondary');
                 echo '</form>';
             }
-            if (!$effective || (string) $effective->outcome_code !== 'review_required') {
+            if (!$effective || !in_array((string) $effective->outcome_code, array('review_required', 'teacher_non_delivery'), true)) {
                 self::formStart('dispute_canonical_delivery');
                 echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
                 self::input('reason_code', 'Reason code', true, 'text', 'late_report_dispute');

@@ -13,7 +13,7 @@ use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
 use Delnavazan\Platform\Core\Application\Finance\Intro\{IntroCheckoutInitiationService,IntroCheckoutReturnReadService,IntroPaymentService};
 use Delnavazan\Platform\Core\Application\Finance\Pricing\{PricingMoney,RegionalPricingService};
 use Delnavazan\Platform\Core\Application\Finance\TeacherRateInheritanceService;
-use Delnavazan\Platform\Core\Application\TeacherRateService;
+use Delnavazan\Platform\Core\Application\Finance\TeacherRateService;
 use Delnavazan\Platform\Admin\Controller\FinanceAdminController;
 use Delnavazan\Platform\Core\Application\TeacherService;
 use Delnavazan\Platform\Core\Infrastructure\Migration\Migrator;

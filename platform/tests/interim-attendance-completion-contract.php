@@ -52,6 +52,8 @@ $assert(str_contains($worker, 'CanonicalLessonAuthorityService') && !str_contain
 $assert(str_contains($worker, "'lesson_not_delivered'") && str_contains($worker, "'lesson_delivery_review_required'"), 'Blocking delivery outcomes must be classified as skips, not recurring worker errors');
 $repository = $read('src/Core/Infrastructure/Repository/CanonicalLessonAuthorityRepository.php');
 $assert(str_contains($repository, 'canonical_lesson_delivery_outcomes d WHERE d.lesson_id=l.id'), 'Candidate selection must exclude Lessons that already have an outcome');
+$assert(str_contains($repository, 'v.applicable_slot=1 AND v.superseded_at IS NULL'), 'Candidate selection must exclude released or superseded schedule versions');
+$assert(str_contains($policy, 'occurrence_not_scheduled'), 'The guard must refuse a released occurrence');
 $assert(str_contains($repository, "c.state IN ('open','ready_for_review','settlement_pending')"), 'Candidate selection must exclude unresolved attendance reviews so a bounded batch cannot starve newer Lessons');
 
 // Late reports become append-only corrections, never deleted history.
@@ -72,9 +74,13 @@ $assert(str_contains($teacher, "'teacher-claim:'"), 'Teacher report key must be 
 $assert(str_contains($intake, 'authoriseOwnership') && str_contains($intake, 'hasTeacherPrincipal') && str_contains($intake, 'hasStudentPrincipal'), 'Report authority must stay bound to the owning principal');
 $assert(str_contains($screen, 'record_canonical_delivery') && str_contains($screen, 'reconcile_canonical_delivery') && str_contains($screen, 'dispute_canonical_delivery'), 'Administrators must have completed/not-delivered/disputed correction actions');
 $assert(str_contains($screen, 'dzn_manage_canonical_lesson_delivery'), 'Administrative corrections must stay capability-protected');
+$bridge = $read('../theme/inc/platform-bridge.php');
+$teacherPortal = $read('../theme/inc/teacher-portal.php');
+$assert(str_contains($bridge, "'ended'") && str_contains($teacherPortal, "'ended'"), 'The Teacher Portal must expose recently ended classes for the report window');
 
 // Presumed completion is never automatically payable or statement-releasable.
 $assert(str_contains($financeFacts, "'completion_presumed'"), 'Finance facts must carry the completion basis');
+$assert(str_contains($financeRule, "'presumed_completion_review'") && str_contains($financeRule, "'delivery_review_required'"), 'The Finance basis vocabulary must admit presumed completion review');
 $assert(str_contains($read('src/Core/Application/CanonicalLessonDeliveryReadService.php'), "(string)\$effective->outcome_code==='delivered'"), 'Only an explicit delivered outcome may be reported as verified attendance');
 $assert(str_contains($payability, "case 'presumed_completion':"), 'Payability must explicitly evaluate presumed completion');
 $assert(str_contains($financeRule, "array('row'=>6,'fact'=>'presumed_completion','disposition'=>'pending','basis_code'=>'presumed_completion_review'"), 'Presumed completion must remain pending, not payable');

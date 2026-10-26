@@ -75,7 +75,7 @@ if ( str_contains( $installBody, 'finance_policies`' ) && str_contains( $install
 // ---- Locked vocabularies (§5.2). ---------------------------------------------------------------
 foreach ( array(
     "DISPOSITIONS=array('payable','non_payable','pending')",
-    "BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override')",
+    "BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','presumed_completion_review','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override')",
     "RATE_SCOPE_KINDS=array('teacher','teacher_course')",
     "RATE_STATES=array('active','superseded','withdrawn')",
     "COMPENSATION_BASES=array('per_session')",

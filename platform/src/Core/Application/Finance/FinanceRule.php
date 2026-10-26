@@ -151,7 +151,7 @@ final class FinanceRule {
     /** §5.2 payability disposition. */
     public const DISPOSITIONS=array('payable','non_payable','pending');
     /** §5.2 payability basis. */
-    public const BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override');
+    public const BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','presumed_completion_review','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override');
     /** §5.2 teacher rate scope. */
     public const RATE_SCOPE_KINDS=array('teacher','teacher_course');
     /** §5.2 teacher rate status. */

@@ -22,6 +22,7 @@ final class LessonCompletionAutomationWorker {
         'occurrence_not_started',
         'occurrence_not_ended',
         'schedule_required_for_completion_presumption',
+        'occurrence_not_scheduled',
         'delivery_outcome_exists',
         'lesson_not_delivered',
         'lesson_delivery_review_required',

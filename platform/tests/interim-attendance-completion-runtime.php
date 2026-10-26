@@ -52,7 +52,6 @@ $occurrence=function(array $chain,string $label,int $durationMinutes,?string $wa
     $wall??=gmdate('Y-m-d H:i:s',strtotime('+6 seconds'));
     $scheduled=$schedules->schedule($lessonId,(int)$chain['assignment_id'],array('schedule_timezone'=>$timezone,'local_wall_date'=>substr($wall,0,10),'local_wall_time'=>substr($wall,11),'duration_minutes'=>$durationMinutes,'reason_code'=>'synthetic_schedule')+dzn_ic_evidence('schedule-'.$label),dzn_ic_key('schedule-'.$label));
     $version=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}canonical_lesson_schedule_versions WHERE id=%d",(int)$scheduled['schedule_version_id']));
-    $schedules->release($lessonId,array('expected_schedule_version_id'=>(int)$version->id,'reason_code'=>'synthetic_release')+dzn_ic_evidence('release-'.$label),dzn_ic_key('release-'.$label));
     return array('lesson_id'=>$lessonId,'version_id'=>(int)$version->id,'start'=>(string)$version->starts_at_utc,'end'=>(string)$version->ends_at_utc);
 };
 $lessonState=static function(int $lessonId) use($wpdb,$p):string{return(string)$wpdb->get_var($wpdb->prepare("SELECT lifecycle_state FROM {$p}lessons WHERE id=%d",$lessonId));};
@@ -77,12 +76,14 @@ $principalLinks=static function(array $chain,int $studentUser,int $teacherUser) 
 
 // One prospective cutover admits every claim below; occurrences start after it.
 $intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),dzn_ic_key('cutover'));
-$chains=array();foreach(array('presumed','future','outcome','claim','reconcile','dispute','dst')as$label)$chains[$label]=$chain();
+$chains=array();foreach(array('presumed','future','outcome','claim','reconcile','dispute','dst','released')as$label)$chains[$label]=$chain();
 $startWall=gmdate('Y-m-d H:i:s',strtotime('+6 seconds'));
 $futureWall=gmdate('Y-m-d H:i:s',strtotime('+1 hour'));
 $occurrences=array();
 foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$occurrences[$label]=$occurrence($chains[$label],$label,1,$startWall);
 $occurrences['future']=$occurrence($chains['future'],'future',1,$futureWall);
+$occurrences['released']=$occurrence($chains['released'],'released',1,$startWall);
+$schedules->release((int)$occurrences['released']['lesson_id'],array('expected_schedule_version_id'=>(int)$occurrences['released']['version_id'],'reason_code'=>'synthetic_release')+dzn_ic_evidence('release-released'),dzn_ic_key('release-released'));
 // A real fall-back boundary: 2026-11-01 01:30 America/New_York spans 60 real minutes over the
 // 02:00 local fall-back and must persist two hours of UTC difference.
 $occurrences['dst_before']=$occurrence($chains['dst'],'dst-before',30,'2026-11-01 00:30:00','America/New_York');
@@ -94,7 +95,7 @@ dzn_ic_assert($occurrences['dst_after']['start']==='2026-11-01 17:00:00','A loca
 dzn_ic_rejected(fn()=>LessonCompletionAutomationWorker::runLesson((int)$occurrences['future']['lesson_id']),'occurrence_not_ended','a future occurrence');
 
 // Wait for every one-minute synthetic occurrence to end.
-$latest=0;foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$latest=max($latest,strtotime($occurrences[$label]['end'].' UTC'));
+$latest=0;foreach(array('presumed','outcome','claim','reconcile','dispute','released')as$label)$latest=max($latest,strtotime($occurrences[$label]['end'].' UTC'));
 while(time()<$latest+3)sleep(1);
 
 // A recorded outcome exists before the automation pass, so it can never be presumed away.
@@ -120,6 +121,12 @@ dzn_ic_assert(count($events((int)$presumed['lesson_id']))===2,'a repeated worker
 $exactReplay=LessonCompletionAutomationWorker::runLesson((int)$presumed['lesson_id']);
 dzn_ic_assert(($exactReplay['state']??'')==='presumed'&&!empty($exactReplay['result']['idempotent']),'an exact worker replay must converge on the recorded presumption');
 dzn_ic_assert(count($events((int)$presumed['lesson_id']))===2,'an exact worker replay must not append another lifecycle event');
+
+// 1b. A released occurrence is not a scheduled occurrence and must never be presumed.
+$releasedOccurrence=$occurrences['released'];
+$releasedResult=LessonCompletionAutomationWorker::runLesson((int)$releasedOccurrence['lesson_id']);
+dzn_ic_assert(($releasedResult['state']??'')==='skipped'&&($releasedResult['reason']??'')==='occurrence_not_scheduled','a released occurrence must be skipped, not presumed');
+dzn_ic_assert($lessonState((int)$releasedOccurrence['lesson_id'])==='authorised','a released occurrence must remain authorised');
 
 // 2. A delivered outcome prevents presumption.
 $replayed=LessonCompletionAutomationWorker::runLesson((int)$outcomeOccurrence['lesson_id']);

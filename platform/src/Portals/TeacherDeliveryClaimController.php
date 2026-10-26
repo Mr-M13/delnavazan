@@ -17,13 +17,13 @@ final class TeacherDeliveryClaimController {
         add_action('admin_post_'.self::ACTION_DELIVERED,array(__CLASS__,'submitDelivered'));
     }
 
-    public static function submit():never{self::handle('teacher_delivery_issue','delivery_issue_recorded');}
-    public static function submitDelivered():never{self::handle('teacher_reports_delivered','delivery_recorded');}
+    public static function submit():never{self::handle(self::ACTION_ISSUE,'teacher_delivery_issue','delivery_issue_recorded');}
+    public static function submitDelivered():never{self::handle(self::ACTION_DELIVERED,'teacher_reports_delivered','delivery_recorded');}
 
-    private static function handle(string $reasonCode,string $success):never{
+    private static function handle(string $nonceAction,string $reasonCode,string $success):never{
         if(!is_user_logged_in())auth_redirect();
         $nonce=sanitize_text_field((string)($_POST['_wpnonce']??''));
-        if(!wp_verify_nonce($nonce,self::ACTION_ISSUE)&&!wp_verify_nonce($nonce,self::ACTION_DELIVERED))wp_die('Forbidden',403);
+        if(!wp_verify_nonce($nonce,$nonceAction))wp_die('Forbidden',403);
         if(($_SERVER['REQUEST_METHOD']??'')!=='POST')self::back('delivery_issue_unavailable');
         $lessonUid=trim((string)($_POST['lesson_uid']??''));
         $scheduleUid=trim((string)($_POST['schedule_version_uid']??''));

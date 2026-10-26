@@ -1,6 +1,6 @@
 <?php
 /**
- * Upcoming lessons. Presentation only: every action below uses a backend-issued URL, nonce and identifier from the view model.
+ * Upcoming and recently ended lessons. Presentation only: every action below uses a backend-issued URL, nonce and identifier from the view model.
  * Controls that exist only to preview a future design render solely in the non-production preview (see dzn_theme_teacher_portal_context()).
  */
 $items    = is_array( $args['items'] ?? null ) ? $args['items'] : array();
@@ -11,7 +11,7 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 ?>
 <section class="dzn-tp-section" aria-labelledby="tp-classes">
 	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">برنامهٔ پیش رو</p><h2 id="tp-classes">کلاس‌های پیش رو</h2></div>
+		<div><p class="dzn-tp-kicker">برنامهٔ پیش رو و کلاس‌های اخیر</p><h2 id="tp-classes">کلاس‌های پیش رو و اخیر</h2></div>
 		<div class="dzn-tp-heading__meta">
 			<span class="dzn-tp-count-badge"><?php echo esc_html( $items ? sprintf( '%d کلاس · به ترتیب زمان', count( $items ) ) : 'به ترتیب زمان' ); ?></span>
 			<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> منطقهٔ زمانی: <?php echo esc_html( $timezone ); ?></span><?php endif; ?>

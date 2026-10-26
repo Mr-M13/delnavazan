@@ -55,6 +55,9 @@ final class CanonicalLessonCompletionPolicy {
         if(!CanonicalLessonScheduleValidator::validForLesson($lessonId,$this->schedules,$this->lessons,true))throw new \InvalidArgumentException('canonical_schedule_integrity_conflict');
         if(!$versions)throw new \InvalidArgumentException('schedule_required_for_completion_presumption');
         $version=$versions[count($versions)-1];
+        // A released schedule retracts scheduling authority. Its historical version still exists,
+        // but it is not a canonical occurrence and must never be presumed completed.
+        if((int)($version->applicable_slot??0)!==1||$version->superseded_at!==null)throw new \InvalidArgumentException('occurrence_not_scheduled');
         if(!CanonicalLessonScheduleValidator::utc($now))throw new \InvalidArgumentException('canonical_completion_instant_required');
         if((string)$version->starts_at_utc>$now)throw new \InvalidArgumentException('occurrence_not_started');
         if((string)$version->ends_at_utc>$now)throw new \InvalidArgumentException('occurrence_not_ended');

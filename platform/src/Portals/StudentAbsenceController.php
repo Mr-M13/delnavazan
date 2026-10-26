@@ -21,19 +21,19 @@ final class StudentAbsenceController {
     }
 
     public static function submit():never{
-        self::handle('advance_absence_claim','student_advance_absence','absence_recorded','absence_unavailable');
+        self::handle(self::ACTION_ADVANCE,'advance_absence_claim','student_advance_absence','absence_recorded','absence_unavailable');
     }
 
     public static function submitIssue():never{
         $reason=sanitize_key((string)($_POST['issue_reason']??'student_reports_missed_class'));
         if(!in_array($reason,array('student_reports_missed_class','student_disputes_class'),true))self::back('issue_unavailable');
-        self::handle('attendance_claim',$reason,'lesson_issue_recorded','issue_unavailable');
+        self::handle(self::ACTION_ISSUE,'attendance_claim',$reason,'lesson_issue_recorded','issue_unavailable');
     }
 
-    private static function handle(string $claimKind,string $reasonCode,string $success,string $failure):never{
+    private static function handle(string $nonceAction,string $claimKind,string $reasonCode,string $success,string $failure):never{
         if(!is_user_logged_in())auth_redirect();
         $nonce=sanitize_text_field((string)($_POST['_wpnonce']??''));
-        if(!wp_verify_nonce($nonce,self::ACTION_ADVANCE)&&!wp_verify_nonce($nonce,self::ACTION_ISSUE))wp_die('Forbidden',403);
+        if(!wp_verify_nonce($nonce,$nonceAction))wp_die('Forbidden',403);
         if(($_SERVER['REQUEST_METHOD']??'')!=='POST')self::back($failure);
         $lessonUid=trim((string)($_POST['lesson_uid']??''));
         $scheduleUid=trim((string)($_POST['schedule_version_uid']??''));

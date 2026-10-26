@@ -81,12 +81,6 @@ final class PostIntroFulfilmentReadService {
         // A two-instalment plan deliberately materialises only the funded tranche first. That is an
         // expected intermediate state, not a partial provisioning failure.
         $effectiveLessons = $offer ? (new CommercialTermFundingService())->effectiveSessions((int) $offer->id) : 0;
-        $awaitingNextInstalment = $offer !== null
-            && (string) $offer->plan_kind === 'two_instalments'
-            && $paymentVerified
-            && $effectiveLessons > 0
-            && $effectiveLessons < $expectedLessons
-            && $lessonCount >= $effectiveLessons;
 
         $pattern = null;
         if ($preparation && (int) ($preparation->pattern_id ?? 0) > 0) {
@@ -103,6 +97,12 @@ final class PostIntroFulfilmentReadService {
             && (int) ($pattern->duration_minutes ?? 0) > 0;
 
         $paymentVerified = $purchase !== null && $settlement !== null;
+        $awaitingNextInstalment = $offer !== null
+            && (string) $offer->plan_kind === 'two_instalments'
+            && $paymentVerified
+            && $effectiveLessons > 0
+            && $effectiveLessons < $expectedLessons
+            && $lessonCount >= $effectiveLessons;
         $preparationState = $preparation ? (string) $preparation->state : 'missing';
         $jobState = $job ? (string) $job->state : 'missing';
 

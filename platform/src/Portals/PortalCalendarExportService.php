@@ -35,7 +35,8 @@ final class PortalCalendarExportService {
         $start = $this->utc((string) ($event['starts_at_utc'] ?? ''));
         $end = $this->utc((string) ($event['ends_at_utc'] ?? ''));
         if ($end <= $start) throw new \InvalidArgumentException('calendar_export_invalid_interval');
-        $course = trim((string) ($event['course_reference'] ?? ''));
+        $course = trim((string) ($event['course_name'] ?? ''));
+        if ($course === '') $course = trim((string) ($event['course_reference'] ?? ''));
         if ($course === '') throw new \InvalidArgumentException('calendar_export_not_available');
         $participant = trim((string) ($event[$role === 'teacher' ? 'student_display_reference' : 'teacher_display_reference'] ?? ''));
         $summary = $participant === '' ? $course : $course . ' · ' . $participant;

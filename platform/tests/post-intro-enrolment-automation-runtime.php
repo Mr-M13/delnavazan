@@ -377,7 +377,7 @@ dzn_pia_assert(!empty($paidInspection['payment_verified']) && ($paidInspection['
 dzn_pia_assert((int) $paidInspection['term_id'] === 0 && (int) $paidInspection['assignment_id'] === 0, 'dry-run must not invent a Term or Assignment');
 dzn_pia_assert(in_array('canonical_term', (array) ($paidInspection['planned'] ?? array()), true) && in_array('canonical_lessons:12', (array) ($paidInspection['planned'] ?? array()), true), 'dry-run must plan the Term and twelve Lessons');
 $recovered = $recovery->recover((int) $prep->enrolment_id);
-dzn_pia_assert(($recovered['state'] ?? '') === 'failed', 'an unacknowledged Calendar transport failure must expose the existing failed activation state after canonical provisioning');
+dzn_pia_assert(($recovered['state'] ?? '') === 'already_completed', 'canonical provisioning must remain complete after a provider-only Calendar failure while the activation job stays failed');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'activated', 'core activation must complete before provider projection');
 $enrolment = $repository->enrolment((int) $prep->enrolment_id);
@@ -397,7 +397,7 @@ dzn_pia_assert($scheduledCount === 12, 'every created Lesson must have a committ
 wp_set_current_user((int) $main['principal']);
 $activePortal = (new PortalAuthenticatedReadService())->student();
 $activeEnrolment = $activePortal['enrolments'][0] ?? array();
-dzn_pia_assert(($activeEnrolment['fulfilment_state'] ?? '') === 'failed', 'an unacknowledged Calendar transport failure must be visible to the Student Portal');
+dzn_pia_assert(($activeEnrolment['fulfilment_state'] ?? '') === 'completed', 'a provider-only Calendar failure must not erase completed canonical fulfilment from the Student Portal');
 dzn_pia_assert(($activeEnrolment['term_reference'] ?? '') !== '' && ($activeEnrolment['assigned_teacher_display_reference'] ?? '') !== '', 'the provisioned Enrolment must expose its Term and Teacher Assignment');
 $studentCourseName = trim((string) ($activeEnrolment['course_name'] ?? ''));
 dzn_pia_assert($studentCourseName !== '' && $studentCourseName !== (string) ($activeEnrolment['course_reference'] ?? ''), 'the Student Enrolment must expose a human Course name, not only its reference');

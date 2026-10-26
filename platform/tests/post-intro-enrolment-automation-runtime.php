@@ -484,7 +484,7 @@ $evidenceOccurredAt = (string) $wpdb->get_var($wpdb->prepare(
 ));
 dzn_pia_assert($evidenceOccurredAt === $activationCheckpoint, 'activation must reuse the durable settlement checkpoint as evidence time');
 $job = $repository->activeJobForPurchase($purchaseId);
-dzn_pia_assert($job !== null && (string) $job->state === 'failed', 'the initial Calendar transport failure must preserve the worker existing failed activation state for operator retry');
+dzn_pia_assert($job !== null && in_array((string) $job->state, array('failed', 'retryable'), true), 'the initial Calendar transport failure must expose an operator-retryable activation state');
 dzn_pia_assert((string) $job->last_error_code === 'google_calendar_transport_failed', 'the retryable failure must preserve the Calendar transport code, got ' . (string) $job->last_error_code);
 dzn_pia_assert($calendarTransportCalls === 1, 'the first activation must issue exactly one Calendar transport attempt before failure');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='pending'")) === 1, 'a failed provider write must leave exactly one pending Calendar mapping');

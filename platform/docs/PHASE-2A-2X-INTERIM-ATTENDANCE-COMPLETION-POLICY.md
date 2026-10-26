@@ -1,6 +1,9 @@
 # Interim Attendance & Completion Policy
 
-Status: source candidate; not deployed, not merged, and not approved for production financial release.
+Status: **deployed to production on 2026-10-26** in release
+`b1acd1d47b6f18756283fc0a3f3326ab595f993d`. Stripe remains in test mode; this policy does not
+activate live payments. See `RELEASE-2026-10-26-INTEGRATION.md` for the deployment evidence and
+rollback notes.
 
 This slice implements the temporary policy that applies while Google Meet is still in use and before
 Delnavazan Live Class replaces it. It deliberately does **not** build Google Meet attendance, calendar
@@ -54,6 +57,22 @@ The policy consumes only canonical Lesson, schedule, Phase-O delivery and Phase-
 A future Delnavazan Live Class can submit authenticated join/leave evidence as Phase-P claims through
 the same intake boundary. It does not need a new attendance table, a new completion authority, or any
 Google-specific dependency.
+
+## Operational notes
+
+- The worker hook is `dzn_lesson_completion_automation_dispatch` and runs in bounded batches of 25.
+  Repeated runs and exact replays must converge without duplicate lifecycle events.
+- A released or superseded schedule version is not an occurrence and is never presumed completed.
+- Presumed completion is not verified attendance. Administrators resolve it through the canonical
+  Class record: record a verified outcome, reconcile non-delivery, or dispute the completion. Every
+  correction is append-only with actor, UTC instant, reason and prior/result history.
+- Finance keeps a presumed completion `pending / presumed_completion_review`; statement issuance is
+  blocked until an administrator records a verified outcome. No teacher payment is released from
+  silence alone.
+- The Teacher Portal exposes recently ended canonical classes for seven days so Teachers can submit a
+  delivered or issue report. Older corrections remain an administrator action.
+- No Google Meet attendance retrieval, participant tracking or Live Class runtime is part of this
+  policy.
 
 ## Validation
 

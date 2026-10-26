@@ -80,10 +80,10 @@ foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$occur
 $occurrences['future']=$occurrence($chains['future'],'future',1,$futureWall);
 // A real fall-back boundary: 2026-11-01 01:30 America/New_York spans 60 real minutes over the
 // 02:00 local fall-back and must persist two hours of UTC difference.
-$dstWall='2026-11-01 00:30:00';
-$occurrences['dst']=$occurrence($chains['dst'],'dst',120,$dstWall,'America/New_York');
-$dst=$occurrences['dst'];
-dzn_ic_assert((strtotime($dst['end'].' UTC')-strtotime($dst['start'].' UTC'))===7200,'A fall-back DST occurrence must retain its real UTC duration');
+$occurrences['dst_before']=$occurrence($chains['dst'],'dst-before',30,'2026-11-01 00:30:00','America/New_York');
+$occurrences['dst_after']=$occurrence($chains['dst'],'dst-after',30,'2026-11-01 12:00:00','America/New_York');
+dzn_ic_assert($occurrences['dst_before']['start']==='2026-11-01 04:30:00','A local time before the fall-back must store its daylight-saving UTC instant');
+dzn_ic_assert($occurrences['dst_after']['start']==='2026-11-01 17:00:00','A local time after the fall-back must store its standard-time UTC instant');
 
 // A future occurrence must be refused even when the worker is asked directly.
 dzn_ic_rejected(fn()=>LessonCompletionAutomationWorker::runLesson((int)$occurrences['future']['lesson_id']),'occurrence_not_ended','a future occurrence');
@@ -191,9 +191,12 @@ dzn_ic_assert(count($events((int)$claimOccurrence['lesson_id']))===2,'the late c
 dzn_ic_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_academy_obligations WHERE source_lesson_id=%d AND state='owed'",(int)$claimOccurrence['lesson_id']))===1,'a late non-delivery adjudication must establish academy debt');
 
 // 9. DST: the canonical end is honoured and the guard is provider-independent at the boundary.
-$dstLesson=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lessons WHERE id=%d",(int)$dst['lesson_id']));
-$dstHistory=$events((int)$dst['lesson_id']);
-(new CanonicalLessonCompletionPolicy())->assertPresumable((int)$dst['lesson_id'],$dstLesson,$dstHistory,'2026-11-01 08:00:00');
-dzn_ic_rejected(fn()=>LessonCompletionAutomationWorker::runLesson((int)$dst['lesson_id']),'occurrence_not_ended','a DST-crossing future occurrence');
+$dstBefore=$occurrences['dst_before'];$dstAfter=$occurrences['dst_after'];
+foreach(array($dstBefore,$dstAfter)as$dstOccurrence){
+    $dstLesson=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lessons WHERE id=%d",(int)$dstOccurrence['lesson_id']));
+    $dstHistory=$events((int)$dstOccurrence['lesson_id']);
+    (new CanonicalLessonCompletionPolicy())->assertPresumable((int)$dstOccurrence['lesson_id'],$dstLesson,$dstHistory,'2026-11-01 18:00:00');
+    dzn_ic_rejected(fn()=>LessonCompletionAutomationWorker::runLesson((int)$dstOccurrence['lesson_id']),'occurrence_not_ended','a future DST-boundary occurrence');
+}
 
 echo "Interim attendance and completion runtime passed\n";

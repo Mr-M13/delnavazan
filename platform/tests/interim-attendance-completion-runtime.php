@@ -64,10 +64,15 @@ $user=static function(string $login,string $email,string $role='subscriber'):int
     if(is_wp_error($id))throw new RuntimeException('Synthetic principal user creation failed');
     return (int)$id;
 };
-$principalLinks=static function(array $chain,int $studentUser,int $teacherUser) use($wpdb,$p):void{
+$principalLinks=static function(array $chain,int $studentUser,int $teacherUser) use($wpdb,$p):array{
     $now=gmdate('Y-m-d H:i:s');
-    dzn_ic_assert($wpdb->insert($p.'teacher_principal_links',array('teacher_id'=>(int)$chain['teacher_id'],'wordpress_user_id'=>$teacherUser,'status'=>'active','linked_at'=>$now,'linked_by'=>1))!==false,'Teacher principal link fixture failed');
-    dzn_ic_assert($wpdb->insert($p.'student_principal_links',array('student_id'=>(int)$chain['student_id'],'wordpress_user_id'=>$studentUser,'status'=>'active','link_sequence'=>1,'active_slot'=>1,'version'=>1,'verification_basis'=>'runtime_fixture','evidence_channel'=>'authenticated_platform','evidence_reference'=>'interim-runtime-'.$studentUser,'evidence_at'=>$now,'linked_at'=>$now,'linked_by'=>1,'updated_at'=>$now,'updated_by'=>1))!==false,'Student principal link fixture failed');
+    $existingTeacher=(int)$wpdb->get_var($wpdb->prepare("SELECT wordpress_user_id FROM {$p}teacher_principal_links WHERE teacher_id=%d AND status='active' AND revoked_at IS NULL LIMIT 1",(int)$chain['teacher_id']));
+    if($existingTeacher>0)$teacherUser=$existingTeacher;
+    elseif($wpdb->insert($p.'teacher_principal_links',array('teacher_id'=>(int)$chain['teacher_id'],'wordpress_user_id'=>$teacherUser,'status'=>'active','linked_at'=>$now,'linked_by'=>1))===false)throw new RuntimeException('Teacher principal link fixture failed');
+    $existingStudent=(int)$wpdb->get_var($wpdb->prepare("SELECT wordpress_user_id FROM {$p}student_principal_links WHERE student_id=%d AND status='active' AND revoked_at IS NULL AND active_slot=1 LIMIT 1",(int)$chain['student_id']));
+    if($existingStudent>0)$studentUser=$existingStudent;
+    elseif($wpdb->insert($p.'student_principal_links',array('student_id'=>(int)$chain['student_id'],'wordpress_user_id'=>$studentUser,'status'=>'active','link_sequence'=>1,'active_slot'=>1,'version'=>1,'verification_basis'=>'runtime_fixture','evidence_channel'=>'authenticated_platform','evidence_reference'=>'interim-runtime-'.$studentUser,'evidence_at'=>$now,'linked_at'=>$now,'linked_by'=>1,'updated_at'=>$now,'updated_by'=>1))===false)throw new RuntimeException('Student principal link fixture failed');
+    return array('student'=>$studentUser,'teacher'=>$teacherUser);
 };
 
 // One prospective cutover admits every claim below; occurrences start after it.
@@ -161,7 +166,7 @@ dzn_ic_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canon
 // 7. Teacher and Student reports are idempotent and principal-scoped.
 $studentUser=$user('interim-student-'.substr(wp_generate_uuid4(),0,8),'student-'.wp_generate_uuid4().'@dzn.invalid');
 $teacherUser=$user('interim-teacher-'.substr(wp_generate_uuid4(),0,8),'teacher-'.wp_generate_uuid4().'@dzn.invalid');
-$principalLinks($chains['claim'],$studentUser,$teacherUser);
+$links=$principalLinks($chains['claim'],$studentUser,$teacherUser);$studentUser=(int)$links['student'];$teacherUser=(int)$links['teacher'];
 $claimOccurrence=$occurrences['claim'];
 wp_set_current_user($studentUser);
 $studentInput=array('claim_kind'=>'attendance_claim','reason_code'=>'student_disputes_class','observed_at'=>$claimOccurrence['end'],'evidence_reference'=>'student-claim-fixture');

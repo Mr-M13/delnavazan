@@ -275,10 +275,27 @@ foreach (array(array(1, 1, 6, 500), array(2, 7, 12, 500)) as $tranche) {
     ));
     dzn_fin_runtime_assert($inserted === 1, 'Instalment schedule fixture required');
 }
+/* A time-lapsed issued offer is not collectable, while an accepted commitment remains actionable. */
+$wpdb->update($p . 'commercial_offers', array('expires_at' => gmdate('Y-m-d H:i:s', time() - 3600)), array('id' => $offerId));
+$lapsed = (new FinanceAdminReadService())->instalmentSchedules(array('state' => 'outstanding'))['rows'];
+$lapsed = array_values(array_filter($lapsed, static fn(object $row): bool => (string) $row->offer_uid === (string) $offerSuffix));
+dzn_fin_runtime_assert($lapsed === array(), 'A time-lapsed issued offer must not inflate actionable receivables');
+$lapsedAll = (new FinanceAdminReadService())->instalmentSchedules(array())['rows'];
+$lapsedAll = array_values(array_filter($lapsedAll, static fn(object $row): bool => (string) $row->offer_uid === (string) $offerSuffix));
+dzn_fin_runtime_assert(count($lapsedAll) === 2 && (string) $lapsedAll[0]->offer_state === 'issued', 'A lapsed schedule must remain visible with its real offer state');
+$wpdb->update($p . 'commercial_offers', array('state' => 'accepted'), array('id' => $offerId));
+$acceptedLapsed = (new FinanceAdminReadService())->instalmentSchedules(array('state' => 'outstanding'))['rows'];
+$acceptedLapsed = array_values(array_filter($acceptedLapsed, static fn(object $row): bool => (string) $row->offer_uid === (string) $offerSuffix));
+dzn_fin_runtime_assert(count($acceptedLapsed) === 2, 'An accepted commitment must remain actionable after its original checkout window');
+$wpdb->update($p . 'commercial_offers', array('state' => 'issued', 'expires_at' => null), array('id' => $offerId));
+
 $instalments = (new FinanceAdminReadService())->instalmentSchedules(array('state' => 'outstanding'));
 dzn_fin_runtime_assert(count($instalments['rows']) === 2, 'The instalment schedule read must return both ordered obligations');
 dzn_fin_runtime_assert((int) $instalments['rows'][0]->sessions_from === 1 && (int) $instalments['rows'][1]->sessions_to === 12, 'The schedule must expose exact Lesson ranges');
 dzn_fin_runtime_assert((int) $instalments['rows'][0]->outstanding_minor === 1000, 'The outstanding balance must be the offer total when nothing has settled');
+$searchByUid = (new FinanceAdminReadService())->instalmentSchedules(array('q' => (string) $offerSuffix))['rows'];
+$searchByUid = array_values(array_filter($searchByUid, static fn(object $row): bool => (string) $row->offer_uid === (string) $offerSuffix));
+dzn_fin_runtime_assert(count($searchByUid) === 2, 'The instalment search must find the visible offer identifier');
 $scheduleRows = static function (array $filters) use ($offerSuffix): array {
     $rows = (new FinanceAdminReadService())->instalmentSchedules($filters)['rows'];
     return array_values(array_filter($rows, static fn(object $row): bool => (string) $row->offer_uid === (string) $offerSuffix));
@@ -324,7 +341,6 @@ dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), '
 $wpdb->update($p . 'commercial_offer_obligations', array('due_at' => gmdate('Y-m-d H:i:s', time() - 3600)), array('offer_id' => $offerId, 'obligation_sequence' => 2));
 $overdue = $scheduleRows(array('state' => 'overdue'));
 dzn_fin_runtime_assert($overdue !== array(), 'An unpaid tranche past its due date must be reported overdue');
-dzn_fin_runtime_assert((int) $overdue[0]->obligation_sequence === 1 || (int) $overdue[0]->obligation_sequence === 2, 'Overdue rows must expose the configured tranche sequence');
 $overdueSecond = array_values(array_filter($overdue, static fn(object $row): bool => (int) $row->obligation_sequence === 2));
 dzn_fin_runtime_assert(count($overdueSecond) === 1 && strtotime((string) $overdueSecond[0]->due_at) < time(), 'Overdue must be derived from the stored due_at timestamp');
 dzn_fin_runtime_assert($scheduleRows(array('state' => 'paid')) === array(), 'An overdue instalment must never be reported as paid');
@@ -359,7 +375,7 @@ $_GET = array('page' => 'dzn-finance', 'tab' => 'payments');
 ob_start();
 FinanceAdminController::screen();
 $paymentsHtml = (string) ob_get_clean();
-dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Instalment schedules') && str_contains($paymentsHtml, 'Before Lesson 7') && str_contains($paymentsHtml, 'Outstanding'), 'Payments must render the instalment schedule and outstanding state');
+dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Instalment schedules') && str_contains($paymentsHtml, 'Before Lesson 7') && str_contains($paymentsHtml, 'Offer outstanding') && str_contains($paymentsHtml, 'dzn-finance-pill">Settled'), 'Payments must render the instalment schedule and its real status cell');
 $_GET = array('page' => 'dzn-finance', 'tab' => 'settings');
 ob_start();
 FinanceAdminController::screen();

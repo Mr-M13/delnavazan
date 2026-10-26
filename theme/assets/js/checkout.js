@@ -72,7 +72,14 @@
 		if (!Number.isFinite(from) || !Number.isFinite(to) || from < 1 || to < from) return '';
 		return from === to ? 'جلسهٔ ' + faDigits(from) : 'جلسات ' + faDigits(from) + ' تا ' + faDigits(to);
 	}
-	function dueLabel(row, plan) {
+	function offerLapsed(offer) {
+		if (String(offer.offer_state || '') !== 'issued') return false;
+		const expires = String(offer.offer_expires_at || '');
+		if (!expires) return false;
+		const at = new Date(expires.replace(' ', 'T') + 'Z');
+		return !isNaN(at.getTime()) && at.getTime() <= Date.now();
+	}
+	function dueLabel(row, plan, lapsed) {
 		if (row.due_at) {
 			const date = new Date(String(row.due_at).replace(' ', 'T') + 'Z');
 			if (!isNaN(date.getTime())) {
@@ -83,10 +90,11 @@
 				}
 			}
 		}
+		if (lapsed) return 'طرح منقضی شده';
 		if (plan === 'two_instalments' && Number(row.obligation_sequence) === 2) return 'سررسید: پیش از شروع جلسهٔ ۷';
 		return '';
 	}
-	function stateLabel(row, plan) {
+	function stateLabel(row, plan, lapsed) {
 		const term = termLabel(row);
 		if (row.payment_state === 'paid') {
 			if (row.term_paid) return term + ' پرداخت شد.';
@@ -96,11 +104,13 @@
 		if (row.payment_state === 'prerequisite_pending') return 'پس از پرداخت قسط ۱ قابل پرداخت است.';
 		if (row.payment_state === 'processing') return messages.processing;
 		if (row.payment_state === 'required') return plan === 'full' ? 'پرداخت ترم ثبت نشده است.' : 'پرداخت این قسط ثبت نشده است.';
+		if (lapsed) return 'این طرح منقضی شده است.';
 		return messages.unavailable;
 	}
 	function renderPlan(group) {
 		const first = group.rows[0];
 		const plan = String(first.plan_kind || '');
+		const lapsed = offerLapsed(first);
 		const section = document.createElement('section');
 		section.className = 'dzn-checkout__plan';
 		const heading = document.createElement('div');
@@ -119,8 +129,8 @@
 			addText(card, 'strong', 'dzn-checkout__title', instalmentLabel(row, plan));
 			addText(card, 'span', 'dzn-checkout__amount', amount(row));
 			const sessions = sessionsLabel(row);
-			addText(card, 'p', 'dzn-checkout__row-detail', [sessions, dueLabel(row, plan)].filter(Boolean).join(' · '));
-			addText(card, 'p', 'dzn-checkout__row-status', stateLabel(row, plan));
+			addText(card, 'p', 'dzn-checkout__row-detail', [sessions, dueLabel(row, plan, lapsed)].filter(Boolean).join(' · '));
+			addText(card, 'p', 'dzn-checkout__row-status', stateLabel(row, plan, lapsed));
 			if (Object.prototype.hasOwnProperty.call(labels, row.action)) {
 				const button = addText(card, 'button', 'dzn-checkout__button', labels[row.action]);
 				button.type = 'button';

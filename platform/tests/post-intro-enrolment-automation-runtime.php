@@ -13,7 +13,7 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
@@ -581,5 +581,53 @@ $preparations->recordTeacherOutcome($main['confirmation'], $teacherId, 'delivere
 $recoveredPrep = $repository->preparationByBooking((int) $main['request']);
 dzn_pia_assert($recoveredPrep !== null && (int) $recoveredPrep->id !== $replayedPrepId, 'replaying an existing outcome must recreate the missing preparation');
 dzn_pia_assert((string) $recoveredPrep->state === 'prepared', 'a resumed preparation must reach the prepared state');
+
+// H. A Term already created by an authorised operator action is identified and funded, not duplicated.
+$existingTermBooking = $booking('existing-term', 2, '09:37:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($existingTermBooking['confirmation'], $teacherId, 'delivered', 'Synthetic existing-term delivery');
+$existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);
+dzn_pia_assert($existingTermPrep !== null, 'existing-term preparation');
+wp_set_current_user((int) $existingTermBooking['principal']);
+$continuations->continue((string) $existingTermPrep->uid, true);
+$existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);
+$existingEnrolmentId = (int) $existingTermPrep->enrolment_id;
+dzn_pia_assert($existingEnrolmentId > 0, 'existing-term enrolment');
+wp_set_current_user($actor);
+$operatorTerm = (new CanonicalTermAuthorityService())->create(
+    $existingEnrolmentId,
+    null,
+    null,
+    array('evidence_channel' => 'authenticated_platform', 'evidence_reference' => 'operator-existing-term:' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s')),
+    'operator-existing-term-' . $suffix
+);
+$operatorTermId = (int) $operatorTerm['term_id'];
+$existingOffer = $repository->offer((int) $existingTermPrep->offer_id);
+$existingObligations = $repository->obligationsForOffer((int) $existingOffer->id);
+$existingObligation = $existingObligations[0];
+$existingPaymentAt = gmdate('Y-m-d H:i:s');
+$existingPayment = $payments->ingest(array(
+    'provider_key' => 'synthetic_provider',
+    'provider_reference' => 'existing-term-success-' . $suffix,
+    'evidence_kind' => 'success',
+    'amount_minor' => (string) $existingObligation->amount_minor,
+    'currency' => (string) $existingObligation->currency,
+    'obligation_reference' => (string) $existingOffer->uid . ':1',
+    'provider_occurred_at' => $existingPaymentAt,
+    'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'existing-term-success-evidence-' . $suffix,
+    'evidence_at' => $now,
+), dzn_pia_key('existing-term-success'));
+dzn_pia_assert(($existingPayment['processing_state'] ?? '') === 'accepted', 'existing-term settlement must be accepted');
+$existingInspection = $recovery->inspect($existingEnrolmentId);
+dzn_pia_assert((int) $existingInspection['term_id'] === $operatorTermId, 'inspection must identify the existing Term');
+dzn_pia_assert(!in_array('canonical_term', (array) ($existingInspection['planned'] ?? array()), true), 'existing-Term recovery must not plan a second Term');
+dzn_pia_assert(in_array('teacher_assignment', (array) ($existingInspection['planned'] ?? array()), true) && in_array('canonical_lessons:12', (array) ($existingInspection['planned'] ?? array()), true), 'existing-Term recovery must plan the Assignment and remaining Lessons');
+$existingRecovery = $recovery->recover($existingEnrolmentId);
+dzn_pia_assert(($existingRecovery['state'] ?? '') === 'completed', 'existing-Term recovery must complete provisioning');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", $existingEnrolmentId)) === 1, 'existing-Term recovery must not duplicate the Term');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}terms WHERE enrolment_id=%d", $existingEnrolmentId)) === $operatorTermId, 'existing-Term recovery must reuse the operator-created Term');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", $existingEnrolmentId)) === 1, 'existing-Term recovery must create one Teacher Assignment');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $operatorTermId)) === 12, 'existing-Term recovery must create twelve Lessons');
 
 echo "Post-intro enrolment automation runtime passed\n";

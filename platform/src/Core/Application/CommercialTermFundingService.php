@@ -201,6 +201,95 @@ final class CommercialTermFundingService {
     }
 
     /**
+     * Bind a verified entitlement to an already-authorised, unfunded canonical Term.
+     *
+     * This is the recovery path for a Term created by an earlier authorised operator action. It
+     * validates that the named Term is the single applicable canonical Term for the same Enrolment,
+     * has never been funded, and can carry the committed sessions. It never creates a second Term.
+     */
+    public function bindEntitlementToExistingTerm(int $entitlementId,int $termId,array $input,string $key):array{
+        CommercialSupport::requireCapability(self::CAPABILITY);
+        $actor=CommercialSupport::actor();
+        $evidence=CommercialSupport::evidence($input);
+        if($termId<1)throw new \InvalidArgumentException('canonical_term_required');
+        $hint=$this->repository->entitlement($entitlementId);
+        if(!$hint)throw new \InvalidArgumentException('commercial_entitlement_required');
+        $purchase=$this->repository->purchase((int)$hint->purchase_id);
+        if(!$purchase)throw new \InvalidArgumentException('commercial_purchase_required');
+        $offer=$this->repository->offer((int)$purchase->offer_id);
+        if(!$offer)throw new \InvalidArgumentException('commercial_offer_required');
+        $studentId=(int)$purchase->beneficiary_student_id;
+        $courseId=(int)$offer->course_id;
+        $digest=CommercialSupport::keyString($key);
+        $payload=CommercialIdempotency::payload(array(
+            'domain'=>CommercialRule::DOMAIN,'operation'=>'bind_entitlement_to_term','entitlement_id'=>$entitlementId,
+            'purchase_id'=>(int)$purchase->id,'offer_id'=>(int)$offer->id,'student_id'=>$studentId,'course_id'=>$courseId,
+            'existing_term_id'=>$termId,'evidence_reference_digest'=>$evidence['digest'],
+        ));
+        $this->repository->begin();
+        try{
+            if($winner=$this->repository->command($digest)){$result=$this->replayBinding($winner,$payload);$this->repository->commit();return $result;}
+            $this->repository->lockAccountRoot($studentId,$actor);
+            $entitlement=$this->repository->entitlement($entitlementId,true);
+            if(!$entitlement||!CommercialValidator::entitlementValid($entitlement))throw new \InvalidArgumentException('commercial_entitlement_integrity_conflict');
+            if((string)$entitlement->state!=='issued')throw new \InvalidArgumentException('commercial_entitlement_already_bound');
+            if($this->repository->fundingPlanForEntitlement($entitlementId,true))throw new \InvalidArgumentException('commercial_entitlement_already_bound');
+            $claim=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CommercialCapacityRepository())->claimForEntitlement($entitlementId,true);
+            if(!$claim)throw new \InvalidArgumentException('commercial_capacity_handoff_required');
+            if((string)$claim->state!=='active')throw new \InvalidArgumentException('commercial_capacity_claim_not_active');
+            $commitment=CommercialCommitmentValidator::assertForEntitlement($entitlement,CommercialCommitmentValidator::STATES_PRE_TERM,true,$this->repository);
+            $capacityRepository=new \Delnavazan\Platform\Core\Infrastructure\Repository\CommercialCapacityRepository();
+            CommercialCommitmentValidator::assertClaimAggregateBelongsToCommitment($claim,$capacityRepository->intervals((int)$claim->id,true),$commitment['entitlement'],$commitment['purchase'],$commitment['offer'],array('active'));
+            $offer=$commitment['offer'];
+            if(!CommercialValidator::courseConsistent(array((int)$offer->course_id,(int)$claim->course_id)))throw new \InvalidArgumentException('commercial_course_continuity_conflict');
+            $enrolmentHint=$this->repository->canonicalEnrolmentFor($studentId,$courseId,false);
+            if(!$enrolmentHint)throw new \InvalidArgumentException('canonical_enrolment_required');
+            if((int)$enrolmentHint->course_id!==(int)$offer->course_id)throw new \InvalidArgumentException('commercial_course_continuity_conflict');
+            $enrolmentId=(int)$enrolmentHint->id;
+            $termRepository=new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalTermAuthorityRepository();
+            $terms=$termRepository->termsForEnrolment($enrolmentId,true);
+            $term=null;$applicable=0;
+            foreach($terms as$candidate){
+                if((int)($candidate->applicable_slot??0)===1){$applicable++;$term=$candidate;}
+            }
+            if($applicable!==1||!$term||(int)$term->id!==$termId)throw new \InvalidArgumentException('existing_term_not_applicable');
+            if((string)($term->record_model??'')!=='canonical_enrolment_term_v1'
+                ||!in_array((string)($term->lifecycle_state??''),array('authorised','current'),true)
+                ||(int)$term->enrolment_id!==$enrolmentId
+                ||trim((string)($term->reference_code??''))===''
+                ||$term->archived_at!==null)throw new \InvalidArgumentException('existing_term_invalid');
+            if((int)$term->lesson_allocation<(int)$offer->committed_sessions)throw new \InvalidArgumentException('existing_term_allocation_conflict');
+            if($this->repository->fundingPlanForTerm($termId,true))throw new \InvalidArgumentException('commercial_term_already_funded');
+            $now=CommercialSupport::now();
+            $this->repository->insertFundingPlan(array(
+                'uid'=>Identifier::uid(),'term_id'=>$termId,'enrolment_id'=>$enrolmentId,'entitlement_id'=>$entitlementId,
+                'purchase_id'=>(int)$purchase->id,'offer_id'=>(int)$offer->id,
+                'committed_sessions'=>(int)$offer->committed_sessions,'plan_kind'=>(string)$offer->plan_kind,
+                'bound_at'=>$now,'created_at'=>$now,'created_by'=>$actor,
+            ));
+            do_action('dzn_phase_2a2r1_after_funding_plan',$termId);
+            $this->repository->bindEntitlementToTerm($entitlementId,(int)$entitlement->entitlement_version,$termId,$enrolmentId,$now,$actor);
+            $capacityRepository->bindClaimToTerm((int)$claim->id,(int)$claim->claim_version,$termId,$now,$actor);
+            $this->repository->insertCommand(array(
+                'uid'=>Identifier::uid(),'command_domain'=>CommercialRule::DOMAIN,'operation'=>'bind_entitlement_to_term',
+                'command_key_digest'=>$digest,'command_payload_digest'=>$payload,'student_id'=>$studentId,
+                'offer_id'=>(int)$offer->id,'purchase_id'=>(int)$purchase->id,'entitlement_id'=>$entitlementId,
+                'claim_id'=>(int)$claim->id,'term_id'=>$termId,'result_state'=>'term_bound','result_id'=>$termId,'created_at'=>$now,'created_by'=>$actor,
+            ));
+            $this->repository->commit();
+            return array(
+                'term_id'=>$termId,'enrolment_id'=>$enrolmentId,'entitlement_id'=>$entitlementId,'purchase_id'=>(int)$purchase->id,
+                'claim_id'=>(int)$claim->id,'committed_sessions'=>(int)$offer->committed_sessions,
+                'effective_sessions'=>$this->effectiveSessions((int)$offer->id),'created'=>false,'existing_term'=>true,
+            );
+        }catch(\Throwable$e){
+            $this->repository->rollback();
+            if($this->repository->duplicate($e)==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replayBindingAfterRollback($winner,$payload);
+            throw $e;
+        }
+    }
+
+    /**
      * Replay a duplicate binding winner inside its own transaction.
      *
      * The caller's transaction has already rolled back on the uniqueness race, and replay re-proves

@@ -175,7 +175,7 @@ final class PortalAuthenticatedReadService {
         $p = $wpdb->prefix . 'dzn_';
         $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
         $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,v.id schedule_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,c.reference_code course_reference,s.reference_code student_reference FROM {$p}lessons l INNER JOIN {$p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}students s ON s.id=l.student_id WHERE l.id=%d AND l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL",
+            "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,v.id schedule_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,c.reference_code course_reference,c.name_fa course_name_fa,c.name_en course_name_en,s.reference_code student_reference FROM {$p}lessons l INNER JOIN {$p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}students s ON s.id=l.student_id WHERE l.id=%d AND l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL",
             $lessonId,
             $principalId
         ));
@@ -191,6 +191,7 @@ final class PortalAuthenticatedReadService {
             'lifecycle_state' => (string) $row->status === 'completed' ? 'completed' : 'scheduled',
             'enrolment_uid' => '',
             'course_reference' => trim((string) $row->course_reference) ?: 'Course',
+            'course_name' => trim((string) ($row->course_name_fa ?: $row->course_name_en)) ?: (trim((string) $row->course_reference) ?: 'Course'),
             'term_reference' => '',
             'starts_at_utc' => (string) $row->starts_at_utc,
             'ends_at_utc' => (string) $row->ends_at_utc,

@@ -152,6 +152,14 @@ final class PostIntroActivationWorker {
     private static function retryable(\Throwable $error): bool {
         $message = trim($error->getMessage());
         if (str_starts_with($message, 'provider_')) return true;
+        // Calendar transport/inspection failures are provider-side and transient, but the
+        // integration layer deliberately uses precise non-`provider_` codes for them. Classify
+        // those exact codes as retryable so the existing bounded exponential backoff and the
+        // deterministic provider event id (idempotent replay) apply instead of stranding the job.
+        if (in_array($message, array(
+            'google_calendar_transport_failed',
+            'google_calendar_projection_inspection_failed',
+        ), true)) return true;
         if (str_contains($message, 'Deadlock') || str_contains($message, 'Lock wait timeout')) return true;
         return in_array($message, array(
             'commercial_entitlement_required',

@@ -173,6 +173,7 @@ jobs:
           php platform/tests/synthetic-dataset-contract.php
           php platform/tests/synthetic-dataset-policy-contract.php
           php platform/tests/post-intro-enrolment-automation-contract.php
+          php platform/tests/calendar-transport-retry-unit.php
           php platform/tests/post-intro-system-actor-unit.php
           php platform/tests/catalogue-auto-naming-reconciliation-contract.php
           php platform/tests/booking-admin-class-visibility-contract.php

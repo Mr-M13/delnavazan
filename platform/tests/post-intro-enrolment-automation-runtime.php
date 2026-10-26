@@ -444,6 +444,8 @@ dzn_pia_assert($evidenceOccurredAt === $activationCheckpoint, 'activation must r
 $job = $repository->activeJobForPurchase($purchaseId);
 dzn_pia_assert($job !== null && in_array((string) $job->state, array('retryable', 'failed'), true), 'a missing Google connection must leave a retryable/failed job, not a fabricated projection');
 dzn_pia_assert(str_starts_with((string) $job->last_error_code, 'provider_'), 'the retryable failure must be a provider failure, got ' . (string) $job->last_error_code);
+dzn_pia_assert((string) $job->state === 'retryable' && $job->next_attempt_at !== null && strtotime((string) $job->next_attempt_at . ' UTC') > time(), 'a transient Calendar transport failure must be automatically retried with a bounded future attempt');
+dzn_pia_assert(strtotime((string) $job->next_attempt_at . ' UTC') <= time() + 1800, 'the Calendar retry backoff must stay bounded');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified'")) === 0, 'provider projection must not be marked verified without a provider result');
 
 // A terminal provider-projection failure must not regress Student-visible canonical fulfilment.

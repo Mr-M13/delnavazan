@@ -46,7 +46,7 @@ $notificationWorker = $read('platform/src/Integrations/BookingStudentNotificatio
 $executionRule = $read('platform/src/Core/Application/PaymentExecution/PaymentExecutionRule.php');
 
 // 1. Additive migration and existing-data compatibility.
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '50'"), 'Schema 50 must be published');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '51'"), 'Schema 51 must be published');
 $contains($migrator, array(
     '048_post_intro_enrolment_automation',
     "'adult_self_attested'",

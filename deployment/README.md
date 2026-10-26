@@ -36,10 +36,10 @@ The live staging environment is being retired separately after its hosting accou
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.
 
-## Finance administration redesign (Schema 50)
+## Finance administration redesign (Schema 51)
 
-Release `phase2a2x-finance-administration-20261026.2` adds Schema 50
-(`049_finance_administration` + `050_intro_payment_authority`). It is additive:
+Release `phase2a2x-finance-administration-20261026.3` adds Schema 51
+(`049_finance_administration` + `050_intro_payment_authority` + `051_teacher_rate_origin`). It is additive:
 `finance_regional_prices`, `finance_settings`, `intro_payment_obligations`, `intro_checkout_sessions`,
 `intro_payment_events` and `intro_payment_commands`.
 It creates no offer, purchase, payment, statement, ledger, Term, Lesson or schedule row. On an existing
@@ -50,16 +50,21 @@ resolution. Existing `commercial_prices`, offers, payments and statements are no
 After deployment, verify:
 
 1. The exact `origin/main` SHA and build identity.
-2. `dzn_platform_schema_version` is `50` and the migration ledger contains `049_finance_administration` and `050_intro_payment_authority`.
-3. `finance_regional_prices`, `finance_settings`, `intro_payment_obligations`, `intro_checkout_sessions` and `intro_payment_events` exist with InnoDB.
+2. `dzn_platform_schema_version` is `51` and the migration ledger contains `049_finance_administration`, `050_intro_payment_authority` and `051_teacher_rate_origin`.
+3. `finance_regional_prices`, `finance_settings`, `intro_payment_obligations`, `intro_checkout_sessions`, `intro_payment_events` and the `rate_origin`/`origin_setting_version` columns on `finance_teacher_rates` exist.
 4. Finance has exactly four tabs: Payments, Central Ledger, Teacher Statements and Settings.
 5. No production price was changed by the migration; review any conflict notice before saving a price.
 
-Rollback: keep the additive tables (and the separate intro payment history) and restore the previous code
-release, or take a database backup, drop only `finance_regional_prices`, `finance_settings` and the four
-`intro_payment*`/`intro_checkout*` tables, remove the 049/050 ledger entries and restore the previous
-schema-version option.
+Rollback: restore the database snapshot taken immediately before Schema 51 (or before deployment) together
+with the previous code release. If a database restore is not possible, take a backup, drop only
+`finance_regional_prices`, `finance_settings` and the four `intro_payment*`/`intro_checkout*` tables, drop
+the additive `finance_teacher_rates.rate_origin` and `finance_teacher_rates.origin_setting_version`
+columns, remove the 049/050/051 ledger entries and restore the previous schema-version option. The
+provenance columns must be dropped before restoring Schema-50 code because that release's schema verifier
+rejects undeclared columns.
 Never delete `commercial_prices`, `commercial_offers`, `commercial_payment_evidence` or statement rows.
+Deploy this release atomically: a Schema-50 instance must not serve requests after Schema 51 has added the
+teacher-rate provenance columns, because its older schema verifier rejects undeclared columns.
 
 ## Post-introductory continuation automation (Schema 48)
 

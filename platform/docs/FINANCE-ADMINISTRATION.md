@@ -1,7 +1,7 @@
 # Finance Administration
 
 **Status:** implementation candidate on `feat/finance-admin-redesign-20261026`.
-**Schema:** 50 / migrations `049_finance_administration` and `050_intro_payment_authority`.
+**Schema:** 51 / migrations `049_finance_administration`, `050_intro_payment_authority` and `051_teacher_rate_origin`.
 
 ## 1. What administrators see
 
@@ -95,9 +95,13 @@ Teacher pay is separate from student prices and is **always in Iranian toman (`T
   `currency=TOM`, `effective_from`).
 - Saving the global default applies it to active Teachers that are not marked as explicit overrides,
   writing effective-dated rows through the existing `TeacherRateService`.
-- A teacher-specific or teacher/course rate is entered in normal Toman units, converted to exact minor
-  units, recorded through `TeacherRateService`, and marks that Teacher as an override.
-- “Resume global default” records a new effective rate version and removes the override marker.
+- A teacher-scope explicit rate is entered in normal Toman units, converted to exact minor units,
+  recorded through `TeacherRateService` with `rate_origin=explicit`, and marks that Teacher as an
+  override. A course-specific explicit rate keeps precedence for its Course but does not block the
+  teacher-scope global default.
+- A newly activated Teacher inherits the later of the global rate's effective date and the recorded
+  onboarding activation instant; an inherited rate is never effective before activation.
+- “Resume global default” records a new inherited effective rate version and removes the override marker.
 - Historical lesson snapshots and statements keep the rate row/version they recorded.
 
 Per-Teacher overrides are tracked in `TEACHER_RATE_OVERRIDE_IDS_V1`; this is a configuration index, not a
@@ -141,12 +145,14 @@ capabilities. Each tab and write keeps its own authority:
 Every write is nonce-checked and redirects with a safe result code. Secret Stripe values remain
 write-only and are never returned by the Finance UI.
 
-## 8. Migrations 049 and 050 and rollback
+## 8. Migrations 049, 050 and 051 and rollback
 
-`049_finance_administration` and `050_intro_payment_authority` are additive:
+`049_finance_administration`, `050_intro_payment_authority` and `051_teacher_rate_origin` are additive:
 
 - creates `finance_regional_prices` and `finance_settings`;
 - creates `intro_payment_obligations`, `intro_checkout_sessions`, `intro_payment_events` and `intro_payment_commands`;
+- adds teacher-rate provenance columns `rate_origin` and `origin_setting_version`, and classifies only evidence-proven historical inherited rates;
+- never backdates a new inherited rate before the Teacher activation instant;
 - seeds a regional row only where every active standard Course already agrees on exactly one currency
   and one amount;
 - skips conflicting or ambiguous regions for explicit resolution in Finance → Settings;
@@ -159,14 +165,18 @@ historical price rows, offers, payments and statements stay intact.
 
 Rollback/recovery:
 
-1. The additive tables can remain in place without affecting old code; this is the safest rollback.
-2. If removal is required, take a database backup first and verify no `commercial_offers` or
+1. The safest rollback is to restore the database snapshot taken immediately before Schema 51 (or before
+   deployment) together with the previous code release.
+2. If a database restore is not possible, take a backup first and verify no `commercial_offers` or
    `finance_statement_lines` rows are missing their recorded price/rate references.
 3. Drop only `finance_regional_prices`, `finance_settings`, `intro_payment_obligations`,
-   `intro_checkout_sessions`, `intro_payment_events` and `intro_payment_commands`, and remove the
-   `049_finance_administration` and `050_intro_payment_authority` entries from
-   `dzn_platform_completed_migrations`; restore the previous
-   schema-version option. Do **not** delete `commercial_prices` history.
+   `intro_checkout_sessions`, `intro_payment_events` and `intro_payment_commands`, drop the additive
+   `finance_teacher_rates.rate_origin` and `finance_teacher_rates.origin_setting_version` columns, and
+   remove the `049_finance_administration`, `050_intro_payment_authority` and
+   `051_teacher_rate_origin` entries from `dzn_platform_completed_migrations`; restore the previous
+   schema-version option. Do **not** delete `commercial_prices` history. Dropping the two nullable
+   provenance columns is required before restoring Schema-50 code because the older schema verifier
+   rejects undeclared columns.
 4. Restore the previous code release. Existing offers/payments/statements are not rewritten.
 
 No production deployment or production price change is part of this change.
@@ -183,7 +193,8 @@ No production deployment or production price change is part of this change.
 - **Global teacher default materialisation.** Saving the global default writes effective-dated rate rows
   for currently active, non-overridden Teachers. The authoritative onboarding approval emits
   `dzn_teacher_activated`, which applies the current global Toman rate to the newly activated Teacher
-  idempotently. Explicit teacher or teacher/course rates are preserved as overrides.
+  idempotently. Explicit teacher-scope rates are preserved as overrides; course-specific rates keep
+  their Course precedence.
 - **Conversion and fees.** The user-specified AUD account view is not derived from online payments in
   this change. Stripe/accounting conversion, fees and taxes remain provider/accounting facts and do not
   write the manual Central Ledger. The ledger stays manual by design.
@@ -200,7 +211,7 @@ Pure/contract suites added:
 - `tests/finance-statement-template-unit.php` — HTML/CSS sanitisation, unsafe URL refusal, RTL/LTR,
   lesson loop, recorded totals, script-free output.
 - `tests/finance-administration-contract.php` — four tabs, one visible Finance destination, migrations
-  049/050, shared authority reuse, paid intro lifecycle, Toman teacher rates and inheritance, template
+  049/050/051, shared authority reuse, paid intro lifecycle, Toman teacher rates and inheritance, template
   editor/versioning, Stripe consolidation, manual ledger independence and capability/nonce gates.
 - `tests/intro-payment-unit.php` — paid intro obligation idempotency, amount/currency refusal, failed
   payment visibility, duplicate provider-event convergence and malformed-reference rejection.

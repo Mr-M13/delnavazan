@@ -16,7 +16,7 @@ $assert(substr_count($files['onboarding'],'BINARY c.scope_snapshot = BINARY %s')
 $assert(substr_count($files['migration'],'BINARY scope_snapshot <> BINARY %s')>=4,'migration must byte-compare connection and authorization scopes');
 $assert(substr_count($files['migration'],'BINARY c.scope_snapshot <> BINARY %s')>=4,'migration must byte-compare joined credential and identity scopes');
 $assert(str_contains($files['workflow'],'oauth-scope-exact-matching-db.php'),'PR gate must run the MariaDB exact-scope regression');
-$assert(str_contains($files['plugin'],"DZN_PLATFORM_SCHEMA_VERSION', '50'"),'The OpenID scope transition must publish Schema 48');
+$assert(str_contains($files['plugin'],"DZN_PLATFORM_SCHEMA_VERSION', '51'"),'The OpenID scope transition must publish Schema 51');
 $assert(str_contains($files['migration'],"'046_google_oauth_openid_subject'")&&str_contains($files['migration'],'install_google_oauth_openid_subject'),'Schema 46 must run the fail-closed OpenID scope transition');
 $assert(str_contains($files['rule'],"GOOGLE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events openid'"),'The exact allowlist must include only Calendar events and OpenID');
 echo "OAuth scope exact-matching contracts passed.\n";

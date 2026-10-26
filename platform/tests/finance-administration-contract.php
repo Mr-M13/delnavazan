@@ -43,10 +43,11 @@ $contains($menu, array('FINANCE_WORKSPACE_CAP', "'dzn_view_finance_authority'", 
 $contains($finance, array('current_user_can(Menu::FINANCE_WORKSPACE_CAP)', "check_admin_referer('dzn_finance_settings')", "current_user_can('dzn_view_payment_execution_authority')", "current_user_can('dzn_view_cash_ledger')", "current_user_can('dzn_view_finance_authority')"), 'Every Finance surface must stay capability- and nonce-gated');
 
 // Additive migration and rollback-safe preservation.
-$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '50'"), 'Schema version must advance to 50');
+$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '51'"), 'Schema version must advance to 51');
 $contains($migration, array(
     "'049_finance_administration'", 'install_finance_administration', 'verify_finance_administration_schema',
     "'050_intro_payment_authority'", 'install_intro_payment_authority', 'verify_intro_payment_authority_schema',
+    "'051_teacher_rate_origin'", 'install_teacher_rate_origin', 'verify_teacher_rate_origin_schema', 'rate_origin', 'origin_setting_version',
     'finance_regional_prices', 'finance_settings', 'intro_payment_obligations', 'intro_checkout_sessions', 'intro_payment_events',
     'UNIQUE KEY region_active(region_code,active_slot)', 'UNIQUE KEY setting_active(setting_key,active_slot)',
     "COUNT(DISTINCT price.currency)", "COUNT(DISTINCT price.amount_minor)",
@@ -110,7 +111,9 @@ $contains($read('../theme/assets/js/intro-checkout.js'), array('student/intro-ch
 $contains($read('../theme/template-parts/portal/booking-requests.php'), array('data-dzn-intro-checkout', 'data-dzn-intro-status', 'obligation_uid', 'intro_payment'), 'Portal booking request must render the paid intro action without exposing amount/currency inputs');
 
 // Automatic teacher-rate inheritance.
-$contains($read('src/Core/Application/Finance/TeacherRateInheritanceService.php'), array('applyForTeacher', 'globalTeacherRate', 'overrides', 'TeacherRateService', 'TEACHER_CURRENCY', 'already_inherited', 'existing_rate_preserved'), 'Newly activated Teachers must inherit the global Toman rate without replacing explicit overrides');
+$contains($migration, array('UNIQUE KEY teacher_scope_slot(teacher_id,scope_kind,course_scope_id,active_slot)', 'UNIQUE KEY command_key_digest(command_key_digest)'), 'Teacher-rate concurrency must fail closed through the existing active-scope and command-key uniqueness');
+$contains($read('src/Core/Application/Finance/TeacherRateInheritanceService.php'), array('applyForTeacher', 'globalTeacherRate', 'overrides', 'TeacherRateService', 'TEACHER_CURRENCY', 'already_inherited', 'existing_rate_preserved', 'activationInstant', 'activated_at', 'teacher_not_activated', 'rate_origin', 'global_inherited', '->later('), 'Newly activated Teachers must inherit the global Toman rate without replacing explicit overrides or backdating before activation');
+$contains($read('src/Core/Application/Finance/FinanceSettingsService.php'), array('rate_origin', 'origin_setting_version', 'inheritedCurrent', 'liveTeacherRate', 'activationInstant'), 'Global saves must use provenance and activation eligibility rather than amount/effective-date matching');
 $contains($read('src/Core/Application/TeacherOnboardingService.php'), array("do_action( 'dzn_teacher_activated'", "decision === 'approve'"), 'The authoritative onboarding approval must emit the activation event');
 $contains($platform, array('dzn_teacher_activated', 'TeacherRateInheritanceService', 'dzn_teacher_rate_inheritance_failed'), 'Runtime must apply rate inheritance on activation and expose failures');
 

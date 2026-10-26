@@ -397,9 +397,12 @@ final class FinanceAdminController {
             echo '<h3>Rate history · ' . esc_html(self::teacherName($teachers, $selectedTeacher)) . '</h3>';
             try {
                 $timeline = (new TeacherRateReadService())->timeline($selectedTeacher);
-                echo '<table class="widefat striped"><thead><tr><th>Version</th><th>Scope</th><th>Effective from</th><th>Effective until</th><th>Status</th><th>Amount</th><th>Currency</th></tr></thead><tbody>';
-                if (!$timeline['rates']) echo '<tr><td colspan="7">No effective-dated rate recorded.</td></tr>';
-                foreach ($timeline['rates'] as $rate) echo '<tr><td>' . esc_html((string) $rate['rate_version']) . '</td><td>' . esc_html((string) $rate['scope_kind'] . ((int) $rate['course_scope_id'] > 0 ? ' · #' . (int) $rate['course_scope_id'] : '')) . '</td><td>' . esc_html((string) $rate['effective_from']) . '</td><td>' . esc_html((string) ($rate['effective_until'] ?? '—')) . '</td><td>' . esc_html((string) $rate['status']) . '</td><td>' . esc_html(PricingMoney::format((int) $rate['amount_minor'], (string) $rate['currency'])) . '</td><td>' . esc_html((string) $rate['currency']) . '</td></tr>';
+                echo '<table class="widefat striped"><thead><tr><th>Version</th><th>Scope</th><th>Source</th><th>Effective from</th><th>Effective until</th><th>Status</th><th>Amount</th><th>Currency</th></tr></thead><tbody>';
+                if (!$timeline['rates']) echo '<tr><td colspan="8">No effective-dated rate recorded.</td></tr>';
+                foreach ($timeline['rates'] as $rate) {
+                    $source = ($rate['rate_origin'] ?? null) === 'global_inherited' ? 'Global default' : (($rate['rate_origin'] ?? null) === 'explicit' ? 'Explicit' : 'Unknown / legacy');
+                    echo '<tr><td>' . esc_html((string) $rate['rate_version']) . '</td><td>' . esc_html((string) $rate['scope_kind'] . ((int) $rate['course_scope_id'] > 0 ? ' · #' . (int) $rate['course_scope_id'] : '')) . '</td><td>' . esc_html($source) . '</td><td>' . esc_html((string) $rate['effective_from']) . '</td><td>' . esc_html((string) ($rate['effective_until'] ?? '—')) . '</td><td>' . esc_html((string) $rate['status']) . '</td><td>' . esc_html(PricingMoney::format((int) $rate['amount_minor'], (string) $rate['currency'])) . '</td><td>' . esc_html((string) $rate['currency']) . '</td></tr>';
+                }
                 echo '</tbody></table>';
             } catch (\Throwable) { echo '<p class="description">Rate history is unavailable for this Teacher.</p>'; }
             if (in_array($selectedTeacher, $overrides, true) && current_user_can(FinanceSettingsService::MANAGE_TEACHER_RATE_CAPABILITY)) {

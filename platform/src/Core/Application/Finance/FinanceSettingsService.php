@@ -11,8 +11,11 @@ use Delnavazan\Platform\Core\Support\Identifier;
  *
  * The teacher global rate is a default, not a second compensation model. Applying it
  * materialises effective-dated per-Teacher rate rows through the existing
- * TeacherRateService; an explicit teacher/course rate is recorded separately and marks
- * that Teacher as overridden, so a later global default change does not overwrite it.
+ * TeacherRateService; a teacher-scope explicit rate is recorded separately and marks that
+ * Teacher as overridden, so a later global default change does not overwrite it. A
+ * course-specific rate is recorded separately and keeps precedence for its Course without
+ * blocking the teacher-scope global default. A rate is never materialised before the
+ * Teacher's recorded onboarding activation instant.
  */
 final class FinanceSettingsService {
     public const TEMPLATE_KEY = 'STATEMENT_TEMPLATE_V1';
@@ -63,6 +66,7 @@ final class FinanceSettingsService {
             'effective_from' => (string) ($decoded['effective_from'] ?? ''),
             'applied_teachers' => (int) ($decoded['applied_teachers'] ?? 0),
             'errors' => (array) ($decoded['errors'] ?? array()),
+            'setting_version' => (int) $row->setting_version,
         );
     }
 
@@ -78,8 +82,21 @@ final class FinanceSettingsService {
         $effectiveFrom = trim((string) ($input['effective_from'] ?? ''));
         if ($effectiveFrom === '') $effectiveFrom = gmdate('Y-m-d H:i:s');
         if (!FinanceRule::utc($effectiveFrom)) throw new \InvalidArgumentException('invalid_effective_from');
+        $currentGlobal = $this->globalTeacherRate();
+        if ($currentGlobal !== null) {
+            $currentEffective = (string) ($currentGlobal['effective_from'] ?? '');
+            if ($currentEffective !== '' && $effectiveFrom < $currentEffective) throw new \InvalidArgumentException('invalid_effective_from');
+            if ($currentEffective === $effectiveFrom && (int) $currentGlobal['amount_minor'] !== $amountMinor) throw new \InvalidArgumentException('invalid_effective_from');
+        }
         $apply = (string) ($input['apply_to_teachers'] ?? '1') === '1';
-        $previousGlobal = $this->globalTeacherRate();
+        // Store the new default first so every inherited row can name the exact settings version
+        // it came from. If a per-Teacher write fails the setting remains saved and the error list
+        // tells the administrator which Teacher needs review.
+        $stored = $this->store(self::TEACHER_GLOBAL_RATE_KEY, 'teacher_rate', array(
+            'amount_minor' => $amountMinor, 'currency' => self::TEACHER_CURRENCY,
+            'effective_from' => $effectiveFrom, 'applied_teachers' => 0, 'errors' => array(),
+        ));
+        $settingVersion = (int) $stored['setting_version'];
         $applied = 0;
         $errors = array();
         if ($apply) {
@@ -87,9 +104,12 @@ final class FinanceSettingsService {
             foreach ($this->activeTeachers() as $teacher) {
                 $teacherId = (int) $teacher->id;
                 if (in_array($teacherId, $overrides, true)) continue;
-                if ($this->inheritedCurrent($teacherId, $amountMinor, $effectiveFrom)) continue;
+                $activation = $this->activationInstant($teacherId);
+                if ($activation === null) continue; // Not yet eligible for compensation.
+                $teacherEffectiveFrom = $this->later($effectiveFrom, $activation);
+                if ($this->inheritedCurrent($teacherId, $amountMinor, $teacherEffectiveFrom)) continue;
                 $live = $this->liveTeacherRate($teacherId);
-                if ($live !== null && !$this->matchesGlobal($live, $previousGlobal)) {
+                if ($live !== null && (string) ($live->rate_origin ?? '') !== 'global_inherited') {
                     $this->markOverride($teacherId);
                     continue;
                 }
@@ -97,25 +117,28 @@ final class FinanceSettingsService {
                     $this->rates->record($teacherId, array(
                         'scope_kind' => 'teacher', 'course_scope_id' => 0,
                         'amount_minor' => $amountMinor, 'currency' => self::TEACHER_CURRENCY,
-                        'effective_from' => $effectiveFrom, 'compensation_basis' => 'per_session',
+                        'effective_from' => $teacherEffectiveFrom, 'compensation_basis' => 'per_session',
+                        'rate_origin' => 'global_inherited', 'origin_setting_version' => $settingVersion,
                         'evidence_channel' => 'staff_record',
-                        'evidence_reference' => 'finance-settings:global-teacher-rate:' . $effectiveFrom,
+                        'evidence_reference' => 'finance-settings:global-teacher-rate:' . $teacherEffectiveFrom,
                         'evidence_at' => gmdate('Y-m-d H:i:s'),
-                    ), 'finance-settings-global-rate-' . $teacherId . '-' . $effectiveFrom . '-' . $amountMinor);
+                    ), 'finance-settings-global-rate-' . $teacherId . '-' . $teacherEffectiveFrom . '-' . $amountMinor);
                     $applied++;
                 } catch (\Throwable $error) {
                     $errors[] = array('teacher_id' => $teacherId, 'reason' => $this->safeReason($error));
                 }
             }
         }
-        $stored = $this->store(self::TEACHER_GLOBAL_RATE_KEY, 'teacher_rate', array(
-            'amount_minor' => $amountMinor, 'currency' => self::TEACHER_CURRENCY,
-            'effective_from' => $effectiveFrom, 'applied_teachers' => $applied, 'errors' => $errors,
-        ));
+        if ($applied !== 0 || $errors !== array()) {
+            $stored = $this->store(self::TEACHER_GLOBAL_RATE_KEY, 'teacher_rate', array(
+                'amount_minor' => $amountMinor, 'currency' => self::TEACHER_CURRENCY,
+                'effective_from' => $effectiveFrom, 'applied_teachers' => $applied, 'errors' => $errors,
+            ));
+        }
         return $stored + array('applied_teachers' => $applied, 'errors' => $errors);
     }
 
-    /** Record one explicit teacher or teacher/course rate in Toman and mark the Teacher overridden. */
+    /** Record one explicit teacher or teacher/course rate in Toman; a teacher-scope rate marks the Teacher overridden. */
     public function saveTeacherRate(int $teacherId, array $input): array {
         FinanceSupport::requireCapability(self::MANAGE_TEACHER_RATE_CAPABILITY);
         if ($teacherId < 1) throw new \InvalidArgumentException('teacher_required');
@@ -131,6 +154,7 @@ final class FinanceSettingsService {
             'scope_kind' => $scope, 'course_scope_id' => $courseId,
             'amount_minor' => $amountMinor, 'currency' => self::TEACHER_CURRENCY,
             'effective_from' => $effectiveFrom, 'compensation_basis' => 'per_session',
+            'rate_origin' => 'explicit',
             'evidence_channel' => 'staff_record',
             'evidence_reference' => (string) ($input['evidence_reference'] ?? ('finance-settings:teacher-rate:' . $teacherId)),
             'evidence_at' => gmdate('Y-m-d H:i:s'),
@@ -144,14 +168,16 @@ final class FinanceSettingsService {
         FinanceSupport::requireCapability(self::MANAGE_TEACHER_RATE_CAPABILITY);
         $global = $this->globalTeacherRate();
         if (!$global || (int) $global['amount_minor'] < 1) throw new \InvalidArgumentException('teacher_global_rate_required');
+        $resumeAt = $this->later(gmdate('Y-m-d H:i:s'), (string) ($global['effective_from'] ?? ''));
         $result = $this->rates->record($teacherId, array(
             'scope_kind' => 'teacher', 'course_scope_id' => 0,
             'amount_minor' => (int) $global['amount_minor'], 'currency' => self::TEACHER_CURRENCY,
-            'effective_from' => gmdate('Y-m-d H:i:s'), 'compensation_basis' => 'per_session',
+            'effective_from' => $resumeAt, 'compensation_basis' => 'per_session',
+            'rate_origin' => 'global_inherited', 'origin_setting_version' => (int) ($global['setting_version'] ?? 0) ?: null,
             'evidence_channel' => 'staff_record',
             'evidence_reference' => 'finance-settings:resume-global-rate:' . $teacherId,
             'evidence_at' => gmdate('Y-m-d H:i:s'),
-        ), 'finance-settings-resume-global-' . $teacherId . '-' . gmdate('YmdHis'));
+        ), 'finance-settings-resume-global-' . $teacherId . '-' . $resumeAt . '-' . (int) $global['amount_minor']);
         $overrides = array_values(array_filter($this->overrides(), static fn(int $id): bool => $id !== $teacherId));
         $this->store(self::TEACHER_OVERRIDES_KEY, 'teacher_ids', $overrides);
         return $result;
@@ -179,6 +205,7 @@ final class FinanceSettingsService {
     private function inheritedCurrent(int $teacherId, int $amountMinor, string $effectiveFrom): bool {
         $row = $this->liveTeacherRate($teacherId);
         return $row !== null
+            && (string) ($row->rate_origin ?? '') === 'global_inherited'
             && (int) $row->amount_minor === $amountMinor
             && (string) $row->currency === self::TEACHER_CURRENCY
             && (string) $row->effective_from === $effectiveFrom;
@@ -188,17 +215,24 @@ final class FinanceSettingsService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT amount_minor,currency,effective_from FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND scope_kind='teacher' AND status='active' AND effective_until IS NULL ORDER BY id DESC",
+            "SELECT amount_minor,currency,effective_from,rate_origin,origin_setting_version FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND scope_kind='teacher' AND status='active' AND effective_until IS NULL ORDER BY id DESC",
             $teacherId
         )) ?: array();
         return count($rows) === 1 ? $rows[0] : null;
     }
 
-    private function matchesGlobal(?object $row, ?array $global): bool {
-        return $row !== null && $global !== null
-            && (int) $row->amount_minor === (int) $global['amount_minor']
-            && (string) $row->currency === self::TEACHER_CURRENCY
-            && (string) $row->effective_from === (string) $global['effective_from'];
+    /** The recorded activation instant, or null when onboarding has not activated the Teacher. */
+    private function activationInstant(int $teacherId): ?string {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $state = $wpdb->get_row($wpdb->prepare("SELECT state,activated_at FROM {$p}teacher_onboarding_states WHERE teacher_id=%d", $teacherId));
+        if ($state === null) return gmdate('Y-m-d H:i:s'); // Legacy active Teacher without an onboarding row.
+        if ((string) $state->state !== 'active') return null;
+        return is_string($state->activated_at) && FinanceRule::utc($state->activated_at) ? $state->activated_at : gmdate('Y-m-d H:i:s');
+    }
+
+    private function later(string $left, string $right): string {
+        return $left >= $right ? $left : $right;
     }
 
     /** @return list<object> */

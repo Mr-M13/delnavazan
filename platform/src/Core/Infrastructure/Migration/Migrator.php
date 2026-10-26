@@ -392,6 +392,54 @@ final class Migrator {
 		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}intro_payment_obligations WHERE amount_minor<1 OR state NOT IN ('pending','paid','failed','expired','refunded','cancelled') OR currency NOT REGEXP '^[A-Z]{3}$'");if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid intro payment obligation');
 	}
 
+	/**
+	 * Schema 051: reliable provenance for effective-dated teacher rates.
+	 *
+	 * `rate_origin` distinguishes a global-inherited rate from an explicit teacher or
+	 * teacher/course rate. Existing rows are classified only where their recorded evidence
+	 * digest proves the historical inherited reference; unknown historical rates stay NULL and
+	 * are treated as explicit/unknown rather than silently reinterpreted.
+	 */
+	private static function install_teacher_rate_origin():void{
+		global $wpdb; $table=$wpdb->prefix.'dzn_finance_teacher_rates';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Teacher rate origin migration requires finance_teacher_rates');
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'rate_origin'")){
+			if($wpdb->query("ALTER TABLE {$table} ADD COLUMN rate_origin varchar(24) NULL AFTER status")===false)throw new \RuntimeException('Teacher rate origin migration failed');
+		}
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'origin_setting_version'")){
+			if($wpdb->query("ALTER TABLE {$table} ADD COLUMN origin_setting_version int unsigned NULL AFTER rate_origin")===false)throw new \RuntimeException('Teacher rate origin version migration failed');
+		}
+		$rows=$wpdb->get_results("SELECT id,teacher_id,effective_from,evidence_reference_digest FROM {$table} WHERE rate_origin IS NULL AND evidence_reference_digest IS NOT NULL")?:array();
+		foreach($rows as $row){
+			$candidates=array(
+				'global_inherited'=>array(
+					'finance-settings:inherit-global-rate:'.(int)$row->teacher_id,
+					'finance-settings:global-teacher-rate:'.(string)$row->effective_from,
+					'finance-settings:resume-global-rate:'.(int)$row->teacher_id,
+				),
+				'explicit'=>array('finance-settings:teacher-rate:'.(int)$row->teacher_id),
+			);
+			$classified=null;
+			foreach($candidates as $origin=>$references){
+				foreach($references as $reference){
+					try{$digest=\Delnavazan\Platform\Core\Application\Finance\FinanceIdempotency::evidence($reference);}catch(\Throwable){$digest='';}
+					if($digest!==''&&hash_equals((string)$row->evidence_reference_digest,$digest)){$classified=$origin;break 2;}
+				}
+			}
+			if($classified!==null&&$wpdb->update($table,array('rate_origin'=>$classified),array('id'=>(int)$row->id))===false)throw new \RuntimeException('Teacher rate origin classification failed');
+		}
+	}
+	private static function verify_teacher_rate_origin_schema():void{
+		global $wpdb; $table=$wpdb->prefix.'dzn_finance_teacher_rates';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing finance_teacher_rates');
+		$origin=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'rate_origin'");
+		if(!$origin||strtolower((string)$origin->Type)!=='varchar(24)'||$origin->Null!=='YES')throw new \RuntimeException('Migration verification failed: teacher rate origin column');
+		$version=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'origin_setting_version'");
+		if(!$version||preg_match('/^(?:int|bigint)(?:\(\d+\))? unsigned$/',strtolower(trim((string)$version->Type)))!==1||$version->Null!=='YES')throw new \RuntimeException('Migration verification failed: teacher rate origin setting version');
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE rate_origin IS NOT NULL AND rate_origin NOT IN ('global_inherited','explicit')");
+		if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid teacher rate origin');
+	}
+
 	private const OPTION = 'dzn_platform_schema_version'; private const LOCK = 'dzn_platform_migration_lock'; private const COMPLETED = 'dzn_platform_completed_migrations';
 	private const CAPABILITY_OPTION = 'dzn_platform_capability_version'; private const CAPABILITY_VERSION = '2a2n';
 	private const CAPABILITY_OPTION_O = 'dzn_platform_capability_version_2a2o'; private const CAPABILITY_VERSION_O = '2a2o';
@@ -429,7 +477,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -488,7 +536,11 @@ final class Migrator {
 				self::install_intro_payment_authority();self::verify_intro_payment_authority_schema();
 				$done[]='050_intro_payment_authority';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('051_teacher_rate_origin',$done,true)){
+				self::install_teacher_rate_origin();self::verify_teacher_rate_origin_schema();self::verify_finance_payability_rate_statement_schema();
+				$done[]='051_teacher_rate_origin';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -660,9 +712,10 @@ final class Migrator {
 		$required[] = '048_post_intro_enrolment_automation';
 		$required[] = '049_finance_administration';
 		$required[] = '050_intro_payment_authority';
+		$required[] = '051_teacher_rate_origin';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -2367,6 +2420,9 @@ final class Migrator {
 			'finance_reconciliation_commands' => array('command_domain','operation','command_key_digest','command_payload_digest','teacher_id','run_id','exception_id','result_state','result_run_id','result_exception_id','reason_code','created_at','created_by'),
 			'finance_exceptions' => array('uid','reference_code','reason_code','severity','state','fingerprint','summary','safe_detail','teacher_id','lesson_id','statement_id','snapshot_id','detected_at','last_seen_at','occurrence_count','resolved_at','resolved_by','resolution_note','created_at','created_by','updated_at','updated_by'),
 		);
+		$originDone=in_array('051_teacher_rate_origin',(array)get_option(self::COMPLETED,array()),true);
+		if($originDone||$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_teacher_rates LIKE 'rate_origin'"))$spec['finance_teacher_rates'][]='rate_origin';
+		if($originDone||$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_teacher_rates LIKE 'origin_setting_version'"))$spec['finance_teacher_rates'][]='origin_setting_version';
 		$handleTables = array('finance_teacher_rates','finance_lesson_snapshots','finance_statements','finance_reconciliation_runs','finance_exceptions');
 		$appendOnly = array('finance_policy_commands','finance_teacher_rate_events','finance_teacher_rate_commands','finance_lesson_snapshots','finance_snapshot_corrections','finance_snapshot_commands','finance_payability_evaluations','finance_payability_overrides','finance_payability_commands','finance_statement_lines','finance_statement_events','finance_statement_commands','finance_reconciliation_runs','finance_reconciliation_findings','finance_reconciliation_commands');
 		$mutable = array(

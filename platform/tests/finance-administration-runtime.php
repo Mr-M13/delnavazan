@@ -9,6 +9,7 @@ if (getenv('DZN_FINANCE_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') || 
 }
 
 use Delnavazan\Platform\Core\Application\CommercialCatalogueService;
+use Delnavazan\Platform\Core\Application\Finance\FinanceIdempotency;
 use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
 use Delnavazan\Platform\Core\Application\Finance\Intro\{IntroCheckoutInitiationService,IntroCheckoutReturnReadService,IntroPaymentService};
 use Delnavazan\Platform\Core\Application\Finance\Pricing\{PricingMoney,RegionalPricingService};
@@ -25,8 +26,8 @@ wp_set_current_user(1);
 function dzn_fin_runtime_assert(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function dzn_fin_runtime_count(string $table): int { global $wpdb; return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}dzn_{$table}"); }
 
-dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '50', 'Finance runtime requires Schema 50');
-dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '50', 'Schema 50 must be installed');
+dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '51', 'Finance runtime requires Schema 51');
+dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '51', 'Schema 51 must be installed');
 
 /* ---------------------------------------------------------------- regional price authority + conflicts */
 foreach (array('finance_regional_prices','finance_settings','intro_payment_events','intro_checkout_sessions','intro_payment_obligations','intro_payment_commands') as $table) $wpdb->query("DELETE FROM {$p}{$table}");
@@ -104,28 +105,95 @@ Migrator::maybe_upgrade();
 Migrator::maybe_upgrade();
 $after = array('regional' => dzn_fin_runtime_count('finance_regional_prices'), 'settings' => dzn_fin_runtime_count('finance_settings'), 'intro' => dzn_fin_runtime_count('intro_payment_obligations'));
 dzn_fin_runtime_assert($before === $after, 'Repeated migration must not duplicate regional/settings/intro rows');
-dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '50', 'Repeated migration must retain Schema 50');
+dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '51', 'Repeated migration must retain Schema 51');
 
 /* ---------------------------------------------------------------- teacher rate inheritance */
 $settings = new FinanceSettingsService();
-$settings->saveGlobalTeacherRate(array('amount' => '450000', 'effective_from' => $now, 'apply_to_teachers' => '0'));
-$teacherSuffix = substr(hash('sha256', 'teacher-' . $suffix), 0, 10);
+$activationA = gmdate('Y-m-d H:i:s', time() - (2 * 86400));
+$globalA = gmdate('Y-m-d H:i:s', time() - (5 * 86400));
+$settings->saveGlobalTeacherRate(array('amount' => '450000', 'effective_from' => $globalA, 'apply_to_teachers' => '0'));
 $teacherId = (new TeacherService())->create(array('display_name' => 'Finance Teacher ' . $suffix, 'email' => 'finance-teacher-' . $suffix . '@example.com', 'country_code' => 'IR', 'timezone' => 'Asia/Tehran'));
 dzn_fin_runtime_assert($teacherId > 0, 'Teacher fixture required');
+$wpdb->insert($p . 'teacher_onboarding_states', array('teacher_id' => $teacherId, 'state' => 'active', 'readiness_state' => 'ready', 'profile_state' => 'complete', 'availability_state' => 'complete', 'agreement_state' => 'not_required', 'activated_at' => $activationA, 'version' => 1, 'created_at' => $activationA, 'updated_at' => $activationA, 'created_by' => 1, 'updated_by' => 1));
 $inherited = (new TeacherRateInheritanceService())->applyForTeacher($teacherId);
-dzn_fin_runtime_assert(!empty($inherited['applied']), 'A newly activated Teacher must inherit the global TOM rate');
-$rateRow = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,currency,scope_kind,status FROM {$p}finance_teacher_rates WHERE teacher_id=%d ORDER BY id DESC LIMIT 1", $teacherId));
-dzn_fin_runtime_assert($rateRow && (int) $rateRow->amount_minor === 450000 && (string) $rateRow->currency === 'TOM' && (string) $rateRow->scope_kind === 'teacher', 'Inherited rate must be a teacher-scope TOM rate');
+dzn_fin_runtime_assert(!empty($inherited['applied']) && ($inherited['effective_from'] ?? '') === $activationA, 'A newly activated Teacher must inherit the rate no earlier than activation');
+$rateRow = $wpdb->get_row($wpdb->prepare("SELECT id,amount_minor,currency,scope_kind,status,effective_from,rate_origin,origin_setting_version FROM {$p}finance_teacher_rates WHERE teacher_id=%d ORDER BY id DESC LIMIT 1", $teacherId));
+dzn_fin_runtime_assert($rateRow && (int) $rateRow->amount_minor === 450000 && (string) $rateRow->currency === 'TOM' && (string) $rateRow->scope_kind === 'teacher' && (string) $rateRow->rate_origin === 'global_inherited', 'Inherited rate must be a teacher-scope TOM rate with global-inherited provenance');
+dzn_fin_runtime_assert((string) $rateRow->effective_from === $activationA, 'Inherited rate must not be backdated before activation');
+$firstRateId = (int) $rateRow->id;
 $rateCount = dzn_fin_runtime_count('finance_teacher_rates');
 $again = (new TeacherRateInheritanceService())->applyForTeacher($teacherId);
 dzn_fin_runtime_assert(empty($again['applied']) && dzn_fin_runtime_count('finance_teacher_rates') === $rateCount, 'Repeated activation must not append a duplicate rate version');
 
+$snapshotsBefore = dzn_fin_runtime_count('finance_lesson_snapshots');
+$statementsBefore = dzn_fin_runtime_count('finance_statements');
+$settings->saveGlobalTeacherRate(array('amount' => '460000', 'effective_from' => gmdate('Y-m-d H:i:s'), 'apply_to_teachers' => '1'));
+$newInherited = $wpdb->get_row($wpdb->prepare("SELECT id,amount_minor,effective_from,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d ORDER BY id DESC LIMIT 1", $teacherId));
+dzn_fin_runtime_assert($newInherited && (int) $newInherited->amount_minor === 460000 && (string) $newInherited->rate_origin === 'global_inherited', 'A global default change must update an inherited rate');
+$oldRate = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,status,effective_until FROM {$p}finance_teacher_rates WHERE id=%d", $firstRateId));
+dzn_fin_runtime_assert($oldRate && (int) $oldRate->amount_minor === 450000 && (string) $oldRate->status === 'superseded' && $oldRate->effective_until !== null, 'A superseded inherited rate must stay as immutable history');
+dzn_fin_runtime_assert(dzn_fin_runtime_count('finance_lesson_snapshots') === $snapshotsBefore && dzn_fin_runtime_count('finance_statements') === $statementsBefore, 'Rate changes must not alter historical snapshots or statements');
+
+$futureEffective = gmdate('Y-m-d H:i:s', time() + 86400);
+$settings->saveGlobalTeacherRate(array('amount' => '470000', 'effective_from' => $futureEffective, 'apply_to_teachers' => '1'));
+$futureRate = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,effective_from,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d ORDER BY id DESC LIMIT 1", $teacherId));
+dzn_fin_runtime_assert($futureRate && (int) $futureRate->amount_minor === 470000 && (string) $futureRate->effective_from === $futureEffective, 'A future global effective date must be respected');
+try { $settings->saveGlobalTeacherRate(array('amount' => '465000', 'effective_from' => gmdate('Y-m-d H:i:s', time() + 3600), 'apply_to_teachers' => '0')); throw new RuntimeException('A backwards global effective date was accepted'); } catch (InvalidArgumentException $error) { dzn_fin_runtime_assert($error->getMessage() === 'invalid_effective_from', 'A backwards global effective date must fail closed'); }
+
 $overrideTeacher = (new TeacherService())->create(array('display_name' => 'Finance Override ' . $suffix, 'email' => 'finance-override-' . $suffix . '@example.com', 'country_code' => 'IR', 'timezone' => 'Asia/Tehran'));
-(new TeacherRateService())->record($overrideTeacher, array('scope_kind' => 'teacher', 'course_scope_id' => 0, 'amount_minor' => 500000, 'currency' => 'TOM', 'effective_from' => $now, 'compensation_basis' => 'per_session', 'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-explicit-rate', 'evidence_at' => $now), 'runtime-explicit-rate-' . $suffix);
-$overrideResult = (new TeacherRateInheritanceService())->applyForTeacher($overrideTeacher);
-dzn_fin_runtime_assert(empty($overrideResult['applied']), 'An explicit teacher rate must take precedence over the global default');
-$explicitAmount = (int) $wpdb->get_var($wpdb->prepare("SELECT amount_minor FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND status='active' ORDER BY id DESC LIMIT 1", $overrideTeacher));
-dzn_fin_runtime_assert($explicitAmount === 500000, 'Inheritance must never overwrite an explicit rate');
+$settings->saveTeacherRate($overrideTeacher, array('amount' => '500000', 'scope_kind' => 'teacher', 'effective_from' => $now));
+$courseTeacher = (new TeacherService())->create(array('display_name' => 'Finance Course ' . $suffix, 'email' => 'finance-course-' . $suffix . '@example.com', 'country_code' => 'IR', 'timezone' => 'Asia/Tehran'));
+$settings->saveTeacherRate($courseTeacher, array('amount' => '600000', 'scope_kind' => 'teacher_course', 'course_scope_id' => $courseA, 'effective_from' => $now));
+$settings->saveGlobalTeacherRate(array('amount' => '480000', 'effective_from' => gmdate('Y-m-d H:i:s', time() + 90000), 'apply_to_teachers' => '1'));
+$overrideRate = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND status='active' AND effective_until IS NULL ORDER BY id DESC LIMIT 1", $overrideTeacher));
+dzn_fin_runtime_assert($overrideRate && (int) $overrideRate->amount_minor === 500000 && (string) $overrideRate->rate_origin === 'explicit', 'A global change must not overwrite an explicit teacher override');
+$courseRate = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND scope_kind='teacher_course' AND course_scope_id=%d AND status='active' ORDER BY id DESC LIMIT 1", $courseTeacher, $courseA));
+$teacherDefaultRate = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND scope_kind='teacher' AND status='active' ORDER BY id DESC LIMIT 1", $courseTeacher));
+dzn_fin_runtime_assert($courseRate && (int) $courseRate->amount_minor === 600000 && (string) $courseRate->rate_origin === 'explicit', 'A course-specific override must be preserved');
+dzn_fin_runtime_assert($teacherDefaultRate && (int) $teacherDefaultRate->amount_minor === 480000 && (string) $teacherDefaultRate->rate_origin === 'global_inherited', 'A course-specific override must not block the teacher-scope global default');
+$courseInheritedAgain = (new TeacherRateInheritanceService())->applyForTeacher($courseTeacher);
+dzn_fin_runtime_assert(empty($courseInheritedAgain['applied']), 'Activation retry after a global save must not duplicate the teacher-scope rate');
+$resolvedOverride = (new TeacherRateService())->resolveFor($courseTeacher, $courseA, gmdate('Y-m-d H:i:s', time() + 172800));
+dzn_fin_runtime_assert($resolvedOverride['resolved'] && (int) $resolvedOverride['rate']->amount_minor === 600000, 'Course-specific rate must retain precedence for its Course');
+
+$settings->resumeGlobalTeacherRate($overrideTeacher);
+$resumed = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND scope_kind='teacher' AND status='active' ORDER BY id DESC LIMIT 1", $overrideTeacher));
+dzn_fin_runtime_assert($resumed && (int) $resumed->amount_minor === 480000 && (string) $resumed->rate_origin === 'global_inherited', 'Resume global default must record a new inherited version');
+dzn_fin_runtime_assert(!in_array($overrideTeacher, $settings->overrides(), true), 'Resume global default must clear the override marker');
+
+$legacyTeacher = (new TeacherService())->create(array('display_name' => 'Finance Legacy ' . $suffix, 'email' => 'finance-legacy-' . $suffix . '@example.com', 'country_code' => 'IR', 'timezone' => 'Asia/Tehran'));
+(new TeacherRateService())->record($legacyTeacher, array('scope_kind' => 'teacher', 'course_scope_id' => 0, 'amount_minor' => 100000, 'currency' => 'TOM', 'effective_from' => gmdate('Y-m-d H:i:s', time() - 86400), 'compensation_basis' => 'per_session', 'rate_origin' => 'global_inherited', 'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-legacy-inherited', 'evidence_at' => $now), 'runtime-legacy-inherited-' . $suffix);
+$legacyUpdate = (new TeacherRateInheritanceService())->applyForTeacher($legacyTeacher);
+dzn_fin_runtime_assert(!empty($legacyUpdate['applied']), 'A previously inherited rate with a different amount must not be classified as an explicit override');
+$legacyNew = $wpdb->get_row($wpdb->prepare("SELECT amount_minor,rate_origin FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND status='active' ORDER BY id DESC LIMIT 1", $legacyTeacher));
+dzn_fin_runtime_assert($legacyNew && (int) $legacyNew->amount_minor === 480000 && (string) $legacyNew->rate_origin === 'global_inherited' && !in_array($legacyTeacher, $settings->overrides(), true), 'Inherited-origin legacy rate must update without becoming an override');
+
+$pendingTeacher = (new TeacherService())->create(array('display_name' => 'Finance Pending ' . $suffix, 'email' => 'finance-pending-' . $suffix . '@example.com', 'country_code' => 'IR', 'timezone' => 'Asia/Tehran'));
+$wpdb->insert($p . 'teacher_onboarding_states', array('teacher_id' => $pendingTeacher, 'state' => 'pending_review', 'readiness_state' => 'ready', 'profile_state' => 'complete', 'availability_state' => 'complete', 'agreement_state' => 'not_required', 'activated_at' => null, 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1));
+$pendingResult = (new TeacherRateInheritanceService())->applyForTeacher($pendingTeacher);
+dzn_fin_runtime_assert(empty($pendingResult['applied']) && ($pendingResult['reason'] ?? '') === 'teacher_not_activated' && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_teacher_rates WHERE teacher_id=%d", $pendingTeacher)) === 0, 'A Teacher awaiting onboarding activation must not receive a compensation rate');
+
+/* ---------------------------------------------------------------- evidence-proven legacy classification */
+$legacyRateId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND status='active' ORDER BY id DESC LIMIT 1", $legacyTeacher));
+$wpdb->update($p . 'finance_teacher_rates', array(
+    'rate_origin' => null,
+    'evidence_reference_digest' => FinanceIdempotency::evidence('finance-settings:inherit-global-rate:' . $legacyTeacher),
+), array('id' => $legacyRateId));
+$unknownTeacher = (new TeacherService())->create(array('display_name' => 'Finance Unknown ' . $suffix, 'email' => 'finance-unknown-' . $suffix . '@example.com', 'country_code' => 'IR', 'timezone' => 'Asia/Tehran'));
+(new TeacherRateService())->record($unknownTeacher, array('scope_kind' => 'teacher', 'course_scope_id' => 0, 'amount_minor' => 91000, 'currency' => 'TOM', 'effective_from' => gmdate('Y-m-d H:i:s', time() - 3600), 'compensation_basis' => 'per_session', 'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-unknown-explicit', 'evidence_at' => $now), 'runtime-unknown-explicit-' . $suffix);
+$unknownRateId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}finance_teacher_rates WHERE teacher_id=%d ORDER BY id DESC LIMIT 1", $unknownTeacher));
+$wpdb->update($p . 'finance_teacher_rates', array('rate_origin' => null, 'evidence_reference_digest' => hash('sha256', 'not-an-inherited-reference')), array('id' => $unknownRateId));
+$done = (array) get_option('dzn_platform_completed_migrations', array());
+update_option('dzn_platform_completed_migrations', array_values(array_filter($done, static fn($migration): bool => $migration !== '051_teacher_rate_origin')), false);
+Migrator::maybe_upgrade();
+$classifiedLegacy = (string) $wpdb->get_var($wpdb->prepare("SELECT rate_origin FROM {$p}finance_teacher_rates WHERE id=%d", $legacyRateId));
+$unknownOrigin = $wpdb->get_var($wpdb->prepare("SELECT rate_origin FROM {$p}finance_teacher_rates WHERE id=%d", $unknownRateId));
+dzn_fin_runtime_assert($classifiedLegacy === 'global_inherited', 'Schema 051 must classify only evidence-proven historical inherited rates');
+dzn_fin_runtime_assert($unknownOrigin === null, 'Schema 051 must not reinterpret historical explicit/unknown rates');
+dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '51', 'Schema 051 classification must retain Schema 51');
+$unknownResult = (new TeacherRateInheritanceService())->applyForTeacher($unknownTeacher);
+dzn_fin_runtime_assert(empty($unknownResult['applied']) && ($unknownResult['reason'] ?? '') === 'existing_rate_preserved' && in_array($unknownTeacher, $settings->overrides(), true), 'An unknown historical rate must be preserved as an explicit/unknown override');
+dzn_fin_runtime_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_teacher_rates WHERE teacher_id=%d", $unknownTeacher)) === 1, 'An unknown historical rate must not be duplicated');
 
 /* ---------------------------------------------------------------- statement template versioning */
 $templateSave = $settings->saveTemplate(array('header_html' => '<header><h1>{{academy_name}}</h1></header>', 'body_html' => '<p>{{period_label}}</p>', 'footer_html' => '<footer>{{teacher_name}}</footer>', 'css' => 'body{font-family:Tahoma}', 'logo_url' => '', 'locale' => 'fa'));

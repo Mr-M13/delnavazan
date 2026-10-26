@@ -1,10 +1,10 @@
 # Delnavazan Platform Conceptual Data Model
 
-> **Finance administration candidate (2026-10-26):** Schema 50 adds `finance_regional_prices`
+> **Finance administration candidate (2026-10-26):** Schema 51 adds `finance_regional_prices`
 > (effective-dated one-price-per-currency-region authority with free/paid introductory configuration)
 > and `finance_settings` (versioned presentation and Toman teacher-default configuration), plus
 > `intro_payment_obligations`, `intro_checkout_sessions` and `intro_payment_events` for paid introductory
-> lessons. Historical
+> lessons, and adds `rate_origin`/`origin_setting_version` provenance to `finance_teacher_rates`. Historical
 > commercial price, offer, payment and statement rows are not rewritten. See
 > [FINANCE-ADMINISTRATION.md](FINANCE-ADMINISTRATION.md).
 

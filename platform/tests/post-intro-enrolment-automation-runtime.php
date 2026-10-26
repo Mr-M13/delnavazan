@@ -139,12 +139,14 @@ if ($standardCourse < 1) {
     ));
 }
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacherId, 'course_id' => $standardCourse, 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
-try { (new TeacherAvailabilityService())->setProfile(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'synthetic_post_intro')); } catch (Throwable $ignored) {}
+$teacherTimezone = (string) $wpdb->get_var($wpdb->prepare("SELECT timezone FROM {$p}teachers WHERE id=%d", $teacherId));
+if (!in_array($teacherTimezone, timezone_identifiers_list(), true)) $teacherTimezone = 'UTC';
+try { (new TeacherAvailabilityService())->setProfile(array('teacher_id' => $teacherId, 'timezone' => $teacherTimezone, 'status' => 'active', 'reason_code' => 'synthetic_post_intro')); } catch (Throwable $ignored) {}
 $wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_rules WHERE teacher_id=%d", $teacherId));
 $wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_availability_exceptions WHERE teacher_id=%d", $teacherId));
 $availability = new TeacherAvailabilityService();
 foreach (array(1, 2, 3, 4, 5, 6, 7) as $weekday) {
-    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
+    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => $teacherTimezone, 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
 }
 $catalogue = new CommercialCatalogueService();
 $productId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_products WHERE course_id=%d AND status='active' AND archived_at IS NULL ORDER BY id LIMIT 1", $standardCourse));
@@ -481,7 +483,7 @@ try {
 dzn_pia_assert($matchCaught === null && isset($match['case_id']) && (int) $match['case_id'] > 0, 'Teacher match-exception must open a continuation case on the no-case path: ' . ($matchCaught?->getMessage() ?? 'no case'));
 wp_set_current_user($actor);
 foreach (array(1, 2, 3, 4, 5, 6, 7) as $weekday) {
-    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
+    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => $teacherTimezone, 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_post_intro'));
 }
 
 // C. Historical outcomes are outside the automation window.

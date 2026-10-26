@@ -15,11 +15,11 @@ $checkout_enabled = ! empty( $payments['checkout_enabled'] );
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مالی', 'delnavazan-theme' ); ?></p>
 			<h2 id="dzn-payments-title"><?php esc_html_e( 'پرداخت و اشتراک', 'delnavazan-theme' ); ?></h2>
 		</div>
-		<span class="dzn-status dzn-status--muted"><?php echo $checkout_enabled ? esc_html__( 'وضعیت اقساط', 'delnavazan-theme' ) : esc_html__( 'نمایش آزمایشی', 'delnavazan-theme' ); ?></span>
+		<span class="dzn-status dzn-status--muted"><?php echo $checkout_enabled ? esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ) : esc_html__( 'نمایش آزمایشی', 'delnavazan-theme' ); ?></span>
 	</div>
 	<div class="dzn-payments__summary">
-		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت اشتراک', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ); ?></p></div>
-		<div><p class="dzn-status-row__label"><?php esc_html_e( 'تمدید بعدی', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['renewal_date'] ?? 'از منبع معتبر دریافت نشده' ); ?></p></div>
+		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ); ?></p></div>
+		<div><p class="dzn-status-row__label"><?php esc_html_e( 'پرداخت ترم بعد', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['next_term'] ?? 'با ثبت پرداخت کامل ترم جدید' ); ?></p></div>
 	</div>
 	<?php if ( $checkout_enabled ) : ?>
 		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">

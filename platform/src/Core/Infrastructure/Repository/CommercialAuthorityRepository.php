@@ -51,6 +51,11 @@ final class CommercialAuthorityRepository {
         global $wpdb;$suffix=$lock?' FOR UPDATE':'';
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_policies WHERE policy_key=%s ORDER BY policy_version DESC, id DESC LIMIT 1{$suffix}",$policyKey));
     }
+    /** The newest active version whose effective instant has already arrived. */
+    public function latestEffectivePolicy(string $policyKey,string $now,bool $lock=false):?object{
+        global $wpdb;$suffix=$lock?' FOR UPDATE':'';
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_policies WHERE policy_key=%s AND status='active' AND (effective_from IS NULL OR effective_from<=%s) ORDER BY policy_version DESC, id DESC LIMIT 1{$suffix}",$policyKey,$now));
+    }
     public function policies():array{
         global $wpdb;
         return $wpdb->get_results("SELECT * FROM {$this->p}commercial_policies ORDER BY policy_key, policy_version")?:array();
@@ -151,6 +156,15 @@ final class CommercialAuthorityRepository {
     public function offersForBeneficiary(int $studentId):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offers WHERE beneficiary_student_id=%d ORDER BY id DESC",$studentId))?:array();
+    }
+    /** The canonical Term sequence already funded by one offer, if the Term exists. */
+    public function termSequenceForOffer(int $offerId):?int{
+        global $wpdb;
+        $value=$wpdb->get_var($wpdb->prepare(
+            "SELECT term.sequence_number FROM {$this->p}commercial_term_funding_plans plan INNER JOIN {$this->p}terms term ON term.id=plan.term_id WHERE plan.offer_id=%d ORDER BY plan.id DESC LIMIT 1",
+            $offerId
+        ));
+        return $value===null?null:(int)$value;
     }
     public function insertOffer(array $data):int{return $this->insert('commercial_offers',$data,'Commercial offer persistence failed');}
     public function updateOfferState(int $offerId,int $expectedVersion,array $changes):void{

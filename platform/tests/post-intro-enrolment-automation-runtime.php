@@ -14,9 +14,10 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,CommercialSupport,IntegrationSecretService,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,ProviderIntegrationRule,ProviderIntegrationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
-use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
-use Delnavazan\Platform\Integrations\{ContractProviderAdapters,PostIntroActivationWorker};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPatternService,CommercialPaymentService,CommercialPolicyService,CommercialSupport,InstalmentDeadlinePolicy,IntegrationSecretService,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,ProviderIntegrationRule,ProviderIntegrationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\Checkout\{CheckoutSessionPort,StudentCheckoutInitiationService,StudentCommercialCheckoutReadService};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepository,PostIntroRepository};
+use Delnavazan\Platform\Integrations\{ContractProviderAdapters,PostIntroActivationWorker,PostIntroSettlementHook};
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
 global $wpdb;
@@ -33,7 +34,7 @@ if (!function_exists('dzn_theme_platform_teacher_model')) {
 // This is a disposable, standalone runtime. Reset only derived automation/commercial/schedule
 // storage so repeated runs are deterministic; the Phase-J accepted Enrolments themselves remain.
 foreach (array(
-    'post_intro_activation_jobs','post_intro_preparations','booking_request_intro_outcomes',
+    'post_intro_activation_jobs','post_intro_plan_choices','post_intro_preparations','booking_request_intro_outcomes',
     'provider_integration_commands','provider_calendar_event_mappings','provider_meeting_mappings','provider_identity_mappings',
     'canonical_lesson_schedule_commands','canonical_lesson_schedule_versions','canonical_lesson_commands','canonical_lesson_lifecycle_events','lessons',
     'teacher_assignment_commands','teacher_assignment_lifecycle_events','teacher_assignments',
@@ -240,6 +241,13 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
 $preparations = new PostIntroPreparationService();
 $continuations = new PostIntroContinuationService();
 $repository = new PostIntroRepository();
+$continuePrepared = function (string $uid, int $principal, string $plan = 'full') use ($repository, $continuations): array {
+    wp_set_current_user($principal);
+    $preparation = $repository->preparationByUid($uid);
+    if (!$preparation) throw new RuntimeException('preparation required');
+    $quote = (new \Delnavazan\Platform\Core\Application\PostIntroPlanQuoteService())->forPreparation($preparation, (int) $preparation->student_id);
+    return $continuations->continue($uid, true, $plan, (string) $quote['quote_token'], $plan === 'two_instalments');
+};
 
 // A. Delivered intro -> preparation, student payment action, verified settlement, activation.
 $mainWall = sprintf('04:%02d:00', 5 + (hexdec(substr($suffix, 0, 2)) % 50));
@@ -273,14 +281,14 @@ try { $continuations->continue($prepUid, true); } catch (Throwable $e) { $crossC
 dzn_pia_assert($crossCaught !== null && $crossCaught->getMessage() === 'Unauthorized', 'cross-student continuation must be rejected');
 
 wp_set_current_user((int) $main['principal']);
-$action = $continuations->continue($prepUid, true);
+$action = $continuePrepared($prepUid, (int) $main['principal']);
 dzn_pia_assert(in_array($action['state'], array('checkout_pending', 'payment_received'), true), 'Student action must reach the canonical offer');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((int) $prep->offer_id > 0 && (int) $prep->continuation_case_id > 0 && (int) $prep->pattern_id > 0, 'Student action must create the offer, continuation case and pattern');
 // A termination between the continuation command and the preparation checkpoint must recover
 // the durable reservation on the next Student action instead of failing forever.
 $wpdb->update($p . 'post_intro_preparations', array('reservation_id' => null), array('id' => (int) $prep->id));
-$resumedAction = $continuations->continue($prepUid, true);
+$resumedAction = $continuePrepared($prepUid, (int) $main['principal']);
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((int) $prep->reservation_id > 0, 'a replayed continuation must recover its durable reservation');
 dzn_pia_assert(in_array($resumedAction['state'], array('checkout_pending', 'payment_received'), true), 'a replayed Student action must remain actionable');
@@ -717,11 +725,11 @@ wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($expiredBooking['confirmation'], $teacherId, 'delivered', 'Synthetic expiry');
 $expiredPrep = $repository->preparationByBooking($expiredBooking['request']);
 wp_set_current_user((int) $expiredBooking['principal']);
-$continuations->continue((string) $expiredPrep->uid, true);
+$continuePrepared((string) $expiredPrep->uid, (int) $expiredBooking['principal']);
 $expiredPrep = $repository->preparationByBooking($expiredBooking['request']);
 $wpdb->update($p . 'canonical_continuation_reservations', array('expires_at' => gmdate('Y-m-d H:i:s', time() - 60)), array('id' => (int) $expiredPrep->reservation_id));
 $expiredCaught = null;
-try { $continuations->continue((string) $expiredPrep->uid, true); } catch (Throwable $e) { $expiredCaught = $e; }
+try { $continuePrepared((string) $expiredPrep->uid, (int) $expiredBooking['principal']); } catch (Throwable $e) { $expiredCaught = $e; }
 dzn_pia_assert($expiredCaught !== null && $expiredCaught->getMessage() === 'post_intro_invitation_expired', 'an expired hold must be rejected');
 $expiredPrep = $repository->preparationByBooking($expiredBooking['request']);
 dzn_pia_assert((string) $expiredPrep->state === 'expired', 'an expired hold must become an explicit terminal state');
@@ -757,7 +765,7 @@ $preparations->recordTeacherOutcome($existingTermBooking['confirmation'], $teach
 $existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);
 dzn_pia_assert($existingTermPrep !== null, 'existing-term preparation');
 wp_set_current_user((int) $existingTermBooking['principal']);
-$continuations->continue((string) $existingTermPrep->uid, true);
+$continuePrepared((string) $existingTermPrep->uid, (int) $existingTermBooking['principal']);
 $existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);
 $existingEnrolmentId = (int) $existingTermPrep->enrolment_id;
 dzn_pia_assert($existingEnrolmentId > 0, 'existing-term enrolment');
@@ -804,7 +812,7 @@ wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($repairBooking['confirmation'], $teacherId, 'delivered', 'Synthetic unmatched repair delivery');
 $repairPrep = $repository->preparationByBooking((int) $repairBooking['request']);
 wp_set_current_user((int) $repairBooking['principal']);
-$continuations->continue((string) $repairPrep->uid, true);
+$continuePrepared((string) $repairPrep->uid, (int) $repairBooking['principal']);
 $repairPrep = $repository->preparationByBooking((int) $repairBooking['request']);
 $repairOffer = $repository->offer((int) $repairPrep->offer_id);
 $repairObligations = $repository->obligationsForOffer((int) $repairOffer->id);
@@ -870,5 +878,298 @@ $repairRecovery = $recovery->recover((int) $repairPrep->enrolment_id);
 dzn_pia_assert(($repairRecovery['state'] ?? '') === 'completed', 'repaired evidence must support normal post-intro activation');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $repairPrep->enrolment_id)) === 1, 'repaired evidence activation must create one Term');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE enrolment_id=%d AND lesson_type='standard'", (int) $repairPrep->enrolment_id)) === 12, 'repaired evidence activation must create twelve Lessons');
+
+/* -------------------------------------------------------------------------------------------------
+ * J. Student-selected two-instalment plan, prerequisite gate, later-instalment convergence,
+ *    immutable plan after issuance, and out-of-sequence reconciliation.
+ * ------------------------------------------------------------------------------------------------- */
+$twoBooking = $booking('two-instalment', 2, '14:17:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($twoBooking['confirmation'], $teacherId, 'delivered', 'Synthetic two-instalment delivery');
+$twoPrep = $repository->preparationByBooking($twoBooking['request']);
+dzn_pia_assert($twoPrep !== null && (string) $twoPrep->state === 'prepared', 'two-instalment preparation');
+wp_set_current_user((int) $twoBooking['principal']);
+$twoQuote = (new PostIntroPlanQuoteService())->forPreparation($twoPrep, (int) $twoPrep->student_id);
+dzn_pia_assert(isset($twoQuote['options'][1]['plan_kind']) && $twoQuote['options'][1]['plan_kind'] === 'two_instalments', 'two-instalment quote option');
+$noOptIn = null;
+try { $continuations->continue((string) $twoPrep->uid, true, 'two_instalments', (string) $twoQuote['quote_token'], false); } catch (Throwable $error) { $noOptIn = $error; }
+dzn_pia_assert($noOptIn !== null && $noOptIn->getMessage() === 'plan_unavailable', 'two instalments must require the explicit opt-in');
+$twoAction = $continuations->continue((string) $twoPrep->uid, true, 'two_instalments', (string) $twoQuote['quote_token'], true);
+dzn_pia_assert(in_array($twoAction['state'], array('checkout_pending', 'payment_received'), true), 'two-instalment Student action must issue its offer');
+$twoPrep = $repository->preparationByBooking($twoBooking['request']);
+$twoOffer = $repository->offer((int) $twoPrep->offer_id);
+dzn_pia_assert($twoOffer !== null && (string) $twoOffer->plan_kind === 'two_instalments', 'the issued offer must be the selected two-instalment plan');
+$twoObligations = $repository->obligationsForOffer((int) $twoOffer->id);
+dzn_pia_assert(count($twoObligations) === 2, 'a two-instalment offer must have two obligations');
+dzn_pia_assert((int) $twoObligations[0]->sessions_from === 1 && (int) $twoObligations[0]->sessions_to === 6 && (int) $twoObligations[1]->sessions_from === 7 && (int) $twoObligations[1]->sessions_to === 12, 'two-instalment Lesson ranges');
+$choice = $repository->activePlanChoice((int) $twoPrep->id);
+dzn_pia_assert($choice !== null && (string) $choice->plan_kind === 'two_instalments' && (int) $choice->offer_id === (int) $twoOffer->id, 'the active plan choice must link the issued offer');
+$duplicateChoice = null;
+$priorErrorSuppression = $wpdb->suppress_errors(true);
+try {
+    $repository->insertPlanChoice(array('uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(), 'preparation_id' => (int) $twoPrep->id, 'active_slot' => 1, 'student_id' => (int) $twoPrep->student_id, 'plan_kind' => 'full', 'quote_digest' => str_repeat('a', 64), 'quoted_amount_due_minor' => 1, 'currency' => 'AUD', 'instalment_due_at' => null, 'policy_version' => null, 'offer_id' => null, 'chosen_at' => gmdate('Y-m-d H:i:s'), 'chosen_by' => (int) $twoBooking['principal'], 'created_at' => gmdate('Y-m-d H:i:s')));
+} catch (Throwable $error) { $duplicateChoice = $error; } finally { $wpdb->suppress_errors($priorErrorSuppression); }
+dzn_pia_assert($duplicateChoice !== null && (string) $repository->activePlanChoice((int) $twoPrep->id)->plan_kind === 'two_instalments', 'the unique active-slot guard must reject a competing plan choice');
+
+// Normal Student Checkout for tranche 2 is refused until tranche 1 settles.
+$fakeCheckout = new class implements CheckoutSessionPort {
+    public function key(): string { return 'stripe'; }
+    public function create(\Delnavazan\Platform\Core\Application\Checkout\CheckoutRequest $request): array { throw new RuntimeException('create must not be called'); }
+    public function retrieve(string $providerReference): array { throw new RuntimeException('retrieve must not be called'); }
+    public function completionEvent(string $providerReference, int $sessionCreatedAt): array { throw new RuntimeException('completionEvent must not be called'); }
+};
+$prerequisiteRefusal = null;
+try {
+    (new StudentCheckoutInitiationService(null, null, null, $fakeCheckout))->initiate(array('obligation_uid' => (string) $twoObligations[1]->uid));
+} catch (Throwable $error) {
+    $prerequisiteRefusal = $error;
+}
+dzn_pia_assert($prerequisiteRefusal !== null && $prerequisiteRefusal->getMessage() === 'checkout_prerequisite_pending', 'normal Checkout for instalment 2 must be refused before instalment 1 settles');
+
+// A different plan after issuance is a conflict, never a second offer.
+$planConflict = null;
+try {
+    $continuations->continue((string) $twoPrep->uid, true, 'full', (string) $twoQuote['quote_token'], false);
+} catch (Throwable $error) {
+    $planConflict = $error;
+}
+dzn_pia_assert($planConflict !== null && $planConflict->getMessage() === 'plan_choice_conflict', 'a different plan after issuance must be refused');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_offers WHERE continuation_case_id=%d", (int) $twoPrep->continuation_case_id)) === 1, 'the case must own exactly one offer');
+
+// Before tranche 1, the read projection blocks tranche 2 and never offers a button.
+wp_set_current_user((int) $twoBooking['principal']);
+$beforeFirst = (new StudentCommercialCheckoutReadService())->read();
+$beforeFirstRows = array_values(array_filter($beforeFirst['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $twoOffer->uid));
+dzn_pia_assert(count($beforeFirstRows) === 2 && $beforeFirstRows[1]['payment_state'] === 'prerequisite_pending' && $beforeFirstRows[1]['action'] === null, 'the read projection must block tranche 2 before tranche 1 settles');
+
+// Tranche 1: verified settlement, six effective Lessons, six further sessions outstanding.
+wp_set_current_user($actor);
+$twoPaymentAt = gmdate('Y-m-d H:i:s');
+$twoFirst = $payments->ingest(array(
+    'provider_key' => 'synthetic_provider', 'provider_reference' => 'two-first-' . $suffix,
+    'evidence_kind' => 'success', 'amount_minor' => (string) $twoObligations[0]->amount_minor,
+    'currency' => (string) $twoObligations[0]->currency, 'obligation_reference' => (string) $twoOffer->uid . ':1',
+    'provider_occurred_at' => $twoPaymentAt, 'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'two-first-evidence-' . $suffix, 'evidence_at' => $twoPaymentAt,
+), dzn_pia_key('two-first'));
+dzn_pia_assert(($twoFirst['processing_state'] ?? '') === 'accepted' && (int) ($twoFirst['effective_sessions'] ?? 0) === 6, 'tranche 1 must fund exactly six sessions');
+$twoPurchaseId = (int) ($twoFirst['purchase_id'] ?? 0);
+$twoJob = $repository->activeJobForPurchase($twoPurchaseId);
+dzn_pia_assert($twoJob !== null && (int) $twoJob->funding_target === 6, 'tranche 1 must queue a six-session activation target');
+$twoRunOne = PostIntroActivationWorker::runJob((int) $twoJob->id);
+$twoTermId = (int) $wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d LIMIT 1", $twoPurchaseId));
+dzn_pia_assert($twoTermId > 0, 'tranche 1 activation must bind one Term');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $twoTermId)) === 6, 'tranche 1 must materialise only Lessons 1-6');
+$twoHalfFunded = (new PostIntroFulfilmentReadService())->forEnrolment((int) $twoPrep->enrolment_id);
+dzn_pia_assert(($twoHalfFunded['fulfilment_state'] ?? '') === 'awaiting_next_instalment', 'a half-funded two-instalment Term must be an expected intermediate state');
+dzn_pia_assert((int) $twoHalfFunded['lesson_count'] === 6 && (int) $twoHalfFunded['effective_lesson_count'] === 6 && (int) $twoHalfFunded['expected_lesson_count'] === 12, 'the half-funded projection must expose the funded and committed Lesson counts');
+dzn_pia_assert(!in_array('lessons_missing', (array) $twoHalfFunded['blockers'], true), 'a half-funded two-instalment Term must not report missing Lessons');
+wp_set_current_user($actor);
+dzn_pia_assert((new PostIntroRecoveryService())->recover((int) $twoPrep->enrolment_id)['state'] === 'awaiting_next_instalment', 'admin recovery must recognise the expected half-funded state instead of failing');
+
+// After tranche 1, the second instalment becomes normally collectable in the read projection.
+wp_set_current_user((int) $twoBooking['principal']);
+$afterFirst = (new StudentCommercialCheckoutReadService())->read();
+$afterFirstRows = array_values(array_filter($afterFirst['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $twoOffer->uid));
+dzn_pia_assert(count($afterFirstRows) === 2 && $afterFirstRows[1]['payment_state'] === 'required' && $afterFirstRows[1]['prerequisite_satisfied'] === true, 'tranche 2 must become payable only after tranche 1 settles');
+// The original checkout hold is not the life of the plan: an accepted commitment must keep
+// tranche 2 payable weeks later, up to its own recorded due date.
+$wpdb->update($p . 'commercial_offers', array('expires_at' => gmdate('Y-m-d H:i:s', time() - 3600)), array('id' => (int) $twoOffer->id));
+$afterHold = (new StudentCommercialCheckoutReadService())->read();
+$afterHoldRows = array_values(array_filter($afterHold['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $twoOffer->uid));
+dzn_pia_assert(count($afterHoldRows) === 2 && $afterHoldRows[1]['payment_state'] === 'required' && $afterHoldRows[1]['action'] === 'pay', 'an accepted commitment must keep tranche 2 payable after the original checkout hold');
+
+// Simulate the exact race: a worker holds the earlier target while tranche 2 settles, then the
+// worker completes the earlier target. The later target must survive and re-arm the job.
+$raceLease = bin2hex(random_bytes(16));
+$wpdb->update($p . 'post_intro_activation_jobs', array(
+    'state' => 'running', 'funding_target' => 6, 'funding_materialised' => 6,
+    'lease_token_digest' => hash('sha256', $raceLease),
+    'lease_expires_at' => gmdate('Y-m-d H:i:s', time() + 300),
+), array('id' => (int) $twoJob->id));
+wp_set_current_user($actor);
+$twoSecond = $payments->ingest(array(
+    'provider_key' => 'synthetic_provider', 'provider_reference' => 'two-second-' . $suffix,
+    'evidence_kind' => 'success', 'amount_minor' => (string) $twoObligations[1]->amount_minor,
+    'currency' => (string) $twoObligations[1]->currency, 'obligation_reference' => (string) $twoOffer->uid . ':2',
+    'provider_occurred_at' => gmdate('Y-m-d H:i:s'), 'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'two-second-evidence-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), dzn_pia_key('two-second'));
+dzn_pia_assert(($twoSecond['processing_state'] ?? '') === 'accepted' && (int) ($twoSecond['effective_sessions'] ?? 0) === 12, 'tranche 2 must raise effective sessions to twelve');
+$raceJob = $repository->activeJobForPurchase($twoPurchaseId);
+dzn_pia_assert($raceJob !== null && (string) $raceJob->state === 'running' && (int) $raceJob->funding_target === 12, 'a live worker must retain its lease while the target rises to twelve');
+$wpdb->update($p . 'post_intro_activation_jobs', array('state' => 'completed', 'funding_materialised' => 6, 'lease_token_digest' => null, 'lease_expires_at' => null, 'completed_at' => gmdate('Y-m-d H:i:s')), array('id' => (int) $raceJob->id));
+PostIntroSettlementHook::handle($twoPurchaseId);
+$raceJob = $repository->activeJobForPurchase($twoPurchaseId);
+dzn_pia_assert($raceJob !== null && (string) $raceJob->state === 'queued' && (int) $raceJob->funding_target === 12, 'a completed earlier target must be re-armed by the later settlement');
+$twoRunTwo = PostIntroActivationWorker::runJob((int) $raceJob->id);
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $twoTermId)) === 12, 'tranche 2 must incrementally materialise Lessons 7-12');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id WHERE l.term_id=%d AND v.superseded_at IS NULL", $twoTermId)) === 12, 'tranche 2 must schedule exactly twelve Lessons');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $twoPrep->enrolment_id)) === 1, 'incremental activation must not duplicate the Term');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $twoPrep->enrolment_id)) === 1, 'incremental activation must not duplicate the Teacher Assignment');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard' AND canonical_sequence<=6", $twoTermId)) === 6, 'tranche 2 must replay, not duplicate, Lessons 1-6');
+$twoComplete = (new PostIntroFulfilmentReadService())->forEnrolment((int) $twoPrep->enrolment_id);
+dzn_pia_assert(($twoComplete['fulfilment_state'] ?? '') === 'completed' && (int) $twoComplete['lesson_count'] === 12, 'tranche 2 must converge the fulfilment projection to twelve Lessons');
+
+wp_set_current_user((int) $twoBooking['principal']);
+$twoRead = (new StudentCommercialCheckoutReadService())->read();
+$twoRows = array_values(array_filter($twoRead['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $twoOffer->uid));
+dzn_pia_assert(count($twoRows) === 2 && $twoRows[0]['term_paid'] === true && (int) $twoRows[0]['paid_instalments'] === 2 && (int) $twoRows[0]['term_sequence'] === 1, 'the Student account must read the term as paid after both instalments');
+
+// Duplicate settlement replay must not add Lessons, settlements or a second job.
+$twoSettlementsBefore = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements s INNER JOIN {$p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d", (int) $twoOffer->id));
+wp_set_current_user($actor);
+$payments->ingest(array(
+    'provider_key' => 'synthetic_provider', 'provider_reference' => 'two-second-' . $suffix,
+    'evidence_kind' => 'success', 'amount_minor' => (string) $twoObligations[1]->amount_minor,
+    'currency' => (string) $twoObligations[1]->currency, 'obligation_reference' => (string) $twoOffer->uid . ':2',
+    'provider_occurred_at' => gmdate('Y-m-d H:i:s'), 'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'two-second-evidence-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), dzn_pia_key('two-second-replay'));
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements s INNER JOIN {$p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d", (int) $twoOffer->id)) === $twoSettlementsBefore, 'duplicate tranche 2 evidence must not duplicate settlement');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $twoTermId)) === 12, 'duplicate tranche 2 evidence must not duplicate Lessons');
+
+// K. Out-of-sequence reconciliation: money is recorded, academic funding stays blocked until
+//    its prerequisite settles, then the full twelve Lessons converge in order.
+$oooBooking = $booking('out-of-sequence', 2, '16:23:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($oooBooking['confirmation'], $teacherId, 'delivered', 'Synthetic out-of-sequence delivery');
+$oooPrep = $repository->preparationByBooking($oooBooking['request']);
+wp_set_current_user((int) $oooBooking['principal']);
+$oooQuote = (new PostIntroPlanQuoteService())->forPreparation($oooPrep, (int) $oooPrep->student_id);
+$continuations->continue((string) $oooPrep->uid, true, 'two_instalments', (string) $oooQuote['quote_token'], true);
+$oooPrep = $repository->preparationByBooking($oooBooking['request']);
+$oooOffer = $repository->offer((int) $oooPrep->offer_id);
+$oooObligations = $repository->obligationsForOffer((int) $oooOffer->id);
+wp_set_current_user($actor);
+$oooSecond = $payments->ingest(array(
+    'provider_key' => 'synthetic_provider', 'provider_reference' => 'ooo-second-' . $suffix,
+    'evidence_kind' => 'success', 'amount_minor' => (string) $oooObligations[1]->amount_minor,
+    'currency' => (string) $oooObligations[1]->currency, 'obligation_reference' => (string) $oooOffer->uid . ':2',
+    'provider_occurred_at' => gmdate('Y-m-d H:i:s'), 'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'ooo-second-evidence-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), dzn_pia_key('ooo-second'));
+dzn_pia_assert(($oooSecond['processing_state'] ?? '') === 'accepted' && (int) ($oooSecond['effective_sessions'] ?? -1) === 0, 'an out-of-sequence second payment must record but fund zero sessions');
+$oooPurchaseId = (int) $oooSecond['purchase_id'];
+$oooJob = $repository->activeJobForPurchase($oooPurchaseId);
+dzn_pia_assert($oooJob === null, 'an out-of-sequence second payment must not queue a materialisation job before its prerequisite');
+wp_set_current_user((int) $oooBooking['principal']);
+$oooRead = (new StudentCommercialCheckoutReadService())->read();
+$oooRows = array_values(array_filter($oooRead['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $oooOffer->uid));
+dzn_pia_assert(count($oooRows) === 2 && $oooRows[1]['payment_state'] === 'paid_prerequisite_pending' && $oooRows[0]['term_paid'] === false, 'an out-of-sequence payment must be visible but not claim a paid term');
+wp_set_current_user($actor);
+$oooFirst = $payments->ingest(array(
+    'provider_key' => 'synthetic_provider', 'provider_reference' => 'ooo-first-' . $suffix,
+    'evidence_kind' => 'success', 'amount_minor' => (string) $oooObligations[0]->amount_minor,
+    'currency' => (string) $oooObligations[0]->currency, 'obligation_reference' => (string) $oooOffer->uid . ':1',
+    'provider_occurred_at' => gmdate('Y-m-d H:i:s'), 'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'ooo-first-evidence-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), dzn_pia_key('ooo-first'));
+dzn_pia_assert(($oooFirst['processing_state'] ?? '') === 'accepted' && (int) ($oooFirst['effective_sessions'] ?? 0) === 12, 'settling the prerequisite must make all twelve sessions effective');
+$oooJob = $repository->activeJobForPurchase($oooPurchaseId);
+dzn_pia_assert($oooJob !== null && (int) $oooJob->funding_target === 12, 'the prerequisite settlement must queue the full twelve-session target');
+PostIntroActivationWorker::runJob((int) $oooJob->id);
+$oooTermId = (int) $wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d LIMIT 1", $oooPurchaseId));
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $oooTermId)) === 12, 'out-of-sequence reconciliation must converge to twelve ordered Lessons');
+
+/* -------------------------------------------------------------------------------------------------
+ * L. B2b: the second-instalment deadline is opt-in configuration, exactly 168 hours before Lesson 7.
+ * ------------------------------------------------------------------------------------------------- */
+dzn_pia_assert($twoObligations[1]->due_at === null && $oooObligations[1]->due_at === null, 'an unset deadline policy must leave second instalments without an invented due date');
+
+$deadlineUnsetBooking = $booking('deadline-unset', 2, '10:57:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($deadlineUnsetBooking['confirmation'], $teacherId, 'delivered', 'Synthetic unset-deadline delivery');
+$deadlineUnsetPrep = $repository->preparationByBooking($deadlineUnsetBooking['request']);
+wp_set_current_user((int) $deadlineUnsetBooking['principal']);
+$deadlineUnsetQuote = (new PostIntroPlanQuoteService())->forPreparation($deadlineUnsetPrep, (int) $deadlineUnsetPrep->student_id);
+$continuations->continue((string) $deadlineUnsetPrep->uid, true, 'two_instalments', (string) $deadlineUnsetQuote['quote_token'], true);
+$deadlineUnsetPrep = $repository->preparationByBooking($deadlineUnsetBooking['request']);
+$deadlineUnsetOffer = $repository->offer((int) $deadlineUnsetPrep->offer_id);
+$deadlineUnsetObligations = $repository->obligationsForOffer((int) $deadlineUnsetOffer->id);
+dzn_pia_assert(count($deadlineUnsetObligations) === 2 && $deadlineUnsetObligations[1]->due_at === null, 'the default unset policy must not invent a second-instalment deadline');
+$deadlineUnsetChoice = $repository->activePlanChoice((int) $deadlineUnsetPrep->id);
+dzn_pia_assert($deadlineUnsetChoice !== null && $deadlineUnsetChoice->instalment_due_at === null && $deadlineUnsetChoice->policy_version === null, 'an unset policy must record no due instant or policy version');
+
+wp_set_current_user($actor);
+$policyService = new CommercialPolicyService();
+
+// An explicit non-approved value fails closed rather than inventing a different deadline. The
+// same preparation is retried after the approved value is recorded.
+$policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'policy_value' => '2', 'value_type' => 'weeks', 'reason_code' => 'owner_invalid_probe',
+    'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-b2b-invalid-' . $suffix,
+    'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-invalid-' . $suffix);
+$deadlineBooking = $booking('deadline-configured', 2, '17:43:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($deadlineBooking['confirmation'], $teacherId, 'delivered', 'Synthetic configured-deadline delivery');
+$deadlinePrep = $repository->preparationByBooking($deadlineBooking['request']);
+wp_set_current_user((int) $deadlineBooking['principal']);
+$deadlineQuote = (new PostIntroPlanQuoteService())->forPreparation($deadlinePrep, (int) $deadlinePrep->student_id);
+$invalidDeadlineError = null;
+try {
+    $continuations->continue((string) $deadlinePrep->uid, true, 'two_instalments', (string) $deadlineQuote['quote_token'], true);
+} catch (Throwable $error) {
+    $invalidDeadlineError = $error;
+}
+dzn_pia_assert($invalidDeadlineError !== null && $invalidDeadlineError->getMessage() === 'instalment_due_date_policy_invalid', 'a non-approved deadline value must fail closed');
+$deadlinePrep = $repository->preparationByBooking($deadlineBooking['request']);
+dzn_pia_assert((int) $deadlinePrep->offer_id === 0, 'a refused deadline policy must not issue an offer');
+
+wp_set_current_user($actor);
+$policySet = $policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'policy_value' => '1', 'value_type' => 'weeks', 'reason_code' => 'owner_approved_b2b',
+    'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-b2b-policy-' . $suffix,
+    'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-policy-' . $suffix);
+dzn_pia_assert((int) ($policySet['policy_version'] ?? 0) >= 1, 'an administrator must be able to record the approved deadline policy');
+wp_set_current_user((int) $deadlineBooking['principal']);
+$continuations->continue((string) $deadlinePrep->uid, true, 'two_instalments', (string) $deadlineQuote['quote_token'], true);
+$deadlinePrep = $repository->preparationByBooking($deadlineBooking['request']);
+$deadlineOffer = $repository->offer((int) $deadlinePrep->offer_id);
+$deadlineObligations = $repository->obligationsForOffer((int) $deadlineOffer->id);
+dzn_pia_assert(count($deadlineObligations) === 2 && $deadlineObligations[1]->due_at !== null, 'the configured policy must record a second-instalment due date');
+$deadlinePattern = $repository->pattern((int) $deadlinePrep->pattern_id);
+$deadlineIntervals = (new CommercialPatternService())->intervalsFor($deadlinePattern, InstalmentDeadlinePolicy::LESSON_SEQUENCE);
+$expectedDueAt = gmdate('Y-m-d H:i:s', strtotime((string) $deadlineIntervals[InstalmentDeadlinePolicy::LESSON_SEQUENCE - 1]['starts_at_utc'] . ' UTC') - InstalmentDeadlinePolicy::LEAD_SECONDS);
+dzn_pia_assert((string) $deadlineObligations[1]->due_at === $expectedDueAt, 'the due instant must be exactly 168 hours before the canonical Lesson 7 start');
+$deadlineChoice = $repository->activePlanChoice((int) $deadlinePrep->id);
+dzn_pia_assert($deadlineChoice !== null && (string) $deadlineChoice->instalment_due_at === $expectedDueAt, 'the Student choice must record the derived due instant');
+dzn_pia_assert((int) $deadlineChoice->policy_version === (int) $policySet['policy_version'], 'the Student choice must record the exact policy version');
+$deadlineOfferPolicies = (new CommercialAuthorityRepository())->offerPolicies((int) $deadlineOffer->id);
+$deadlineSnapshot = array_values(array_filter($deadlineOfferPolicies, static fn(object $row): bool => (string) $row->policy_key === InstalmentDeadlinePolicy::POLICY_KEY));
+dzn_pia_assert(count($deadlineSnapshot) === 1 && (int) $deadlineSnapshot[0]->policy_version === (int) $policySet['policy_version'], 'the offer must snapshot the exact deadline policy version');
+
+// A future-dated policy version must not hide the currently effective approved version.
+wp_set_current_user($actor);
+$futurePolicy = $policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'policy_value' => '2', 'value_type' => 'weeks',
+    'effective_from' => gmdate('Y-m-d H:i:s', time() + 3600),
+    'reason_code' => 'owner_future_policy', 'evidence_channel' => 'staff_record',
+    'evidence_reference' => 'runtime-b2b-future-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-future-' . $suffix);
+$effectiveNow = (new InstalmentDeadlinePolicy())->forPattern($deadlinePattern, gmdate('Y-m-d H:i:s'));
+dzn_pia_assert($effectiveNow['configured'] === true && (int) $effectiveNow['policy_version'] === (int) $policySet['policy_version'] && (string) $effectiveNow['due_at'] === $expectedDueAt, 'a future policy version must not hide the currently effective approved deadline');
+$futureInvalid = null;
+try {
+    (new InstalmentDeadlinePolicy())->forPattern($deadlinePattern, gmdate('Y-m-d H:i:s', time() + 7200));
+} catch (Throwable $error) {
+    $futureInvalid = $error;
+}
+dzn_pia_assert($futureInvalid !== null && $futureInvalid->getMessage() === 'instalment_due_date_policy_invalid', 'once effective, an unsupported future value must fail closed');
+
+wp_set_current_user($actor);
+$policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'reason_code' => 'owner_deferred', 'evidence_channel' => 'staff_record',
+    'evidence_reference' => 'runtime-b2b-unset-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-unset-' . $suffix);
+dzn_pia_assert($policyService->current(InstalmentDeadlinePolicy::POLICY_KEY)['set'] === false, 'the deadline policy must remain explicitly unset when deferred');
+$afterUnset = (new InstalmentDeadlinePolicy())->forPattern($deadlinePattern, gmdate('Y-m-d H:i:s'));
+dzn_pia_assert($afterUnset['configured'] === false && $afterUnset['due_at'] === null && $afterUnset['policy_version'] === null, 'an explicit unset must resolve to no deadline');
+$unchangedObligations = $repository->obligationsForOffer((int) $deadlineOffer->id);
+$unchangedChoice = $repository->activePlanChoice((int) $deadlinePrep->id);
+dzn_pia_assert((string) $unchangedObligations[1]->due_at === $expectedDueAt, 'unsetting the policy must not rewrite an existing offer deadline');
+dzn_pia_assert((int) $unchangedChoice->policy_version === (int) $policySet['policy_version'], 'unsetting the policy must not rewrite an existing plan-choice version');
 
 echo "Post-intro enrolment automation runtime passed\n";

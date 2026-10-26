@@ -631,7 +631,7 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}tea
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $operatorTermId)) === 12, 'existing-Term recovery must create twelve Lessons');
 
 // I. Reviewed repair of an unmatched provider evidence row (the production double-hashed legacy shape).
-$repairBooking = $booking('unmatched-repair', 2, '10:23:00');
+$repairBooking = $booking('unmatched-repair', 2, '12:47:00');
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($repairBooking['confirmation'], $teacherId, 'delivered', 'Synthetic unmatched repair delivery');
 $repairPrep = $repository->preparationByBooking((int) $repairBooking['request']);

@@ -53,6 +53,11 @@ final class LessonPayabilityService {
                 case 'not_finalised_with_snapshot':
                     if($context['finalised'])continue 2;
                     break;
+                case 'presumed_completion':
+                    // Only silence is presumed. Once an administrator records a verified outcome,
+                    // the ordinary outcome rows decide payability.
+                    if($outcome!==null||!($context['completion_presumed']??false))continue 2;
+                    break;
                 case 'outcome_review_required':
                     if($code!=='review_required')continue 2;
                     break;

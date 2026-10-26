@@ -500,11 +500,21 @@ final class CanonicalAttendanceIntakeService {
         $lesson=$this->lessons->lesson((int)$case->lesson_id);
         $state=(string)($lesson->lifecycle_state??'');
         if(!in_array($state,array('authorised','completed'),true))throw new \InvalidArgumentException('lesson_not_delivery_recordable');
-        (new CanonicalLessonDeliveryService())->record((int)$case->lesson_id,$state,array(
+        $delivery=new CanonicalLessonDeliveryService();
+        $input=array(
             'outcome_code'=>$outcomeCode,'reason_code'=>'attendance_administrative_adjudication',
             'evidence_channel'=>'authenticated_platform','evidence_reference'=>'attendance-case-'.$case->uid,
             'evidence_at'=>gmdate('Y-m-d H:i:s'),
-        ),'attendance-adjudication-outcome-'.$case->uid.'-'.$outcomeCode);
+        );
+        $key='attendance-adjudication-outcome-'.$case->uid.'-'.$outcomeCode;
+        // A late report against an already completed (usually presumed) occurrence must correct the
+        // completion append-only instead of attempting an ordinary record that the lifecycle refuses.
+        if($state==='completed'){
+            if($outcomeCode==='teacher_non_delivery')$delivery->reconcile((int)$case->lesson_id,$input,$key);
+            else $delivery->dispute((int)$case->lesson_id,$input,$key);
+            return;
+        }
+        $delivery->record((int)$case->lesson_id,$state,$input,$key);
     }
 
     private function recordDecision(object $case,string $kind,string $stateAfter,?int $overlap,?string $basis,array $anomalies,string $now,int $actor,?int $outcomeId=null):int{

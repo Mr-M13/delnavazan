@@ -459,7 +459,7 @@ already-validated R1/R2/T evidence it reads.
 | Vocabulary | Locked members |
 | --- | --- |
 | Payability disposition (`FinanceRule::DISPOSITIONS`) | `payable`, `non_payable`, `pending` |
-| Payability basis (`FinanceRule::BASIS_CODES`) | `delivered_occurrence`, `student_no_show`, `interruption`, `teacher_non_delivery`, `academy_obligation`, `delivery_review_required`, `occurrence_not_attempted`, `lesson_not_finalised`, `introductory_policy_non_payable`, `administrator_override` |
+| Payability basis (`FinanceRule::BASIS_CODES`) | `delivered_occurrence`, `student_no_show`, `interruption`, `teacher_non_delivery`, `academy_obligation`, `delivery_review_required`, `presumed_completion_review`, `occurrence_not_attempted`, `lesson_not_finalised`, `introductory_policy_non_payable`, `administrator_override` |
 | Teacher rate scope (`FinanceRule::RATE_SCOPE_KINDS`) | `teacher`, `teacher_course` |
 | Teacher rate status (`FinanceRule::RATE_STATES`) | `active`, `superseded`, `withdrawn` — the member records which row is the *live* row of a scope (`active_slot = 1`); it never gates historical resolution (§7.3) |
 | Compensation basis (`FinanceRule::COMPENSATION_BASES`) | `per_session` — the only member in this phase; a second basis requires a new contract (`per_hour` is *recorded as deferred*, never partially implemented) |
@@ -565,14 +565,15 @@ Rules that bind the allowlist:
 | **(1)** Academy obligation exists for the Lesson (any O-D4/O-D8/O-D9 route) | `non_payable` | `academy_obligation` | n/a | no |
 | **(2)** Lesson not finalised (`draft`/`scheduled`) **and** a snapshot already exists for it | `pending` | `lesson_not_finalised` | n/a | **yes** |
 | **(3)** Effective outcome `review_required` | `pending` | `delivery_review_required` | yes (Phase O) | **yes** |
-| **(4)** Effective outcome `teacher_non_delivery` | `non_payable` | `teacher_non_delivery` | yes (Phase O) | no |
-| **(5)** Lesson kind `introductory` and `INTRO_PAYABILITY_POLICY` = `non_payable` (recorded default) | `non_payable` | `introductory_policy_non_payable` | no | no |
-| **(6)** Lesson `completed`, no effective delivery outcome (ordinary delivery) | `payable` | `delivered_occurrence` | n/a | no |
-| **(7)** Effective outcome `delivered` | `payable` | `delivered_occurrence` | no | no |
-| **(8)** Effective outcome `student_no_show` | policy `STUDENT_NO_SHOW_COMPENSATION_POLICY` (recorded default `payable`) | `student_no_show` | no | no |
-| **(9)** Effective outcome `interruption` | policy `INTERRUPTION_COMPENSATION_POLICY` (recorded default `payable`) | `interruption` | no | no |
-| **(10)** Lesson `cancelled` before the occurrence, no academy obligation | `non_payable` | `occurrence_not_attempted` | n/a | no |
-| **(11)** Any of the above, overridden by an audited administrator command (U-D10) | the overridden disposition | `administrator_override` | no | only if it resolves a `pending` |
+| **(4)** Presumed completion, no verified outcome | `pending` | `presumed_completion_review` | no (Phase O) | **yes** |
+| **(5)** Effective outcome `teacher_non_delivery` | `non_payable` | `teacher_non_delivery` | yes (Phase O) | no |
+| **(6)** Lesson kind `introductory` and `INTRO_PAYABILITY_POLICY` = `non_payable` (recorded default) | `non_payable` | `introductory_policy_non_payable` | no | no |
+| **(7)** Lesson `completed`, no effective delivery outcome (ordinary delivery) | `payable` | `delivered_occurrence` | n/a | no |
+| **(8)** Effective outcome `delivered` | `payable` | `delivered_occurrence` | no | no |
+| **(9)** Effective outcome `student_no_show` | policy `STUDENT_NO_SHOW_COMPENSATION_POLICY` (recorded default `payable`) | `student_no_show` | no | no |
+| **(10)** Effective outcome `interruption` | policy `INTERRUPTION_COMPENSATION_POLICY` (recorded default `payable`) | `interruption` | no | no |
+| **(11)** Lesson `cancelled` before the occurrence, no academy obligation | `non_payable` | `occurrence_not_attempted` | n/a | no |
+| **(12)** Any of the above, overridden by an audited administrator command (U-D10) | the overridden disposition | `administrator_override` | no | only if it resolves a `pending` |
 
 Rules that bind the table:
 

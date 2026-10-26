@@ -93,6 +93,20 @@ namespace {
     $check('status is exposed as text for assistive technology', str_contains($html, 'وضعیت: </span>کلاس آشنایی تأیید شده'));
     $check('details are collapsed by default and the toggle is wired with aria-controls', str_contains($html, 'id="tp-details-1" class="dzn-tp-class-details" hidden') && str_contains($html, 'aria-expanded="false" aria-controls="tp-details-1"'));
 
+    // 1b. Optional display fields and per-row resilience.
+    $optionalNote = $class(array('previous_private_note' => ''));
+    $check('an absent optional private note is accepted', dzn_theme_teacher_portal_class_valid($optionalNote));
+    $check('optional private note does not weaken the home model', dzn_theme_teacher_portal_validate_model($model(array('classes' => array($optionalNote), 'calendar' => array())), 'home'));
+    $malformedClass = $class(array('ref' => ''));
+    $mixed = $model(array('classes' => array($malformedClass, $lesson), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
+    $check('one malformed class does not disable the whole teacher home', dzn_theme_teacher_portal_validate_model($mixed, 'home'));
+    $mixedHtml = $render('home', $mixed);
+    $check('a malformed class is reported safely while healthy classes still render', str_contains($mixedHtml, 'اطلاعات این کلاس کامل یا معتبر نیست') && str_contains($mixedHtml, 'Student One') && substr_count($mixedHtml, 'aria-labelledby="tp-class-title-') === 2);
+    $malformedCalendar = $mixed;
+    $malformedCalendar['calendar'] = array(array('day' => '', 'time' => '', 'label' => '', 'state' => 'regular'));
+    $check('one malformed calendar row does not disable the whole teacher home', dzn_theme_teacher_portal_validate_model($malformedCalendar, 'home'));
+    $check('a malformed calendar row is reported safely', str_contains($render('home', $malformedCalendar), 'اطلاعات این رویداد معتبر نیست'));
+
     // 2. Google Meet join security and ownership: backend-issued URL, nonce and identifiers only, field-for-field.
     $check('lesson join form posts backend URL, nonce, lesson and schedule identifiers', (bool) preg_match('#<form method="post" target="_blank" rel="noopener noreferrer" action="https://example.invalid/wp-admin/admin-post.php\?action=dzn_teacher_join_class"[^>]*><input type="hidden" name="_wpnonce" value="nonce-join"><input type="hidden" name="lesson_uid" value="LESSON-UID"><input type="hidden" name="schedule_version_uid" value="SCHEDULE-UID">#', $html) && !str_contains($html, 'name="confirmation_uid" value=""'));
     $joined = $render('home', $model(array('classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))))));
@@ -172,6 +186,7 @@ namespace {
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
     $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
     $check('view model supplies date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_zoned_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' =>") && str_contains($bridge, "(string) ( \$onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' )"));
+    $check('canonical term lessons fall back from empty display reference to lesson UID', str_contains($bridge, 'reference_code') && str_contains($bridge, 'lesson_uid') && str_contains($bridge, "if ( '' === \$reference )"));
     $check('shell never echoes an arbitrary dzn_notice query value', !str_contains($parts['shell'], "\$_GET['dzn_notice']") && str_contains($parts['shell'], 'dzn_theme_teacher_portal_notices'));
     $js = (string) file_get_contents($theme . '/assets/js/teacher-portal.js');
     $check('script disables the whole scope after submit, restores on bfcache return, and keeps the server as authority', str_contains($js, 'form[data-dzn-tp-submit]') && str_contains($js, "'pageshow'") && str_contains($js, 'setTimeout(() => scopeButtons(form)') && str_contains($js, 'event.persisted') && !str_contains($js, 'fetch(') && !str_contains($js, 'XMLHttpRequest'));

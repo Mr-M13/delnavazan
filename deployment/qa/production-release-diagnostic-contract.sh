@@ -14,7 +14,7 @@ grep -Fq 'SHA_RE' "$script" || fail 'diagnostic script must require a full SHA'
 grep -Fq 'base64' "$script" || fail 'diagnostic payload transport missing'
 grep -Fq 'eval(base64_decode' "$script" || fail 'diagnostic payload evaluation missing'
 grep -Fq 'wp --path="$root" --skip-themes eval' "$script" || fail 'diagnostic must use WP-CLI eval'
-for needle in 'schema' 'build' 'plugin_active' 'completed_052' 'activation_jobs' 'attendance_cases' 'payability' 'instalment_policy' 'stripe' 'cron_hooks'; do
+for needle in 'schema' 'build' 'plugin_active' 'completed_052' 'activation_jobs' 'failed_jobs' 'latest_jobs' 'preparation_states' 'attendance_cases' 'payability' 'instalment_policy' 'stripe' 'cron_hooks'; do
   grep -Fq "'$needle'" "$payload" || fail "diagnostic payload missing $needle"
 done
 for forbidden in 'option update' 'option delete' 'db query' 'cron event run' 'cache flush' 'plugin activate' 'plugin deactivate' 'theme activate' 'post delete' 'user create' 'maintenance-mode activate' 'maintenance-mode deactivate' 'wp_insert' 'wp_update' 'wp_delete'; do

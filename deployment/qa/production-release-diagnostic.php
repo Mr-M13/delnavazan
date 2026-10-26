@@ -47,6 +47,8 @@ foreach ($twoStateRows as $row) $twoStates[(string) $row['label']] = (int) $row[
 $lessonRows = $wpdb->get_results("SELECT lifecycle_state label,COUNT(*) total FROM {$p}lessons WHERE record_model='canonical_term_lesson_v1' GROUP BY lifecycle_state ORDER BY lifecycle_state", ARRAY_A) ?: array();
 $canonicalLessons = array();
 foreach ($lessonRows as $row) $canonicalLessons[(string) $row['label']] = (int) $row['total'];
+$failedJobs = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}post_intro_activation_jobs WHERE state='failed' GROUP BY last_error_code ORDER BY total DESC", ARRAY_A) ?: array();
+$latestJobs = $wpdb->get_results("SELECT id,state,attempt_count,last_error_code,checkpoint,created_at,updated_at,completed_at FROM {$p}post_intro_activation_jobs ORDER BY updated_at DESC,id DESC LIMIT 5", ARRAY_A) ?: array();
 $out = array(
     'schema' => (string) get_option('dzn_platform_schema_version'),
     'build' => defined('DZN_PLATFORM_BUILD_ID') ? (string) DZN_PLATFORM_BUILD_ID : null,
@@ -63,6 +65,9 @@ $out = array(
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,
     'cron_hooks' => $hooks,
     'activation_jobs' => $group('post_intro_activation_jobs', 'state'),
+    'failed_jobs' => $failedJobs,
+    'latest_jobs' => $latestJobs,
+    'preparation_states' => $group('post_intro_preparations', 'state'),
     'plan_choices' => $count('post_intro_plan_choices'),
     'attendance_cases' => $group('canonical_attendance_cases', 'state'),
     'attendance_conflicts' => $count('canonical_attendance_conflicts'),

@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application\Checkout;
 
-use Delnavazan\Platform\Core\Application\{CommercialIdempotency,CommercialSupport};
+use Delnavazan\Platform\Core\Application\{CommercialIdempotency};
 use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CheckoutSessionRepository,CommercialAuthorityRepository,CommercialPaymentRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
@@ -205,7 +205,7 @@ final class StudentCheckoutInitiationService {
             (int) $obligation->id,
             (int) $obligation->amount_minor,
             (string) $obligation->currency,
-            CommercialSupport::obligationReference((string) $offer->uid, (int) $obligation->obligation_sequence),
+            (string) $offer->uid . ':' . (int) $obligation->obligation_sequence,
             $key,
             $attemptUid
         );

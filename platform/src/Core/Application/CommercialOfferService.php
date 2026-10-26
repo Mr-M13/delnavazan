@@ -41,11 +41,16 @@ final class CommercialOfferService {
         $region=CommercialSupport::region((string)($input['region_code']??''));
         $planKind=(string)($input['plan_kind']??'full');
         if(!in_array($planKind,CommercialRule::PLAN_KINDS,true))throw new \InvalidArgumentException('Controlled payment plan required');
+        $quoteSubject=trim((string)($input['quote_subject']??''));
+        $expectedQuoteDigest=strtolower(trim((string)($input['expected_quote_digest']??'')));
+        if($expectedQuoteDigest!==''&&(!CommercialOfferQuoteDigest::valid($expectedQuoteDigest)||$quoteSubject===''))throw new \InvalidArgumentException('plan_quote_stale');
         $evidence=CommercialSupport::evidence($input);
         $promotionCode=trim((string)($input['promotion_code']??''));
         $promotionId=($input['promotion_id']??null)===null||$input['promotion_id']===''?null:CommercialSupport::positiveInt($input['promotion_id'],'Valid promotion required');
         $adjustmentId=($input['account_adjustment_id']??null)===null||$input['account_adjustment_id']===''?null:CommercialSupport::positiveInt($input['account_adjustment_id'],'Valid account adjustment required');
         $instalmentDueAt=($input['instalment_due_at']??null)===null||$input['instalment_due_at']===''?null:CommercialSupport::utc($input['instalment_due_at'],'Valid UTC instalment deadline required');
+        $instalmentDuePolicyVersion=($input['instalment_due_date_policy_version']??null)===null||$input['instalment_due_date_policy_version']===''?null:CommercialSupport::positiveInt($input['instalment_due_date_policy_version'],'Valid instalment deadline policy version required');
+        if(($instalmentDueAt===null)!==($instalmentDuePolicyVersion===null))throw new \InvalidArgumentException('instalment_due_date_policy_invalid');
 
         $caseHint=$this->continuations->caseById($caseId,false);
         if(!$caseHint)throw new \InvalidArgumentException('continuation_case_required');
@@ -77,6 +82,12 @@ final class CommercialOfferService {
             // regular slot, its hold, the sellable product and this offer. R1 has no Course-selection
             // authority and never infers or substitutes a Course.
             if(!CommercialValidator::courseConsistent(array((int)$case->course_id,(int)$slotAuthority->course_id,(int)$reservation->course_id,(int)$product->course_id)))throw new \InvalidArgumentException('commercial_course_continuity_conflict');
+            // One continuation case owns at most one live commercial offer. A withdrawn or
+            // expired historical offer may be followed by a new one, but an issued/accepted offer
+            // is never silently duplicated by a second command key.
+            foreach($this->repository->offersForContinuation($caseId) as $liveOffer){
+                if(in_array((string)$liveOffer->state,array('issued','accepted'),true))throw new \InvalidArgumentException('commercial_offer_exists');
+            }
             $price=$this->catalogue->resolvePrice($productId,$region['region_code'],true);
             $currency=(string)$price->currency;
             $base=(int)$price->amount_minor;
@@ -105,6 +116,14 @@ final class CommercialOfferService {
             $discountTotal=$promotionAmount+$adjustmentAmount;
             $amountDue=$base-$discountTotal;
             if($amountDue<1)throw new \InvalidArgumentException('commercial_offer_amount_invalid');
+            if($expectedQuoteDigest!==''){
+                $two=CommercialMoney::splitTwo($amountDue);
+                $facts=PostIntroPlanQuoteService::facts(
+                    $quoteSubject,$studentId,$productId,$region['region_code'],$price,$base,$currency,
+                    $promotion,$promotionAmount,$adjustment,$adjustmentAmount,$amountDue,$committed,$two
+                );
+                if(!hash_equals($expectedQuoteDigest,CommercialOfferQuoteDigest::make($facts)))throw new \InvalidArgumentException('plan_quote_stale');
+            }
             $amounts=$this->decompose($planKind,$amountDue);
             $authorityBasis=$this->authorityBasis($studentId,$actor);
             $offerUid=Identifier::uid();
@@ -145,9 +164,13 @@ final class CommercialOfferService {
                 $sequence++;
             }
             do_action('dzn_phase_2a2r1_after_obligation_insert',$offerId);
-            foreach(array('INSTALMENT_DUE_DATE_POLICY') as $policyKey){
-                $policy=$this->repository->latestPolicy($policyKey);
-                if($policy&&CommercialValidator::policyValid($policy))$this->repository->insertOfferPolicy(array(
+            if($instalmentDueAt!==null&&$instalmentDuePolicyVersion!==null){
+                $policy=$this->repository->policyVersion('INSTALMENT_DUE_DATE_POLICY',$instalmentDuePolicyVersion);
+                $approved=$policy&&CommercialValidator::policyValid($policy)&&$policy->policy_value!==null
+                    &&(($policy->value_type==='weeks'&&(string)$policy->policy_value==='1')
+                        ||($policy->value_type==='duration'&&(string)$policy->policy_value==='604800'));
+                if(!$approved)throw new \InvalidArgumentException('instalment_due_date_policy_invalid');
+                $this->repository->insertOfferPolicy(array(
                     'uid'=>Identifier::uid(),'offer_id'=>$offerId,'policy_key'=>(string)$policy->policy_key,
                     'policy_version'=>(int)$policy->policy_version,
                     'effective_from'=>$policy->effective_from===null?null:(string)$policy->effective_from,

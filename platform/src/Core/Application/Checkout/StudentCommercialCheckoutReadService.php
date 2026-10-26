@@ -28,14 +28,29 @@ final class StudentCommercialCheckoutReadService {
         foreach($this->authority->offersForBeneficiary($studentId) as $offer){
             if((int)$offer->beneficiary_student_id!==$studentId)throw new \RuntimeException('checkout_authority_unavailable');
             CommercialLineageValidator::assertForOffer($offer,false,$this->authority);
-            $canPay=in_array((string)$offer->state,array('issued','accepted'),true)
-                &&($offer->expires_at===null||(string)$offer->expires_at>$now);
-            foreach($this->authority->obligationsForOffer((int)$offer->id) as $obligation){
+            // An accepted commitment keeps later instalments payable after the initial checkout
+            // hold; only an unaccepted issued offer is bounded by its expiry instant.
+            $offerState=(string)$offer->state;
+            $canPay=in_array($offerState,array('issued','accepted'),true)
+                &&($offerState==='accepted'||$offer->expires_at===null||(string)$offer->expires_at>$now);
+            $funding=(new \Delnavazan\Platform\Core\Application\CommercialTermFundingService())->obligationStatus((int)$offer->id);
+            $settledBySequence=array();
+            foreach((array)($funding['obligations']??array()) as $fundingRow)$settledBySequence[(int)$fundingRow['obligation_sequence']]=$fundingRow;
+            $termSequence=$this->authority->termSequenceForOffer((int)$offer->id);
+            if($termSequence===null&&(string)$offer->source_kind==='continuation_case')$termSequence=1;
+            $paidMinor=0;$totalMinor=0;$paidObligations=0;$obligations=$this->authority->obligationsForOffer((int)$offer->id);
+            foreach($obligations as $obligation){$totalMinor+=(int)$obligation->amount_minor;if(!empty($settledBySequence[(int)$obligation->obligation_sequence]['settled'])){$paidMinor+=(int)$obligation->amount_minor;$paidObligations++;}}
+            foreach($obligations as $obligation){
+                $sequence=(int)$obligation->obligation_sequence;
+                $prerequisiteSatisfied=$sequence===1||!empty($settledBySequence[$sequence-1]['settled']);
                 $settlement=$this->payments->settlementForObligation((int)$obligation->id);
                 $active=$settlement?null:$this->sessions->activeForObligation((int)$obligation->id);
                 $checkoutState='unavailable';$paymentState='unavailable';$action=null;$attemptUid=null;
                 if($settlement){
                     $checkoutState='completed';$paymentState='paid';
+                    if(!$prerequisiteSatisfied)$paymentState='paid_prerequisite_pending';
+                }elseif(!$prerequisiteSatisfied){
+                    $checkoutState='blocked';$paymentState='prerequisite_pending';
                 }elseif($canPay&&(int)$obligation->amount_minor>0&&preg_match('/^[A-Z]{3}$/D',(string)$obligation->currency)===1){
                     if(!$active){$checkoutState='not_started';$paymentState='required';$action='pay';}
                     elseif((int)$active->student_id!==$studentId||(int)$active->offer_id!==(int)$offer->id
@@ -55,11 +70,30 @@ final class StudentCommercialCheckoutReadService {
                 }
                 $rows[]=array(
                     'obligation_uid'=>(string)$obligation->uid,'attempt_uid'=>$attemptUid,
-                    'obligation_sequence'=>(int)$obligation->obligation_sequence,
+                    'obligation_sequence'=>$sequence,
+                    'sessions_from'=>(int)$obligation->sessions_from,
+                    'sessions_to'=>(int)$obligation->sessions_to,
                     'sessions_covered'=>(int)$obligation->sessions_covered,
                     'amount_minor'=>(int)$obligation->amount_minor,'currency'=>(string)$obligation->currency,
                     'due_at'=>$obligation->due_at===null?null:(string)$obligation->due_at,
+                    // The commitment and plan are display facts already owned by the canonical
+                    // offer. They are never echoed back into a checkout command.
+                    'offer_uid'=>(string)$offer->uid,
+                    'offer_reference'=>$offer->reference_code===null?null:(string)$offer->reference_code,
+                    'offer_state'=>(string)$offer->state,
+                    'plan_kind'=>(string)$offer->plan_kind,
+                    'committed_sessions'=>(int)$offer->committed_sessions,
+                    'offer_amount_due_minor'=>(int)$offer->amount_due_minor,
+                    'offer_currency'=>(string)$offer->currency,
                     'offer_expires_at'=>$offer->expires_at===null?null:(string)$offer->expires_at,
+                    'term_sequence'=>$termSequence,
+                    'term_paid'=>$totalMinor>0&&$paidMinor>=$totalMinor,
+                    'paid_minor'=>$paidMinor,
+                    'outstanding_minor'=>max(0,$totalMinor-$paidMinor),
+                    'paid_instalments'=>$paidObligations,
+                    'total_instalments'=>count($obligations),
+                    'prerequisite_satisfied'=>$prerequisiteSatisfied,
+                    'effective'=>$sequence===1?(!empty($settledBySequence[$sequence]['settled'])):($prerequisiteSatisfied&&!empty($settledBySequence[$sequence]['settled'])),
                     'payment_state'=>$paymentState,'checkout_state'=>$checkoutState,'action'=>$action,
                     'retry_allowed'=>in_array($action,array('pay','resume','retry'),true),
                 );

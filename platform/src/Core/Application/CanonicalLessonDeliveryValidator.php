@@ -129,7 +129,7 @@ final class CanonicalLessonDeliveryValidator {
         }
         if($reconciled!==null){
             if((string)($lesson->lifecycle_state??'')!=='completed')return false;
-            if($effective!=='teacher_non_delivery')return false;
+            if(!in_array($effective,array('teacher_non_delivery','review_required'),true))return false;
             if((int)($terminal->id??0)!==$reconciled)return false;
         }
         // O-D5: one real-world event has exactly one authoritative meaning. A post-occurrence

@@ -43,7 +43,7 @@ $contains($menu, array('FINANCE_WORKSPACE_CAP', "'dzn_view_finance_authority'", 
 $contains($finance, array('current_user_can(Menu::FINANCE_WORKSPACE_CAP)', "check_admin_referer('dzn_finance_settings')", "current_user_can('dzn_view_payment_execution_authority')", "current_user_can('dzn_view_cash_ledger')", "current_user_can('dzn_view_finance_authority')"), 'Every Finance surface must stay capability- and nonce-gated');
 
 // Additive migration and rollback-safe preservation.
-$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '51'"), 'Schema version must advance to 51');
+$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '52'"), 'Schema version must advance to 52');
 $contains($migration, array(
     "'049_finance_administration'", 'install_finance_administration', 'verify_finance_administration_schema',
     "'050_intro_payment_authority'", 'install_intro_payment_authority', 'verify_intro_payment_authority_schema',
@@ -120,5 +120,14 @@ $contains($platform, array('dzn_teacher_activated', 'TeacherRateInheritanceServi
 
 $contains($finance, array('Manual academy bookkeeping only', 'Online checkout, Stripe settlement, teacher rates and student pricing never write to this ledger', 'Reconciliation', 'Not reconciled'), 'Central Ledger must remain manual and independent');
 $contains($finance, array('dzn_cashbook_record', 'wp_nonce_field(\'cashbook_record\')'), 'Manual ledger entry must reuse the existing cashbook command and nonce');
+
+// Instalment schedule visibility stays read-only and uses stored obligations.
+$financeRead = $read('src/Core/Application/Finance/Read/FinanceAdminReadService.php');
+$contains($financeRead, array('instalmentSchedules', "plan_kind='two_instalments'", 'actionableOfferSql', "offer_row.state='accepted'", "offer_row.state='issued'", 'offer_row.expires_at>UTC_TIMESTAMP()', 'outstanding_minor', 'commercial_obligation_settlements'), 'Instalment schedules must read stored offers, obligations and settlements and exclude closed or time-lapsed offers from receivables');
+$contains($finance, array('offer_state', "'withdrawn'", "'expired'", '$closed', '$lapsed', 'Offer expired'), 'Closed and time-lapsed schedules must be labelled with their real offer state');
+$contains($finance, array('renderInstalmentSchedules', 'instalment-schedules', 'Instalment schedules', 'Outstanding', 'Before Lesson 7', 'inst_state', 'inst_paged', 'Offer outstanding'), 'Finance Payments must expose read-only instalment schedules and outstanding balances');
+$readOnly = substr($financeRead, strpos($financeRead, 'public function instalmentSchedules'), strpos($financeRead, 'public function introPaymentCounts') - strpos($financeRead, 'public function instalmentSchedules'));
+$assert(preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i', $readOnly) !== 1, 'Instalment visibility must never write financial state');
+$assert(strpos($readOnly, 'FinanceSupport::requireCapability') !== false, 'Instalment visibility must retain the payment view capability');
 
 echo "finance-administration-contract: OK\n";

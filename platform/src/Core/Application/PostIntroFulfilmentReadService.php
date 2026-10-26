@@ -78,6 +78,9 @@ final class PostIntroFulfilmentReadService {
         $expectedLessons = $entitlement
             ? (int) ($entitlement->session_count ?? 0)
             : ($offer ? (int) ($offer->committed_sessions ?? 0) : 0);
+        // A two-instalment plan deliberately materialises only the funded tranche first. That is an
+        // expected intermediate state, not a partial provisioning failure.
+        $effectiveLessons = $offer ? (new CommercialTermFundingService())->effectiveSessions((int) $offer->id) : 0;
 
         $pattern = null;
         if ($preparation && (int) ($preparation->pattern_id ?? 0) > 0) {
@@ -94,6 +97,12 @@ final class PostIntroFulfilmentReadService {
             && (int) ($pattern->duration_minutes ?? 0) > 0;
 
         $paymentVerified = $purchase !== null && $settlement !== null;
+        $awaitingNextInstalment = $offer !== null
+            && (string) $offer->plan_kind === 'two_instalments'
+            && $paymentVerified
+            && $effectiveLessons > 0
+            && $effectiveLessons < $expectedLessons
+            && $lessonCount >= $effectiveLessons;
         $preparationState = $preparation ? (string) $preparation->state : 'missing';
         $jobState = $job ? (string) $job->state : 'missing';
 
@@ -108,6 +117,8 @@ final class PostIntroFulfilmentReadService {
             $state = 'completed';
         } elseif ($jobState === 'failed') {
             $state = 'failed';
+        } elseif ($awaitingNextInstalment) {
+            $state = 'awaiting_next_instalment';
         } elseif ($paymentVerified) {
             if (!$term || !$assignment) {
                 $state = 'payment_received';
@@ -127,6 +138,7 @@ final class PostIntroFulfilmentReadService {
         $messageCode = match ($state) {
             'awaiting_payment' => 'enrolment_awaiting_payment_confirmation',
             'payment_received', 'partial', 'provisioning' => 'payment_received_classes_preparing',
+            'awaiting_next_instalment' => 'next_instalment_due',
             'failed' => 'schedule_review_required',
             'completed', 'not_applicable' => null,
             default => 'enrolment_processing',
@@ -138,7 +150,7 @@ final class PostIntroFulfilmentReadService {
         if (!$scheduleReady) $blockers[] = 'authoritative_schedule_missing';
         if ($paymentVerified && !$term) $blockers[] = 'term_missing';
         if ($paymentVerified && !$assignment) $blockers[] = 'teacher_assignment_missing';
-        if ($paymentVerified && $expectedLessons > 0 && $lessonCount < $expectedLessons) $blockers[] = 'lessons_missing';
+        if ($paymentVerified && $expectedLessons > 0 && $lessonCount < $expectedLessons && $state !== 'awaiting_next_instalment') $blockers[] = 'lessons_missing';
         if (in_array($jobState, array('failed', 'retryable'), true)) $blockers[] = 'activation_job_' . $jobState;
         if ($preparation && trim((string) ($preparation->exception_code ?? '')) !== '') $blockers[] = 'preparation_exception';
 
@@ -148,7 +160,7 @@ final class PostIntroFulfilmentReadService {
         if (($paymentVerified || $checkoutOpen) && $scheduleReady) {
             if (!$term) $planned[] = 'canonical_term';
             if (!$assignment) $planned[] = 'teacher_assignment';
-            if ($expectedLessons > 0 && $lessonCount < $expectedLessons) $planned[] = 'canonical_lessons:' . ($expectedLessons - $lessonCount);
+            if ($state !== 'awaiting_next_instalment' && $expectedLessons > 0 && $lessonCount < $expectedLessons) $planned[] = 'canonical_lessons:' . ($expectedLessons - $lessonCount);
         }
 
         return array(
@@ -175,6 +187,7 @@ final class PostIntroFulfilmentReadService {
             'term_state' => $termState,
             'assignment_id' => $assignment ? (int) $assignment->id : 0,
             'lesson_count' => $lessonCount,
+            'effective_lesson_count' => $effectiveLessons,
             'expected_lesson_count' => $expectedLessons,
             'pattern_id' => $pattern ? (int) $pattern->id : 0,
             'schedule_timezone' => $pattern ? (string) $pattern->schedule_timezone : '',

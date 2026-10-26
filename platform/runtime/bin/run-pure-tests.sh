@@ -17,11 +17,13 @@ set -euo pipefail
 source "$(dirname "$BASH_SOURCE")/common.sh"
 dzn_require_cached_images; dzn_candidate; dzn_assert_runtime_paths
 plugin_root="$(dzn_plugin_source_from_worktree "$DZN_PLUGIN_WORKTREE")"
-tests=(tests/static.php tests/finance-pricing-unit.php tests/finance-statement-template-unit.php tests/intro-payment-unit.php tests/finance-administration-contract.php tests/post-intro-fulfilment-unit.php tests/post-payment-fulfilment-contract.php tests/portal-calendar-export-contract.php tests/portal-calendar-export-unit.php tests/portal-calendar-export-controller-unit.php tests/google-oauth-browser-flow-contract.php tests/google-oauth-transport-unit.php tests/phase-2a3-iran-quiet-hours.php tests/phase-2a3-day-availability-contract.php tests/booking-availability-timezone-dst-contract.php tests/phase-2a2w-contract.php tests/phase-opreadiness-core-dataset-contract.php tests/phase-opreadiness-core-operator-entrypoint-contract.php tests/phase-opreadiness-core-operator-entrypoint-unit.php tests/student-operations-journey-contract.php)
+tests=(tests/static.php tests/finance-pricing-unit.php tests/finance-statement-template-unit.php tests/intro-payment-unit.php tests/finance-administration-contract.php tests/interim-attendance-completion-contract.php tests/post-intro-fulfilment-unit.php tests/post-payment-fulfilment-contract.php tests/portal-calendar-export-contract.php tests/portal-calendar-export-unit.php tests/portal-calendar-export-controller-unit.php tests/google-oauth-browser-flow-contract.php tests/google-oauth-transport-unit.php tests/booking-calendar-projection-unit.php tests/calendar-transport-retry-unit.php tests/teacher-portal-presentation-contract.php tests/phase-2a3-iran-quiet-hours.php tests/phase-2a3-day-availability-contract.php tests/booking-availability-timezone-dst-contract.php tests/phase-2a2w-contract.php tests/phase-opreadiness-core-dataset-contract.php tests/phase-opreadiness-core-operator-entrypoint-contract.php tests/phase-opreadiness-core-operator-entrypoint-unit.php tests/student-operations-journey-contract.php)
 executed=0
 for test in "${tests[@]}"; do
   [ -f "$plugin_root/$test" ] || continue
-  docker run --rm --pull=never -v "$DZN_PLUGIN_WORKTREE:$DZN_PLUGIN_WORKTREE:ro" --entrypoint php "$DZN_CLI_IMAGE" "$plugin_root/$test"
+  # Disposable worktrees are intentionally owner-only. Run the read-only CLI
+  # container as root so PHP can traverse that bind mount; no source is writable.
+  docker run --rm --pull=never -u 0 -v "$DZN_PLUGIN_WORKTREE:$DZN_PLUGIN_WORKTREE:ro" --entrypoint php "$DZN_CLI_IMAGE" "$plugin_root/$test"
   executed=$((executed + 1))
   echo "PASS  $test"
 done

@@ -101,8 +101,12 @@ final class FinanceAdminReadService {
         if ($state === 'paid') {
             $where[] = "NOT EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL)";
         } elseif ($state === 'outstanding') {
+            // A withdrawn or expired offer is no longer collectable. It stays visible under
+            // "All schedules" with its real offer state, but never inflates actionable receivables.
+            $where[] = "offer_row.state IN ('issued','accepted')";
             $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL)";
         } elseif ($state === 'overdue') {
+            $where[] = "offer_row.state IN ('issued','accepted')";
             $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL AND unpaid.due_at IS NOT NULL AND unpaid.due_at<UTC_TIMESTAMP())";
         }
         $query = trim((string) ($filters['q'] ?? ''));

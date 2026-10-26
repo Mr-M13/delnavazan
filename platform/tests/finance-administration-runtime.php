@@ -343,6 +343,15 @@ dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), '
 dzn_fin_runtime_assert(dzn_fin_runtime_count('commercial_obligation_settlements') === $settlementsBefore + 2, 'Settling two tranches must create exactly two settlements');
 dzn_fin_runtime_assert(dzn_fin_runtime_count('commercial_payment_evidence') === $evidenceBefore + 2, 'Settling two tranches must create exactly two evidence rows');
 dzn_fin_runtime_assert(count($offerObligations()) === 2, 'Reading and settling a schedule must never duplicate obligations');
+
+/* A withdrawn or expired offer is historical truth, never an actionable receivable. */
+$wpdb->update($p . 'commercial_offers', array('state' => 'withdrawn'), array('id' => $offerId));
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'outstanding')) === array(), 'A withdrawn offer must not be counted as outstanding receivables');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), 'A withdrawn offer must not be counted as overdue receivables');
+$allSchedules = $scheduleRows(array());
+dzn_fin_runtime_assert(count($allSchedules) === 2 && (string) $allSchedules[0]->offer_state === 'withdrawn', 'A closed schedule must remain visible with its real offer state');
+dzn_fin_runtime_assert(count($scheduleRows(array('state' => 'paid'))) === 2, 'Recorded settlements must survive offer closure');
+$wpdb->update($p . 'commercial_offers', array('state' => 'issued'), array('id' => $offerId));
 $wpdb->update($p . 'commercial_offer_obligations', array('due_at' => null), array('offer_id' => $offerId));
 
 /* ---------------------------------------------------------------- actual four-tab screen render */

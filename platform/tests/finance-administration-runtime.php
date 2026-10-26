@@ -375,7 +375,7 @@ $_GET = array('page' => 'dzn-finance', 'tab' => 'payments');
 ob_start();
 FinanceAdminController::screen();
 $paymentsHtml = (string) ob_get_clean();
-dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Instalment schedules') && str_contains($paymentsHtml, 'Before Lesson 7') && str_contains($paymentsHtml, 'dzn-finance-pill">Outstanding'), 'Payments must render the instalment schedule and outstanding state');
+dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Instalment schedules') && str_contains($paymentsHtml, 'Before Lesson 7') && str_contains($paymentsHtml, 'Offer outstanding') && str_contains($paymentsHtml, 'dzn-finance-pill">Settled'), 'Payments must render the instalment schedule and its real status cell');
 $_GET = array('page' => 'dzn-finance', 'tab' => 'settings');
 ob_start();
 FinanceAdminController::screen();

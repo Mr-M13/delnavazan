@@ -29,14 +29,17 @@
 			return response.json();
 		});
 	}
-	function amount(row) {
+	function formatAmount(minor, currencyCode) {
 		try {
-			const currency = String(row.currency || '');
+			const currency = String(currencyCode || '');
 			const digits = new Intl.NumberFormat(undefined, { style: 'currency', currency: currency }).resolvedOptions().maximumFractionDigits;
-			return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency }).format(Number(row.amount_minor) / Math.pow(10, digits));
+			return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency }).format(Number(minor) / Math.pow(10, digits));
 		} catch (error) {
-			return String(row.amount_minor) + ' ' + String(row.currency || '');
+			return String(minor) + ' ' + String(currencyCode || '');
 		}
+	}
+	function amount(row) {
+		return formatAmount(row.amount_minor, row.currency);
 	}
 	function addText(parent, tag, className, text) {
 		const node = document.createElement(tag);
@@ -44,6 +47,71 @@
 		node.textContent = text;
 		parent.appendChild(node);
 		return node;
+	}
+	function faDigits(value) {
+		return String(value).replace(/[0-9]/g, function (digit) { return '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]; });
+	}
+	function planLabel(plan) {
+		if (plan === 'full') return 'پرداخت کامل';
+		if (plan === 'two_instalments') return 'پرداخت در دو قسط';
+		return 'طرح پرداخت';
+	}
+	function instalmentLabel(row, plan) {
+		if (plan === 'full') return 'پرداخت کامل';
+		const sequence = Number(row.obligation_sequence);
+		return 'قسط ' + (Number.isFinite(sequence) && sequence > 0 ? faDigits(sequence) : '');
+	}
+	function sessionsLabel(row) {
+		const from = Number(row.sessions_from);
+		const to = Number(row.sessions_to);
+		if (!Number.isFinite(from) || !Number.isFinite(to) || from < 1 || to < from) return '';
+		return from === to ? 'جلسهٔ ' + faDigits(from) : 'جلسات ' + faDigits(from) + ' تا ' + faDigits(to);
+	}
+	function dueLabel(row, plan) {
+		if (row.due_at) {
+			const date = new Date(String(row.due_at).replace(' ', 'T') + 'Z');
+			if (!isNaN(date.getTime())) {
+				try {
+					return 'سررسید: ' + new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+				} catch (error) {
+					return 'سررسید: ' + String(row.due_at);
+				}
+			}
+		}
+		if (plan === 'two_instalments' && Number(row.obligation_sequence) === 2) return 'سررسید: پیش از شروع جلسهٔ ۷';
+		return 'سررسید: تعیین نشده';
+	}
+	function renderPlan(group) {
+		const first = group.rows[0];
+		const plan = String(first.plan_kind || '');
+		const section = document.createElement('section');
+		section.className = 'dzn-checkout__plan';
+		const heading = document.createElement('div');
+		heading.className = 'dzn-checkout__plan-heading';
+		addText(heading, 'h3', 'dzn-checkout__plan-title', planLabel(plan));
+		addText(heading, 'span', 'dzn-checkout__plan-total', formatAmount(first.offer_amount_due_minor, first.offer_currency));
+		section.appendChild(heading);
+		const meta = [];
+		if (Number(first.committed_sessions) > 0) meta.push('تعداد جلسات: ' + faDigits(first.committed_sessions));
+		if (first.offer_reference) meta.push('کد طرح: ' + String(first.offer_reference));
+		if (meta.length) addText(section, 'p', 'dzn-checkout__plan-meta', meta.join(' · '));
+		group.rows.forEach(function (row) {
+			const card = document.createElement('article');
+			card.className = 'dzn-checkout__row';
+			addText(card, 'strong', 'dzn-checkout__title', instalmentLabel(row, plan));
+			addText(card, 'span', 'dzn-checkout__amount', amount(row));
+			const sessions = sessionsLabel(row);
+			const stateMessage = row.payment_state === 'paid' ? messages.paid : row.payment_state === 'processing' ? messages.processing : row.payment_state === 'required' ? 'پرداخت این قسط ثبت نشده است.' : messages.unavailable;
+			addText(card, 'p', 'dzn-checkout__row-detail', [sessions, dueLabel(row, plan)].filter(Boolean).join(' · '));
+			addText(card, 'p', 'dzn-checkout__row-status', stateMessage);
+			if (Object.prototype.hasOwnProperty.call(labels, row.action)) {
+				const button = addText(card, 'button', 'dzn-checkout__button', labels[row.action]);
+				button.type = 'button';
+				button.addEventListener('click', function () { start(row, button); });
+			}
+			section.appendChild(card);
+		});
+		return section;
 	}
 	function loadStatus(attempt, kind) {
 		if (!/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/.test(attempt)) { say(messages.unavailable); return; }
@@ -59,22 +127,19 @@
 	function render(rows) {
 		list.replaceChildren();
 		if (!Array.isArray(rows) || rows.length === 0) { say(messages.empty); return; }
-		let payable = false;
+		const groups = [];
+		const byOffer = Object.create(null);
 		rows.forEach(function (row) {
-			const card = document.createElement('article');
-			card.className = 'dzn-checkout__row';
-			const sequence = Number(row.obligation_sequence);
-			addText(card, 'strong', 'dzn-checkout__title', 'قسط ' + (Number.isFinite(sequence) && sequence > 0 ? sequence : ''));
-			addText(card, 'span', 'dzn-checkout__amount', amount(row));
-			const stateMessage = row.payment_state === 'paid' ? messages.paid : row.payment_state === 'processing' ? messages.processing : row.payment_state === 'required' ? 'پرداخت این قسط ثبت نشده است.' : messages.unavailable;
-			addText(card, 'p', 'dzn-checkout__row-status', stateMessage);
-			if (Object.prototype.hasOwnProperty.call(labels, row.action)) {
-				payable = true;
-				const button = addText(card, 'button', 'dzn-checkout__button', labels[row.action]);
-				button.type = 'button';
-				button.addEventListener('click', function () { start(row, button); });
-			}
-			list.appendChild(card);
+			const key = String(row.offer_uid || '');
+			if (!byOffer[key]) { byOffer[key] = { uid: key, rows: [] }; groups.push(byOffer[key]); }
+			byOffer[key].rows.push(row);
+		});
+		let payable = false;
+		groups.forEach(function (group) {
+			list.appendChild(renderPlan(group));
+			group.rows.forEach(function (row) {
+				if (Object.prototype.hasOwnProperty.call(labels, row.action)) payable = true;
+			});
 		});
 		if (payable) say('برای پرداخت، قسط موردنظر را انتخاب کنید.');
 		else if (rows.some(function (row) { return row.payment_state === 'processing'; })) say(messages.processing);

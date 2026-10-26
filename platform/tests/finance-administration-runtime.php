@@ -11,6 +11,7 @@ if (getenv('DZN_FINANCE_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') || 
 use Delnavazan\Platform\Core\Application\CommercialCatalogueService;
 use Delnavazan\Platform\Core\Application\Finance\FinanceIdempotency;
 use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
+use Delnavazan\Platform\Core\Application\Finance\Read\FinanceAdminReadService;
 use Delnavazan\Platform\Core\Application\Finance\Intro\{IntroCheckoutInitiationService,IntroCheckoutReturnReadService,IntroPaymentService};
 use Delnavazan\Platform\Core\Application\Finance\Pricing\{PricingMoney,RegionalPricingService};
 use Delnavazan\Platform\Core\Application\Finance\TeacherRateInheritanceService;
@@ -261,7 +262,30 @@ dzn_fin_runtime_assert($failed['accepted'] === true, 'A failed payment event is 
 $failedRow = $wpdb->get_row($wpdb->prepare("SELECT state,failure_reason_code FROM {$p}intro_payment_obligations WHERE id=%d", (int) $obligation2['obligation_id']));
 dzn_fin_runtime_assert($failedRow && (string) $failedRow->state === 'pending' && (string) $failedRow->failure_reason_code === 'payment_failed', 'Failed payment must remain unpaid and retryable');
 
+/* ---------------------------------------------------------------- instalment schedule visibility */
+$wpdb->update($p . 'commercial_offers', array('plan_kind' => 'two_instalments'), array('id' => $offerId));
+foreach (array(array(1, 1, 6, 500), array(2, 7, 12, 500)) as $tranche) {
+    [$sequence, $from, $to, $amount] = $tranche;
+    $inserted = $wpdb->insert($p . 'commercial_offer_obligations', array(
+        'uid' => Identifier::uid(), 'offer_id' => $offerId, 'obligation_sequence' => $sequence,
+        'sessions_from' => $from, 'sessions_to' => $to, 'sessions_covered' => $to - $from + 1,
+        'amount_minor' => $amount, 'currency' => 'AUD', 'due_at' => null,
+        'obligation_reference_digest' => hash('sha256', 'runtime-obligation-' . $offerSuffix . '-' . $sequence),
+        'created_at' => $now, 'created_by' => 1,
+    ));
+    dzn_fin_runtime_assert($inserted === 1, 'Instalment schedule fixture required');
+}
+$instalments = (new FinanceAdminReadService())->instalmentSchedules(array('state' => 'outstanding'));
+dzn_fin_runtime_assert(count($instalments['rows']) === 2, 'The instalment schedule read must return both ordered obligations');
+dzn_fin_runtime_assert((int) $instalments['rows'][0]->sessions_from === 1 && (int) $instalments['rows'][1]->sessions_to === 12, 'The schedule must expose exact Lesson ranges');
+dzn_fin_runtime_assert((int) $instalments['rows'][0]->outstanding_minor === 1000, 'The outstanding balance must be the offer total when nothing has settled');
+
 /* ---------------------------------------------------------------- actual four-tab screen render */
+$_GET = array('page' => 'dzn-finance', 'tab' => 'payments');
+ob_start();
+FinanceAdminController::screen();
+$paymentsHtml = (string) ob_get_clean();
+dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Instalment schedules') && str_contains($paymentsHtml, 'Before Lesson 7') && str_contains($paymentsHtml, 'Outstanding'), 'Payments must render the instalment schedule and outstanding state');
 $_GET = array('page' => 'dzn-finance', 'tab' => 'settings');
 ob_start();
 FinanceAdminController::screen();

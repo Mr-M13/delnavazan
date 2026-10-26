@@ -121,4 +121,12 @@ $contains($platform, array('dzn_teacher_activated', 'TeacherRateInheritanceServi
 $contains($finance, array('Manual academy bookkeeping only', 'Online checkout, Stripe settlement, teacher rates and student pricing never write to this ledger', 'Reconciliation', 'Not reconciled'), 'Central Ledger must remain manual and independent');
 $contains($finance, array('dzn_cashbook_record', 'wp_nonce_field(\'cashbook_record\')'), 'Manual ledger entry must reuse the existing cashbook command and nonce');
 
+// Instalment schedule visibility stays read-only and uses stored obligations.
+$financeRead = $read('src/Core/Application/Finance/Read/FinanceAdminReadService.php');
+$contains($financeRead, array('instalmentSchedules', "plan_kind='two_instalments'", 'outstanding_minor', 'commercial_obligation_settlements', 'UTC_TIMESTAMP()'), 'Instalment schedules must read stored offers, obligations and settlements');
+$contains($finance, array('renderInstalmentSchedules', 'instalment-schedules', 'Instalment schedules', 'Outstanding', 'Before Lesson 7', 'inst_state', 'inst_paged'), 'Finance Payments must expose read-only instalment schedules and outstanding balances');
+$readOnly = substr($financeRead, strpos($financeRead, 'public function instalmentSchedules'), strpos($financeRead, 'public function introPaymentCounts') - strpos($financeRead, 'public function instalmentSchedules'));
+$assert(preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i', $readOnly) !== 1, 'Instalment visibility must never write financial state');
+$assert(strpos($readOnly, 'FinanceSupport::requireCapability') !== false, 'Instalment visibility must retain the payment view capability');
+
 echo "finance-administration-contract: OK\n";

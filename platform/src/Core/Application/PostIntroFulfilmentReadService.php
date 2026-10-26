@@ -99,10 +99,15 @@ final class PostIntroFulfilmentReadService {
 
         if ($preparation === null) {
             $state = 'not_applicable';
-        } elseif ($preparationState === 'exception' || $jobState === 'failed') {
+        } elseif ($preparationState === 'exception') {
             $state = 'failed';
         } elseif ($preparationState === 'activated' && $term && $assignment && ($expectedLessons < 1 || $lessonCount >= $expectedLessons)) {
+            // Canonical provisioning is the Student-visible fulfilment. A later provider
+            // projection failure (for example Google credentials) must remain an operator
+            // blocker, not erase the funded Term, Assignment and Lessons from the Student Portal.
             $state = 'completed';
+        } elseif ($jobState === 'failed') {
+            $state = 'failed';
         } elseif ($paymentVerified) {
             if (!$term || !$assignment) {
                 $state = 'payment_received';

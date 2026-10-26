@@ -491,7 +491,7 @@ final class FinanceAdminController {
             'MANUAL_RENEWAL_SLOT_GUARANTEE_WEEKS' => 'How long a renewal slot is held before collection.',
             'AUTOMATIC_RENEWAL_CHARGE_LEAD_TIME' => 'Lead time before an automatic renewal collection attempt.',
             'PAYMENT_RECOVERY_POLICY' => 'Reference policy for payment recovery and lapse handling.',
-            'INSTALMENT_DUE_DATE_POLICY' => 'Reference policy for the second-instalment due date.',
+            'INSTALMENT_DUE_DATE_POLICY' => 'Second-instalment deadline. Approved value: 1 week or 604800 seconds (168 hours before Lesson 7); unset means no deadline.',
         );
         echo '<h3>Commercial timing and settlement policies</h3><table class="widefat striped"><thead><tr><th>Key</th><th>Meaning</th><th>Active value</th><th>Version</th></tr></thead><tbody>';
         foreach (CommercialRule::POLICY_KEYS as $key) {

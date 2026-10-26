@@ -315,6 +315,31 @@ final class PostIntroRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d ORDER BY obligation_sequence,id", $offerId)) ?: array();
     }
 
+    /**
+     * The recorded second-instalment deadline and the exact policy version that produced it.
+     *
+     * @return array{due_at:?string,policy_version:?int}
+     */
+    public function instalmentDeadlineForOffer(int $offerId): array {
+        global $wpdb;
+        $due = $wpdb->get_var($wpdb->prepare(
+            "SELECT due_at FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d AND obligation_sequence=2 LIMIT 1",
+            $offerId
+        ));
+        if ($due === null || (string) $due === '') {
+            return array('due_at' => null, 'policy_version' => null);
+        }
+        $version = $wpdb->get_var($wpdb->prepare(
+            "SELECT policy_version FROM {$this->p}commercial_offer_policies WHERE offer_id=%d AND policy_key=%s LIMIT 1",
+            $offerId,
+            'INSTALMENT_DUE_DATE_POLICY'
+        ));
+        return array(
+            'due_at' => (string) $due,
+            'policy_version' => $version === null ? null : (int) $version,
+        );
+    }
+
     public function arrangement(int $id): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}accepted_service_arrangements WHERE id=%d", $id));

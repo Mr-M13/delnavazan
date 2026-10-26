@@ -51,6 +51,11 @@ final class CommercialAuthorityRepository {
         global $wpdb;$suffix=$lock?' FOR UPDATE':'';
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_policies WHERE policy_key=%s ORDER BY policy_version DESC, id DESC LIMIT 1{$suffix}",$policyKey));
     }
+    /** The newest active version whose effective instant has already arrived. */
+    public function latestEffectivePolicy(string $policyKey,string $now,bool $lock=false):?object{
+        global $wpdb;$suffix=$lock?' FOR UPDATE':'';
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_policies WHERE policy_key=%s AND status='active' AND (effective_from IS NULL OR effective_from<=%s) ORDER BY policy_version DESC, id DESC LIMIT 1{$suffix}",$policyKey,$now));
+    }
     public function policies():array{
         global $wpdb;
         return $wpdb->get_results("SELECT * FROM {$this->p}commercial_policies ORDER BY policy_key, policy_version")?:array();

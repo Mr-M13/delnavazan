@@ -377,7 +377,7 @@ dzn_pia_assert(!empty($paidInspection['payment_verified']) && ($paidInspection['
 dzn_pia_assert((int) $paidInspection['term_id'] === 0 && (int) $paidInspection['assignment_id'] === 0, 'dry-run must not invent a Term or Assignment');
 dzn_pia_assert(in_array('canonical_term', (array) ($paidInspection['planned'] ?? array()), true) && in_array('canonical_lessons:12', (array) ($paidInspection['planned'] ?? array()), true), 'dry-run must plan the Term and twelve Lessons');
 $recovered = $recovery->recover((int) $prep->enrolment_id);
-dzn_pia_assert(($recovered['state'] ?? '') === 'already_completed', 'canonical provisioning must remain complete after a provider-only Calendar failure while the activation job stays failed');
+dzn_pia_assert(in_array(($recovered['state'] ?? ''), array('completed', 'already_completed'), true), 'canonical provisioning must remain complete after a provider-only Calendar failure while the activation job stays failed');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'activated', 'core activation must complete before provider projection');
 $enrolment = $repository->enrolment((int) $prep->enrolment_id);

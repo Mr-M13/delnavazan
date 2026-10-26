@@ -80,8 +80,8 @@ foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$occur
 $occurrences['future']=$occurrence($chains['future'],'future',1,$futureWall);
 // A real fall-back boundary: 2026-11-01 01:30 America/New_York spans 60 real minutes over the
 // 02:00 local fall-back and must persist two hours of UTC difference.
-$dstWall='2026-11-01 01:30:00';
-$occurrences['dst']=$occurrence($chains['dst'],'dst',60,$dstWall,'America/New_York');
+$dstWall='2026-11-01 01:00:00';
+$occurrences['dst']=$occurrence($chains['dst'],'dst',120,$dstWall,'America/New_York');
 $dst=$occurrences['dst'];
 dzn_ic_assert((strtotime($dst['end'].' UTC')-strtotime($dst['start'].' UTC'))===7200,'A fall-back DST occurrence must retain its real UTC duration');
 

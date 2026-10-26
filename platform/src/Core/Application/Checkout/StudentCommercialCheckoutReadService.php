@@ -28,8 +28,11 @@ final class StudentCommercialCheckoutReadService {
         foreach($this->authority->offersForBeneficiary($studentId) as $offer){
             if((int)$offer->beneficiary_student_id!==$studentId)throw new \RuntimeException('checkout_authority_unavailable');
             CommercialLineageValidator::assertForOffer($offer,false,$this->authority);
-            $canPay=in_array((string)$offer->state,array('issued','accepted'),true)
-                &&($offer->expires_at===null||(string)$offer->expires_at>$now);
+            // An accepted commitment keeps later instalments payable after the initial checkout
+            // hold; only an unaccepted issued offer is bounded by its expiry instant.
+            $offerState=(string)$offer->state;
+            $canPay=in_array($offerState,array('issued','accepted'),true)
+                &&($offerState==='accepted'||$offer->expires_at===null||(string)$offer->expires_at>$now);
             $funding=(new \Delnavazan\Platform\Core\Application\CommercialTermFundingService())->obligationStatus((int)$offer->id);
             $settledBySequence=array();
             foreach((array)($funding['obligations']??array()) as $fundingRow)$settledBySequence[(int)$fundingRow['obligation_sequence']]=$fundingRow;

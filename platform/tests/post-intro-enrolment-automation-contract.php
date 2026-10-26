@@ -178,7 +178,7 @@ $contains($activation, array(
 ), 'activation must be replay-safe and canonical');
 $assert(str_contains($activation, "if ((string) \$mapping->projection_state !== 'pending') return;"), 'a verified projection must not be dispatched twice');
 $assert(str_contains($activation, 'stableEvidenceAt') && str_contains($activation, "evidence_at' => \$evidenceAt"), 'activation retries must reuse a stable evidence timestamp');
-$assert(str_contains($activation, 'paymentOccurredAt') && str_contains($repository, 'commercial_payment_facts'), 'activation must use the verified payment occurrence instant');
+$assert(str_contains($activation, 'accepted_at') && str_contains($repository, 'commercial_purchases'), 'activation must use the immutable purchase acceptance instant');
 $assert(str_contains($worker, 'attempt_count=attempt_count+1') || str_contains($repository, 'attempt_count=attempt_count+1'), 'a reclaimed lease must count as an attempt');
 $assert(str_contains($activation, 'patternForSlotAuthority') && str_contains($activation, 'commercial_pattern_conflict'), 'activation must resolve the exact slot-authority pattern');
 $assert(!str_contains($activation, 'meet.google.com') && !str_contains($activation, 'join_uri_reference' . ' = '), 'activation must never fabricate a Meet URL');

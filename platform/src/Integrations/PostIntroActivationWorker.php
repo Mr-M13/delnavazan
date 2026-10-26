@@ -114,33 +114,49 @@ final class PostIntroActivationWorker {
     private static function execute(PostIntroRepository $repository, object $job, string $now, string $leaseDigest): void {
         try {
             $result = (new PostIntroActivationService($repository))->activate((int) $job->id);
-            $materialised = max((int) ($job->funding_materialised ?? 0), (int) ($result['lessons'] ?? 0));
-            $effective = (new CommercialTermFundingService())->effectiveSessions((int) $job->offer_id);
-            if ($effective > $materialised) {
-                // A later settlement raised the target while this worker was running. Preserve the
-                // completed lessons and converge again; never mark the earlier target as final.
-                $repository->releaseJob((int) $job->id, 'retryable', array(
-                    'attempt_count' => (int) $job->attempt_count,
-                    'funding_target' => $effective,
-                    'funding_materialised' => $materialised,
-                    'checkpoint' => 'additional_funding',
-                    'completed_at' => null,
-                    'next_attempt_at' => gmdate('Y-m-d H:i:s'),
-                    'last_error_code' => 'additional_funding_pending',
-                    'last_error_detail' => 'additional_funding_pending',
-                ), $leaseDigest);
-                return;
+            // Completion and the settlement hook both write funding_target. Lock the job row so a
+            // later settlement that raised the target while this worker was running cannot be
+            // overwritten by this worker's earlier view of the target.
+            $repository->begin();
+            try {
+                $fresh = $repository->job((int) $job->id, true);
+                if (!$fresh || !hash_equals((string) ($fresh->lease_token_digest ?? ''), $leaseDigest)) {
+                    $repository->rollback();
+                    return;
+                }
+                $materialised = max((int) ($fresh->funding_materialised ?? 0), (int) ($result['lessons'] ?? 0));
+                $effective = (new CommercialTermFundingService())->effectiveSessions((int) $fresh->offer_id);
+                $target = max((int) ($fresh->funding_target ?? 0), $effective);
+                if ($target > $materialised) {
+                    // A later settlement raised the target while this worker was running. Preserve
+                    // the completed lessons and converge again; never mark the earlier target final.
+                    $repository->releaseJob((int) $job->id, 'retryable', array(
+                        'attempt_count' => (int) $fresh->attempt_count,
+                        'funding_target' => $target,
+                        'funding_materialised' => $materialised,
+                        'checkpoint' => 'additional_funding',
+                        'completed_at' => null,
+                        'next_attempt_at' => gmdate('Y-m-d H:i:s'),
+                        'last_error_code' => 'additional_funding_pending',
+                        'last_error_detail' => 'additional_funding_pending',
+                    ), $leaseDigest);
+                } else {
+                    $repository->releaseJob((int) $job->id, 'completed', array(
+                        'attempt_count' => (int) $fresh->attempt_count,
+                        'funding_target' => $target,
+                        'funding_materialised' => $materialised,
+                        'checkpoint' => 'activated',
+                        'completed_at' => gmdate('Y-m-d H:i:s'),
+                        'next_attempt_at' => null,
+                        'last_error_code' => null,
+                        'last_error_detail' => null,
+                    ), $leaseDigest);
+                }
+                $repository->commit();
+            } catch (\Throwable $convergenceError) {
+                $repository->rollback();
+                throw $convergenceError;
             }
-            $repository->releaseJob((int) $job->id, 'completed', array(
-                'attempt_count' => (int) $job->attempt_count,
-                'funding_target' => max((int) ($job->funding_target ?? 0), $effective),
-                'funding_materialised' => $materialised,
-                'checkpoint' => 'activated',
-                'completed_at' => gmdate('Y-m-d H:i:s'),
-                'next_attempt_at' => null,
-                'last_error_code' => null,
-                'last_error_detail' => null,
-            ), $leaseDigest);
         } catch (\Throwable $error) {
             if ($error->getMessage() === 'post_intro_job_lease_lost') return;
             $attempt = (int) $job->attempt_count;

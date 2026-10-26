@@ -883,12 +883,24 @@ $twoRunOne = PostIntroActivationWorker::runJob((int) $twoJob->id);
 $twoTermId = (int) $wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d LIMIT 1", $twoPurchaseId));
 dzn_pia_assert($twoTermId > 0, 'tranche 1 activation must bind one Term');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $twoTermId)) === 6, 'tranche 1 must materialise only Lessons 1-6');
+$twoHalfFunded = (new PostIntroFulfilmentReadService())->forEnrolment((int) $twoPrep->enrolment_id);
+dzn_pia_assert(($twoHalfFunded['fulfilment_state'] ?? '') === 'awaiting_next_instalment', 'a half-funded two-instalment Term must be an expected intermediate state');
+dzn_pia_assert((int) $twoHalfFunded['lesson_count'] === 6 && (int) $twoHalfFunded['effective_lesson_count'] === 6 && (int) $twoHalfFunded['expected_lesson_count'] === 12, 'the half-funded projection must expose the funded and committed Lesson counts');
+dzn_pia_assert(!in_array('lessons_missing', (array) $twoHalfFunded['blockers'], true), 'a half-funded two-instalment Term must not report missing Lessons');
+wp_set_current_user($actor);
+dzn_pia_assert((new PostIntroRecoveryService())->recover((int) $twoPrep->enrolment_id)['state'] === 'awaiting_next_instalment', 'admin recovery must recognise the expected half-funded state instead of failing');
 
 // After tranche 1, the second instalment becomes normally collectable in the read projection.
 wp_set_current_user((int) $twoBooking['principal']);
 $afterFirst = (new StudentCommercialCheckoutReadService())->read();
 $afterFirstRows = array_values(array_filter($afterFirst['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $twoOffer->uid));
 dzn_pia_assert(count($afterFirstRows) === 2 && $afterFirstRows[1]['payment_state'] === 'required' && $afterFirstRows[1]['prerequisite_satisfied'] === true, 'tranche 2 must become payable only after tranche 1 settles');
+// The original checkout hold is not the life of the plan: an accepted commitment must keep
+// tranche 2 payable weeks later, up to its own recorded due date.
+$wpdb->update($p . 'commercial_offers', array('expires_at' => gmdate('Y-m-d H:i:s', time() - 3600)), array('id' => (int) $twoOffer->id));
+$afterHold = (new StudentCommercialCheckoutReadService())->read();
+$afterHoldRows = array_values(array_filter($afterHold['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $twoOffer->uid));
+dzn_pia_assert(count($afterHoldRows) === 2 && $afterHoldRows[1]['payment_state'] === 'required' && $afterHoldRows[1]['action'] === 'pay', 'an accepted commitment must keep tranche 2 payable after the original checkout hold');
 
 // Simulate the exact race: a worker holds the earlier target while tranche 2 settles, then the
 // worker completes the earlier target. The later target must survive and re-arm the job.
@@ -919,6 +931,8 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}can
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $twoPrep->enrolment_id)) === 1, 'incremental activation must not duplicate the Term');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $twoPrep->enrolment_id)) === 1, 'incremental activation must not duplicate the Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard' AND canonical_sequence<=6", $twoTermId)) === 6, 'tranche 2 must replay, not duplicate, Lessons 1-6');
+$twoComplete = (new PostIntroFulfilmentReadService())->forEnrolment((int) $twoPrep->enrolment_id);
+dzn_pia_assert(($twoComplete['fulfilment_state'] ?? '') === 'completed' && (int) $twoComplete['lesson_count'] === 12, 'tranche 2 must converge the fulfilment projection to twelve Lessons');
 
 wp_set_current_user((int) $twoBooking['principal']);
 $twoRead = (new StudentCommercialCheckoutReadService())->read();

@@ -65,7 +65,7 @@ final class PostIntroSettlementHook {
             if ($state === 'running') {
                 // Never clear a live worker's lease. It re-reads the target before completing and
                 // requeues itself when more sessions became effective during its run.
-                if ($raised) $repository->updateJob((int) $job->id, array('funding_target' => $target, 'next_attempt_at' => $now));
+                if ($raised) $repository->updateJob((int) $job->id, array('funding_target' => $target, 'next_attempt_at' => $now, 'updated_at' => $now));
             } elseif ($raised || ($state === 'completed' && (int) $job->funding_materialised < $effective)) {
                 $changes = array(
                     'state' => 'queued',
@@ -78,6 +78,7 @@ final class PostIntroSettlementHook {
                     'last_error_detail' => null,
                     'completed_at' => null,
                     'checkpoint' => 'additional_funding',
+                    'updated_at' => $now,
                 );
                 $repository->updateJob((int) $job->id, $changes);
             }

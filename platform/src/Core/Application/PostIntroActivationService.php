@@ -33,13 +33,15 @@ final class PostIntroActivationService {
         if (!$entitlement) throw new \RuntimeException('commercial_entitlement_required');
         $effectiveSessions = (new CommercialTermFundingService())->effectiveSessions((int) $purchase->offer_id);
         if ($effectiveSessions < 1) throw new \RuntimeException('commercial_funding_not_effective');
-        $wasActivated = (string) $preparation->state === 'activated';
 
-        return PostIntroSystemActor::run(function () use ($job, $preparation, $purchase, $entitlement, $effectiveSessions, $wasActivated): array {
+        return PostIntroSystemActor::run(function () use ($job, $preparation, $purchase, $entitlement, $effectiveSessions): array {
             $repository = $this->repository;
             $now = gmdate('Y-m-d H:i:s');
             $uid = (string) $preparation->uid;
-            $evidenceAt = $this->stableEvidenceAt($job, $repository->paymentOccurredAt((int) $purchase->id));
+            // The purchase's immutable acceptance instant is the first verified settlement for
+            // this commitment. It never moves when a later (or out-of-sequence) instalment
+            // settles, so every convergence run reconstructs the same canonical command payload.
+            $evidenceAt = $this->stableEvidenceAt($job, (string) ($purchase->accepted_at ?? ''));
             $evidence = array(
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . $uid,
@@ -193,7 +195,10 @@ final class PostIntroActivationService {
                 ));
             }
 
-            if (!$wasActivated) $this->notify($preparation, $now);
+            // notify() is idempotent (teacher_notified_at + insertNotificationIfMissing). It must
+            // run on every activation retry because the preparation is already 'activated' while a
+            // failed delivery is being retried.
+            $this->notify($preparation, $now);
 
             // Provider projection is a projection only. All canonical Lessons and schedules are
             // already durable before this loop, so a missing Google connection or transient Google
@@ -226,15 +231,15 @@ final class PostIntroActivationService {
      * evidence before the Enrolment's own conversion event and fail the lifecycle history's
      * non-decreasing-time invariant.
      */
-    private function stableEvidenceAt(object $job, ?string $paymentOccurredAt = null): string {
+    private function stableEvidenceAt(object $job, ?string $purchaseAcceptedAt = null): string {
         $candidates = array();
-        foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? '')) as $candidate) {
+        foreach (array((string) ($purchaseAcceptedAt ?? ''), (string) ($job->created_at ?? '')) as $candidate) {
             if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1) $candidates[] = $candidate;
         }
         if (!$candidates) throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');
-        // Choose one durable instant once and forever: the earliest of the verified payment
-        // occurrence and the settlement job creation. A provider timestamp that is briefly in
-        // the future cannot make a later retry switch to a different payload.
+        // Choose one durable instant once and forever: the earlier of the purchase acceptance
+        // instant and the settlement job creation. Neither changes when a later instalment settles,
+        // so a retry cannot switch to a different idempotency payload.
         sort($candidates, SORT_STRING);
         return $candidates[0];
     }

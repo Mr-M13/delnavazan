@@ -135,6 +135,15 @@ final class PostIntroContinuationService {
 
         $evidenceAt = $repository->claimStudentActionAt((int) $preparation->id, gmdate('Y-m-d H:i:s'));
         $preparation = $repository->preparation((int) $preparation->id) ?? $preparation;
+        // A concurrent submission may have issued the offer between the pre-offer choice check and
+        // this refreshed read. The persisted offer is canonical: never redirect a conflicting
+        // request into another plan's Checkout.
+        if ((int) ($preparation->offer_id ?? 0) > 0) {
+            $persistedOffer = $repository->offer((int) $preparation->offer_id);
+            if (!$persistedOffer || (string) $persistedOffer->plan_kind !== $planKind) {
+                throw new \InvalidArgumentException('plan_choice_conflict');
+            }
+        }
 
         try {
             $this->assertAdultCapacity($preparation, $confirmation, $studentId, $adultAttested);

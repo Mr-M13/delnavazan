@@ -260,6 +260,7 @@ final class PostIntroAdminController {
             'completed' => 'Provisioning completed',
             'payment_received', 'provisioning' => 'Payment received — provisioning pending',
             'partial' => 'Provisioning partial — retry available',
+            'awaiting_next_instalment' => 'Awaiting second instalment — funded Lessons are active',
             'failed' => 'Provisioning failed — action required',
             'awaiting_payment' => 'Awaiting verified payment',
             'invited' => 'Student action ready',

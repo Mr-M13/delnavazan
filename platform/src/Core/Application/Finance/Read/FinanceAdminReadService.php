@@ -101,19 +101,20 @@ final class FinanceAdminReadService {
         if ($state === 'paid') {
             $where[] = "NOT EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL)";
         } elseif ($state === 'outstanding') {
-            // A withdrawn or expired offer is no longer collectable. It stays visible under
-            // "All schedules" with its real offer state, but never inflates actionable receivables.
-            $where[] = "offer_row.state IN ('issued','accepted')";
+            // A withdrawn, expired or time-lapsed issued offer is no longer collectable. An
+            // accepted offer remains an actionable commitment even after its original checkout
+            // window, because later instalments are governed by their own obligations.
+            $where[] = self::actionableOfferSql();
             $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL)";
         } elseif ($state === 'overdue') {
-            $where[] = "offer_row.state IN ('issued','accepted')";
+            $where[] = self::actionableOfferSql();
             $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL AND unpaid.due_at IS NOT NULL AND unpaid.due_at<UTC_TIMESTAMP())";
         }
         $query = trim((string) ($filters['q'] ?? ''));
         if ($query !== '') {
             $like = '%' . $wpdb->esc_like($query) . '%';
-            $where[] = '(offer_row.reference_code LIKE %s OR purchase_row.reference_code LIKE %s OR student.display_name LIKE %s OR student.reference_code LIKE %s)';
-            array_push($args, $like, $like, $like, $like);
+            $where[] = '(offer_row.uid LIKE %s OR offer_row.reference_code LIKE %s OR purchase_row.reference_code LIKE %s OR student.display_name LIKE %s OR student.reference_code LIKE %s)';
+            array_push($args, $like, $like, $like, $like, $like);
         }
         $from = (string) ($filters['from'] ?? '');
         $through = (string) ($filters['through'] ?? '');
@@ -144,6 +145,11 @@ final class FinanceAdminReadService {
                 ORDER BY offer_row.id DESC,obligation.obligation_sequence,obligation.id LIMIT {$perPage} OFFSET {$offset}";
         $rows = $args ? $wpdb->get_results($wpdb->prepare($sql, ...$args)) : $wpdb->get_results($sql);
         return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages);
+    }
+
+    /** The one SQL predicate for an offer that may still be collected. */
+    private static function actionableOfferSql(): string {
+        return "(offer_row.state='accepted' OR (offer_row.state='issued' AND (offer_row.expires_at IS NULL OR offer_row.expires_at>UTC_TIMESTAMP())))";
     }
 
     /** @return array<string,int> */

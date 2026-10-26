@@ -123,9 +123,9 @@ $contains($finance, array('dzn_cashbook_record', 'wp_nonce_field(\'cashbook_reco
 
 // Instalment schedule visibility stays read-only and uses stored obligations.
 $financeRead = $read('src/Core/Application/Finance/Read/FinanceAdminReadService.php');
-$contains($financeRead, array('instalmentSchedules', "plan_kind='two_instalments'", "offer_row.state IN ('issued','accepted')", 'outstanding_minor', 'commercial_obligation_settlements', 'UTC_TIMESTAMP()'), 'Instalment schedules must read stored offers, obligations and settlements and exclude closed offers from receivables');
-$contains($finance, array('offer_state', "'withdrawn'", "'expired'", '$closed'), 'Closed schedules must be labelled with their real offer state');
-$contains($finance, array('renderInstalmentSchedules', 'instalment-schedules', 'Instalment schedules', 'Outstanding', 'Before Lesson 7', 'inst_state', 'inst_paged'), 'Finance Payments must expose read-only instalment schedules and outstanding balances');
+$contains($financeRead, array('instalmentSchedules', "plan_kind='two_instalments'", 'actionableOfferSql', "offer_row.state='accepted'", "offer_row.state='issued'", 'offer_row.expires_at>UTC_TIMESTAMP()', 'outstanding_minor', 'commercial_obligation_settlements'), 'Instalment schedules must read stored offers, obligations and settlements and exclude closed or time-lapsed offers from receivables');
+$contains($finance, array('offer_state', "'withdrawn'", "'expired'", '$closed', '$lapsed', 'Offer expired'), 'Closed and time-lapsed schedules must be labelled with their real offer state');
+$contains($finance, array('renderInstalmentSchedules', 'instalment-schedules', 'Instalment schedules', 'Outstanding', 'Before Lesson 7', 'inst_state', 'inst_paged', 'Offer outstanding'), 'Finance Payments must expose read-only instalment schedules and outstanding balances');
 $readOnly = substr($financeRead, strpos($financeRead, 'public function instalmentSchedules'), strpos($financeRead, 'public function introPaymentCounts') - strpos($financeRead, 'public function instalmentSchedules'));
 $assert(preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i', $readOnly) !== 1, 'Instalment visibility must never write financial state');
 $assert(strpos($readOnly, 'FinanceSupport::requireCapability') !== false, 'Instalment visibility must retain the payment view capability');

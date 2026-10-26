@@ -88,14 +88,14 @@ dzn_ic_assert($occurrences['dst_after']['start']==='2026-11-01 17:00:00','A loca
 // A future occurrence must be refused even when the worker is asked directly.
 dzn_ic_rejected(fn()=>LessonCompletionAutomationWorker::runLesson((int)$occurrences['future']['lesson_id']),'occurrence_not_ended','a future occurrence');
 
+// Wait for every one-minute synthetic occurrence to end.
+$latest=0;foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$latest=max($latest,strtotime($occurrences[$label]['end'].' UTC'));
+while(time()<$latest+3)sleep(1);
+
 // A recorded outcome exists before the automation pass, so it can never be presumed away.
 $outcomeOccurrence=$occurrences['outcome'];
 $delivered=$delivery->record((int)$outcomeOccurrence['lesson_id'],'authorised',array('outcome_code'=>'delivered','reason_code'=>'administrator_verified_outcome')+dzn_ic_evidence('verified-outcome'),dzn_ic_key('verified-outcome'));
 dzn_ic_assert((int)$delivered['outcome_id']>0,'the verified outcome fixture must be recorded');
-
-// Wait for every one-minute synthetic occurrence to end.
-$latest=0;foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$latest=max($latest,strtotime($occurrences[$label]['end'].' UTC'));
-while(time()<$latest+3)sleep(1);
 
 // 1. Silence becomes presumed completion exactly once, with no Phase-O delivered attendance.
 $first=LessonCompletionAutomationWorker::run();

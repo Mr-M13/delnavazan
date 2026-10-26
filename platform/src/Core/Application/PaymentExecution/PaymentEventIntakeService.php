@@ -774,13 +774,14 @@ final class PaymentEventIntakeService {
     private function translate(object $event,ProviderEventEnvelope $envelope,?int $obligationId):array{
         $evidenceKind=$this->evidenceKind((string)$envelope->eventType());
         $occurredAt=$envelope->providerOccurredAt()??(string)$event->received_at;
+        $canonicalObligationReference=$this->canonicalObligationReference($obligationId);
         $input=array(
             'provider_key'=>(string)$envelope->providerKey(),
             'provider_reference'=>(string)$envelope->eventReference(),
             'evidence_kind'=>$evidenceKind,
             'amount_minor'=>$envelope->amountMinor(),'currency'=>$envelope->currency(),
             'provider_occurred_at'=>$occurredAt,
-            'obligation_reference'=>$envelope->obligationReference(),
+            'obligation_reference'=>$canonicalObligationReference??$envelope->obligationReference(),
             'provider_account_reference'=>$envelope->providerAccountReference(),
             'evidence_channel'=>'provider_evidence','evidence_at'=>$occurredAt,
             'evidence_reference'=>'dzn_phase_2a2t_event:'.(string)$event->uid,
@@ -956,7 +957,24 @@ final class PaymentEventIntakeService {
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $digest=CommercialIdempotency::obligationReference($obligationReference);
         $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_offer_obligations WHERE obligation_reference_digest=%s",$digest));
+        // Older Checkout sessions carried the already-keyed obligation digest in Stripe metadata.
+        // Accept that exact immutable value without re-hashing it; new sessions carry the raw
+        // offer:sequence reference and resolve through the normal branch above.
+        if($id<1&&preg_match('/^[a-f0-9]{64}$/D',$obligationReference)===1){
+            $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_offer_obligations WHERE obligation_reference_digest=%s",$obligationReference));
+        }
         return $id>0?$id:null;
+    }
+
+    /** The canonical raw offer:sequence reference for one obligation, used as R1 input. */
+    private function canonicalObligationReference(?int $obligationId):?string{
+        if($obligationId===null||$obligationId<1)return null;
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $row=$wpdb->get_row($wpdb->prepare(
+            "SELECT offer.uid, obligation.obligation_sequence FROM {$p}commercial_offer_obligations obligation INNER JOIN {$p}commercial_offers offer ON offer.id=obligation.offer_id WHERE obligation.id=%d",
+            $obligationId
+        ));
+        return $row?((string)$row->uid.':'.(int)$row->obligation_sequence):null;
     }
     private function accountDigest(int $accountId):string{
         global $wpdb;$p=$wpdb->prefix.'dzn_';

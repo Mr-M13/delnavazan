@@ -120,6 +120,7 @@ final class CommercialCapacityRepository {
         return $this->one("SELECT * FROM {$this->p}commercial_exceptions WHERE fingerprint=%s AND state='open'".($lock?' FOR UPDATE':''),$fingerprint);
     }
     public function exception(int $exceptionId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_exceptions WHERE id=%d".($lock?' FOR UPDATE':''),$exceptionId);}
+    public function openExceptionForEvidence(int $evidenceId):?object{return $this->one("SELECT * FROM {$this->p}commercial_exceptions WHERE evidence_id=%d AND state='open' ORDER BY id DESC LIMIT 1 FOR UPDATE",$evidenceId);}
     public function exceptions(string $state='open'):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_exceptions WHERE state=%s ORDER BY id",$state))?:array();

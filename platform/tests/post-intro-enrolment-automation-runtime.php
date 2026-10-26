@@ -13,7 +13,7 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,CommercialSupport,PostIntroContinuationService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
@@ -629,5 +629,65 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}ter
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}terms WHERE enrolment_id=%d", $existingEnrolmentId)) === $operatorTermId, 'existing-Term recovery must reuse the operator-created Term');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", $existingEnrolmentId)) === 1, 'existing-Term recovery must create one Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $operatorTermId)) === 12, 'existing-Term recovery must create twelve Lessons');
+
+// I. Reviewed repair of an unmatched provider evidence row (the production double-hashed legacy shape).
+$repairBooking = $booking('unmatched-repair', 2, '10:23:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($repairBooking['confirmation'], $teacherId, 'delivered', 'Synthetic unmatched repair delivery');
+$repairPrep = $repository->preparationByBooking((int) $repairBooking['request']);
+wp_set_current_user((int) $repairBooking['principal']);
+$continuations->continue((string) $repairPrep->uid, true);
+$repairPrep = $repository->preparationByBooking((int) $repairBooking['request']);
+$repairOffer = $repository->offer((int) $repairPrep->offer_id);
+$repairObligations = $repository->obligationsForOffer((int) $repairOffer->id);
+$repairObligation = $repairObligations[0];
+$rawObligationReference = (string) $repairOffer->uid . ':1';
+$legacyObligationReference = CommercialSupport::obligationReference((string) $repairOffer->uid, 1);
+$repairAccountReference = 'acct_repair_' . $suffix;
+$repairOccurredAt = gmdate('Y-m-d H:i:s');
+$repairProviderReference = 'evt_repair_' . $suffix;
+wp_set_current_user($actor);
+$unmatchedRepair = $payments->ingest(array(
+    'provider_key' => 'stripe',
+    'provider_reference' => $repairProviderReference,
+    'evidence_kind' => 'success',
+    'amount_minor' => (string) $repairObligation->amount_minor,
+    'currency' => (string) $repairObligation->currency,
+    'obligation_reference' => $legacyObligationReference,
+    'provider_occurred_at' => $repairOccurredAt,
+    'provider_account_reference' => $repairAccountReference,
+    'evidence_channel' => 'provider_evidence',
+    'evidence_reference' => 'repair-unmatched-evidence-' . $suffix,
+    'evidence_at' => $repairOccurredAt,
+), dzn_pia_key('repair-unmatched'));
+dzn_pia_assert(($unmatchedRepair['processing_state'] ?? '') === 'unmatched', 'legacy double-hashed metadata must be preserved as unmatched');
+$unmatchedEvidenceId = (int) $unmatchedRepair['evidence_id'];
+$repairKey = dzn_pia_key('repair-unmatched-settle');
+$repairResult = $payments->repairUnmatchedEvidence(
+    $repairProviderReference,
+    $rawObligationReference,
+    $repairAccountReference,
+    $repairOccurredAt,
+    (int) $repairObligation->amount_minor,
+    (string) $repairObligation->currency,
+    $repairKey
+);
+dzn_pia_assert(($repairResult['processing_state'] ?? '') === 'accepted' && !empty($repairResult['repaired']), 'reviewed repair must attribute and settle the exact unmatched evidence');
+dzn_pia_assert((int) $repairResult['purchase_id'] > 0, 'reviewed repair must create the purchase');
+$repairEvidence = $wpdb->get_row($wpdb->prepare("SELECT processing_state,reason_code,offer_id,obligation_id,purchase_id FROM {$p}commercial_payment_evidence WHERE id=%d", $unmatchedEvidenceId));
+dzn_pia_assert($repairEvidence && (string) $repairEvidence->processing_state === 'accepted' && $repairEvidence->reason_code === null && (int) $repairEvidence->offer_id === (int) $repairOffer->id && (int) $repairEvidence->obligation_id === (int) $repairObligation->id && (int) $repairEvidence->purchase_id === (int) $repairResult['purchase_id'], 'repair must correct attribution and preserve provider facts');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements WHERE obligation_id=%d", (int) $repairObligation->id)) === 1, 'repair must create exactly one settlement');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_exceptions WHERE evidence_id=%d AND state='resolved'", $unmatchedEvidenceId)) === 1, 'repair must resolve the unmatched-evidence exception');
+$repairPurchasesBefore = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_purchases WHERE offer_id=%d", (int) $repairOffer->id));
+$payments->repairUnmatchedEvidence(
+    $repairProviderReference,
+    $rawObligationReference,
+    $repairAccountReference,
+    $repairOccurredAt,
+    (int) $repairObligation->amount_minor,
+    (string) $repairObligation->currency,
+    $repairKey
+);
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_purchases WHERE offer_id=%d", (int) $repairOffer->id)) === $repairPurchasesBefore, 'repeated repair must not duplicate the purchase');
 
 echo "Post-intro enrolment automation runtime passed\n";

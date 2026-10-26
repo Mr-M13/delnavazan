@@ -20,6 +20,11 @@ final class CommercialPaymentRepository {
     public function evidenceByProviderReference(string $providerKey,string $referenceDigest,bool $lock=false):?object{
         return $this->one("SELECT * FROM {$this->p}commercial_payment_evidence WHERE provider_key=%s AND evidence_reference_digest=%s".($lock?' FOR UPDATE':''),$providerKey,$referenceDigest);
     }
+    /** Correct the attribution of an unmatched provider fact without changing its provider facts. */
+    public function updateEvidenceAttribution(int $evidenceId,array $changes):void{
+        global $wpdb;
+        if($wpdb->update($this->p.'commercial_payment_evidence',$changes,array('id'=>$evidenceId))===false)throw new \RuntimeException('Payment evidence attribution persistence failed');
+    }
     public function evidenceForPurchase(int $purchaseId):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_payment_evidence WHERE purchase_id=%d ORDER BY id",$purchaseId))?:array();

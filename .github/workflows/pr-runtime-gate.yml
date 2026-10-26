@@ -217,6 +217,8 @@ jobs:
           php platform/tests/finance-statement-template-unit.php
           php platform/tests/intro-payment-unit.php
           php platform/tests/finance-administration-contract.php
+          php platform/tests/post-intro-fulfilment-unit.php
+          php platform/tests/post-payment-fulfilment-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

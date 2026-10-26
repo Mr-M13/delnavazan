@@ -54,6 +54,54 @@ final class PostIntroActivationWorker {
         }
     }
 
+    /**
+     * Claim and execute exactly one job for a narrow operator recovery.
+     *
+     * @return array{state:string,attempt_count:int,last_error_code:?string}
+     */
+    public static function runJob(int $jobId): array {
+        $repository = new PostIntroRepository();
+        $job = $repository->job($jobId);
+        if (!$job) throw new \InvalidArgumentException('post_intro_job_not_found');
+        if ((string) $job->state === 'completed') {
+            return array('state' => 'completed', 'attempt_count' => (int) $job->attempt_count, 'last_error_code' => null);
+        }
+        $token = bin2hex(random_bytes(16));
+        $now = gmdate('Y-m-d H:i:s');
+        $leaseDigest = hash('sha256', $token);
+        if (!$repository->claimJob($jobId, $leaseDigest, $now, gmdate('Y-m-d H:i:s', time() + self::LEASE_SECONDS))) {
+            $fresh = $repository->job($jobId);
+            if (!$fresh) throw new \RuntimeException('post_intro_job_not_found');
+            throw new \RuntimeException((string) $fresh->state === 'running' ? 'post_intro_job_in_progress' : 'post_intro_job_not_due');
+        }
+        $claimed = $repository->job($jobId);
+        if (!$claimed) throw new \RuntimeException('post_intro_job_not_found');
+        if ((int) $claimed->attempt_count > self::MAX_ATTEMPTS) {
+            $preparation = $repository->preparation((int) $claimed->preparation_id);
+            if ($preparation && (string) $preparation->state !== 'activated') {
+                $repository->updatePreparation((int) $preparation->id, array(
+                    'state' => 'exception',
+                    'exception_code' => 'post_intro_attempt_limit_reached',
+                    'exception_detail' => 'post_intro_attempt_limit_reached',
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
+                ));
+            }
+            $repository->releaseJob($jobId, 'failed', array(
+                'next_attempt_at' => null,
+                'last_error_code' => 'post_intro_attempt_limit_reached',
+                'last_error_detail' => 'post_intro_attempt_limit_reached',
+            ), $leaseDigest);
+            throw new \RuntimeException('post_intro_attempt_limit_reached');
+        }
+        self::execute($repository, $claimed, $now, $leaseDigest);
+        $fresh = $repository->job($jobId);
+        return array(
+            'state' => (string) ($fresh->state ?? 'unknown'),
+            'attempt_count' => (int) ($fresh->attempt_count ?? 0),
+            'last_error_code' => $fresh->last_error_code === null ? null : (string) $fresh->last_error_code,
+        );
+    }
+
     /** Explicit retry used by the admin exception surface. */
     public static function requeue(int $jobId): void {
         $repository = new PostIntroRepository();

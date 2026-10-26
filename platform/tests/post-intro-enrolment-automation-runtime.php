@@ -13,9 +13,10 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,PostIntroContinuationService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
+use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
 global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
@@ -283,6 +284,15 @@ $obligation = $obligations[0];
 $offer = $repository->offer((int) $prep->offer_id);
 dzn_pia_assert($offer !== null && (string) $offer->state === 'issued', 'offer must be issued before settlement');
 
+// The Student Portal must remain usable while the Enrolment has no Term/Teacher Assignment yet.
+// This is the production failure shape: an accepted arrangement converted to an Enrolment before payment.
+$pendingPortal = (new PortalAuthenticatedReadService())->student();
+dzn_pia_assert(count((array) ($pendingPortal['enrolments'] ?? array())) === 1, 'Student Portal must expose the paid-pending Enrolment without a Term');
+$pendingEnrolment = $pendingPortal['enrolments'][0];
+dzn_pia_assert(($pendingEnrolment['term_reference'] ?? '') === '' && ($pendingEnrolment['assigned_teacher_display_reference'] ?? '') === '', 'the pending Enrolment must not invent a Term or Teacher Assignment');
+dzn_pia_assert(($pendingEnrolment['fulfilment_state'] ?? '') === 'awaiting_payment', 'the pending Enrolment must not claim a verified payment');
+dzn_pia_assert(($pendingEnrolment['provisioning_message_code'] ?? '') === 'enrolment_awaiting_payment_confirmation', 'the pending Portal message must be the truthful awaiting-payment state');
+
 // A mismatched payment must fail closed and must not enqueue activation.
 wp_set_current_user($actor);
 $payments = new CommercialPaymentService();
@@ -309,8 +319,15 @@ $replay = $payments->ingest(array('provider_key' => 'synthetic_provider', 'provi
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}post_intro_activation_jobs WHERE purchase_id=%d", $purchaseId)) === 1, 'duplicate webhook must not duplicate the activation job');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements s INNER JOIN {$p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d", (int) $prep->offer_id)) === 1, 'duplicate webhook must not duplicate settlement');
 
-// Activation worker: core canonical truth completes even when Google projection is unavailable.
-PostIntroActivationWorker::run();
+// The narrow recovery path must inspect a verified-but-unprovisioned Enrolment and then provision it
+// through the existing activation worker. Google projection still fails closed after canonical truth.
+$recovery = new PostIntroRecoveryService();
+$paidInspection = $recovery->inspect((int) $prep->enrolment_id);
+dzn_pia_assert(!empty($paidInspection['payment_verified']) && ($paidInspection['fulfilment_state'] ?? '') === 'payment_received', 'verified settlement must be visible as payment_received');
+dzn_pia_assert((int) $paidInspection['term_id'] === 0 && (int) $paidInspection['assignment_id'] === 0, 'dry-run must not invent a Term or Assignment');
+dzn_pia_assert(in_array('canonical_term', (array) ($paidInspection['planned'] ?? array()), true) && in_array('canonical_lessons:12', (array) ($paidInspection['planned'] ?? array()), true), 'dry-run must plan the Term and twelve Lessons');
+$recovered = $recovery->recover((int) $prep->enrolment_id);
+dzn_pia_assert(($recovered['state'] ?? '') === 'completed', 'recovery must complete canonical provisioning');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'activated', 'core activation must complete before provider projection');
 $enrolment = $repository->enrolment((int) $prep->enrolment_id);
@@ -325,6 +342,24 @@ $lessonCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}les
 dzn_pia_assert($lessonCount === 12, 'the purchased entitlement must create twelve future Lessons, got ' . $lessonCount);
 $scheduledCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id WHERE l.term_id=%d AND v.superseded_at IS NULL", $termId));
 dzn_pia_assert($scheduledCount === 12, 'every created Lesson must have a committed schedule');
+
+// Student and Teacher portals read the same canonical Lesson schedule after provisioning.
+wp_set_current_user((int) $main['principal']);
+$activePortal = (new PortalAuthenticatedReadService())->student();
+$activeEnrolment = $activePortal['enrolments'][0] ?? array();
+dzn_pia_assert(($activeEnrolment['fulfilment_state'] ?? '') === 'completed', 'the provisioned Student Enrolment must report completed fulfilment');
+dzn_pia_assert(($activeEnrolment['term_reference'] ?? '') !== '' && ($activeEnrolment['assigned_teacher_display_reference'] ?? '') !== '', 'the provisioned Enrolment must expose its Term and Teacher Assignment');
+dzn_pia_assert(count((array) ($activePortal['lessons'] ?? array())) === 12, 'the Student Portal must show twelve future canonical Lessons');
+$studentLessonUids = array_map(static fn(array $row): string => (string) ($row['lesson_uid'] ?? ''), (array) $activePortal['lessons']);
+sort($studentLessonUids);
+wp_set_current_user($teacherUser);
+$teacherPortal = (new PortalAuthenticatedReadService())->teacher();
+dzn_pia_assert(count((array) ($teacherPortal['lessons'] ?? array())) === 12, 'the Teacher Portal must show the same twelve canonical Lessons');
+$teacherLessonUids = array_map(static fn(array $row): string => (string) ($row['lesson_uid'] ?? ''), (array) $teacherPortal['lessons']);
+sort($teacherLessonUids);
+dzn_pia_assert($studentLessonUids === $teacherLessonUids, 'Student and Teacher portals must read the same canonical Lesson schedule records');
+wp_set_current_user($actor);
+
 $evidenceOccurredAt = (string) $wpdb->get_var($wpdb->prepare(
     "SELECT e.occurred_at FROM {$p}canonical_lesson_lifecycle_events e INNER JOIN {$p}lessons l ON l.id=e.lesson_id WHERE l.term_id=%d AND l.lesson_type='standard' AND e.to_state='authorised' ORDER BY e.id LIMIT 1",
     $termId
@@ -347,6 +382,49 @@ $retriedEvidenceAt = (string) $wpdb->get_var($wpdb->prepare(
 dzn_pia_assert($retriedEvidenceAt === $activationCheckpoint, 'an expected retry must reconstruct the identical canonical evidence time');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'retry must not duplicate Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d", $purchaseId)) === 1, 'retry must not duplicate Term funding');
+
+// Repeated recovery is a no-op once canonical provisioning is complete.
+wp_set_current_user($actor);
+$repeatRecovery = (new PostIntroRecoveryService())->recover((int) $enrolment->id);
+dzn_pia_assert(($repeatRecovery['state'] ?? '') === 'already_completed', 'repeated recovery must be idempotent');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d", $termId)) === $lessonCount, 'repeated recovery must not duplicate Lessons');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'repeated recovery must not duplicate the Term');
+
+// A partial activation (for example a worker failure after five Lessons) must recover the missing
+// Lesson/schedule commands without duplicating the five already committed records.
+$standardLessonIds = array_map('intval', (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard' ORDER BY id", $termId)));
+dzn_pia_assert(count($standardLessonIds) === 12, 'partial recovery fixture requires twelve Lessons');
+$removeLessonIds = array_slice($standardLessonIds, 5);
+$removeIn = implode(',', array_map('intval', $removeLessonIds));
+if ($removeIn !== '') {
+    dzn_pia_assert($wpdb->query($wpdb->prepare("UPDATE {$p}commercial_capacity_claim_intervals SET state='protected',satisfied_lesson_id=NULL,satisfied_schedule_version_id=NULL,satisfied_at=NULL,updated_at=%s,updated_by=%d WHERE satisfied_lesson_id IN ({$removeIn})", $now, $actor)) !== false, 'partial recovery fixture capacity reset failed');
+    $calendarMappingIds = array_map('intval', (array) $wpdb->get_col("SELECT id FROM {$p}provider_calendar_event_mappings WHERE lesson_id IN ({$removeIn})"));
+    if ($calendarMappingIds) $wpdb->query("DELETE FROM {$p}provider_projection_secrets WHERE mapping_kind='calendar_event' AND mapping_id IN (" . implode(',', $calendarMappingIds) . ')');
+    $meetingMappingIds = array_map('intval', (array) $wpdb->get_col("SELECT id FROM {$p}provider_meeting_mappings WHERE lesson_id IN ({$removeIn})"));
+    if ($meetingMappingIds) $wpdb->query("DELETE FROM {$p}provider_projection_secrets WHERE mapping_kind='meeting_conference' AND mapping_id IN (" . implode(',', $meetingMappingIds) . ')');
+    foreach (array(
+        "DELETE FROM {$p}provider_integration_commands WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}provider_meeting_mappings WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}provider_calendar_event_mappings WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}canonical_lesson_schedule_events WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}canonical_lesson_schedule_commands WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}canonical_lesson_schedule_versions WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}canonical_lesson_lifecycle_events WHERE lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}canonical_lesson_commands WHERE result_lesson_id IN ({$removeIn})",
+        "DELETE FROM {$p}lessons WHERE id IN ({$removeIn})",
+    ) as $deleteSql) {
+        dzn_pia_assert($wpdb->query($deleteSql) !== false, 'partial recovery fixture deletion failed: ' . $wpdb->last_error);
+    }
+}
+$partialInspection = $recovery->inspect((int) $enrolment->id);
+dzn_pia_assert(($partialInspection['fulfilment_state'] ?? '') === 'partial', 'a Term with partial Lessons must be reported as partial');
+dzn_pia_assert((int) $partialInspection['lesson_count'] === 5 && (int) $partialInspection['expected_lesson_count'] === 12, 'partial inspection must report five of twelve Lessons');
+$partialRecovery = $recovery->recover((int) $enrolment->id);
+dzn_pia_assert(($partialRecovery['state'] ?? '') === 'completed', 'partial recovery must complete the missing Lessons');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $termId)) === 12, 'partial recovery must restore exactly twelve Lessons');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT id) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $termId)) === 12, 'partial recovery must not duplicate Lesson identities');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'partial recovery must not duplicate the Teacher Assignment');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'partial recovery must not duplicate the Term');
 // Once the canonical Lesson exists the operator projection must hand off, not duplicate the booking.
 wp_set_current_user($actor);
 foreach ((new \Delnavazan\Platform\Core\Application\ConfirmedIntroBookingReadService())->upcoming() as $operatorRow) {

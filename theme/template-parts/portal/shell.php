@@ -48,6 +48,14 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 	</div>
 
 	<div class="dzn-container dzn-portal__content">
+		<?php if ( 'ok' === $state && ! empty( $model['provisioning'] ) ) : ?>
+			<?php $provisioning = $model['provisioning']; ?>
+			<div class="dzn-portal__provisioning" role="status">
+				<strong><?php echo esc_html( (string) ( $provisioning['title'] ?? '' ) ); ?></strong>
+				<p><?php echo esc_html( (string) ( $provisioning['message'] ?? '' ) ); ?></p>
+				<?php if ( ! empty( $provisioning['course_reference'] ) ) : ?><p class="dzn-portal__provisioning-course"><?php echo esc_html( (string) $provisioning['course_reference'] ); ?></p><?php endif; ?>
+			</div>
+		<?php endif; ?>
 		<?php if ( ! empty( $model['is_demo'] ) ) : ?>
 			<p class="dzn-portal__demo-label" role="status"><?php esc_html_e( 'پیش‌نمایش نمایشی — اطلاعات ساختگی و غیرقابل ذخیره', 'delnavazan-theme' ); ?></p>
 		<?php endif; ?>

@@ -1062,11 +1062,35 @@ $deadlineOfferPolicies = (new CommercialAuthorityRepository())->offerPolicies((i
 $deadlineSnapshot = array_values(array_filter($deadlineOfferPolicies, static fn(object $row): bool => (string) $row->policy_key === InstalmentDeadlinePolicy::POLICY_KEY));
 dzn_pia_assert(count($deadlineSnapshot) === 1 && (int) $deadlineSnapshot[0]->policy_version === (int) $policySet['policy_version'], 'the offer must snapshot the exact deadline policy version');
 
+// A future-dated policy version must not hide the currently effective approved version.
+wp_set_current_user($actor);
+$futurePolicy = $policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'policy_value' => '2', 'value_type' => 'weeks',
+    'effective_from' => gmdate('Y-m-d H:i:s', time() + 3600),
+    'reason_code' => 'owner_future_policy', 'evidence_channel' => 'staff_record',
+    'evidence_reference' => 'runtime-b2b-future-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-future-' . $suffix);
+$effectiveNow = (new InstalmentDeadlinePolicy())->forPattern($deadlinePattern, gmdate('Y-m-d H:i:s'));
+dzn_pia_assert($effectiveNow['configured'] === true && (int) $effectiveNow['policy_version'] === (int) $policySet['policy_version'] && (string) $effectiveNow['due_at'] === $expectedDueAt, 'a future policy version must not hide the currently effective approved deadline');
+$futureInvalid = null;
+try {
+    (new InstalmentDeadlinePolicy())->forPattern($deadlinePattern, gmdate('Y-m-d H:i:s', time() + 7200));
+} catch (Throwable $error) {
+    $futureInvalid = $error;
+}
+dzn_pia_assert($futureInvalid !== null && $futureInvalid->getMessage() === 'instalment_due_date_policy_invalid', 'once effective, an unsupported future value must fail closed');
+
 wp_set_current_user($actor);
 $policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
     'reason_code' => 'owner_deferred', 'evidence_channel' => 'staff_record',
     'evidence_reference' => 'runtime-b2b-unset-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
 ), 'runtime-b2b-unset-' . $suffix);
 dzn_pia_assert($policyService->current(InstalmentDeadlinePolicy::POLICY_KEY)['set'] === false, 'the deadline policy must remain explicitly unset when deferred');
+$afterUnset = (new InstalmentDeadlinePolicy())->forPattern($deadlinePattern, gmdate('Y-m-d H:i:s'));
+dzn_pia_assert($afterUnset['configured'] === false && $afterUnset['due_at'] === null && $afterUnset['policy_version'] === null, 'an explicit unset must resolve to no deadline');
+$unchangedObligations = $repository->obligationsForOffer((int) $deadlineOffer->id);
+$unchangedChoice = $repository->activePlanChoice((int) $deadlinePrep->id);
+dzn_pia_assert((string) $unchangedObligations[1]->due_at === $expectedDueAt, 'unsetting the policy must not rewrite an existing offer deadline');
+dzn_pia_assert((int) $unchangedChoice->policy_version === (int) $policySet['policy_version'], 'unsetting the policy must not rewrite an existing plan-choice version');
 
 echo "Post-intro enrolment automation runtime passed\n";

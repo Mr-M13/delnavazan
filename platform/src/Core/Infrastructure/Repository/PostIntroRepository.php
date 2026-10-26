@@ -326,13 +326,16 @@ final class PostIntroRepository {
             "SELECT due_at FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d AND obligation_sequence=2 LIMIT 1",
             $offerId
         ));
+        if ($due === null || (string) $due === '') {
+            return array('due_at' => null, 'policy_version' => null);
+        }
         $version = $wpdb->get_var($wpdb->prepare(
             "SELECT policy_version FROM {$this->p}commercial_offer_policies WHERE offer_id=%d AND policy_key=%s LIMIT 1",
             $offerId,
             'INSTALMENT_DUE_DATE_POLICY'
         ));
         return array(
-            'due_at' => $due === null || (string) $due === '' ? null : (string) $due,
+            'due_at' => (string) $due,
             'policy_version' => $version === null ? null : (int) $version,
         );
     }

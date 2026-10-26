@@ -35,17 +35,22 @@ final class InstalmentDeadlinePolicy {
      */
     public function forPattern(object $pattern, ?string $now = null): array {
         $now ??= gmdate('Y-m-d H:i:s');
-        $row = $this->repository->latestPolicy(self::POLICY_KEY);
+        $row = $this->repository->latestEffectivePolicy(self::POLICY_KEY, $now);
         if ($row === null) return self::unset();
         if (!CommercialValidator::policyValid($row)) throw new \InvalidArgumentException('instalment_due_date_policy_invalid');
-        if ((string) $row->status !== 'active') return self::unset();
-        if ($row->effective_from !== null && (string) $row->effective_from > $now) return self::unset();
         if ($row->policy_value === null) return self::unset();
 
         $lead = $this->leadSeconds((string) $row->value_type, (string) $row->policy_value);
         if ($lead !== self::LEAD_SECONDS) throw new \InvalidArgumentException('instalment_due_date_policy_invalid');
 
-        $intervals = $this->patterns->intervalsFor($pattern, self::LESSON_SEQUENCE);
+        try {
+            $intervals = $this->patterns->intervalsFor($pattern, self::LESSON_SEQUENCE);
+        } catch (\Throwable $error) {
+            if (in_array($error->getMessage(), array('continuation_slot_wall_clock_invalid', 'continuation_slot_wall_clock_ambiguous'), true)) {
+                throw new \InvalidArgumentException('instalment_due_date_schedule_unavailable');
+            }
+            throw $error;
+        }
         $lesson = $intervals[self::LESSON_SEQUENCE - 1] ?? null;
         if (!is_array($lesson) || trim((string) ($lesson['starts_at_utc'] ?? '')) === '') {
             throw new \InvalidArgumentException('instalment_due_date_schedule_unavailable');

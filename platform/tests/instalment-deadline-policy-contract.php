@@ -30,10 +30,10 @@ $contains($policy, array(
     'LESSON_SEQUENCE = 7',
     'LEAD_SECONDS = 604800',
     "APPROVED_WEEKS = 1",
-    'latestPolicy',
+    'latestEffectivePolicy',
     'CommercialValidator::policyValid',
-    "status !== 'active'",
     'policy_value === null',
+    'continuation_slot_wall_clock_invalid',
     'intervalsFor($pattern, self::LESSON_SEQUENCE)',
     "return self::unset();",
     'instalment_due_date_policy_invalid',
@@ -43,6 +43,7 @@ $contains($continuation, array(
     "if (\$planKind === 'two_instalments')",
     '(new InstalmentDeadlinePolicy())->forPattern',
     "'instalment_due_at' => \$instalmentDueAt",
+    "'instalment_due_date_policy_version' => \$instalmentPolicyVersion",
     'instalmentDeadlineForOffer',
     "\$changes['policy_version'] = \$deadline['policy_version']",
     "\$changes = array('offer_id' =>",
@@ -52,7 +53,9 @@ $contains($repository, array(
     'instalmentDeadlineForOffer',
     'obligation_sequence=2',
     'INSTALMENT_DUE_DATE_POLICY',
-), 'The plan choice must record the exact deadline and policy version');
+    "return array('due_at' => null, 'policy_version' => null);",
+), 'The plan choice must record the exact deadline and policy version, never a version without a due instant');
+$contains($read('src/Core/Infrastructure/Repository/CommercialAuthorityRepository.php'), array('latestEffectivePolicy', "effective_from<=%s", "status='active'"), 'Policy resolution must fall back to the latest version that is actually effective');
 
 // The deadline is authoritative server-side. A browser cannot supply or override it.
 if (preg_match('/instalment_due_at\s*=\s*[^;]*\$_POST/is', $continuation . $controller) === 1) {

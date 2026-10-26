@@ -49,6 +49,8 @@ final class CommercialOfferService {
         $promotionId=($input['promotion_id']??null)===null||$input['promotion_id']===''?null:CommercialSupport::positiveInt($input['promotion_id'],'Valid promotion required');
         $adjustmentId=($input['account_adjustment_id']??null)===null||$input['account_adjustment_id']===''?null:CommercialSupport::positiveInt($input['account_adjustment_id'],'Valid account adjustment required');
         $instalmentDueAt=($input['instalment_due_at']??null)===null||$input['instalment_due_at']===''?null:CommercialSupport::utc($input['instalment_due_at'],'Valid UTC instalment deadline required');
+        $instalmentDuePolicyVersion=($input['instalment_due_date_policy_version']??null)===null||$input['instalment_due_date_policy_version']===''?null:CommercialSupport::positiveInt($input['instalment_due_date_policy_version'],'Valid instalment deadline policy version required');
+        if(($instalmentDueAt===null)!==($instalmentDuePolicyVersion===null))throw new \InvalidArgumentException('instalment_due_date_policy_invalid');
 
         $caseHint=$this->continuations->caseById($caseId,false);
         if(!$caseHint)throw new \InvalidArgumentException('continuation_case_required');
@@ -162,9 +164,13 @@ final class CommercialOfferService {
                 $sequence++;
             }
             do_action('dzn_phase_2a2r1_after_obligation_insert',$offerId);
-            foreach(array('INSTALMENT_DUE_DATE_POLICY') as $policyKey){
-                $policy=$this->repository->latestPolicy($policyKey);
-                if($policy&&CommercialValidator::policyValid($policy))$this->repository->insertOfferPolicy(array(
+            if($instalmentDueAt!==null&&$instalmentDuePolicyVersion!==null){
+                $policy=$this->repository->policyVersion('INSTALMENT_DUE_DATE_POLICY',$instalmentDuePolicyVersion);
+                $approved=$policy&&CommercialValidator::policyValid($policy)&&$policy->policy_value!==null
+                    &&(($policy->value_type==='weeks'&&(string)$policy->policy_value==='1')
+                        ||($policy->value_type==='duration'&&(string)$policy->policy_value==='604800'));
+                if(!$approved)throw new \InvalidArgumentException('instalment_due_date_policy_invalid');
+                $this->repository->insertOfferPolicy(array(
                     'uid'=>Identifier::uid(),'offer_id'=>$offerId,'policy_key'=>(string)$policy->policy_key,
                     'policy_version'=>(int)$policy->policy_version,
                     'effective_from'=>$policy->effective_from===null?null:(string)$policy->effective_from,

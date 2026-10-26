@@ -286,10 +286,13 @@ final class PostIntroContinuationService {
                     // B2b: the second-instalment deadline is derived only when an administrator
                     // has explicitly configured the approved policy. Unset remains no deadline.
                     $instalmentDueAt = null;
+                    $instalmentPolicyVersion = null;
                     if ($planKind === 'two_instalments') {
                         $pattern = $repository->pattern((int) $preparation->pattern_id);
                         if (!$pattern) throw new \RuntimeException('commercial_pattern_conflict');
-                        $instalmentDueAt = (new InstalmentDeadlinePolicy())->forPattern($pattern, $evidenceAt)['due_at'];
+                        $deadline = (new InstalmentDeadlinePolicy())->forPattern($pattern, $evidenceAt);
+                        $instalmentDueAt = $deadline['due_at'];
+                        $instalmentPolicyVersion = $deadline['policy_version'];
                     }
                     try {
                         $offer = PostIntroSystemActor::run(fn() => (new CommercialOfferService())->issue(array(
@@ -298,6 +301,7 @@ final class PostIntroContinuationService {
                             'region_code' => (string) $preparation->region_code,
                             'plan_kind' => $planKind,
                             'instalment_due_at' => $instalmentDueAt,
+                            'instalment_due_date_policy_version' => $instalmentPolicyVersion,
                             'quote_subject' => (string) $preparation->uid,
                             'expected_quote_digest' => $quoteToken,
                             'evidence_channel' => 'authenticated_platform',

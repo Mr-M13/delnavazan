@@ -530,8 +530,14 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$join_ready = $is_booking && ! empty( $lesson['join_available'] ) && $soon;
 		$class_timezone = $is_booking ? (string) ( $onboarding['profile']['timezone'] ?? $lesson['schedule_timezone'] ?? 'UTC' ) : (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
 		$state = $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) );
-		$classes[] = array(
-			'ref' => (string) ( $is_booking ? $lesson['confirmation_uid'] : ( $lesson['reference_code'] ?? 'lesson-' . $index ) ),
+		// Canonical Term Lessons intentionally carry no display reference. Use the canonical Lesson
+		// UID next, then a bounded local display fallback; never emit an empty identity to the
+		// presentation validator.
+		$reference = trim( (string) ( $is_booking ? ( $lesson['confirmation_uid'] ?? '' ) : ( $lesson['reference_code'] ?? '' ) ) );
+		if ( '' === $reference ) { $reference = trim( (string) ( $lesson['lesson_uid'] ?? '' ) ); }
+		if ( '' === $reference ) { $reference = 'lesson-' . ( $index + 1 ); }
+		$class = array(
+			'ref' => $reference,
 			'start_available' => $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $soon ),
 			'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ) ),
 			'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ),
@@ -556,13 +562,21 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'progress' => $is_booking ? 'کلاس آشنایی' : (string) ( $lesson['term_reference'] ?? '' ),
 			'status' => $is_booking ? ( $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده' ) : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ),
 		);
-		$calendar[] = array(
+		if ( function_exists( 'dzn_theme_teacher_portal_class_valid' ) && ! dzn_theme_teacher_portal_class_valid( $class ) ) {
+			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'class', $index, 'display_contract' );
+		}
+		$classes[] = $class;
+		$calendarRow = array(
 			'day' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F', $class_timezone ),
 			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
 			'label' => (string) ( $lesson['course_reference'] ?? '' ) . ' · ' . (string) ( $lesson['student_display_reference'] ?? '' ),
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 		);
+		if ( function_exists( 'dzn_theme_teacher_portal_calendar_valid' ) && ! dzn_theme_teacher_portal_calendar_valid( $calendarRow ) ) {
+			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'calendar', $index, 'display_contract' );
+		}
+		$calendar[] = $calendarRow;
 	}
 	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_scheduled_classes,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=strtotime((string)($row['starts_at_utc']??'').' UTC');$b=strtotime((string)($row['ends_at_utc']??'').' UTC');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_display_reference']??''),$all_scheduled_classes)));
 	$bookingAttention=array_map(static function($request)use($teacherZone){

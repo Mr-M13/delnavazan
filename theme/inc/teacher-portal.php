@@ -35,10 +35,10 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 	if ( ! is_array( $model ) || true !== ( $model['available'] ?? false ) || $screen !== ( $model['screen'] ?? null ) ) { return false; }
 	if ( ! dzn_theme_teacher_portal_teacher_valid( $model['teacher'] ?? null ) || ! dzn_theme_teacher_portal_navigation_valid( $model['navigation'] ?? null, $screen ) ) { return false; }
 	if ( 'home' === $screen ) {
-		return is_array( $model['attention'] ?? null ) && is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null )
-			&& ! array_filter( $model['attention'], static fn( $item ) => ! dzn_theme_teacher_portal_attention_valid( $item ) )
-			&& ! array_filter( $model['classes'], static fn( $item ) => ! dzn_theme_teacher_portal_class_valid( $item ) )
-			&& ! array_filter( $model['calendar'], static fn( $item ) => ! dzn_theme_teacher_portal_calendar_valid( $item ) );
+		// A malformed optional class or calendar row must not disable the whole home screen.
+		// The templates render such rows as an explicit, action-less failure while healthy rows
+		// remain usable. Core teacher identity and navigation above stay mandatory.
+		return is_array( $model['attention'] ?? null ) && is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null );
 	}
 	if ( 'finance' === $screen ) { return in_array( $model['finance_state'] ?? null, array( 'available', 'empty', 'unavailable' ), true ) && is_array( $model['statements'] ?? null ); }
 	if ( 'settings' === $screen ) {
@@ -107,7 +107,9 @@ function dzn_theme_teacher_portal_attention_valid( $item ) {
 function dzn_theme_teacher_portal_class_valid( $item ) {
 	$states = array( 'upcoming', 'starting_soon', 'student_absence', 'replacement', 'intro', 'flexible' );
 	if ( ! is_array( $item ) || ! in_array( $item['state'] ?? null, $states, true ) ) { return false; }
-	foreach ( array( 'ref', 'time', 'student', 'course', 'progress', 'status', 'student_summary', 'schedule_summary', 'previous_private_note' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
+	foreach ( array( 'ref', 'time', 'student', 'course', 'progress', 'status', 'student_summary', 'schedule_summary' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
+	// Private notes are an optional display field: canonical lessons do not expose one.
+	if ( isset( $item['previous_private_note'] ) && ! is_string( $item['previous_private_note'] ) ) { return false; }
 	return is_bool( $item['start_available'] ?? null ) && is_bool( $item['details_available'] ?? null );
 }
 function dzn_theme_teacher_portal_calendar_valid( $item ) {

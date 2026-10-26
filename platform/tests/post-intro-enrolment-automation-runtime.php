@@ -23,6 +23,12 @@ $p = $wpdb->prefix . 'dzn_';
 $actor = 1;
 $fixture = get_option('dzn_phase_2a2j_fixture');
 if (!is_array($fixture) || empty($fixture['sources'][0]) || empty($fixture['teacherUsers'][0])) throw new RuntimeException('Phase-J fixture required');
+// The disposable runtime does not activate the production theme. Load only the presentation
+// boundary under test so the teacher view model is exercised against the real canonical read.
+if (!function_exists('dzn_theme_platform_teacher_model')) {
+    require_once dirname(__DIR__, 2) . '/theme/inc/teacher-portal.php';
+    require_once dirname(__DIR__, 2) . '/theme/inc/platform-bridge.php';
+}
 // This is a disposable, standalone runtime. Reset only derived automation/commercial/schedule
 // storage so repeated runs are deterministic; the Phase-J accepted Enrolments themselves remain.
 foreach (array(
@@ -362,6 +368,65 @@ dzn_pia_assert(count($futureTeacherLessons) === 12, 'the Teacher Portal must sho
 $teacherLessonUids = array_map(static fn(array $row): string => (string) ($row['lesson_uid'] ?? ''), $futureTeacherLessons);
 sort($teacherLessonUids);
 dzn_pia_assert($studentLessonUids === $teacherLessonUids, 'Student and Teacher portals must read the same canonical Lesson schedule records');
+
+// The production teacher portal is server-rendered through the theme view model. Exercise that
+// exact presentation boundary with the funded Term and twelve canonical Lessons.
+wp_set_current_user($teacherUser);
+$truthCounts = static function () use ($wpdb, $p, $prep, $enrolment, $termId, $purchaseId): array {
+    return array(
+        'purchases' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_purchases WHERE id=%d", $purchaseId)),
+        'settlements' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements s INNER JOIN {$p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d", (int) $prep->offer_id)),
+        'terms' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $enrolment->id)),
+        'assignments' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)),
+        'lessons' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $termId)),
+        'schedules' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id WHERE l.term_id=%d AND v.superseded_at IS NULL", $termId)),
+    );
+};
+$truthBefore = $truthCounts();
+$teacherModel = dzn_theme_platform_teacher_model('home');
+dzn_pia_assert(($teacherModel['available'] ?? false) === true, 'the teacher theme view model must be available');
+dzn_pia_assert(dzn_theme_teacher_portal_validate_model($teacherModel, 'home'), 'the teacher theme view model must satisfy the presentation contract');
+$themeClasses = array_values((array) ($teacherModel['classes'] ?? array()));
+dzn_pia_assert(count($themeClasses) === 12, 'the teacher theme view model must render twelve future Lessons, got ' . count($themeClasses));
+$themeLessonUids = array();
+foreach ($themeClasses as $themeClass) {
+    dzn_pia_assert(dzn_theme_teacher_portal_class_valid($themeClass), 'every canonical teacher class must satisfy the display contract');
+    dzn_pia_assert(trim((string) ($themeClass['ref'] ?? '')) !== '', 'a canonical class must never expose an empty display reference');
+    dzn_pia_assert(trim((string) ($themeClass['lesson_uid'] ?? '')) !== '', 'a canonical class must retain its canonical Lesson UID');
+    dzn_pia_assert(($themeClass['timezone'] ?? '') === ($teacherModel['teacher_timezone'] ?? ''), 'the class timezone must be the teacher timezone');
+    dzn_pia_assert(($themeClass['time'] ?? '') === dzn_theme_platform_zoned_time((string) ($themeClass['starts_at_utc'] ?? ''), 'H:i', (string) ($teacherModel['teacher_timezone'] ?? '')), 'the class time must match the canonical UTC start in the teacher timezone');
+    $themeLessonUids[] = (string) $themeClass['lesson_uid'];
+}
+sort($themeLessonUids);
+dzn_pia_assert($themeLessonUids === $studentLessonUids, 'the teacher theme view model and Student Portal must expose the same canonical Lesson UIDs');
+dzn_pia_assert(dzn_theme_platform_zoned_time('2026-11-01 07:15:00', 'H:i', 'Asia/Tehran') === '10:45', 'the presentation boundary must preserve the authoritative Asia/Tehran conversion');
+$teacherViewModel = dzn_theme_teacher_portal_view_model('home');
+dzn_pia_assert(($teacherViewModel['available'] ?? false) === true && count((array) ($teacherViewModel['classes'] ?? array())) === 12, 'the teacher portal view model must render twelve healthy classes');
+$optionalNoteClass = $themeClasses[0];
+$optionalNoteClass['previous_private_note'] = '';
+dzn_pia_assert(dzn_theme_teacher_portal_class_valid($optionalNoteClass), 'a legitimately absent private note must not invalidate a class');
+$resilientModel = $teacherModel;
+$resilientModel['classes'][0]['ref'] = '';
+dzn_pia_assert(dzn_theme_teacher_portal_validate_model($resilientModel, 'home'), 'one malformed optional class must not disable the whole teacher home');
+$truthAfter = $truthCounts();
+dzn_pia_assert($truthBefore === $truthAfter, 'rendering the teacher view model must not mutate purchase, settlement, Term, Assignment, Lesson or schedule records');
+
+$otherTeacherUser = 0;
+foreach ((array) ($fixture['teacherUsers'] ?? array()) as $candidateTeacherUser) {
+    if ((int) $candidateTeacherUser > 0 && (int) $candidateTeacherUser !== $teacherUser) { $otherTeacherUser = (int) $candidateTeacherUser; break; }
+}
+dzn_pia_assert($otherTeacherUser > 0, 'a second teacher principal is required for the ownership regression');
+$canonicalLessonId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard' ORDER BY id LIMIT 1", $termId));
+dzn_pia_assert($canonicalLessonId > 0, 'the ownership regression requires a canonical Lesson');
+wp_set_current_user($otherTeacherUser);
+$crossTeacherDenied = false;
+try {
+    $otherTeacherPrincipal = (new \Delnavazan\Platform\Portals\PortalPrincipalResolver())->resolve('teacher');
+    \Delnavazan\Platform\Portals\PortalAccessPolicy::assertObject('teacher_portal', 'lesson', $canonicalLessonId, $otherTeacherPrincipal);
+} catch (\Throwable $error) {
+    $crossTeacherDenied = in_array($error->getMessage(), array('portal_object_not_owned', 'portal_object_not_portal_visible', 'portal_principal_unresolved', 'teacher_onboarding_required'), true);
+}
+dzn_pia_assert($crossTeacherDenied, 'another teacher must not read Teacher 7-like canonical Lessons');
 wp_set_current_user($actor);
 
 $evidenceOccurredAt = (string) $wpdb->get_var($wpdb->prepare(

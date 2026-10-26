@@ -14,11 +14,12 @@ $throws = static function (callable $fn, string $message) use ($assert): void {
     throw new RuntimeException($message);
 };
 
-$dirty = '<h1>{{academy_name}}</h1><script>alert(1)</script><iframe src="https://evil.test"></iframe><img src="javascript:alert(1)" onerror="alert(2)"><a href="https://delnavazan.com">ok</a>';
+$dirty = '<h1>{{academy_name}}</h1><script>alert(1)</script><iframe src="https://evil.test"></iframe><img src="javascript:alert(1)" onerror="alert(2)" srcdoc="<script>alert(3)</script>"><form action="https://evil.test"><input></form><a href="https://delnavazan.com" onclick="alert(4)" formaction="https://evil.test">ok</a>';
 $clean = StatementTemplateRule::sanitizeHtml($dirty);
 $assert(!str_contains($clean, '<script'), 'Scripts must be removed');
 $assert(!str_contains($clean, '<iframe'), 'Frames must be removed');
-$assert(!str_contains($clean, 'onerror'), 'Event handlers must be removed');
+$assert(!str_contains($clean, 'onerror') && !str_contains($clean, 'onclick'), 'Event handlers must be removed');
+$assert(!str_contains($clean, 'srcdoc') && !str_contains($clean, 'formaction') && !str_contains($clean, '<form'), 'Script-bearing attributes and forms must be removed');
 $assert(!str_contains($clean, 'javascript:'), 'Javascript URLs must be removed');
 $assert(str_contains($clean, 'https://delnavazan.com'), 'Safe https links must survive');
 
@@ -55,6 +56,9 @@ $assert(str_contains($html, '101') && str_contains($html, '102'), 'Lesson loop m
 $assert(str_contains($html, '۴,۵۰۰,۰۰۰ تومان'), 'Formatted payable amount must come from the recorded total');
 $assert(str_contains($html, '2026-10-01') && str_contains($html, '2026-10-31'), 'Recorded period must be displayed');
 
+$malformed = StatementTemplateRule::sanitizeTemplate(array('body_html' => '<p>{{unknown_placeholder}}</p><p>{{lessons}}</p>', 'locale' => 'en'));
+$malformedHtml = (new StatementTemplateService())->render($statement, array(), $malformed, 'Delnavazan');
+$assert(!str_contains($malformedHtml, '{{'), 'Unknown or malformed placeholders must be removed rather than executed');
 $english = StatementTemplateRule::sanitizeTemplate(array('locale' => 'en'));
 $html = (new StatementTemplateService())->render($statement, $lines, $english, 'Delnavazan');
 $assert(str_contains($html, 'dir="ltr"') && str_contains($html, 'lang="en"'), 'English template must render LTR');

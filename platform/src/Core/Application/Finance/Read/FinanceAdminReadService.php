@@ -84,6 +84,66 @@ final class FinanceAdminReadService {
         return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages);
     }
 
+    /** @return array<string,int> */
+    public function introPaymentCounts(): array {
+        FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
+        global $wpdb;
+        $rows = $wpdb->get_results("SELECT state,failure_reason_code,COUNT(*) total FROM {$this->p}intro_payment_obligations GROUP BY state,failure_reason_code") ?: array();
+        $counts = array('all' => 0, 'pending' => 0, 'paid' => 0, 'failed' => 0, 'refunded' => 0);
+        foreach ($rows as $row) {
+            $counts['all'] += (int) $row->total;
+            $state = (string) $row->state;
+            if ($state === 'pending' && $row->failure_reason_code !== null) $counts['failed'] += (int) $row->total;
+            elseif (isset($counts[$state])) $counts[$state] += (int) $row->total;
+        }
+        return $counts;
+    }
+
+    /**
+     * Paid introductory payment obligations and their latest checkout/provider state.
+     *
+     * @return array{rows:list<object>,total:int,page:int,pages:int}
+     */
+    public function introPayments(array $filters = array(), int $page = 1, int $perPage = 25): array {
+        FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
+        global $wpdb;
+        $where = array('1=1');
+        $args = array();
+        $state = (string) ($filters['state'] ?? '');
+        if ($state === 'failed') $where[] = "obligation.state='pending' AND obligation.failure_reason_code IS NOT NULL";
+        elseif ($state !== '' && $state !== 'all') { $where[] = 'obligation.state=%s'; $args[] = $state; }
+        $query = trim((string) ($filters['q'] ?? ''));
+        if ($query !== '') {
+            $like = '%' . $wpdb->esc_like($query) . '%';
+            $where[] = '(obligation.reference_code LIKE %s OR student.display_name LIKE %s OR student.reference_code LIKE %s OR course.name_fa LIKE %s OR course.name_en LIKE %s)';
+            array_push($args, $like, $like, $like, $like, $like);
+        }
+        $from = (string) ($filters['from'] ?? '');
+        $through = (string) ($filters['through'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $from) === 1) { $where[] = 'obligation.created_at>=%s'; $args[] = $from . ' 00:00:00'; }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $through) === 1) { $where[] = 'obligation.created_at<=%s'; $args[] = $through . ' 23:59:59'; }
+        $joins = "LEFT JOIN {$this->p}students student ON student.id=obligation.student_id
+                  LEFT JOIN {$this->p}courses course ON course.id=obligation.course_id
+                  LEFT JOIN {$this->p}intro_checkout_sessions session_row ON session_row.id=(SELECT MAX(recent_session.id) FROM {$this->p}intro_checkout_sessions recent_session WHERE recent_session.intro_obligation_id=obligation.id)";
+        $whereSql = implode(' AND ', $where);
+        $countSql = "SELECT COUNT(*) FROM {$this->p}intro_payment_obligations obligation {$joins} WHERE {$whereSql}";
+        $total = (int) ($args ? $wpdb->get_var($wpdb->prepare($countSql, ...$args)) : $wpdb->get_var($countSql));
+        $perPage = max(1, min(100, $perPage));
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($pages, $page));
+        $offset = ($page - 1) * $perPage;
+        $sql = "SELECT obligation.*,student.display_name student_name,student.reference_code student_reference,
+                       COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
+                       session_row.uid attempt_uid,session_row.state checkout_state,session_row.expires_at,
+                       (SELECT event_kind FROM {$this->p}intro_payment_events event_row WHERE event_row.intro_obligation_id=obligation.id ORDER BY event_row.id DESC LIMIT 1) last_event_kind,
+                       (SELECT result_state FROM {$this->p}intro_payment_events event_row WHERE event_row.intro_obligation_id=obligation.id ORDER BY event_row.id DESC LIMIT 1) last_event_result,
+                       (SELECT reason_code FROM {$this->p}intro_payment_events event_row WHERE event_row.intro_obligation_id=obligation.id ORDER BY event_row.id DESC LIMIT 1) last_event_reason
+                FROM {$this->p}intro_payment_obligations obligation {$joins}
+                WHERE {$whereSql} ORDER BY obligation.id DESC LIMIT {$perPage} OFFSET {$offset}";
+        $rows = $args ? $wpdb->get_results($wpdb->prepare($sql, ...$args)) : $wpdb->get_results($sql);
+        return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages);
+    }
+
     /**
      * Cross-account manual ledger projection. Online payments never write here.
      *

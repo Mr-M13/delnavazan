@@ -94,6 +94,7 @@ final class RegionalPricingService {
         $now = gmdate('Y-m-d H:i:s');
         $effectiveFrom = trim((string) ($input['effective_from'] ?? '')) !== '' ? (string) $input['effective_from'] : $now;
         if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $effectiveFrom)) throw new \InvalidArgumentException('invalid_effective_from');
+        if ($effectiveFrom > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('invalid_effective_from');
         $this->repository->begin();
         try {
             $existing = $this->repository->active($data['region_code'], true);
@@ -103,6 +104,7 @@ final class RegionalPricingService {
                 && (string) $existing->currency === $data['currency']
                 && (string) $existing->introductory_mode === $data['introductory_mode']
                 && (int) ($existing->introductory_amount_minor ?? 0) === (int) ($data['introductory_amount_minor'] ?? 0)) {
+                $this->syncProducts($data['region_code'], $data['currency'], $data['standard_amount_minor'], (string) $existing->effective_from, $now, $actor);
                 $this->repository->commit();
                 return array('region_code' => $data['region_code'], 'changed' => false, 'price_id' => (int) $existing->id);
             }
@@ -141,6 +143,11 @@ final class RegionalPricingService {
                 $out[] = array('region_code' => $region, 'kind' => 'conflicting_course_prices', 'amounts' => array_values($distinct), 'currency' => RegionalPricingRule::currencyForRegion($region), 'products' => array_sum(array_map(static fn($row) => (int) $row->products, $amounts)));
             } elseif ($active && count($distinct) === 1 && !in_array((int) reset($distinct), array((int) $active['standard_amount_minor']), true)) {
                 $out[] = array('region_code' => $region, 'kind' => 'commercial_prices_differ_from_authority', 'amounts' => array_values($distinct), 'currency' => RegionalPricingRule::currencyForRegion($region), 'products' => array_sum(array_map(static fn($row) => (int) $row->products, $amounts)));
+            }
+            $pricedIds = array_map(fn($row) => (int) $row->product_id, $this->repository->productPrices($region));
+            $missing = array_values(array_filter($this->repository->activeStandardProducts(), static function($product) use ($pricedIds): bool { return !in_array((int) $product->id, $pricedIds, true); }));
+            if ($missing !== array()) {
+                $out[] = array('region_code' => $region, 'kind' => 'standard_products_missing_price', 'amounts' => array_values($distinct), 'currency' => RegionalPricingRule::currencyForRegion($region), 'products' => count($missing));
             }
         }
         return $out;

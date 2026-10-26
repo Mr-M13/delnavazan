@@ -43,11 +43,13 @@ $contains($menu, array('FINANCE_WORKSPACE_CAP', "'dzn_view_finance_authority'", 
 $contains($finance, array('current_user_can(Menu::FINANCE_WORKSPACE_CAP)', "check_admin_referer('dzn_finance_settings')", "current_user_can('dzn_view_payment_execution_authority')", "current_user_can('dzn_view_cash_ledger')", "current_user_can('dzn_view_finance_authority')"), 'Every Finance surface must stay capability- and nonce-gated');
 
 // Additive migration and rollback-safe preservation.
-$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '49'"), 'Schema version must advance to 49');
+$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '50'"), 'Schema version must advance to 50');
 $contains($migration, array(
     "'049_finance_administration'", 'install_finance_administration', 'verify_finance_administration_schema',
-    'finance_regional_prices', 'finance_settings', 'UNIQUE KEY region_active(region_code,active_slot)',
-    'UNIQUE KEY setting_active(setting_key,active_slot)', "COUNT(DISTINCT price.currency)", "COUNT(DISTINCT price.amount_minor)",
+    "'050_intro_payment_authority'", 'install_intro_payment_authority', 'verify_intro_payment_authority_schema',
+    'finance_regional_prices', 'finance_settings', 'intro_payment_obligations', 'intro_checkout_sessions', 'intro_payment_events',
+    'UNIQUE KEY region_active(region_code,active_slot)', 'UNIQUE KEY setting_active(setting_key,active_slot)',
+    "COUNT(DISTINCT price.currency)", "COUNT(DISTINCT price.amount_minor)",
 ), 'Migration must be additive, versioned and conflict-safe');
 $assert(str_contains($migration, 'if((int)$region->currencies!==1||(int)$region->amounts!==1||(int)$region->amount_minor<1)continue;'), 'Migration must skip conflicting or ambiguous prices instead of silently choosing one');
 $assert(!str_contains($migration, 'DELETE FROM {$p}commercial_prices') && !str_contains($migration, 'DROP TABLE'), 'Migration must not delete financial history');
@@ -71,7 +73,7 @@ $assert(!str_contains($read('../theme/patterns/homepage-editorial.php'), '۲۵۰
 
 // Teacher compensation: Toman global default and explicit overrides.
 $contains($settings, array(
-    'TEACHER_GLOBAL_RATE_KEY', 'TEACHER_CURRENCY', 'TEACHER_CURRENCY = ', "'TOM'",
+    'TEACHER_GLOBAL_RATE_KEY', 'template_version', 'TEACHER_CURRENCY', 'TEACHER_CURRENCY = ', "'TOM'",
     'saveGlobalTeacherRate', 'saveTeacherRate', 'resumeGlobalTeacherRate', 'markOverride', 'TeacherRateService',
 ), 'Teacher global Toman rate and per-Teacher override must use the existing rate authority');
 $contains($finance, array('Global teacher rate default', 'Teacher-specific rate', 'Amount per session (Toman)', 'Toman', 'resume_global_teacher_rate'), 'Settings must expose a Toman global default and override fields');
@@ -87,6 +89,31 @@ $contains($read('src/Admin/Controller/IntegrationControlPlaneController.php'), a
 $assert(!str_contains($finance, 'sk_live_') && !str_contains($finance, 'sk_test_'), 'Secret keys must never be embedded in the Finance UI');
 
 // Manual ledger independence.
+// Paid introductory payment lifecycle.
+$intro = $read('src/Core/Application/Finance/Intro/IntroPaymentService.php');
+$introCheckout = $read('src/Core/Application/Finance/Intro/IntroCheckoutInitiationService.php');
+$teacherResponse = $read('src/Core/Application/BookingTeacherResponseService.php');
+$projection = $read('src/Integrations/BookingCalendarProjectionService.php');
+$intake = $read('src/Core/Application/PaymentExecution/PaymentEventIntakeService.php');
+$studentController = $read('src/Portals/StudentCheckoutController.php');
+$portalRead = $read('src/Portals/PortalAuthenticatedReadService.php');
+$contains($intro, array('STATE_PENDING', 'STATE_PAID', 'STATE_REFUNDED', 'ensureObligation', 'recordProviderEvent', 'payment_succeeded', 'payment_failed', 'refund_recorded', 'intro_payment_amount_mismatch', 'confirmPaidBooking', 'booking_request_confirmations'), 'Paid intro must create an idempotent obligation and settle only verified provider evidence');
+$contains($introCheckout, array('IntroCheckoutInitiationService', 'checkout.stripe.com', 'activeSession', 'providerIdempotencyKey', 'storeReferences', 'intro_obligation_uid'), 'Paid intro Checkout must reuse the Stripe adapter and prevent duplicate sessions');
+$contains($teacherResponse, array('IntroPricingService', 'IntroPaymentService', 'awaiting_payment', 'intro_payment_student_required'), 'Teacher acceptance must stop at a payment gate for paid introductions');
+$assert(str_contains($teacherResponse, 'awaiting_payment') && !str_contains($teacherResponse, "state'=>'pending_projection'"), 'Paid acceptance must not project Calendar/Meet before payment');
+$contains($projection, array("awaiting_payment", 'intro_payment_required'), 'Calendar projection must refuse a paid intro before payment');
+$contains($intake, array('DZN-INTRO-', 'translateIntro', 'IntroPaymentService', 'duplicate_provider_event'), 'The existing verified Stripe webhook must route intro references without entering R1');
+$contains($studentController, array("'/student/intro-checkout'", "'/student/intro-checkout-status'", 'IntroCheckoutInitiationService', 'IntroCheckoutReturnReadService'), 'Student portal must expose owner-bound intro Checkout and status routes');
+$contains($portalRead, array('intro_payment_obligations', 'intro_payment', 'payment_required', 'confirmation_state'), 'Student portal must expose the paid intro state and retryable action');
+$contains($finance, array('Introductory lesson payments', 'introPaymentCounts', 'introPayments', 'last_event_kind', 'Awaiting payment'), 'Finance Payments must show paid introductory obligations and provider events');
+$contains($read('../theme/assets/js/intro-checkout.js'), array('student/intro-checkout', 'intro_obligation_uid', 'data.redirect_url', 'dzn-intro-status'), 'Portal intro payment UI must be identifier-only and redirect to Stripe Checkout');
+$contains($read('../theme/template-parts/portal/booking-requests.php'), array('data-dzn-intro-checkout', 'data-dzn-intro-status', 'obligation_uid', 'intro_payment'), 'Portal booking request must render the paid intro action without exposing amount/currency inputs');
+
+// Automatic teacher-rate inheritance.
+$contains($read('src/Core/Application/Finance/TeacherRateInheritanceService.php'), array('applyForTeacher', 'globalTeacherRate', 'overrides', 'TeacherRateService', 'TEACHER_CURRENCY', 'already_inherited', 'existing_rate_preserved'), 'Newly activated Teachers must inherit the global Toman rate without replacing explicit overrides');
+$contains($read('src/Core/Application/TeacherOnboardingService.php'), array("do_action( 'dzn_teacher_activated'", "decision === 'approve'"), 'The authoritative onboarding approval must emit the activation event');
+$contains($platform, array('dzn_teacher_activated', 'TeacherRateInheritanceService', 'dzn_teacher_rate_inheritance_failed'), 'Runtime must apply rate inheritance on activation and expose failures');
+
 $contains($finance, array('Manual academy bookkeeping only', 'Online checkout, Stripe settlement, teacher rates and student pricing never write to this ledger', 'Reconciliation', 'Not reconciled'), 'Central Ledger must remain manual and independent');
 $contains($finance, array('dzn_cashbook_record', 'wp_nonce_field(\'cashbook_record\')'), 'Manual ledger entry must reuse the existing cashbook command and nonce');
 

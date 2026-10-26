@@ -344,6 +344,54 @@ final class Migrator {
 		if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid regional introductory pricing');
 	}
 
+	/**
+	 * Schema 050: authorised pre-introductory payment obligation and checkout storage.
+	 *
+	 * Additive only. A row exists only for a paid introductory booking after Teacher acceptance.
+	 * Free introductions create no row and never call Stripe. The obligation is separate from the
+	 * post-intro commercial obligation authority; provider events reuse the existing verified
+	 * Stripe webhook intake.
+	 */
+	private static function install_intro_payment_authority():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}intro_payment_obligations (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,reference_code varchar(64) NOT NULL,reference_digest char(64) NOT NULL,booking_request_id bigint unsigned NOT NULL,confirmation_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,course_id bigint unsigned NOT NULL,region_code varchar(8) NOT NULL,currency char(3) NOT NULL,amount_minor bigint unsigned NOT NULL,state varchar(16) NOT NULL,provider_key varchar(24) NOT NULL,paid_at datetime NULL,failed_at datetime NULL,refunded_at datetime NULL,failure_reason_code varchar(64) NULL,version int unsigned NOT NULL DEFAULT 1,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY reference_code(reference_code),UNIQUE KEY reference_digest(reference_digest),UNIQUE KEY booking_request_id(booking_request_id),UNIQUE KEY confirmation_id(confirmation_id),KEY student_state(student_id,state),KEY state(state)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}intro_checkout_sessions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,intro_obligation_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,amount_minor bigint unsigned NOT NULL,currency char(3) NOT NULL,state varchar(16) NOT NULL,active_slot tinyint unsigned NULL,request_key_digest char(64) NOT NULL,provider_key varchar(24) NOT NULL,provider_reference_digest char(64) NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,expires_at datetime NULL,closed_at datetime NULL,close_reason varchar(32) NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY request_key_digest(request_key_digest),UNIQUE KEY obligation_active(intro_obligation_id,active_slot),KEY student_state(student_id,state),KEY provider_reference(provider_key,provider_reference_digest)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}intro_payment_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,intro_obligation_id bigint unsigned NOT NULL,provider_key varchar(24) NOT NULL,provider_event_reference_digest char(64) NOT NULL,event_kind varchar(24) NOT NULL,amount_minor bigint unsigned NULL,currency char(3) NULL,provider_occurred_at datetime NULL,result_state varchar(16) NOT NULL,reason_code varchar(64) NULL,recorded_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY provider_event(provider_key,provider_event_reference_digest),KEY obligation_time(intro_obligation_id,recorded_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}intro_payment_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,command_domain varchar(32) NOT NULL,operation varchar(32) NOT NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,intro_obligation_id bigint unsigned NOT NULL,result_state varchar(24) NOT NULL,result_id bigint unsigned NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest),KEY obligation_operation(intro_obligation_id,operation)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Intro payment migration failed: '.$wpdb->last_error);}
+	}
+	private static function verify_intro_payment_authority_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$spec=array(
+			'intro_payment_obligations'=>array('uid','reference_code','reference_digest','booking_request_id','confirmation_id','student_id','teacher_id','course_id','region_code','currency','amount_minor','state','provider_key','paid_at','failed_at','refunded_at','failure_reason_code','version','created_at','created_by','updated_at','updated_by'),
+			'intro_checkout_sessions'=>array('uid','intro_obligation_id','student_id','amount_minor','currency','state','active_slot','request_key_digest','provider_key','provider_reference_digest','created_at','created_by','expires_at','closed_at','close_reason'),
+			'intro_payment_events'=>array('uid','intro_obligation_id','provider_key','provider_event_reference_digest','event_kind','amount_minor','currency','provider_occurred_at','result_state','reason_code','recorded_at','created_at'),
+			'intro_payment_commands'=>array('uid','command_domain','operation','command_key_digest','command_payload_digest','intro_obligation_id','result_state','result_id','created_at','created_by'),
+		);
+		foreach($spec as $short=>$columns){
+			$table=$p.$short;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing '.$short);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$short.' must use InnoDB');
+			foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$short.'.'.$column);
+			foreach(array('stripe_secret','api_key','card','iban','client_secret','checkout_url','provider_payload') as $forbidden)if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '%{$forbidden}%'"))throw new \RuntimeException('Migration verification failed: raw provider secret/reference column '.$short.'.'.$forbidden);
+			if($wpdb->get_row("SHOW COLUMNS FROM {$table} WHERE Field='provider_reference'"))throw new \RuntimeException('Migration verification failed: raw provider reference column '.$short);
+			if(in_array($short,array('intro_payment_events','intro_payment_commands'),true)&&$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'"))throw new \RuntimeException('Migration verification failed: intro payment evidence must be append-only');
+		}
+		foreach(array(
+			array('intro_payment_obligations','reference_digest',true),array('intro_payment_obligations','booking_request_id',true),array('intro_payment_obligations','confirmation_id',true),
+			array('intro_checkout_sessions','request_key_digest',true),array('intro_checkout_sessions','obligation_active',true),
+			array('intro_payment_events','provider_event',true),array('intro_payment_commands','command_key_digest',true),
+		) as $index)if(!self::has_index($p.$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: intro payment index '.$index[1]);
+		foreach(array(
+			array('intro_payment_obligations','reference_digest'),array('intro_checkout_sessions','request_key_digest'),
+			array('intro_payment_events','provider_event_reference_digest'),array('intro_payment_commands','command_key_digest'),
+			array('intro_payment_commands','command_payload_digest'),
+		) as $digest){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$digest[0]} LIKE '{$digest[1]}'");if(!$row||strtolower((string)$row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: intro payment digest width '.$digest[0].'.'.$digest[1]);}
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}intro_payment_obligations WHERE amount_minor<1 OR state NOT IN ('pending','paid','failed','expired','refunded','cancelled') OR currency NOT REGEXP '^[A-Z]{3}$'");if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid intro payment obligation');
+	}
+
 	private const OPTION = 'dzn_platform_schema_version'; private const LOCK = 'dzn_platform_migration_lock'; private const COMPLETED = 'dzn_platform_completed_migrations';
 	private const CAPABILITY_OPTION = 'dzn_platform_capability_version'; private const CAPABILITY_VERSION = '2a2n';
 	private const CAPABILITY_OPTION_O = 'dzn_platform_capability_version_2a2o'; private const CAPABILITY_VERSION_O = '2a2o';
@@ -381,7 +429,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -436,7 +484,11 @@ final class Migrator {
 				self::install_finance_administration();self::verify_finance_administration_schema();
 				$done[]='049_finance_administration';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('050_intro_payment_authority',$done,true)){
+				self::install_intro_payment_authority();self::verify_intro_payment_authority_schema();
+				$done[]='050_intro_payment_authority';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -607,9 +659,10 @@ final class Migrator {
 		$required[] = '047_stripe_canonical_account_reference';
 		$required[] = '048_post_intro_enrolment_automation';
 		$required[] = '049_finance_administration';
+		$required[] = '050_intro_payment_authority';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();

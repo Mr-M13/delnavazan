@@ -73,6 +73,7 @@ final class FinanceAdminController {
     public static function handleSettings(): void {
         if (!current_user_can(Menu::FINANCE_WORKSPACE_CAP)) wp_die('Forbidden', 403);
         check_admin_referer('dzn_finance_settings');
+        $_POST = wp_unslash($_POST);
         $operation = sanitize_key((string) ($_POST['finance_operation'] ?? ''));
         $result = 'saved';
         $errorCode = '';
@@ -144,6 +145,7 @@ final class FinanceAdminController {
     public static function exportStatement(): void {
         if (!current_user_can('dzn_view_finance_authority')) wp_die('Forbidden', 403);
         check_admin_referer('dzn_finance_statement_export');
+        $_POST = wp_unslash($_POST);
         $statementId = absint($_POST['statement_id'] ?? 0);
         $download = !empty($_POST['download']);
         try {
@@ -193,6 +195,28 @@ final class FinanceAdminController {
         }
         echo '</tbody></table>';
         self::pagination($data, self::TAB_PAYMENTS, $filters);
+        $introCounts = $read->introPaymentCounts();
+        $introPage = max(1, absint($_GET['intro_paged'] ?? 1));
+        $introFilters = $filters;
+        if ((string) ($introFilters['state'] ?? '') === 'successful') $introFilters['state'] = 'paid';
+        $intro = $read->introPayments($introFilters, $introPage);
+        echo '<h3>Introductory lesson payments</h3><p>Paid introductions use the same verified Stripe webhook and test-mode adapter. A free introduction has no row here and never creates a charge.</p>';
+        echo '<div class="dzn-finance-cards">';
+        foreach (array('all' => 'All intro obligations', 'pending' => 'Awaiting payment', 'paid' => 'Paid', 'failed' => 'Failed attempt', 'refunded' => 'Refunded') as $key => $label) echo '<div class="dzn-finance-card"><span>' . esc_html($label) . '</span><strong>' . esc_html((string) ($introCounts[$key] ?? 0)) . '</strong></div>';
+        echo '</div><table class="widefat striped dzn-finance-table"><thead><tr><th>Created</th><th>Student</th><th>Intro course</th><th>Amount</th><th>Obligation state</th><th>Checkout</th><th>Latest provider event</th><th>Reference</th></tr></thead><tbody>';
+        if (!$intro['rows']) echo '<tr><td colspan="8">No paid introductory obligations match these filters.</td></tr>';
+        foreach ($intro['rows'] as $row) {
+            $eventLabel = $row->last_event_kind ? (string) $row->last_event_kind . ' · ' . (string) $row->last_event_result . ($row->last_event_reason ? ' · ' . (string) $row->last_event_reason : '') : 'No provider event yet';
+            echo '<tr><td>' . esc_html((string) $row->created_at) . '</td><td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td><td>' . esc_html((string) ($row->course_name ?: '—')) . '</td><td>' . esc_html(PricingMoney::format((int) $row->amount_minor, (string) $row->currency)) . '</td><td><span class="dzn-finance-pill">' . esc_html((string) $row->state) . '</span></td><td>' . esc_html((string) ($row->checkout_state ?: 'not started')) . '<br><small>' . esc_html((string) ($row->expires_at ?: '')) . '</small></td><td>' . esc_html($eventLabel) . '</td><td><code>' . esc_html((string) $row->reference_code) . '</code></td></tr>';
+        }
+        echo '</tbody></table>';
+        if ((int) $intro['pages'] > 1) {
+            $introBase = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS) + array_filter($filters, static fn($value) => $value !== '');
+            echo '<p class="tablenav">Intro page ' . esc_html((string) $intro['page']) . ' of ' . esc_html((string) $intro['pages']);
+            if ((int) $intro['page'] > 1) echo ' <a class="button" href="' . esc_url(add_query_arg($introBase + array('intro_paged' => (int) $intro['page'] - 1), admin_url('admin.php'))) . '">Previous</a>';
+            if ((int) $intro['page'] < (int) $intro['pages']) echo ' <a class="button" href="' . esc_url(add_query_arg($introBase + array('intro_paged' => (int) $intro['page'] + 1), admin_url('admin.php'))) . '">Next</a>';
+            echo '</p>';
+        }
         if (current_user_can('dzn_manage_payment_providers') || current_user_can(PaymentExecutionController::CAPABILITY)) {
             echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG . '&tab=' . self::TAB_SETTINGS . '#stripe')) . '">Open Stripe configuration and readiness</a></p>';
         }
@@ -279,7 +303,7 @@ final class FinanceAdminController {
 
     private static function statementTemplateSettings(array $template, StatementTemplateService $renderer): void {
         $canManage = current_user_can(FinanceSettingsService::MANAGE_TEMPLATE_CAPABILITY);
-        echo '<section class="dzn-finance-settings-section" id="statement-template"><h3>Statement Template Settings</h3><p>Compose the statement header, lesson table and footer with HTML and CSS. Placeholders display recorded facts; values are escaped and scripts, frames, forms and unsafe URLs are removed. This editor can never change an amount or a financial calculation.</p>';
+        echo '<section class="dzn-finance-settings-section" id="statement-template"><h3>Statement Template Settings</h3><p class="description">Template version ' . esc_html((string) ($template['template_version'] ?? 'default')) . ' · previous versions remain in finance settings history.</p><p>Compose the statement header, lesson table and footer with HTML and CSS. Placeholders display recorded facts; values are escaped and scripts, frames, forms and unsafe URLs are removed. This editor can never change an amount or a financial calculation.</p>';
         if (!$canManage) { echo '<p class="description">You can preview the template but need the statement-management capability to change it.</p>'; return; }
         $sample = $renderer->renderSample($template, self::academyName());
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-template-form">';
@@ -353,13 +377,13 @@ final class FinanceAdminController {
         $overrides = $settings->overrides();
         echo '<section class="dzn-finance-settings-section" id="teacher-rates"><h2>Teacher compensation</h2><p>Teacher pay is separate from student prices and is always denominated in <strong>Iranian toman (TOM)</strong>. The global default is used for Teachers without an explicit rate. A teacher-specific or teacher/course rate overrides it from its effective date; historical lesson snapshots are never rewritten.</p>';
         if (current_user_can(FinanceSettingsService::MANAGE_TEACHER_RATE_CAPABILITY)) {
-            echo '<div class="dzn-finance-split"><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-region-card"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_global_teacher_rate">';
+            echo '<div class="dzn-finance-split"><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-region-card" onsubmit="return confirm(\'Save the global teacher-rate default? Eligible Teachers will receive a new effective rate version.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_global_teacher_rate">';
             wp_nonce_field('dzn_finance_settings');
-            echo '<h3>Global teacher rate default</h3><p><label>Amount per session (Toman)<input name="teacher_global_amount" inputmode="numeric" required value="' . esc_attr($global ? $global['display'] : '') . '" placeholder="450000"></label></p><p><label>Effective from (UTC)<input type="text" name="teacher_global_effective_from" value="' . esc_attr($global['effective_from'] ?? gmdate('Y-m-d H:i:s')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"></label></p><p><label><input type="checkbox" name="apply_to_teachers" value="1" checked> Apply to active Teachers without an explicit override</label></p><p class="description">The amount is entered in toman, not minor units. This creates effective-dated rate versions through the existing teacher-rate authority.</p><button class="button button-primary">Save global teacher rate</button>';
+            echo '<h3>Global teacher rate default</h3><p><label>Amount per session (Toman)<input name="teacher_global_amount" inputmode="numeric" required value="' . esc_attr($global ? $global['display'] : '') . '" placeholder="450000"></label></p><p><label>Effective from (UTC)<input type="text" name="teacher_global_effective_from" value="' . esc_attr($global['effective_from'] ?? gmdate('Y-m-d H:i:s')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"></label></p><p><label><input type="checkbox" name="apply_to_teachers" value="1" checked> Apply to active Teachers without an explicit override</label></p><p class="description">The amount is entered in toman, not minor units. This creates effective-dated rate versions through the existing teacher-rate authority. Newly activated Teachers inherit this default automatically unless they already have an explicit override.</p><button class="button button-primary">Save global teacher rate</button>';
             if ($global) echo '<p><small>Current default: ' . esc_html($global['display']) . ' Toman · applied to ' . esc_html((string) $global['applied_teachers']) . ' Teacher(s).</small></p>';
             if ($global && $global['errors']) { echo '<div class="notice notice-warning inline"><p>Some Teachers were not updated because their rate timeline or snapshots require review.</p><ul>'; foreach ($global['errors'] as $failure) echo '<li>Teacher #' . esc_html((string) ($failure['teacher_id'] ?? '')) . ': ' . esc_html((string) ($failure['reason'] ?? 'review required')) . '</li>'; echo '</ul></div>'; }
             echo '</form>';
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-region-card"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_teacher_rate">';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-region-card" onsubmit="return confirm(\'Record this teacher-specific rate override? It will take precedence over the global default from its effective date.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_teacher_rate">';
             wp_nonce_field('dzn_finance_settings');
             echo '<h3>Teacher-specific rate</h3><p><label>Teacher<select name="teacher_id">';
             foreach ($teachers as $teacher) echo '<option value="' . (int) $teacher->id . '"' . selected($selectedTeacher, (int) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name) . '</option>';
@@ -410,7 +434,7 @@ final class FinanceAdminController {
         }
         echo '</tbody></table>';
         if (current_user_can('dzn_manage_finance_policies')) {
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_finance_policy">';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Record a new finance policy version? Existing transactions and statements are not rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_finance_policy">';
             wp_nonce_field('dzn_finance_settings');
             echo '<label>Policy<select name="policy_key">';
             foreach (FinanceRule::POLICY_KEYS as $key) echo '<option value="' . esc_attr($key) . '">' . esc_html($key) . '</option>';
@@ -430,7 +454,7 @@ final class FinanceAdminController {
         }
         echo '</tbody></table>';
         if (current_user_can('dzn_manage_commercial_policies')) {
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_commercial_policy">';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Record a new commercial policy version? Existing purchases and payments are not rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_commercial_policy">';
             wp_nonce_field('dzn_finance_settings');
             echo '<label>Policy<select name="policy_key">';
             foreach (CommercialRule::POLICY_KEYS as $key) echo '<option value="' . esc_attr($key) . '">' . esc_html($key) . '</option>';
@@ -601,7 +625,9 @@ final class FinanceAdminController {
                 'failed' => 'Stripe test connection failed. Check the test key and try again.',
                 'blocked' => 'The Stripe operation is not ready. Review the readiness checks below.',
             );
-            echo '<div class="notice notice-info is-dismissible"><p>' . esc_html($stripeMessages[$stripe] ?? 'Stripe operation completed.') . '</p></div>';
+            $stripeText = $stripeMessages[$stripe] ?? (str_starts_with($stripe, 'invalid_') ? 'A Stripe field was rejected. Review the test key format; credential values were not saved.' : 'The Stripe operation did not complete. Review the readiness checks and try again.');
+            $stripeClass = in_array($stripe, array('saved', 'success'), true) ? 'info' : (in_array($stripe, array('failed', 'blocked'), true) ? 'warning' : 'error');
+            echo '<div class="notice notice-' . esc_attr($stripeClass) . ' is-dismissible"><p>' . esc_html($stripeText) . '</p></div>';
         }
     }
 

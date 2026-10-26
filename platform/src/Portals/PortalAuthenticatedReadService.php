@@ -66,11 +66,14 @@ final class PortalAuthenticatedReadService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $requests = (array) $wpdb->get_results( $wpdb->prepare(
-            "SELECT r.id,r.uid,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,i.name_fa instrument_name_fa,i.name_en instrument_name_en,c.name_fa course_name_fa,c.name_en course_name_en
+            "SELECT r.id,r.uid,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,i.name_fa instrument_name_fa,i.name_en instrument_name_en,c.name_fa course_name_fa,c.name_en course_name_en,
+                    conf.state confirmation_state,intro.uid intro_uid,intro.reference_code intro_reference,intro.state intro_state,intro.amount_minor intro_amount_minor,intro.currency intro_currency,intro.failure_reason_code intro_failure_reason_code
              FROM {$p}booking_requests r
              INNER JOIN {$p}booking_request_identity_resolution_events e ON e.id=r.current_identity_resolution_id AND e.booking_request_id=r.id AND e.student_id=r.student_id AND e.outcome='resolved'
              INNER JOIN {$p}instruments i ON i.id=r.requested_instrument_id
              LEFT JOIN {$p}courses c ON c.id=r.selected_intro_course_id
+             LEFT JOIN {$p}booking_request_confirmations conf ON conf.id=(SELECT MAX(recent_confirmation.id) FROM {$p}booking_request_confirmations recent_confirmation WHERE recent_confirmation.booking_request_id=r.id)
+             LEFT JOIN {$p}intro_payment_obligations intro ON intro.booking_request_id=r.id
              WHERE r.student_id=%d AND r.lifecycle_status='submitted' AND r.privacy_erased_at IS NULL
              ORDER BY r.id DESC LIMIT %d",
             $studentId,
@@ -82,12 +85,26 @@ final class PortalAuthenticatedReadService {
                 "SELECT local_date,local_start_time,timezone FROM {$p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number ASC LIMIT 3",
                 (int) $request->id
             ), ARRAY_A );
+            $introPayment = null;
+            if ( (string) ( $request->intro_uid ?? '' ) !== '' ) {
+                $introPayment = array(
+                    'obligation_uid' => (string) $request->intro_uid,
+                    'reference' => (string) $request->intro_reference,
+                    'state' => (string) $request->intro_state,
+                    'amount_minor' => (int) $request->intro_amount_minor,
+                    'currency' => (string) $request->intro_currency,
+                    'failure_reason_code' => $request->intro_failure_reason_code === null ? null : (string) $request->intro_failure_reason_code,
+                    'payment_required' => (string) $request->confirmation_state === 'awaiting_payment' && (string) $request->intro_state === 'pending',
+                );
+            }
             $result[] = array(
                 'version' => 'student_booking_request_v1',
                 'uid' => (string) $request->uid,
                 'reference' => (string) $request->reference_code,
                 'lifecycle_status' => (string) $request->lifecycle_status,
                 'resolution_state' => (string) $request->resolution_state,
+                'confirmation_state' => $request->confirmation_state === null ? null : (string) $request->confirmation_state,
+                'intro_payment' => $introPayment,
                 'instrument' => (string) ( $request->instrument_name_fa ?: $request->instrument_name_en ),
                 'course' => (string) ( $request->course_name_fa ?: $request->course_name_en ),
                 'requested_times' => array_map( static fn( array $time ): array => array( 'local_date' => (string) $time['local_date'], 'local_start_time' => substr( (string) $time['local_start_time'], 0, 5 ), 'timezone' => (string) $time['timezone'] ), $times ),

@@ -34,7 +34,9 @@ final class FinanceSettingsService {
         $row = $this->repository->active(self::TEMPLATE_KEY);
         if (!$row) return StatementTemplateRule::defaultTemplate();
         $decoded = json_decode((string) $row->setting_value, true);
-        return is_array($decoded) ? StatementTemplateRule::sanitizeTemplate($decoded) : StatementTemplateRule::defaultTemplate();
+        $template = is_array($decoded) ? StatementTemplateRule::sanitizeTemplate($decoded) : StatementTemplateRule::defaultTemplate();
+        $template['template_version'] = (int) $row->setting_version;
+        return $template;
     }
 
     public function saveTemplate(array $input): array {
@@ -77,6 +79,7 @@ final class FinanceSettingsService {
         if ($effectiveFrom === '') $effectiveFrom = gmdate('Y-m-d H:i:s');
         if (!FinanceRule::utc($effectiveFrom)) throw new \InvalidArgumentException('invalid_effective_from');
         $apply = (string) ($input['apply_to_teachers'] ?? '1') === '1';
+        $previousGlobal = $this->globalTeacherRate();
         $applied = 0;
         $errors = array();
         if ($apply) {
@@ -84,6 +87,12 @@ final class FinanceSettingsService {
             foreach ($this->activeTeachers() as $teacher) {
                 $teacherId = (int) $teacher->id;
                 if (in_array($teacherId, $overrides, true)) continue;
+                if ($this->inheritedCurrent($teacherId, $amountMinor, $effectiveFrom)) continue;
+                $live = $this->liveTeacherRate($teacherId);
+                if ($live !== null && !$this->matchesGlobal($live, $previousGlobal)) {
+                    $this->markOverride($teacherId);
+                    continue;
+                }
                 try {
                     $this->rates->record($teacherId, array(
                         'scope_kind' => 'teacher', 'course_scope_id' => 0,
@@ -126,7 +135,7 @@ final class FinanceSettingsService {
             'evidence_reference' => (string) ($input['evidence_reference'] ?? ('finance-settings:teacher-rate:' . $teacherId)),
             'evidence_at' => gmdate('Y-m-d H:i:s'),
         ), $rawKey);
-        $this->markOverride($teacherId);
+        if ($scope === 'teacher') $this->markOverride($teacherId);
         return $result;
     }
 
@@ -165,6 +174,31 @@ final class FinanceSettingsService {
 
     public function teacherHistory(int $teacherId): array {
         return (new Read\TeacherRateReadService())->timeline($teacherId);
+    }
+
+    private function inheritedCurrent(int $teacherId, int $amountMinor, string $effectiveFrom): bool {
+        $row = $this->liveTeacherRate($teacherId);
+        return $row !== null
+            && (int) $row->amount_minor === $amountMinor
+            && (string) $row->currency === self::TEACHER_CURRENCY
+            && (string) $row->effective_from === $effectiveFrom;
+    }
+
+    private function liveTeacherRate(int $teacherId): ?object {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT amount_minor,currency,effective_from FROM {$p}finance_teacher_rates WHERE teacher_id=%d AND scope_kind='teacher' AND status='active' AND effective_until IS NULL ORDER BY id DESC",
+            $teacherId
+        )) ?: array();
+        return count($rows) === 1 ? $rows[0] : null;
+    }
+
+    private function matchesGlobal(?object $row, ?array $global): bool {
+        return $row !== null && $global !== null
+            && (int) $row->amount_minor === (int) $global['amount_minor']
+            && (string) $row->currency === self::TEACHER_CURRENCY
+            && (string) $row->effective_from === (string) $global['effective_from'];
     }
 
     /** @return list<object> */

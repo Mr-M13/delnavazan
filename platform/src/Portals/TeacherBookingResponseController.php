@@ -14,7 +14,7 @@ final class TeacherBookingResponseController {
             if(!preg_match('/^[a-f0-9-]{36}$/D',$responseKey))throw new \InvalidArgumentException('Booking response command required');
             $result=(new BookingTeacherResponseService(null,new BookingCalendarProjectionService()))->respond($uid,$decision,'teacher-booking-response:'.get_current_user_id().':'.$uid.':'.$decision.':'.$responseKey);
             $state=(string)($result['state']??'accepting');
-            $notice=$state==='confirmed'?'کلاس تأیید شد و جزئیات برای هنرجو در صف ارسال قرار گرفت.':($state==='declined'?'درخواست رد شد و اطلاع‌رسانی هنرجو در صف قرار گرفت.':($state==='failed'?'ساخت تقویم کامل نشد؛ درخواست دوباره برای تلاش پس از بررسی اتصال Google باز شد.':'پذیرش ثبت شد؛ کلاس تا ساخته‌شدن تقویم و پیوند Meet تأیید نمی‌شود.'));
+            $notice=$state==='confirmed'?'کلاس تأیید شد و جزئیات برای هنرجو در صف ارسال قرار گرفت.':($state==='declined'?'درخواست رد شد و اطلاع‌رسانی هنرجو در صف قرار گرفت.':($state==='failed'?'ساخت تقویم کامل نشد؛ درخواست دوباره برای تلاش پس از بررسی اتصال Google باز شد.':($state==='awaiting_payment'?'پذیرش ثبت شد. این جلسهٔ معارفه پرداختی است؛ رویداد تقویم و پیوند Meet پس از پرداخت موفق هنرجو ساخته می‌شود.':'پذیرش ثبت شد؛ کلاس تا ساخته‌شدن تقویم و پیوند Meet تأیید نمی‌شود.')));
             self::redirect($notice,$state==='failed');
         }catch(\Throwable $error){
             $message=$error->getMessage();$notice=str_contains($message,'Google Calendar')?'برای پذیرش کلاس، ابتدا اتصال Google Calendar را کامل کنید.':'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.';

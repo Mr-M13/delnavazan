@@ -1,7 +1,7 @@
 # Finance Administration
 
 **Status:** implementation candidate on `feat/finance-admin-redesign-20261026`.
-**Schema:** 49 / migration `049_finance_administration`.
+**Schema:** 50 / migrations `049_finance_administration` and `050_intro_payment_authority`.
 
 ## 1. What administrators see
 
@@ -65,6 +65,28 @@ The old instrument-level “paid intro unsupported” rejection and the fake “
 removed from ordinary administration. The instrument setup action still creates the introductory
 Course and default link; it does not create a second price.
 
+### Paid introductory lifecycle
+
+```text
+Booking request → Teacher accepts
+  ├─ free price → existing Calendar/Meet projection → intro lesson
+  └─ paid price → one intro payment obligation (state=pending)
+                   → student-owned Stripe Checkout (same test-mode adapter)
+                   → verified webhook success → obligation paid
+                   → existing Calendar/Meet projection → intro lesson
+```
+
+- The obligation is unique per booking request and confirmation. A repeat acceptance or checkout
+  command converges on the same row.
+- A Checkout attempt is unique per obligation while active. Re-driving an unresolved attempt reuses
+  the same provider idempotency key.
+- Failed or expired attempts leave the obligation unpaid and retryable; they never mark the lesson paid.
+- A verified refund is recorded as `refunded`; it does not rewrite an existing confirmed lesson or
+  touch post-intro enrolment.
+- Payment completion never creates a standard-course Enrolment, Term, Lesson or post-intro offer.
+- The amount and currency are captured from the regional authority at acceptance. Later price changes
+  do not rewrite an existing obligation.
+
 ## 4. Teacher compensation (Toman)
 
 Teacher pay is separate from student prices and is **always in Iranian toman (`TOM`)**.
@@ -83,7 +105,7 @@ second compensation model.
 
 ## 5. Statement templates
 
-`finance_settings` stores versioned presentation templates (`STATEMENT_TEMPLATE_V1`). Template fields:
+`finance_settings` stores versioned presentation templates (`STATEMENT_TEMPLATE_V1`). Each save creates a new `setting_version`; the editor shows the current template version and all previous versions remain in the append-only settings history. Template fields:
 
 - header HTML, lesson-table HTML, footer HTML, CSS;
 - logo URL (HTTPS only) and default language/direction.
@@ -119,11 +141,12 @@ capabilities. Each tab and write keeps its own authority:
 Every write is nonce-checked and redirects with a safe result code. Secret Stripe values remain
 write-only and are never returned by the Finance UI.
 
-## 8. Migration 049 and rollback
+## 8. Migrations 049 and 050 and rollback
 
-`049_finance_administration` is additive:
+`049_finance_administration` and `050_intro_payment_authority` are additive:
 
 - creates `finance_regional_prices` and `finance_settings`;
+- creates `intro_payment_obligations`, `intro_checkout_sessions`, `intro_payment_events` and `intro_payment_commands`;
 - seeds a regional row only where every active standard Course already agrees on exactly one currency
   and one amount;
 - skips conflicting or ambiguous regions for explicit resolution in Finance → Settings;
@@ -139,8 +162,10 @@ Rollback/recovery:
 1. The additive tables can remain in place without affecting old code; this is the safest rollback.
 2. If removal is required, take a database backup first and verify no `commercial_offers` or
    `finance_statement_lines` rows are missing their recorded price/rate references.
-3. Drop only `finance_regional_prices` and `finance_settings`, and remove the
-   `049_finance_administration` entry from `dzn_platform_completed_migrations`; restore the previous
+3. Drop only `finance_regional_prices`, `finance_settings`, `intro_payment_obligations`,
+   `intro_checkout_sessions`, `intro_payment_events` and `intro_payment_commands`, and remove the
+   `049_finance_administration` and `050_intro_payment_authority` entries from
+   `dzn_platform_completed_migrations`; restore the previous
    schema-version option. Do **not** delete `commercial_prices` history.
 4. Restore the previous code release. Existing offers/payments/statements are not rewritten.
 
@@ -148,16 +173,17 @@ No production deployment or production price change is part of this change.
 
 ## 9. Outstanding boundary and review decisions
 
-- **Paid introductory collection.** The configuration, validation, display and per-region amount are
-  implemented. The existing Delnavazan payment execution authority is still scoped to post-intro
-  commercial obligations; this change does not invent a second pre-intro payment seam. A paid
-  introductory amount therefore cannot yet be charged by the current checkout path, and the UI does not
-  claim otherwise. Wiring that collection requires a separately reviewed pre-intro obligation/checkout
-  authority.
+- **Paid introductory collection.** Implemented as a separate pre-intro obligation authority
+  (`intro_payment_obligations`, `intro_checkout_sessions`, `intro_payment_events`) using the same
+  Stripe test-mode adapter, verified webhook, account binding, signature checks and event idempotency
+  as standard-course checkout. Teacher acceptance stops at `awaiting_payment`; only a verified
+  successful payment releases the existing Google Calendar/Meet projection. Failed/cancelled/expired
+  attempts stay unpaid and retryable; refunds are recorded without silently cancelling a confirmed
+  lesson or touching post-intro enrolment.
 - **Global teacher default materialisation.** Saving the global default writes effective-dated rate rows
-  for currently active, non-overridden Teachers. A Teacher created later receives the default the next
-  time the global setting is saved or when an administrator records a Teacher-specific rate. A future
-  teacher-creation hook could materialise it immediately.
+  for currently active, non-overridden Teachers. The authoritative onboarding approval emits
+  `dzn_teacher_activated`, which applies the current global Toman rate to the newly activated Teacher
+  idempotently. Explicit teacher or teacher/course rates are preserved as overrides.
 - **Conversion and fees.** The user-specified AUD account view is not derived from online payments in
   this change. Stripe/accounting conversion, fees and taxes remain provider/accounting facts and do not
   write the manual Central Ledger. The ledger stays manual by design.
@@ -173,9 +199,17 @@ Pure/contract suites added:
   region/currency validation, no per-instrument key.
 - `tests/finance-statement-template-unit.php` — HTML/CSS sanitisation, unsafe URL refusal, RTL/LTR,
   lesson loop, recorded totals, script-free output.
-- `tests/finance-administration-contract.php` — four tabs, one visible Finance destination, migration
-  049, shared authority reuse, Toman teacher rates, template editor, Stripe consolidation, manual ledger
-  independence and capability/nonce gates.
+- `tests/finance-administration-contract.php` — four tabs, one visible Finance destination, migrations
+  049/050, shared authority reuse, paid intro lifecycle, Toman teacher rates and inheritance, template
+  editor/versioning, Stripe consolidation, manual ledger independence and capability/nonce gates.
+- `tests/intro-payment-unit.php` — paid intro obligation idempotency, amount/currency refusal, failed
+  payment visibility, duplicate provider-event convergence and malformed-reference rejection.
+- `tests/finance-administration-runtime.php` — disposable WordPress/MariaDB proof for empty catalogue,
+  conflicting legacy prices, per-currency pricing, historical offer/price preservation, repeated
+  migrations, teacher-rate inheritance, paid intro Checkout reuse, successful settlement, duplicate
+  webhook convergence, failed payment retryability and no lesson/post-intro side effect.
+- `tests/stripe-checkout-test-mode-e2e-runtime.php` — the existing signed Stripe webhook E2E also proves
+  a paid intro Checkout attempt and its verified webhook route.
 
 Updated navigation/catalogue contracts reflect the removed duplicate finance navigation and the
 Finance-owned introductory pricing. The PR runtime gate executes the disposable WordPress/MariaDB catalogue,

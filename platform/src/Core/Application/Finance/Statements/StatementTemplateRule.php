@@ -124,6 +124,21 @@ HTML;
         $allowed = '<div><span><p><h1><h2><h3><h4><h5><h6><table><thead><tbody><tfoot><tr><th><td><ul><ol><li><strong><b><em><i><br><hr><img><a><section><header><footer><main><aside><small><dl><dt><dd><blockquote><pre><code>';
         if (function_exists('wp_kses')) return self::scrubUrls(wp_kses($html, self::ksesAllowlist()));
         $html = strip_tags($html, $allowed);
+        $html = preg_replace_callback('/<([a-z][a-z0-9]*)([^>]*)>/i', static function (array $match): string {
+            $tag = strtolower((string) $match[1]);
+            $allowedAttributes = array('class', 'id', 'dir', 'lang', 'title', 'alt', 'href', 'src', 'colspan', 'rowspan', 'scope', 'rel');
+            $attributes = '';
+            if (preg_match_all('/([a-z0-9:-]+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', (string) $match[2], $found, PREG_SET_ORDER) > 0) {
+                foreach ($found as $attribute) {
+                    $name = strtolower((string) $attribute[1]);
+                    if (!in_array($name, $allowedAttributes, true)) continue;
+                    $value = trim((string) $attribute[2], "\"' ");
+                    if (($name === 'href' || $name === 'src') && preg_match('~^(https://|#|/(?!/))~i', $value) !== 1) continue;
+                    $attributes .= ' ' . $name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                }
+            }
+            return '<' . $tag . $attributes . '>';
+        }, $html) ?? '';
         return self::scrubUrls($html);
     }
 
@@ -170,7 +185,7 @@ HTML;
         $attrs = array('class' => true, 'id' => true, 'dir' => true, 'lang' => true, 'title' => true, 'alt' => true, 'href' => true, 'src' => true, 'colspan' => true, 'rowspan' => true, 'scope' => true);
         $tags = array();
         foreach (array('div', 'span', 'p', 'section', 'header', 'footer', 'main', 'aside', 'blockquote', 'pre', 'code', 'small', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr') as $tag) $tags[$tag] = $attrs;
-        $tags['a'] = $attrs + array('target' => true, 'rel' => true);
+        $tags['a'] = $attrs + array('rel' => true);
         $tags['img'] = $attrs;
         return $tags;
     }

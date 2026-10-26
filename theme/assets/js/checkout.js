@@ -12,13 +12,13 @@
 		pay: 'پرداخت', continue: 'ادامهٔ پرداخت', resume: 'بررسی وضعیت پرداخت', retry: 'تلاش دوباره'
 	};
 	const messages = {
-		paid: 'این قسط پرداخت شده است.',
+		paid: 'پرداخت ثبت شده است.',
 		processing: 'وضعیت پرداخت در حال بررسی است. لطفاً چند لحظه دیگر دوباره بررسی کنید.',
 		unavailable: 'اطلاعات پرداخت اکنون در دسترس نیست.',
 		pending: 'درخواست پرداخت ثبت شده و در حال بررسی است.',
 		cancel: 'پرداخت لغو شد. برای شروع دوباره، وضعیت قسط را بررسی کنید.',
 		return: 'در حال بررسی نتیجهٔ پرداخت…',
-		empty: 'قسط قابل پرداختی برای نمایش وجود ندارد.'
+		empty: 'طرح پرداخت قابل نمایش وجود ندارد.'
 	};
 
 	function say(message) { status.textContent = message; }
@@ -51,15 +51,20 @@
 	function faDigits(value) {
 		return String(value).replace(/[0-9]/g, function (digit) { return '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]; });
 	}
-	function planLabel(plan) {
-		if (plan === 'full') return 'پرداخت کامل';
-		if (plan === 'two_instalments') return 'پرداخت در دو قسط';
-		return 'طرح پرداخت';
+	function termLabel(row) {
+		const term = Number(row.term_sequence);
+		return Number.isFinite(term) && term > 0 ? 'ترم ' + faDigits(term) : 'ترم';
+	}
+	function planLabel(row, plan) {
+		const term = termLabel(row);
+		if (plan === 'full') return term + ' · پرداخت کامل';
+		if (plan === 'two_instalments') return term + ' · پرداخت در دو قسط';
+		return term + ' · طرح پرداخت';
 	}
 	function instalmentLabel(row, plan) {
-		if (plan === 'full') return 'پرداخت کامل';
+		if (plan === 'full') return 'پرداخت کامل ترم';
 		const sequence = Number(row.obligation_sequence);
-		return 'قسط ' + (Number.isFinite(sequence) && sequence > 0 ? faDigits(sequence) : '');
+		return 'قسط ' + (Number.isFinite(sequence) && sequence > 0 ? faDigits(sequence) : '') + ' از ۲';
 	}
 	function sessionsLabel(row) {
 		const from = Number(row.sessions_from);
@@ -87,7 +92,20 @@
 		}
 		if (lapsed) return 'طرح منقضی شده';
 		if (plan === 'two_instalments' && Number(row.obligation_sequence) === 2) return 'سررسید: پیش از شروع جلسهٔ ۷';
-		return 'سررسید: تعیین نشده';
+		return '';
+	}
+	function stateLabel(row, plan, lapsed) {
+		const term = termLabel(row);
+		if (row.payment_state === 'paid') {
+			if (row.term_paid) return term + ' پرداخت شد.';
+			return 'قسط ' + faDigits(row.obligation_sequence) + ' از ۲ پرداخت شد.';
+		}
+		if (row.payment_state === 'paid_prerequisite_pending') return 'پرداخت ثبت شد؛ پس از پرداخت قسط ۱ فعال می‌شود.';
+		if (row.payment_state === 'prerequisite_pending') return 'پس از پرداخت قسط ۱ قابل پرداخت است.';
+		if (row.payment_state === 'processing') return messages.processing;
+		if (row.payment_state === 'required') return plan === 'full' ? 'پرداخت ترم ثبت نشده است.' : 'پرداخت این قسط ثبت نشده است.';
+		if (lapsed) return 'این طرح منقضی شده است.';
+		return messages.unavailable;
 	}
 	function renderPlan(group) {
 		const first = group.rows[0];
@@ -97,12 +115,13 @@
 		section.className = 'dzn-checkout__plan';
 		const heading = document.createElement('div');
 		heading.className = 'dzn-checkout__plan-heading';
-		addText(heading, 'h3', 'dzn-checkout__plan-title', planLabel(plan));
+		addText(heading, 'h3', 'dzn-checkout__plan-title', planLabel(first, plan));
 		addText(heading, 'span', 'dzn-checkout__plan-total', formatAmount(first.offer_amount_due_minor, first.offer_currency));
 		section.appendChild(heading);
 		const meta = [];
 		if (Number(first.committed_sessions) > 0) meta.push('تعداد جلسات: ' + faDigits(first.committed_sessions));
 		if (first.offer_reference) meta.push('کد طرح: ' + String(first.offer_reference));
+		if (Number(first.outstanding_minor) > 0) meta.push('مانده: ' + formatAmount(first.outstanding_minor, first.offer_currency));
 		if (meta.length) addText(section, 'p', 'dzn-checkout__plan-meta', meta.join(' · '));
 		group.rows.forEach(function (row) {
 			const card = document.createElement('article');
@@ -110,9 +129,8 @@
 			addText(card, 'strong', 'dzn-checkout__title', instalmentLabel(row, plan));
 			addText(card, 'span', 'dzn-checkout__amount', amount(row));
 			const sessions = sessionsLabel(row);
-			const stateMessage = row.payment_state === 'paid' ? messages.paid : row.payment_state === 'processing' ? messages.processing : row.payment_state === 'required' ? 'پرداخت این قسط ثبت نشده است.' : (lapsed ? 'این طرح منقضی شده است.' : messages.unavailable);
 			addText(card, 'p', 'dzn-checkout__row-detail', [sessions, dueLabel(row, plan, lapsed)].filter(Boolean).join(' · '));
-			addText(card, 'p', 'dzn-checkout__row-status', stateMessage);
+			addText(card, 'p', 'dzn-checkout__row-status', stateLabel(row, plan, lapsed));
 			if (Object.prototype.hasOwnProperty.call(labels, row.action)) {
 				const button = addText(card, 'button', 'dzn-checkout__button', labels[row.action]);
 				button.type = 'button';
@@ -120,6 +138,9 @@
 			}
 			section.appendChild(card);
 		});
+		if (first.term_paid) {
+			addText(section, 'p', 'dzn-checkout__next-term', 'پرداخت ترم بعد: با ثبت پرداخت کامل ترم جدید.');
+		}
 		return section;
 	}
 	function loadStatus(attempt, kind) {
@@ -150,9 +171,9 @@
 				if (Object.prototype.hasOwnProperty.call(labels, row.action)) payable = true;
 			});
 		});
-		if (payable) say('برای پرداخت، قسط موردنظر را انتخاب کنید.');
+		if (payable) say('برای پرداخت، گزینهٔ موردنظر را انتخاب کنید.');
 		else if (rows.some(function (row) { return row.payment_state === 'processing'; })) say(messages.processing);
-		else say('وضعیت اقساط در بالا نمایش داده شده است.');
+		else say('وضعیت پرداخت ترم در بالا نمایش داده شده است.');
 	}
 	function start(row, button) {
 		if (!/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/.test(String(row.obligation_uid || ''))) { say(messages.unavailable); return; }

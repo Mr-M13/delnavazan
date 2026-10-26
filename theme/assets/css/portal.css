@@ -660,10 +660,17 @@
   }
 
   .dzn-checkout__plan-meta,
-  .dzn-checkout__row-detail {
+  .dzn-checkout__row-detail,
+  .dzn-checkout__next-term {
     margin: 0;
     color: var(--dzn-color-text-muted, #5d5a54);
     font-size: 0.9rem;
+  }
+
+  .dzn-checkout__next-term {
+    padding-block-start: 0.75rem;
+    border-block-start: 1px solid var(--dzn-color-border, #d8d6d1);
+    color: var(--dzn-color-text, #1f1d1a);
   }
 
   .dzn-checkout__row {
@@ -870,4 +877,66 @@
   font-size: 0.85rem;
   margin-block-start: 0.45rem !important;
   opacity: 0.8;
+}
+
+/* Post-intro payment plan: full term is primary; instalments are an explicit opt-in. */
+.dzn-post-intro__plans {
+  display: grid;
+  gap: 0.75rem;
+  margin-block-start: 0.75rem;
+}
+
+.dzn-post-intro__plan {
+  border: 1px solid var(--dzn-color-border, #d8d6d1);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.dzn-post-intro__plan--full {
+  background: var(--dzn-surface, #fff);
+}
+
+.dzn-post-intro__plan h4 {
+  margin: 0 0 0.35rem;
+}
+
+.dzn-post-intro__amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.dzn-post-intro__plan--instalments {
+  background: var(--dzn-surface-muted, #f7f5f0);
+}
+
+.dzn-post-intro__plan--instalments summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.dzn-post-intro__instalment-list {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+}
+
+.dzn-post-intro__instalment-list li {
+  display: grid;
+  gap: 0.15rem;
+  padding-block: 0.5rem;
+  border-block-start: 1px solid var(--dzn-color-border, #d8d6d1);
+}
+
+.dzn-post-intro__instalment-list small {
+  color: var(--dzn-color-text-muted, #5d5a54);
+}
+
+.dzn-post-intro__selected {
+  margin-block: 0.75rem;
 }

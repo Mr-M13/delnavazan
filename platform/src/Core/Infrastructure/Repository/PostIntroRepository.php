@@ -132,6 +132,42 @@ final class PostIntroRepository {
         if ($wpdb->update($this->p . 'post_intro_preparations', $changes, array('id' => $id)) === false) throw new \RuntimeException('post_intro_preparation_update_failed');
     }
 
+    public function activePlanChoice(int $preparationId, bool $lock = false): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}post_intro_plan_choices WHERE preparation_id=%d AND active_slot=1" . ($lock ? ' FOR UPDATE' : ''),
+            $preparationId
+        ));
+    }
+
+    public function planChoiceByOffer(int $offerId, bool $lock = false): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}post_intro_plan_choices WHERE offer_id=%d" . ($lock ? ' FOR UPDATE' : ''),
+            $offerId
+        ));
+    }
+
+    public function insertPlanChoice(array $data): int {
+        global $wpdb;
+        if ($wpdb->insert($this->p . 'post_intro_plan_choices', $data) === false) throw new \RuntimeException('post_intro_plan_choice_persistence_failed');
+        return (int) $wpdb->insert_id;
+    }
+
+    public function supersedeActivePlanChoice(int $preparationId): void {
+        global $wpdb;
+        if ($wpdb->query($wpdb->prepare("UPDATE {$this->p}post_intro_plan_choices SET active_slot=NULL WHERE preparation_id=%d AND active_slot=1", $preparationId)) === false) {
+            throw new \RuntimeException('post_intro_plan_choice_supersede_failed');
+        }
+    }
+
+    public function updatePlanChoice(int $id, array $changes): void {
+        global $wpdb;
+        if ($wpdb->update($this->p . 'post_intro_plan_choices', $changes, array('id' => $id)) === false) {
+            throw new \RuntimeException('post_intro_plan_choice_update_failed');
+        }
+    }
+
     /** Persist the Student's first action instant once and return that immutable value. */
     public function claimStudentActionAt(int $id, string $now): string {
         global $wpdb;

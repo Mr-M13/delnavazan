@@ -242,8 +242,22 @@ duplicate, Lessons 1–6, the Term, the Teacher Assignment or the provider proje
 The Student account speaks in term-level language: `ترم ۱ پرداخت شد`, `قسط ۲ از ۲`, and
 `پرداخت ترم بعد: با ثبت پرداخت کامل ترم جدید`. A full payment is never labelled as an instalment.
 
-The configurable `INSTALMENT_DUE_DATE_POLICY` deadline (168 hours before Lesson 7) remains **unset** in
-B2a and is not interpreted until the separately reviewed B2b slice. No deadline is invented.
+### B2b: the second-instalment deadline
+
+`INSTALMENT_DUE_DATE_POLICY` is the only source of a second-instalment deadline. It remains **unset by
+default**. While unset, tranche 2 has no due date and the portal continues to say "Before Lesson 7";
+no deadline is invented.
+
+An administrator may configure the approved value — **168 hours before Lesson 7**, recorded as one
+week (`value_type=weeks`, `policy_value=1`) or as `604800` seconds (`value_type=duration`). When that
+value is active, offer issuance derives the due instant from the canonical pattern's seventh
+occurrence (resolved in the pattern timezone) minus the lead time, records it on obligation 2, and
+stores the exact policy version on the offer and the Student's pre-offer choice.
+
+Any other explicit value fails closed with `instalment_due_date_policy_invalid` instead of inventing a
+different deadline. Existing offers are never rewritten, and changing or unsetting the policy affects
+only offers issued afterwards. The deadline is display and receivables truth; it does not release
+Lesson 7 or a teacher payment, and the existing tranche-prerequisite funding rule still applies.
 
 ## 10. Tests
 

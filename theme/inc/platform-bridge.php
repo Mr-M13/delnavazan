@@ -241,6 +241,7 @@ function dzn_theme_platform_provisioning_notice( array $enrolments ) {
 	$messages = array(
 		'enrolment_awaiting_payment_confirmation' => array( 'ثبت‌نام شما ثبت شد', 'پرداخت شما در حال بررسی است. پس از تأیید پرداخت، برنامهٔ کلاسی در همین صفحه آماده می‌شود.' ),
 		'payment_received_classes_preparing' => array( 'پرداخت دریافت شد', 'پرداخت شما تأیید شد و کلاس‌های شما در حال آماده‌سازی است. برنامهٔ کلاسی پس از تکمیل در همین صفحه نمایش داده می‌شود.' ),
+		'next_instalment_due' => array( 'قسط اول ثبت شد', 'شش جلسهٔ نخست فعال شد. برای فعال‌شدن جلسات ۷ تا ۱۲، قسط دوم را از بخش پرداخت تکمیل کنید.' ),
 		'schedule_review_required' => array( 'برنامهٔ کلاسی نیاز به بررسی دارد', 'ثبت‌نام شما محفوظ است. تیم پشتیبانی برای تکمیل برنامهٔ کلاسی با شما تماس می‌گیرد.' ),
 		'enrolment_processing' => array( 'ثبت‌نام شما در حال پردازش است', 'اطلاعات ثبت‌نام شما دریافت شده است. وضعیت در همین صفحه به‌روز می‌شود.' ),
 	);
@@ -309,7 +310,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			'password_url' => wp_lostpassword_url(),
 		);
 		$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 20 ) );
-		$model['payments'] = array( 'status' => 'اطلاعات پرداخت در این نمای خواندنی موجود نیست.', 'renewal_date' => '', 'items' => array() );
+		$model['payments'] = array( 'status' => 'برای جزئیات، طرح پرداخت ترم را بررسی کنید.', 'next_term' => 'با ثبت پرداخت کامل ترم جدید', 'items' => array() );
 		$model['notifications'] = array();
 		$model['notification_archive_url'] = '';
 		return $model;

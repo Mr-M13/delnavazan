@@ -174,6 +174,8 @@ jobs:
           php platform/tests/synthetic-dataset-policy-contract.php
           php platform/tests/post-intro-enrolment-automation-contract.php
           php platform/tests/interim-attendance-completion-contract.php
+          php platform/tests/payment-plan-choice-contract.php
+          php platform/tests/instalment-deadline-policy-contract.php
           php platform/tests/post-intro-system-actor-unit.php
           php platform/tests/catalogue-auto-naming-reconciliation-contract.php
           php platform/tests/booking-admin-class-visibility-contract.php

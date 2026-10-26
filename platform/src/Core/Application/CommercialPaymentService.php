@@ -98,7 +98,9 @@ final class CommercialPaymentService {
                 $this->repository->commit();
                 return $this->reject($offer,$obligation,$providerKey,$providerDigest,$factDigest,$kind,$amount,$currency,$occurredAt,$obligationDigest,$accountDigest,$evidence,$actor,$now,'invalid_or_expired_offer');
             }
-            if($offer->expires_at!==null&&$occurredAt!==null&&$occurredAt>(string)$offer->expires_at){
+            // The offer window bounds the initial checkout only. An accepted commitment remains
+            // collectable for its later obligations even after that original hold.
+            if((string)$offer->state==='issued'&&$offer->expires_at!==null&&$occurredAt!==null&&$occurredAt>(string)$offer->expires_at){
                 $this->repository->commit();
                 return $this->reject($offer,$obligation,$providerKey,$providerDigest,$factDigest,$kind,$amount,$currency,$occurredAt,$obligationDigest,$accountDigest,$evidence,$actor,$now,'late_payment_after_offer_window');
             }
@@ -244,7 +246,7 @@ final class CommercialPaymentService {
             if(!$offer||!$obligation)throw new \InvalidArgumentException('commercial_obligation_required');
             CommercialLineageValidator::assertForOffer($offer,true,$this->repository);
             if(!in_array((string)$offer->state,array('issued','accepted'),true))throw new \InvalidArgumentException('invalid_or_expired_offer');
-            if($offer->expires_at!==null&&$occurredAt>(string)$offer->expires_at)throw new \InvalidArgumentException('late_payment_after_offer_window');
+            if((string)$offer->state==='issued'&&$offer->expires_at!==null&&$occurredAt>(string)$offer->expires_at)throw new \InvalidArgumentException('late_payment_after_offer_window');
             if((int)$obligation->amount_minor!==$amount||(string)$obligation->currency!==$currency)throw new \InvalidArgumentException('commercial_evidence_conflict');
             if($this->payments->settlementForObligation((int)$obligation->id,true))throw new \InvalidArgumentException('conflicting_payment_evidence');
             $factDigest=CommercialIdempotency::providerFact(array(

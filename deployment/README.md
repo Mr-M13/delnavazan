@@ -36,6 +36,19 @@ The live staging environment is being retired separately after its hosting accou
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.
 
+## Payment plan selection (Schema 52)
+
+Release `payment-plan-selection-b2a-20261026.1` adds Schema 52
+(`052_payment_plan_choice`). It is additive: `post_intro_plan_choices` plus
+`post_intro_activation_jobs.funding_target` and `funding_materialised`. It creates no offer,
+obligation, settlement, Term, Lesson, schedule or statement row and does not rewrite an existing
+row. Full-term payment remains the default; two instalments require the explicit Student opt-in
+before offer issuance. No due-date policy is seeded or interpreted in this release (B2b is separate).
+
+Rollback: restore the database snapshot, or drop `post_intro_plan_choices` and the two additive
+`post_intro_activation_jobs` columns, remove the 052 ledger entry and restore Schema 51. Never delete
+an offer, settlement, purchase, Term, Lesson or statement.
+
 ## Finance administration redesign (Schema 51)
 
 Release `phase2a2x-finance-administration-20261026.3` adds Schema 51

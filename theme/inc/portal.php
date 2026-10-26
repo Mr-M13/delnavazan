@@ -262,9 +262,9 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				),
 				'history' => $history,
 				'payments' => array(
-					'status'       => 'نمایش وضعیت اشتراک پس از اتصال امن',
-					'renewal_date' => 'تاریخ تمدید هنوز از منبع معتبر دریافت نشده است.',
-					'items'        => array(),
+					'status'    => 'نمایش وضعیت پرداخت ترم پس از اتصال امن',
+					'next_term' => 'با ثبت پرداخت کامل ترم جدید',
+					'items'     => array(),
 				),
 				'notifications' => array(
 					array( 'date' => '۲۴ شهریور', 'title' => 'یادآوری کلاس فردا', 'message' => 'زمان کلاس بر پایهٔ منطقهٔ زمانی انتخابی شما نمایش داده می‌شود.' ),

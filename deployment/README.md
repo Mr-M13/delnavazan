@@ -36,18 +36,68 @@ The live staging environment is being retired separately after its hosting accou
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.
 
-## Payment plan selection (Schema 52)
+## Payment plan selection and interim attendance (Schema 52)
 
-Release `payment-plan-selection-b2a-20261026.1` adds Schema 52
-(`052_payment_plan_choice`). It is additive: `post_intro_plan_choices` plus
-`post_intro_activation_jobs.funding_target` and `funding_materialised`. It creates no offer,
-obligation, settlement, Term, Lesson, schedule or statement row and does not rewrite an existing
-row. Full-term payment remains the default; two instalments require the explicit Student opt-in
-before offer issuance. No due-date policy is seeded or interpreted in this release (B2b is separate).
+Release `payment-plan-selection-b2a-20261026` adds Schema 52 (`052_payment_plan_choice`). It is
+additive: `post_intro_plan_choices` plus `post_intro_activation_jobs.funding_target` and
+`funding_materialised`. It creates no offer, obligation, settlement, Term, Lesson, schedule or
+statement row and does not rewrite an existing row. Full-term payment remains the default; two
+instalments require the explicit Student opt-in before offer issuance.
+
+B2b (`INSTALMENT_DUE_DATE_POLICY`) is merged but **unset by default**. The approved value is exactly
+168 hours before canonical Lesson 7, recorded as one week or `604800` seconds. While unset there is
+no due date and no invented deadline. Do not activate it in production until the business explicitly
+chooses to enable it. Existing offers are never rewritten by a policy change.
+
+The same Schema 52 release activates the interim manual attendance and presumed-completion policy.
+Ended `authorised` Lessons may be presumed completed from silence by
+`dzn_lesson_completion_automation_dispatch` after their canonical UTC end, provided there is no
+Phase-O outcome, unresolved attendance case, conflict or integrity issue. Presumed completion is not
+verified attendance and Finance keeps it `pending / presumed_completion_review`; it never releases a
+teacher payment. Teachers and Students can submit Phase-P reports, and administrators can record or
+correct outcomes append-only. No Google Meet attendance integration is included.
+
+After deployment verify:
+
+1. The exact `origin/main` SHA and build identity.
+2. `dzn_platform_schema_version` is `52` and the ledger contains `052_payment_plan_choice`.
+3. `post_intro_plan_choices`, `post_intro_activation_jobs.funding_target` and
+   `post_intro_activation_jobs.funding_materialised` exist.
+4. `INSTALMENT_DUE_DATE_POLICY` has no active value unless the business explicitly enabled it.
+5. `dzn_post_intro_activation_dispatch` and `dzn_lesson_completion_automation_dispatch` are scheduled.
+6. Finance shows the new instalment schedule section and no unexpected
+   `presumed_completion_review` backlog; review exceptions before issuing statements.
 
 Rollback: restore the database snapshot, or drop `post_intro_plan_choices` and the two additive
-`post_intro_activation_jobs` columns, remove the 052 ledger entry and restore Schema 51. Never delete
-an offer, settlement, purchase, Term, Lesson or statement.
+`post_intro_activation_jobs` columns, remove the 052 ledger entry and restore Schema 51. A code-only
+rollback leaves the additive structures and any presumed-completion/correction history in place; that
+is safe. Never delete an offer, settlement, purchase, Term, Lesson, lifecycle event, delivery
+outcome, audit row or statement.
+
+## Lifecycle regression
+
+Run the bounded paid-lifecycle bundle from a clean checkout before every production release:
+
+```sh
+cd platform/runtime
+make lifecycle-regression
+```
+
+It runs the pure source/DST/portal contracts, the offline Stripe test-mode E2E, the disposable
+post-intro lifecycle (booking → delivered intro → settlement → 12 canonical Lessons → portals →
+partial recovery), and the interim attendance/presumed-completion runtime. It is an operator
+command; CI still runs the individual jobs. A release is not ready if this command does not end with
+`Student lifecycle regression bundle: PASS`.
+
+## Release 2026-10-26
+
+The integrated release is `b1acd1d47b6f18756283fc0a3f3326ab595f993d` (build
+`main-b1acd1d47b6f`, schema 52). It merged #354, #357, #361, #358, #360, #356 and #359. The
+production deployment run is `40305480295`; the previous production release was
+`97a1864c5d655a6b9a70cbf982c682c0c5c03258` (schema 51). The deployment record, smoke result and
+Google OAuth diagnostic are preserved in the run artifacts. See
+`platform/docs/RELEASE-2026-10-26-INTEGRATION.md` for the full evidence, rollback notes and
+outstanding follow-ups.
 
 ## Finance administration redesign (Schema 51)
 

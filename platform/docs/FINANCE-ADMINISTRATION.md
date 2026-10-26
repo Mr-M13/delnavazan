@@ -259,6 +259,23 @@ different deadline. Existing offers are never rewritten, and changing or unsetti
 only offers issued afterwards. The deadline is display and receivables truth; it does not release
 Lesson 7 or a teacher payment, and the existing tranche-prerequisite funding rule still applies.
 
+### Presumed completion and payability
+
+A Lesson that ended without any Phase-O outcome may be presumed completed by the interim attendance
+worker. That is not verified attendance. Finance derives `pending / presumed_completion_review` and
+blocks statement issuance until an administrator records a verified delivered outcome or resolves the
+case. A later delivered outcome follows the normal `outcome_delivered` row and becomes payable; a
+non-delivery or disputed outcome follows its own non-payable or pending row. Presumed completion never
+releases a teacher payment by itself.
+
+### Schema 52
+
+Schema 52 (`052_payment_plan_choice`) is additive and belongs to the post-intro payment-plan slice. It
+adds `post_intro_plan_choices` and two activation-job funding columns. It creates or rewrites no
+Finance table, price, offer, settlement, statement or ledger row. Finance read models that consume the
+new plan-choice or instalment-schedule fields must still go through the existing
+`dzn_view_payment_execution_authority` and `dzn_manage_lesson_payability` capabilities.
+
 ## 10. Tests
 
 Pure/contract suites added:

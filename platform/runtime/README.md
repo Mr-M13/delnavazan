@@ -1,4 +1,8 @@
-# Offline Schema-33 disposable runtime
+# Offline disposable runtime
+
+> Current platform schema: **52** (`052_payment_plan_choice`). The historical Schema-33
+> name in this document records the harness slice it was introduced for; the runtime itself
+> always installs and verifies the schema declared by `platform/delnavazan-platform.php`.
 
 This is the bounded WordPress/MariaDB evidence harness for the Schema-33 candidate —
 Schema 031 (`031_portal_facing_services_principal_authorization`, the Phase-2A.2-W
@@ -84,14 +88,21 @@ state directory holding unrecognised content makes the command refuse without
 deleting anything, and still removes a dedicated state directory end to end.
 
 ```sh
-cd runtime
+cd platform/runtime
 bin/check-cache.sh
 bin/run-fresh-install.sh
 bin/run-retained-migration.sh
 bin/run-schema30-to-32-rehearsal.sh
 bin/run-schema31-to-32-rehearsal.sh
 bin/run-pure-tests.sh
+make lifecycle-regression
 ```
+
+`make lifecycle-regression` is the bounded paid-lifecycle operator bundle. It runs the pure
+source/DST/portal contracts, the offline Stripe test-mode E2E, the post-intro lifecycle and the
+interim attendance/presumed-completion runtime. It must finish with
+`Student lifecycle regression bundle: PASS`. It is intentionally heavier than `run-pure-tests.sh` and
+is not a replacement for the individual CI jobs.
 
 `bin/verify-schema33.sh` is the current stored-state check. `bin/verify-schema32.sh`
 is retained as historical source evidence and is not a current acceptance route.

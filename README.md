@@ -15,7 +15,7 @@ New product work is developed on feature branches in this repository and reviewe
 
 ## Production
 
-The permanent public site is `https://delnavazan.com`. Releases follow feature branch → PR checks and review → `main` → protected manual production deployment. See [deployment/README.md](deployment/README.md) for the production workflow and host configuration.
+The permanent public site is `https://delnavazan.com`. Releases follow feature branch → PR checks and review → `main` → protected manual production deployment. See [deployment/README.md](deployment/README.md) for the production workflow and host configuration, and [platform/docs/RELEASE-2026-10-26-INTEGRATION.md](platform/docs/RELEASE-2026-10-26-INTEGRATION.md) for the current release record, evidence and follow-ups.
 
 ## Pre-launch acceptance
 

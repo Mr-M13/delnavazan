@@ -37,6 +37,8 @@ $chain=function() use($allocate,$enrolments,$terms,$assignments,$availability,$a
     $assignment=$assignments->assignInitial($id,dzn_ic_key('assignment'));
     $course=(int)$wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}enrolments WHERE id=%d",$id));
     $teacher=(int)(new TeacherService())->create(array('display_name'=>'Synthetic Interim Teacher','email'=>'interim-'.wp_generate_uuid4().'@dzn.invalid'));
+    $now=gmdate('Y-m-d H:i:s');
+    dzn_ic_assert($wpdb->insert($p.'teacher_onboarding_states',array('teacher_id'=>$teacher,'state'=>'active','readiness_state'=>'ready','profile_state'=>'complete','availability_state'=>'complete','agreement_state'=>'not_required','activated_at'=>$now,'version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>1,'updated_by'=>1))!==false,'Teacher onboarding fixture failed');
     $accepting->set(array('teacher_id'=>$teacher,'state'=>'accepting','reason_code'=>'synthetic_provision'));
     $availability->setProfile(array('teacher_id'=>$teacher,'timezone'=>'UTC','status'=>'active','reason_code'=>'synthetic_provision'));
     for($weekday=1;$weekday<=7;$weekday++)$availability->setRecurringRule(array('teacher_id'=>$teacher,'timezone'=>'UTC','weekday'=>$weekday,'local_start_time'=>'00:00:00','local_end_time'=>'23:59:59','state'=>'requestable','status'=>'active','reason_code'=>'synthetic_provision'));

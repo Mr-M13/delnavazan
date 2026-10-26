@@ -217,10 +217,53 @@ final class FinanceAdminController {
             if ((int) $intro['page'] < (int) $intro['pages']) echo ' <a class="button" href="' . esc_url(add_query_arg($introBase + array('intro_paged' => (int) $intro['page'] + 1), admin_url('admin.php'))) . '">Next</a>';
             echo '</p>';
         }
+        self::renderInstalmentSchedules($read);
         if (current_user_can('dzn_manage_payment_providers') || current_user_can(PaymentExecutionController::CAPABILITY)) {
             echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG . '&tab=' . self::TAB_SETTINGS . '#stripe')) . '">Open Stripe configuration and readiness</a></p>';
         }
         echo '<p class="description">Failed or unmatched Stripe events are reconciled only through the existing guarded action in the payment execution service. No provider payload or secret is shown here.</p></section>';
+    }
+
+    private static function renderInstalmentSchedules(FinanceAdminReadService $read): void {
+        $filters = array(
+            'q' => self::query('inst_q'),
+            'state' => self::query('inst_state'),
+            'from' => self::query('inst_from'),
+            'through' => self::query('inst_through'),
+        );
+        $page = max(1, absint($_GET['inst_paged'] ?? 1));
+        $data = $read->instalmentSchedules($filters, $page);
+        echo '<h3 id="instalment-schedules">Instalment schedules</h3><p>Every two-instalment commitment, its obligations and the stored outstanding balance. This view is read-only and never re-prices, settles or rewrites an offer.</p>';
+        echo '<form method="get" class="dzn-finance-filter"><input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '"><input type="hidden" name="tab" value="' . esc_attr(self::TAB_PAYMENTS) . '">';
+        echo '<label for="inst-q">Search student or offer</label><input id="inst-q" type="search" name="inst_q" value="' . esc_attr($filters['q']) . '">';
+        echo '<label for="inst-state">Status</label><select id="inst-state" name="inst_state"><option value="">All schedules</option><option value="outstanding"' . selected($filters['state'], 'outstanding', false) . '>Outstanding</option><option value="overdue"' . selected($filters['state'], 'overdue', false) . '>Overdue</option><option value="paid"' . selected($filters['state'], 'paid', false) . '>Fully settled</option></select>';
+        echo '<label for="inst-from">From</label><input id="inst-from" type="date" name="inst_from" value="' . esc_attr($filters['from']) . '">';
+        echo '<label for="inst-through">Through</label><input id="inst-through" type="date" name="inst_through" value="' . esc_attr($filters['through']) . '">';
+        echo '<button class="button">Filter instalments</button></form>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Issued</th><th>Student</th><th>Course / plan</th><th>Instalment</th><th>Lessons</th><th>Amount</th><th>Offer outstanding</th><th>Due</th><th>Status</th></tr></thead><tbody>';
+        if (!$data['rows']) echo '<tr><td colspan="9">No two-instalment schedules match these filters.</td></tr>';
+        $lastOfferUid = null;
+        foreach ($data['rows'] as $row) {
+            $settled = $row->settled_at !== null;
+            $overdue = !$settled && $row->due_at !== null && (string) $row->due_at < gmdate('Y-m-d H:i:s');
+            $closed = in_array((string) $row->offer_state, array('withdrawn', 'expired'), true);
+            $lapsed = !$settled && (string) $row->offer_state === 'issued'
+                && $row->expires_at !== null && (string) $row->expires_at <= gmdate('Y-m-d H:i:s');
+            $status = $settled ? 'Settled' : ($closed ? ucfirst((string) $row->offer_state) : ($lapsed ? 'Expired' : ($overdue ? 'Overdue' : 'Outstanding')));
+            $due = $row->due_at !== null ? (string) $row->due_at : ($lapsed ? 'Offer expired' : ((int) $row->obligation_sequence === 2 ? 'Before Lesson 7' : 'Not scheduled'));
+            $showOutstanding = (string) $row->offer_uid !== (string) $lastOfferUid;
+            $lastOfferUid = (string) $row->offer_uid;
+            echo '<tr><td>' . esc_html((string) $row->issued_at) . '</td><td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td><td>' . esc_html((string) ($row->course_name ?: '—')) . '<br><small>' . esc_html('Offer ' . (string) ($row->offer_reference ?: $row->offer_uid)) . ' · ' . esc_html((string) $row->committed_sessions) . ' lessons · ' . esc_html(PricingMoney::format((int) $row->amount_due_minor, (string) $row->currency)) . '</small></td><td>' . esc_html('#' . (string) $row->obligation_sequence) . '</td><td>' . esc_html('Lessons ' . (string) $row->sessions_from . '–' . (string) $row->sessions_to) . '</td><td>' . esc_html(PricingMoney::format((int) $row->obligation_amount_minor, (string) $row->currency)) . '</td><td>' . ($showOutstanding ? esc_html(PricingMoney::format((int) $row->outstanding_minor, (string) $row->currency)) : '—') . '</td><td>' . esc_html($due) . '</td><td><span class="dzn-finance-pill">' . esc_html($status) . '</span>' . ($settled ? '<br><small>' . esc_html((string) $row->settled_at) . '</small>' : '') . '</td></tr>';
+        }
+        echo '</tbody></table>';
+        if ((int) $data['pages'] > 1) {
+            $base = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS) + array_filter(array('inst_q' => $filters['q'], 'inst_state' => $filters['state'], 'inst_from' => $filters['from'], 'inst_through' => $filters['through']), static fn($value) => $value !== '');
+            echo '<p class="tablenav">Instalment page ' . esc_html((string) $data['page']) . ' of ' . esc_html((string) $data['pages']);
+            if ((int) $data['page'] > 1) echo ' <a class="button" href="' . esc_url(add_query_arg($base + array('inst_paged' => (int) $data['page'] - 1), admin_url('admin.php'))) . '">Previous</a>';
+            if ((int) $data['page'] < (int) $data['pages']) echo ' <a class="button" href="' . esc_url(add_query_arg($base + array('inst_paged' => (int) $data['page'] + 1), admin_url('admin.php'))) . '">Next</a>';
+            echo '</p>';
+        }
+        echo '<p class="description">Offer outstanding is the offer total minus settled obligations, shown once per schedule. A second instalment with no recorded date remains outstanding and is blocked structurally before Lesson 7; this page does not invent a deadline. A time-lapsed issued offer is labelled Expired and is excluded from actionable receivables.</p>';
     }
 
     private static function renderLedger(FinanceAdminReadService $read): void {

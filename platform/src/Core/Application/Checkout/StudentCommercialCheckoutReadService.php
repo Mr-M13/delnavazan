@@ -56,9 +56,20 @@ final class StudentCommercialCheckoutReadService {
                 $rows[]=array(
                     'obligation_uid'=>(string)$obligation->uid,'attempt_uid'=>$attemptUid,
                     'obligation_sequence'=>(int)$obligation->obligation_sequence,
+                    'sessions_from'=>(int)$obligation->sessions_from,
+                    'sessions_to'=>(int)$obligation->sessions_to,
                     'sessions_covered'=>(int)$obligation->sessions_covered,
                     'amount_minor'=>(int)$obligation->amount_minor,'currency'=>(string)$obligation->currency,
                     'due_at'=>$obligation->due_at===null?null:(string)$obligation->due_at,
+                    // The commitment and plan are display facts already owned by the canonical
+                    // offer. They are never echoed back into a checkout command.
+                    'offer_uid'=>(string)$offer->uid,
+                    'offer_reference'=>$offer->reference_code===null?null:(string)$offer->reference_code,
+                    'offer_state'=>(string)$offer->state,
+                    'plan_kind'=>(string)$offer->plan_kind,
+                    'committed_sessions'=>(int)$offer->committed_sessions,
+                    'offer_amount_due_minor'=>(int)$offer->amount_due_minor,
+                    'offer_currency'=>(string)$offer->currency,
                     'offer_expires_at'=>$offer->expires_at===null?null:(string)$offer->expires_at,
                     'payment_state'=>$paymentState,'checkout_state'=>$checkoutState,'action'=>$action,
                     'retry_allowed'=>in_array($action,array('pay','resume','retry'),true),

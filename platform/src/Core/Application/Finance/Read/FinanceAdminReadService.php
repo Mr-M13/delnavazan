@@ -84,6 +84,74 @@ final class FinanceAdminReadService {
         return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages);
     }
 
+    /**
+     * Read-only instalment schedules and their outstanding balance.
+     *
+     * Every amount is the stored obligation amount. The outstanding balance is a presentation
+     * subtraction of already-settled obligations and never creates or changes a financial fact.
+     *
+     * @return array{rows:list<object>,total:int,page:int,pages:int}
+     */
+    public function instalmentSchedules(array $filters = array(), int $page = 1, int $perPage = 25): array {
+        FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
+        global $wpdb;
+        $where = array("offer_row.plan_kind='two_instalments'");
+        $args = array();
+        $state = (string) ($filters['state'] ?? '');
+        if ($state === 'paid') {
+            $where[] = "NOT EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL)";
+        } elseif ($state === 'outstanding') {
+            // A withdrawn, expired or time-lapsed issued offer is no longer collectable. An
+            // accepted offer remains an actionable commitment even after its original checkout
+            // window, because later instalments are governed by their own obligations.
+            $where[] = self::actionableOfferSql();
+            $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL)";
+        } elseif ($state === 'overdue') {
+            $where[] = self::actionableOfferSql();
+            $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations unpaid LEFT JOIN {$this->p}commercial_obligation_settlements paid ON paid.obligation_id=unpaid.id WHERE unpaid.offer_id=offer_row.id AND paid.id IS NULL AND unpaid.due_at IS NOT NULL AND unpaid.due_at<UTC_TIMESTAMP())";
+        }
+        $query = trim((string) ($filters['q'] ?? ''));
+        if ($query !== '') {
+            $like = '%' . $wpdb->esc_like($query) . '%';
+            $where[] = '(offer_row.uid LIKE %s OR offer_row.reference_code LIKE %s OR purchase_row.reference_code LIKE %s OR student.display_name LIKE %s OR student.reference_code LIKE %s)';
+            array_push($args, $like, $like, $like, $like, $like);
+        }
+        $from = (string) ($filters['from'] ?? '');
+        $through = (string) ($filters['through'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $from) === 1) { $where[] = 'offer_row.issued_at>=%s'; $args[] = $from . ' 00:00:00'; }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $through) === 1) { $where[] = 'offer_row.issued_at<=%s'; $args[] = $through . ' 23:59:59'; }
+        $joins = "INNER JOIN {$this->p}commercial_offer_obligations obligation ON obligation.offer_id=offer_row.id
+                  LEFT JOIN {$this->p}commercial_obligation_settlements settlement ON settlement.obligation_id=obligation.id
+                  LEFT JOIN {$this->p}students student ON student.id=offer_row.beneficiary_student_id
+                  LEFT JOIN {$this->p}courses course ON course.id=offer_row.course_id
+                  LEFT JOIN {$this->p}commercial_purchases purchase_row ON purchase_row.offer_id=offer_row.id";
+        $whereSql = implode(' AND ', $where);
+        $countSql = "SELECT COUNT(*) FROM {$this->p}commercial_offers offer_row {$joins} WHERE {$whereSql}";
+        $total = (int) ($args ? $wpdb->get_var($wpdb->prepare($countSql, ...$args)) : $wpdb->get_var($countSql));
+        $perPage = max(1, min(100, $perPage));
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($pages, $page));
+        $offset = ($page - 1) * $perPage;
+        $sql = "SELECT offer_row.uid offer_uid,offer_row.reference_code offer_reference,offer_row.state offer_state,
+                       offer_row.amount_due_minor,offer_row.currency,offer_row.committed_sessions,offer_row.issued_at,offer_row.expires_at,
+                       obligation.obligation_sequence,obligation.sessions_from,obligation.sessions_to,obligation.amount_minor obligation_amount_minor,
+                       obligation.due_at,settlement.settled_at,settlement.amount_minor settled_amount_minor,
+                       student.display_name student_name,student.reference_code student_reference,
+                       COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
+                       purchase_row.reference_code purchase_reference,purchase_row.state purchase_state,
+                       (offer_row.amount_due_minor-COALESCE((SELECT SUM(settled.amount_minor) FROM {$this->p}commercial_obligation_settlements settled INNER JOIN {$this->p}commercial_offer_obligations settled_obligation ON settled_obligation.id=settled.obligation_id WHERE settled_obligation.offer_id=offer_row.id),0)) outstanding_minor
+                FROM {$this->p}commercial_offers offer_row {$joins}
+                WHERE {$whereSql}
+                ORDER BY offer_row.id DESC,obligation.obligation_sequence,obligation.id LIMIT {$perPage} OFFSET {$offset}";
+        $rows = $args ? $wpdb->get_results($wpdb->prepare($sql, ...$args)) : $wpdb->get_results($sql);
+        return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages);
+    }
+
+    /** The one SQL predicate for an offer that may still be collected. */
+    private static function actionableOfferSql(): string {
+        return "(offer_row.state='accepted' OR (offer_row.state='issued' AND (offer_row.expires_at IS NULL OR offer_row.expires_at>UTC_TIMESTAMP())))";
+    }
+
     /** @return array<string,int> */
     public function introPaymentCounts(): array {
         FinanceSupport::requireCapability('dzn_view_payment_execution_authority');

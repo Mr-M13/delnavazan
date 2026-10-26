@@ -9,7 +9,7 @@ One **Finance** destination has exactly four tabs:
 
 | Tab | Purpose |
 | --- | --- |
-| **Payments** | Student checkout attempts, amount, student/course/offer context, checkout state, settled/refund evidence and provider-neutral reconciliation status. Read-only. |
+| **Payments** | Student checkout attempts, amount, student/course/offer context, checkout state, settled/refund evidence, provider-neutral reconciliation status, and two-instalment schedules with their stored outstanding balance. Read-only. |
 | **Central Ledger** | Manual academy bookkeeping across the Australia (AUD) and Iran (TOM) accounts. Search, filters, pagination, gross/fees/net, currency and statement reconciliation status. This ledger is intentionally independent from Stripe, teacher rates and student pricing. |
 | **Teacher Statements** | Teacher selector, statement history, recorded preview, print/download and statement template settings with live sandboxed preview. |
 | **Settings** | Global regional student prices, free/paid introductory lessons, Toman teacher global default and per-Teacher overrides, Stripe setup/readiness, finance policies and commercial timing policies. |
@@ -202,6 +202,23 @@ No production deployment or production price change is part of this change.
   lifecycle, post-intro lifecycle, Stripe E2E and OAuth scope regression successfully. Static lint,
   pure unit suites and source contracts also pass.
 
+### Instalment schedule visibility
+
+Payments includes a read-only **Instalment schedules** table for every offer whose canonical
+`plan_kind` is `two_instalments`. Each row shows the stored instalment amount, its exact Lesson range,
+the recorded due instant (or `Before Lesson 7` when no explicit deadline exists), settlement state and
+the offer's outstanding balance. The balance is presentation only: `offer.amount_due_minor` minus the
+sum of already-settled obligations. The table creates no offer, settlement, ledger entry or statement,
+and its filters and pagination read only offers, obligations and settlements that already exist.
+
+The Student Portal payment section now groups obligations by their canonical offer and shows the
+plan kind, full committed total, number of Lessons, each instalment's amount and Lesson range, and its
+due state. A second instalment with no recorded date is shown as due before Lesson 7 because the
+existing funding authority already prevents Lesson 7 until that tranche settles; no deadline is invented.
+
+This is visibility only. Student-facing selection between a full payment and two instalments remains a
+separate authority change and is not introduced here.
+
 ## 10. Tests
 
 Pure/contract suites added:
@@ -218,9 +235,13 @@ Pure/contract suites added:
 - `tests/finance-administration-runtime.php` — disposable WordPress/MariaDB proof for empty catalogue,
   conflicting legacy prices, per-currency pricing, historical offer/price preservation, repeated
   migrations, teacher-rate inheritance, paid intro Checkout reuse, successful settlement, duplicate
-  webhook convergence, failed payment retryability and no lesson/post-intro side effect.
+  webhook convergence, failed payment retryability, instalment schedule/outstanding reads and no
+  lesson/post-intro side effect.
 - `tests/stripe-checkout-test-mode-e2e-runtime.php` — the existing signed Stripe webhook E2E also proves
-  a paid intro Checkout attempt and its verified webhook route.
+  a paid intro Checkout attempt, the Student plan projection (two ordered tranches, exact Lesson ranges,
+  settled/outstanding state) and its verified webhook route.
+- `tests/student-checkout-return-contract.php` — the identifier-only checkout boundary now also asserts
+  that plan totals remain display-only and are never posted back to the checkout command.
 
 Updated navigation/catalogue contracts reflect the removed duplicate finance navigation and the
 Finance-owned introductory pricing. The PR runtime gate executes the disposable WordPress/MariaDB catalogue,

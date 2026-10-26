@@ -62,11 +62,60 @@ final class PostIntroActivationService {
                 'post-intro-handoff-' . $uid
             );
 
-            $bound = (new CommercialTermFundingService())->bindEntitlementToTerm(
-                (int) $entitlement->id,
-                $evidence,
-                'post-intro-term-bind-' . $uid
-            );
+            // A Term may already have been created by an authorised operator action while the
+            // payment was unverified. Identify that exact applicable Term and fund it rather than
+            // creating a second Term. If it is already funded by this purchase, reuse it.
+            $termInspection = (new TermApplicabilityAssessment())->inspectForAuthority((int) $enrolment->id);
+            $existingTerm = null;
+            $expectedLatestTermId = null;
+            $expectedLatestState = null;
+            if ((string) ($termInspection['classification'] ?? '') === TermApplicabilityAssessment::CANONICAL_APPLICABLE) {
+                foreach ((array) ($termInspection['terms'] ?? array()) as $candidate) {
+                    if ((int) ($candidate->applicable_slot ?? 0) === 1) {
+                        $existingTerm = $candidate;
+                        break;
+                    }
+                }
+                if (!$existingTerm) throw new \RuntimeException('canonical_term_integrity_conflict');
+            } elseif ((string) ($termInspection['classification'] ?? '') === TermApplicabilityAssessment::DATA_INTEGRITY_CONFLICT) {
+                throw new \RuntimeException('canonical_term_integrity_conflict');
+            } elseif ((string) ($termInspection['classification'] ?? '') === TermApplicabilityAssessment::CANONICAL_TERMINAL_HISTORY) {
+                $terms = (array) ($termInspection['terms'] ?? array());
+                $latest = $terms ? end($terms) : null;
+                if (!$latest || !in_array((string) $latest->lifecycle_state, array('closed', 'cancelled'), true)) {
+                    throw new \RuntimeException('canonical_term_integrity_conflict');
+                }
+                $expectedLatestTermId = (int) $latest->id;
+                $expectedLatestState = (string) $latest->lifecycle_state;
+            }
+
+            if ($existingTerm !== null) {
+                $funding = (new CommercialTermFundingService())->fundingPlanForTerm((int) $existingTerm->id);
+                if ($funding !== null) {
+                    if ((int) ($funding['purchase_id'] ?? 0) !== (int) $purchase->id || (int) ($funding['entitlement_id'] ?? 0) !== (int) $entitlement->id) {
+                        throw new \RuntimeException('term_funding_conflict');
+                    }
+                    $bound = $funding;
+                } else {
+                    $bound = (new CommercialTermFundingService())->bindEntitlementToExistingTerm(
+                        (int) $entitlement->id,
+                        (int) $existingTerm->id,
+                        $evidence,
+                        'post-intro-term-bind-' . $uid
+                    );
+                }
+            } else {
+                $bindInput = $evidence;
+                if ($expectedLatestTermId !== null) {
+                    $bindInput['expected_latest_term_id'] = $expectedLatestTermId;
+                    $bindInput['expected_latest_state'] = $expectedLatestState;
+                }
+                $bound = (new CommercialTermFundingService())->bindEntitlementToTerm(
+                    (int) $entitlement->id,
+                    $bindInput,
+                    'post-intro-term-bind-' . $uid
+                );
+            }
             $termId = (int) $bound['term_id'];
             $term = $repository->term($termId);
             if (!$term) throw new \RuntimeException('canonical_term_required');

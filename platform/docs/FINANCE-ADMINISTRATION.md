@@ -216,8 +216,34 @@ plan kind, full committed total, number of Lessons, each instalment's amount and
 due state. A second instalment with no recorded date is shown as due before Lesson 7 because the
 existing funding authority already prevents Lesson 7 until that tranche settles; no deadline is invented.
 
-This is visibility only. Student-facing selection between a full payment and two instalments remains a
-separate authority change and is not introduced here.
+### B2a: full-term default and pre-offer plan choice
+
+The normal path is **full-term payment**. The Student Portal shows the full-term amount and the
+primary payment action first. Two instalments are a secondary, explicitly ticked option; the term is
+never preselected into instalments. The server defaults to `full` when no plan is submitted and
+accepts `two_instalments` only with the explicit opt-in and a valid pre-offer quote token.
+
+The Student chooses before the canonical offer exists. A durable `post_intro_plan_choices` row records
+the active choice and an audit trail of pre-offer changes. Once the offer is issued, its plan and
+obligations are immutable; a different plan is refused with `plan_choice_conflict` and never creates a
+second offer.
+
+A two-instalment plan funds Lessons 1–6 with tranche 1 and Lessons 7–12 with tranche 2. Normal Student
+Checkout for tranche 2 is refused until tranche 1 settles. A valid out-of-sequence payment received
+through reconciliation is recorded financially, but academic funding remains zero until its
+prerequisite settles; the existing `instalment_prerequisite_unsettled` signal is recorded.
+
+When tranche 2 settles, the activation job's `funding_target` is raised and a convergence worker
+materialises the remaining Lessons. The target is never lost when a worker completes an earlier
+target: the hook raises the target under the job row lock and the worker re-checks effective sessions
+before completing. Deterministic Lesson, schedule and provider keys make the later run replay, not
+duplicate, Lessons 1–6, the Term, the Teacher Assignment or the provider projection.
+
+The Student account speaks in term-level language: `ترم ۱ پرداخت شد`, `قسط ۲ از ۲`, and
+`پرداخت ترم بعد: با ثبت پرداخت کامل ترم جدید`. A full payment is never labelled as an instalment.
+
+The configurable `INSTALMENT_DUE_DATE_POLICY` deadline (168 hours before Lesson 7) remains **unset** in
+B2a and is not interpreted until the separately reviewed B2b slice. No deadline is invented.
 
 ## 10. Tests
 
@@ -242,6 +268,9 @@ Pure/contract suites added:
   settled/outstanding state) and its verified webhook route.
 - `tests/student-checkout-return-contract.php` — the identifier-only checkout boundary now also asserts
   that plan totals remain display-only and are never posted back to the checkout command.
+- `tests/payment-plan-choice-contract.php` — Schema 52, the pre-offer choice, full-term default,
+  explicit instalment opt-in, quote digest as a stale guard only, single live offer, immutable plan,
+  tranche-2 Checkout gate, convergent activation targets and term-level account wording.
 
 Updated navigation/catalogue contracts reflect the removed duplicate finance navigation and the
 Finance-owned introductory pricing. The PR runtime gate executes the disposable WordPress/MariaDB catalogue,

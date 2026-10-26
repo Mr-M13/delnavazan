@@ -297,7 +297,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			'password_url' => wp_lostpassword_url(),
 		);
 		$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 20 ) );
-		$model['payments'] = array( 'status' => 'اطلاعات پرداخت در این نمای خواندنی موجود نیست.', 'renewal_date' => '', 'items' => array() );
+		$model['payments'] = array( 'status' => 'برای جزئیات، طرح پرداخت ترم را بررسی کنید.', 'next_term' => 'با ثبت پرداخت کامل ترم جدید', 'items' => array() );
 		$model['notifications'] = array();
 		$model['notification_archive_url'] = '';
 		return $model;

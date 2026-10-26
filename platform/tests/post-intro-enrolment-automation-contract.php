@@ -46,7 +46,7 @@ $notificationWorker = $read('platform/src/Integrations/BookingStudentNotificatio
 $executionRule = $read('platform/src/Core/Application/PaymentExecution/PaymentExecutionRule.php');
 
 // 1. Additive migration and existing-data compatibility.
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '51'"), 'Schema 51 must be published');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '52'"), 'Schema 52 must be published');
 $contains($migrator, array(
     '048_post_intro_enrolment_automation',
     "'adult_self_attested'",
@@ -257,9 +257,12 @@ $contains($studentRead, array(
     'action_url',
     'wp_create_nonce',
     'ادامهٔ کلاس با همین مدرس',
+    'plan_options',
+    'quote_token',
+    'selected_plan_kind',
 ), 'the Student card must be read-only and actionable');
 $assert(!str_contains($studentRead, 'exception_detail'), 'the Student projection must not expose raw exception detail');
-$contains($studentCard, array('dzn_post_intro_continue', 'preparation_uid', 'adult_attested', 'تکمیل پرداخت'), 'the Student card must render the payment action');
+$contains($studentCard, array('dzn_post_intro_continue', 'preparation_uid', 'adult_attested', 'پرداخت کامل ترم', 'two_instalments', 'instalments_opt_in'), 'the Student card must render the full-term default and explicit instalment opt-in');
 $contains($studentShell, array("dzn_theme_portal_component( 'post-intro'"), 'the Student shell must include the continuation card');
 $contains($studentController, array('check_admin_referer', 'wp_redirect', 'safeStatus'), 'the Student action must verify the nonce and redirect safely');
 $assert(str_contains($studentController, "checkout_temporarily_unavailable") && str_contains($studentController, "\$result['message']"), 'explicit checkout unavailability must reach the portal message');

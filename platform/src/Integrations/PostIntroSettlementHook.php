@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\CommercialTermFundingService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
@@ -21,37 +22,71 @@ final class PostIntroSettlementHook {
         if (!$purchase) throw new \RuntimeException('commercial_purchase_required');
         $preparation = $repository->preparationByOffer((int) $purchase->offer_id);
         if (!$preparation) return;
-        if ((string) $preparation->state === 'activated') return;
-        if ($repository->activeJobForPurchase($purchaseId)) return;
 
         $now = gmdate('Y-m-d H:i:s');
-        try {
-            $repository->insertJob(array(
-                'uid' => Identifier::uid(),
-                'purchase_id' => $purchaseId,
-                'preparation_id' => (int) $preparation->id,
-                'offer_id' => (int) $purchase->offer_id,
-                'entitlement_id' => null,
-                'state' => 'queued',
-                'attempt_count' => 0,
-                'next_attempt_at' => $now,
-                'lease_token_digest' => null,
-                'lease_expires_at' => null,
-                'last_error_code' => null,
-                'last_error_detail' => null,
-                'checkpoint' => 'paid',
-                'completed_at' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ));
-        } catch (\Throwable $error) {
-            if (!$repository->activeJobForPurchase($purchaseId)) throw $error;
+        // The academic target is derived from the settled obligations, not from the current
+        // preparation state or an earlier worker run. A later verified settlement therefore
+        // raises the target even when the first activation already completed.
+        $effective = (new CommercialTermFundingService())->effectiveSessions((int) $purchase->offer_id);
+        $job = $repository->activeJobForPurchase($purchaseId, true);
+
+        if ($job === null && $effective > 0) {
+            try {
+                $repository->insertJob(array(
+                    'uid' => Identifier::uid(),
+                    'purchase_id' => $purchaseId,
+                    'preparation_id' => (int) $preparation->id,
+                    'offer_id' => (int) $purchase->offer_id,
+                    'entitlement_id' => null,
+                    'state' => 'queued',
+                    'attempt_count' => 0,
+                    'next_attempt_at' => $now,
+                    'lease_token_digest' => null,
+                    'lease_expires_at' => null,
+                    'last_error_code' => null,
+                    'last_error_detail' => null,
+                    'checkpoint' => 'paid',
+                    'funding_target' => $effective,
+                    'funding_materialised' => 0,
+                    'completed_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ));
+            } catch (\Throwable $error) {
+                $job = $repository->activeJobForPurchase($purchaseId, true);
+                if (!$job) throw $error;
+            }
+        }
+
+        if (is_object($job)) {
+            $target = max((int) $job->funding_target, $effective);
+            $raised = $target > (int) $job->funding_target;
+            $state = (string) $job->state;
+            if ($state === 'running') {
+                // Never clear a live worker's lease. It re-reads the target before completing and
+                // requeues itself when more sessions became effective during its run.
+                if ($raised) $repository->updateJob((int) $job->id, array('funding_target' => $target, 'next_attempt_at' => $now));
+            } elseif ($raised || ($state === 'completed' && (int) $job->funding_materialised < $effective)) {
+                $changes = array(
+                    'state' => 'queued',
+                    'funding_target' => $target,
+                    'attempt_count' => 0,
+                    'next_attempt_at' => $now,
+                    'lease_token_digest' => null,
+                    'lease_expires_at' => null,
+                    'last_error_code' => null,
+                    'last_error_detail' => null,
+                    'completed_at' => null,
+                    'checkpoint' => 'additional_funding',
+                );
+                $repository->updateJob((int) $job->id, $changes);
+            }
         }
 
         // An expired hold is terminal for the Student action. The verified payment is still
-        // recorded and the activation job is queued so the admin sees the exact late-capture
+        // recorded and the activation target is raised so the admin sees the exact late-capture
         // exception; the preparation state is never silently rewritten to "payment received".
-        if ((string) $preparation->state !== 'expired') {
+        if (!in_array((string) $preparation->state, array('expired', 'activated'), true)) {
             $repository->updatePreparation((int) $preparation->id, array(
                 'state' => 'payment_received',
                 'exception_code' => null,

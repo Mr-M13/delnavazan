@@ -152,6 +152,15 @@ final class CommercialAuthorityRepository {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offers WHERE beneficiary_student_id=%d ORDER BY id DESC",$studentId))?:array();
     }
+    /** The canonical Term sequence already funded by one offer, if the Term exists. */
+    public function termSequenceForOffer(int $offerId):?int{
+        global $wpdb;
+        $value=$wpdb->get_var($wpdb->prepare(
+            "SELECT term.sequence_number FROM {$this->p}commercial_term_funding_plans plan INNER JOIN {$this->p}terms term ON term.id=plan.term_id WHERE plan.offer_id=%d ORDER BY plan.id DESC LIMIT 1",
+            $offerId
+        ));
+        return $value===null?null:(int)$value;
+    }
     public function insertOffer(array $data):int{return $this->insert('commercial_offers',$data,'Commercial offer persistence failed');}
     public function updateOfferState(int $offerId,int $expectedVersion,array $changes):void{
         global $wpdb;

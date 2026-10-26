@@ -41,6 +41,9 @@ final class CommercialOfferService {
         $region=CommercialSupport::region((string)($input['region_code']??''));
         $planKind=(string)($input['plan_kind']??'full');
         if(!in_array($planKind,CommercialRule::PLAN_KINDS,true))throw new \InvalidArgumentException('Controlled payment plan required');
+        $quoteSubject=trim((string)($input['quote_subject']??''));
+        $expectedQuoteDigest=strtolower(trim((string)($input['expected_quote_digest']??'')));
+        if($expectedQuoteDigest!==''&&(!CommercialOfferQuoteDigest::valid($expectedQuoteDigest)||$quoteSubject===''))throw new \InvalidArgumentException('plan_quote_stale');
         $evidence=CommercialSupport::evidence($input);
         $promotionCode=trim((string)($input['promotion_code']??''));
         $promotionId=($input['promotion_id']??null)===null||$input['promotion_id']===''?null:CommercialSupport::positiveInt($input['promotion_id'],'Valid promotion required');
@@ -61,6 +64,12 @@ final class CommercialOfferService {
         try{
             if($winner=$this->repository->command($digest)){$result=$this->replay($winner,$payload);$this->repository->commit();return $result;}
             $this->repository->lockAccountRoot($studentId,$actor);
+            // One continuation case owns at most one live commercial offer. A withdrawn or
+            // expired historical offer may be followed by a new one, but an issued/accepted offer
+            // is never silently duplicated by a second command key.
+            foreach($this->repository->offersForContinuation($caseId) as $liveOffer){
+                if(in_array((string)$liveOffer->state,array('issued','accepted'),true))throw new \InvalidArgumentException('commercial_offer_exists');
+            }
             $case=$this->continuations->caseById($caseId,true);
             if(!$case||!CanonicalContinuationValidator::validForCase($caseId,$this->continuations,true))throw new \InvalidArgumentException('canonical_continuation_integrity_conflict');
             if((int)$case->student_id!==$studentId)throw new \RuntimeException('Commercial offer context changed');
@@ -105,6 +114,14 @@ final class CommercialOfferService {
             $discountTotal=$promotionAmount+$adjustmentAmount;
             $amountDue=$base-$discountTotal;
             if($amountDue<1)throw new \InvalidArgumentException('commercial_offer_amount_invalid');
+            if($expectedQuoteDigest!==''){
+                $two=CommercialMoney::splitTwo($amountDue);
+                $facts=PostIntroPlanQuoteService::facts(
+                    $quoteSubject,$studentId,$productId,$region['region_code'],$price,$base,$currency,
+                    $promotion,$promotionAmount,$adjustment,$adjustmentAmount,$amountDue,$committed,$two
+                );
+                if(!hash_equals($expectedQuoteDigest,CommercialOfferQuoteDigest::make($facts)))throw new \InvalidArgumentException('plan_quote_stale');
+            }
             $amounts=$this->decompose($planKind,$amountDue);
             $authorityBasis=$this->authorityBasis($studentId,$actor);
             $offerUid=Identifier::uid();

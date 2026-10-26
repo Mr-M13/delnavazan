@@ -33,7 +33,7 @@ foreach (array("resolve('student')", 'offersForBeneficiary($studentId)', 'assert
 foreach (array("'offer_uid'", "'plan_kind'", "'committed_sessions'", "'offer_amount_due_minor'", "'offer_currency'", "'sessions_from'", "'sessions_to'") as $needle) {
     if (strpos($commercialRead, $needle) === false) throw new RuntimeException('Student payment-plan projection missing ' . $needle);
 }
-foreach (array('planLabel', 'instalmentLabel', 'sessionsLabel', 'dueLabel', 'renderPlan', "'two_instalments'", 'پیش از شروع جلسهٔ ۷', 'سررسید: تعیین نشده') as $needle) {
+foreach (array('planLabel', 'instalmentLabel', 'sessionsLabel', 'dueLabel', 'renderPlan', "'two_instalments'", 'پیش از شروع جلسهٔ ۷', 'term_paid', 'prerequisite_pending', 'پرداخت ترم بعد') as $needle) {
     if (strpos($checkoutUi, $needle) === false) throw new RuntimeException('Student payment-plan presentation missing ' . $needle);
 }
 if (strpos($checkoutUi, 'offer_amount_due_minor:') !== false) {

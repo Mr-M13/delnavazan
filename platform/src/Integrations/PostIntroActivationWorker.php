@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\CommercialTermFundingService;
 use Delnavazan\Platform\Core\Application\PostIntroActivationService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 
@@ -112,9 +113,28 @@ final class PostIntroActivationWorker {
 
     private static function execute(PostIntroRepository $repository, object $job, string $now, string $leaseDigest): void {
         try {
-            (new PostIntroActivationService($repository))->activate((int) $job->id);
+            $result = (new PostIntroActivationService($repository))->activate((int) $job->id);
+            $materialised = max((int) ($job->funding_materialised ?? 0), (int) ($result['lessons'] ?? 0));
+            $effective = (new CommercialTermFundingService())->effectiveSessions((int) $job->offer_id);
+            if ($effective > $materialised) {
+                // A later settlement raised the target while this worker was running. Preserve the
+                // completed lessons and converge again; never mark the earlier target as final.
+                $repository->releaseJob((int) $job->id, 'retryable', array(
+                    'attempt_count' => (int) $job->attempt_count,
+                    'funding_target' => $effective,
+                    'funding_materialised' => $materialised,
+                    'checkpoint' => 'additional_funding',
+                    'completed_at' => null,
+                    'next_attempt_at' => gmdate('Y-m-d H:i:s'),
+                    'last_error_code' => 'additional_funding_pending',
+                    'last_error_detail' => 'additional_funding_pending',
+                ), $leaseDigest);
+                return;
+            }
             $repository->releaseJob((int) $job->id, 'completed', array(
                 'attempt_count' => (int) $job->attempt_count,
+                'funding_target' => max((int) ($job->funding_target ?? 0), $effective),
+                'funding_materialised' => $materialised,
                 'checkpoint' => 'activated',
                 'completed_at' => gmdate('Y-m-d H:i:s'),
                 'next_attempt_at' => null,

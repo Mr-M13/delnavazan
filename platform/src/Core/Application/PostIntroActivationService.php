@@ -19,11 +19,11 @@ final class PostIntroActivationService {
         $this->repository = $repository ?? new PostIntroRepository();
     }
 
-    /** @return array{state:string,term_id:int,assignment_id:int,lessons:int} */
+    /** @return array{state:string,term_id:int,assignment_id:int,lessons:int,effective_sessions:int,new_lessons:int} */
     public function activate(int $jobId): array {
         $job = $this->repository->job($jobId);
         if (!$job) throw new \InvalidArgumentException('post_intro_job_not_found');
-        if ((string) $job->state === 'completed') return array('state' => 'completed', 'term_id' => 0, 'assignment_id' => 0, 'lessons' => 0);
+        if ((string) $job->state === 'completed') return array('state' => 'completed', 'term_id' => 0, 'assignment_id' => 0, 'lessons' => 0, 'effective_sessions' => 0, 'new_lessons' => 0);
         $preparation = $this->repository->preparation((int) $job->preparation_id);
         if (!$preparation) throw new \RuntimeException('post_intro_preparation_missing');
         $purchase = $this->repository->purchase((int) $job->purchase_id);
@@ -31,8 +31,11 @@ final class PostIntroActivationService {
         if ((int) $purchase->offer_id !== (int) $preparation->offer_id) throw new \RuntimeException('post_intro_purchase_mismatch');
         $entitlement = $this->repository->entitlementForPurchase((int) $purchase->id);
         if (!$entitlement) throw new \RuntimeException('commercial_entitlement_required');
+        $effectiveSessions = (new CommercialTermFundingService())->effectiveSessions((int) $purchase->offer_id);
+        if ($effectiveSessions < 1) throw new \RuntimeException('commercial_funding_not_effective');
+        $wasActivated = (string) $preparation->state === 'activated';
 
-        return PostIntroSystemActor::run(function () use ($job, $preparation, $purchase, $entitlement): array {
+        return PostIntroSystemActor::run(function () use ($job, $preparation, $purchase, $entitlement, $effectiveSessions, $wasActivated): array {
             $repository = $this->repository;
             $now = gmdate('Y-m-d H:i:s');
             $uid = (string) $preparation->uid;
@@ -147,11 +150,12 @@ final class PostIntroActivationService {
                 throw new \RuntimeException('commercial_pattern_conflict');
             }
             if ((int) $pattern->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
-            $count = min(52, max(1, (int) ($bound['effective_sessions'] ?? 0)));
+            $count = min(52, $effectiveSessions);
             $intervals = (new CommercialPatternService())->intervalsFor($pattern, $count);
 
             $lessonIds = array();
             $projections = array();
+            $newLessons = 0;
             foreach ($intervals as $index => $interval) {
                 $sequence = $index + 1;
                 $lesson = (new CanonicalLessonAuthorityService())->createStandard(
@@ -161,6 +165,7 @@ final class PostIntroActivationService {
                     'post-intro-lesson-' . $uid . '-' . $sequence
                 );
                 $lessonId = (int) $lesson['lesson_id'];
+                if (!empty($lesson['created'])) $newLessons++;
                 $lessonIds[] = $lessonId;
                 $scheduled = (new CanonicalLessonScheduleService())->schedule(
                     $lessonId,
@@ -188,11 +193,12 @@ final class PostIntroActivationService {
                 ));
             }
 
-            $this->notify($preparation, $now);
+            if (!$wasActivated) $this->notify($preparation, $now);
 
             // Provider projection is a projection only. All canonical Lessons and schedules are
             // already durable before this loop, so a missing Google connection or transient Google
-            // failure is retryable without hiding or duplicating academic truth.
+            // failure is retryable without hiding or duplicating academic truth. The deterministic
+            // projection reference makes a later convergence run replay, not duplicate, an event.
             foreach ($projections as $projection) {
                 $this->projectCalendar(
                     (int) $projection['lesson_id'],
@@ -203,7 +209,7 @@ final class PostIntroActivationService {
                 );
             }
 
-            return array('state' => 'activated', 'term_id' => $termId, 'assignment_id' => $assignmentId, 'lessons' => count($lessonIds));
+            return array('state' => 'activated', 'term_id' => $termId, 'assignment_id' => $assignmentId, 'lessons' => count($lessonIds), 'effective_sessions' => $effectiveSessions, 'new_lessons' => $newLessons);
         });
     }
 

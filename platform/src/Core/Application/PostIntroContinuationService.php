@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Application\Checkout\StudentCheckoutInitiationService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
+use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
 /**
@@ -19,8 +20,9 @@ final class PostIntroContinuationService {
     }
 
     /** @return array{state:string,redirect_url:?string,message:string} */
-    public function continue(string $preparationUid, bool $adultAttested): array {
+    public function continue(string $preparationUid, bool $adultAttested, ?string $planKind = null, ?string $quoteToken = null, bool $instalmentsOptIn = false): array {
         $repository = $this->repository;
+        global $wpdb;
         $preparation = $repository->preparationByUid($preparationUid);
         if (!$preparation) throw new \InvalidArgumentException('post_intro_invitation_not_found');
         if ($preparation->exception_code === 'continuation_reservation_expired' || $preparation->state === 'expired') {
@@ -46,6 +48,89 @@ final class PostIntroContinuationService {
 
         if (!in_array((string) $preparation->state, array('prepared', 'checkout_pending'), true)) {
             throw new \InvalidArgumentException('post_intro_invitation_not_ready');
+        }
+
+        // The Student chooses before any offer exists. An existing live offer is immutable and
+        // always wins: a later request may only repeat its plan, never silently replace it.
+        $existingOffer = null;
+        if ((int) ($preparation->offer_id ?? 0) > 0) {
+            $existingOffer = $repository->offer((int) $preparation->offer_id);
+        }
+        if (!$existingOffer && (int) ($preparation->continuation_case_id ?? 0) > 0) {
+            $existingOffer = $repository->offerByContinuationCase((int) $preparation->continuation_case_id);
+        }
+        if ($existingOffer) {
+            $existingPlan = (string) $existingOffer->plan_kind;
+            $requestedPlan = trim((string) $planKind);
+            if ($requestedPlan !== '' && $requestedPlan !== $existingPlan) {
+                throw new \InvalidArgumentException('plan_choice_conflict');
+            }
+            $planKind = $existingPlan;
+            $quoteToken = '';
+        } else {
+            $planKind = trim((string) $planKind);
+            if ($planKind === '') $planKind = 'full';
+            if (!in_array($planKind, CommercialRule::PLAN_KINDS, true)) {
+                throw new \InvalidArgumentException('plan_unavailable');
+            }
+            if ($planKind === 'two_instalments' && !$instalmentsOptIn) {
+                throw new \InvalidArgumentException('plan_unavailable');
+            }
+            $quoteToken = trim((string) $quoteToken);
+            if (!CommercialOfferQuoteDigest::valid($quoteToken)) {
+                throw new \InvalidArgumentException('plan_quote_required');
+            }
+            $quote = (new PostIntroPlanQuoteService())->forPreparation($preparation, $studentId);
+            if (!hash_equals((string) $quote['quote_token'], $quoteToken)) {
+                throw new \InvalidArgumentException('plan_quote_stale');
+            }
+            $selectedOption = null;
+            foreach ((array) ($quote['options'] ?? array()) as $option) {
+                if ((string) ($option['plan_kind'] ?? '') === $planKind) { $selectedOption = $option; break; }
+            }
+            if ($selectedOption === null) throw new \InvalidArgumentException('plan_unavailable');
+
+            $now = gmdate('Y-m-d H:i:s');
+            $choice = $repository->activePlanChoice((int) $preparation->id);
+            if ($choice && (string) $choice->plan_kind !== $planKind) {
+                $repository->supersedeActivePlanChoice((int) $preparation->id);
+                $choice = null;
+            }
+            if ($choice) {
+                // A pre-offer change of mind is allowed; the offer remains the canonical fact.
+                $repository->updatePlanChoice((int) $choice->id, array(
+                    'quote_digest' => $quoteToken,
+                    'quoted_amount_due_minor' => (int) $selectedOption['amount_minor'],
+                    'currency' => (string) $quote['currency'],
+                    'chosen_at' => $now,
+                    'chosen_by' => $studentUserId,
+                ));
+            } else {
+                try {
+                    $repository->insertPlanChoice(array(
+                        'uid' => Identifier::uid(),
+                        'preparation_id' => (int) $preparation->id,
+                        'active_slot' => 1,
+                        'student_id' => $studentId,
+                        'plan_kind' => $planKind,
+                        'quote_digest' => $quoteToken,
+                        'quoted_amount_due_minor' => (int) $selectedOption['amount_minor'],
+                        'currency' => (string) $quote['currency'],
+                        'instalment_due_at' => null,
+                        'policy_version' => null,
+                        'offer_id' => null,
+                        'chosen_at' => $now,
+                        'chosen_by' => $studentUserId,
+                        'created_at' => $now,
+                    ));
+                } catch (\Throwable $choiceError) {
+                    // Two concurrent submissions may race on the one active slot. The winner is
+                    // authoritative; a different requested plan is a conflict, not a second offer.
+                    $winner = $repository->activePlanChoice((int) $preparation->id);
+                    if (!$winner) throw $choiceError;
+                    if ((string) $winner->plan_kind !== $planKind) throw new \InvalidArgumentException('plan_choice_conflict');
+                }
+            }
         }
 
         $evidenceAt = $repository->claimStudentActionAt((int) $preparation->id, gmdate('Y-m-d H:i:s'));
@@ -186,23 +271,38 @@ final class PostIntroContinuationService {
             if (!$preparation->offer_id) {
                 $existing = $repository->offerByContinuationCase((int) $preparation->continuation_case_id);
                 if ($existing) {
+                    if ((string) $existing->plan_kind !== $planKind) throw new \InvalidArgumentException('plan_choice_conflict');
                     $preparation = $this->save((int) $preparation->id, array('offer_id' => (int) $existing->id, 'offer_uid' => (string) $existing->uid));
                 } else {
-                    $offer = PostIntroSystemActor::run(fn() => (new CommercialOfferService())->issue(array(
-                        'continuation_case_id' => (int) $preparation->continuation_case_id,
-                        'product_id' => (int) $preparation->product_id,
-                        'region_code' => (string) $preparation->region_code,
-                        'plan_kind' => 'full',
-                        'evidence_channel' => 'authenticated_platform',
-                        'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
-                        'evidence_at' => $evidenceAt,
-                    ), 'post-intro-offer-' . (string) $preparation->uid));
+                    try {
+                        $offer = PostIntroSystemActor::run(fn() => (new CommercialOfferService())->issue(array(
+                            'continuation_case_id' => (int) $preparation->continuation_case_id,
+                            'product_id' => (int) $preparation->product_id,
+                            'region_code' => (string) $preparation->region_code,
+                            'plan_kind' => $planKind,
+                            'quote_subject' => (string) $preparation->uid,
+                            'expected_quote_digest' => $quoteToken,
+                            'evidence_channel' => 'authenticated_platform',
+                            'evidence_reference' => 'post-intro:' . (string) $preparation->uid,
+                            'evidence_at' => $evidenceAt,
+                        ), 'post-intro-offer-' . (string) $preparation->uid . '-' . $planKind));
+                    } catch (\Throwable $offerError) {
+                        if (trim($offerError->getMessage()) !== 'commercial_offer_exists') throw $offerError;
+                        $existing = $repository->offerByContinuationCase((int) $preparation->continuation_case_id);
+                        if (!$existing || (string) $existing->plan_kind !== $planKind) throw new \InvalidArgumentException('plan_choice_conflict');
+                        $offer = array('offer_id' => (int) $existing->id, 'offer_uid' => (string) $existing->uid);
+                    }
                     $preparation = $this->save((int) $preparation->id, array(
                         'offer_id' => (int) $offer['offer_id'],
                         'offer_uid' => (string) $offer['offer_uid'],
                         'state' => 'checkout_pending',
                     ));
                 }
+            }
+
+            $choice = $repository->activePlanChoice((int) $preparation->id);
+            if ($choice && !(int) $choice->offer_id) {
+                $repository->updatePlanChoice((int) $choice->id, array('offer_id' => (int) $preparation->offer_id));
             }
 
             if (!in_array((string) $preparation->state, array('checkout_pending', 'payment_received', 'activated'), true)) {
@@ -243,6 +343,9 @@ final class PostIntroContinuationService {
             if ($message === 'adult_attestation_required' || $message === 'guardian_required') throw $error;
             if ($message === 'post_intro_invitation_expired') {
                 $this->expire($preparation);
+                throw $error;
+            }
+            if (in_array($message, array('plan_choice_conflict', 'plan_quote_stale', 'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress'), true)) {
                 throw $error;
             }
             // A committed idempotent command or a concurrent winner is not a review exception.

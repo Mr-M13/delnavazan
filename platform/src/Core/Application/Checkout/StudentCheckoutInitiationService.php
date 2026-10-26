@@ -67,6 +67,13 @@ final class StudentCheckoutInitiationService {
             if ($this->payments->settlementForObligation((int) $obligation->id, true)) {
                 throw new \InvalidArgumentException('checkout_unavailable');
             }
+            // A later instalment is never normally collectable before its predecessor settles.
+            // Reconciliation may still record valid out-of-sequence provider evidence; that path
+            // does not pass through this student Checkout seam.
+            if ((int) $obligation->obligation_sequence > 1) {
+                $status = (new \Delnavazan\Platform\Core\Application\CommercialTermFundingService())->obligationStatus((int) $offer->id);
+                if (empty($status['prerequisites_satisfied'])) throw new \InvalidArgumentException('checkout_prerequisite_pending');
+            }
 
             $now = gmdate('Y-m-d H:i:s');
             $active = $this->sessions->activeForObligation((int) $obligation->id, true);

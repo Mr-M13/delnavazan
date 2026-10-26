@@ -13,9 +13,9 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,CommercialSupport,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPatternService,CommercialPaymentService,CommercialPolicyService,CommercialSupport,InstalmentDeadlinePolicy,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Application\Checkout\{CheckoutSessionPort,StudentCheckoutInitiationService,StudentCommercialCheckoutReadService};
-use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepository,PostIntroRepository};
 use Delnavazan\Platform\Integrations\{PostIntroActivationWorker,PostIntroSettlementHook};
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
@@ -800,8 +800,6 @@ dzn_pia_assert(($repairRecovery['state'] ?? '') === 'completed', 'repaired evide
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $repairPrep->enrolment_id)) === 1, 'repaired evidence activation must create one Term');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE enrolment_id=%d AND lesson_type='standard'", (int) $repairPrep->enrolment_id)) === 12, 'repaired evidence activation must create twelve Lessons');
 
-echo "Post-intro enrolment automation runtime passed\n";
-
 /* -------------------------------------------------------------------------------------------------
  * J. Student-selected two-instalment plan, prerequisite gate, later-instalment convergence,
  *    immutable plan after issuance, and out-of-sequence reconciliation.
@@ -980,3 +978,81 @@ dzn_pia_assert($oooJob !== null && (int) $oooJob->funding_target === 12, 'the pr
 PostIntroActivationWorker::runJob((int) $oooJob->id);
 $oooTermId = (int) $wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d LIMIT 1", $oooPurchaseId));
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $oooTermId)) === 12, 'out-of-sequence reconciliation must converge to twelve ordered Lessons');
+
+/* -------------------------------------------------------------------------------------------------
+ * L. B2b: the second-instalment deadline is opt-in configuration, exactly 168 hours before Lesson 7.
+ * ------------------------------------------------------------------------------------------------- */
+dzn_pia_assert($twoObligations[1]->due_at === null && $oooObligations[1]->due_at === null, 'an unset deadline policy must leave second instalments without an invented due date');
+
+$deadlineUnsetBooking = $booking('deadline-unset', 2, '10:57:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($deadlineUnsetBooking['confirmation'], $teacherId, 'delivered', 'Synthetic unset-deadline delivery');
+$deadlineUnsetPrep = $repository->preparationByBooking($deadlineUnsetBooking['request']);
+wp_set_current_user((int) $deadlineUnsetBooking['principal']);
+$deadlineUnsetQuote = (new PostIntroPlanQuoteService())->forPreparation($deadlineUnsetPrep, (int) $deadlineUnsetPrep->student_id);
+$continuations->continue((string) $deadlineUnsetPrep->uid, true, 'two_instalments', (string) $deadlineUnsetQuote['quote_token'], true);
+$deadlineUnsetPrep = $repository->preparationByBooking($deadlineUnsetBooking['request']);
+$deadlineUnsetOffer = $repository->offer((int) $deadlineUnsetPrep->offer_id);
+$deadlineUnsetObligations = $repository->obligationsForOffer((int) $deadlineUnsetOffer->id);
+dzn_pia_assert(count($deadlineUnsetObligations) === 2 && $deadlineUnsetObligations[1]->due_at === null, 'the default unset policy must not invent a second-instalment deadline');
+$deadlineUnsetChoice = $repository->activePlanChoice((int) $deadlineUnsetPrep->id);
+dzn_pia_assert($deadlineUnsetChoice !== null && $deadlineUnsetChoice->instalment_due_at === null && $deadlineUnsetChoice->policy_version === null, 'an unset policy must record no due instant or policy version');
+
+wp_set_current_user($actor);
+$policyService = new CommercialPolicyService();
+
+// An explicit non-approved value fails closed rather than inventing a different deadline. The
+// same preparation is retried after the approved value is recorded.
+$policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'policy_value' => '2', 'value_type' => 'weeks', 'reason_code' => 'owner_invalid_probe',
+    'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-b2b-invalid-' . $suffix,
+    'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-invalid-' . $suffix);
+$deadlineBooking = $booking('deadline-configured', 2, '17:43:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($deadlineBooking['confirmation'], $teacherId, 'delivered', 'Synthetic configured-deadline delivery');
+$deadlinePrep = $repository->preparationByBooking($deadlineBooking['request']);
+wp_set_current_user((int) $deadlineBooking['principal']);
+$deadlineQuote = (new PostIntroPlanQuoteService())->forPreparation($deadlinePrep, (int) $deadlinePrep->student_id);
+$invalidDeadlineError = null;
+try {
+    $continuations->continue((string) $deadlinePrep->uid, true, 'two_instalments', (string) $deadlineQuote['quote_token'], true);
+} catch (Throwable $error) {
+    $invalidDeadlineError = $error;
+}
+dzn_pia_assert($invalidDeadlineError !== null && $invalidDeadlineError->getMessage() === 'instalment_due_date_policy_invalid', 'a non-approved deadline value must fail closed');
+$deadlinePrep = $repository->preparationByBooking($deadlineBooking['request']);
+dzn_pia_assert((int) $deadlinePrep->offer_id === 0, 'a refused deadline policy must not issue an offer');
+
+wp_set_current_user($actor);
+$policySet = $policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'policy_value' => '1', 'value_type' => 'weeks', 'reason_code' => 'owner_approved_b2b',
+    'evidence_channel' => 'staff_record', 'evidence_reference' => 'runtime-b2b-policy-' . $suffix,
+    'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-policy-' . $suffix);
+dzn_pia_assert((int) ($policySet['policy_version'] ?? 0) >= 1, 'an administrator must be able to record the approved deadline policy');
+wp_set_current_user((int) $deadlineBooking['principal']);
+$continuations->continue((string) $deadlinePrep->uid, true, 'two_instalments', (string) $deadlineQuote['quote_token'], true);
+$deadlinePrep = $repository->preparationByBooking($deadlineBooking['request']);
+$deadlineOffer = $repository->offer((int) $deadlinePrep->offer_id);
+$deadlineObligations = $repository->obligationsForOffer((int) $deadlineOffer->id);
+dzn_pia_assert(count($deadlineObligations) === 2 && $deadlineObligations[1]->due_at !== null, 'the configured policy must record a second-instalment due date');
+$deadlinePattern = $repository->pattern((int) $deadlinePrep->pattern_id);
+$deadlineIntervals = (new CommercialPatternService())->intervalsFor($deadlinePattern, InstalmentDeadlinePolicy::LESSON_SEQUENCE);
+$expectedDueAt = gmdate('Y-m-d H:i:s', strtotime((string) $deadlineIntervals[InstalmentDeadlinePolicy::LESSON_SEQUENCE - 1]['starts_at_utc'] . ' UTC') - InstalmentDeadlinePolicy::LEAD_SECONDS);
+dzn_pia_assert((string) $deadlineObligations[1]->due_at === $expectedDueAt, 'the due instant must be exactly 168 hours before the canonical Lesson 7 start');
+$deadlineChoice = $repository->activePlanChoice((int) $deadlinePrep->id);
+dzn_pia_assert($deadlineChoice !== null && (string) $deadlineChoice->instalment_due_at === $expectedDueAt, 'the Student choice must record the derived due instant');
+dzn_pia_assert((int) $deadlineChoice->policy_version === (int) $policySet['policy_version'], 'the Student choice must record the exact policy version');
+$deadlineOfferPolicies = (new CommercialAuthorityRepository())->offerPolicies((int) $deadlineOffer->id);
+$deadlineSnapshot = array_values(array_filter($deadlineOfferPolicies, static fn(object $row): bool => (string) $row->policy_key === InstalmentDeadlinePolicy::POLICY_KEY));
+dzn_pia_assert(count($deadlineSnapshot) === 1 && (int) $deadlineSnapshot[0]->policy_version === (int) $policySet['policy_version'], 'the offer must snapshot the exact deadline policy version');
+
+wp_set_current_user($actor);
+$policyService->set(InstalmentDeadlinePolicy::POLICY_KEY, array(
+    'reason_code' => 'owner_deferred', 'evidence_channel' => 'staff_record',
+    'evidence_reference' => 'runtime-b2b-unset-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), 'runtime-b2b-unset-' . $suffix);
+dzn_pia_assert($policyService->current(InstalmentDeadlinePolicy::POLICY_KEY)['set'] === false, 'the deadline policy must remain explicitly unset when deferred');
+
+echo "Post-intro enrolment automation runtime passed\n";

@@ -39,7 +39,8 @@ final class PostIntroContinuationController {
             'adult_attestation_required', 'guardian_required', 'post_intro_invitation_expired',
             'post_intro_invitation_not_found', 'post_intro_invitation_not_ready', 'checkout_temporarily_unavailable',
             'checkout_pending', 'payment_received', 'activated', 'plan_choice_conflict', 'plan_quote_stale',
-            'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress' => $message,
+            'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress',
+            'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable' => $message,
             default => 'post_intro_unavailable',
         };
     }

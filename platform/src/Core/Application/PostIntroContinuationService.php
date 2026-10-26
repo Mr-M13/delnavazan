@@ -274,12 +274,21 @@ final class PostIntroContinuationService {
                     if ((string) $existing->plan_kind !== $planKind) throw new \InvalidArgumentException('plan_choice_conflict');
                     $preparation = $this->save((int) $preparation->id, array('offer_id' => (int) $existing->id, 'offer_uid' => (string) $existing->uid));
                 } else {
+                    // B2b: the second-instalment deadline is derived only when an administrator
+                    // has explicitly configured the approved policy. Unset remains no deadline.
+                    $instalmentDueAt = null;
+                    if ($planKind === 'two_instalments') {
+                        $pattern = $repository->pattern((int) $preparation->pattern_id);
+                        if (!$pattern) throw new \RuntimeException('commercial_pattern_conflict');
+                        $instalmentDueAt = (new InstalmentDeadlinePolicy())->forPattern($pattern, $evidenceAt)['due_at'];
+                    }
                     try {
                         $offer = PostIntroSystemActor::run(fn() => (new CommercialOfferService())->issue(array(
                             'continuation_case_id' => (int) $preparation->continuation_case_id,
                             'product_id' => (int) $preparation->product_id,
                             'region_code' => (string) $preparation->region_code,
                             'plan_kind' => $planKind,
+                            'instalment_due_at' => $instalmentDueAt,
                             'quote_subject' => (string) $preparation->uid,
                             'expected_quote_digest' => $quoteToken,
                             'evidence_channel' => 'authenticated_platform',
@@ -302,7 +311,13 @@ final class PostIntroContinuationService {
 
             $choice = $repository->activePlanChoice((int) $preparation->id);
             if ($choice && !(int) $choice->offer_id) {
-                $repository->updatePlanChoice((int) $choice->id, array('offer_id' => (int) $preparation->offer_id));
+                $changes = array('offer_id' => (int) $preparation->offer_id);
+                if ($planKind === 'two_instalments') {
+                    $deadline = $repository->instalmentDeadlineForOffer((int) $preparation->offer_id);
+                    $changes['instalment_due_at'] = $deadline['due_at'];
+                    $changes['policy_version'] = $deadline['policy_version'];
+                }
+                $repository->updatePlanChoice((int) $choice->id, $changes);
             }
 
             if (!in_array((string) $preparation->state, array('checkout_pending', 'payment_received', 'activated'), true)) {
@@ -345,7 +360,7 @@ final class PostIntroContinuationService {
                 $this->expire($preparation);
                 throw $error;
             }
-            if (in_array($message, array('plan_choice_conflict', 'plan_quote_stale', 'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress'), true)) {
+            if (in_array($message, array('plan_choice_conflict', 'plan_quote_stale', 'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress', 'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable'), true)) {
                 throw $error;
             }
             // A committed idempotent command or a concurrent winner is not a review exception.

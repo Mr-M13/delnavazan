@@ -37,12 +37,19 @@ final class CanonicalLessonDeliveryReadService {
         foreach($lifecycle as$event)if((string)($event->to_state??'')==='cancelled'&&(string)($event->reason_code??'')===CanonicalAcademyObligationValidator::academyCancellationReason())$academyCancellation=true;
         $obligations=(new CanonicalAcademyObligationRepository())->forLesson($lessonId);
         if(!CanonicalAcademyObligationValidator::valid($lesson,$obligations,$outcomes,$lifecycle))throw new \InvalidArgumentException('canonical_obligation_integrity_conflict');
+        $completionBasis=CanonicalLessonCompletionPolicy::completionBasis($lifecycle);
         return array(
             'lesson_id'=>$lessonId,
             'state'=>$effective?'recorded':($academyCancellation?'owed':'none'),
             'effective'=>$effective,
             'delivery_truth'=>$truth,
             'completion_reconciled'=>$reconciled,
+            // `presumed` is a lifecycle completion from elapsed scheduled time only. It is never
+            // reported as verified attendance, and Finance keeps it non-payable until reviewed.
+            'completion_basis'=>$completionBasis,
+            // Verified attendance requires an explicit delivered outcome. A no-show, interruption
+            // or presumed completion is not the same fact.
+            'attendance_verified'=>$effective!==null&&(string)$effective->outcome_code==='delivered',
             'outcomes'=>$outcomes,
             'obligations'=>$obligations,
         );

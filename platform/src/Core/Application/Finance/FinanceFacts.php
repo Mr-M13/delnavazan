@@ -47,7 +47,7 @@ final class FinanceFacts {
     /**
      * The validated Finance context of one canonical Lesson.
      *
-     * @return array{lesson:object,kind:string,state:string,finalised:bool,archived:bool,teacher_id:int,enrolment_id:?int,term_id:?int,course_id:int,teacher_assignment_id:int,schedule_version_id:int,occurrence_starts_at_utc:string,occurrence_ends_at_utc:string,duration_minutes:int,outcome:?object,obligation:?object}
+     * @return array{lesson:object,kind:string,state:string,finalised:bool,completion_presumed:bool,archived:bool,teacher_id:int,enrolment_id:?int,term_id:?int,course_id:int,teacher_assignment_id:int,schedule_version_id:int,occurrence_starts_at_utc:string,occurrence_ends_at_utc:string,duration_minutes:int,outcome:?object,obligation:?object}
      * @throws \RuntimeException `finance_lesson_kind_not_allowed`, `occurrence_anchor_missing` or `upstream_aggregate_invalid`
      */
     public function context(int $lessonId,bool $lock=false):array{
@@ -63,6 +63,10 @@ final class FinanceFacts {
         $events=$this->lessons->events($lessonId,$lock);
         if(!CanonicalLessonAuthorityValidator::valid($lesson,$events,$this->lessons,$lock))throw new \RuntimeException('upstream_aggregate_invalid');
         $state=(string)$lesson->lifecycle_state;
+        $completionPresumed=false;
+        foreach($events as $event){
+            if((string)($event->to_state??'')==='completed'&&(string)($event->reason_code??'')==='canonical_lesson_presumed_completed')$completionPresumed=true;
+        }
         $outcomes=$this->delivery->outcomesForLesson($lessonId,$lock);
         $outcome=CanonicalLessonDeliveryValidator::effective($outcomes);
         $obligationRows=$this->obligations->forLesson($lessonId,$lock);
@@ -88,6 +92,9 @@ final class FinanceFacts {
         if($outcome&&(int)$outcome->teacher_assignment_id!==(int)$lesson->teacher_assignment_id)throw new \RuntimeException('upstream_aggregate_invalid');
         return array(
             'lesson'=>$lesson,'kind'=>$kind,'state'=>$state,'finalised'=>in_array($state,self::FINAL_STATES,true),
+            // Silence-based completion is final for lifecycle but never independently verified
+            // delivery. Finance must not infer payability from it without an approved rule.
+            'completion_presumed'=>$completionPresumed,
             'archived'=>$lesson->archived_at!==null||$state==='archived',
             'teacher_id'=>$teacherId,'enrolment_id'=>(int)$lesson->enrolment_id,'term_id'=>(int)$lesson->term_id,
             'course_id'=>(int)$lesson->course_id,'teacher_assignment_id'=>(int)$lesson->teacher_assignment_id,
@@ -106,6 +113,7 @@ final class FinanceFacts {
         $state=(string)$lesson->status;
         return array(
             'lesson'=>$lesson,'kind'=>self::INTRO_TYPE,'state'=>$state,'finalised'=>in_array($state,self::FINAL_STATES,true),
+            'completion_presumed'=>false,
             'archived'=>$lesson->archived_at!==null,'teacher_id'=>(int)$lesson->teacher_id,
             'enrolment_id'=>null,'term_id'=>null,'course_id'=>(int)$lesson->course_id,'teacher_assignment_id'=>0,
             'schedule_version_id'=>(int)$occurrence->id,'occurrence_starts_at_utc'=>(string)$occurrence->starts_at_utc,

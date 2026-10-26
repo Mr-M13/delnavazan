@@ -75,7 +75,7 @@ if ( str_contains( $installBody, 'finance_policies`' ) && str_contains( $install
 // ---- Locked vocabularies (§5.2). ---------------------------------------------------------------
 foreach ( array(
     "DISPOSITIONS=array('payable','non_payable','pending')",
-    "BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override')",
+    "BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','presumed_completion_review','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override')",
     "RATE_SCOPE_KINDS=array('teacher','teacher_course')",
     "RATE_STATES=array('active','superseded','withdrawn')",
     "COMPENSATION_BASES=array('per_session')",
@@ -88,7 +88,7 @@ foreach ( array(
     "AMOUNT_EXACTNESS='exact_integer'",
     "FINANCE_TIMEZONE_SOURCE='recorded_policy'",
     "POLICY_ADMISSIBILITY_RULE='later_than_recorded_consumption'",
-    "PAYABILITY_DERIVATION_VERSION='finance_payability_v1'",
+    "PAYABILITY_DERIVATION_VERSION='finance_payability_v2'",
     "UNSET_POLICY_KEY='FINANCE_STATEMENT_TIMEZONE'",
 ) as $needle ) dzn_u_contract( str_contains( preg_replace( '/\s+/', '', $rule ), $needle ), 'missing locked vocabulary: ' . $needle );
 foreach ( array( 'INTRO_PAYABILITY_POLICY', 'STUDENT_NO_SHOW_COMPENSATION_POLICY', 'INTERRUPTION_COMPENSATION_POLICY', 'FINANCE_STATEMENT_TIMEZONE' ) as $key ) dzn_u_contract( str_contains( $rule, "'" . $key . "'" ), 'missing declared policy key: ' . $key );
@@ -132,12 +132,13 @@ foreach ( array(
     "array('row'=>3,'fact'=>'outcome_review_required','disposition'=>'pending','basis_code'=>'delivery_review_required'",
     "array('row'=>4,'fact'=>'outcome_teacher_non_delivery','disposition'=>'non_payable','basis_code'=>'teacher_non_delivery'",
     "array('row'=>5,'fact'=>'introductory_non_payable','disposition'=>'non_payable','basis_code'=>'introductory_policy_non_payable'",
-    "array('row'=>6,'fact'=>'completed_without_outcome','disposition'=>'payable','basis_code'=>'delivered_occurrence'",
-    "array('row'=>7,'fact'=>'outcome_delivered','disposition'=>'payable','basis_code'=>'delivered_occurrence'",
-    "array('row'=>8,'fact'=>'outcome_student_no_show','disposition'=>'policy','basis_code'=>'student_no_show'",
-    "array('row'=>9,'fact'=>'outcome_interruption','disposition'=>'policy','basis_code'=>'interruption'",
-    "array('row'=>10,'fact'=>'cancelled_before_occurrence','disposition'=>'non_payable','basis_code'=>'occurrence_not_attempted'",
-    "array('row'=>11,'fact'=>'administrator_override','disposition'=>'override','basis_code'=>'administrator_override'",
+    "array('row'=>6,'fact'=>'presumed_completion','disposition'=>'pending','basis_code'=>'presumed_completion_review'",
+    "array('row'=>7,'fact'=>'completed_without_outcome','disposition'=>'payable','basis_code'=>'delivered_occurrence'",
+    "array('row'=>8,'fact'=>'outcome_delivered','disposition'=>'payable','basis_code'=>'delivered_occurrence'",
+    "array('row'=>9,'fact'=>'outcome_student_no_show','disposition'=>'policy','basis_code'=>'student_no_show'",
+    "array('row'=>10,'fact'=>'outcome_interruption','disposition'=>'policy','basis_code'=>'interruption'",
+    "array('row'=>11,'fact'=>'cancelled_before_occurrence','disposition'=>'non_payable','basis_code'=>'occurrence_not_attempted'",
+    "array('row'=>12,'fact'=>'administrator_override','disposition'=>'override','basis_code'=>'administrator_override'",
 ) as $row ) dzn_u_contract( str_contains( preg_replace( '/\s+/', '', $derivation[1] ), $row ), 'missing derivation row: ' . $row );
 if ( ! str_contains( preg_replace( '/\s+/', '', $payabilityService ), 'publicstaticfunctionderive(array$context,array$policies,array$rows=FinanceRule::PAYABILITY_DERIVATION)' ) ) throw new RuntimeException( 'The derivation must be evaluated from FinanceRule::PAYABILITY_DERIVATION' );
 foreach ( array( 'payability_conflicts_with_delivery_fact', 'payability_supersession_conflict', 'payability_override_target_invalid', 'finance_policy_unset' ) as $code ) if ( ! str_contains( $payabilityService, $code ) && ! str_contains( $payabilityIntegrity, $code ) ) throw new RuntimeException( 'Missing declared payability refusal: ' . $code );

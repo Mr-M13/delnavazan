@@ -505,9 +505,11 @@ if [ -n "$outside" ]; then
   echo "$outside" >&2
   exit 1
 fi
-if [ "$(grep -n -- 'rm -rf' "$root/runtime/bin/common.sh" | grep -v -E ':[0-9]+:[[:space:]]*#' | wc -l | tr -d ' ')" != 1 ] \
-  || ! grep -q 'rm -rf "\$path"' "$root/runtime/bin/common.sh"; then
-  echo 'FAIL: common.sh must hold exactly one validated rm -rf primitive' >&2
+if [ "$(grep -n -- 'rm -rf' "$root/runtime/bin/common.sh" | grep -v -E ':[0-9]+:[[:space:]]*#' | wc -l | tr -d ' ')" != 2 ] \
+  || ! grep -q 'rm -rf "\$path"' "$root/runtime/bin/common.sh" \
+  || ! grep -q 'src=\$DZN_RUNTIME_STATE_DIR,dst=/runtime-state' "$root/runtime/bin/common.sh" \
+  || ! grep -q '"/runtime-state/\$1"' "$root/runtime/bin/common.sh"; then
+  echo 'FAIL: common.sh must keep every rm -rf inside the validated deletion primitive' >&2
   exit 1
 fi
 if grep -n 'rm -rf "\$DZN_RUNTIME_STATE_DIR"' "$root"/runtime/bin/*.sh; then
@@ -518,6 +520,6 @@ grep -q 'rmdir "\$DZN_RUNTIME_STATE_DIR"' "$root/runtime/bin/destroy.sh" || {
   echo 'FAIL: destroy.sh must remove the state directory with rmdir' >&2
   exit 1
 }
-echo 'CHECKED   the only rm -rf is the validated deletion primitive and destroy removes state with rmdir'
+echo 'CHECKED   every rm -rf is inside the validated deletion primitive and destroy removes state with rmdir'
 
 echo 'runtime path guards: PASS'

@@ -173,6 +173,7 @@ jobs:
           php platform/tests/synthetic-dataset-contract.php
           php platform/tests/synthetic-dataset-policy-contract.php
           php platform/tests/post-intro-enrolment-automation-contract.php
+          php platform/tests/interim-attendance-completion-contract.php
           php platform/tests/payment-plan-choice-contract.php
           php platform/tests/instalment-deadline-policy-contract.php
           php platform/tests/post-intro-system-actor-unit.php
@@ -292,6 +293,35 @@ jobs:
           DZN_RUNTIME_STATE_DIR: /tmp/dzn-post-intro-runtime
           DZN_COMPOSE_PROJECT: dzn-post-intro-runtime
           DZN_WP_PORT: 18080
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  attendance-runtime:
+    name: Interim attendance runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run disposable interim attendance and completion lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-attendance-runtime
+          DZN_COMPOSE_PROJECT: dzn-attendance-runtime
+          DZN_WP_PORT: 18086
+        run: platform/runtime/bin/run-attendance-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-attendance-runtime
+          DZN_COMPOSE_PROJECT: dzn-attendance-runtime
+          DZN_WP_PORT: 18086
         run: platform/runtime/bin/destroy.sh YES || true
 
   catalogue-runtime:

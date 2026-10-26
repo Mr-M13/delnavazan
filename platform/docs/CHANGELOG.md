@@ -3,6 +3,15 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Interim attendance & completion policy — candidate, unmerged — 2026-10-26
+
+- Adds a silence-based presumed completion lifecycle reason without creating verified attendance or
+  automatically payable compensation. Ended `authorised` Lessons are evaluated by a bounded WP-Cron
+  worker only when no Phase-O outcome, unresolved Phase-P review, conflict or integrity issue exists.
+- Adds provider-neutral manual Teacher/Student reports and administrator completed / not-delivered /
+  disputed corrections through the existing Phase-O and Phase-P authorities. Presumed completion is
+  `pending / presumed_completion_review` for Finance until a verified outcome is recorded.
+
 ## Operational-readiness integration — correction round 3 — candidate, unmerged — 2026-09-27
 
 - Closes both blocking findings of the host review of `ba47412e9b05dff53e83fa1b88f99c1dc015966e` / tree

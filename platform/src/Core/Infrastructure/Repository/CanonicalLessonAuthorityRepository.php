@@ -19,6 +19,27 @@ final class CanonicalLessonAuthorityRepository {
     public function lessons(int $termId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' ORDER BY canonical_sequence,id{$suffix}",$termId))?:array();}
     public function lessonsForEnrolment(int $enrolmentId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_results($wpdb->prepare("SELECT l.* FROM {$this->p}lessons l WHERE l.enrolment_id=%d AND l.record_model='canonical_term_lesson_v1' ORDER BY l.term_id,l.canonical_sequence,l.id{$suffix}",$enrolmentId))?:array();}
     public function lesson(int $id,bool $lock=false):?object{return $this->row('lessons',$id,$lock);}
+    /**
+     * Ended `authorised` canonical Lessons whose latest canonical schedule version has fully ended.
+     * This is an index-friendly candidate read only; the completion guard re-proves every fact under
+     * the canonical locks before any lifecycle mutation.
+     *
+     * @return array<int,int>
+     */
+    public function endedAuthorisedLessonIds(string $nowUtc,int $limit=25):array{
+        global $wpdb;
+        if(!\Delnavazan\Platform\Core\Application\CanonicalLessonScheduleValidator::utc($nowUtc))throw new \InvalidArgumentException('canonical_completion_instant_required');
+        $limit=max(1,min(100,(int)$limit));
+        // Permanently ineligible Lessons are excluded in the candidate query itself. A skipped
+        // Lesson stays `authorised`, so if it were returned every run, a bounded batch would starve
+        // every newer occurrence once enough old outcomes/reviews existed.
+        $rows=$wpdb->get_col($wpdb->prepare(
+            "SELECT l.id FROM {$this->p}lessons l INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.id=(SELECT MAX(latest.id) FROM {$this->p}canonical_lesson_schedule_versions latest WHERE latest.lesson_id=l.id) WHERE l.record_model='canonical_term_lesson_v1' AND l.lifecycle_state='authorised' AND l.archived_at IS NULL AND v.applicable_slot=1 AND v.superseded_at IS NULL AND v.starts_at_utc<=%s AND v.ends_at_utc<=%s AND NOT EXISTS (SELECT 1 FROM {$this->p}canonical_lesson_delivery_outcomes d WHERE d.lesson_id=l.id) AND NOT EXISTS (SELECT 1 FROM {$this->p}canonical_attendance_cases c WHERE c.lesson_id=l.id AND c.state IN ('open','ready_for_review','settlement_pending')) ORDER BY v.ends_at_utc ASC,l.id ASC LIMIT {$limit}",
+            $nowUtc,
+            $nowUtc
+        ));
+        return array_values(array_map('intval',is_array($rows)?$rows:array()));
+    }
     public function events(int $lessonId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_lifecycle_events WHERE lesson_id=%d ORDER BY event_sequence,id{$suffix}",$lessonId))?:array();}
     public function insertLesson(array $data):int{return $this->insert('lessons',$data,'Canonical Lesson persistence failed');}
     /**

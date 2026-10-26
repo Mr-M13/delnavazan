@@ -1,6 +1,6 @@
 <?php
 /**
- * Upcoming lessons. Presentation only: every action below uses a backend-issued URL, nonce and identifier from the view model.
+ * Upcoming and recently ended lessons. Presentation only: every action below uses a backend-issued URL, nonce and identifier from the view model.
  * Controls that exist only to preview a future design render solely in the non-production preview (see dzn_theme_teacher_portal_context()).
  */
 $items    = is_array( $args['items'] ?? null ) ? $args['items'] : array();
@@ -11,7 +11,7 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 ?>
 <section class="dzn-tp-section" aria-labelledby="tp-classes">
 	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">برنامهٔ پیش رو</p><h2 id="tp-classes">کلاس‌های پیش رو</h2></div>
+		<div><p class="dzn-tp-kicker">برنامهٔ پیش رو و کلاس‌های اخیر</p><h2 id="tp-classes">کلاس‌های پیش رو و اخیر</h2></div>
 		<div class="dzn-tp-heading__meta">
 			<span class="dzn-tp-count-badge"><?php echo esc_html( $items ? sprintf( '%d کلاس · به ترتیب زمان', count( $items ) ) : 'به ترتیب زمان' ); ?></span>
 			<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> منطقهٔ زمانی: <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
@@ -69,7 +69,8 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 	<div id="tp-details-<?php echo esc_attr( $index ); ?>" class="dzn-tp-class-details" hidden>
 		<div class="dzn-tp-detail-grid">
 			<section class="dzn-tp-detail-card"><h4>خلاصهٔ هنرجو</h4><p><?php echo esc_html( $item['student_summary'] ); ?></p><h4>زمان‌بندی</h4><p><?php echo esc_html( $item['schedule_summary'] ); ?></p><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( $item['previous_private_note'] ); ?></p></section>
-			<section class="dzn-tp-detail-card"><h4>مشکل در برگزاری کلاس</h4><p class="dzn-tp-detail-help">اگر در برگزاری این کلاس مشکلی رخ داد، آن را از همین‌جا گزارش دهید تا بررسی مدیر روی رکورد درست انجام شود.</p>
+			<section class="dzn-tp-detail-card"><h4>گزارش برگزاری کلاس</h4><p class="dzn-tp-detail-help">گزارش شما شواهد بررسی است و به‌تنهایی وضعیت نهایی یا مالی کلاس را تعیین نمی‌کند. تکرار ارسال همان گزارش، رکورد تکراری نمی‌سازد.</p>
+				<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">ثبت برگزاری کلاس</button></form>
 				<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_issue_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_issue_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">گزارش مشکل در برگزاری کلاس</button></form>
 				<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
 		</div>

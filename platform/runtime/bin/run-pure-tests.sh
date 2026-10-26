@@ -21,7 +21,9 @@ tests=(tests/static.php tests/finance-pricing-unit.php tests/finance-statement-t
 executed=0
 for test in "${tests[@]}"; do
   [ -f "$plugin_root/$test" ] || continue
-  docker run --rm --pull=never -v "$DZN_PLUGIN_WORKTREE:$DZN_PLUGIN_WORKTREE:ro" --entrypoint php "$DZN_CLI_IMAGE" "$plugin_root/$test"
+  # Disposable worktrees are intentionally owner-only. Run the read-only CLI
+  # container as root so PHP can traverse that bind mount; no source is writable.
+  docker run --rm --pull=never -u 0 -v "$DZN_PLUGIN_WORKTREE:$DZN_PLUGIN_WORKTREE:ro" --entrypoint php "$DZN_CLI_IMAGE" "$plugin_root/$test"
   executed=$((executed + 1))
   echo "PASS  $test"
 done

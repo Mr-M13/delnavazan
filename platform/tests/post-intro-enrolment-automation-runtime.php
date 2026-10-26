@@ -5,18 +5,19 @@
  * Run inside the offline WordPress runtime after the Phase-J fixture exists:
  *   DZN_POST_INTRO_RUNTIME_TEST=authority wp eval-file platform/tests/post-intro-enrolment-automation-runtime.php
  *
- * Synthetic local data only. It never contacts Stripe or Google: provider projection is expected
- * to fail closed as a retryable provider_* job, and no Meet URL is ever fabricated.
+ * Synthetic local data only. It never contacts Stripe or Google. The Calendar projection uses the
+ * real pending-mapping and HTTP-transport path, with WordPress's local HTTP seam returning one
+ * failure followed by acknowledged deterministic event writes.
  */
 if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') || !WP_CLI || !in_array(wp_get_environment_type(), array('local', 'development'), true)) {
     fwrite(STDERR, "Post-intro runtime refused.\n");
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPatternService,CommercialPaymentService,CommercialPolicyService,CommercialSupport,InstalmentDeadlinePolicy,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPatternService,CommercialPaymentService,CommercialPolicyService,CommercialSupport,InstalmentDeadlinePolicy,IntegrationSecretService,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,ProviderIntegrationRule,ProviderIntegrationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Application\Checkout\{CheckoutSessionPort,StudentCheckoutInitiationService,StudentCommercialCheckoutReadService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepository,PostIntroRepository};
-use Delnavazan\Platform\Integrations\{PostIntroActivationWorker,PostIntroSettlementHook};
+use Delnavazan\Platform\Integrations\{ContractProviderAdapters,PostIntroActivationWorker,PostIntroSettlementHook};
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
 global $wpdb;
@@ -336,14 +337,55 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}pos
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements s INNER JOIN {$p}commercial_offer_obligations o ON o.id=s.obligation_id WHERE o.offer_id=%d", (int) $prep->offer_id)) === 1, 'duplicate webhook must not duplicate settlement');
 
 // The narrow recovery path must inspect a verified-but-unprovisioned Enrolment and then provision it
-// through the existing activation worker. Google projection still fails closed after canonical truth.
+// through the existing activation worker. Establish a real authority-owned Calendar connection with
+// a local sealed credential; only the final HTTP request is intercepted below, so retry state remains
+// the production pending-map -> dispatch -> acknowledgement sequence.
+$calendarAdapters = new ContractProviderAdapters();
+$calendarAuthority = new ProviderIntegrationService(null, null, $calendarAdapters, $calendarAdapters, $calendarAdapters);
+$calendarAuthorization = $calendarAuthority->beginAuthorization(array(
+    'provider_code' => 'google_calendar',
+    'teacher_id' => $teacherId,
+    'client_reference' => 'post-intro-runtime',
+    'redirect_uri' => 'https://example.invalid/post-intro-calendar-retry',
+    'scope_snapshot' => ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE,
+) + dzn_pia_evidence('post-intro-calendar-consent-' . $suffix), dzn_pia_key('calendar-consent'));
+$calendarConnection = $calendarAuthority->completeAuthorization(array(
+    'state' => (string) $calendarAuthorization['state'],
+    'code_verifier' => (string) $calendarAuthorization['code_verifier'],
+    'code' => 'post-intro-calendar-code-' . $suffix,
+    'redirect_uri' => 'https://example.invalid/post-intro-calendar-retry',
+), dzn_pia_key('calendar-complete'));
+$calendarConnectionId = (int) $calendarConnection['connection_id'];
+$calendarCredential = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}integration_credentials WHERE connection_id=%d AND state='active' ORDER BY id DESC LIMIT 1", $calendarConnectionId));
+dzn_pia_assert($calendarCredential !== null, 'Calendar retry fixture requires an active credential');
+$calendarSealed = (new IntegrationSecretService())->seal($calendarConnectionId, 'google_calendar', wp_json_encode(array('access_token' => 'local-calendar-retry-token')));
+dzn_pia_assert($wpdb->update($p . 'integration_credentials', $calendarSealed, array('id' => (int) $calendarCredential->id, 'state' => 'active')) === 1, 'Calendar retry fixture must replace only its local sealed credential');
+$calendarTransportCalls = 0;
+$calendarAcknowledgedEventIds = array();
+$calendarHttp = static function ($preempt, array $args, string $url) use (&$calendarTransportCalls, &$calendarAcknowledgedEventIds) {
+    if (!str_starts_with($url, 'https://www.googleapis.com/calendar/v3/calendars/primary/events')) return $preempt;
+    $calendarTransportCalls++;
+    if ($calendarTransportCalls === 1) return new WP_Error('dzn_calendar_retry_failure', 'Synthetic Calendar transport failure');
+    $request = json_decode((string) ($args['body'] ?? ''), true);
+    $eventId = is_array($request) ? trim((string) ($request['id'] ?? '')) : '';
+    if ($eventId === '') throw new RuntimeException('Calendar retry transport requires the deterministic event identifier');
+    $calendarAcknowledgedEventIds[] = $eventId;
+    return array(
+        'headers' => array(),
+        'body' => wp_json_encode(array('id' => $eventId, 'hangoutLink' => 'https://meet.google.com/abc-defg-hij')),
+        'response' => array('code' => 200, 'message' => 'OK'),
+        'cookies' => array(),
+        'filename' => null,
+    );
+};
+add_filter('pre_http_request', $calendarHttp, 10, 3);
 $recovery = new PostIntroRecoveryService();
 $paidInspection = $recovery->inspect((int) $prep->enrolment_id);
 dzn_pia_assert(!empty($paidInspection['payment_verified']) && ($paidInspection['fulfilment_state'] ?? '') === 'payment_received', 'verified settlement must be visible as payment_received');
 dzn_pia_assert((int) $paidInspection['term_id'] === 0 && (int) $paidInspection['assignment_id'] === 0, 'dry-run must not invent a Term or Assignment');
 dzn_pia_assert(in_array('canonical_term', (array) ($paidInspection['planned'] ?? array()), true) && in_array('canonical_lessons:12', (array) ($paidInspection['planned'] ?? array()), true), 'dry-run must plan the Term and twelve Lessons');
 $recovered = $recovery->recover((int) $prep->enrolment_id);
-dzn_pia_assert(($recovered['state'] ?? '') === 'completed', 'recovery must complete canonical provisioning');
+dzn_pia_assert(in_array(($recovered['state'] ?? ''), array('completed', 'already_completed'), true), 'canonical provisioning must remain complete after a provider-only Calendar failure while the activation job stays failed');
 $prep = $repository->preparationByUid($prepUid);
 dzn_pia_assert((string) $prep->state === 'activated', 'core activation must complete before provider projection');
 $enrolment = $repository->enrolment((int) $prep->enrolment_id);
@@ -363,7 +405,7 @@ dzn_pia_assert($scheduledCount === 12, 'every created Lesson must have a committ
 wp_set_current_user((int) $main['principal']);
 $activePortal = (new PortalAuthenticatedReadService())->student();
 $activeEnrolment = $activePortal['enrolments'][0] ?? array();
-dzn_pia_assert(($activeEnrolment['fulfilment_state'] ?? '') === 'completed', 'the provisioned Student Enrolment must report completed fulfilment');
+dzn_pia_assert(($activeEnrolment['fulfilment_state'] ?? '') === 'completed', 'a provider-only Calendar failure must not erase completed canonical fulfilment from the Student Portal');
 dzn_pia_assert(($activeEnrolment['term_reference'] ?? '') !== '' && ($activeEnrolment['assigned_teacher_display_reference'] ?? '') !== '', 'the provisioned Enrolment must expose its Term and Teacher Assignment');
 $studentCourseName = trim((string) ($activeEnrolment['course_name'] ?? ''));
 dzn_pia_assert($studentCourseName !== '' && $studentCourseName !== (string) ($activeEnrolment['course_reference'] ?? ''), 'the Student Enrolment must expose a human Course name, not only its reference');
@@ -450,9 +492,15 @@ $evidenceOccurredAt = (string) $wpdb->get_var($wpdb->prepare(
 ));
 dzn_pia_assert($evidenceOccurredAt === $activationCheckpoint, 'activation must reuse the durable settlement checkpoint as evidence time');
 $job = $repository->activeJobForPurchase($purchaseId);
-dzn_pia_assert($job !== null && in_array((string) $job->state, array('retryable', 'failed'), true), 'a missing Google connection must leave a retryable/failed job, not a fabricated projection');
-dzn_pia_assert(str_starts_with((string) $job->last_error_code, 'provider_'), 'the retryable failure must be a provider failure, got ' . (string) $job->last_error_code);
-dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified'")) === 0, 'provider projection must not be marked verified without a provider result');
+dzn_pia_assert($job !== null && in_array((string) $job->state, array('failed', 'retryable'), true), 'the initial Calendar transport failure must expose an operator-retryable activation state');
+dzn_pia_assert((string) $job->last_error_code === 'google_calendar_transport_failed', 'the retryable failure must preserve the Calendar transport code, got ' . (string) $job->last_error_code);
+dzn_pia_assert($calendarTransportCalls === 1, 'the first activation must issue exactly one Calendar transport attempt before failure');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='pending'")) === 1, 'a failed provider write must leave exactly one pending Calendar mapping');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified'")) === 0, 'provider projection must not be marked verified without an acknowledgement');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_projection_secrets WHERE mapping_kind='calendar_event' AND state='active'")) === 0, 'a pending translation must not persist a provider reference');
+$pendingCalendarDigest = (string) $wpdb->get_var($wpdb->prepare("SELECT event_digest FROM {$p}provider_calendar_event_mappings WHERE projection_state='pending' LIMIT 1"));
+dzn_pia_assert((bool) preg_match('/^[a-f0-9]{64}$/D', $pendingCalendarDigest), 'a pending mapping may retain only its translation digest');
+$calendarTruthBeforeRetry = $truthCounts();
 
 // A terminal provider-projection failure must not regress Student-visible canonical fulfilment.
 $jobStateBeforeFailureTest = (string) $job->state;
@@ -471,10 +519,24 @@ dzn_pia_assert(empty($failedThemeModel['provisioning']), 'a provider projection 
 $wpdb->update($p . 'post_intro_activation_jobs', array('state' => $jobStateBeforeFailureTest, 'last_error_code' => $jobErrorBeforeFailureTest, 'updated_at' => gmdate('Y-m-d H:i:s')), array('id' => (int) $job->id));
 wp_set_current_user($actor);
 
-// Concurrent/retry convergence: re-running the same job must not duplicate canonical truth.
+// The authorised operator retry route replays the durable pending mapping, then the real transport
+// acknowledgement promotes it; no test row is inserted or promoted directly.
 $attemptsBefore = (int) $job->attempt_count;
-$wpdb->update($p . 'post_intro_activation_jobs', array('state' => 'queued', 'next_attempt_at' => gmdate('Y-m-d H:i:s'), 'lease_token_digest' => null, 'lease_expires_at' => null), array('id' => (int) $job->id));
+dzn_pia_assert($repository->requeueJob((int) $job->id, gmdate('Y-m-d H:i:s')), 'the failed Calendar transport job must be safely requeueable');
 PostIntroActivationWorker::run();
+$job = $repository->activeJobForPurchase($purchaseId);
+dzn_pia_assert($job !== null && (string) $job->state === 'completed', 'a provider acknowledgement must complete the requeued activation job');
+dzn_pia_assert($calendarTransportCalls === 13, 'one failed request followed by twelve acknowledged Calendar writes is required');
+dzn_pia_assert(count($calendarAcknowledgedEventIds) === 12 && count(array_unique($calendarAcknowledgedEventIds)) === 12, 'retries must use one deterministic Calendar event identifier per Lesson');
+dzn_pia_assert($calendarTruthBeforeRetry === $truthCounts(), 'Calendar retries must not mutate Term, Assignment, Lesson or schedule truth');
+wp_set_current_user((int) $main['principal']);
+$acknowledgedPortal = (new PortalAuthenticatedReadService())->student();
+dzn_pia_assert((($acknowledgedPortal['enrolments'][0] ?? array())['fulfilment_state'] ?? '') === 'completed', 'the Student Portal must keep completed canonical fulfilment after Calendar acknowledgement');
+wp_set_current_user($actor);
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified'")) === 12, 'all twelve Calendar projections must be verified after acknowledgement');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='pending'")) === 0, 'no Calendar mapping may remain pending after acknowledged retry');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_projection_secrets WHERE mapping_kind='calendar_event' AND state='active'")) === 12, 'provider references must be persisted only after acknowledgement');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified' AND event_digest NOT REGEXP '^[a-f0-9]{64}$'")) === 0, 'verified mappings must retain provider identities only as digests');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d", $termId)) === $lessonCount, 'retry must not duplicate Lessons');
 $retriedEvidenceAt = (string) $wpdb->get_var($wpdb->prepare(
     "SELECT e.occurred_at FROM {$p}canonical_lesson_lifecycle_events e INNER JOIN {$p}lessons l ON l.id=e.lesson_id WHERE l.term_id=%d AND l.lesson_type='standard' AND e.to_state='authorised' ORDER BY e.id LIMIT 1",
@@ -483,6 +545,19 @@ $retriedEvidenceAt = (string) $wpdb->get_var($wpdb->prepare(
 dzn_pia_assert($retriedEvidenceAt === $activationCheckpoint, 'an expected retry must reconstruct the identical canonical evidence time');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'retry must not duplicate Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_term_funding_plans WHERE purchase_id=%d", $purchaseId)) === 1, 'retry must not duplicate Term funding');
+$firstCalendarMapping = $wpdb->get_row($wpdb->prepare("SELECT m.id FROM {$p}provider_calendar_event_mappings m INNER JOIN {$p}lessons l ON l.id=m.lesson_id WHERE l.term_id=%d ORDER BY m.id ASC LIMIT 1", $termId));
+dzn_pia_assert($firstCalendarMapping !== null, 'the acknowledged callback replay requires the first Calendar mapping');
+$callbackReplay = $calendarAuthority->acknowledgeCalendarProjection((int) $firstCalendarMapping->id, array(
+    'provider_object_reference' => $calendarAcknowledgedEventIds[0],
+    'join_uri_reference' => 'https://meet.google.com/abc-defg-hij',
+) + dzn_pia_evidence('post-intro-calendar-callback-replay-' . $suffix), 'post-intro-calendar-dispatch-' . $prepUid . '-1');
+dzn_pia_assert(!empty($callbackReplay['idempotent']), 'the repeated acknowledged callback must converge on its existing Calendar projection');
+$calendarCountsBeforeReplay = array('mappings' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings")), 'secrets' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_projection_secrets WHERE mapping_kind='calendar_event'")));
+$completedReplay = PostIntroActivationWorker::runJob((int) $job->id);
+dzn_pia_assert(($completedReplay['state'] ?? '') === 'completed' && $calendarTransportCalls === 13, 'a completed job replay must not create another provider event');
+dzn_pia_assert($calendarCountsBeforeReplay === array('mappings' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings")), 'secrets' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_projection_secrets WHERE mapping_kind='calendar_event'"))), 'repeated callbacks and completed retries must not duplicate Calendar references');
+dzn_pia_assert($calendarTruthBeforeRetry === $truthCounts(), 'repeated callbacks and completed retries must not duplicate canonical records');
+remove_filter('pre_http_request', $calendarHttp, 10);
 
 // Repeated recovery is a no-op once canonical provisioning is complete.
 wp_set_current_user($actor);
@@ -492,7 +567,11 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}les
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'repeated recovery must not duplicate the Term');
 
 // A partial activation (for example a worker failure after five Lessons) must recover the missing
-// Lesson/schedule commands without duplicating the five already committed records.
+// Lesson/schedule commands without duplicating the five already committed records. Restore the
+// pre-existing fixture shape of an unavailable provider before deleting derived records; this keeps
+// the partial-canonical recovery independent of the Calendar acknowledgement proof above.
+$wpdb->update($p . 'integration_connections', array('connection_state' => 'disconnected', 'active_slot' => null), array('id' => $calendarConnectionId, 'connection_state' => 'connected'));
+$wpdb->update($p . 'post_intro_activation_jobs', array('state' => 'retryable', 'next_attempt_at' => gmdate('Y-m-d H:i:s'), 'last_error_code' => 'provider_connection_unusable', 'last_error_detail' => 'provider_connection_unusable'), array('id' => (int) $job->id, 'state' => 'completed'));
 $standardLessonIds = array_map('intval', (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard' ORDER BY id", $termId)));
 dzn_pia_assert(count($standardLessonIds) === 12, 'partial recovery fixture requires twelve Lessons');
 $removeLessonIds = array_slice($standardLessonIds, 5);

@@ -16,7 +16,7 @@ if (getenv('DZN_STRIPE_CHECKOUT_E2E_TEST') !== 'authority' || !defined('WP_CLI')
 
 require __DIR__ . '/phase-2a2r1-fixture.php';
 
-use Delnavazan\Platform\Core\Application\Checkout\{CheckoutRequest, StudentCheckoutReturnReadService};
+use Delnavazan\Platform\Core\Application\Checkout\{CheckoutRequest, StudentCheckoutReturnReadService, StudentCommercialCheckoutReadService};
 use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentEventIntakeService, PaymentExecutionIdempotency, PaymentExecutionRule, PaymentExecutionSupport, PaymentProviderAccountService, PaymentProviderRegistry, PaymentSecretVault, StripeTestConfigurationService, StripeTestModeReadinessService};
 use Delnavazan\Platform\Core\Application\Finance\Intro\{IntroCheckoutInitiationService,IntroPaymentService};
 use Delnavazan\Platform\Core\Infrastructure\Migration\Migrator;
@@ -170,6 +170,15 @@ dzn_checkout_e2e_assert($beforeActivation['checks']['checkout_enabled']['state']
 
 // An authenticated operator without payment-provider authority cannot configure or inspect Stripe.
 wp_set_current_user($studentPrincipal);
+$planRead = (new StudentCommercialCheckoutReadService())->read();
+$planRows = array_values(array_filter($planRead['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $offer['offer_uid']));
+dzn_checkout_e2e_assert(count($planRows) === 2, 'The Student plan projection must expose both ordered obligations');
+dzn_checkout_e2e_assert($planRows[0]['plan_kind'] === 'two_instalments', 'The Student plan must preserve the canonical plan kind');
+dzn_checkout_e2e_assert((int) $planRows[0]['committed_sessions'] === 12, 'The Student plan must expose the twelve-session commitment');
+dzn_checkout_e2e_assert((int) $planRows[0]['offer_amount_due_minor'] === (int) $offer['amount_due_minor'], 'The plan total must be the stored offer total');
+dzn_checkout_e2e_assert((int) $planRows[0]['sessions_from'] === 1 && (int) $planRows[0]['sessions_to'] === 6 && (int) $planRows[1]['sessions_from'] === 7 && (int) $planRows[1]['sessions_to'] === 12, 'Each instalment must expose its exact Lesson range');
+dzn_checkout_e2e_assert($planRows[0]['payment_state'] === 'paid' && $planRows[1]['payment_state'] === 'required', 'The Student plan must reflect settled and outstanding tranches truthfully');
+dzn_checkout_e2e_assert(!array_key_exists('id', $planRows[0]) && !array_key_exists('offer_id', $planRows[0]), 'The Student plan projection must not expose internal row identifiers');
 foreach (array(static fn() => $configuration->save(array()), static fn() => (new StripeTestModeReadinessService())->read()) as $unauthorised) {
     try { $unauthorised(); throw new RuntimeException('Unauthorised Stripe access was not refused'); }
     catch (RuntimeException $error) { dzn_checkout_e2e_assert($error->getMessage() === 'Unauthorized', 'Unauthorised Stripe access must fail closed'); }

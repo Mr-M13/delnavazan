@@ -47,8 +47,9 @@ final class StudentCheckoutController {
             }
             $result = (new StudentCheckoutInitiationService())->initiate($params);
             return new \WP_REST_Response($result, 200);
-        } catch (\Throwable) {
-            return new \WP_REST_Response(array('checkout_state' => 'unavailable', 'redirect_url' => null), 400);
+        } catch (\Throwable $error) {
+            $state = trim($error->getMessage()) === 'checkout_prerequisite_pending' ? 'prerequisite_pending' : 'unavailable';
+            return new \WP_REST_Response(array('checkout_state' => $state, 'redirect_url' => null), 400);
         }
     }
 

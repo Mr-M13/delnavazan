@@ -23,6 +23,8 @@ $checkoutRead = $read('src/Core/Application/Checkout/StudentCommercialCheckoutRe
 $settlement = $read('src/Integrations/PostIntroSettlementHook.php');
 $worker = $read('src/Integrations/PostIntroActivationWorker.php');
 $activation = $read('src/Core/Application/PostIntroActivationService.php');
+$fulfilment = $read('src/Core/Application/PostIntroFulfilmentReadService.php');
+$paymentService = $read('src/Core/Application/CommercialPaymentService.php');
 $theme = $read('../theme/template-parts/portal/post-intro.php');
 $checkoutUi = $read('../theme/assets/js/checkout.js');
 $payments = $read('../theme/template-parts/portal/payments.php');
@@ -54,15 +56,18 @@ $contains($theme, array('پرداخت کامل ترم', 'پرداخت در دو 
 $assert(strpos($theme, 'checked') === false || strpos($theme, 'plan_kind" value="two_instalments"') > strpos($theme, 'پرداخت کامل ترم'), 'instalments must not be preselected');
 
 // Normal Checkout for tranche 2 waits for its predecessor; reconciliation is a separate seam.
-$contains($checkoutInit, array("'checkout_prerequisite_pending'", 'obligation_sequence', 'prerequisites_satisfied', 'CommercialTermFundingService'), 'student Checkout must refuse an out-of-sequence instalment');
+$contains($checkoutInit, array("'checkout_prerequisite_pending'", 'obligation_sequence', 'prerequisites_satisfied', 'CommercialTermFundingService', "\$state === 'issued' && \$expired"), 'student Checkout must refuse an out-of-sequence instalment and bound only the initial issued window');
+$contains($checkoutRead, array("\$offerState==='accepted'", 'offer_expires_at'), 'the portal read must keep an accepted commitment payable after the initial hold');
+$contains($paymentService, array("(string)\$offer->state==='issued'&&\$offer->expires_at!==null", 'late_payment_after_offer_window'), 'later accepted-offer settlements must not be rejected by the initial hold');
 $contains($checkoutRead, array('prerequisite_satisfied', 'prerequisite_pending', 'paid_prerequisite_pending', 'term_paid', 'outstanding_minor', 'term_sequence'), 'portal read must expose the prerequisite and term balance');
 $assert(strpos($checkoutInit, '->ingest(') === false, 'Checkout initiation must not settle payment');
 $assert(strpos($checkoutRead, '->ingest(') === false, 'Checkout read must not settle payment');
 
 // Later settlement must converge, not be lost when a worker completes an earlier target.
 $contains($settlement, array('effectiveSessions', 'funding_target', 'funding_materialised', 'state === \'running\'', 'additional_funding', 'activeJobForPurchase'), 'settlement hook must raise the target under the job lock');
-$contains($worker, array('effectiveSessions', 'funding_materialised', 'additional_funding_pending', 'retryable', 'completed'), 'worker must requeue when more sessions became effective');
-$contains($activation, array('effectiveSessions', 'commercial_funding_not_effective', '$count = min(52, $effectiveSessions)', 'new_lessons', 'if (!$wasActivated)'), 'activation must materialise only the effective sessions and avoid duplicate notification');
+$contains($worker, array('effectiveSessions', 'funding_materialised', 'additional_funding_pending', 'retryable', 'completed', '->job((int) $job->id, true)', 'funding_target'), 'worker must lock the job and requeue when more sessions became effective');
+$contains($fulfilment, array('awaiting_next_instalment', 'next_instalment_due', 'effective_lesson_count'), 'the fulfilment projection must distinguish a half-funded two-instalment Term from a provisioning failure');
+$contains($activation, array('effectiveSessions', 'commercial_funding_not_effective', '$count = min(52, $effectiveSessions)', 'new_lessons', '$this->notify($preparation'), 'activation must materialise only the effective sessions and retry idempotent notifications');
 
 // Term-level wording, not an "instalment" label for a full payment.
 $contains($checkoutUi, array('termLabel', 'term_paid', 'پرداخت ترم بعد', 'پرداخت کامل ترم', 'قسط '), 'student account must use term-level payment wording');

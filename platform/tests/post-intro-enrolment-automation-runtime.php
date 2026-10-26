@@ -690,4 +690,17 @@ $payments->repairUnmatchedEvidence(
 );
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_purchases WHERE offer_id=%d", (int) $repairOffer->id)) === $repairPurchasesBefore, 'repeated repair must not duplicate the purchase');
 
+// Align an accepted evidence ingestion instant that predates its settlement (the production repair
+// shape), then prove the normal activation worker can consume the repaired commitment.
+$settlementSettledAt = (string) $wpdb->get_var($wpdb->prepare("SELECT settled_at FROM {$p}commercial_obligation_settlements WHERE obligation_id=%d", (int) $repairObligation->id));
+dzn_pia_assert($settlementSettledAt !== '', 'repair settlement timestamp');
+$wpdb->update($p . 'commercial_payment_evidence', array('ingested_at' => gmdate('Y-m-d H:i:s', time() - 120)), array('id' => $unmatchedEvidenceId));
+$payments->alignAcceptedEvidenceIngestionTime($unmatchedEvidenceId, dzn_pia_key('align-repair-evidence'));
+$alignedEvidence = $wpdb->get_row($wpdb->prepare("SELECT ingested_at,processing_state FROM {$p}commercial_payment_evidence WHERE id=%d", $unmatchedEvidenceId));
+dzn_pia_assert($alignedEvidence && (string) $alignedEvidence->processing_state === 'accepted' && (string) $alignedEvidence->ingested_at === $settlementSettledAt, 'timeline repair must align only the accepted evidence ingestion instant');
+$repairRecovery = $recovery->recover((int) $repairPrep->enrolment_id);
+dzn_pia_assert(($repairRecovery['state'] ?? '') === 'completed', 'repaired evidence must support normal post-intro activation');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $repairPrep->enrolment_id)) === 1, 'repaired evidence activation must create one Term');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE enrolment_id=%d AND lesson_type='standard'", (int) $repairPrep->enrolment_id)) === 12, 'repaired evidence activation must create twelve Lessons');
+
 echo "Post-intro enrolment automation runtime passed\n";

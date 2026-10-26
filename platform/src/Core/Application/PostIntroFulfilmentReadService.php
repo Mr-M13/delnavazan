@@ -158,6 +158,7 @@ final class PostIntroFulfilmentReadService {
             'obligation_id' => $obligation ? (int) $obligation->id : 0,
             'purchase_id' => $purchase ? (int) $purchase->id : 0,
             'settlement_id' => $settlement ? (int) $settlement->id : 0,
+            'settlement_evidence_id' => $settlement ? (int) ($settlement->evidence_id ?? 0) : 0,
             'entitlement_id' => $entitlement ? (int) $entitlement->id : 0,
             'job_id' => $job ? (int) $job->id : 0,
             'job_state' => $jobState,

@@ -113,7 +113,8 @@ $second=LessonCompletionAutomationWorker::run();
 dzn_ic_assert($second['presumed']===0,'a repeated worker run must presume nothing');
 dzn_ic_assert(count($events((int)$presumed['lesson_id']))===2,'a repeated worker run must not duplicate lifecycle events');
 $exactReplay=LessonCompletionAutomationWorker::runLesson((int)$presumed['lesson_id']);
-dzn_ic_assert(($exactReplay['state']??'')==='skipped'&&($exactReplay['reason']??'')==='stale_lesson_state','an exact worker replay must converge as a skip');
+dzn_ic_assert(($exactReplay['state']??'')==='presumed'&&!empty($exactReplay['result']['idempotent']),'an exact worker replay must converge on the recorded presumption');
+dzn_ic_assert(count($events((int)$presumed['lesson_id']))===2,'an exact worker replay must not append another lifecycle event');
 
 // 2. A delivered outcome prevents presumption.
 $replayed=LessonCompletionAutomationWorker::runLesson((int)$outcomeOccurrence['lesson_id']);

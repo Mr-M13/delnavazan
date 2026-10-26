@@ -246,6 +246,7 @@ function dzn_theme_platform_provisioning_notice( array $enrolments ) {
 			'title' => $messages[ $code ][0],
 			'message' => $messages[ $code ][1],
 			'course_reference' => (string) ( $enrolment['course_reference'] ?? '' ),
+			'course_name' => (string) ( $enrolment['course_name'] ?? '' ),
 		);
 	}
 	return array();
@@ -322,7 +323,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'schedule_state' => 'confirmed',
 		'attendance_state' => (string) ( $next['attendance_state_summary'] ?? '' ),
 		'entitlement_state' => $is_booking ? 'free_introductory' : 'standard',
-		'course' => (string) ( $next['course_reference'] ?? '' ),
+		'course' => (string) ( $next['course_name'] ?? '' ) !== '' ? (string) $next['course_name'] : (string) ( $next['course_reference'] ?? '' ),
 		'teacher' => $is_booking ? (string) ( $next['teacher_display_reference'] ?? '' ) : (string) ( $enrolment['assigned_teacher_display_reference'] ?? '' ),
 		'date' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'l j F Y', $display_timezone ),
 		'time' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'H:i', $display_timezone ) . '–' . dzn_theme_platform_zoned_time( $next['ends_at_utc'] ?? '', 'H:i', $display_timezone ),
@@ -536,6 +537,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$reference = trim( (string) ( $is_booking ? ( $lesson['confirmation_uid'] ?? '' ) : ( $lesson['reference_code'] ?? '' ) ) );
 		if ( '' === $reference ) { $reference = trim( (string) ( $lesson['lesson_uid'] ?? '' ) ); }
 		if ( '' === $reference ) { $reference = 'lesson-' . ( $index + 1 ); }
+		$course_label = trim( (string) ( $lesson['course_name'] ?? '' ) );
+		if ( '' === $course_label ) { $course_label = (string) ( $lesson['course_reference'] ?? '' ); }
 		$class = array(
 			'ref' => $reference,
 			'start_available' => $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $soon ),
@@ -558,7 +561,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'timezone' => $class_timezone,
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),
-			'course' => (string) ( $lesson['course_reference'] ?? '' ),
+			'course' => $course_label,
 			'progress' => $is_booking ? 'کلاس آشنایی' : (string) ( $lesson['term_reference'] ?? '' ),
 			'status' => $is_booking ? ( $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده' ) : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ),
 		);
@@ -569,7 +572,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$calendarRow = array(
 			'day' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F', $class_timezone ),
 			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
-			'label' => (string) ( $lesson['course_reference'] ?? '' ) . ' · ' . (string) ( $lesson['student_display_reference'] ?? '' ),
+			'label' => $course_label . ' · ' . (string) ( $lesson['student_display_reference'] ?? '' ),
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 		);

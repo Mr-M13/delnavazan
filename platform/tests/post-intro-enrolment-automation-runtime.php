@@ -13,7 +13,7 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,CommercialSupport,PostIntroContinuationService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPaymentService,CommercialSupport,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Application\Checkout\{CheckoutSessionPort,StudentCheckoutInitiationService,StudentCommercialCheckoutReadService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\{PostIntroActivationWorker,PostIntroSettlementHook};
@@ -365,8 +365,14 @@ $activePortal = (new PortalAuthenticatedReadService())->student();
 $activeEnrolment = $activePortal['enrolments'][0] ?? array();
 dzn_pia_assert(($activeEnrolment['fulfilment_state'] ?? '') === 'completed', 'the provisioned Student Enrolment must report completed fulfilment');
 dzn_pia_assert(($activeEnrolment['term_reference'] ?? '') !== '' && ($activeEnrolment['assigned_teacher_display_reference'] ?? '') !== '', 'the provisioned Enrolment must expose its Term and Teacher Assignment');
+$studentCourseName = trim((string) ($activeEnrolment['course_name'] ?? ''));
+dzn_pia_assert($studentCourseName !== '' && $studentCourseName !== (string) ($activeEnrolment['course_reference'] ?? ''), 'the Student Enrolment must expose a human Course name, not only its reference');
 $futureStudentLessons = array_values(array_filter((array) ($activePortal['lessons'] ?? array()), static fn(array $row): bool => strtotime((string) ($row['starts_at_utc'] ?? '') . ' UTC') >= time()));
 dzn_pia_assert(count($futureStudentLessons) === 12, 'the Student Portal must show twelve future canonical Lessons');
+dzn_pia_assert(trim((string) ($futureStudentLessons[0]['course_name'] ?? '')) === $studentCourseName, 'the Student Lesson must carry the same human Course name');
+$studentModel = dzn_theme_platform_student_model('home');
+dzn_pia_assert(trim((string) ($studentModel['upcoming_lesson']['course'] ?? '')) === $studentCourseName, 'the Student Portal must display the Course name rather than the raw reference');
+dzn_pia_assert(empty($studentModel['provisioning']), 'a completed canonical Enrolment must not show a provisioning error notice');
 $studentLessonUids = array_map(static fn(array $row): string => (string) ($row['lesson_uid'] ?? ''), $futureStudentLessons);
 sort($studentLessonUids);
 wp_set_current_user($teacherUser);
@@ -401,6 +407,7 @@ foreach ($themeClasses as $themeClass) {
     dzn_pia_assert(dzn_theme_teacher_portal_class_valid($themeClass), 'every canonical teacher class must satisfy the display contract');
     dzn_pia_assert(trim((string) ($themeClass['ref'] ?? '')) !== '', 'a canonical class must never expose an empty display reference');
     dzn_pia_assert(trim((string) ($themeClass['lesson_uid'] ?? '')) !== '', 'a canonical class must retain its canonical Lesson UID');
+    dzn_pia_assert(trim((string) ($themeClass['course'] ?? '')) === $studentCourseName, 'the teacher class must display the human Course name');
     dzn_pia_assert(($themeClass['timezone'] ?? '') === ($teacherModel['teacher_timezone'] ?? ''), 'the class timezone must be the teacher timezone');
     dzn_pia_assert(($themeClass['time'] ?? '') === dzn_theme_platform_zoned_time((string) ($themeClass['starts_at_utc'] ?? ''), 'H:i', (string) ($teacherModel['teacher_timezone'] ?? '')), 'the class time must match the canonical UTC start in the teacher timezone');
     $themeLessonUids[] = (string) $themeClass['lesson_uid'];
@@ -446,6 +453,23 @@ $job = $repository->activeJobForPurchase($purchaseId);
 dzn_pia_assert($job !== null && in_array((string) $job->state, array('retryable', 'failed'), true), 'a missing Google connection must leave a retryable/failed job, not a fabricated projection');
 dzn_pia_assert(str_starts_with((string) $job->last_error_code, 'provider_'), 'the retryable failure must be a provider failure, got ' . (string) $job->last_error_code);
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified'")) === 0, 'provider projection must not be marked verified without a provider result');
+
+// A terminal provider-projection failure must not regress Student-visible canonical fulfilment.
+$jobStateBeforeFailureTest = (string) $job->state;
+$jobErrorBeforeFailureTest = $job->last_error_code === null ? null : (string) $job->last_error_code;
+dzn_pia_assert($wpdb->update($p . 'post_intro_activation_jobs', array('state' => 'failed', 'next_attempt_at' => null, 'last_error_code' => 'provider_credential_refresh_required', 'updated_at' => gmdate('Y-m-d H:i:s')), array('id' => (int) $job->id)) !== false, 'provider failure fixture update');
+$failedProjection = (new PostIntroFulfilmentReadService())->forEnrolment((int) $enrolment->id);
+dzn_pia_assert(($failedProjection['fulfilment_state'] ?? '') === 'completed', 'a terminal provider projection failure must not erase completed canonical fulfilment');
+dzn_pia_assert(($failedProjection['message_code'] ?? null) === null, 'a completed canonical Enrolment must not emit a provisioning error after provider failure');
+dzn_pia_assert(in_array('activation_job_failed', (array) ($failedProjection['blockers'] ?? array()), true), 'the provider failure must remain visible as an operator blocker');
+wp_set_current_user((int) $main['principal']);
+$failedPortal = (new PortalAuthenticatedReadService())->student();
+$failedEnrolment = $failedPortal['enrolments'][0] ?? array();
+dzn_pia_assert(($failedEnrolment['fulfilment_state'] ?? '') === 'completed' && ($failedEnrolment['provisioning_message_code'] ?? null) === null, 'the Student Portal must keep completed fulfilment after a provider projection failure');
+$failedThemeModel = dzn_theme_platform_student_model('home');
+dzn_pia_assert(empty($failedThemeModel['provisioning']), 'a provider projection failure must not show the Student a schedule-review error');
+$wpdb->update($p . 'post_intro_activation_jobs', array('state' => $jobStateBeforeFailureTest, 'last_error_code' => $jobErrorBeforeFailureTest, 'updated_at' => gmdate('Y-m-d H:i:s')), array('id' => (int) $job->id));
+wp_set_current_user($actor);
 
 // Concurrent/retry convergence: re-running the same job must not duplicate canonical truth.
 $attemptsBefore = (int) $job->attempt_count;

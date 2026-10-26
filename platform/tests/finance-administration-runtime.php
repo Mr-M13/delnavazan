@@ -279,6 +279,80 @@ $instalments = (new FinanceAdminReadService())->instalmentSchedules(array('state
 dzn_fin_runtime_assert(count($instalments['rows']) === 2, 'The instalment schedule read must return both ordered obligations');
 dzn_fin_runtime_assert((int) $instalments['rows'][0]->sessions_from === 1 && (int) $instalments['rows'][1]->sessions_to === 12, 'The schedule must expose exact Lesson ranges');
 dzn_fin_runtime_assert((int) $instalments['rows'][0]->outstanding_minor === 1000, 'The outstanding balance must be the offer total when nothing has settled');
+$scheduleRows = static function (array $filters) use ($offerSuffix): array {
+    $rows = (new FinanceAdminReadService())->instalmentSchedules($filters)['rows'];
+    return array_values(array_filter($rows, static fn(object $row): bool => (string) $row->offer_uid === (string) $offerSuffix));
+};
+$offerObligations = static function () use ($wpdb, $p, $offerId): array {
+    return $wpdb->get_results($wpdb->prepare("SELECT id,obligation_sequence,sessions_from,sessions_to,amount_minor FROM {$p}commercial_offer_obligations WHERE offer_id=%d ORDER BY obligation_sequence", $offerId)) ?: array();
+};
+$obligations = $offerObligations();
+dzn_fin_runtime_assert(count($obligations) === 2, 'The schedule must contain exactly two obligations');
+dzn_fin_runtime_assert(array_sum(array_map(static fn(object $row): int => (int) $row->amount_minor, $obligations)) === (int) $instalments['rows'][0]->amount_due_minor, 'Obligation amounts must reconcile to the offer total');
+$settlementsBefore = dzn_fin_runtime_count('commercial_obligation_settlements');
+$evidenceBefore = dzn_fin_runtime_count('commercial_payment_evidence');
+$settle = static function (int $obligationIndex, int $amountMinor, string $suffixLabel) use ($wpdb, $p, $obligations, $now): void {
+    $obligation = $obligations[$obligationIndex];
+    $evidence = $wpdb->insert($p . 'commercial_payment_evidence', array(
+        'uid' => Identifier::uid(), 'reference_code' => null, 'provider_key' => 'stripe',
+        'provider_account_digest' => hash('sha256', 'runtime-account'), 'evidence_reference_digest' => hash('sha256', 'runtime-evidence-' . $suffixLabel),
+        'evidence_fact_digest' => hash('sha256', 'runtime-fact-' . $suffixLabel), 'evidence_kind' => 'payment',
+        'amount_minor' => $amountMinor, 'currency' => 'AUD', 'obligation_reference_digest' => null,
+        'provider_occurred_at' => $now, 'ingested_at' => $now, 'processing_state' => 'settled', 'reason_code' => null,
+        'offer_id' => null, 'purchase_id' => null, 'obligation_id' => (int) $obligation->id,
+        'created_at' => $now, 'created_by' => 1,
+    ));
+    dzn_fin_runtime_assert($evidence === 1, 'Instalment settlement evidence fixture required');
+    $settlement = $wpdb->insert($p . 'commercial_obligation_settlements', array(
+        'uid' => Identifier::uid(), 'obligation_id' => (int) $obligation->id, 'evidence_id' => (int) $wpdb->insert_id,
+        'amount_minor' => $amountMinor, 'currency' => 'AUD', 'settled_at' => $now, 'created_at' => $now, 'created_by' => 1,
+    ));
+    dzn_fin_runtime_assert($settlement === 1, 'Instalment settlement fixture required');
+};
+
+/* Partially paid: the first tranche is settled, the second is still outstanding. */
+$settle(0, 500, $offerSuffix . '-first');
+$partial = $scheduleRows(array('state' => 'outstanding'));
+dzn_fin_runtime_assert(count($partial) === 2, 'A partially paid offer must remain in the outstanding schedule with both tranches');
+dzn_fin_runtime_assert((int) $partial[0]->obligation_sequence === 1 && (int) $partial[0]->settled_amount_minor === 500, 'The first tranche must report its settled amount');
+dzn_fin_runtime_assert($partial[1]->settled_at === null, 'The second tranche must remain unsettled');
+foreach ($partial as $row) dzn_fin_runtime_assert((int) $row->outstanding_minor === 500, 'A partially paid offer must report the remaining 500 minor units');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'paid')) === array(), 'A partially paid offer must not be reported as fully paid');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), 'A schedule without a due date must never be reported overdue');
+
+/* Overdue only reflects a configured past deadline on an unpaid tranche. */
+$wpdb->update($p . 'commercial_offer_obligations', array('due_at' => gmdate('Y-m-d H:i:s', time() - 3600)), array('offer_id' => $offerId, 'obligation_sequence' => 2));
+$overdue = $scheduleRows(array('state' => 'overdue'));
+dzn_fin_runtime_assert($overdue !== array(), 'An unpaid tranche past its due date must be reported overdue');
+dzn_fin_runtime_assert((int) $overdue[0]->obligation_sequence === 1 || (int) $overdue[0]->obligation_sequence === 2, 'Overdue rows must expose the configured tranche sequence');
+$overdueSecond = array_values(array_filter($overdue, static fn(object $row): bool => (int) $row->obligation_sequence === 2));
+dzn_fin_runtime_assert(count($overdueSecond) === 1 && strtotime((string) $overdueSecond[0]->due_at) < time(), 'Overdue must be derived from the stored due_at timestamp');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'paid')) === array(), 'An overdue instalment must never be reported as paid');
+$wpdb->update($p . 'commercial_offer_obligations', array('due_at' => gmdate('Y-m-d H:i:s', time() + 3600)), array('offer_id' => $offerId, 'obligation_sequence' => 2));
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), 'A future due date must not be reported overdue');
+$wpdb->update($p . 'commercial_offer_obligations', array('due_at' => gmdate('Y-m-d H:i:s', time() - 3600)), array('offer_id' => $offerId, 'obligation_sequence' => 2));
+
+/* Fully paid: both tranches reconcile to the offer total with nothing outstanding. */
+$settle(1, 500, $offerSuffix . '-second');
+$paidSchedule = $scheduleRows(array('state' => 'paid'));
+dzn_fin_runtime_assert(count($paidSchedule) === 2, 'A fully paid offer must be reported with both settled tranches');
+foreach ($paidSchedule as $row) dzn_fin_runtime_assert((int) $row->outstanding_minor === 0 && $row->settled_at !== null, 'A fully paid offer must report zero outstanding');
+dzn_fin_runtime_assert((int) $paidSchedule[0]->settled_amount_minor + (int) $paidSchedule[1]->settled_amount_minor === (int) $paidSchedule[0]->amount_due_minor, 'Settled tranches must reconcile to the offer total');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'outstanding')) === array(), 'A fully paid offer must leave the outstanding schedule');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), 'A fully paid offer must never be reported overdue');
+dzn_fin_runtime_assert(dzn_fin_runtime_count('commercial_obligation_settlements') === $settlementsBefore + 2, 'Settling two tranches must create exactly two settlements');
+dzn_fin_runtime_assert(dzn_fin_runtime_count('commercial_payment_evidence') === $evidenceBefore + 2, 'Settling two tranches must create exactly two evidence rows');
+dzn_fin_runtime_assert(count($offerObligations()) === 2, 'Reading and settling a schedule must never duplicate obligations');
+
+/* A withdrawn or expired offer is historical truth, never an actionable receivable. */
+$wpdb->update($p . 'commercial_offers', array('state' => 'withdrawn'), array('id' => $offerId));
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'outstanding')) === array(), 'A withdrawn offer must not be counted as outstanding receivables');
+dzn_fin_runtime_assert($scheduleRows(array('state' => 'overdue')) === array(), 'A withdrawn offer must not be counted as overdue receivables');
+$allSchedules = $scheduleRows(array());
+dzn_fin_runtime_assert(count($allSchedules) === 2 && (string) $allSchedules[0]->offer_state === 'withdrawn', 'A closed schedule must remain visible with its real offer state');
+dzn_fin_runtime_assert(count($scheduleRows(array('state' => 'paid'))) === 2, 'Recorded settlements must survive offer closure');
+$wpdb->update($p . 'commercial_offers', array('state' => 'issued'), array('id' => $offerId));
+$wpdb->update($p . 'commercial_offer_obligations', array('due_at' => null), array('offer_id' => $offerId));
 
 /* ---------------------------------------------------------------- actual four-tab screen render */
 $_GET = array('page' => 'dzn-finance', 'tab' => 'payments');

@@ -110,6 +110,7 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
             'assignment_uid' => $assignment ? (string) $assignment->uid : '',
             'enrolment_uid' => (string) $enrolment->uid,
             'course_reference' => (string) $course->reference_code,
+            'course_name' => trim((string) ($course->name_fa ?? '')) !== '' ? (string) $course->name_fa : (string) ($course->name_en ?? ''),
             'term_reference' => $termReference,
             'assignment_state' => $assignment ? (string) $assignment->state : 'pending',
             'accepted_at' => $acceptedAt,

@@ -217,6 +217,40 @@ function dzn_theme_platform_calendar_export_url( $role, array $row ) {
 	} catch ( Throwable ) { return ''; }
 }
 
+/**
+ * A truthful provisioning notice for an Enrolment whose Term/Lessons are not ready yet.
+ *
+ * The payment-received wording is impossible without `payment_verified`; a redirect return or the
+ * mere existence of an Enrolment is never payment evidence.
+ *
+ * @param array<int,array> $enrolments Student Portal Enrolment projections.
+ * @return array{state:string,message_code:string,title:string,message:string,course_reference:string}|array
+ */
+function dzn_theme_platform_provisioning_notice( array $enrolments ) {
+	$messages = array(
+		'enrolment_awaiting_payment_confirmation' => array( 'ثبت‌نام شما ثبت شد', 'پرداخت شما در حال بررسی است. پس از تأیید پرداخت، برنامهٔ کلاسی در همین صفحه آماده می‌شود.' ),
+		'payment_received_classes_preparing' => array( 'پرداخت دریافت شد', 'پرداخت شما تأیید شد و کلاس‌های شما در حال آماده‌سازی است. برنامهٔ کلاسی پس از تکمیل در همین صفحه نمایش داده می‌شود.' ),
+		'schedule_review_required' => array( 'برنامهٔ کلاسی نیاز به بررسی دارد', 'ثبت‌نام شما محفوظ است. تیم پشتیبانی برای تکمیل برنامهٔ کلاسی با شما تماس می‌گیرد.' ),
+		'enrolment_processing' => array( 'ثبت‌نام شما در حال پردازش است', 'اطلاعات ثبت‌نام شما دریافت شده است. وضعیت در همین صفحه به‌روز می‌شود.' ),
+	);
+	foreach ( $enrolments as $enrolment ) {
+		if ( ! is_array( $enrolment ) ) { continue; }
+		$state = (string) ( $enrolment['fulfilment_state'] ?? '' );
+		if ( in_array( $state, array( '', 'completed', 'not_applicable' ), true ) ) { continue; }
+		$code = (string) ( $enrolment['provisioning_message_code'] ?? '' );
+		if ( 'payment_received_classes_preparing' === $code && empty( $enrolment['payment_verified'] ) ) { continue; }
+		if ( ! isset( $messages[ $code ] ) ) { continue; }
+		return array(
+			'state' => $state,
+			'message_code' => $code,
+			'title' => $messages[ $code ][0],
+			'message' => $messages[ $code ][1],
+			'course_reference' => (string) ( $enrolment['course_reference'] ?? '' ),
+		);
+	}
+	return array();
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -232,6 +266,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	if ( ! in_array( $student_timezone, timezone_identifiers_list(), true ) ) { $student_timezone = wp_timezone_string() ?: 'UTC'; }
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'student_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
 	$post_intro = array_values( array_filter( (array) ( $data['post_intro'] ?? array() ), 'is_array' ) );
+	$provisioning = dzn_theme_platform_provisioning_notice( $enrolments );
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes, $post_intro );
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
@@ -250,6 +285,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'source' => 'platform',
 		'student' => array( 'first_name' => $identity['first_name'], 'full_name' => (string) ( $student_profile['full_name'] ?? $identity['full_name'] ) ),
 		'navigation' => $navigation,
+		'provisioning' => $provisioning,
 	);
 	if ( 'account' === $screen ) {
 		$model['profile'] = array(

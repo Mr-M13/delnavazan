@@ -94,6 +94,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
 	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();
+	if ( defined( 'WP_CLI' ) && WP_CLI ) { Delnavazan\Platform\Admin\Cli\PostIntroRecoveryCommand::register(); }
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureCapability(new Delnavazan\Platform\Core\Application\CanonicalLessonPortalCapabilityOwner());
 	require_once DZN_PLATFORM_DIR . 'src/Core/Application/PortalOwnerReadPorts.php';
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureReadPorts(new Delnavazan\Platform\Core\Application\CanonicalTeacherAssignmentPortalReadPort(),new Delnavazan\Platform\Core\Application\CanonicalLessonSchedulePortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryPortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalAttendancePortalReadPortImpl());

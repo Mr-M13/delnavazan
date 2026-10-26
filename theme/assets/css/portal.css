@@ -814,3 +814,27 @@
     }
   }
 }
+
+.dzn-portal__provisioning {
+  background: var(--dzn-color-surface-muted, #f7f3e8);
+  border: 1px solid var(--dzn-color-border, #d8d2c4);
+  border-radius: 1rem;
+  margin-block-end: 1.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.dzn-portal__provisioning strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-block-end: 0.35rem;
+}
+
+.dzn-portal__provisioning p {
+  margin: 0;
+}
+
+.dzn-portal__provisioning-course {
+  font-size: 0.85rem;
+  margin-block-start: 0.45rem !important;
+  opacity: 0.8;
+}

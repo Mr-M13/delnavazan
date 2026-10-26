@@ -104,6 +104,23 @@ final class PostIntroRepository {
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}post_intro_preparations WHERE arrangement_id=%d" . ($lock ? ' FOR UPDATE' : ''), $arrangementId));
     }
 
+    public function preparationByEnrolment(int $enrolmentId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}post_intro_preparations WHERE enrolment_id=%d ORDER BY id DESC LIMIT 1", $enrolmentId));
+    }
+
+    /** @return list<object> */
+    public function recentPreparations(int $limit = 25): array {
+        global $wpdb;
+        $limit = max(1, min(100, $limit));
+        return $wpdb->get_results("SELECT * FROM {$this->p}post_intro_preparations ORDER BY id DESC LIMIT {$limit}") ?: array();
+    }
+
+    public function purchaseForOffer(int $offerId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_purchases WHERE offer_id=%d ORDER BY id DESC LIMIT 1", $offerId));
+    }
+
     public function insertPreparation(array $data): int {
         global $wpdb;
         if ($wpdb->insert($this->p . 'post_intro_preparations', $data) === false) throw new \RuntimeException('post_intro_preparation_persistence_failed');

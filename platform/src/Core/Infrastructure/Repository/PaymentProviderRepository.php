@@ -111,6 +111,12 @@ final class PaymentProviderRepository {
         global $wpdb;
         return $wpdb->get_results("SELECT * FROM {$this->p}payment_provider_event_receipts ORDER BY id ASC")?:array();
     }
+
+    /** Safe, provider-reference-free webhook refusal evidence for operator diagnostics. */
+    public function recentRefusals(int $limit=10):array{
+        global $wpdb; $limit=max(1,min(50,$limit));
+        return $wpdb->get_results("SELECT id,provider_key,verification_state,refusal_reason_code,body_bytes,received_at FROM {$this->p}payment_provider_event_receipts WHERE verification_state<>'verified' ORDER BY id DESC LIMIT {$limit}")?:array();
+    }
     public function insertEvent(array $data):int{return $this->insert('payment_provider_events',$data);}
     public function event(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}payment_provider_events WHERE id=%d".($lock?' FOR UPDATE':''),$id);}
     public function eventByReferenceDigest(string $providerKey,string $eventReferenceDigest,bool $lock=false):?object{

@@ -492,8 +492,10 @@ $evidenceOccurredAt = (string) $wpdb->get_var($wpdb->prepare(
 ));
 dzn_pia_assert($evidenceOccurredAt === $activationCheckpoint, 'activation must reuse the durable settlement checkpoint as evidence time');
 $job = $repository->activeJobForPurchase($purchaseId);
-dzn_pia_assert($job !== null && in_array((string) $job->state, array('failed', 'retryable'), true), 'the initial Calendar transport failure must expose an operator-retryable activation state');
+dzn_pia_assert($job !== null && (string) $job->state === 'retryable', 'a transient Calendar transport failure must be automatically retryable');
 dzn_pia_assert((string) $job->last_error_code === 'google_calendar_transport_failed', 'the retryable failure must preserve the Calendar transport code, got ' . (string) $job->last_error_code);
+dzn_pia_assert($job->next_attempt_at !== null && strtotime((string) $job->next_attempt_at . ' UTC') > time(), 'a transient Calendar transport failure must schedule a bounded future attempt');
+dzn_pia_assert(strtotime((string) $job->next_attempt_at . ' UTC') <= time() + 1800, 'the Calendar retry backoff must stay bounded');
 dzn_pia_assert($calendarTransportCalls === 1, 'the first activation must issue exactly one Calendar transport attempt before failure');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='pending'")) === 1, 'a failed provider write must leave exactly one pending Calendar mapping');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}provider_calendar_event_mappings WHERE projection_state='verified'")) === 0, 'provider projection must not be marked verified without an acknowledgement');

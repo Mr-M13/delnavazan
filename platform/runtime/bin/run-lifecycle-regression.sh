@@ -18,4 +18,8 @@ bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 # Student/Teacher visibility, partial provisioning recovery, and ownership.
 "$bin/run-post-intro-runtime.sh"
 
+# Covers the interim manual attendance, presumed completion, append-only correction,
+# Finance pending basis and the post-intro lifecycle against the same combined commit.
+"$bin/run-attendance-runtime.sh"
+
 echo 'Student lifecycle regression bundle: PASS'

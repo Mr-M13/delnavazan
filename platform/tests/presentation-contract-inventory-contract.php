@@ -36,8 +36,8 @@ $check( 'no /app/ route exists in the virtual router', ! str_contains( $routes, 
 $check( '/enrol/ maps to the canonical booking renderer', str_contains( $routes, "if ( 'enrol' === \$path ) { \$path = 'booking'; }" ) );
 
 /* 2. Screen allowlists match the inventory. */
-$check( 'student screens are home and account', str_contains( $routes, "in_array( \$screen, array( 'home', 'account' ), true )" ) );
-$check( 'teacher screens are home, finance, settings and onboarding', str_contains( $routes, "in_array( \$screen, array( 'home', 'finance', 'settings', 'onboarding' ), true )" ) );
+$check( 'student screens include home, account, schedule and payments', str_contains( $routes, "in_array( \$screen, array( 'home', 'account', 'schedule', 'payments' ), true )" ) );
+$check( 'teacher screens are home, classes, finance, settings and onboarding', str_contains( $routes, "in_array( \$screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding' ), true )" ) );
 $check( 'inventory records the teacher account template mismatch', str_contains( $inventory, 'teacher-portal-account.php' ) && str_contains( $inventory, 'account` is not an allowed teacher screen' ) );
 $check( 'inventory records that no student canonical join endpoint exists', str_contains( $inventory, 'a student canonical-term join endpoint' ) );
 

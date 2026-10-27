@@ -31,7 +31,7 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 		$parts = explode( '،', (string) $item['schedule_summary'] );
 		$date  = trim( (string) $parts[0] );
 	}
-	$starts_at = $valid ? (string) ( $item['starts_at_utc'] ?? '' ) : '';
+	$starts_at = $valid ? (string) ( $item['starts_at_iso'] ?? '' ) : '';
 	?>
 <li><article class="dzn-tp-class is-<?php echo esc_attr( $state ); ?>" aria-labelledby="<?php echo esc_attr( $title ); ?>">
 	<div class="dzn-tp-class__time-col">

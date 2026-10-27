@@ -38,7 +38,7 @@ $checks = array(
     'projection retries are bounded and reopen the request' => str_contains($files['projection'], 'MAX_ATTEMPTS') && str_contains($files['projection'], "'failed'") && str_contains($files['projection'], "'accepting','pending_request'"),
     'student notification uses fenced recovery and reports handoff, not delivery' => str_contains($files['notification'], "open('booking_calendar'") && str_contains($files['notification'], 'lease_token_digest') && str_contains($files['notification'], "'handed_off'") && str_contains($files['notification'], "'recipient_delivery_confirmed'=>false"),
     'portal actions are nonce protected' => str_contains($files['controller'], "check_admin_referer('dzn_teacher_booking_response')") && str_contains($files['attention'], 'response_nonce') && str_contains($files['attention'], 'delivery_uid'),
-    'Google readiness is reachable in the onboarding wizard' => str_contains($files['bridge'], 'min(5') && str_contains($files['portal'], "current_step'] > 5") && str_contains($files['wizard'], '$current === 4') && str_contains($files['wizard'], '$current === 5') && str_contains($files['wizard'], 'اتصال Google Calendar'),
+    'Google readiness is reachable in the onboarding wizard' => str_contains($files['bridge'], 'dzn_theme_platform_teacher_onboarding_step') && str_contains($files['portal'], "current_step'] > 5") && str_contains($files['wizard'], '$current === 4') && str_contains($files['wizard'], '$current === 5') && str_contains($files['wizard'], 'اتصال Google Calendar'),
 );
 foreach ($checks as $name => $ok) {
     if (!$ok) throw new RuntimeException('Booking teacher response contract failed: ' . $name);

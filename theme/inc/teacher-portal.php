@@ -22,7 +22,7 @@ function dzn_theme_enqueue_teacher_portal_assets() {
 add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 );
 
 function dzn_theme_teacher_portal_view_model( $screen ) {
-	$allowed = array( 'home', 'finance', 'settings', 'onboarding' );
+	$allowed = array( 'home', 'classes', 'finance', 'settings', 'onboarding' );
 	$screen = in_array( $screen, $allowed, true ) ? $screen : 'home';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
 	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
@@ -41,6 +41,7 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 		return is_array( $model['attention'] ?? null ) && is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null );
 	}
 	if ( 'finance' === $screen ) { return in_array( $model['finance_state'] ?? null, array( 'available', 'empty', 'unavailable' ), true ) && is_array( $model['statements'] ?? null ); }
+	if ( 'classes' === $screen ) { return is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null ); }
 	if ( 'settings' === $screen ) {
 		return dzn_theme_teacher_portal_profile_valid( $model['profile'] ?? null )
 			&& ( false === ( $model['availability_available'] ?? true ) || dzn_theme_teacher_portal_availability_valid( $model['availability'] ?? null, $model['exceptions'] ?? null ) )
@@ -64,17 +65,17 @@ function dzn_theme_teacher_portal_teacher_valid( $teacher ) {
 	return is_array( $teacher ) && dzn_theme_teacher_portal_text( $teacher['first_name'] ?? null ) && dzn_theme_teacher_portal_text( $teacher['full_name'] ?? null );
 }
 function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
-	if ( ! is_array( $navigation ) || count( $navigation ) !== 3 ) { return false; }
+	if ( ! is_array( $navigation ) || count( $navigation ) !== 4 ) { return false; }
 	$current = 0;
 	$seen = array();
 	foreach ( $navigation as $item ) {
 		if ( ! is_array( $item ) ) { return false; }
 		$item_screen = $item['screen'] ?? null;
-		if ( ! in_array( $item_screen, array( 'home', 'finance', 'settings' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
+		if ( ! in_array( $item_screen, array( 'home', 'classes', 'finance', 'settings' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
 		$seen[ $item_screen ] = true;
 		if ( $item['current'] ) { ++$current; if ( $item_screen !== $screen ) { return false; } }
 	}
-	return 0 === $current || ( 1 === $current && count( $seen ) === 3 );
+	return 0 === $current || ( 1 === $current && count( $seen ) === 4 );
 }
 function dzn_theme_teacher_portal_profile_valid( $profile ) {
 	if ( ! is_array( $profile ) ) { return false; }
@@ -122,6 +123,7 @@ function dzn_theme_teacher_portal_preview_allowed() {
 function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 	$nav = array(
 		array( 'screen' => 'home', 'label' => 'امروز', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
+		array( 'screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => add_query_arg( 'teacher-view', 'classes', $url ), 'current' => 'classes' === $screen ),
 		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $url ), 'current' => 'finance' === $screen ),
 		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $url ), 'current' => 'settings' === $screen ),
 	);

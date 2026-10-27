@@ -138,9 +138,12 @@ final class PortalAuthenticatedReadService {
         // authorised but unscheduled Lesson has no date/time to present and must not make the
         // whole portal read fail closed; the canonical schedule read still validates every row
         // that is selected.
+        // Select a bounded newest window rather than the oldest rows: a portal
+        // principal with more than LIMIT lifetime Lessons must still receive
+        // current and upcoming classes. Presentation sorts the result ascending.
         $ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1' ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1' ORDER BY v.starts_at_utc DESC,l.id DESC LIMIT %d",
                 $principalId,
                 self::LIMIT
             )
@@ -159,7 +162,7 @@ final class PortalAuthenticatedReadService {
         // capabilities (join/absence) merely by becoming visible.
         $legacyIds = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT l.id FROM {$table} l INNER JOIN {$legacySchedules} v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$legacySchedules} v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL ORDER BY v.starts_at_utc DESC,l.id DESC LIMIT %d",
                 $principalId,
                 self::LIMIT
             )

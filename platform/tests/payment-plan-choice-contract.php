@@ -71,7 +71,7 @@ $contains($activation, array('effectiveSessions', 'commercial_funding_not_effect
 
 // Term-level wording, not an "instalment" label for a full payment.
 $contains($checkoutUi, array('termLabel', 'term_paid', 'پرداخت ترم بعد', 'پرداخت کامل ترم', 'قسط '), 'student account must use term-level payment wording');
-$contains($payments, array('وضعیت پرداخت ترم', 'پرداخت ترم بعد'), 'account summary must use term-level labels');
+$contains($payments, array('وضعیت پرداخت ترم', 'data-dzn-student-checkout'), 'account summary must use term-level labels and the existing checkout root');
 $assert(strpos($checkoutUi, 'innerHTML') === false, 'payment UI must not render untrusted HTML');
 
 // No new checkout path and no live Stripe configuration change.

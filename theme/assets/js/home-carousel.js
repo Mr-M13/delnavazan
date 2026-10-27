@@ -78,9 +78,11 @@
     let interacting = false;
     let lastAutoFrame = 0;
     let pauseAutoUntil = 0;
+    let autoPaused = false;
     const controls = document.createElement('div');
     const previous = document.createElement('button');
     const next = document.createElement('button');
+    const toggle = document.createElement('button');
 
    if (!rail.id) {
   rail.id = 'dzn-instrument-carousel-' + (railIndex + 1);
@@ -103,7 +105,33 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
     next.textContent = '›';
     next.setAttribute('aria-label', 'ساز بعدی');
 
-    controls.append(previous, next);
+    toggle.className = 'dzn-instrument-carousel__button';
+    toggle.type = 'button';
+    toggle.setAttribute('aria-pressed', 'false');
+    toggle.textContent = '⏸';
+
+    const syncAutoToggle = () => {
+      const paused = autoPaused || reducedMotion.matches;
+      toggle.setAttribute('aria-pressed', paused ? 'true' : 'false');
+      toggle.textContent = paused ? '▶' : '⏸';
+      toggle.setAttribute(
+        'aria-label',
+        reducedMotion.matches
+          ? 'چرخش خودکار به دلیل تنظیم حرکت غیرفعال است'
+          : (paused ? 'شروع چرخش خودکار' : 'توقف چرخش خودکار')
+      );
+      toggle.disabled = reducedMotion.matches;
+    };
+
+    toggle.addEventListener('click', () => {
+      autoPaused = !autoPaused;
+      if (autoPaused) rail.classList.remove('is-auto-scrolling');
+      syncAutoToggle();
+    });
+    reducedMotion.addEventListener('change', syncAutoToggle);
+    syncAutoToggle();
+
+    controls.append(previous, next, toggle);
     rail.before(controls);
 
     const measureCycle = () => {
@@ -275,7 +303,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
     const autoScroll = (now) => {
       const elapsed = lastAutoFrame ? Math.min((now - lastAutoFrame) / 1000, 0.05) : 0;
       lastAutoFrame = now;
-      if (!reducedMotion.matches && !interacting && now >= pauseAutoUntil && cycleSpan > 0 && document.visibilityState === 'visible') {
+      if (!reducedMotion.matches && !autoPaused && !interacting && now >= pauseAutoUntil && cycleSpan > 0 && document.visibilityState === 'visible') {
         rail.classList.add('is-auto-scrolling');
         rail.scrollLeft += elapsed * 9;
         if (rail.scrollLeft >= cycleSpan * 2) rail.scrollLeft -= cycleSpan;

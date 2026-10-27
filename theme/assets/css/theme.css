@@ -130,10 +130,10 @@
       Arial,
       sans-serif;
 
-    --dzn-text-body: .8rem;
-    --dzn-text-small: .675rem;
-    --dzn-text-xs: .6125rem;
-    --dzn-text-nav: .8625rem;
+    --dzn-text-body: 1rem;
+    --dzn-text-small: .8125rem;
+    --dzn-text-xs: .75rem;
+    --dzn-text-nav: .9375rem;
 
     --dzn-heading-page:
       clamp(
@@ -175,30 +175,30 @@
 
     --dzn-text-faq-question:
       clamp(
-        .82rem,
-        .79rem + .12vw,
-        .9rem
+        .92rem,
+        .88rem + .12vw,
+        1rem
       );
 
     --dzn-text-faq-answer:
       clamp(
-        .78rem,
-        .75rem + .1vw,
-        .86rem
+        .875rem,
+        .84rem + .1vw,
+        .95rem
       );
 
     --dzn-text-article-title:
       clamp(
-        .82rem,
-        .79rem + .12vw,
-        .92rem
+        .92rem,
+        .88rem + .12vw,
+        1.02rem
       );
 
     --dzn-text-article-excerpt:
       clamp(
-        .76rem,
-        .73rem + .1vw,
-        .84rem
+        .85rem,
+        .82rem + .1vw,
+        .95rem
       );
 
     --dzn-text-price-title:
@@ -217,9 +217,9 @@
 
     --dzn-text-price-copy:
       clamp(
-        .76rem,
-        .73rem + .12vw,
-        .86rem
+        .82rem,
+        .79rem + .12vw,
+        .9rem
       );
 
 
@@ -2771,13 +2771,13 @@
 
     font-size:
       clamp(
-        .78rem,
-        .74rem + .18vw,
-        .9rem
+        .9rem,
+        .86rem + .18vw,
+        1rem
       );
 
     line-height:
-      2;
+      1.8;
   }
 
   .dzn-home-hero__actions {
@@ -5179,13 +5179,13 @@
 
     font-size:
       clamp(
-        .78rem,
-        .75rem + .1vw,
-        .86rem
+        .9rem,
+        .86rem + .12vw,
+        .98rem
       );
 
     line-height:
-      1.88;
+      1.8;
 
     text-wrap:
       pretty;
@@ -7168,3 +7168,12 @@ a.dzn-nav-action:focus-visible {
   }
 }
 .dzn-invitation-code{box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:max(16px,.9rem);inline-size:100%;letter-spacing:.02em;max-inline-size:42rem;text-align:left}
+
+/* =========================================================
+   PUBLIC PAYLOAD AND OVERFLOW GUARDS
+   ========================================================= */
+
+html,
+body {
+  overflow-x: clip;
+}

@@ -117,7 +117,7 @@ add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_portal_assets', 20 );
  * @return array
  */
 function dzn_theme_student_portal_view_model( $screen ) {
-	$screen = in_array( $screen, array( 'home', 'account' ), true ) ? $screen : 'home';
+	$screen = in_array( $screen, array( 'home', 'account', 'schedule', 'payments' ), true ) ? $screen : 'home';
 	$model  = apply_filters(
 		'dzn_theme_student_portal_view_model',
 		null,

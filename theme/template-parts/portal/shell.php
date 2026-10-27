@@ -5,7 +5,7 @@
  * @package DelnavazanTheme
  */
 
-$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'account' ), true ) ? $args['screen'] : 'home';
+$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'account', 'schedule', 'payments' ), true ) ? $args['screen'] : 'home';
 $model  = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $state  = isset( $model['state'] ) && in_array( (string) $model['state'], array( 'ok', 'signed_out', 'not_linked', 'error', 'no_data' ), true )
 	? (string) $model['state']
@@ -16,7 +16,10 @@ $student = isset( $model['student'] ) && is_array( $model['student'] ) ? $model[
 // greet the visitor with a name from another principal.
 $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) $student['first_name'] : '';
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
-$screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
+$screen_title = 'account' === $screen ? 'حساب کاربری' : ( 'schedule' === $screen ? 'برنامه' : ( 'payments' === $screen ? 'پرداخت' : 'خانه' ) );
+$heading = 'account' === $screen ? 'حساب کاربری' : ( 'schedule' === $screen ? 'برنامهٔ کلاس‌ها' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( $first_name ? sprintf( 'سلام %s،', $first_name ) : 'خانهٔ هنرجو' ) ) );
+$lede = 'account' === $screen ? 'جزئیات شخصی، پرداخت و اعلان‌های حساب شما' : ( 'schedule' === $screen ? 'کلاس‌های جاری، پیش رو و گذشته در منطقهٔ زمانی شما' : ( 'payments' === $screen ? 'وضعیت پرداخت و گزینه‌های مجاز از منبع مالی معتبر' : 'کلاس بعدی و مسیر ترم را یک‌جا ببینید.' ) );
+$mobile_greeting = 'account' === $screen ? 'حساب کاربری شما' : ( 'schedule' === $screen ? 'برنامهٔ کلاس‌ها' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( $first_name ? sprintf( 'سلام %s،', $first_name ) : 'خانهٔ هنرجو' ) ) );
 ?>
 <main id="main-content" class="site-main dzn-portal dzn-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1">
 	<header class="dzn-appbar">
@@ -32,20 +35,8 @@ $screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 		<div class="dzn-container dzn-portal__masthead-inner">
 			<div>
 				<p class="dzn-portal__eyebrow"><?php esc_html_e( 'هنرجوی دلنوازان', 'delnavazan-theme' ); ?></p>
-				<h1 class="dzn-portal__title">
-					<?php
-					if ( 'account' === $screen ) {
-						esc_html_e( 'حساب کاربری', 'delnavazan-theme' );
-					} elseif ( $first_name ) {
-						echo esc_html( sprintf( 'سلام %s،', $first_name ) );
-					} else {
-						esc_html_e( 'خانهٔ هنرجو', 'delnavazan-theme' );
-					}
-					?>
-				</h1>
-				<p class="dzn-portal__lede">
-					<?php echo esc_html( 'account' === $screen ? 'جزئیات شخصی، سابقه و بخش‌های آیندهٔ حساب شما' : 'کلاس بعدی و مسیر ترم را یک‌جا ببینید.' ); ?>
-				</p>
+				<h1 class="dzn-portal__title"><?php echo esc_html( $heading ); ?></h1>
+				<p class="dzn-portal__lede"><?php echo esc_html( $lede ); ?></p>
 			</div>
 			<?php dzn_theme_portal_component( 'navigation', array( 'items' => $navigation, 'id' => 'dzn-portal-nav-desktop' ) ); ?>
 			<?php if ( is_user_logged_in() ) : ?>
@@ -59,7 +50,7 @@ $screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 
 	<div class="dzn-container dzn-portal__content">
 		<?php if ( 'ok' === $state ) : ?>
-			<p class="dzn-portal__mobile-greeting"><?php echo esc_html( 'account' === $screen ? 'حساب کاربری شما' : ( $first_name ? sprintf( 'سلام %s،', $first_name ) : 'خانهٔ هنرجو' ) ); ?></p>
+			<p class="dzn-portal__mobile-greeting"><?php echo esc_html( $mobile_greeting ); ?></p>
 		<?php endif; ?>
 		<?php if ( 'ok' === $state && ! empty( $model['provisioning'] ) ) : ?>
 			<?php $provisioning = $model['provisioning']; ?>
@@ -126,9 +117,12 @@ $screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 			<p class="dzn-portal__state-actions">
 				<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>"><?php esc_html_e( 'تلاش دوباره', 'delnavazan-theme' ); ?></a>
 			</p>
+		<?php elseif ( 'schedule' === $screen ) : ?>
+			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
+		<?php elseif ( 'payments' === $screen ) : ?>
+			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 		<?php elseif ( 'account' === $screen ) : ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 			<?php
 			dzn_theme_portal_component(
@@ -140,12 +134,13 @@ $screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 				)
 			);
 			?>
+			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 		<?php else : ?>
-			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'upcoming-lesson', array( 'lesson' => $model['upcoming_lesson'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => false ) ); ?>
 		<?php endif; ?>
 	</div>

@@ -143,6 +143,10 @@ function dzn_theme_frontend_login_destination( $requested_redirect ) {
  */
 function dzn_theme_handle_frontend_login() {
 	if ( 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) || empty( $_POST['dzn_frontend_login'] ) ) { return; }
+	// This handler exits on every outcome at priority 0, before the virtual-route
+	// header block at priority 1. Protect the credential exchange response itself.
+	nocache_headers();
+	dzn_theme_send_protected_response_headers();
 	$nonce = isset( $_POST['dzn_frontend_login_nonce'] ) && is_string( $_POST['dzn_frontend_login_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_frontend_login_nonce'] ) ) : '';
 	if ( ! wp_verify_nonce( $nonce, 'dzn_frontend_login' ) ) {
 		wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
@@ -274,6 +278,10 @@ function dzn_theme_handle_branded_password_reset() {
 	if ( ! dzn_theme_is_route( 'login' ) || 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) { return; }
 	$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
 	if ( ! in_array( $action, array( 'lostpassword', 'rp' ), true ) ) { return; }
+	// Redirects from this priority-0 handler must carry the same protected
+	// response contract as the rendered /login/ screen.
+	nocache_headers();
+	dzn_theme_send_protected_response_headers();
 	$nonce = isset( $_POST['dzn_password_nonce'] ) && is_string( $_POST['dzn_password_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_password_nonce'] ) ) : '';
 	$nonce_action = 'lostpassword' === $action ? 'dzn_branded_password_lost' : 'dzn_branded_password_reset';
 	if ( ! wp_verify_nonce( $nonce, $nonce_action ) ) { wp_safe_redirect( add_query_arg( array( 'action' => $action, 'error' => '1' ), home_url( '/login/' ) ) ); exit; }
@@ -419,13 +427,13 @@ function dzn_theme_render_portal_route( $kind ) {
 	}
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
-		$screen = in_array( $screen, array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $screen : 'home';
+		$screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding' ), true ) ? $screen : 'home';
 		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;
 	}
 	$screen = isset( $_GET['portal-view'] ) ? sanitize_key( wp_unslash( $_GET['portal-view'] ) ) : 'home';
-	$screen = in_array( $screen, array( 'home', 'account' ), true ) ? $screen : 'home';
+	$screen = in_array( $screen, array( 'home', 'account', 'schedule', 'payments' ), true ) ? $screen : 'home';
 	dzn_theme_render_student_portal( $screen, dzn_theme_student_portal_view_model( $screen ) );
 }
 
@@ -460,11 +468,31 @@ function dzn_theme_legacy_booking_redirect_url() {
 	return $target;
 }
 
+/**
+ * Protected and authenticated responses must never enter a shared cache or an
+ * index. This runs after WordPress's own `nocache_headers()` so the explicit
+ * private/no-store contract wins on canonical portal, auth and operations URLs.
+ */
+function dzn_theme_send_protected_response_headers() {
+	if ( headers_sent() ) { return; }
+	header( 'X-Robots-Tag: noindex, nofollow', true );
+	header( 'Cache-Control: no-store, private, max-age=0', true );
+	header( 'Pragma: no-cache', true );
+	header( 'Referrer-Policy: same-origin', true );
+}
+
 function dzn_theme_render_virtual_route() {
 	$raw_path = trim( (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH ), '/' );
 	if ( 'booking' === $raw_path ) { wp_safe_redirect( dzn_theme_legacy_booking_redirect_url(), 302 ); exit; }
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
+	$protected = in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true );
+	// Protected redirects must carry the same no-store/noindex contract as the
+	// rendered screen. Send headers before any dashboard or signed-out redirect.
+	if ( $protected ) {
+		nocache_headers();
+		dzn_theme_send_protected_response_headers();
+	}
 	if ( 'dashboard' === $route ) {
 		$destination = dzn_theme_dashboard_destination();
 		if ( $destination ) { wp_safe_redirect( $destination ); exit; }
@@ -474,7 +502,11 @@ function dzn_theme_render_virtual_route() {
 	global $wp_query;
 	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );
-	nocache_headers();
+	if ( $protected ) {
+		dzn_theme_send_protected_response_headers();
+	} else {
+		nocache_headers();
+	}
 	get_header();
 	switch ( $route ) {
 		case 'booking': dzn_theme_render_booking_route(); break;

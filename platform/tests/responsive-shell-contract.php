@@ -64,6 +64,8 @@ $check( 'footer actions are centred in column 2', (bool) preg_match( '/\.site-fo
 $check( 'footer navigation is in column 3', (bool) preg_match( '/\.site-footer__navigation\s*\{[^}]*grid-column:\s*3;/s', $theme_css ) );
 $check( 'footer legal spans the full row', (bool) preg_match( '/\.site-footer__legal\s*\{[^}]*grid-column:\s*1 \/ -1;/s', $theme_css ) );
 $check( 'footer no longer puts every group in column 2', substr_count( $theme_css, "grid-column:\n    2;" ) < 3 );
+$check( 'student footer clears the fixed mobile tab bar', str_contains( $portal_css, '.dzn-portal ~ .site-footer' ) );
+$check( 'teacher footer clears the fixed mobile tab bar', str_contains( $teacher_css, '.dzn-teacher-portal ~ .site-footer' ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Responsive shell contract failed: ' . implode( '; ', $failures ) );

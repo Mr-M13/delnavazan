@@ -64,6 +64,12 @@ need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/style.css'
 need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/navigation.js'"
 need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/booking.js'"
 need "$smoke" 'noindex'
+need "$smoke" '/booking/?instrument=setar'
+need "$smoke" 'expected 302 to /enrol/?instrument=setar'
+if grep -Fq 'expected 301 to /enrol/' "$smoke"; then
+  echo 'FAIL production smoke still expects the retired permanent booking redirect' >&2
+  exit 1
+fi
 for asset in theme.css booking.css; do
   [[ -s "$theme_assets/$asset" ]] || { echo "FAIL required theme CSS source missing: theme/assets/css/$asset" >&2; exit 1; }
 done

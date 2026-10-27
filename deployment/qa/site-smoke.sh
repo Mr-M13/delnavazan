@@ -28,9 +28,9 @@ check_html "/" "^(200)$"
 if grep -Eqi "^x-robots-tag:.*noindex" "$headers"; then if [[ "$EXPECT_NOINDEX" == "true" ]]; then pass "X-Robots-Tag noindex"; else fail "Public target unexpectedly has X-Robots-Tag noindex"; fi; elif [[ "$EXPECT_NOINDEX" == "true" ]]; then fail "X-Robots-Tag noindex missing"; else pass "Public target is not marked noindex"; fi
 robots_meta="$(grep -Eio '<meta[^>]+>' "$body" | grep -Ei 'name=(["'\''"]robots["'\''"]|robots)' | head -1 || true)"
 if [[ -n "$robots_meta" ]] && grep -Eqi "noindex" <<<"$robots_meta"; then if [[ "$EXPECT_NOINDEX" == "true" ]]; then pass "robots meta noindex"; else fail "Public target unexpectedly has robots meta noindex"; fi; elif [[ "$EXPECT_NOINDEX" == "true" ]]; then fail "robots meta noindex missing"; else pass "Public target is not marked noindex in HTML"; fi
-if result="$(curl --silent --show-error --max-time 20 --proto "=https" --dump-header "$headers" --output /dev/null --write-out "%{http_code}" "$BASE_URL/booking/")"; then
+if result="$(curl --silent --show-error --max-time 20 --proto "=https" --dump-header "$headers" --output /dev/null --write-out "%{http_code}" "$BASE_URL/booking/?instrument=setar")"; then
   location="$(grep -Ei "^location:" "$headers" | tail -1 | sed -E "s/^[Ll]ocation:[[:space:]]*//; s/\\r$//" || true)"
-  if [[ "$result" == 301 ]] && { [[ "$location" == "/enrol/" ]] || [[ "$location" == "$BASE_URL/enrol/" ]]; }; then pass "/booking/ permanently redirects to canonical /enrol/"; else fail "/booking/ expected 301 to /enrol/, got $result ${location:-no-location}"; fi
+  if [[ "$result" == 302 ]] && [[ "$location" == *"/enrol/"* ]] && [[ "$location" == *"instrument=setar"* ]]; then pass "/booking/ temporarily redirects to canonical /enrol/ with the instrument"; else fail "/booking/ expected 302 to /enrol/?instrument=setar, got $result ${location:-no-location}"; fi
 else fail "/booking/ transfer failed"; fi
 check_html "/enrol/" "^(200)$"
 check_html "/login/" "^(200|301|302)$"

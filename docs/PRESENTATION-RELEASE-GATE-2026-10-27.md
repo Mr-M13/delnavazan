@@ -3,7 +3,7 @@
 Status: Package 9 artefact. This document prepares a release decision; it does
 **not** authorise a merge, deployment or production change.
 Baseline: `origin/main` at `c952fe0de043244edeb78a4e71ec831bdc5fbdb8`, with the
-presentation packages stacked locally as separate commits.
+presentation packages pushed as the stacked draft PRs **#367–#376**.
 
 ## 1. What is enabled
 
@@ -123,3 +123,68 @@ request count and a lab trace separately from field data.
 
 No item in this document is a substitute for that evidence. The specification's
 launch gates remain in force.
+
+## 7. Evidence recorded in this run (27 October 2026)
+
+### Pull requests and source gate
+
+- Draft stacked PRs **#367–#376**, each based on its predecessor.
+- Each PR: **7/7 checks pass** on the final rebased stack (PHP source contracts,
+  Post-intro runtime lifecycle, Interim attendance runtime, Catalogue runtime,
+  Finance runtime, OAuth scope MariaDB regression, Stripe runtime E2E).
+- The final integrated branch passes the full local contract list plus the ten
+  new presentation contracts, PHP lint, Node parse and `git diff --check`.
+- Review found one real defect: an empty UTC instant was parsed as “now”. It is
+  fixed in the final layer through `dzn_theme_platform_utc_timestamp()`.
+- Package 1 initially failed CI because its redirect contract update sat one
+  layer higher. The test was moved down to Package 1 and the stack was rebased;
+  all ten PRs are green afterwards.
+
+### Local WordPress acceptance
+
+Run against the integrated branch with the disposable Docker harness:
+
+| Target | Result |
+| --- | --- |
+| `make smoke` | PASS — student, teacher, dual-role and administrator routing; stale form; wrong password; invalid nonce |
+| `make booking-student-account` | PASS |
+| `make student-account-claim` | FAIL on the integrated branch **and on clean `origin/main`** at `TeacherAvailabilityAssentService`: “Candidate Teacher is not currently eligible for assent” |
+| `make teacher-onboarding` | FAIL on the integrated branch **and on clean `origin/main`** at `TeacherOnboardingService`: “Teacher onboarding is incomplete” |
+
+The two failures are pre-existing fixture blockers, not regressions from this
+stack. They still block the deeper authenticated claim/onboarding journeys and
+must be repaired before those gates can pass.
+
+### HTTP behaviour on the integrated branch
+
+- Signed-out `/student-portal/`: `302` to `/login/?redirect_to=…`.
+- `/booking/?instrument=setar&instrument_name=…`: `302` to
+  `/enrol/?instrument=setar&instrument_name=…`.
+- Protected and auth responses: `X-Robots-Tag: noindex, nofollow`,
+  `Cache-Control: no-store, private, max-age=0`, `Referrer-Policy: same-origin`.
+- Student and teacher portal shells render for authenticated synthetic sessions;
+  the student no-data state and the forced teacher onboarding state were observed.
+- `/enrol/?instrument=setar` could not prove the final selected instrument because
+  the acceptance catalogue has no active introductory instruments; the page
+  correctly showed the unavailable state instead.
+- `/teacher-portal/?teacher-view=classes` correctly forced the not-ready synthetic
+  teacher to onboarding.
+
+### Not run or not available
+
+- **Staging:** retired in `deployment/README.md`; no staging workflow exists in the tree.
+- **Stripe test-mode checkout/return:** no test principals or Stripe test credentials
+  are available here, and the acceptance harness does not cover checkout/providers.
+- **Screenshots, keyboard, screen-reader and axe:** no browser automation is installed;
+  an attempted Chrome headless capture attached to an existing profile and produced no
+  evidence, so none is claimed.
+- **Production headers/CDN cache:** not tested; only local response headers were observed.
+- **Measured waterfall/field vitals:** not captured.
+
+### Merge and deploy decision
+
+**Not approved.** The PRs remain drafts. Merge only after the runtime matrix above
+is completed on an owner-provided staging/acceptance environment with test
+principals, and the PRs are reviewed. Then rerun CI on the final integrated commit
+and deploy that exact commit through the protected production workflow with the
+documented rollback ready.

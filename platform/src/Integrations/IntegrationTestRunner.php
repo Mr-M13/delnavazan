@@ -195,9 +195,10 @@ final class IntegrationTestRunner {
         if(strlen($to)<8||strlen($to)>15)return array('state'=>'failed','code'=>'destination_invalid');
         $template=preg_replace('/[^a-zA-Z0-9_]/','',(string)$s->value('whatsapp','test_template_name'));
         if($template===''||stripos($template,'test')===false)return array('state'=>'failed','code'=>'test_template_not_configured');
-        $payload=array('messaging_product'=>'whatsapp','to'=>$to,'type'=>'template','template'=>array('name'=>$template,'language'=>array('code'=>(string)($s->value('whatsapp','test_template_language')?:'en_US'))));
-        $response=wp_remote_post('https://graph.facebook.com/v21.0/'.rawurlencode($s->value('whatsapp','phone_number_id')).'/messages',array('timeout'=>20,'redirection'=>0,'headers'=>array('Authorization'=>'Bearer '.$s->value('whatsapp','access_token'),'Content-Type'=>'application/json'),'body'=>wp_json_encode($payload)));
-        return $this->httpResult($response,'meta');
+        // This is intentionally a local mock. It exercises the same test
+        // template/destination preconditions as a real handoff, but never
+        // transmits a number, template, token, or message to Meta.
+        return array('state'=>'success','code'=>'meta_mock_accepted');
     }
     private function sms(IntegrationSettingsService $s,array $input):array {
         $to=preg_replace('/[^0-9+]/','',(string)($input['destination']??''));

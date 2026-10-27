@@ -17,7 +17,6 @@ $labels = array(
 	'upcoming'         => array( 'پیش رو', 'information' ),
 	'ended'            => array( 'پایان یافته', 'muted' ),
 	'unknown'          => array( 'زمان پایان نامشخص', 'warning' ),
-	'absence_notified' => array( 'غیبت اطلاع داده شده', 'muted' ),
 );
 
 $groups = array();
@@ -74,9 +73,7 @@ foreach ( $items as $item ) {
 								<?php elseif ( ! $is_intro && in_array( $state, array( 'in_progress', 'starting_soon' ), true ) ) : ?>
 									<p class="dzn-portal-help"><?php esc_html_e( 'ورود به کلاس‌های ترم از این نسخه فعال نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p>
 								<?php endif; ?>
-								<?php if ( ! empty( $item['absence_reported'] ) ) : ?>
-									<p class="dzn-status dzn-status--muted"><?php esc_html_e( 'اطلاع غیبت ثبت شده است.', 'delnavazan-theme' ); ?></p>
-								<?php elseif ( ! empty( $item['absence_available'] ) ) : ?>
+								<?php if ( ! empty( $item['absence_available'] ) ) : ?>
 									<details class="dzn-schedule-row__absence">
 										<summary><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></summary>
 										<p class="dzn-portal-help"><?php esc_html_e( 'این اطلاع به‌تنهایی وضعیت نهایی حضور یا اعتبار جلسه را تعیین نمی‌کند.', 'delnavazan-theme' ); ?></p>

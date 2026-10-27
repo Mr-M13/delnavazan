@@ -24,6 +24,7 @@ define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 define( 'HOUR_IN_SECONDS', 3600 );
 
 function add_filter( ...$args ): void {}
+function apply_filters( $tag, $value ) { return $value; }
 function wp_timezone(): DateTimeZone { return new DateTimeZone( 'UTC' ); }
 function wp_timezone_string(): string { return 'UTC'; }
 function wp_date( string $format, ?int $timestamp = null, ?DateTimeZone $timezone = null ): string {
@@ -65,6 +66,9 @@ $bridge = (string) file_get_contents( $theme . '/inc/platform-bridge.php' );
 $check( 'payments read uses StudentCommercialCheckoutReadService', str_contains( $bridge, 'StudentCommercialCheckoutReadService' ) );
 $check( 'no new checkout endpoint is created in the theme', ! str_contains( $bridge, 'register_rest_route' ) && ! str_contains( $bridge, 'checkout.stripe.com' ) );
 $check( 'the navigation is gated on checkout_enabled', str_contains( $bridge, "\$payments_available = ! empty( \$payments_model['checkout_enabled'] )" ) );
+$check( 'payments have an explicit release flag', str_contains( $bridge, 'function dzn_theme_student_payments_enabled()' ) );
+$check( 'the payments flag defaults off', ! dzn_theme_student_payments_enabled() );
+$check( 'the model does not read commercial data while the flag is off', str_contains( $bridge, '$payments_enabled ? dzn_theme_platform_student_commercial_read()' ) );
 
 $read = array(
 	'state' => 'ok',
@@ -81,13 +85,16 @@ $read = array(
 		),
 	),
 );
-$model = dzn_theme_platform_student_payments_model( $read, 'Asia/Tehran' );
+$model = dzn_theme_platform_student_payments_model( $read, 'Asia/Tehran', true );
 $check( 'a real read enables the payments screen', 'ok' === $model['state'] && ! empty( $model['checkout_enabled'] ) );
 $check( 'minor units are formatted, not printed raw', str_contains( $model['items'][0]['amount'], '1,200' ) && ! str_contains( $model['items'][0]['amount'], '120000' ) );
 $check( 'a payable obligation is described as actionable', str_contains( $model['status'], 'پرداخت' ) );
-$unavailable = dzn_theme_platform_student_payments_model( array( 'state' => 'unavailable', 'obligations' => array() ), 'Asia/Tehran' );
+$unavailable = dzn_theme_platform_student_payments_model( array( 'state' => 'unavailable', 'obligations' => array() ), 'Asia/Tehran', true );
 $check( 'a refused read stays unavailable and offers no checkout', 'unavailable' === $unavailable['state'] && empty( $unavailable['checkout_enabled'] ) );
-$empty = dzn_theme_platform_student_payments_model( array( 'state' => 'ok', 'obligations' => array() ), 'Asia/Tehran' );
+$empty = dzn_theme_platform_student_payments_model( array( 'state' => 'ok', 'obligations' => array() ), 'Asia/Tehran', true );
+$disabled = dzn_theme_platform_student_payments_model( $read, 'Asia/Tehran', false );
+$check( 'valid obligations are not exposed while the flag is off', 'disabled' === $disabled['state'] && empty( $disabled['checkout_enabled'] ) && empty( $disabled['obligations'] ) );
+$check( 'the direct payments model hides obligations until enablement', empty( $disabled['items'] ) );
 $check( 'no obligations is an empty state, not a fake obligation', 'empty' === $empty['state'] && empty( $empty['checkout_enabled'] ) );
 
 /* 3. Schedule ranking keeps the active class first and never invents a join. */
@@ -96,7 +103,6 @@ $lesson = static fn( string $start, string $end, array $extra = array() ): array
 	'lesson_uid' => 'L', 'schedule_version_uid' => 'S', 'enrolment_uid' => 'E',
 	'course_name' => 'سه‌تار', 'starts_at_utc' => $start, 'ends_at_utc' => $end,
 	'lifecycle_state' => 'authorised', 'join_available' => false, 'absence_available' => true,
-	'absence_reported' => false,
 ), $extra );
 $active = $lesson( gmdate( 'Y-m-d H:i:s', $now - 600 ), gmdate( 'Y-m-d H:i:s', $now + 600 ) );
 $future = $lesson( gmdate( 'Y-m-d H:i:s', $now + 86400 ), gmdate( 'Y-m-d H:i:s', $now + 90000 ) );
@@ -123,6 +129,8 @@ $schedule = (string) file_get_contents( $theme . '/template-parts/portal/schedul
 $check( 'payments uses the existing checkout root', str_contains( $payments, 'data-dzn-student-checkout' ) );
 $check( 'payments keeps server-rendered rows for no-JS', str_contains( $payments, '<noscript>' ) );
 $check( 'schedule has no disabled join button', ! str_contains( $schedule, 'disabled' ) );
+$check( 'schedule does not claim a persisted absence report', ! str_contains( $schedule, 'absence_reported' ) );
+$check( 'payments template distinguishes a disabled release', str_contains( $payments, "'disabled' === (string)" ) );
 $check( 'schedule renders machine-readable start instants', str_contains( $schedule, '<time datetime=' ) );
 
 if ( $failures ) {

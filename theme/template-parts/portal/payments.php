@@ -13,6 +13,7 @@
 $payments = isset( $args['payments'] ) && is_array( $args['payments'] ) ? $args['payments'] : array();
 $items = isset( $payments['items'] ) && is_array( $payments['items'] ) ? $payments['items'] : array();
 $checkout_enabled = ! empty( $payments['checkout_enabled'] );
+$disabled = 'disabled' === (string) ( $payments['state'] ?? '' );
 $unavailable = 'unavailable' === (string) ( $payments['state'] ?? ( $checkout_enabled ? 'ok' : 'unavailable' ) );
 $render_items = static function ( array $rows ): void {
 	if ( ! $rows ) {
@@ -39,9 +40,9 @@ $render_items = static function ( array $rows ): void {
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مالی', 'delnavazan-theme' ); ?></p>
 			<h2 id="dzn-payments-title"><?php esc_html_e( 'پرداخت و اشتراک', 'delnavazan-theme' ); ?></h2>
 		</div>
-		<span class="dzn-status dzn-status--muted"><?php echo $unavailable ? esc_html__( 'در دسترس نیست', 'delnavazan-theme' ) : esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></span>
+		<span class="dzn-status dzn-status--muted"><?php echo $disabled ? esc_html__( 'فعال نشده', 'delnavazan-theme' ) : ( $unavailable ? esc_html__( 'در دسترس نیست', 'delnavazan-theme' ) : esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ) ); ?></span>
 	</div>
-	<?php if ( $unavailable ) : ?>
+	<?php if ( $disabled || $unavailable ) : ?>
 		<p class="dzn-portal-empty"><?php echo esc_html( (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
 	<?php else : ?>
 	<div class="dzn-payments__summary">

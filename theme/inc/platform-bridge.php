@@ -401,7 +401,6 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'confirmation_uid' => $is_booking ? (string) ( $row['confirmation_uid'] ?? '' ) : '',
 		'join_message' => $is_booking ? dzn_theme_platform_booking_join_message( $row, $within_join ) : 'ورود به کلاس‌های ترم از این نسخه فعال نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.',
 		'absence_available' => $absence_available,
-		'absence_reported' => ! empty( $row['absence_reported'] ),
 		'absence_message' => ! $is_booking && empty( $row['absence_available'] ) ? 'ثبت اطلاع غیبت برای این جلسه فعال نیست. برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.' : '',
 		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
@@ -430,8 +429,29 @@ function dzn_theme_platform_student_schedule_rows( array $lessons, array $bookin
 	return $rows;
 }
 
+/**
+ * Payments release flag.
+ *
+ * Default off. The payment owner must explicitly approve the tab and the Stripe
+ * test-mode return flow before a valid obligation can expose checkout.
+ */
+function dzn_theme_student_payments_enabled() {
+	$enabled = defined( 'DZN_THEME_STUDENT_PAYMENTS' ) && true === DZN_THEME_STUDENT_PAYMENTS;
+	return (bool) apply_filters( 'dzn_theme_student_payments_enabled', $enabled );
+}
+
 /** Shape the commercial read for presentation without recalculating money. */
-function dzn_theme_platform_student_payments_model( array $read, $timezone ) {
+function dzn_theme_platform_student_payments_model( array $read, $timezone, $enabled = null ) {
+	if ( null === $enabled ) { $enabled = dzn_theme_student_payments_enabled(); }
+	if ( ! $enabled ) {
+		return array(
+			'state' => 'disabled',
+			'status' => 'پرداخت آنلاین هنوز برای این حساب فعال نشده است. برای پیگیری با دلنوازان تماس بگیرید.',
+			'items' => array(),
+			'checkout_enabled' => false,
+			'obligations' => array(),
+		);
+	}
 	$obligations = is_array( $read['obligations'] ?? null ) ? $read['obligations'] : array();
 	if ( 'ok' !== ( $read['state'] ?? '' ) ) {
 		return array(
@@ -515,8 +535,9 @@ function dzn_theme_platform_student_model( $screen ) {
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes, $post_intro );
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
-	$commercial = dzn_theme_platform_student_commercial_read();
-	$payments_model = dzn_theme_platform_student_payments_model( $commercial, $student_timezone );
+	$payments_enabled = dzn_theme_student_payments_enabled();
+	$commercial = $payments_enabled ? dzn_theme_platform_student_commercial_read() : array( 'state' => 'unavailable', 'obligations' => array() );
+	$payments_model = dzn_theme_platform_student_payments_model( $commercial, $student_timezone, $payments_enabled );
 	$payments_available = ! empty( $payments_model['checkout_enabled'] );
 	$schedule_available = (bool) ( $lessons || $booking_classes );
 	$navigation = dzn_theme_platform_student_navigation( $screen, $schedule_available, $payments_available );

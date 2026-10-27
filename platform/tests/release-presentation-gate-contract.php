@@ -48,6 +48,7 @@ foreach ( array(
 	'teacher-classes-contract.php',
 	'teacher-onboarding-presentation-contract.php',
 	'public-hardening-contract.php',
+	'student-payments-flag-contract.php',
 ) as $contract ) {
 	$check( 'CI runs ' . $contract, str_contains( $workflow, 'platform/tests/' . $contract ) );
 }

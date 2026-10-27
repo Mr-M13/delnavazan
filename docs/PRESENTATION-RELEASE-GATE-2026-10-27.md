@@ -50,7 +50,7 @@ for c in \
   portal-truth-contract responsive-shell-contract student-home-account-contract \
   student-schedule-payments-contract teacher-classes-contract \
   teacher-onboarding-presentation-contract public-hardening-contract \
-  release-presentation-gate-contract; do
+  release-presentation-gate-contract student-payments-flag-contract; do
   php "platform/tests/$c.php"
 done
 ```

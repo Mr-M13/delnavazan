@@ -237,6 +237,7 @@ jobs:
           php platform/tests/teacher-onboarding-presentation-contract.php
           php platform/tests/public-hardening-contract.php
           php platform/tests/release-presentation-gate-contract.php
+          php platform/tests/student-payments-flag-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

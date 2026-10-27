@@ -103,18 +103,11 @@ return array(
 	'absence' => array(
 		'eligible_unreported' => array(
 			'absence_available' => true,
-			'absence_reported'  => false,
 			'expected_label'    => 'neutral',
 		),
 		'not_eligible' => array(
 			'absence_available' => false,
-			'absence_reported'  => false,
 			'expected_label'    => 'neutral',
-		),
-		'explicitly_reported' => array(
-			'absence_available' => true,
-			'absence_reported'  => true,
-			'expected_label'    => 'reported',
 		),
 	),
 	'payment' => array(

@@ -68,7 +68,7 @@ foreach ( array(
 $absence = $fixtures['absence'] ?? array();
 $check( 'absence eligibility alone does not mean reported', ( $absence['eligible_unreported']['expected_label'] ?? null ) === 'neutral' );
 $check( 'absence not eligible stays neutral', ( $absence['not_eligible']['expected_label'] ?? null ) === 'neutral' );
-$check( 'absence reported requires an explicit fact', ( $absence['explicitly_reported']['absence_reported'] ?? null ) === true && ( $absence['explicitly_reported']['expected_label'] ?? null ) === 'reported' );
+$check( 'no persisted reported fixture is invented before the Platform read model exposes it', ! isset( $absence['explicitly_reported'] ) && ! array_filter( $absence, static fn( $case ) => array_key_exists( 'absence_reported', (array) $case ) ) );
 
 $payment = $fixtures['payment'] ?? array();
 foreach ( array( 'required', 'processing', 'paid', 'unavailable' ) as $state ) {

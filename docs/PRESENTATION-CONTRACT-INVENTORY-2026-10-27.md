@@ -105,7 +105,9 @@ Source: `PortalAuthenticatedReadService::student()`.
 Derived fields that are currently unsafe:
 
 - `presentation_state` comes from `dzn_theme_platform_lesson_state()`, which has no `in_progress`
-  state and invents `absence_notified` from `absence_available` plus attendance open (P0-05/P0-06).
+  state and previously invented `absence_notified` from `absence_available` plus attendance open
+  (P0-05/P0-06). Package 2 removes that inference; no persistent reported claim is made until the
+  Platform read model exposes an explicit canonical fact.
 - `join_available` is hard-limited to introductory booking classes; canonical term lessons always
   receive `''` and a disabled button. No student canonical join controller exists in the pinned
   source, so this cannot be fixed by the Theme alone (P0-07).
@@ -170,7 +172,7 @@ a primary Join action.
 | `/booking/` drops instrument query | 1 | Preserve allowlisted `instrument`/`instrument_name` on a temporary redirect |
 | Pricing region hidden and copy implies a base price | 1 | Visible manual selector; Platform price; honest approximation copy |
 | In-progress lesson disappears | 2 | Derive from start/end instants; keep active row first |
-| Absence label inferred from action eligibility | 2 | Neutral status unless an explicit reported fact exists |
+| Absence label inferred from action eligibility | 2 | Removed: neutral status and post-submit confirmation only; a persistent reported claim waits for an explicit Platform read field |
 | Teacher account template uses `account` | 2 | Use `settings` in page template and preview |
 | Student join/payment dead CTAs | 2, 5 | Honest unavailable, or wire existing read/action after proof |
 | Footer groups all in grid column 2 | 3 | Repair grid |
@@ -192,7 +194,9 @@ Required cases:
 - account states: `signed_out`, `student_ok`, `student_no_data`, `student_not_linked`, `student_error`,
   `teacher_ready`, `teacher_onboarding_pending`, `teacher_onboarding_returned`, `teacher_no_data`;
 - lesson temporal boundaries: `start-1s`, `start`, `mid`, `end-1s`, `end`, `end+1s`, missing end;
-- absence: eligible-unreported, not eligible, explicitly reported;
+- absence: eligible-unreported and not eligible, both neutral. A persistent
+  "reported" state is deferred until the Platform read model exposes an explicit
+  canonical fact; the post-submit query confirmation is the only current signal.
 - payment: required, processing, paid, unavailable;
 - finance: available, empty, unavailable;
 - onboarding: first incomplete step and a query attempt to skip ahead.

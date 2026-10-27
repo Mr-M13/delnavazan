@@ -36,6 +36,14 @@ foreach ( array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teac
 	$check( 'protected header list includes ' . $route, str_contains( $routes, "'" . $route . "'" ) );
 }
 $check( 'the protected header list excludes the public booking flow', str_contains( $routes, "array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' )" ) );
+$login_start = strpos( $routes, 'function dzn_theme_handle_frontend_login()' );
+$login_end = strpos( $routes, "add_action( 'template_redirect', 'dzn_theme_handle_frontend_login', 0 );", $login_start );
+$login_block = substr( $routes, (int) $login_start, (int) $login_end - (int) $login_start );
+$check( 'login POST responses carry protected headers before redirecting', str_contains( $login_block, 'dzn_theme_send_protected_response_headers();' ) && strpos( $login_block, 'dzn_theme_send_protected_response_headers();' ) < strpos( $login_block, 'wp_safe_redirect(' ) );
+$reset_start = strpos( $routes, 'function dzn_theme_handle_branded_password_reset()' );
+$reset_end = strpos( $routes, "add_action( 'template_redirect', 'dzn_theme_handle_branded_password_reset', 0 );", $reset_start );
+$reset_block = substr( $routes, (int) $reset_start, (int) $reset_end - (int) $reset_start );
+$check( 'password reset POST responses carry protected headers before redirecting', str_contains( $reset_block, 'dzn_theme_send_protected_response_headers();' ) && strpos( $reset_block, 'dzn_theme_send_protected_response_headers();' ) < strpos( $reset_block, 'wp_safe_redirect(' ) );
 
 /* 2. CI runs every presentation contract added in this increment. */
 foreach ( array(

@@ -40,7 +40,19 @@ namespace Delnavazan\Platform\Portals {
 					$lesson( $now - 600, $now + 600, 'ACTIVE' ),
 				),
 				'assignments' => array(),
-				'booking_classes' => array(),
+				'booking_classes' => array(
+					array(
+						'version' => 'teacher_booking_class_v1',
+						'confirmation_uid' => 'CONF-LATE',
+						'confirmation_state' => 'confirmed',
+						'course_name' => 'سه‌تار',
+						'teacher_display_reference' => 'استاد',
+						'student_display_reference' => 'Student LATE',
+						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 5400 ),
+						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 1800 ),
+						'join_available' => true,
+					),
+				),
 			);
 		}
 	}
@@ -106,8 +118,13 @@ namespace {
 
 	$model = dzn_theme_platform_teacher_model( 'classes' );
 	$check( 'classes screen model keeps its own screen key', 'classes' === ( $model['screen'] ?? '' ) );
+	$classes_by_ref = array();
+	foreach ( (array) ( $model['classes'] ?? array() ) as $class ) {
+		if ( is_array( $class ) ) { $classes_by_ref[ (string) ( $class['ref'] ?? '' ) ] = $class; }
+	}
 	$check( 'the active class is first', 'in_progress' === ( $model['classes'][0]['state'] ?? '' ) );
-	$check( 'future and recently ended rows remain present', 'ended' === ( $model['classes'][2]['state'] ?? '' ) );
+	$check( 'future and recently ended rows remain present', 'starting_soon' === ( $classes_by_ref['REF-FUTURE']['state'] ?? '' ) && 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) );
+	$check( 'a just-ended intro keeps the teacher late join window', true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
 	$check( 'navigation has four destinations', 4 === count( $model['navigation'] ?? array() ) );
 	$check( 'classes is the current navigation item', ! empty( $model['navigation'][1]['current'] ) && 'classes' === ( $model['navigation'][1]['screen'] ?? '' ) );
 	$check( 'home is labelled Today, not Account', 'امروز' === ( $model['navigation'][0]['label'] ?? '' ) );
@@ -123,6 +140,8 @@ namespace {
 
 	$routes = (string) file_get_contents( ABSPATH . 'theme/inc/routes.php' );
 	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding' )" ) );
+	$finance = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/finance.php' );
+	$check( 'withdrawn statements map to a known label', str_contains( $finance, "'withdrawn' =>" ) && ! str_contains( $finance, "'void'" ) );
 
 	if ( $failures ) {
 		throw new RuntimeException( 'Teacher classes contract failed: ' . implode( '; ', $failures ) );

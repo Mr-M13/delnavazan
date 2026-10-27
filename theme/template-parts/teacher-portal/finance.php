@@ -16,7 +16,7 @@ $states     = array(
 	'issued'     => 'صادر شده',
 	'draft'      => 'پیش‌نویس',
 	'superseded' => 'جایگزین شده',
-	'void'       => 'لغو شده',
+	'withdrawn' => 'لغو شده',
 );
 $format_money = static function ( int $minor, string $currency ): string {
 	if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney' ) ) {

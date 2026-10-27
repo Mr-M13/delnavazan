@@ -400,7 +400,7 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	$state = $is_booking
 		? ( 'ended' === $temporal ? 'ended' : ( 'in_progress' === $temporal ? 'in_progress' : ( $within_join ? 'starting_soon' : 'upcoming' ) ) )
 		: dzn_theme_platform_lesson_state( $row, $now );
-	$join_available = $is_booking && ! empty( $row['join_available'] ) && $within_join && 'ended' !== $temporal;
+	$join_available = $is_booking && ! empty( $row['join_available'] ) && $within_join;
 	$absence_available = ! $is_booking && ! empty( $row['absence_available'] ) && 'authorised' === (string) ( $row['lifecycle_state'] ?? '' ) && $start && $start > $now;
 	return array(
 		'kind' => $is_booking ? 'intro' : 'term',
@@ -900,7 +900,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$temporal = dzn_theme_platform_lesson_temporal_state( $lesson, $now );
 		$soon = $start && $start - $now <= HOUR_IN_SECONDS;
 		$ended = 'ended' === $temporal;
-		$join_ready = ! $ended && $is_booking && ! empty( $lesson['join_available'] ) && $soon;
+		$within_join = $start && $end && $now >= $start - HOUR_IN_SECONDS && $now <= $end + ( 2 * HOUR_IN_SECONDS );
+		$join_ready = $is_booking && ! empty( $lesson['join_available'] ) && $within_join;
 		$class_timezone = $is_booking ? (string) ( $onboarding['profile']['timezone'] ?? $lesson['schedule_timezone'] ?? 'UTC' ) : (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
 		$state = 'in_progress' === $temporal ? 'in_progress' : ( $ended ? 'ended' : ( $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) ) ) );
 		// Canonical Term Lessons intentionally carry no display reference. Use the canonical Lesson
@@ -913,7 +914,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( '' === $course_label ) { $course_label = (string) ( $lesson['course_reference'] ?? '' ); }
 		$class = array(
 			'ref' => $reference,
-			'start_available' => ! $ended && ( $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $soon ) ),
+			'start_available' => $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $within_join ),
 			'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ) ),
 			'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ),
 			'confirmation_uid' => $is_booking ? (string) ( $lesson['confirmation_uid'] ?? '' ) : '',

@@ -143,6 +143,10 @@ function dzn_theme_frontend_login_destination( $requested_redirect ) {
  */
 function dzn_theme_handle_frontend_login() {
 	if ( 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) || empty( $_POST['dzn_frontend_login'] ) ) { return; }
+	// This handler exits on every outcome at priority 0, before the virtual-route
+	// header block at priority 1. Protect the credential exchange response itself.
+	nocache_headers();
+	dzn_theme_send_protected_response_headers();
 	$nonce = isset( $_POST['dzn_frontend_login_nonce'] ) && is_string( $_POST['dzn_frontend_login_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_frontend_login_nonce'] ) ) : '';
 	if ( ! wp_verify_nonce( $nonce, 'dzn_frontend_login' ) ) {
 		wp_safe_redirect( dzn_theme_frontend_login_failure_url() );
@@ -274,6 +278,10 @@ function dzn_theme_handle_branded_password_reset() {
 	if ( ! dzn_theme_is_route( 'login' ) || 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) { return; }
 	$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
 	if ( ! in_array( $action, array( 'lostpassword', 'rp' ), true ) ) { return; }
+	// Redirects from this priority-0 handler must carry the same protected
+	// response contract as the rendered /login/ screen.
+	nocache_headers();
+	dzn_theme_send_protected_response_headers();
 	$nonce = isset( $_POST['dzn_password_nonce'] ) && is_string( $_POST['dzn_password_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['dzn_password_nonce'] ) ) : '';
 	$nonce_action = 'lostpassword' === $action ? 'dzn_branded_password_lost' : 'dzn_branded_password_reset';
 	if ( ! wp_verify_nonce( $nonce, $nonce_action ) ) { wp_safe_redirect( add_query_arg( array( 'action' => $action, 'error' => '1' ), home_url( '/login/' ) ) ); exit; }

@@ -1058,6 +1058,12 @@
     color: var(--dzn-color-action-primary);
     box-shadow: inset 0 3px 0 var(--dzn-color-action-primary);
   }
+
+  /* The fixed tab bar overlays the document footer; reserve its height so the
+     footer's final links and legal text can scroll clear of it. */
+  .dzn-portal ~ .site-footer {
+    padding-block-end: calc(64px + env(safe-area-inset-bottom) + var(--dzn-space-5));
+  }
 }
 
 @media (min-width: 48rem) {

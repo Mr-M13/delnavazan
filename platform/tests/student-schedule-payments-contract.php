@@ -123,6 +123,20 @@ $booking = $lesson( gmdate( 'Y-m-d H:i:s', $now - 300 ), gmdate( 'Y-m-d H:i:s', 
 $booking_rows = dzn_theme_platform_student_schedule_rows( array(), array( $booking ), array(), 'Asia/Tehran', $now );
 $check( 'a confirmed introductory class keeps its joined action', ! empty( $booking_rows[0]['join_available'] ) && 'CONF-1' === $booking_rows[0]['confirmation_uid'] );
 
+/* 3b. The join action follows the backend's full early/late window. */
+$late_booking = $lesson( gmdate( 'Y-m-d H:i:s', $now - 5400 ), gmdate( 'Y-m-d H:i:s', $now - 1800 ), array(
+	'version' => 'student_booking_class_v1', 'confirmation_state' => 'confirmed',
+	'confirmation_uid' => 'CONF-LATE', 'teacher_display_reference' => 'استاد', 'join_available' => true,
+) );
+$late_rows = dzn_theme_platform_student_schedule_rows( array(), array( $late_booking ), array(), 'Asia/Tehran', $now );
+$check( 'a just-ended intro keeps the late join window', ! empty( $late_rows[0]['join_available'] ) && 'ended' === $late_rows[0]['temporal_state'] );
+$expired_booking = $lesson( gmdate( 'Y-m-d H:i:s', $now - 14400 ), gmdate( 'Y-m-d H:i:s', $now - 10800 ), array(
+	'version' => 'student_booking_class_v1', 'confirmation_state' => 'confirmed',
+	'confirmation_uid' => 'CONF-EXPIRED', 'teacher_display_reference' => 'استاد', 'join_available' => true,
+) );
+$expired_rows = dzn_theme_platform_student_schedule_rows( array(), array( $expired_booking ), array(), 'Asia/Tehran', $now );
+$check( 'the late join window closes after two hours', empty( $expired_rows[0]['join_available'] ) );
+
 /* 4. Templates keep a no-JS fallback and no disabled primary. */
 $payments = (string) file_get_contents( $theme . '/template-parts/portal/payments.php' );
 $schedule = (string) file_get_contents( $theme . '/template-parts/portal/schedule.php' );

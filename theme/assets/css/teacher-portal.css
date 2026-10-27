@@ -238,6 +238,11 @@
     color: var(--dzn-color-action-primary);
     box-shadow: inset 0 3px 0 var(--dzn-color-action-primary);
   }
+
+  /* The fixed teacher tab bar overlays the document footer. */
+  .dzn-teacher-portal ~ .site-footer {
+    padding-block-end: calc(64px + env(safe-area-inset-bottom) + var(--dzn-space-5));
+  }
 }
 
 @media (min-width: 48rem) {

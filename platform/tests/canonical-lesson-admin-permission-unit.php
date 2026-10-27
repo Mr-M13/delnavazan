@@ -15,7 +15,11 @@ namespace Delnavazan\Platform\Core\Application {
     }
 
     final class CanonicalLessonScheduleReadService {
-        public function forLesson(int $id): array {
+        public function forLesson(int $id): array { return $this->read('dzn_manage_canonical_lesson_schedules'); }
+        public function forLessonCompletion(int $id): array { return $this->read('dzn_manage_canonical_lessons'); }
+        public function forLessonDelivery(int $id): array { return $this->read('dzn_manage_canonical_lesson_delivery'); }
+        private function read(string $capability): array {
+            if (!\current_user_can($capability)) throw new \RuntimeException('Unauthorized');
             $GLOBALS['admin_calls']['scheduleRead'] = ($GLOBALS['admin_calls']['scheduleRead'] ?? 0) + 1;
             return $GLOBALS['admin_schedule'];
         }

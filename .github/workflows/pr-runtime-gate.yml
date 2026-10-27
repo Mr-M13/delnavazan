@@ -215,6 +215,7 @@ jobs:
           php platform/tests/class-portal-completion-contract.php
           php platform/tests/canonical-lesson-admin-class-resolution-unit.php
           php platform/tests/canonical-lesson-admin-permission-unit.php
+          php platform/tests/canonical-lesson-schedule-read-capabilities-unit.php
           php platform/tests/admin-class-resolution-unit.php
           php platform/tests/lesson-introductory-outcome-unit.php
           php platform/tests/lesson-term-workflow-repair-contract.php

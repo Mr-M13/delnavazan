@@ -435,9 +435,34 @@ function dzn_theme_render_admin_route() {
 	dzn_theme_render_operations_portal();
 }
 
+/**
+ * Legacy `/booking/` links remain temporary entry points.
+ *
+ * Acquisition links must arrive at the canonical `/enrol/` renderer without
+ * losing the visitor's instrument choice. Only a bounded slug and a plain
+ * display name are forwarded; the booking renderer still matches them against
+ * the authorised Platform catalogue, so an unknown value falls back safely.
+ */
+function dzn_theme_legacy_booking_redirect_url() {
+	$target = home_url( '/enrol/' );
+	$instrument = isset( $_GET['instrument'] ) && is_string( $_GET['instrument'] )
+		? strtolower( sanitize_text_field( wp_unslash( $_GET['instrument'] ) ) )
+		: '';
+	if ( '' !== $instrument && preg_match( '/^[a-z0-9_-]{1,40}$/D', $instrument ) ) {
+		$target = add_query_arg( 'instrument', $instrument, $target );
+	}
+	$instrument_name = isset( $_GET['instrument_name'] ) && is_string( $_GET['instrument_name'] )
+		? sanitize_text_field( wp_unslash( $_GET['instrument_name'] ) )
+		: '';
+	if ( '' !== $instrument_name ) {
+		$target = add_query_arg( 'instrument_name', $instrument_name, $target );
+	}
+	return $target;
+}
+
 function dzn_theme_render_virtual_route() {
 	$raw_path = trim( (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH ), '/' );
-	if ( 'booking' === $raw_path ) { wp_safe_redirect( home_url( '/enrol/' ), 301 ); exit; }
+	if ( 'booking' === $raw_path ) { wp_safe_redirect( dzn_theme_legacy_booking_redirect_url(), 302 ); exit; }
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
 	if ( 'dashboard' === $route ) {

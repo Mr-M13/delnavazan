@@ -35,6 +35,11 @@ function dzn_theme_enqueue_assets() {
 		$navigation_stamp,
 		array( 'strategy' => 'defer', 'in_footer' => true )
 	);
+	wp_localize_script(
+		'delnavazan-navigation',
+		'dznThemeNavigation',
+		array( 'enrolUrl' => home_url( '/enrol/' ) )
+	);
 
 	wp_enqueue_script(
 		'delnavazan-pricing-region',

@@ -6,10 +6,14 @@ $assets = (string) file_get_contents($theme . '/inc/assets.php');
 $home = (string) file_get_contents($theme . '/patterns/homepage-editorial.php');
 $booking = (string) file_get_contents($theme . '/inc/booking.php');
 foreach (array(
-    'automatic movement is deliberately slow' => 'elapsed * 9',
+    'automatic movement keeps a fractional position accumulator' => 'let autoScrollLeft = 0',
+    'automatic movement advances the fractional accumulator slowly' => 'autoScrollLeft += elapsed * 9',
+    'automatic movement writes the fractional accumulator to the rail' => 'rail.scrollLeft = autoScrollLeft',
+    'automatic movement resynchronises after positioning changes' => 'autoScrollLeft = rail.scrollLeft',
     'motion preference disables automatic movement' => '!reducedMotion.matches',
     'cloned groups provide a repeated sequence' => 'cloneCard(card)',
-    'loop boundary is normalized by one cycle without smooth scrolling' => 'rail.scrollLeft -= cycleSpan',
+    'loop boundary is normalized by one cycle without smooth scrolling' => 'autoScrollLeft -= cycleSpan',
+    'reverse loop boundary is normalized by one cycle without smooth scrolling' => 'autoScrollLeft += cycleSpan',
     'manual movement temporarily pauses the automatic rail' => 'pauseAutoUntil = performance.now() + 1800',
     'automatic movement disables smooth-scroll and snap so small frame steps are not cancelled' => 'rail.classList.add(\'is-auto-scrolling\')',
     'manual movement removes automatic scrolling mode before snapping to a card' => "rail.classList.remove('is-auto-scrolling')",

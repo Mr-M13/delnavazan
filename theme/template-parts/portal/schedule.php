@@ -46,12 +46,11 @@ foreach ( $items as $item ) {
 			<section class="dzn-schedule-day" aria-labelledby="dzn-schedule-day-<?php echo esc_attr( $key ); ?>">
 				<h3 id="dzn-schedule-day-<?php echo esc_attr( $key ); ?>"><time datetime="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $group['label'] ); ?></time></h3>
 				<ol class="dzn-schedule-list">
-					<?php foreach ( $group['items'] as $index => $item ) : ?>
+					<?php foreach ( $group['items'] as $item ) : ?>
 						<?php
 						$state = (string) ( $item['state'] ?? 'unknown' );
 						$presentation = $labels[ $state ] ?? array( 'وضعیت نامشخص', 'warning' );
 						$is_intro = 'intro' === ( $item['kind'] ?? '' );
-						$row_id = sanitize_key( $key . '-' . $index );
 						?>
 						<li class="dzn-schedule-row is-<?php echo esc_attr( $state ); ?>">
 							<div class="dzn-schedule-row__time">

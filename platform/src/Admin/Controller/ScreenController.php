@@ -848,7 +848,7 @@ final class ScreenController {
             submit_button('Append corrected outcome', 'secondary');
             echo '</form>';
         } elseif ((string) $lesson->lifecycle_state === 'authorised' && !$effective) {
-            try { $schedule = (new \Delnavazan\Platform\Core\Application\CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
+            try { $schedule = (new CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
             catch (\Throwable) { $schedule = array('active_version' => null); }
             $current = $schedule['active_version'] ?? null;
             if ($current && (string) $current->ends_at_utc <= gmdate('Y-m-d H:i:s')) {

@@ -3794,7 +3794,7 @@
       100%;
 
     max-inline-size:
-      22rem;
+      12rem;
 
     margin-block-start:
       1rem;
@@ -3811,21 +3811,30 @@
   }
 
   .dzn-pricing-region__select {
+    align-self:
+      flex-start;
+
     inline-size:
-      100%;
+      auto;
+
+    min-inline-size:
+      7rem;
+
+    max-inline-size:
+      9rem;
 
     min-block-size:
-      2.75rem;
+      2.25rem;
 
     padding:
-      .5rem .75rem;
+      .35rem .6rem;
 
     border:
       1px solid
       rgb(255 253 248 / .38);
 
     border-radius:
-      .75rem;
+      .6rem;
 
     background:
       #fffdf8;
@@ -3837,7 +3846,7 @@
       inherit;
 
     font-size:
-      1rem;
+      .9rem;
   }
 
   .dzn-pricing-region__status,

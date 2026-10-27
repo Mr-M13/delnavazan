@@ -34,7 +34,10 @@
       const catalogueSlug = slug === 'tanboor' ? 'tanbour' : slug;
       const link = document.createElement('a');
       link.className = 'dzn-instrument-tile__booking-link';
-      link.href = enrolUrl + enrolSeparator + 'instrument=' + encodeURIComponent(catalogueSlug) + '&instrument_name=' + encodeURIComponent(name);
+      const cardEnrolUrl = typeof card.getAttribute === 'function' ? card.getAttribute('data-enrol-url') : '';
+      link.href = cardEnrolUrl && cardEnrolUrl !== ''
+        ? cardEnrolUrl
+        : enrolUrl + enrolSeparator + 'instrument=' + encodeURIComponent(catalogueSlug) + '&instrument_name=' + encodeURIComponent(name);
       link.textContent = 'درخواست جلسهٔ معارفه برای ' + name;
       link.setAttribute('aria-label', link.textContent);
       card.append(link);

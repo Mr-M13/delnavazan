@@ -22,13 +22,16 @@ foreach ( array( "site_url( 'wp-login.php', 'login_post' )", 'name="testcookie"'
 	if ( str_contains( $routes, $forbidden ) ) { throw new RuntimeException( 'Unified login retains the first-attempt failure trigger: ' . $forbidden ); }
 }
 
-if ( 1 !== substr_count( $setup, "array( 'ورود به حساب کاربری', home_url( '/login/' )" )
+$fallback = substr( $setup, (int) strpos( $setup, 'function dzn_theme_primary_menu_fallback()' ) );
+if ( 1 !== substr_count( $fallback, "array( 'ورود', home_url( '/login/' )" )
+	|| str_contains( $fallback, "array( 'ثبت نام'" )
+	|| ! str_contains( $setup, "'/enrol/', '/booking/'" )
 	|| ! str_contains( $setup, "add_filter( 'wp_nav_menu_objects', 'dzn_theme_remove_primary_auth_menu_items'" )
 	|| ! str_contains( $setup, "add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta'" ) ) {
-	throw new RuntimeException( 'Primary navigation must render one unified account login CTA without changing stored menu data.' );
+	throw new RuntimeException( 'Primary navigation must render one unified login CTA, no duplicate enrolment action, without changing stored menu data.' );
 }
 
-foreach ( array( 'dzn-acceptance-student', 'dzn-acceptance-teacher@example.invalid', "'/dashboard/'", "'/admin-operations/'", "'/wp-login.php'", 'student-cross-role', 'wrong-password', 'invalid-nonce', 'ورود به حساب کاربری' ) as $coverage ) {
+foreach ( array( 'dzn-acceptance-student', 'dzn-acceptance-teacher@example.invalid', "'/dashboard/'", "'/admin-operations/'", "'/wp-login.php'", 'student-cross-role', 'wrong-password', 'invalid-nonce', 'dzn-nav-portal' ) as $coverage ) {
 	if ( ! str_contains( $smoke, $coverage ) ) { throw new RuntimeException( 'Login runtime smoke lacks coverage: ' . $coverage ); }
 }
 if ( str_contains( $smoke, 'wordpress_test_cookie=WP Cookie check' ) || str_contains( $smoke, '--data-urlencode \'testcookie=1\'' ) ) {

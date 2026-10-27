@@ -41,7 +41,7 @@ labelled as reported from action eligibility alone). Neither is repaired by this
 | `/login/` | `login` | n/a | Auth | Branded login/reset; no tab bar |
 | `/dashboard/` | `dashboard` | n/a | Auth | Role resolution; 0/1/many destinations |
 | `/student-portal/` | `student-portal` | `home`, `account`, `schedule`, `payments` | Student portal | Unknown `portal-view` becomes `home` |
-| `/teacher-portal/` | `teacher-portal` | `home`, `finance`, `settings`, `onboarding` | Teacher portal | Incomplete teacher forced to `onboarding`; unknown `teacher-view` becomes `home` |
+| `/teacher-portal/` | `teacher-portal` | `home`, `classes`, `finance`, `settings`, `onboarding` | Teacher portal | Incomplete teacher forced to `onboarding`; unknown `teacher-view` becomes `home` |
 | `/teacher-invitation/` | `teacher-invitation` | n/a | Auth | Token claim |
 | `/student-account-claim/` | `student-account-claim` | n/a | Auth | Token claim |
 | `/admin-operations/` | `admin-operations` | existing operations | Operations | Out of redesign scope |
@@ -75,12 +75,13 @@ owner-bound commercial read returns obligations. A state with neither stays at H
 | Key | URL | Current component set | Gate |
 | --- | --- | --- | --- |
 | `home` | `/teacher-portal/` | stats, announcement, attention, post-intro outcomes, classes, calendar, help | Existing |
+| `classes` | `/teacher-portal/?teacher-view=classes` | the same authorised class rows and actions as home | Existing lesson read |
 | `finance` | `/teacher-portal/?teacher-view=finance` | statements | Existing read |
 | `settings` | `/teacher-portal/?teacher-view=settings` | profile, instruments, availability, demand, accepting, Google | Existing |
 | `onboarding` | `/teacher-portal/?teacher-view=onboarding` | five presentation steps | Server-forced while not ready |
 
-Navigation is built once in `dzn_theme_platform_teacher_model()` and has three items. The `home`
-label is currently **حساب کاربری**, which collides with settings (P1-10).
+Navigation is built once in `dzn_theme_platform_teacher_model()` and has four items. The `home`
+label is **امروز**, distinct from settings.
 
 ### Confirmed screen mismatch (P0-04)
 

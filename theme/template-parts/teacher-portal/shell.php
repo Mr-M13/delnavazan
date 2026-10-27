@@ -1,9 +1,9 @@
 <?php
-$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'finance', 'settings', 'onboarding' ), true ) ? $args['screen'] : 'home';
+$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'classes', 'finance', 'settings', 'onboarding' ), true ) ? $args['screen'] : 'home';
 $model = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model['teacher'] : array();
-$title = 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( ! empty( $teacher['first_name'] ) ? sprintf( 'امروز · %s', $teacher['first_name'] ) : 'امروز' ) ) );
-$lede = 'settings' === $screen ? 'پروفایل، دسترسی و ترجیحات شما' : ( 'finance' === $screen ? 'سوابق مالی بر پایهٔ اطلاعات معتبر سامانه' : ( 'onboarding' === $screen ? 'اطلاعات را مرحله‌به‌مرحله تکمیل و برای بررسی مدیر ارسال کنید.' : 'درخواست‌ها، کلاس‌های آینده و خلاصهٔ تدریس شما.' ) );
+$title = 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'classes' === $screen ? 'کلاس‌ها' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( ! empty( $teacher['first_name'] ) ? sprintf( 'امروز · %s', $teacher['first_name'] ) : 'امروز' ) ) ) );
+$lede = 'settings' === $screen ? 'پروفایل، دسترسی و ترجیحات شما' : ( 'finance' === $screen ? 'سوابق مالی بر پایهٔ اطلاعات معتبر سامانه' : ( 'classes' === $screen ? 'کلاس‌های جاری، پیش رو و اخیر با اقدام‌های مجاز' : ( 'onboarding' === $screen ? 'اطلاعات را مرحله‌به‌مرحله تکمیل و برای بررسی مدیر ارسال کنید.' : 'درخواست‌ها، کلاس‌های آینده و خلاصهٔ تدریس شما.' ) ) );
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navigation;
 ?>
@@ -39,6 +39,7 @@ $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navi
  ?><section class="dzn-tp-section dzn-tp-unavailable dzn-tp-unavailable--<?php echo esc_attr( $state ); ?>" role="<?php echo 'error' === $state ? 'alert' : 'status'; ?>"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><div class="dzn-tp-unavailable__actions"><?php if ( isset( $recovery[ $state ] ) ) : ?><a class="dzn-button" href="<?php echo esc_url( $recovery[ $state ][1] ); ?>"><?php echo esc_html( $recovery[ $state ][0] ); ?></a><?php endif; ?><?php if ( 'not_linked' === $state ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a><?php endif; ?></div></section>
  <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
  elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
+ elseif ( 'classes' === $screen ) : dzn_theme_teacher_portal_component( 'classes', array( 'items' => $model['classes'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );
  else : dzn_theme_teacher_portal_component( 'home', array( 'model' => $model ) ); endif; ?>
  </div>

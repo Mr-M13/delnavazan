@@ -67,6 +67,7 @@ namespace {
     $nav = array(
         array('screen' => 'home', 'label' => 'حساب کاربری', 'url' => 'https://example.invalid/teacher-portal/', 'current' => true),
         array('screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=finance', 'current' => false),
+        array('screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=classes', 'current' => false),
         array('screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=settings', 'current' => false),
     );
     $model = static function (array $o = array()) use ($nav): array {

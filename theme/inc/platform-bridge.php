@@ -749,6 +749,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$base_url = home_url( '/teacher-portal/' );
 	$nav = array(
 		array( 'screen' => 'home', 'label' => 'امروز', 'url' => $base_url, 'current' => 'home' === $screen ),
+		array( 'screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => add_query_arg( 'teacher-view', 'classes', $base_url ), 'current' => 'classes' === $screen ),
 		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $base_url ), 'current' => 'finance' === $screen ),
 		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $base_url ), 'current' => 'settings' === $screen ),
 	);
@@ -957,7 +958,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	}
 	return array(
 		'available' => true,
-		'screen' => 'home',
+		'screen' => $screen,
 		'source' => 'platform',
 		'teacher' => array( 'first_name' => $identity['first_name'], 'full_name' => $identity['full_name'] ),
 		'navigation' => $nav,

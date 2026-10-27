@@ -126,6 +126,7 @@ function dzn_theme_platform_history_item( array $lesson ) {
 		&& ! str_starts_with( (string) ( $lesson['schedule_version_uid'] ?? '' ), 'legacy-' );
 	return array(
 		'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'] ?? '', 'j F Y', $timezone ),
+		'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
 		'title' => (string) ( $lesson['course_reference'] ?? '' ),
 		'outcome' => $labels[ $outcome ] ?? $outcome,
 		'tone' => in_array( $outcome, array( 'completed', 'delivered' ), true ) ? 'success' : 'muted',

@@ -128,7 +128,6 @@ $screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 			</p>
 		<?php elseif ( 'account' === $screen ) : ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 			<?php
 			dzn_theme_portal_component(
@@ -140,12 +139,13 @@ $screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 				)
 			);
 			?>
+			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 		<?php else : ?>
-			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'upcoming-lesson', array( 'lesson' => $model['upcoming_lesson'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => false ) ); ?>
 		<?php endif; ?>
 	</div>

@@ -1067,3 +1067,60 @@
     display: none !important;
   }
 }
+
+/* =========================================================
+   STUDENT HOME / ACCOUNT HIERARCHY
+   ========================================================= */
+
+.dzn-portal {
+  --dzn-portal-card-radius: 16px;
+  --dzn-portal-sheet-radius: 24px;
+}
+
+.dzn-upcoming {
+  border-radius: var(--dzn-portal-card-radius);
+}
+
+.dzn-portal-section {
+  margin-block: 0;
+}
+
+.dzn-portal-section + .dzn-portal-section {
+  margin-block-start: 0;
+}
+
+@media (max-width: 47.99rem) {
+  .dzn-upcoming {
+    border: 1px solid var(--dzn-color-border);
+    background: var(--dzn-color-surface-elevated);
+    padding: var(--dzn-space-5);
+  }
+
+  .dzn-upcoming__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dzn-upcoming__actions form,
+  .dzn-upcoming__actions .dzn-button {
+    inline-size: 100%;
+  }
+
+  .dzn-upcoming__actions .dzn-button {
+    min-block-size: 48px;
+  }
+
+  .dzn-portal-section {
+    padding-block: var(--dzn-space-5);
+  }
+
+  .dzn-portal-section__heading {
+    gap: var(--dzn-space-2);
+  }
+}
+
+@media (min-width: 64rem) {
+  .dzn-portal__content {
+    max-inline-size: 73.75rem;
+  }
+}

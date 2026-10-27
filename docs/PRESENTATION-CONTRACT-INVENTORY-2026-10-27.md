@@ -184,7 +184,7 @@ a primary Join action.
 | Public JS loaded on protected routes | 3 | Split carousel/pricing from header navigation; conditional enqueue |
 | IANA timezone shown as a label | 2, 6, 7 | Human label plus exact identifier |
 | Teacher finance minor units | 6 | Format with currency exponent |
-| Onboarding query can jump steps | 7 | Clamp to server first-incomplete step |
+| Onboarding query can jump steps | 7 | Resolved: the step helper clamps to the first incomplete server step; timezone is confirmed, not re-entered |
 | 12-marker term CSS assumption | 8 | Adapt to returned total |
 | No explicit protected `X-Robots-Tag` | 9 | Response contract and header test |
 

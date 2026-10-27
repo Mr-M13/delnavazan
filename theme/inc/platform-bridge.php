@@ -743,6 +743,23 @@ function dzn_theme_platform_teacher_booking_requests() {
 	try { return ( new $class() )->ownPending(); } catch ( Throwable ) { return array(); }
 }
 
+/**
+ * Resume onboarding at the first incomplete server step.
+ *
+ * A query parameter may move backwards to review an earlier step, but it can
+ * never skip ahead of the first incomplete profile/availability/Google step.
+ */
+function dzn_theme_platform_teacher_onboarding_step( array $onboarding, $requested = 0 ) {
+	$server = 'complete' !== (string) ( $onboarding['profile_state'] ?? '' )
+		? 1
+		: ( 'complete' !== (string) ( $onboarding['availability_state'] ?? '' )
+			? 3
+			: ( 'connected' !== (string) ( $onboarding['google_state'] ?? '' ) ? 4 : 5 ) );
+	$requested = (int) $requested;
+	if ( $requested < 1 ) { return $server; }
+	return min( $server, max( 1, $requested ) );
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$google_notice = dzn_theme_platform_google_notice();
@@ -762,11 +779,13 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
 		$name = (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] );
 		$parts = preg_split( '/\\s+/u', trim( $name ) );
-		$step = isset($_GET['onboarding-step']) ? max(1,min(5,absint(wp_unslash($_GET['onboarding-step'])))) : ( 'complete' !== $onboarding['profile_state'] ? 1 : ( 'complete' !== $onboarding['availability_state'] ? 3 : ( 'connected' !== ($onboarding['google_state']??'') ? 4 : 5 ) ) );
+		$requested_step = isset($_GET['onboarding-step']) ? absint(wp_unslash($_GET['onboarding-step'])) : 0;
+		$server_step = dzn_theme_platform_teacher_onboarding_step( $onboarding, 0 );
+		$step = dzn_theme_platform_teacher_onboarding_step( $onboarding, $requested_step );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
-			'navigation' => $nav, 'current_step' => $step, 'onboarding' => $onboarding,
+			'navigation' => $nav, 'current_step' => $step, 'max_step' => $server_step, 'onboarding' => $onboarding,
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,

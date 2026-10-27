@@ -3,6 +3,13 @@
 Status: **deployed to production and verified**. Follows the presentation/portal
 release `508a822`.
 
+**Follow-up 2026-10-27:** the header login CTA now keeps the original enrolment
+button styling (`dzn-nav-action`): dark teal background, white text, rounded
+corners and a 40px control. Deployed source is
+`386225bce57724779be8dffc50b85297e92bdc0a` (build `main-386225bce577`),
+deployment run `40502315523`. The rest of this record documents the preceding
+`9d568c6` home-polish release.
+
 ## Release identity
 
 | Fact | Value |

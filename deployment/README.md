@@ -91,19 +91,21 @@ command; CI still runs the individual jobs. A release is not ready if this comma
 
 ## Release 2026-10-27
 
-The presentation/portal release is `6c7c625c3ab9f0ba25344c2668077efc87692388`
-(build `main-6c7c625c3ab9`, schema 52). It merged #376 and #377; packages #371–#375
+The presentation/portal release is `508a8224e76943f25c5e56bd5996f41f08cb12aa`
+(build `main-508a8224e769`, schema 52). It merged #376, #377 and #378; packages #371–#375
 are the same commits carried by #376. The successful production deployment run is
-`40493845862`; the previous production release was
+`40494901611`; the previous production release was
 `c952fe0de043244edeb78a4e71ec831bdc5fbdb8` (build `main-c952fe0de043`, schema 52).
 The pre-deploy backup is under the configured production backup directory with the
-`20261027T111130Z-1163348-6c7c625c3ab9...` stamp.
+`20261027T111939Z-1750281-508a8224e769...` stamp.
 
 The first attempt (`40492504675`) deployed the application but failed the smoke gate
 because the released legacy `/booking/` redirect is now a temporary `302` that
 preserves the instrument while the smoke script still required `301`. The gate
 correctly left maintenance mode enabled; #377 fixed the smoke contract and the exact
-new `main` was redeployed successfully. No schema migration ran.
+new `main` was redeployed successfully. #378 then fixed the homepage instrument
+belt's fractional scroll accumulator and that exact `main` was deployed as
+`508a822`. No schema migration ran.
 
 There is no schema change in this release. A code-only rollback to `c952fe0` is safe;
 keep schema 52 and all existing records. See

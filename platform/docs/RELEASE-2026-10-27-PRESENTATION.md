@@ -9,17 +9,17 @@ runs or deployment artifacts.
 | Fact | Value |
 | --- | --- |
 | Source branch | `main` |
-| Deployed source SHA | `6c7c625c3ab9f0ba25344c2668077efc87692388` |
-| Production build stamp | `main-6c7c625c3ab9` |
+| Deployed source SHA | `508a8224e76943f25c5e56bd5996f41f08cb12aa` |
+| Production build stamp | `main-508a8224e769` |
 | Platform schema | `52` (`052_payment_plan_choice`), unchanged |
 | Previous production SHA | `c952fe0de043244edeb78a4e71ec831bdc5fbdb8` (build `main-c952fe0de043`, schema 52) |
-| Successful deployment workflow | `Deploy production`, run `40493845862` |
-| Read-only production diagnostic | run `40494371231` |
-| Production backup | `/home/delnavaz/backups/delnavazan-production-cutover/20261027T111130Z-1163348-6c7c625c3ab9f0ba25344c2668077efc87692388` |
+| Successful deployment workflow | `Deploy production`, run `40494901611` |
+| Read-only production diagnostic | run `40495430901` |
+| Production backup | `/home/delnavaz/backups/delnavazan-production-cutover/20261027T111939Z-1750281-508a8224e76943f25c5e56bd5996f41f08cb12aa` |
 
-The application tree of the deployed SHA is identical to the fully tested
-candidate `bc4a9e2` (the merge commit into `main` adds no application changes).
-`6c7c625` additionally contains the corrected production smoke assertion.
+The deployed application contains the fully tested presentation candidate
+`bc4a9e2`, the corrected production smoke contract from #377, and the instrument
+belt fix from #378. `#378` was independently reviewed and passed 7/7 checks.
 
 ### Deployment attempts
 
@@ -27,11 +27,13 @@ candidate `bc4a9e2` (the merge commit into `main` adds no application changes).
 | --- | --- | --- |
 | `40492504675` | `7e1ff81` | Application deployed successfully; smoke gate failed on the retired `/booking/` `301` expectation, so the workflow left maintenance mode enabled. |
 | `40493845862` | `6c7c625` | PASS. Source gate 7/7, deploy, smoke, maintenance off. |
+| `40494901611` | `508a822` | PASS. Includes #378 instrument-belt fix; source gate 7/7, deploy, smoke, maintenance off. |
 
 The first failure was a smoke-contract mismatch, not an application failure. PR
 #377 corrected the smoke assertion to the released temporary `302` that preserves
 the allowlisted instrument, then the exact `main` was redeployed through the same
-protected workflow.
+protected workflow. #378 then fixed the homepage instrument belt's fractional
+scroll accumulator; that exact new `main` was deployed and smoke-tested.
 
 ## Merged PRs
 
@@ -39,6 +41,7 @@ protected workflow.
 | --- | --- | --- |
 | #376 | Presentation packages 4–9, protected headers, release gate and audit fixes | `7e1ff8148cb08830485045ffc13b50b8946cddd5` |
 | #377 | Production smoke contract for the temporary booking redirect | `6c7c625c3ab9f0ba25344c2668077efc87692388` |
+| #378 | Homepage instrument belt fractional scroll accumulator | `508a8224e76943f25c5e56bd5996f41f08cb12aa` |
 | #371–#375 | Subset package PRs; their commits are included in #376 | auto-merged via #376 |
 
 Packages 0–3 (#367, #368, #369, #370) were already on `main` before this release.
@@ -69,6 +72,8 @@ deferred.
   login/password-reset POST handlers and the portal page templates.
 - The bounded portal lesson read selects the newest window, so more than 80
   lifetime Lessons cannot hide current/upcoming classes.
+- The homepage instrument belt keeps a fractional scroll accumulator, so the
+  intended slow motion is not rounded back to a static position each frame.
 - No Platform capability, checkout, migration, notification-transport, Google
   Meet attendance or provider integration was added.
 
@@ -78,17 +83,19 @@ deferred.
 | --- | --- |
 | PR #376 final gate on `bc4a9e2` | PASS — 7/7 required jobs |
 | PR #377 final gate on `6c7c625` | PASS after rerunning one flaky post-intro job |
-| Deployment source gate on `6c7c625` | PASS — 7/7 required jobs |
+| PR #378 final gate on `415e01d` | PASS — 7/7 required jobs |
+| Deployment source gate on `508a822` | PASS — 7/7 required jobs |
 | Full local source-contract list | PASS |
 | `make lifecycle-regression` on final candidate | PASS — pure, Stripe test-mode E2E, post-intro, interim attendance/presumed completion |
 | PHP lint, `node --check`, `git diff --check` | PASS |
-| Production smoke `40493845862` | PASS — home, enrol, assets, catalogue, booking redirect with instrument, login, admin operations, portal redirects, REST, sitemap, www |
+| Production smoke `40494901611` | PASS — home, enrol, assets, catalogue, booking redirect with instrument, login, admin operations, portal redirects, REST, sitemap, www |
 | Independent local production smoke | PASS (`RESULT: PASS`) |
-| Production identity | build `main-6c7c625c3ab9`; schema `52`; plugin active; `delnavazan-theme` active; maintenance inactive |
+| Production identity | build `main-508a8224e769`; schema `52`; plugin active; `delnavazan-theme` active; maintenance inactive |
 | Lesson detail fatal regression | `ScreenController` loaded; `CanonicalLessonScheduleReadService` loaded; stale admin namespace absent; `forLesson`, `forLessonCompletion`, `forLessonDelivery` all present |
 | Scheduled jobs | `dzn_post_intro_activation_dispatch` and `dzn_lesson_completion_automation_dispatch` scheduled |
 | Stripe | Test mode only — one active account `mode=test`; test-mode environment and activation allowed; no live mode |
 | Browser checks | Home: expected hero and instrument tiles, no horizontal overflow, no console errors; `/login/`: branded form and both credential fields; `/enrol/`: 12 instrument choices, no PHP error marker |
+| Instrument belt source | `node --check` PASS; `homepage-instrument-belt-contract.php` PASS on the deployed source |
 | Protected headers | `/login/` 200 and signed-out `/student-portal/`, `/teacher-portal/` 302s carry noindex + no-store/private + same-origin referrer policy |
 | Booking compatibility | `/booking/?instrument=setar&instrument_name=Setar` → `302` to `/enrol/` with both parameters |
 

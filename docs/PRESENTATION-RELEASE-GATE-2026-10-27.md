@@ -1,7 +1,7 @@
 # Presentation release gate
 
 Status: **released**. Package 9 artefact retained as the release-gate record.
-Deployed to production as `6c7c625c3ab9f0ba25344c2668077efc87692388`; see
+Deployed to production as `508a8224e76943f25c5e56bd5996f41f08cb12aa`; see
 `platform/docs/RELEASE-2026-10-27-PRESENTATION.md` for deployment evidence.
 Baseline: `origin/main` at `c952fe0de043244edeb78a4e71ec831bdc5fbdb8`, with the
 presentation packages pushed as the stacked draft PRs **#367–#376**.
@@ -123,7 +123,7 @@ request count and a lab trace separately from field data.
 
 | Evidence | Owner | Status |
 | --- | --- | --- |
-| Production/deployed commit reconciliation | Release owner | Verified — build `main-6c7c625c3ab9` |
+| Production/deployed commit reconciliation | Release owner | Verified — build `main-508a8224e769` |
 | Authenticated student, teacher-ready, onboarding-pending/returned principals | Owner | Not available |
 | Stripe test-mode checkout and return | Payment owner | Offline E2E PASS; live test checkout/return not run |
 | Screenshots at the six viewports and 200% zoom | Design reviewer | Not captured |
@@ -241,12 +241,12 @@ must be repaired before those gates can pass.
 ### Merge and deploy decision
 
 **Merged and deployed.** PR #376 merged as `7e1ff81`; the corrected production
-smoke contract merged as #377 (`6c7c625`). Production deployment run `40493845862`
-succeeded on `6c7c625`: build `main-6c7c625c3ab9`, schema 52, plugin/theme active,
-maintenance off, Stripe test mode only, scheduled jobs present, and the
-lesson-screen class/method resolution check passed. See
-`platform/docs/RELEASE-2026-10-27-PRESENTATION.md` for the full record and backup
-path.
+smoke contract merged as #377 (`6c7c625`); the instrument-belt fix merged as #378
+(`508a822`). Production deployment run `40494901611` succeeded on `508a822`:
+build `main-508a8224e769`, schema 52, plugin/theme active, maintenance off, Stripe
+test mode only, scheduled jobs present, and the lesson-screen class/method
+resolution check passed. See `platform/docs/RELEASE-2026-10-27-PRESENTATION.md`
+for the full record and backup path.
 
 Known follow-ups not blocking this release: cancelled canonical lessons are not
 yet given a dedicated label on the new schedule/classes projections; the

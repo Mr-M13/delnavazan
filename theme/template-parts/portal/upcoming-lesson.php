@@ -7,7 +7,7 @@
 
 $lesson = isset( $args['lesson'] ) && is_array( $args['lesson'] ) ? $args['lesson'] : array();
 $state = isset( $lesson['presentation_state'] ) ? (string) $lesson['presentation_state'] : 'none';
-$approved_states = array( 'upcoming', 'starting_soon', 'in_progress', 'ended', 'unknown', 'absence_notified', 'time_changed', 'academy_cancelled', 'awaiting_reschedule', 'none' );
+$approved_states = array( 'upcoming', 'starting_soon', 'in_progress', 'ended', 'unknown', 'time_changed', 'academy_cancelled', 'awaiting_reschedule', 'none' );
 $state_is_valid = in_array( $state, $approved_states, true );
 $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course'] );
 ?>
@@ -58,8 +58,6 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 			<?php endif; ?>
 			<?php if ( ! empty( $lesson['absence_available'] ) ) : ?>
 				<button class="dzn-button dzn-button--secondary" type="button" data-dzn-dialog-open="dzn-absence-dialog"><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
-			<?php elseif ( ! empty( $lesson['absence_reported'] ) ) : ?>
-				<p class="dzn-portal-action-status" role="status"><?php esc_html_e( 'اطلاع غیبت شما برای این جلسه ثبت شده است.', 'delnavazan-theme' ); ?></p>
 			<?php endif; ?>
 			<?php if ( ! empty( $lesson['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action" href="<?php echo esc_url( (string) $lesson['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
 		</div>

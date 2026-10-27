@@ -102,9 +102,6 @@ function dzn_theme_platform_booking_join_message( array $booking, $within_window
 function dzn_theme_platform_lesson_state( array $lesson, $now = null ) {
 	$now = null === $now ? time() : (int) $now;
 	$temporal = dzn_theme_platform_lesson_temporal_state( $lesson, $now );
-	// "Reported" is an explicit Platform fact, never inferred from the fact
-	// that reporting an absence is currently possible.
-	if ( ! empty( $lesson['absence_reported'] ) && 'upcoming' === $temporal ) { return 'absence_notified'; }
 	if ( 'in_progress' === $temporal ) { return 'in_progress'; }
 	if ( 'ended' === $temporal ) { return 'ended'; }
 	if ( 'unknown' === $temporal ) { return '' === trim( (string) ( $lesson['starts_at_utc'] ?? '' ) ) ? 'none' : 'unknown'; }
@@ -446,7 +443,6 @@ function dzn_theme_platform_student_model( $screen ) {
 		// Action eligibility is not evidence that an absence was reported. The
 		// label follows an explicit Platform fact only.
 		'absence_available' => ! $is_booking && ! empty( $next['absence_available'] ) && 'authorised' === (string) ( $next['lifecycle_state'] ?? '' ) && $next_start && $next_start > $now,
-		'absence_reported' => ! empty( $next['absence_reported'] ),
 		'absence_message' => ! $is_booking && empty( $next['absence_available'] ) ? 'ثبت اطلاع غیبت برای این جلسه فعال نیست. برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.' : '',
 		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),

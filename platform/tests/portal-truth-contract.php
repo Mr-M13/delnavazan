@@ -44,9 +44,7 @@ $future = array(
 	'absence_available' => true,
 );
 $check( 'eligible but unreported absence shows a normal upcoming state', dzn_theme_platform_lesson_state( $future ) === 'upcoming' );
-$reported = $future;
-$reported['absence_reported'] = true;
-$check( 'an explicit report fact changes the label', dzn_theme_platform_lesson_state( $reported ) === 'absence_notified' );
+$check( 'an eligible but unreported absence never claims a report', dzn_theme_platform_lesson_state( $future ) === 'upcoming' );
 $not_reported = $future;
 $not_reported['absence_available'] = false;
 $check( 'ineligible and unreported absence stays neutral', dzn_theme_platform_lesson_state( $not_reported ) === 'upcoming' );
@@ -81,7 +79,7 @@ $account  = (string) file_get_contents( $theme . '/page-templates/teacher-portal
 $portal   = (string) file_get_contents( $theme . '/inc/portal.php' );
 
 $check( 'absence inference from attendance_state_summary is gone', ! str_contains( $bridge, "'attendance_state_summary' ?? '' ) === 'open'" ) );
-$check( 'absence label reads an explicit platform fact', str_contains( $bridge, "'absence_reported' => ! empty( \$next['absence_reported'] )" ) );
+$check( 'the theme does not invent a persisted absence report', ! str_contains( $bridge, 'absence_reported' ) && ! str_contains( $bridge, 'absence_notified' ) );
 $check( 'student partition keeps in-progress rows', str_contains( $bridge, "'in_progress' === \$temporal" ) && str_contains( $bridge, '$active[] = $lesson' ) );
 $check( 'teacher partition keeps in-progress rows', str_contains( $bridge, '// An active canonical class must remain reachable' ) );
 $check( 'teacher navigation home no longer says account', str_contains( $bridge, "'screen' => 'home', 'label' => 'امروز'" ) && ! str_contains( $bridge, "'screen' => 'home', 'label' => 'حساب کاربری'" ) );

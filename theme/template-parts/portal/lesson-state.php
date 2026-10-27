@@ -17,7 +17,6 @@ $states = array(
 	'in_progress'        => array( 'label' => 'کلاس همین حالا در جریان است', 'tone' => 'accent' ),
 	'ended'              => array( 'label' => 'این کلاس به پایان رسیده است', 'tone' => 'muted' ),
 	'unknown'            => array( 'label' => 'زمان پایان این کلاس روشن نیست', 'tone' => 'warning' ),
-	'absence_notified'   => array( 'label' => 'غیبت شما اطلاع داده شده', 'tone' => 'muted' ),
 	'time_changed'       => array( 'label' => 'زمان کلاس تغییر کرده', 'tone' => 'warning' ),
 	'academy_cancelled'  => array( 'label' => 'کلاس از سوی مدرس یا آموزشگاه لغو شده', 'tone' => 'error' ),
 	'awaiting_reschedule'=> array( 'label' => 'در انتظار زمان جدید', 'tone' => 'warning' ),

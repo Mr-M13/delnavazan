@@ -3,6 +3,25 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Presentation, portals and protected release gate — deployed 2026-10-27
+
+Release `508a8224e76943f25c5e56bd5996f41f08cb12aa` (build `main-508a8224e769`, schema 52) merged
+#376, #377 and #378; packages #371–#375 carry the same commits as #376. Production deployment run
+`40494901611` passed the source gate, smoke, schema/identity check and the read-only diagnostic.
+Stripe remains in test mode. See `RELEASE-2026-10-27-PRESENTATION.md` for evidence and follow-ups.
+
+- Responsive Student/Teacher portal shells with a fixed mobile tab bar that reserves footer space.
+- Gated Student schedule and payments screens; payments stay behind the default-off
+  `DZN_THEME_STUDENT_PAYMENTS` presentation flag.
+- Teacher Today/Classes/Finance and server-stepped onboarding; canonical statement states.
+- Protected response headers on auth/protected redirects and portal page templates.
+- Bounded portal lesson reads select the newest window; join availability follows the backend
+  `start − 1h … end + 2h` window.
+- Legacy `/booking/` now preserves the allowlisted instrument on a temporary `302`; the production
+  smoke contract was corrected accordingly in #377.
+- The homepage instrument belt keeps a fractional scroll accumulator instead of being rounded back
+  to a static position each frame (#378).
+
 ## Integrated payment-plan, attendance and Calendar release — deployed 2026-10-26
 
 Release `b1acd1d47b6f18756283fc0a3f3326ab595f993d` (build `main-b1acd1d47b6f`, schema 52) merged

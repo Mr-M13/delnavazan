@@ -1,7 +1,8 @@
 # Presentation release gate
 
-Status: Package 9 artefact. This document prepares a release decision; it does
-**not** authorise a merge, deployment or production change.
+Status: **released**. Package 9 artefact retained as the release-gate record.
+Deployed to production as `508a8224e76943f25c5e56bd5996f41f08cb12aa`; see
+`platform/docs/RELEASE-2026-10-27-PRESENTATION.md` for deployment evidence.
 Baseline: `origin/main` at `c952fe0de043244edeb78a4e71ec831bdc5fbdb8`, with the
 presentation packages pushed as the stacked draft PRs **#367–#376**.
 Final integration: current `origin/main` `bae83f7e76b2fad784b74dab37890c91dafb725f`
@@ -122,13 +123,13 @@ request count and a lab trace separately from field data.
 
 | Evidence | Owner | Status |
 | --- | --- | --- |
-| Production/deployed commit reconciliation | Release owner | Not available in this workspace |
+| Production/deployed commit reconciliation | Release owner | Verified — build `main-508a8224e769` |
 | Authenticated student, teacher-ready, onboarding-pending/returned principals | Owner | Not available |
-| Stripe test-mode checkout and return | Payment owner | Not run |
+| Stripe test-mode checkout and return | Payment owner | Offline E2E PASS; live test checkout/return not run |
 | Screenshots at the six viewports and 200% zoom | Design reviewer | Not captured |
-| Real-browser accessibility and screen-reader pass | Accessibility reviewer | Not run |
+| Real-browser accessibility and screen-reader pass | Accessibility reviewer | DOM/console pass only; axe/screen-reader not run |
 | Measured waterfall and field vitals | Performance owner | Baseline not captured |
-| Edge/CDN cache-header confirmation | Platform owner | Not run |
+| Edge/CDN cache-header confirmation | Platform owner | Verified on live auth/protected routes |
 
 No item in this document is a substitute for that evidence. The specification's
 launch gates remain in force.
@@ -239,13 +240,17 @@ must be repaired before those gates can pass.
 
 ### Merge and deploy decision
 
-**Approved for merge after the final CI gate passes**, then deploy the exact
-resulting `main` commit through the protected production workflow with the
-documented rollback ready. Production verification must include the build SHA,
-schema 52, active plugin/theme, protected headers, the authenticated lesson
-detail screen, scheduled jobs and Stripe test mode.
+**Merged and deployed.** PR #376 merged as `7e1ff81`; the corrected production
+smoke contract merged as #377 (`6c7c625`); the instrument-belt fix merged as #378
+(`508a822`). Production deployment run `40494901611` succeeded on `508a822`:
+build `main-508a8224e769`, schema 52, plugin/theme active, maintenance off, Stripe
+test mode only, scheduled jobs present, and the lesson-screen class/method
+resolution check passed. See `platform/docs/RELEASE-2026-10-27-PRESENTATION.md`
+for the full record and backup path.
 
 Known follow-ups not blocking this release: cancelled canonical lessons are not
 yet given a dedicated label on the new schedule/classes projections; the
-payments flag is presentation-only; and the authenticated claim/onboarding
-fixture blockers recorded above remain open for their own gates.
+payments flag is presentation-only; the post-intro runtime fixture is
+time/occupancy sensitive and flaked once before a clean rerun; and the
+authenticated claim/onboarding fixture blockers recorded above remain open for
+their own gates.

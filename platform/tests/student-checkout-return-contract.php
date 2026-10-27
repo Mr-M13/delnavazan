@@ -28,6 +28,17 @@ if (strpos($controller, 'CommercialPaymentService') !== false || strpos($service
 foreach (array("resolve('student')", 'offersForBeneficiary($studentId)', 'assertForOffer($offer,false,$this->authority)', 'settlementForObligation', 'activeForObligation', "'obligation_uid'", "'amount_minor'", "'checkout_state'") as $needle) {
     if (strpos($commercialRead, $needle) === false) throw new RuntimeException('Student commercial checkout read contract missing ' . $needle);
 }
+// The plan summary is a read-only projection of the canonical offer. It must carry the
+// commitment, not a second price calculation, and must never be echoed into a command.
+foreach (array("'offer_uid'", "'plan_kind'", "'committed_sessions'", "'offer_amount_due_minor'", "'offer_currency'", "'sessions_from'", "'sessions_to'") as $needle) {
+    if (strpos($commercialRead, $needle) === false) throw new RuntimeException('Student payment-plan projection missing ' . $needle);
+}
+foreach (array('planLabel', 'instalmentLabel', 'sessionsLabel', 'dueLabel', 'renderPlan', "'two_instalments'", 'پیش از شروع جلسهٔ ۷', 'term_paid', 'prerequisite_pending', 'پرداخت ترم بعد') as $needle) {
+    if (strpos($checkoutUi, $needle) === false) throw new RuntimeException('Student payment-plan presentation missing ' . $needle);
+}
+if (strpos($checkoutUi, 'offer_amount_due_minor:') !== false) {
+    throw new RuntimeException('The plan total is display-only and must never be posted back to checkout.');
+}
 foreach (array("'/student/commercial-checkout'", 'commercialCheckout', 'get_query_params() !== array()') as $needle) {
     if (strpos($controller, $needle) === false) throw new RuntimeException('Student commercial checkout endpoint contract missing ' . $needle);
 }

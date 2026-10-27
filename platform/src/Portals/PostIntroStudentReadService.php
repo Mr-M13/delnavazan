@@ -24,6 +24,20 @@ final class PostIntroStudentReadService {
             $state = $this->displayState((string) $preparation->state, $preparation);
             $actionable = in_array($state, array('ready', 'checkout_pending'), true);
             $attestation = $classification !== 'adult' && $classification !== 'minor';
+            $offer = (int) ($preparation->offer_id ?? 0) > 0 ? $this->repository->offer((int) $preparation->offer_id) : null;
+            $selectedPlan = $offer ? (string) $offer->plan_kind : '';
+            if ($selectedPlan === '') {
+                $choice = $this->repository->activePlanChoice((int) $preparation->id);
+                if ($choice) $selectedPlan = (string) $choice->plan_kind;
+            }
+            $quote = null;
+            if ($actionable && !$offer) {
+                try {
+                    $quote = (new \Delnavazan\Platform\Core\Application\PostIntroPlanQuoteService())->forPreparation($preparation, $studentId);
+                } catch (\Throwable $error) {
+                    do_action('dzn_post_intro_plan_quote_failed', get_class($error), (int) $preparation->id);
+                }
+            }
             $rows[] = array(
                 'reference' => (string) $preparation->uid,
                 'state' => $state,
@@ -40,6 +54,14 @@ final class PostIntroStudentReadService {
                 'action_label' => $state === 'ready' ? 'تکمیل پرداخت و تأیید ثبت‌نام' : 'ادامهٔ پرداخت',
                 'action_url' => $actionable ? admin_url('admin-post.php?action=dzn_post_intro_continue') : null,
                 'nonce' => $actionable ? wp_create_nonce('dzn_post_intro_continue') : null,
+                'term_number' => 1,
+                'term_label' => 'ترم ۱',
+                'selected_plan_kind' => $selectedPlan,
+                'plan_locked' => $offer !== null,
+                'plan_options' => is_array($quote['options'] ?? null) ? $quote['options'] : array(),
+                'quote_token' => is_array($quote) ? (string) ($quote['quote_token'] ?? '') : '',
+                'currency' => is_array($quote) ? (string) ($quote['currency'] ?? '') : '',
+                'committed_sessions' => is_array($quote) ? (int) ($quote['committed_sessions'] ?? 12) : 12,
             );
         }
         return $rows;

@@ -76,6 +76,9 @@ final class PostIntroRecoveryService {
         }
 
         if ($status['job_state'] === 'completed') {
+            if ($status['fulfilment_state'] === 'awaiting_next_instalment') {
+                return array('state' => 'awaiting_next_instalment', 'status' => $status);
+            }
             if ($status['fulfilment_state'] !== 'completed') throw new \RuntimeException('activation_state_inconsistent');
             return array('state' => 'already_completed', 'status' => $status);
         }

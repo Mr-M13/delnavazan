@@ -6,6 +6,11 @@ use Delnavazan\Platform\Core\Application\{
     ArchiveService,
     CanonicalEnrolmentLifecycleService,
     CanonicalLessonAuthorityService,
+    CanonicalLessonCompletionPolicy,
+    CanonicalLessonDeliveryReadService,
+    CanonicalLessonDeliveryService,
+    CanonicalLessonScheduleReadService,
+    CanonicalLessonScheduleService,
     CanonicalTermAuthorityService,
     CatalogueService,
     CoreReadService,
@@ -84,11 +89,13 @@ final class ScreenController {
         $action = sanitize_key($post['dzn_action'] ?? '');
         $capability = $screen === 'teacher'
             ? self::teacherActionCapability($action)
-            : ($screen === 'lesson' && $action === 'complete_canonical_lesson'
+            : ($screen === 'lesson' && in_array($action,array('complete_canonical_lesson'),true)
             ? 'dzn_manage_canonical_lessons'
+            : ($screen === 'lesson' && in_array($action,array('record_canonical_delivery','correct_canonical_delivery','reconcile_canonical_delivery','dispute_canonical_delivery'),true)
+            ? 'dzn_manage_canonical_lesson_delivery'
             : ($screen === 'exception'
             ? 'dzn_manage_exceptions'
-            : (self::ENTITIES[$screen][1] ?? '')));
+            : (self::ENTITIES[$screen][1] ?? ''))));
         if ($capability === '' || !current_user_can($capability)) {
             wp_die('Access denied.', 'Delnavazan', ['response' => 403]);
         }
@@ -155,6 +162,10 @@ final class ScreenController {
                 'create_lesson' => (new LessonService())->create(self::createPayload('lesson', $post)),
                 'create_canonical_lesson' => self::canonicalLessonCreate($post),
                 'complete_canonical_lesson' => self::completeCanonicalLesson($post),
+                'record_canonical_delivery' => self::recordCanonicalDelivery($post),
+                'correct_canonical_delivery' => self::correctCanonicalDelivery($post),
+                'reconcile_canonical_delivery' => self::reconcileCanonicalDelivery($post),
+                'dispute_canonical_delivery' => self::disputeCanonicalDelivery($post),
                 'record_intro_outcome' => self::recordIntroOutcome($post),
                 'schedule_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_initial'),
                 'revise_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_revise'),
@@ -384,7 +395,7 @@ final class ScreenController {
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
-        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){self::canonicalLessonCompletionForm($record);if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
+        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){self::canonicalLessonCompletionForm($record);self::canonicalLessonDeliverySection($record);if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
     }
 
     private static function updateTeacherProfile(array $post): int {
@@ -696,7 +707,7 @@ final class ScreenController {
         $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
         if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
         if ((string) $lesson->lifecycle_state !== 'authorised') throw new \InvalidArgumentException('stale_lesson_state');
-        $state = (new CanonicalLessonScheduleReadService())->forLesson($lessonId);
+        $state = (new CanonicalLessonScheduleReadService())->forLessonCompletion($lessonId);
         $active = $state['active_version'] ?? null;
         if (!$active) throw new \InvalidArgumentException('confirmed_occurrence_required');
         if ((string) $active->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('class_not_finished');
@@ -707,6 +718,153 @@ final class ScreenController {
             (string) ($post['idempotency_key'] ?? '')
         );
         return (int) $result['lesson_id'];
+    }
+
+    /**
+     * Canonical delivery/attendance outcome recording. The same append-only authority is used for a
+     * first record, a late correction of a presumed completion, and an explicit non-delivery
+     * reconciliation. Every command records the acting administrator, UTC instant, reason, prior
+     * outcome and resulting outcome; no historical row is rewritten.
+     */
+    private static function recordCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['lesson_id'] ?? 0);
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
+        if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
+        $state = (string) $lesson->lifecycle_state;
+        if (!in_array($state, array('authorised', 'completed'), true)) throw new \InvalidArgumentException('lesson_not_delivery_recordable');
+        $outcome = sanitize_key((string) ($post['outcome_code'] ?? ''));
+        if (!in_array($outcome, array('delivered', 'student_no_show', 'interruption', 'teacher_non_delivery', 'review_required'), true)) throw new \InvalidArgumentException('Controlled delivery outcome code required');
+        if ($state === 'completed' && in_array($outcome, array('teacher_non_delivery', 'review_required'), true)) throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
+        $result = (new CanonicalLessonDeliveryService())->record($lessonId, $state, self::deliveryInput($post, $outcome), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function correctCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['lesson_id'] ?? 0);
+        $outcomeId = absint($post['expected_outcome_id'] ?? 0);
+        $outcome = sanitize_key((string) ($post['outcome_code'] ?? ''));
+        if (!in_array($outcome, array('delivered', 'student_no_show', 'interruption', 'review_required'), true)) throw new \InvalidArgumentException('Controlled delivery outcome code required');
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
+        if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
+        $state = (string) $lesson->lifecycle_state;
+        if ($state === 'completed' && $outcome === 'review_required') throw new \InvalidArgumentException('use_explicit_dispute_command');
+        $result = (new CanonicalLessonDeliveryService())->correct($lessonId, $outcomeId, self::deliveryInput($post, $outcome), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function reconcileCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $result = (new CanonicalLessonDeliveryService())->reconcile(absint($post['lesson_id'] ?? 0), self::deliveryInput($post, 'teacher_non_delivery'), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function disputeCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $result = (new CanonicalLessonDeliveryService())->dispute(absint($post['lesson_id'] ?? 0), self::deliveryInput($post, 'review_required'), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function deliveryInput(array $post, string $outcome): array {
+        return array(
+            'outcome_code' => $outcome,
+            'reason_code' => sanitize_key((string) ($post['reason_code'] ?? 'administrative_delivery_outcome')),
+        ) + self::canonicalEvidence($post);
+    }
+
+    private static function canonicalLessonDeliverySection(object $lesson): void {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) return;
+        $read = new CanonicalLessonDeliveryReadService();
+        $history = $read->forLesson((int) $lesson->id);
+        $lifecycle = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->events((int) $lesson->id);
+        $basis = CanonicalLessonCompletionPolicy::completionBasis($lifecycle);
+        echo '<h2>Delivery &amp; attendance</h2>';
+        echo '<p><strong>Completion basis:</strong> ' . ($basis === 'presumed' ? 'Presumed completed from elapsed scheduled time; attendance is not independently verified.' : ($basis === 'verified' ? 'Completed with explicit operator evidence.' : 'Not completed.')) . '</p>';
+        echo '<p>Human Teacher/Student reports are evidence only. Apply a canonical outcome here after reviewing the exact Lesson record and any attendance review case.</p>';
+        if ($history['outcomes']) {
+            $rows = array();
+            foreach ($history['outcomes'] as $outcome) {
+                $rows[] = array(
+                    'outcome_sequence' => (int) $outcome->outcome_sequence,
+                    'outcome_code' => (string) $outcome->outcome_code,
+                    'delivery_state' => (string) $outcome->delivery_state,
+                    'attendance_state' => (string) $outcome->attendance_state,
+                    'remedy_class' => (string) $outcome->remedy_class,
+                    'applicable' => (int) ($outcome->applicable_slot ?? 0) === 1 ? 'current' : 'superseded',
+                    'reason_code' => (string) $outcome->reason_code,
+                    'recorded_at' => (string) $outcome->recorded_at,
+                    'recorded_by' => (int) $outcome->recorded_by,
+                    'superseded_by_outcome_id' => $outcome->superseded_by_outcome_id === null ? '' : (int) $outcome->superseded_by_outcome_id,
+                );
+            }
+            self::objectTable(array_map(static fn(array $row): object => (object) $row, $rows), null, array('outcome_sequence','outcome_code','delivery_state','attendance_state','remedy_class','applicable','reason_code','recorded_at','recorded_by','superseded_by_outcome_id'));
+        } else {
+            echo '<p>No exceptional delivery outcome is recorded. Ordinary delivery is represented by absence of an outcome; a presumed completion remains unverified.</p>';
+        }
+        $effective = $history['effective'];
+        if ((string) $lesson->lifecycle_state === 'completed') {
+            if ($effective && (string) $effective->outcome_code !== 'teacher_non_delivery') {
+                self::formStart('correct_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '"><input type="hidden" name="expected_outcome_id" value="' . esc_attr((string) $effective->id) . '">';
+                echo '<p><label>Correct effective outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_correction');
+                self::canonicalEvidenceFields();
+                submit_button('Append corrected outcome', 'secondary');
+                echo '</form>';
+            } elseif ($effective) {
+                echo '<p class="notice notice-info">A reconciled academy non-delivery is protected from conversion into verified delivery by the append-only O-D8 rule.</p>';
+            } else {
+                self::formStart('record_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                echo '<p><label>Record verified outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_verified_outcome');
+                self::canonicalEvidenceFields();
+                submit_button('Record verified outcome', 'secondary');
+                echo '</form>';
+            }
+            if (!$effective || (string) $effective->outcome_code !== 'teacher_non_delivery') {
+                self::formStart('reconcile_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_non_delivery');
+                self::canonicalEvidenceFields();
+                submit_button('Reconcile completion as not delivered', 'secondary');
+                echo '</form>';
+            }
+            if (!$effective || !in_array((string) $effective->outcome_code, array('review_required', 'teacher_non_delivery'), true)) {
+                self::formStart('dispute_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                self::input('reason_code', 'Reason code', true, 'text', 'late_report_dispute');
+                self::canonicalEvidenceFields();
+                submit_button('Mark completion disputed', 'secondary');
+                echo '</form>';
+            }
+        } elseif ($effective) {
+            self::formStart('correct_canonical_delivery');
+            echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '"><input type="hidden" name="expected_outcome_id" value="' . esc_attr((string) $effective->id) . '">';
+            echo '<p><label>Correct effective outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+            self::input('reason_code', 'Reason code', true, 'text', 'administrator_correction');
+            self::canonicalEvidenceFields();
+            submit_button('Append corrected outcome', 'secondary');
+            echo '</form>';
+        } elseif ((string) $lesson->lifecycle_state === 'authorised' && !$effective) {
+            try { $schedule = (new CanonicalLessonScheduleReadService())->forLessonDelivery((int) $lesson->id); }
+            catch (\InvalidArgumentException $exception) {
+                if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
+                echo '<p class="notice notice-error">Delivery recording is unavailable because the schedule failed integrity validation.</p>';
+                return;
+            }
+            $current = $schedule['active_version'] ?? null;
+            if ($current && (string) $current->ends_at_utc <= gmdate('Y-m-d H:i:s')) {
+                self::formStart('record_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                echo '<p><label>Record occurrence outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option><option value="teacher_non_delivery">Teacher/academy non-delivery</option><option value="review_required">Review required</option></select></label></p>';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_occurrence_outcome');
+                self::canonicalEvidenceFields();
+                submit_button('Record outcome', 'secondary');
+                echo '</form>';
+            }
+        }
     }
 
     /**
@@ -1059,7 +1217,7 @@ final class ScreenController {
     /** Contextual manual completion is independent of schedule-edit access. */
     private static function canonicalLessonCompletionForm(object $lesson): void {
         if (!current_user_can('dzn_manage_canonical_lessons') || (string) $lesson->lifecycle_state !== 'authorised') return;
-        try { $state = (new CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
+        try { $state = (new CanonicalLessonScheduleReadService())->forLessonCompletion((int) $lesson->id); }
         catch (\InvalidArgumentException $exception) {
             if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
             echo '<p class="notice notice-error">Class completion is unavailable because the schedule failed integrity validation.</p>';

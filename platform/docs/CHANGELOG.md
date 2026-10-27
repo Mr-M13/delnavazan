@@ -3,6 +3,29 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Integrated payment-plan, attendance and Calendar release — deployed 2026-10-26
+
+Release `b1acd1d47b6f18756283fc0a3f3326ab595f993d` (build `main-b1acd1d47b6f`, schema 52) merged
+#354, #357, #361, #358, #360, #356 and #359. Production deployment run `40305480295` passed the
+source gate, schema `51` → `52` identity check, read-only smoke and Google OAuth diagnostic. Stripe
+remains in test mode. See `RELEASE-2026-10-26-INTEGRATION.md` for merge SHAs, evidence and follow-ups.
+
+- B1 exposes truthful instalment schedules and Student payment-plan truth; lapsed issued offers are
+  excluded from actionable receivables while accepted commitments remain collectable.
+- B2a adds full-term default, explicit two-instalment opt-in before offer issuance, quote-token
+  validation, immutable plans, tranche-prerequisite Checkout, incremental 6 → 12 Lesson fulfilment,
+  out-of-sequence settlement handling and re-arming of completed activation jobs.
+- B2b adds the configurable 168-hour-before-Lesson-7 deadline. `INSTALMENT_DUE_DATE_POLICY` remains
+  **unset in production**; unsupported values fail closed and existing offers are never rewritten.
+- Interim attendance adds silence-based presumed completion without verified attendance or automatic
+  payability, provider-neutral Teacher/Student reports, append-only administrator corrections, and
+  `pending / presumed_completion_review` Finance treatment.
+- Calendar reliability adds automatic retry for transient transport failures and a disposable
+  regression covering pending mappings, operator requeue, twelve deterministic acknowledgements,
+  callback replay and completed-job replay.
+- `make lifecycle-regression` adds the bounded paid-lifecycle operator bundle, including attendance
+  and presumed completion.
+
 ## Operational-readiness integration — correction round 3 — candidate, unmerged — 2026-09-27
 
 - Closes both blocking findings of the host review of `ba47412e9b05dff53e83fa1b88f99c1dc015966e` / tree

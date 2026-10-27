@@ -67,6 +67,13 @@ final class StudentCheckoutInitiationService {
             if ($this->payments->settlementForObligation((int) $obligation->id, true)) {
                 throw new \InvalidArgumentException('checkout_unavailable');
             }
+            // A later instalment is never normally collectable before its predecessor settles.
+            // Reconciliation may still record valid out-of-sequence provider evidence; that path
+            // does not pass through this student Checkout seam.
+            if ((int) $obligation->obligation_sequence > 1) {
+                $status = (new \Delnavazan\Platform\Core\Application\CommercialTermFundingService())->obligationStatus((int) $offer->id);
+                if (empty($status['prerequisites_satisfied'])) throw new \InvalidArgumentException('checkout_prerequisite_pending');
+            }
 
             $now = gmdate('Y-m-d H:i:s');
             $active = $this->sessions->activeForObligation((int) $obligation->id, true);
@@ -179,10 +186,12 @@ final class StudentCheckoutInitiationService {
         if (!$offer || (int) $offer->beneficiary_student_id !== $studentId || (int) $offer->id !== (int) $obligation->offer_id) {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
-        // R1 allows an accepted offer to fund later unpaid instalments; checkout must follow that
-        // same canonical state rule instead of making the second obligation unreachable.
-        if (!in_array((string) $offer->state, array('issued', 'accepted'), true)
-            || ($offer->expires_at !== null && (string) $offer->expires_at <= gmdate('Y-m-d H:i:s'))) {
+        // The offer window is the initial checkout hold. Once the first payment accepts the
+        // commitment, later unpaid instalments remain reachable under their own obligations; the
+        // original hold must not make tranche 2 unpayable weeks before Lesson 7.
+        $state = (string) $offer->state;
+        $expired = $offer->expires_at !== null && (string) $offer->expires_at <= gmdate('Y-m-d H:i:s');
+        if (!in_array($state, array('issued', 'accepted'), true) || ($state === 'issued' && $expired)) {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
         if ((int) $obligation->amount_minor < 1 || preg_match('/^[A-Z]{3}$/D', (string) $obligation->currency) !== 1) {

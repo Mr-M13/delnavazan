@@ -3753,16 +3753,98 @@
 
 
   /*
-   * Visitor-facing regional controls are deliberately hidden.
-   *
-   * The underlying element may remain in the DOM for automatic
-   * pricing/location JavaScript, but visitors cannot manually
-   * select or change the region.
+   * Regional pricing is a visitor choice, not a hidden implementation detail.
+   * The Platform remains the single price authority; this control only selects
+   * which configured regional presentation to display.
    */
 
   .dzn-pricing-region {
     display:
-      none;
+      flex;
+
+    flex-direction:
+      column;
+
+    gap:
+      .5rem;
+
+    align-items:
+      stretch;
+
+    inline-size:
+      100%;
+
+    max-inline-size:
+      22rem;
+
+    margin-block-start:
+      1rem;
+
+    padding-block-start:
+      1rem;
+
+    border-block-start:
+      1px solid
+      rgb(255 253 248 / .22);
+
+    text-align:
+      start;
+  }
+
+  .dzn-pricing-region__select {
+    inline-size:
+      100%;
+
+    min-block-size:
+      2.75rem;
+
+    padding:
+      .5rem .75rem;
+
+    border:
+      1px solid
+      rgb(255 253 248 / .38);
+
+    border-radius:
+      .75rem;
+
+    background:
+      #fffdf8;
+
+    color:
+      var(--dzn-color-text-primary);
+
+    font:
+      inherit;
+
+    font-size:
+      1rem;
+  }
+
+  .dzn-pricing-region__status,
+  .dzn-pricing-region__privacy {
+    margin:
+      0;
+
+    color:
+      rgb(255 253 248 / .78);
+
+    font-size:
+      .8rem;
+
+    line-height:
+      1.7;
+  }
+
+  .dzn-pricing-region__privacy {
+    color:
+      rgb(255 253 248 / .62);
+  }
+
+  .dzn-story__price
+  .dzn-pricing-region__label {
+    color:
+      rgb(255 253 248 / .72);
   }
 
 

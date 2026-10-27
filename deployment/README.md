@@ -91,7 +91,11 @@ command; CI still runs the individual jobs. A release is not ready if this comma
 
 ## Release 2026-10-27
 
-The latest follow-up is `9d568c69bd604d2e57fa551e3c2173a3287402d9`
+The latest follow-up is `386225bce57724779be8dffc50b85297e92bdc0a`
+(build `main-386225bce577`, schema 52), deployed in run `40502315523`.
+It styles the header login CTA with the original enrolment button treatment.
+
+The preceding home-polish release is `9d568c69bd604d2e57fa551e3c2173a3287402d9`
 (build `main-9d568c69bd60`, schema 52), deployed in run `40500551506`.
 It changes the primary menu to خانه / ورود / مقالات, makes homepage instrument
 tiles preselect the same instrument on `/enrol/`, removes the pricing

@@ -79,6 +79,14 @@
     let lastAutoFrame = 0;
     let pauseAutoUntil = 0;
     let autoPaused = false;
+    let autoScrollLeft = 0;
+    let autoScrollRunning = false;
+
+    const syncAutoScrollPosition = () => {
+      autoScrollLeft = rail.scrollLeft;
+      autoScrollRunning = false;
+    };
+
     const controls = document.createElement('div');
     const previous = document.createElement('button');
     const next = document.createElement('button');
@@ -125,6 +133,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
 
     toggle.addEventListener('click', () => {
       autoPaused = !autoPaused;
+      syncAutoScrollPosition();
       if (autoPaused) rail.classList.remove('is-auto-scrolling');
       syncAutoToggle();
     });
@@ -182,6 +191,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
         left: targetLeft,
         behavior: reducedMotion.matches ? 'auto' : behavior
       });
+      syncAutoScrollPosition();
 
       window.requestAnimationFrame(updateWheel);
     };
@@ -212,6 +222,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
       rail.style.setProperty('scroll-behavior', 'auto', 'important');
       rail.style.setProperty('scroll-snap-type', 'none', 'important');
       rail.scrollLeft += shift;
+      syncAutoScrollPosition();
       updateWheel();
 
       window.cancelAnimationFrame(normalizationFrame);
@@ -255,6 +266,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
     rail.addEventListener('pointerdown', () => {
       interacting = true;
       pauseAutoUntil = performance.now() + 1800;
+      syncAutoScrollPosition();
       rail.classList.remove('is-auto-scrolling');
     });
 
@@ -264,6 +276,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
       }
 
       interacting = false;
+      syncAutoScrollPosition();
 
       if (!('onscrollend' in rail)) {
         window.clearTimeout(settleTimer);
@@ -292,6 +305,7 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
     const syncAfterResize = () => {
       window.cancelAnimationFrame(resizeFrame);
       resizeFrame = window.requestAnimationFrame(() => {
+        syncAutoScrollPosition();
         measureCycle();
         positionCard(activeIndex, 'auto');
       });
@@ -305,10 +319,16 @@ rail.setAttribute('aria-label', 'دوره‌های سازها، چرخش پیو�
       lastAutoFrame = now;
       if (!reducedMotion.matches && !autoPaused && !interacting && now >= pauseAutoUntil && cycleSpan > 0 && document.visibilityState === 'visible') {
         rail.classList.add('is-auto-scrolling');
-        rail.scrollLeft += elapsed * 9;
-        if (rail.scrollLeft >= cycleSpan * 2) rail.scrollLeft -= cycleSpan;
-        else if (rail.scrollLeft < cycleSpan) rail.scrollLeft += cycleSpan;
+        if (!autoScrollRunning) {
+          syncAutoScrollPosition();
+          autoScrollRunning = true;
+        }
+        autoScrollLeft += elapsed * 9;
+        if (autoScrollLeft >= cycleSpan * 2) autoScrollLeft -= cycleSpan;
+        else if (autoScrollLeft < cycleSpan) autoScrollLeft += cycleSpan;
+        rail.scrollLeft = autoScrollLeft;
       } else {
+        autoScrollRunning = false;
         rail.classList.remove('is-auto-scrolling');
       }
       window.requestAnimationFrame(autoScroll);

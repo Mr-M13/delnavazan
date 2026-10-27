@@ -40,7 +40,7 @@ labelled as reported from action eligibility alone). Neither is repaired by this
 | `/booking/` | `booking` | n/a | — | `301` to `/enrol/`; **query is dropped today** (P0-01) |
 | `/login/` | `login` | n/a | Auth | Branded login/reset; no tab bar |
 | `/dashboard/` | `dashboard` | n/a | Auth | Role resolution; 0/1/many destinations |
-| `/student-portal/` | `student-portal` | `home`, `account` | Student portal | Unknown `portal-view` silently becomes `home` |
+| `/student-portal/` | `student-portal` | `home`, `account`, `schedule`, `payments` | Student portal | Unknown `portal-view` becomes `home` |
 | `/teacher-portal/` | `teacher-portal` | `home`, `finance`, `settings`, `onboarding` | Teacher portal | Incomplete teacher forced to `onboarding`; unknown `teacher-view` becomes `home` |
 | `/teacher-invitation/` | `teacher-invitation` | n/a | Auth | Token claim |
 | `/student-account-claim/` | `student-account-claim` | n/a | Auth | Token claim |
@@ -61,11 +61,14 @@ production. That gap is tracked, not assumed fixed.
 
 | Key | URL | Current component set | Gate |
 | --- | --- | --- | --- |
-| `home` | `/student-portal/` | provisioning, announcement, booking requests, post-intro, upcoming lesson, term timeline, recent history | Existing |
-| `account` | `/student-portal/?portal-view=account` | profile, history, payments, future orders, notifications | Existing |
+| `home` | `/student-portal/` | provisioning, upcoming lesson, term timeline, booking requests, post-intro, announcement, recent history | Existing |
+| `schedule` | `/student-portal/?portal-view=schedule` | active/upcoming/ended rows with calendar and authorised actions | Lesson read returns rows |
+| `payments` | `/student-portal/?portal-view=payments` | commercial obligation read; existing checkout root | Commercial read returns obligations |
+| `account` | `/student-portal/?portal-view=account` | profile, payments, notifications, history | Existing |
 
-Navigation is built once in `dzn_theme_platform_student_navigation()` and currently has two
-items: خانه and حساب کاربری. No schedule or payments key exists.
+Navigation is built once in `dzn_theme_platform_student_navigation()` and is capped at four
+items. Schedule is offered only when the lesson read returns rows; payments only when the
+owner-bound commercial read returns obligations. A state with neither stays at Home and Account.
 
 ### Teacher
 
@@ -174,8 +177,9 @@ a primary Join action.
 | In-progress lesson disappears | 2 | Derive from start/end instants; keep active row first |
 | Absence label inferred from action eligibility | 2 | Removed: neutral status and post-submit confirmation only; a persistent reported claim waits for an explicit Platform read field |
 | Teacher account template uses `account` | 2 | Use `settings` in page template and preview |
-| Student join/payment dead CTAs | 2, 5 | Honest unavailable, or wire existing read/action after proof |
-| Footer groups all in grid column 2 | 3 | Repair grid |
+| Student join/payment dead CTAs | 2, 5 | Join stays unavailable for canonical term lessons (no Platform endpoint); payments now use the existing read |
+| `payments.items` was always empty and `checkout_enabled` was absent | 5 | Resolved: the account and dedicated payments screen now read `StudentCommercialCheckoutReadService`; the tab is gated on returned obligations |
+| Footer groups all in grid column 2 | 3 | Resolved: identity, actions, navigation and legal occupy distinct grid areas |
 | Public JS loaded on protected routes | 3 | Split carousel/pricing from header navigation; conditional enqueue |
 | IANA timezone shown as a label | 2, 6, 7 | Human label plus exact identifier |
 | Teacher finance minor units | 6 | Format with currency exponent |

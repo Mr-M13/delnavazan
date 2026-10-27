@@ -1124,3 +1124,85 @@
     max-inline-size: 73.75rem;
   }
 }
+
+/* =========================================================
+   STUDENT SCHEDULE
+   ========================================================= */
+
+.dzn-schedule-day {
+  margin-block-start: var(--dzn-space-5);
+}
+
+.dzn-schedule-day > h3 {
+  margin: 0 0 var(--dzn-space-3);
+  color: var(--dzn-color-text-secondary);
+  font-size: 1.05rem;
+}
+
+.dzn-schedule-list {
+  display: grid;
+  gap: var(--dzn-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-schedule-row {
+  display: grid;
+  gap: var(--dzn-space-3);
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius, 16px);
+  background: var(--dzn-color-surface-elevated);
+  padding: var(--dzn-space-4);
+}
+
+.dzn-schedule-row.is-in_progress {
+  border-color: var(--dzn-color-action-primary);
+}
+
+.dzn-schedule-row__time {
+  color: var(--dzn-color-text-secondary);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.dzn-schedule-row__main h4 {
+  margin: 0 0 var(--dzn-space-1);
+  overflow-wrap: anywhere;
+}
+
+.dzn-schedule-row__main p {
+  margin: 0 0 var(--dzn-space-2);
+}
+
+.dzn-schedule-row__teacher {
+  color: var(--dzn-color-text-muted);
+  font-size: .9rem;
+}
+
+.dzn-schedule-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--dzn-space-2);
+}
+
+.dzn-schedule-row__actions form {
+  margin: 0;
+}
+
+.dzn-schedule-row__absence summary {
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--dzn-color-accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+@media (min-width: 48rem) {
+  .dzn-schedule-row {
+    grid-template-columns: 7rem minmax(0, 1fr) auto;
+    align-items: start;
+  }
+}

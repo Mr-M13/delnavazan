@@ -142,16 +142,28 @@ function dzn_theme_platform_history_item( array $lesson ) {
 /**
  * Student Portal navigation, available for every presentation state.
  *
- * @param string $screen home|account.
+ * Schedule and payments are only added after their authorised projections have
+ * been read for this request. The maximum is four items so the mobile tab bar
+ * never carries a decorative empty destination.
+ *
+ * @param string $screen            home|account|schedule|payments.
+ * @param bool   $include_schedule  The lesson read returned authorised rows.
+ * @param bool   $include_payments  The commercial read returned obligations.
  * @return array
  */
-function dzn_theme_platform_student_navigation( $screen ) {
+function dzn_theme_platform_student_navigation( $screen, $include_schedule = false, $include_payments = false ) {
 	$base_url = home_url( '/student-portal/' );
-
-	return array(
+	$items = array(
 		array( 'label' => 'خانه', 'url' => $base_url, 'current' => 'home' === $screen ),
-		array( 'label' => 'حساب کاربری', 'url' => add_query_arg( 'portal-view', 'account', $base_url ), 'current' => 'account' === $screen ),
 	);
+	if ( $include_schedule ) {
+		$items[] = array( 'label' => 'برنامه', 'url' => add_query_arg( 'portal-view', 'schedule', $base_url ), 'current' => 'schedule' === $screen );
+	}
+	if ( $include_payments ) {
+		$items[] = array( 'label' => 'پرداخت', 'url' => add_query_arg( 'portal-view', 'payments', $base_url ), 'current' => 'payments' === $screen );
+	}
+	$items[] = array( 'label' => 'حساب کاربری', 'url' => add_query_arg( 'portal-view', 'account', $base_url ), 'current' => 'account' === $screen );
+	return array_slice( $items, 0, 4 );
 }
 
 /**
@@ -321,6 +333,169 @@ function dzn_theme_platform_provisioning_notice( array $enrolments ) {
 	return array();
 }
 
+/**
+ * Read the owner-bound commercial obligations once per request.
+ *
+ * This is the existing Platform read; the Theme does not calculate amounts,
+ * plans or eligibility. Any refusal or unknown shape becomes unavailable, and
+ * the payments destination is not offered.
+ *
+ * @return array{state:string,obligations:array<int,array>}
+ */
+function dzn_theme_platform_student_commercial_read() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\Checkout\\StudentCommercialCheckoutReadService';
+	if ( ! class_exists( $class ) ) { return array( 'state' => 'unavailable', 'obligations' => array() ); }
+	try {
+		$read = ( new $class() )->read();
+		if ( ! is_array( $read ) || 'ok' !== ( $read['state'] ?? '' ) || ! is_array( $read['obligations'] ?? null ) ) {
+			return array( 'state' => 'unavailable', 'obligations' => array() );
+		}
+		$rows = array();
+		foreach ( $read['obligations'] as $row ) {
+			if ( ! is_array( $row ) || ! isset( $row['obligation_uid'], $row['amount_minor'], $row['currency'], $row['payment_state'] ) ) { continue; }
+			$rows[] = $row;
+		}
+		return array( 'state' => 'ok', 'obligations' => $rows );
+	} catch ( Throwable $e ) {
+		return array( 'state' => 'unavailable', 'obligations' => array() );
+	}
+}
+
+/** One display-ready schedule row from an authorised lesson or booking class. */
+function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array $enrolments, $timezone, $now ) {
+	$start = '' === trim( (string) ( $row['starts_at_utc'] ?? '' ) ) ? false : strtotime( trim( (string) $row['starts_at_utc'] ) . ' UTC' );
+	$end   = '' === trim( (string) ( $row['ends_at_utc'] ?? '' ) ) ? false : strtotime( trim( (string) $row['ends_at_utc'] ) . ' UTC' );
+	$temporal = dzn_theme_platform_lesson_temporal_state( $row, $now );
+	$within_join = $start && $end && $now >= $start - HOUR_IN_SECONDS && $now <= $end + ( 2 * HOUR_IN_SECONDS );
+	$enrolment = array();
+	if ( ! $is_booking ) {
+		foreach ( $enrolments as $candidate ) {
+			if ( is_array( $candidate ) && ( $candidate['enrolment_uid'] ?? '' ) === ( $row['enrolment_uid'] ?? '' ) ) { $enrolment = $candidate; break; }
+		}
+	}
+	$course = trim( (string) ( $row['course_name'] ?? '' ) );
+	if ( '' === $course ) { $course = (string) ( $row['course_reference'] ?? '' ); }
+	$teacher = $is_booking
+		? (string) ( $row['teacher_display_reference'] ?? '' )
+		: (string) ( $enrolment['assigned_teacher_display_reference'] ?? '' );
+	$state = $is_booking
+		? ( 'ended' === $temporal ? 'ended' : ( 'in_progress' === $temporal ? 'in_progress' : ( $within_join ? 'starting_soon' : 'upcoming' ) ) )
+		: dzn_theme_platform_lesson_state( $row, $now );
+	$join_available = $is_booking && ! empty( $row['join_available'] ) && $within_join && 'ended' !== $temporal;
+	$absence_available = ! $is_booking && ! empty( $row['absence_available'] ) && 'authorised' === (string) ( $row['lifecycle_state'] ?? '' ) && $start && $start > $now;
+	return array(
+		'kind' => $is_booking ? 'intro' : 'term',
+		'state' => $state,
+		'temporal_state' => $temporal,
+		'course' => $course,
+		'teacher' => $teacher,
+		'date' => dzn_theme_platform_zoned_time( (string) ( $row['starts_at_utc'] ?? '' ), 'l j F Y', $timezone ),
+		'day_key' => dzn_theme_platform_zoned_time( (string) ( $row['starts_at_utc'] ?? '' ), 'Y-m-d', $timezone ),
+		'time' => dzn_theme_platform_zoned_time( (string) ( $row['starts_at_utc'] ?? '' ), 'H:i', $timezone ) . '–' . dzn_theme_platform_zoned_time( (string) ( $row['ends_at_utc'] ?? '' ), 'H:i', $timezone ),
+		'starts_at_utc' => (string) ( $row['starts_at_utc'] ?? '' ),
+		'timezone_label' => dzn_theme_platform_timezone_label( $timezone ),
+		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $row ),
+		'join_available' => $join_available,
+		'join_action_url' => $is_booking ? admin_url( 'admin-post.php?action=dzn_student_join_booking_class' ) : '',
+		'join_nonce' => $is_booking ? wp_create_nonce( 'dzn_student_join_booking_class' ) : '',
+		'confirmation_uid' => $is_booking ? (string) ( $row['confirmation_uid'] ?? '' ) : '',
+		'join_message' => $is_booking ? dzn_theme_platform_booking_join_message( $row, $within_join ) : 'ورود به کلاس‌های ترم از این نسخه فعال نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.',
+		'absence_available' => $absence_available,
+		'absence_reported' => ! empty( $row['absence_reported'] ),
+		'absence_message' => ! $is_booking && empty( $row['absence_available'] ) ? 'ثبت اطلاع غیبت برای این جلسه فعال نیست. برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.' : '',
+		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
+		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
+		'lesson_uid' => (string) ( $row['lesson_uid'] ?? '' ),
+		'schedule_version_uid' => (string) ( $row['schedule_version_uid'] ?? '' ),
+	);
+}
+
+/** Build and rank schedule rows: active first, then upcoming, then ended. */
+function dzn_theme_platform_student_schedule_rows( array $lessons, array $booking_classes, array $enrolments, $timezone, $now ) {
+	$rows = array();
+	foreach ( $lessons as $lesson ) {
+		if ( is_array( $lesson ) ) { $rows[] = dzn_theme_platform_student_schedule_row( $lesson, false, $enrolments, $timezone, $now ); }
+	}
+	foreach ( $booking_classes as $booking ) {
+		if ( is_array( $booking ) ) { $rows[] = dzn_theme_platform_student_schedule_row( $booking, true, $enrolments, $timezone, $now ); }
+	}
+	$rank = array( 'in_progress' => 0, 'upcoming' => 1, 'unknown' => 2, 'ended' => 3 );
+	usort( $rows, static function ( $a, $b ) use ( $rank ) {
+		$order = ( $rank[ $a['temporal_state'] ] ?? 2 ) <=> ( $rank[ $b['temporal_state'] ] ?? 2 );
+		if ( 0 !== $order ) { return $order; }
+		return 'ended' === $a['temporal_state']
+			? strcmp( (string) $b['starts_at_utc'], (string) $a['starts_at_utc'] )
+			: strcmp( (string) $a['starts_at_utc'], (string) $b['starts_at_utc'] );
+	} );
+	return $rows;
+}
+
+/** Shape the commercial read for presentation without recalculating money. */
+function dzn_theme_platform_student_payments_model( array $read, $timezone ) {
+	$obligations = is_array( $read['obligations'] ?? null ) ? $read['obligations'] : array();
+	if ( 'ok' !== ( $read['state'] ?? '' ) ) {
+		return array(
+			'state' => 'unavailable',
+			'status' => 'وضعیت پرداخت اکنون از منبع مالی معتبر در دسترس نیست.',
+			'items' => array(),
+			'checkout_enabled' => false,
+			'obligations' => array(),
+		);
+	}
+	if ( ! $obligations ) {
+		return array(
+			'state' => 'empty',
+			'status' => 'برای این حساب، طرح پرداخت قابل نمایشی ثبت نشده است.',
+			'items' => array(),
+			'checkout_enabled' => false,
+			'obligations' => array(),
+		);
+	}
+	$states = array(
+		'required' => 'نیازمند پرداخت',
+		'processing' => 'در حال بررسی',
+		'paid' => 'پرداخت شده',
+		'paid_prerequisite_pending' => 'پرداخت شده؛ قسط قبلی در انتظار است',
+		'prerequisite_pending' => 'پس از قسط قبلی',
+		'unavailable' => 'در دسترس نیست',
+	);
+	$items = array();
+	$payable = false;
+	$processing = false;
+	$all_paid = true;
+	foreach ( $obligations as $row ) {
+		$minor = (int) ( $row['amount_minor'] ?? 0 );
+		$currency = (string) ( $row['currency'] ?? '' );
+		$formatted = class_exists( '\Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney' )
+			? \Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney::format( $minor, $currency, true )
+			: number_format( $minor ) . ' ' . $currency;
+		$sequence = (int) ( $row['obligation_sequence'] ?? 0 );
+		$term = (int) ( $row['term_sequence'] ?? 0 );
+		$payment_state = (string) ( $row['payment_state'] ?? 'unavailable' );
+		$action = (string) ( $row['action'] ?? '' );
+		if ( in_array( $action, array( 'pay', 'continue', 'resume', 'retry' ), true ) ) { $payable = true; }
+		if ( 'processing' === $payment_state ) { $processing = true; }
+		if ( 'paid' !== $payment_state && 'paid_prerequisite_pending' !== $payment_state ) { $all_paid = false; }
+		$items[] = array(
+			'title' => ( $sequence > 0 ? 'قسط ' . $sequence : 'قسط' ) . ( $term > 0 ? ' · ترم ' . $term : '' ),
+			'date' => $row['due_at'] ? dzn_theme_platform_zoned_time( (string) $row['due_at'], 'j F Y', $timezone ) : '',
+			'amount' => $formatted,
+			'state' => $states[ $payment_state ] ?? 'وضعیت نامشخص',
+			'action' => $action,
+		);
+	}
+	$status = $payable
+		? 'برای ادامه، گزینهٔ پرداخت را در همین بخش انتخاب کنید.'
+		: ( $processing ? 'وضعیت پرداخت در حال بررسی است؛ لطفاً بعداً دوباره بررسی کنید.' : ( $all_paid ? 'پرداخت ترم تکمیل شده است.' : 'وضعیت پرداخت از منبع معتبر خوانده شد.' ) );
+	return array(
+		'state' => 'ok',
+		'status' => $status,
+		'items' => $items,
+		'checkout_enabled' => true,
+		'obligations' => $obligations,
+	);
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -340,6 +515,11 @@ function dzn_theme_platform_student_model( $screen ) {
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes, $post_intro );
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
+	$commercial = dzn_theme_platform_student_commercial_read();
+	$payments_model = dzn_theme_platform_student_payments_model( $commercial, $student_timezone );
+	$payments_available = ! empty( $payments_model['checkout_enabled'] );
+	$schedule_available = (bool) ( $lessons || $booking_classes );
+	$navigation = dzn_theme_platform_student_navigation( $screen, $schedule_available, $payments_available );
 	$active = array();
 	$past = array();
 	$future = array();
@@ -370,6 +550,15 @@ function dzn_theme_platform_student_model( $screen ) {
 		'navigation' => $navigation,
 		'provisioning' => $provisioning,
 	);
+	if ( 'schedule' === $screen ) {
+		$model['schedule'] = dzn_theme_platform_student_schedule_rows( $lessons, $booking_classes, $enrolments, $student_timezone, $now );
+		$model['timezone_label'] = dzn_theme_platform_timezone_label( $student_timezone );
+		return $model;
+	}
+	if ( 'payments' === $screen ) {
+		$model['payments'] = $payments_model;
+		return $model;
+	}
 	if ( 'account' === $screen ) {
 		$model['profile'] = array(
 			'full_name' => (string) ( $student_profile['full_name'] ?? $identity['full_name'] ),
@@ -380,16 +569,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			'password_url' => wp_lostpassword_url(),
 		);
 		$model['history'] = array_map( 'dzn_theme_platform_history_item', array_slice( $past, 0, 20 ) );
-		// The commercial obligation read is a separate, gated projection. Until
-		// it is wired (Package 5), the account says so instead of implying a
-		// checkout, receipt or instalment choice exists.
-		$model['payments'] = array(
-			'state'            => 'unavailable',
-			'status'           => 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.',
-			'next_term'        => '',
-			'items'            => array(),
-			'checkout_enabled' => false,
-		);
+		$model['payments'] = $payments_model;
 		$model['notifications'] = array();
 		$model['notifications_available'] = false;
 		$model['notification_archive_url'] = '';

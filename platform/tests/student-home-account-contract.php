@@ -43,7 +43,8 @@ foreach ( $order as $component ) {
 $check( 'home renders next class before term, requests, announcement and history', $ordered );
 
 /* 2. Account puts profile, payments and notifications before history. */
-$account = substr( $shell, (string) strpos( $shell, "'account' === \$screen" ) );
+$account_at = strpos( $shell, "elseif ( 'account' === \$screen ) : ?>" );
+$account = false === $account_at ? '' : substr( $shell, $account_at );
 $account = substr( $account, 0, (int) strpos( $account, '<?php else : ?>' ) );
 $account_previous = -1;
 $account_ordered = true;

@@ -425,7 +425,7 @@ function dzn_theme_render_portal_route( $kind ) {
 		return;
 	}
 	$screen = isset( $_GET['portal-view'] ) ? sanitize_key( wp_unslash( $_GET['portal-view'] ) ) : 'home';
-	$screen = in_array( $screen, array( 'home', 'account' ), true ) ? $screen : 'home';
+	$screen = in_array( $screen, array( 'home', 'account', 'schedule', 'payments' ), true ) ? $screen : 'home';
 	dzn_theme_render_student_portal( $screen, dzn_theme_student_portal_view_model( $screen ) );
 }
 

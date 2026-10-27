@@ -13,7 +13,7 @@ presentation packages pushed as the stacked draft PRs **#367–#376**.
 | `/enrol/` | Canonical booking flow; legacy `/booking/` forwards allowlisted instrument on a 302 | Booking regression fixtures |
 | Student home | Next/in-progress class, term progress, requests, post-intro, announcement, history | Existing authorised read |
 | Student schedule | Offered only when the lesson read returns rows; active first; no student join for canonical term lessons | Lesson read evidence |
-| Student payments | Offered only when the commercial read returns obligations; existing REST checkout only | Payment owner + Stripe test-mode evidence |
+| Student payments | Hidden by default behind `DZN_THEME_STUDENT_PAYMENTS`; when enabled, offered only for returned obligations and the existing REST checkout | Payment owner + Stripe test-mode evidence |
 | Student account | Profile, payments, notifications, history; notifications say unavailable when no read exists | Existing account read |
 | Teacher Today | Four-item navigation; active class first; honest join/report states | Existing teacher read |
 | Teacher Classes | Dedicated screen over the same authorised rows | Teacher lane owner |
@@ -24,7 +24,7 @@ presentation packages pushed as the stacked draft PRs **#367–#376**.
 ## 2. Protected response contract
 
 Canonical auth and protected routes call `dzn_theme_send_protected_response_headers()` after
-`nocache_headers()`:
+`nocache_headers()` and **before any dashboard or signed-out redirect**:
 
 ```text
 X-Robots-Tag: noindex, nofollow
@@ -60,6 +60,9 @@ Also run the existing PR runtime gate. The new contracts are listed in
 
 ### Real browser (owner-provided test principals)
 
+Run `cd acceptance && make protected-headers` against a disposable runtime to assert the
+actual `302` responses carry `X-Robots-Tag` and `no-store/private`, not only the rendered pages.
+
 - Homepage instrument tile → `/enrol/?instrument=…` keeps the instrument.
 - Legacy `/booking/?instrument=…` forwards the instrument on a temporary redirect.
 - Pricing selector is visible and changing the region changes only the displayed price.
@@ -92,10 +95,11 @@ request count and a lab trace separately from field data.
 ## 4. Feature gates
 
 - Student schedule tab: rendered only when `lessons` or confirmed booking classes exist.
-- Student payments tab: rendered only when the owner-bound commercial read returns obligations.
+- Student payments tab: hidden unless `DZN_THEME_STUDENT_PAYMENTS` (or the explicit filter) is enabled; even then rendered only when the owner-bound commercial read returns obligations. A direct payments route shows a disabled state while the flag is off.
+- Persistent absence “reported” state: not shown. Only the post-submit query confirmation is displayed until the Platform read model exposes an explicit canonical fact.
 - Teacher Classes: available to a ready teacher; onboarding still overrides the shell.
-- No notification badge, unread count, receipt, profile edit, teacher private note, deadline
-  or instalment promise is inferred.
+- No notification badge, unread count, receipt, profile edit, teacher private note, deadline,
+  instalment promise or persisted absence-report claim is inferred.
 - No service worker, offline protected cache, or separate `/app/` router is part of this
   release. Installability is a later, separately reviewed decision.
 

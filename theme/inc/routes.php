@@ -478,6 +478,13 @@ function dzn_theme_render_virtual_route() {
 	if ( 'booking' === $raw_path ) { wp_safe_redirect( dzn_theme_legacy_booking_redirect_url(), 302 ); exit; }
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
+	$protected = in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true );
+	// Protected redirects must carry the same no-store/noindex contract as the
+	// rendered screen. Send headers before any dashboard or signed-out redirect.
+	if ( $protected ) {
+		nocache_headers();
+		dzn_theme_send_protected_response_headers();
+	}
 	if ( 'dashboard' === $route ) {
 		$destination = dzn_theme_dashboard_destination();
 		if ( $destination ) { wp_safe_redirect( $destination ); exit; }
@@ -487,9 +494,10 @@ function dzn_theme_render_virtual_route() {
 	global $wp_query;
 	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );
-	nocache_headers();
-	if ( in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true ) ) {
+	if ( $protected ) {
 		dzn_theme_send_protected_response_headers();
+	} else {
+		nocache_headers();
 	}
 	get_header();
 	switch ( $route ) {

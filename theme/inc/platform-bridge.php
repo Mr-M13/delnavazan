@@ -382,8 +382,8 @@ function dzn_theme_platform_student_commercial_read() {
 
 /** One display-ready schedule row from an authorised lesson or booking class. */
 function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array $enrolments, $timezone, $now ) {
-	$start = '' === trim( (string) ( $row['starts_at_utc'] ?? '' ) ) ? false : strtotime( trim( (string) $row['starts_at_utc'] ) . ' UTC' );
-	$end   = '' === trim( (string) ( $row['ends_at_utc'] ?? '' ) ) ? false : strtotime( trim( (string) $row['ends_at_utc'] ) . ' UTC' );
+	$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
+	$end   = dzn_theme_platform_utc_timestamp( $row['ends_at_utc'] ?? '' );
 	$temporal = dzn_theme_platform_lesson_temporal_state( $row, $now );
 	$within_join = $start && $end && $now >= $start - HOUR_IN_SECONDS && $now <= $end + ( 2 * HOUR_IN_SECONDS );
 	$enrolment = array();
@@ -633,7 +633,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	} );
 	$next = $all_future[0] ?? null;
 	$is_booking = is_array( $next ) && 'student_booking_class_v1' === ( $next['version'] ?? '' );
-	$next_start = $next ? strtotime( (string) ( $next['starts_at_utc'] ?? '' ) . ' UTC' ) : false;
+	$next_start = $next ? dzn_theme_platform_utc_timestamp( $next['starts_at_utc'] ?? '' ) : false;
 	$enrolment = $next && ! $is_booking ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
     $next_end = $next ? dzn_theme_platform_utc_timestamp( $next['ends_at_utc'] ?? '' ) : false;
     $within_join_window = $next_start && $next_end && $now >= $next_start - HOUR_IN_SECONDS && $now <= $next_end + ( 2 * HOUR_IN_SECONDS );
@@ -836,10 +836,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$year = wp_date( 'Y', $now, wp_timezone() );
 		$month_lessons = array_filter( $all_scheduled_classes, static fn( $row ) => 0 === strpos( dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y-m' ), $month ) );
 		$year_lessons = array_filter( $all_scheduled_classes, static fn( $row ) => dzn_theme_platform_local_time( $row['starts_at_utc'] ?? '', 'Y' ) === $year );
-		$seconds = 0; foreach ( $month_lessons as $row ) { $a = strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ); $b = strtotime( (string) ( $row['ends_at_utc'] ?? '' ) . ' UTC' ); if ( $a && $b && $b > $a ) { $seconds += $b - $a; } }
+		$seconds = 0; foreach ( $month_lessons as $row ) { $a = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' ); $b = dzn_theme_platform_utc_timestamp( $row['ends_at_utc'] ?? '' ); if ( $a && $b && $b > $a ) { $seconds += $b - $a; } }
 		$students = array_unique( array_filter( array_map( static fn( $row ) => (string) ( $row['student_display_reference'] ?? '' ), $all_scheduled_classes ) ) );
 		$assigned = array_unique( array_filter( array_map( static fn( $row ) => is_array( $row ) ? (string) ( $row['student_display_reference'] ?? '' ) : '', (array) ( $data['assignments'] ?? array() ) ) ) );
-		$upcoming_count = count( array_filter( $all_scheduled_classes, static fn( $row ) => strtotime( (string) ( $row['starts_at_utc'] ?? '' ) . ' UTC' ) >= time() ) );
+		$upcoming_count = count( array_filter( $all_scheduled_classes, static fn( $row ) => ( dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' ) ?: 0 ) >= time() ) );
 		$nav[0]['current'] = false;
 		return array(
 			'available' => true, 'screen' => $screen, 'source' => 'platform',
@@ -893,9 +893,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$classes = array();
 	$calendar = array();
 	foreach ( array_slice( $classRows, 0, 12 ) as $index => $lesson ) {
-		$start = strtotime( (string) $lesson['starts_at_utc'] . ' UTC' );
+		$start = dzn_theme_platform_utc_timestamp( $lesson['starts_at_utc'] ?? '' );
 		$end = dzn_theme_platform_utc_timestamp( $lesson['ends_at_utc'] ?? '' );
-		$soon = $start - $now <= HOUR_IN_SECONDS;
+		$soon = $start && $start - $now <= HOUR_IN_SECONDS;
 		$is_booking = 'teacher_booking_class_v1' === ( $lesson['version'] ?? '' );
 		$temporal = dzn_theme_platform_lesson_temporal_state( $lesson, $now );
 		$soon = $start && $start - $now <= HOUR_IN_SECONDS;

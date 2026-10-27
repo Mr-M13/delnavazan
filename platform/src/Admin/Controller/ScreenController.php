@@ -9,6 +9,8 @@ use Delnavazan\Platform\Core\Application\{
     CanonicalLessonCompletionPolicy,
     CanonicalLessonDeliveryReadService,
     CanonicalLessonDeliveryService,
+    CanonicalLessonScheduleReadService,
+    CanonicalLessonScheduleService,
     CanonicalTermAuthorityService,
     CatalogueService,
     CoreReadService,

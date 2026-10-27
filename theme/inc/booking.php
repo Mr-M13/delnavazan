@@ -5,9 +5,53 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function dzn_theme_booking_options(): array {
+    static $options = null;
+    if ( is_array( $options ) ) { return $options; }
     $class = '\Delnavazan\Platform\Core\Application\PublicBookingOptionsReadService';
-    if ( ! class_exists( $class ) ) { return array(); }
-    try { return ( new $class() )->introductoryInstruments(); } catch ( Throwable $e ) { return array(); }
+    if ( ! class_exists( $class ) ) { return $options = array(); }
+    try { return $options = ( new $class() )->introductoryInstruments(); } catch ( Throwable $e ) { return $options = array(); }
+}
+
+/** Normalise Persian instrument labels for matching across the static belt and the canonical catalogue. */
+function dzn_theme_booking_normalize_instrument_name( string $name ): string {
+    $name = str_replace( array( "\xE2\x80\x8C", 'ي', 'ك' ), array( ' ', 'ی', 'ک' ), $name );
+    $normalised = preg_replace( '/\s+/u', ' ', trim( $name ) );
+    return is_string( $normalised ) ? $normalised : '';
+}
+
+/**
+ * Build the canonical enrolment URL for one homepage instrument tile.
+ *
+ * The Platform catalogue slug is authoritative; the static tile label is only a
+ * lookup key. Returning the catalogue slug here means the enrolment page selects
+ * the same instrument even when the Persian display labels differ (for example
+ * «سه‌تار» vs «سه تار» or «تنبک» vs «تمبک»).
+ */
+function dzn_theme_booking_enrol_url( string $name, string $fallback_slug = '' ): string {
+    $url = home_url( '/enrol/' );
+    $target = dzn_theme_booking_normalize_instrument_name( $name );
+    $aliases = array( 'تنبک' => 'تمبک' );
+    if ( isset( $aliases[ $target ] ) ) { $target = $aliases[ $target ]; }
+    foreach ( dzn_theme_booking_options() as $option ) {
+        if ( ! is_array( $option ) ) { continue; }
+        $slug = (string) ( $option['slug'] ?? '' );
+        $name_fa = (string) ( $option['name_fa'] ?? '' );
+        $name_en = (string) ( $option['name_en'] ?? '' );
+        $matches_name = '' !== $target && ( $target === dzn_theme_booking_normalize_instrument_name( $name_fa ) || $target === dzn_theme_booking_normalize_instrument_name( $name_en ) );
+        $matches_slug = '' !== $fallback_slug && $fallback_slug === $slug;
+        if ( '' !== $slug && ( $matches_name || $matches_slug ) ) {
+            // Match by the catalogue's exact Persian name. This avoids
+            // double-encoding the URL-encoded Persian slug while still letting
+            // the enrolment page select the authoritative instrument option.
+            return add_query_arg(
+                array( 'instrument_name' => '' !== $name_fa ? $name_fa : $name ),
+                $url
+            );
+        }
+    }
+    return '' !== $fallback_slug
+        ? add_query_arg( array( 'instrument' => $fallback_slug, 'instrument_name' => $name ), $url )
+        : $url;
 }
 
 function dzn_theme_render_booking_route(): void {

@@ -5,6 +5,7 @@ $script = (string) file_get_contents($theme . '/assets/js/navigation.js') . "\n"
 $assets = (string) file_get_contents($theme . '/inc/assets.php');
 $home = (string) file_get_contents($theme . '/patterns/homepage-editorial.php');
 $booking = (string) file_get_contents($theme . '/inc/booking.php');
+$pricing = (string) file_get_contents($theme . '/assets/js/pricing-region.js');
 foreach (array(
     'automatic movement keeps a fractional position accumulator' => 'let autoScrollLeft = 0',
     'automatic movement advances the fractional accumulator slowly' => 'autoScrollLeft += elapsed * 9',
@@ -17,10 +18,24 @@ foreach (array(
     'manual movement temporarily pauses the automatic rail' => 'pauseAutoUntil = performance.now() + 1800',
     'automatic movement disables smooth-scroll and snap so small frame steps are not cancelled' => 'rail.classList.add(\'is-auto-scrolling\')',
     'manual movement removes automatic scrolling mode before snapping to a card' => "rail.classList.remove('is-auto-scrolling')",
+    'booking link consumes the canonical tile enrol URL' => "card.getAttribute('data-enrol-url')",
+    'canonical instrument lookup helper exists' => 'function dzn_theme_booking_enrol_url',
+    'currency options use ISO codes' => 'item.currency || code',
     'booking instrument order remains canonical' => "'سه‌تار', 'تار', 'پیانو', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار'",
 ) as $description => $needle) {
-    $source = str_contains($description, 'booking instrument order') ? $booking : $script;
+    $source = str_contains($description, 'booking instrument order') || str_contains($description, 'canonical instrument lookup') ? $booking : (str_contains($description, 'currency options') ? $pricing : $script);
     if (!str_contains($source, $needle)) throw new RuntimeException('Homepage instrument belt contract failed: ' . $description);
+}
+if (12 !== substr_count($home, 'data-enrol-url=')) {
+    throw new RuntimeException('All twelve homepage instrument tiles must carry a canonical enrol URL.');
+}
+if (!str_contains($home, '<option value="AU">AUD</option>') || !str_contains($home, '<option value="NZ">NZD</option>')) {
+    throw new RuntimeException('The pricing selector must expose ISO currency codes.');
+}
+foreach (array('منطقهٔ قیمت‌گذاری', 'این پیشنهاد تقریبی است', 'این منطقه فقط بر اساس موقعیت تقریبی') as $removed) {
+    if (str_contains($home, $removed) || str_contains($pricing, $removed)) {
+        throw new RuntimeException('Removed pricing copy returned: ' . $removed);
+    }
 }
 if (!str_contains($assets, 'if ( ! is_front_page() )')) {
     throw new RuntimeException('Homepage carousel and pricing scripts must be gated to the front page.');

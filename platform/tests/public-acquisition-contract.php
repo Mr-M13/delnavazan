@@ -45,11 +45,13 @@ if ( 1 !== preg_match( '/\.dzn-pricing-region\s*\{([^}]*)\}/', $css, $region_blo
 }
 $check( 'the pricing region rule is not display:none', ! preg_match( '/display\s*:\s*none/', $region_block[1] ) );
 $check( 'the pricing region rule is a visible flex control', preg_match( '/display\s*:\s*flex/', $region_block[1] ) === 1 );
-$check( 'the select control has a large touch target', str_contains( $css, 'min-block-size:' ) && str_contains( $css, '.dzn-pricing-region__select' ) );
+$check( 'the select control retains a usable height', str_contains( $css, 'min-block-size:' ) && str_contains( $css, '.dzn-pricing-region__select' ) );
+$check( 'the select control is compact', (bool) preg_match( '/\.dzn-pricing-region__select\s*\{[^}]*max-inline-size:\s*9rem/s', $css ) );
 $check( 'the homepage no longer claims a base price fallback', ! str_contains( $home, 'قیمت پایه در صورت عدم شناسایی موقعیت' ) );
-$check( 'the approximation is explained as approximate', str_contains( $home, 'تقریبی' ) && str_contains( $home, 'انتخاب دستی' ) );
-$check( 'the privacy note says no exact address is stored', str_contains( $home, 'نشانی دقیق شما را ذخیره نمی‌کند' ) );
-$check( 'the script explains that manual selection wins', str_contains( $price, 'انتخاب دستی شما همیشه مقدم است' ) );
+$check( 'the approval disclaimers were removed', ! str_contains( $home, 'تقریبی' ) && ! str_contains( $home, 'نشانی دقیق شما را ذخیره نمی‌کند' ) );
+$check( 'the script no longer carries the approval disclaimer', ! str_contains( $price, 'انتخاب دستی شما همیشه مقدم است' ) && ! str_contains( $price, 'این منطقه فقط' ) );
+$check( 'the selector exposes ISO currency codes', str_contains( $home, '<option value="AU">AUD</option>' ) && str_contains( $home, '<option value="NZ">NZD</option>' ) && str_contains( $price, 'item.currency || code' ) );
+$check( 'the tiles carry the canonical catalogue URL', 12 === substr_count( $home, 'data-enrol-url=' ) && str_contains( $js, "card.getAttribute('data-enrol-url')" ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Public acquisition contract failed: ' . implode( '; ', $failures ) );

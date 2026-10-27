@@ -9,7 +9,6 @@
   const select = ledger.querySelector('[data-dzn-pricing-select]');
   const amount = ledger.querySelector('[data-dzn-pricing-amount]');
   const region = ledger.querySelector('[data-dzn-pricing-region]');
-  const status = ledger.querySelector('[data-dzn-pricing-status]');
   const intro = ledger.querySelector('[data-dzn-pricing-intro]');
   const storageKey = String(config.storageKey || 'dzn-pricing-region');
   let manuallySelected = false;
@@ -19,48 +18,43 @@
     set(value) { try { window.localStorage.setItem(storageKey, value); } catch { /* Optional presentation preference. */ } },
   };
 
-  const showNeutral = (message) => {
-    if (amount) amount.textContent = 'منطقهٔ خود را انتخاب کنید';
-    if (region) region.textContent = 'برای نمایش شهریه، یکی از مناطق فعال را انتخاب کنید.';
+  const showNeutral = () => {
+    if (amount) amount.textContent = 'واحد پول را انتخاب کنید';
+    if (region) region.textContent = 'برای نمایش شهریه، یکی از واحدهای پول فعال را انتخاب کنید.';
     if (intro) intro.textContent = '';
-    if (status) status.textContent = message;
   };
 
-  const showRegion = (code, source) => {
+  const showRegion = (code) => {
     const selected = config.regions[code];
-    if (!selected) { showNeutral('منطقه‌ای را از فهرست انتخاب کنید.'); return; }
+    if (!selected) { showNeutral(); return; }
     if (select) select.value = code;
     if (!selected.configured) {
       if (amount) amount.textContent = 'قیمت این منطقه در حال تنظیم است';
       if (region) region.textContent = 'برای مشاهدهٔ شهریه با ما تماس بگیرید.';
       if (intro) intro.textContent = '';
-      if (status) status.textContent = 'شهریهٔ این منطقه هنوز توسط آکادمی ثبت نشده است.';
       return;
     }
     if (amount) amount.textContent = selected.displayPersian || selected.display;
     if (region) region.textContent = 'برای یک ترم، برای همهٔ دوره‌ها';
     if (intro) intro.textContent = selected.introductoryLabel || '';
-    if (status) status.textContent = source === 'manual'
-      ? 'انتخاب شما در این دستگاه ذخیره شد.'
-      : 'این منطقه فقط بر اساس موقعیت تقریبی پیشنهاد شده است؛ می‌توانید آن را تغییر دهید.';
   };
 
   const stored = storage.get();
   if (stored && config.regions[stored]) {
     manuallySelected = true;
-    showRegion(stored, 'manual');
+    showRegion(stored);
   } else {
-    showNeutral('برای پیشنهاد تقریبی، یک درخواست موقعیت به سرویس بیرونی فرستاده می‌شود؛ انتخاب دستی شما همیشه مقدم است.');
+    showNeutral();
   }
 
   if (select) {
     const selected = String(select.value || '');
-    select.innerHTML = '<option value="">منطقهٔ خود را انتخاب کنید</option>';
+    select.innerHTML = '<option value="">واحد پول</option>';
     Object.keys(config.regions).forEach((code) => {
       const item = config.regions[code] || {};
       const option = document.createElement('option');
       option.value = code;
-      option.textContent = String(item.label || code) + (item.configured ? '' : ' — در حال تنظیم');
+      option.textContent = String(item.currency || code) + (item.configured ? '' : ' — در حال تنظیم');
       select.appendChild(option);
     });
     if (selected && config.regions[selected]) select.value = selected;
@@ -69,9 +63,9 @@
   if (select) select.addEventListener('change', () => {
     const code = select.value;
     manuallySelected = Boolean(code);
-    if (!code || !config.regions[code]) { showNeutral('منطقهٔ قیمت‌گذاری را انتخاب کنید.'); return; }
+    if (!code || !config.regions[code]) { showNeutral(); return; }
     storage.set(code);
-    showRegion(code, 'manual');
+    showRegion(code);
   });
 
   if (manuallySelected || !config.detectUrl || typeof window.fetch !== 'function') return;
@@ -86,10 +80,10 @@
       if (manuallySelected) return;
       const country = String(payload && payload.country_code ? payload.country_code : '').toUpperCase();
       const code = config.countryToRegion && config.countryToRegion[country];
-      if (code && config.regions[code]) showRegion(code, 'suggested');
-      else showNeutral('موقعیت شما به‌صورت خودکار پشتیبانی نمی‌شود؛ منطقهٔ خود را انتخاب کنید.');
+      if (code && config.regions[code]) showRegion(code);
+      else showNeutral();
     })
     .catch(() => {
-      if (!manuallySelected) showNeutral('موقعیت شما تعیین نشد؛ منطقهٔ خود را انتخاب کنید.');
+      if (!manuallySelected) showNeutral();
     });
 })();

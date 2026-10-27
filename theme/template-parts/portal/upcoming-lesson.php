@@ -7,7 +7,7 @@
 
 $lesson = isset( $args['lesson'] ) && is_array( $args['lesson'] ) ? $args['lesson'] : array();
 $state = isset( $lesson['presentation_state'] ) ? (string) $lesson['presentation_state'] : 'none';
-$approved_states = array( 'upcoming', 'starting_soon', 'absence_notified', 'time_changed', 'academy_cancelled', 'awaiting_reschedule', 'none' );
+$approved_states = array( 'upcoming', 'starting_soon', 'in_progress', 'ended', 'unknown', 'time_changed', 'academy_cancelled', 'awaiting_reschedule', 'none' );
 $state_is_valid = in_array( $state, $approved_states, true );
 $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course'] );
 ?>
@@ -55,17 +55,14 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 				</form>
 			<?php elseif ( ! empty( $lesson['join_url'] ) ) : ?>
 				<a class="dzn-button dzn-upcoming__join" href="<?php echo esc_url( $lesson['join_url'] ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'ورود به کلاس', 'delnavazan-theme' ); ?></a>
-			<?php else : ?>
-				<button class="dzn-button dzn-upcoming__join" type="button" disabled aria-describedby="dzn-join-pending"><?php esc_html_e( 'ورود به کلاس', 'delnavazan-theme' ); ?></button>
 			<?php endif; ?>
 			<?php if ( ! empty( $lesson['absence_available'] ) ) : ?>
 				<button class="dzn-button dzn-button--secondary" type="button" data-dzn-dialog-open="dzn-absence-dialog"><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
-			<?php else : ?>
-				<button class="dzn-button dzn-button--secondary" type="button" disabled><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 			<?php endif; ?>
 			<?php if ( ! empty( $lesson['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action" href="<?php echo esc_url( (string) $lesson['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
 		</div>
-		<?php if ( empty( $lesson['join_url'] ) && empty( $lesson['join_available'] ) ) : ?><p id="dzn-join-pending" class="dzn-portal-help"><?php echo esc_html( (string) ( $lesson['join_message'] ?? 'پیوند معتبر کلاس هنوز از منبع امن دریافت نشده است.' ) ); ?></p><?php endif; ?>
+		<?php if ( empty( $lesson['join_url'] ) && empty( $lesson['join_available'] ) && ! empty( $lesson['join_message'] ) ) : ?><p id="dzn-join-pending" class="dzn-portal-help"><?php echo esc_html( (string) $lesson['join_message'] ); ?></p><?php endif; ?>
+		<?php if ( empty( $lesson['absence_available'] ) && ! empty( $lesson['absence_message'] ) ) : ?><p class="dzn-portal-help"><?php echo esc_html( (string) $lesson['absence_message'] ); ?></p><?php endif; ?>
 	<?php endif; ?>
 
 	<?php if ( $has_lesson && ! empty( $lesson['absence_available'] ) ) : ?>

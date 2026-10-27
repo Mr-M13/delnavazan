@@ -8,6 +8,7 @@
 $payments = isset( $args['payments'] ) && is_array( $args['payments'] ) ? $args['payments'] : array();
 $items = isset( $payments['items'] ) && is_array( $payments['items'] ) ? $payments['items'] : array();
 $checkout_enabled = ! empty( $payments['checkout_enabled'] );
+$unavailable = 'unavailable' === (string) ( $payments['state'] ?? ( $checkout_enabled ? 'ok' : 'unavailable' ) );
 ?>
 <section class="dzn-portal-section dzn-payments" aria-labelledby="dzn-payments-title">
 	<div class="dzn-portal-section__heading">
@@ -15,18 +16,23 @@ $checkout_enabled = ! empty( $payments['checkout_enabled'] );
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مالی', 'delnavazan-theme' ); ?></p>
 			<h2 id="dzn-payments-title"><?php esc_html_e( 'پرداخت و اشتراک', 'delnavazan-theme' ); ?></h2>
 		</div>
-		<span class="dzn-status dzn-status--muted"><?php echo $checkout_enabled ? esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ) : esc_html__( 'نمایش آزمایشی', 'delnavazan-theme' ); ?></span>
+		<span class="dzn-status dzn-status--muted"><?php echo $unavailable ? esc_html__( 'در دسترس نیست', 'delnavazan-theme' ) : esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></span>
 	</div>
+	<?php if ( $unavailable ) : ?>
+		<p class="dzn-portal-empty"><?php echo esc_html( (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
+	<?php else : ?>
 	<div class="dzn-payments__summary">
 		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ); ?></p></div>
-		<div><p class="dzn-status-row__label"><?php esc_html_e( 'پرداخت ترم بعد', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['next_term'] ?? 'با ثبت پرداخت کامل ترم جدید' ); ?></p></div>
+		<?php if ( ! empty( $payments['next_term'] ) ) : ?><div><p class="dzn-status-row__label"><?php esc_html_e( 'پرداخت ترم بعد', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $payments['next_term'] ); ?></p></div><?php endif; ?>
 	</div>
+	<?php endif; ?>
 	<?php if ( $checkout_enabled ) : ?>
 		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">
 			<p class="dzn-checkout__status" data-checkout-status aria-live="polite"><?php esc_html_e( 'در حال دریافت وضعیت پرداخت…', 'delnavazan-theme' ); ?></p>
 			<div class="dzn-checkout__list" data-checkout-list></div>
 		</div>
 	<?php endif; ?>
+	<?php if ( ! $unavailable ) : ?>
 	<?php if ( $items ) : ?>
 		<div class="dzn-payment-list">
 			<?php foreach ( $items as $item ) : ?>
@@ -38,10 +44,11 @@ $checkout_enabled = ! empty( $payments['checkout_enabled'] );
 			<?php endforeach; ?>
 		</div>
 	<?php else : ?>
-		<p class="dzn-portal-empty"><?php esc_html_e( 'سابقهٔ پرداخت پس از اتصال به منبع مالی معتبر نمایش داده می‌شود.', 'delnavazan-theme' ); ?></p>
+		<p class="dzn-portal-empty"><?php esc_html_e( 'سابقهٔ پرداخت تازه‌ای برای نمایش ثبت نشده است.', 'delnavazan-theme' ); ?></p>
 	<?php endif; ?>
 	<div class="dzn-payments__boundary">
 		<p><strong><?php esc_html_e( 'لغو اشتراک، لغو ترم و لغو یک کلاس سه کار جدا هستند.', 'delnavazan-theme' ); ?></strong></p>
 		<p><?php esc_html_e( 'هیچ‌کدام در این پوسته اجرا نمی‌شود و دکمهٔ لغو فقط پس از اتصال به اختیار معتبر نمایش داده خواهد شد.', 'delnavazan-theme' ); ?></p>
 	</div>
+	<?php endif; ?>
 </section>

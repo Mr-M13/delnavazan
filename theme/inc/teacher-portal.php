@@ -105,7 +105,7 @@ function dzn_theme_teacher_portal_attention_valid( $item ) {
 	return ! isset( $markers[ $item['state'] ] ) || true === ( $item[ $markers[ $item['state'] ] ] ?? false );
 }
 function dzn_theme_teacher_portal_class_valid( $item ) {
-	$states = array( 'upcoming', 'starting_soon', 'student_absence', 'replacement', 'intro', 'flexible', 'ended' );
+	$states = array( 'upcoming', 'starting_soon', 'in_progress', 'student_absence', 'replacement', 'intro', 'flexible', 'ended' );
 	if ( ! is_array( $item ) || ! in_array( $item['state'] ?? null, $states, true ) ) { return false; }
 	foreach ( array( 'ref', 'time', 'student', 'course', 'progress', 'status', 'student_summary', 'schedule_summary' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
 	// Private notes are an optional display field: canonical lessons do not expose one.
@@ -121,7 +121,7 @@ function dzn_theme_teacher_portal_preview_allowed() {
 }
 function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
+		array( 'screen' => 'home', 'label' => 'امروز', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
 		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $url ), 'current' => 'finance' === $screen ),
 		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $url ), 'current' => 'settings' === $screen ),
 	);

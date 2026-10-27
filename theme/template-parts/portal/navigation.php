@@ -5,13 +5,14 @@
  * @package DelnavazanTheme
  */
 
-$items = isset( $args['items'] ) && is_array( $args['items'] ) ? array_slice( $args['items'], 0, 2 ) : array();
+$items = isset( $args['items'] ) && is_array( $args['items'] ) ? array_slice( $args['items'], 0, 4 ) : array();
+$nav_id = isset( $args['id'] ) ? sanitize_key( (string) $args['id'] ) : '';
 
 if ( ! $items ) {
 	return;
 }
 ?>
-<nav class="dzn-portal-nav" aria-label="<?php esc_attr_e( 'فهرست هنرجو', 'delnavazan-theme' ); ?>">
+<nav id="<?php echo esc_attr( $nav_id ); ?>" class="dzn-portal-nav" aria-label="<?php esc_attr_e( 'فهرست هنرجو', 'delnavazan-theme' ); ?>">
 	<ul class="dzn-portal-nav__list">
 		<?php foreach ( $items as $item ) : ?>
 			<?php

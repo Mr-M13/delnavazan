@@ -16,8 +16,18 @@ $student = isset( $model['student'] ) && is_array( $model['student'] ) ? $model[
 // greet the visitor with a name from another principal.
 $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) $student['first_name'] : '';
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
+$screen_title = 'account' === $screen ? 'حساب کاربری' : 'خانه';
 ?>
 <main id="main-content" class="site-main dzn-portal dzn-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1">
+	<header class="dzn-appbar">
+		<div class="dzn-appbar__inner">
+			<a class="dzn-appbar__brand" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'دلنوازان', 'delnavazan-theme' ); ?></a>
+			<p class="dzn-appbar__title"><?php echo esc_html( $screen_title ); ?></p>
+			<?php if ( is_user_logged_in() ) : ?>
+				<a class="dzn-appbar__action" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>"><?php esc_html_e( 'خروج', 'delnavazan-theme' ); ?></a>
+			<?php endif; ?>
+		</div>
+	</header>
 	<div class="dzn-portal__masthead">
 		<div class="dzn-container dzn-portal__masthead-inner">
 			<div>
@@ -37,7 +47,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 					<?php echo esc_html( 'account' === $screen ? 'جزئیات شخصی، سابقه و بخش‌های آیندهٔ حساب شما' : 'کلاس بعدی و مسیر ترم را یک‌جا ببینید.' ); ?>
 				</p>
 			</div>
-			<?php dzn_theme_portal_component( 'navigation', array( 'items' => $navigation ) ); ?>
+			<?php dzn_theme_portal_component( 'navigation', array( 'items' => $navigation, 'id' => 'dzn-portal-nav-desktop' ) ); ?>
 			<?php if ( is_user_logged_in() ) : ?>
 				<p class="dzn-portal__account">
 					<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'صفحهٔ اصلی', 'delnavazan-theme' ); ?></a>
@@ -48,6 +58,9 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 	</div>
 
 	<div class="dzn-container dzn-portal__content">
+		<?php if ( 'ok' === $state ) : ?>
+			<p class="dzn-portal__mobile-greeting"><?php echo esc_html( 'account' === $screen ? 'حساب کاربری شما' : ( $first_name ? sprintf( 'سلام %s،', $first_name ) : 'خانهٔ هنرجو' ) ); ?></p>
+		<?php endif; ?>
 		<?php if ( 'ok' === $state && ! empty( $model['provisioning'] ) ) : ?>
 			<?php $provisioning = $model['provisioning']; ?>
 			<div class="dzn-portal__provisioning" role="status">
@@ -117,13 +130,13 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'future-orders' ); ?>
 			<?php
 			dzn_theme_portal_component(
 				'notifications',
 				array(
 					'items'       => $model['notifications'] ?? array(),
 					'archive_url' => $model['notification_archive_url'] ?? '',
+					'available'   => ! empty( $model['notifications_available'] ),
 				)
 			);
 			?>
@@ -136,4 +149,23 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => false ) ); ?>
 		<?php endif; ?>
 	</div>
+	<?php if ( $navigation ) : ?>
+		<nav id="dzn-portal-nav-mobile" class="dzn-portal-tabs" aria-label="<?php esc_attr_e( 'پیمایش هنرجو', 'delnavazan-theme' ); ?>">
+			<ul>
+				<?php foreach ( array_slice( $navigation, 0, 4 ) as $item ) : ?>
+					<?php
+					$label = isset( $item['label'] ) ? (string) $item['label'] : '';
+					$url = isset( $item['url'] ) ? (string) $item['url'] : '';
+					$current = ! empty( $item['current'] );
+					if ( ! $label || ! $url ) { continue; }
+					?>
+					<li>
+						<a class="dzn-portal-tabs__link<?php echo $current ? ' is-current' : ''; ?>" href="<?php echo esc_url( $url ); ?>"<?php echo $current ? ' aria-current="page"' : ''; ?>>
+							<span class="dzn-portal-tabs__label"><?php echo esc_html( $label ); ?></span>
+						</a>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</nav>
+	<?php endif; ?>
 </main>

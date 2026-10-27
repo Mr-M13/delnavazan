@@ -1559,27 +1559,37 @@
   display: grid;
 
   grid-template-columns:
-    1fr
+    minmax(0, 1fr)
     auto
-    1fr;
+    minmax(0, 1fr);
+
+  grid-template-rows:
+    auto
+    auto;
 
   align-items:
     center;
 
+  gap:
+    1.5rem;
+
   direction:
-    ltr;
+    rtl;
 }
 
 /* Logo on the right */
 .site-footer__identity {
   grid-column:
-    2;
+    1;
+
+  grid-row:
+    1;
 
   justify-self:
-    center;
+    start;
 
   justify-items:
-    center;
+    start;
 
   direction:
     rtl;
@@ -1587,13 +1597,16 @@
 
 .site-footer__logo-frame {
   justify-self:
-    end;
+    start;
 }
 
 /* Contact actions centred */
 .site-footer__actions {
   grid-column:
     2;
+
+  grid-row:
+    1;
 
   justify-self:
     center;
@@ -1625,12 +1638,15 @@
     1.5rem;
 
   direction:
-    ltr;
+    rtl;
 }
 
-/* Legal — bottom left */
+/* Legal spans the footer beneath the three groups. */
 .site-footer__legal {
   grid-column:
+    1 / -1;
+
+  grid-row:
     2;
 
   justify-self:
@@ -1643,10 +1659,13 @@
 /* Secondary navigation — bottom right */
 .site-footer__navigation {
   grid-column:
-    2;
+    3;
+
+  grid-row:
+    1;
 
   justify-self:
-    start;
+    end;
 
   direction:
     rtl;
@@ -1654,7 +1673,7 @@
 
 .site-footer__menu {
   justify-content:
-    flex-end;
+    flex-start;
 }
 }
 }

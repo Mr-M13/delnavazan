@@ -138,8 +138,16 @@ launch gates remain in force.
   Finance runtime, OAuth scope MariaDB regression, Stripe runtime E2E).
 - The final integrated branch passes the full local contract list plus the ten
   new presentation contracts, PHP lint, Node parse and `git diff --check`.
-- Review found one real defect: an empty UTC instant was parsed as “now”. It is
-  fixed in the final layer through `dzn_theme_platform_utc_timestamp()`.
+- Review fixes carried into the relevant layers:
+  - Protected no-store/noindex headers are sent **before** dashboard and
+    signed-out redirects, not only on rendered screens.
+  - Payments are behind a **default-off** `DZN_THEME_STUDENT_PAYMENTS` flag;
+    the direct payments route is disabled and skips the commercial read while off.
+  - The unsupported persisted absence-report claim is removed; only the
+    post-submit query confirmation remains.
+  - Every Platform UTC timestamp uses the empty-safe parser, with a source guard.
+- An empty UTC instant was parsed as “now”; fixed through
+  `dzn_theme_platform_utc_timestamp()`.
 - Package 1 initially failed CI because its redirect contract update sat one
   layer higher. The test was moved down to Package 1 and the stack was rebased;
   all ten PRs are green afterwards.
@@ -152,6 +160,7 @@ Run against the integrated branch with the disposable Docker harness:
 | --- | --- |
 | `make smoke` | PASS — student, teacher, dual-role and administrator routing; stale form; wrong password; invalid nonce |
 | `make booking-student-account` | PASS |
+| `make protected-headers` | PASS — signed-out student/teacher/dashboard 302s carry noindex + no-store/private; login 200 does too; legacy booking keeps the instrument |
 | `make student-account-claim` | FAIL on the integrated branch **and on clean `origin/main`** at `TeacherAvailabilityAssentService`: “Candidate Teacher is not currently eligible for assent” |
 | `make teacher-onboarding` | FAIL on the integrated branch **and on clean `origin/main`** at `TeacherOnboardingService`: “Teacher onboarding is incomplete” |
 
@@ -161,7 +170,9 @@ must be repaired before those gates can pass.
 
 ### HTTP behaviour on the integrated branch
 
-- Signed-out `/student-portal/`: `302` to `/login/?redirect_to=…`.
+- Signed-out `/student-portal/`, `/teacher-portal/` and `/dashboard/`: `302`
+  with `X-Robots-Tag: noindex, nofollow` and `Cache-Control: no-store, private`
+  asserted on the redirect itself.
 - `/booking/?instrument=setar&instrument_name=…`: `302` to
   `/enrol/?instrument=setar&instrument_name=…`.
 - Protected and auth responses: `X-Robots-Tag: noindex, nofollow`,
@@ -173,6 +184,10 @@ must be repaired before those gates can pass.
   correctly showed the unavailable state instead.
 - `/teacher-portal/?teacher-view=classes` correctly forced the not-ready synthetic
   teacher to onboarding.
+- With the payments flag off, the tab is absent and a direct payments route would
+  render the disabled state. The synthetic student has no enrolments, so the
+  direct-route runtime was not reachable; `student-payments-flag-contract.php`
+  covers the valid-obligation case with the flag off and on.
 
 ### Not run or not available
 

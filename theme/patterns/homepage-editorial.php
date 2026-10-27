@@ -24,7 +24,7 @@
 
 <!-- wp:buttons {"className":"dzn-home-hero__actions"} -->
 <div class="wp-block-buttons dzn-home-hero__actions"><!-- wp:button -->
-<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( home_url( '/booking/' ) ); ?>">ثبت‌نام</a></div>
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( home_url( '/enrol/' ) ); ?>">ثبت‌نام</a></div>
 <!-- /wp:button -->
 
 </div>
@@ -170,7 +170,7 @@
             <div class="dzn-price-ledger__feature">
               <h2 id="dzn-story-price-title" class="dzn-story__title dzn-story__title--price">شهریهٔ یک ترم</h2>
               <p class="dzn-price-ledger__price" data-dzn-pricing-amount="" aria-live="polite">برای نمایش شهریه، منطقهٔ خود را انتخاب کنید</p>
-              <p class="dzn-price-ledger__local" data-dzn-pricing-region="" aria-live="polite">قیمت پایه در صورت عدم شناسایی موقعیت</p>
+              <p class="dzn-price-ledger__local" data-dzn-pricing-region="" aria-live="polite">شهریه بر پایهٔ منطقهٔ انتخابی شما نمایش داده می‌شود.</p>
               <p class="dzn-story__copy">یک ترم شامل ۱۲ جلسهٔ خصوصی است.</p>
               <p class="dzn-story__copy" data-dzn-pricing-intro=""><?php echo esc_html( dzn_theme_introductory_pricing_note() ); ?></p>
             </div>
@@ -186,7 +186,8 @@
                 <option value="EU">منطقهٔ یورو</option>
                 <option value="GB">بریتانیا</option>
               </select>
-              <p class="dzn-pricing-region__status" data-dzn-pricing-status="" aria-live="polite">واحد پول بر اساس موقعیت تقریبی دستگاه شما پیشنهاد می‌شود. اگر نادرست است، منطقه را تغییر دهید یا با ما تماس بگیرید.</p>
+              <p class="dzn-pricing-region__status" data-dzn-pricing-status="" aria-live="polite">برای پیشنهاد تقریبی، یک درخواست موقعیت به سرویس بیرونی فرستاده می‌شود. انتخاب دستی شما همیشه مقدم است و اگر نادرست بود، منطقه را تغییر دهید.</p>
+              <p class="dzn-pricing-region__privacy">این پیشنهاد تقریبی است و نشانی دقیق شما را ذخیره نمی‌کند. مبلغ همیشه از منبع قیمت‌گذاری دلنوازان خوانده می‌شود.</p>
             </div>
           </div>
         </div>

@@ -61,6 +61,11 @@
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const mobileQuery = window.matchMedia('(max-width: 51.999rem)');
+  const navigationConfig = window.dznThemeNavigation || {};
+  const enrolUrl = typeof navigationConfig.enrolUrl === 'string' && navigationConfig.enrolUrl !== ''
+    ? navigationConfig.enrolUrl
+    : '/enrol/';
+  const enrolSeparator = enrolUrl.indexOf('?') === -1 ? '?' : '&';
 
   rails.forEach((rail, railIndex) => {
     const originals = Array.from(rail.querySelectorAll('.dzn-instrument-tile'));
@@ -74,7 +79,7 @@
       const catalogueSlug = slug === 'tanboor' ? 'tanbour' : slug;
       const link = document.createElement('a');
       link.className = 'dzn-instrument-tile__booking-link';
-      link.href = '/booking/?instrument=' + encodeURIComponent(catalogueSlug) + '&instrument_name=' + encodeURIComponent(name);
+      link.href = enrolUrl + enrolSeparator + 'instrument=' + encodeURIComponent(catalogueSlug) + '&instrument_name=' + encodeURIComponent(name);
       link.textContent = 'درخواست جلسهٔ معارفه برای ' + name;
       link.setAttribute('aria-label', link.textContent);
       card.append(link);

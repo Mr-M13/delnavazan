@@ -398,7 +398,7 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		? (string) ( $row['teacher_display_reference'] ?? '' )
 		: (string) ( $enrolment['assigned_teacher_display_reference'] ?? '' );
 	$state = $is_booking
-		? ( 'ended' === $temporal ? 'ended' : ( 'in_progress' === $temporal ? 'in_progress' : ( $within_join ? 'starting_soon' : 'upcoming' ) ) )
+		? ( 'unknown' === $temporal ? 'unknown' : ( 'ended' === $temporal ? 'ended' : ( 'in_progress' === $temporal ? 'in_progress' : ( $within_join ? 'starting_soon' : 'upcoming' ) ) ) )
 		: dzn_theme_platform_lesson_state( $row, $now );
 	$join_available = $is_booking && ! empty( $row['join_available'] ) && $within_join;
 	$absence_available = ! $is_booking && ! empty( $row['absence_available'] ) && 'authorised' === (string) ( $row['lifecycle_state'] ?? '' ) && $start && $start > $now;
@@ -656,6 +656,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'time' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'H:i', $display_timezone ) . '–' . dzn_theme_platform_zoned_time( $next['ends_at_utc'] ?? '', 'H:i', $display_timezone ),
 		'timezone_label' => dzn_theme_platform_timezone_label( $display_timezone ),
 		'starts_at_utc' => (string) ( $next['starts_at_utc'] ?? '' ),
+		'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $next['starts_at_utc'] ?? '' ) ),
 		'join_available' => $is_booking && ! empty( $next['join_available'] ) && $within_join_window,
 		'join_action_url' => $is_booking ? admin_url( 'admin-post.php?action=dzn_student_join_booking_class' ) : '',
 		'join_nonce' => $is_booking ? wp_create_nonce( 'dzn_student_join_booking_class' ) : '',

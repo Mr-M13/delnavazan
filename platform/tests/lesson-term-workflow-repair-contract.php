@@ -88,9 +88,9 @@ $assert(str_contains($postIntroActivation, 'stableEvidenceAt') && !str_contains(
 // 4. Unscheduled canonical Lessons must not break portal reads; scheduled classes stay authoritative.
 $contains($portalRead, array(
     'INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1',
-    'ORDER BY v.starts_at_utc ASC,l.id ASC',
+    'ORDER BY v.starts_at_utc DESC,l.id DESC',
     'authorised but unscheduled Lesson has no date/time to present',
-), 'portal lesson reads must select scheduled canonical classes rather than failing on an unscheduled one');
+), 'portal lesson reads must select the newest scheduled canonical classes rather than failing on an unscheduled one');
 $contains($portalBridge, array(
     "\$student_timezone = (string) ( \$student_profile['timezone'] ?? '' );",
     "\$display_timezone = \$student_timezone;",

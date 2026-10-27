@@ -136,6 +136,13 @@ $expired_booking = $lesson( gmdate( 'Y-m-d H:i:s', $now - 14400 ), gmdate( 'Y-m-
 ) );
 $expired_rows = dzn_theme_platform_student_schedule_rows( array(), array( $expired_booking ), array(), 'Asia/Tehran', $now );
 $check( 'the late join window closes after two hours', empty( $expired_rows[0]['join_available'] ) );
+$unknown_booking = $lesson( '', '', array(
+	'version' => 'student_booking_class_v1', 'confirmation_state' => 'confirmed',
+	'confirmation_uid' => 'CONF-UNKNOWN', 'teacher_display_reference' => 'استاد', 'join_available' => true,
+) );
+$unknown_rows = dzn_theme_platform_student_schedule_rows( array(), array( $unknown_booking ), array(), 'Asia/Tehran', $now );
+$check( 'a booking without instants is unknown, not upcoming', 'unknown' === $unknown_rows[0]['state'] && empty( $unknown_rows[0]['join_available'] ) );
+$check( 'the home card carries a machine-readable start instant', str_contains( $bridge, "'starts_at_iso' => dzn_theme_platform_iso_instant" ) );
 
 /* 4. Templates keep a no-JS fallback and no disabled primary. */
 $payments = (string) file_get_contents( $theme . '/template-parts/portal/payments.php' );
@@ -144,6 +151,7 @@ $check( 'payments uses the existing checkout root', str_contains( $payments, 'da
 $check( 'payments keeps server-rendered rows for no-JS', str_contains( $payments, '<noscript>' ) );
 $check( 'schedule has no disabled join button', ! str_contains( $schedule, 'disabled' ) );
 $check( 'schedule does not claim a persisted absence report', ! str_contains( $schedule, 'absence_reported' ) );
+$check( 'schedule renders the backend join explanation', str_contains( $schedule, "\$item['join_message']" ) );
 $check( 'payments template distinguishes a disabled release', str_contains( $payments, "'disabled' === (string)" ) );
 $check( 'schedule renders machine-readable start instants', str_contains( $schedule, '<time datetime=' ) );
 

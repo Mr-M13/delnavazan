@@ -69,6 +69,8 @@ foreach ( $items as $item ) {
 										<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $item['confirmation_uid'] ?? '' ) ); ?>">
 										<button class="dzn-button" type="submit"><?php esc_html_e( 'ورود به کلاس', 'delnavazan-theme' ); ?></button>
 									</form>
+								<?php elseif ( $is_intro && ! empty( $item['join_message'] ) ) : ?>
+									<p class="dzn-portal-help"><?php echo esc_html( (string) $item['join_message'] ); ?></p>
 								<?php elseif ( ! $is_intro && in_array( $state, array( 'in_progress', 'starting_soon' ), true ) ) : ?>
 									<p class="dzn-portal-help"><?php esc_html_e( 'ورود به کلاس‌های ترم از این نسخه فعال نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p>
 								<?php endif; ?>

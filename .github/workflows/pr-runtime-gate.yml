@@ -227,6 +227,16 @@ jobs:
           php platform/tests/finance-administration-contract.php
           php platform/tests/post-intro-fulfilment-unit.php
           php platform/tests/post-payment-fulfilment-contract.php
+          php platform/tests/presentation-contract-inventory-contract.php
+          php platform/tests/public-acquisition-contract.php
+          php platform/tests/portal-truth-contract.php
+          php platform/tests/responsive-shell-contract.php
+          php platform/tests/student-home-account-contract.php
+          php platform/tests/student-schedule-payments-contract.php
+          php platform/tests/teacher-classes-contract.php
+          php platform/tests/teacher-onboarding-presentation-contract.php
+          php platform/tests/public-hardening-contract.php
+          php platform/tests/release-presentation-gate-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

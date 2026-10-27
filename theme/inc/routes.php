@@ -460,6 +460,19 @@ function dzn_theme_legacy_booking_redirect_url() {
 	return $target;
 }
 
+/**
+ * Protected and authenticated responses must never enter a shared cache or an
+ * index. This runs after WordPress's own `nocache_headers()` so the explicit
+ * private/no-store contract wins on canonical portal, auth and operations URLs.
+ */
+function dzn_theme_send_protected_response_headers() {
+	if ( headers_sent() ) { return; }
+	header( 'X-Robots-Tag: noindex, nofollow', true );
+	header( 'Cache-Control: no-store, private, max-age=0', true );
+	header( 'Pragma: no-cache', true );
+	header( 'Referrer-Policy: same-origin', true );
+}
+
 function dzn_theme_render_virtual_route() {
 	$raw_path = trim( (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH ), '/' );
 	if ( 'booking' === $raw_path ) { wp_safe_redirect( dzn_theme_legacy_booking_redirect_url(), 302 ); exit; }
@@ -475,6 +488,9 @@ function dzn_theme_render_virtual_route() {
 	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );
 	nocache_headers();
+	if ( in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true ) ) {
+		dzn_theme_send_protected_response_headers();
+	}
 	get_header();
 	switch ( $route ) {
 		case 'booking': dzn_theme_render_booking_route(); break;

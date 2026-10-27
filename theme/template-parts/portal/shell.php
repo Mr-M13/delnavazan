@@ -117,13 +117,13 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'history', array( 'items' => $model['history'] ?? array(), 'account' => true ) ); ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'future-orders' ); ?>
 			<?php
 			dzn_theme_portal_component(
 				'notifications',
 				array(
 					'items'       => $model['notifications'] ?? array(),
 					'archive_url' => $model['notification_archive_url'] ?? '',
+					'available'   => ! empty( $model['notifications_available'] ),
 				)
 			);
 			?>

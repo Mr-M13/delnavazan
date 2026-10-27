@@ -60,7 +60,7 @@ namespace {
     $model = dzn_theme_platform_teacher_model('home');
     if (count($model['classes'] ?? array()) !== 1) throw new \RuntimeException('Confirmed introductory booking was absent from Upcoming Classes.');
     $class = $model['classes'][0];
-    if (($class['ref'] ?? '') !== '01ARZ3NDEKTSV4RRFFQ69G5FAV' || ($class['state'] ?? '') !== 'starting_soon') throw new \RuntimeException('Started introductory booking presentation is incorrect.');
+    if (($class['ref'] ?? '') !== '01ARZ3NDEKTSV4RRFFQ69G5FAV' || ($class['state'] ?? '') !== 'in_progress') throw new \RuntimeException('Started introductory booking presentation is incorrect.');
     if (($class['start_available'] ?? null) !== true || ($class['details_available'] ?? null) !== false) throw new \RuntimeException('Booking join was unavailable or canonical Lesson actions were invented.');
     if (!str_contains((string) ($class['schedule_summary'] ?? ''), 'Australia/Brisbane')) throw new \RuntimeException('Teacher profile timezone was not used for the booking class.');
     if (count($model['calendar'] ?? array()) !== 1 || ($model['statistics']['upcoming'] ?? '') !== '0') throw new \RuntimeException('Started booking did not remain visible without being counted as future.');

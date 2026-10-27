@@ -262,10 +262,13 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				),
 				'history' => $history,
 				'payments' => array(
-					'status'    => 'نمایش وضعیت پرداخت ترم پس از اتصال امن',
-					'next_term' => 'با ثبت پرداخت کامل ترم جدید',
-					'items'     => array(),
+					'state'      => 'unavailable',
+					'status'     => 'نمایش وضعیت پرداخت ترم پس از اتصال امن',
+					'next_term'  => '',
+					'items'      => array(),
+					'checkout_enabled' => false,
 				),
+				'notifications_available' => true,
 				'notifications' => array(
 					array( 'date' => '۲۴ شهریور', 'title' => 'یادآوری کلاس فردا', 'message' => 'زمان کلاس بر پایهٔ منطقهٔ زمانی انتخابی شما نمایش داده می‌شود.' ),
 					array( 'date' => '۲۰ شهریور', 'title' => 'برنامهٔ ماه مهر', 'message' => 'تقویم آموزشی ماه آینده به‌زودی اعلام می‌شود.' ),

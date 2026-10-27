@@ -707,7 +707,7 @@ final class ScreenController {
         $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
         if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
         if ((string) $lesson->lifecycle_state !== 'authorised') throw new \InvalidArgumentException('stale_lesson_state');
-        $state = (new CanonicalLessonScheduleReadService())->forLesson($lessonId);
+        $state = (new CanonicalLessonScheduleReadService())->forLessonCompletion($lessonId);
         $active = $state['active_version'] ?? null;
         if (!$active) throw new \InvalidArgumentException('confirmed_occurrence_required');
         if ((string) $active->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('class_not_finished');
@@ -848,8 +848,12 @@ final class ScreenController {
             submit_button('Append corrected outcome', 'secondary');
             echo '</form>';
         } elseif ((string) $lesson->lifecycle_state === 'authorised' && !$effective) {
-            try { $schedule = (new \Delnavazan\Platform\Core\Application\CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
-            catch (\Throwable) { $schedule = array('active_version' => null); }
+            try { $schedule = (new CanonicalLessonScheduleReadService())->forLessonDelivery((int) $lesson->id); }
+            catch (\InvalidArgumentException $exception) {
+                if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
+                echo '<p class="notice notice-error">Delivery recording is unavailable because the schedule failed integrity validation.</p>';
+                return;
+            }
             $current = $schedule['active_version'] ?? null;
             if ($current && (string) $current->ends_at_utc <= gmdate('Y-m-d H:i:s')) {
                 self::formStart('record_canonical_delivery');
@@ -1213,7 +1217,7 @@ final class ScreenController {
     /** Contextual manual completion is independent of schedule-edit access. */
     private static function canonicalLessonCompletionForm(object $lesson): void {
         if (!current_user_can('dzn_manage_canonical_lessons') || (string) $lesson->lifecycle_state !== 'authorised') return;
-        try { $state = (new CanonicalLessonScheduleReadService())->forLesson((int) $lesson->id); }
+        try { $state = (new CanonicalLessonScheduleReadService())->forLessonCompletion((int) $lesson->id); }
         catch (\InvalidArgumentException $exception) {
             if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
             echo '<p class="notice notice-error">Class completion is unavailable because the schedule failed integrity validation.</p>';

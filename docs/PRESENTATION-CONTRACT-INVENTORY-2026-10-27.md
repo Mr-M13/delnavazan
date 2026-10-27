@@ -37,7 +37,7 @@ labelled as reported from action eligibility alone). Neither is repaired by this
 | --- | --- | --- | --- | --- |
 | `/` and content pages | WordPress | n/a | Public editorial | Unchanged |
 | `/enrol/` | `booking` | n/a | Public + booking | Canonical enrolment URL |
-| `/booking/` | `booking` | n/a | — | `301` to `/enrol/`; **query is dropped today** (P0-01) |
+| `/booking/` | `booking` | n/a | — | `302` to `/enrol/`; allowlisted `instrument`/`instrument_name` preserved (P0-01 closed) |
 | `/login/` | `login` | n/a | Auth | Branded login/reset; no tab bar |
 | `/dashboard/` | `dashboard` | n/a | Auth | Role resolution; 0/1/many destinations |
 | `/student-portal/` | `student-portal` | `home`, `account`, `schedule`, `payments` | Student portal | Unknown `portal-view` becomes `home` |

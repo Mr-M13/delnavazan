@@ -3,6 +3,14 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Home-menu and currency-selector follow-up — deployed 2026-10-27
+
+Release `9d568c69bd604d2e57fa551e3c2173a3287402d9` (build `main-9d568c69bd60`, schema 52) merged
+#381 and deployed in run `40500551506`. The primary menu is خانه / ورود / مقالات; homepage instrument
+tiles preselect the same instrument on `/enrol/`; the pricing disclaimers are removed; and the compact
+currency selector lists AUD, NZD, USD, CAD, EUR and GBP. See
+`RELEASE-2026-10-27-HOME-POLISH.md` for verification and the backup path.
+
 ## Presentation, portals and protected release gate — deployed 2026-10-27
 
 Release `508a8224e76943f25c5e56bd5996f41f08cb12aa` (build `main-508a8224e769`, schema 52) merged

@@ -91,6 +91,13 @@ command; CI still runs the individual jobs. A release is not ready if this comma
 
 ## Release 2026-10-27
 
+The latest follow-up is `9d568c69bd604d2e57fa551e3c2173a3287402d9`
+(build `main-9d568c69bd60`, schema 52), deployed in run `40500551506`.
+It changes the primary menu to خانه / ورود / مقالات, makes homepage instrument
+tiles preselect the same instrument on `/enrol/`, removes the pricing
+disclaimers and compacts the currency selector to AUD/NZD/USD/CAD/EUR/GBP.
+See `platform/docs/RELEASE-2026-10-27-HOME-POLISH.md`.
+
 The presentation/portal release is `508a8224e76943f25c5e56bd5996f41f08cb12aa`
 (build `main-508a8224e769`, schema 52). It merged #376, #377 and #378; packages #371–#375
 are the same commits carried by #376. The successful production deployment run is

@@ -4,6 +4,9 @@ Status: Package 9 artefact. This document prepares a release decision; it does
 **not** authorise a merge, deployment or production change.
 Baseline: `origin/main` at `c952fe0de043244edeb78a4e71ec831bdc5fbdb8`, with the
 presentation packages pushed as the stacked draft PRs **#367–#376**.
+Final integration: current `origin/main` `bae83f7e76b2fad784b74dab37890c91dafb725f`
+(including the lesson-detail hotfix) merged into
+`pkg9/release-gate-20261027`; candidate `f5254d40ce18981f5a46b10d21e36337cf240b05`.
 
 ## 1. What is enabled
 
@@ -35,7 +38,9 @@ Referrer-Policy: same-origin
 
 Routes covered: `/login/`, `/dashboard/`, `/student-portal/`, `/teacher-portal/`,
 `/teacher-invitation/`, `/student-account-claim/`, `/admin-operations/`.
-`/enrol/` remains public and is not in the protected list.
+`/enrol/` remains public and is not in the protected list. The priority-0
+credential and password-reset POST handlers send the same headers before their
+redirects, because they exit before the priority-1 virtual-route block.
 
 Verify on staging with `curl -I` for a signed-out and a signed-in session. Do not
 assume a CDN or page cache honours these headers; confirm the edge behaviour.
@@ -95,7 +100,7 @@ request count and a lab trace separately from field data.
 ## 4. Feature gates
 
 - Student schedule tab: rendered only when `lessons` or confirmed booking classes exist.
-- Student payments tab: hidden unless `DZN_THEME_STUDENT_PAYMENTS` (or the explicit filter) is enabled; even then rendered only when the owner-bound commercial read returns obligations. A direct payments route shows a disabled state while the flag is off.
+- Student payments tab: hidden unless `DZN_THEME_STUDENT_PAYMENTS` (or the explicit filter) is enabled; even then rendered only when the owner-bound commercial read returns obligations. A direct payments route renders a disabled state while the flag is off. The flag is a **presentation gate only**: the existing owner-bound REST checkout endpoints remain registered, and production Stripe stays in test mode.
 - Persistent absence “reported” state: not shown. Only the post-submit query confirmation is displayed until the Platform read model exposes an explicit canonical fact.
 - Teacher Classes: available to a ready teacher; onboarding still overrides the shell.
 - No notification badge, unread count, receipt, profile edit, teacher private note, deadline,
@@ -130,6 +135,25 @@ launch gates remain in force.
 
 ## 7. Evidence recorded in this run (27 October 2026)
 
+### Final integration and review closure
+
+- `origin/main` `bae83f7` (including hotfix #366) merged into the release branch.
+- Final candidate: `f5254d4` on PR **#376**, retargeted from the stacked base
+  to `main`. Packages #371–#375 are the same commits carried by #376.
+- Independent review findings closed on the candidate:
+  - Protected headers now cover the priority-0 login and password-reset POST
+    redirects, with source-contract assertions.
+  - Student and teacher join availability follows the backend's full
+    `start − 1h … end + 2h` window instead of stopping at the scheduled end.
+  - Withdrawn teacher statements map to the canonical `withdrawn` state.
+  - The fixed mobile tab bar no longer obscures the document footer.
+  - The bounded portal lesson read selects the newest window, so a principal
+    with more than 80 lifetime Lessons still receives current/upcoming rows.
+  - Home carries a machine-readable start instant; the schedule renders the
+    backend join explanation and marks a booking without instants as unknown.
+  - The production diagnostic now checks the lesson-screen class resolution and
+    service methods without writing production state.
+
 ### Pull requests and source gate
 
 - Draft stacked PRs **#367–#376**, each based on its predecessor.
@@ -139,10 +163,12 @@ launch gates remain in force.
 - The final integrated branch passes the full local contract list plus the ten
   new presentation contracts, PHP lint, Node parse and `git diff --check`.
 - Review fixes carried into the relevant layers:
-  - Protected no-store/noindex headers are sent **before** dashboard and
-    signed-out redirects, not only on rendered screens.
-  - Payments are behind a **default-off** `DZN_THEME_STUDENT_PAYMENTS` flag;
-    the direct payments route is disabled and skips the commercial read while off.
+  - Protected no-store/noindex headers are sent **before** dashboard,
+    signed-out, login-POST and password-reset redirects.
+  - Payments are behind a **default-off** `DZN_THEME_STUDENT_PAYMENTS`
+    presentation flag; the tab and commercial read are skipped while off. The
+    existing owner-bound REST checkout remains registered, so this is not a
+    server-side checkout kill switch.
   - The unsupported persisted absence-report claim is removed; only the
     post-submit query confirmation remains.
   - Every Platform UTC timestamp uses the empty-safe parser, with a source guard.
@@ -151,6 +177,17 @@ launch gates remain in force.
 - Package 1 initially failed CI because its redirect contract update sat one
   layer higher. The test was moved down to Package 1 and the stack was rebased;
   all ten PRs are green afterwards.
+
+### Local regression evidence on the final candidate
+
+| Check | Result |
+| --- | --- |
+| Full source-contract list from `pr-runtime-gate.yml` | PASS |
+| PHP lint for every changed PHP file | PASS |
+| `node --check` for changed JavaScript | PASS |
+| `git diff --check` | PASS |
+| `make lifecycle-regression` (pure + Stripe test-mode E2E + post-intro + interim attendance) | PASS on `2ca93a4`; rerun on `f5254d4` before merge |
+| `production-release-diagnostic-contract.sh` | PASS |
 
 ### Local WordPress acceptance
 
@@ -202,8 +239,13 @@ must be repaired before those gates can pass.
 
 ### Merge and deploy decision
 
-**Not approved.** The PRs remain drafts. Merge only after the runtime matrix above
-is completed on an owner-provided staging/acceptance environment with test
-principals, and the PRs are reviewed. Then rerun CI on the final integrated commit
-and deploy that exact commit through the protected production workflow with the
-documented rollback ready.
+**Approved for merge after the final CI gate passes**, then deploy the exact
+resulting `main` commit through the protected production workflow with the
+documented rollback ready. Production verification must include the build SHA,
+schema 52, active plugin/theme, protected headers, the authenticated lesson
+detail screen, scheduled jobs and Stripe test mode.
+
+Known follow-ups not blocking this release: cancelled canonical lessons are not
+yet given a dedicated label on the new schedule/classes projections; the
+payments flag is presentation-only; and the authenticated claim/onboarding
+fixture blockers recorded above remain open for their own gates.

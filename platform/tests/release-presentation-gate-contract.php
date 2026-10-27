@@ -44,6 +44,17 @@ $reset_start = strpos( $routes, 'function dzn_theme_handle_branded_password_rese
 $reset_end = strpos( $routes, "add_action( 'template_redirect', 'dzn_theme_handle_branded_password_reset', 0 );", $reset_start );
 $reset_block = substr( $routes, (int) $reset_start, (int) $reset_end - (int) $reset_start );
 $check( 'password reset POST responses carry protected headers before redirecting', str_contains( $reset_block, 'dzn_theme_send_protected_response_headers();' ) && strpos( $reset_block, 'dzn_theme_send_protected_response_headers();' ) < strpos( $reset_block, 'wp_safe_redirect(' ) );
+foreach ( array(
+	'student-portal-home.php',
+	'student-portal-account.php',
+	'student-portal-preview.php',
+	'teacher-portal-home.php',
+	'teacher-portal-account.php',
+	'teacher-portal-onboarding.php',
+) as $template ) {
+	$source = (string) file_get_contents( $root . '/theme/page-templates/' . $template );
+	$check( 'portal page template ' . $template . ' sends protected headers', str_contains( $source, 'nocache_headers();' ) && str_contains( $source, 'dzn_theme_send_protected_response_headers();' ) );
+}
 
 /* 2. CI runs every presentation contract added in this increment. */
 foreach ( array(

@@ -159,7 +159,7 @@ add_filter( 'wp_nav_menu_objects', 'dzn_theme_remove_primary_auth_menu_items', 1
 
 function dzn_theme_append_primary_login_cta( $items, $args ) {
 	if ( empty( $args->theme_location ) || 'primary' !== $args->theme_location ) { return $items; }
-	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal" href="' . esc_url( home_url( '/login/' ) ) . '">ورود</a></li>';
+	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal dzn-nav-action" href="' . esc_url( home_url( '/login/' ) ) . '">ورود</a></li>';
 }
 add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
 
@@ -168,12 +168,13 @@ add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
  * does not yet have the original WordPress menu assignment.
  *
  * The homepage hero owns the enrolment action, so the header carries only the
- * site sections and one login CTA.
+ * site sections and one login CTA. The login CTA keeps the original enrolment
+ * button styling through `dzn-nav-action`.
  */
 function dzn_theme_primary_menu_fallback() {
 	$items = array(
 		array( 'خانه', home_url( '/' ), '' ),
-		array( 'ورود', home_url( '/login/' ), 'dzn-nav-portal' ),
+		array( 'ورود', home_url( '/login/' ), 'dzn-nav-portal dzn-nav-action' ),
 		array( 'مقالات', home_url( '/articles/' ), '' ),
 	);
 

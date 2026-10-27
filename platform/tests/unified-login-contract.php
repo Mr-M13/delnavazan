@@ -26,6 +26,7 @@ $fallback = substr( $setup, (int) strpos( $setup, 'function dzn_theme_primary_me
 if ( 1 !== substr_count( $fallback, "array( 'ورود', home_url( '/login/' )" )
 	|| str_contains( $fallback, "array( 'ثبت نام'" )
 	|| ! str_contains( $setup, "'/enrol/', '/booking/'" )
+	|| ! str_contains( $setup, 'dzn-nav-portal dzn-nav-action' )
 	|| ! str_contains( $setup, "add_filter( 'wp_nav_menu_objects', 'dzn_theme_remove_primary_auth_menu_items'" )
 	|| ! str_contains( $setup, "add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta'" ) ) {
 	throw new RuntimeException( 'Primary navigation must render one unified login CTA, no duplicate enrolment action, without changing stored menu data.' );

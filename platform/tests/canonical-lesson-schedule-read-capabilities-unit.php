@@ -82,7 +82,7 @@ namespace {
     $service = new CanonicalLessonScheduleReadService();
     $state = $service->forLessonCompletion(5);
     dzn_read_assert($state['state'] === 'scheduled' && (int) $state['active_version']->id === 3, 'Completion authority must see the applicable occurrence.');
-    dzn_read_assert((int) $state['active_version']->ends_at_utc <= time(), 'Completion must receive the UTC end instant.');
+    dzn_read_assert(strtotime((string) $state['active_version']->ends_at_utc) < time(), 'Completion must receive the UTC end instant.');
     dzn_read_unauthorized(static fn() => $service->forLesson(5), 'Schedule read');
     dzn_read_unauthorized(static fn() => $service->forLessonDelivery(5), 'Delivery schedule read');
 

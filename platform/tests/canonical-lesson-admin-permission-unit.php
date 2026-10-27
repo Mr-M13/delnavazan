@@ -17,7 +17,13 @@ namespace Delnavazan\Platform\Core\Application {
     final class CanonicalLessonScheduleReadService {
         public function forLesson(int $id): array { return $this->read('dzn_manage_canonical_lesson_schedules'); }
         public function forLessonCompletion(int $id): array { return $this->read('dzn_manage_canonical_lessons'); }
-        public function forLessonDelivery(int $id): array { return $this->read('dzn_manage_canonical_lesson_delivery'); }
+        public function forLessonDelivery(int $id): array {
+            if (!empty($GLOBALS['admin_delivery_integrity_conflict'])) {
+                if (!\current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+                throw new \InvalidArgumentException('canonical_schedule_integrity_conflict');
+            }
+            return $this->read('dzn_manage_canonical_lesson_delivery');
+        }
         private function read(string $capability): array {
             if (!\current_user_can($capability)) throw new \RuntimeException('Unauthorized');
             $GLOBALS['admin_calls']['scheduleRead'] = ($GLOBALS['admin_calls']['scheduleRead'] ?? 0) + 1;
@@ -141,6 +147,7 @@ namespace {
         );
         $GLOBALS['admin_caps'] = array();
         $GLOBALS['admin_calls'] = array();
+        $GLOBALS['admin_delivery_integrity_conflict'] = false;
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $_GET = array('page' => 'dzn-lesson', 'id' => '5');
         $_POST = array();
@@ -219,6 +226,13 @@ namespace {
     dzn_admin_assert(str_contains($html, 'Delivery &amp; attendance'), 'Delivery authority must expose the append-only delivery section.');
     dzn_admin_assert(str_contains($html, 'Record outcome'), 'An ended authorised occurrence must offer a delivery outcome form.');
     dzn_admin_assert(isset($GLOBALS['admin_calls']['deliveryRead']), 'The delivery section must use its canonical read authority.');
+
+    // A schedule integrity conflict is surfaced instead of silently hiding the delivery form.
+    dzn_admin_fixture();
+    $GLOBALS['admin_delivery_integrity_conflict'] = true;
+    $html = dzn_admin_render_lesson_detail(array('dzn_manage_lessons', 'dzn_manage_canonical_lesson_delivery'));
+    dzn_admin_assert(str_contains($html, 'Delivery recording is unavailable because the schedule failed integrity validation.'), 'A delivery integrity conflict must render a visible notice.');
+    dzn_admin_assert(!str_contains($html, 'Record outcome'), 'A delivery integrity conflict must not render an outcome form.');
 
     // Unauthorized completion stops before the repository and schedule read.
     dzn_admin_fixture();

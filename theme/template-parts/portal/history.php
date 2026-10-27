@@ -27,7 +27,7 @@ $issue_status = sanitize_key( (string) ( $_GET['absence_status'] ?? '' ) );
 		<div class="dzn-history__list">
 			<?php foreach ( $items as $item ) : ?>
 				<article class="dzn-history-row">
-					<div class="dzn-history-row__date"><?php if ( ! empty( $item['starts_at_utc'] ) ) : ?><time datetime="<?php echo esc_attr( (string) $item['starts_at_utc'] ); ?>"><?php echo esc_html( $item['date'] ?? '' ); ?></time><?php else : ?><?php echo esc_html( $item['date'] ?? '' ); ?><?php endif; ?></div>
+					<div class="dzn-history-row__date"><?php if ( ! empty( $item['starts_at_utc'] ) ) : ?><time datetime="<?php echo esc_attr( (string) ( $item['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( $item['date'] ?? '' ); ?></time><?php else : ?><?php echo esc_html( $item['date'] ?? '' ); ?><?php endif; ?></div>
 					<div class="dzn-history-row__main">
 						<h3><?php echo esc_html( $item['title'] ?? '' ); ?></h3>
 						<?php if ( ! empty( $item['detail'] ) ) : ?><p><?php echo esc_html( $item['detail'] ); ?></p><?php endif; ?>

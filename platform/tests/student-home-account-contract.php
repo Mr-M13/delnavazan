@@ -61,6 +61,7 @@ $check( 'the always-rendered future-orders placeholder is gone', ! str_contains(
 /* 3. History dates are machine-readable instants. */
 $check( 'history items carry the canonical UTC start', str_contains( $bridge, "'starts_at_utc' => (string) ( \$lesson['starts_at_utc'] ?? '' )" ) );
 $check( 'history renders a time element with datetime', str_contains( $history, '<time datetime=' ) );
+$check( 'history instants are ISO 8601', str_contains( $bridge, 'starts_at_iso' ) && str_contains( $history, 'starts_at_iso' ) );
 $check( 'history omits the time element when no instant exists', str_contains( $history, "! empty( \$item['starts_at_utc'] )" ) );
 
 /* 4. Mobile task hierarchy is real CSS, not only markup order. */

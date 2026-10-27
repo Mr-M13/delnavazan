@@ -47,7 +47,7 @@ namespace {
     };
     $class = static function (array $o = array()): array {
         return array_merge(array(
-            'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'date' => 'Saturday 3 October', 'starts_at_utc' => '2026-10-03 06:30:00', 'timezone' => 'Asia/Tehran',
+            'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'date' => 'Saturday 3 October', 'starts_at_utc' => '2026-10-03 06:30:00', 'starts_at_iso' => '2026-10-03T06:30:00Z', 'timezone' => 'Asia/Tehran',
             'student' => 'Student One', 'course' => 'Setar',
             'progress' => 'Term 1 · 2/12', 'status' => 'پیش رو', 'student_summary' => 'Summary', 'previous_private_note' => 'No private note here',
             'schedule_summary' => 'Saturday 3 October، 10:00 · Asia/Tehran', 'start_available' => false, 'details_available' => true,
@@ -87,7 +87,7 @@ namespace {
     $check('card count is announced', str_contains($html, '2 کلاس · به ترتیب زمان'));
     $check('classes render as an ordered list of labelled articles', substr_count($html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($html, 'id="tp-class-title-0"') && str_contains($html, 'id="tp-class-title-1"'));
     $check('date and timezone are visible on a booking class that has no details panel', str_contains($html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($html, 'id="tp-details-0"'));
-    $check('lesson date badge and machine-readable start are rendered', str_contains($html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($html, 'datetime="2026-10-03 06:30:00"'));
+    $check('lesson date badge and machine-readable start are rendered', str_contains($html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($html, 'datetime="2026-10-03T06:30:00Z"'));
     $check('the teacher timezone is labelled on the lessons and calendar sections', substr_count($html, 'class="dzn-timezone-label"') === 2 && str_contains($html, 'منطقهٔ زمانی: Asia/Tehran'));
     $withStats = $render('home', $model(array('statistics' => array('active_students' => '8', 'upcoming' => '2', 'lessons_month' => '10', 'hours_month' => '5'))));
     $check('the home summary labels the teacher timezone', str_contains($withStats, 'class="dzn-timezone-label"') && str_contains($withStats, 'منطقهٔ زمانی: Asia/Tehran'));

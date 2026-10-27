@@ -41,8 +41,8 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 				<?php if ( ! empty( $lesson['teacher'] ) ) : ?><p><?php echo esc_html( sprintf( 'با %s', $lesson['teacher'] ) ); ?></p><?php endif; ?>
 			</div>
 			<dl class="dzn-fact-list">
-				<div><dt><?php esc_html_e( 'روز', 'delnavazan-theme' ); ?></dt><dd><?php echo esc_html( $lesson['date'] ?? '' ); ?></dd></div>
-				<div><dt><?php esc_html_e( 'ساعت', 'delnavazan-theme' ); ?></dt><dd><bdi><?php echo esc_html( $lesson['time'] ?? '' ); ?></bdi></dd></div>
+				<div><dt><?php esc_html_e( 'روز', 'delnavazan-theme' ); ?></dt><dd><time datetime="<?php echo esc_attr( (string) ( $lesson['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( $lesson['date'] ?? '' ); ?></time></dd></div>
+				<div><dt><?php esc_html_e( 'ساعت', 'delnavazan-theme' ); ?></dt><dd><time datetime="<?php echo esc_attr( (string) ( $lesson['starts_at_iso'] ?? '' ) ); ?>"><bdi><?php echo esc_html( $lesson['time'] ?? '' ); ?></bdi></time></dd></div>
 			</dl>
 		</div>
 

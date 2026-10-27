@@ -39,6 +39,19 @@ function dzn_theme_platform_zoned_time( $utc, $format, $timezone ) {
 }
 
 /**
+ * A machine-readable UTC instant for `<time datetime>`.
+ *
+ * Platform reads use `Y-m-d H:i:s`; HTML expects an ISO 8601 instant. The
+ * conversion is display-only and never changes the stored value.
+ */
+function dzn_theme_platform_iso_instant( $utc ) {
+	$value = trim( (string) $utc );
+	if ( '' === $value ) { return ''; }
+	$value = str_replace( ' ', 'T', $value );
+	return str_ends_with( $value, 'Z' ) ? $value : $value . 'Z';
+}
+
+/**
  * A human timezone label that always retains the exact IANA identifier.
  *
  * The identifier is kept beside the label so DST and scheduling remain
@@ -127,6 +140,7 @@ function dzn_theme_platform_history_item( array $lesson ) {
 	return array(
 		'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'] ?? '', 'j F Y', $timezone ),
 		'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
+		'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $lesson['starts_at_utc'] ?? '' ) ),
 		'title' => (string) ( $lesson['course_reference'] ?? '' ),
 		'outcome' => $labels[ $outcome ] ?? $outcome,
 		'tone' => in_array( $outcome, array( 'completed', 'delivered' ), true ) ? 'success' : 'muted',
@@ -393,6 +407,7 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'day_key' => dzn_theme_platform_zoned_time( (string) ( $row['starts_at_utc'] ?? '' ), 'Y-m-d', $timezone ),
 		'time' => dzn_theme_platform_zoned_time( (string) ( $row['starts_at_utc'] ?? '' ), 'H:i', $timezone ) . '–' . dzn_theme_platform_zoned_time( (string) ( $row['ends_at_utc'] ?? '' ), 'H:i', $timezone ),
 		'starts_at_utc' => (string) ( $row['starts_at_utc'] ?? '' ),
+		'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $row['starts_at_utc'] ?? '' ) ),
 		'timezone_label' => dzn_theme_platform_timezone_label( $timezone ),
 		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $row ),
 		'join_available' => $join_available,
@@ -637,7 +652,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'date' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'l j F Y', $display_timezone ),
 		'time' => dzn_theme_platform_zoned_time( $next['starts_at_utc'] ?? '', 'H:i', $display_timezone ) . '–' . dzn_theme_platform_zoned_time( $next['ends_at_utc'] ?? '', 'H:i', $display_timezone ),
 		'timezone_label' => dzn_theme_platform_timezone_label( $display_timezone ),
-		'join_url' => '',
+		'starts_at_utc' => (string) ( $next['starts_at_utc'] ?? '' ),
 		'join_available' => $is_booking && ! empty( $next['join_available'] ) && $within_join_window,
 		'join_action_url' => $is_booking ? admin_url( 'admin-post.php?action=dzn_student_join_booking_class' ) : '',
 		'join_nonce' => $is_booking ? wp_create_nonce( 'dzn_student_join_booking_class' ) : '',
@@ -914,6 +929,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'time' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'H:i', $class_timezone ),
 			'date' => dzn_theme_platform_zoned_time( $lesson['starts_at_utc'], 'l j F', $class_timezone ),
 			'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
+			'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $lesson['starts_at_utc'] ?? '' ) ),
 			'timezone' => $class_timezone,
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 			'student' => (string) ( $lesson['student_display_reference'] ?? 'هنرجو' ),

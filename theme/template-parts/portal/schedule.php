@@ -55,7 +55,7 @@ foreach ( $items as $item ) {
 						?>
 						<li class="dzn-schedule-row is-<?php echo esc_attr( $state ); ?>">
 							<div class="dzn-schedule-row__time">
-								<time datetime="<?php echo esc_attr( (string) ( $item['starts_at_utc'] ?? '' ) ); ?>"><?php echo esc_html( (string) ( $item['time'] ?? '' ) ); ?></time>
+								<time datetime="<?php echo esc_attr( (string) ( $item['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( (string) ( $item['time'] ?? '' ) ); ?></time>
 							</div>
 							<div class="dzn-schedule-row__main">
 								<h4><?php echo esc_html( (string) ( $item['course'] ?? '' ) ); ?></h4>

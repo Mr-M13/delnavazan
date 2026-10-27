@@ -185,7 +185,8 @@ a primary Join action.
 | IANA timezone shown as a label | 2, 6, 7 | Human label plus exact identifier |
 | Teacher finance minor units | 6 | Format with currency exponent |
 | Onboarding query can jump steps | 7 | Resolved: the step helper clamps to the first incomplete server step; timezone is confirmed, not re-entered |
-| 12-marker term CSS assumption | 8 | Adapt to returned total |
+| 12-marker term CSS assumption | 8 | Resolved: the marker grid follows the returned total through `--dzn-term-count` |
+| Image payload and public type/copy | 8 | Responsive hero/instrument derivatives, lazy below-fold markup, 16px body token, repaired Persian copy |
 | No explicit protected `X-Robots-Tag` | 9 | Response contract and header test |
 
 ## 7. Fixture catalogue

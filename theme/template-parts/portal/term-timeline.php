@@ -28,7 +28,7 @@ $completed = min( $completed, $total );
 		<p class="dzn-portal-empty"><?php esc_html_e( 'ثبت‌نام شما فعال است، اما برنامهٔ جلسه‌ها هنوز از سوی دلنوازان اعلام نشده است. به‌محض نهایی‌شدن زمان‌ها، همین‌جا نمایش داده می‌شود.', 'delnavazan-theme' ); ?></p>
 	<?php else : ?>
 	<progress class="dzn-term__progress" value="<?php echo esc_attr( $completed ); ?>" max="<?php echo esc_attr( $total ); ?>"><?php echo esc_html( sprintf( '%1$d از %2$d', $completed, $total ) ); ?></progress>
-	<ol class="dzn-term__markers" aria-label="<?php esc_attr_e( 'جلسه‌های ترم', 'delnavazan-theme' ); ?>">
+	<ol class="dzn-term__markers" style="--dzn-term-count: <?php echo (int) $recorded; ?>" aria-label="<?php esc_attr_e( 'جلسه‌های ترم', 'delnavazan-theme' ); ?>">
 		<?php for ( $session = 1; $session <= $total; $session++ ) : ?>
 			<?php $marker = $session <= $completed ? 'complete' : ( $session === $completed + 1 ? 'current' : 'remaining' ); ?>
 			<li class="is-<?php echo esc_attr( $marker ); ?>"><span class="screen-reader-text"><?php echo esc_html( sprintf( 'جلسهٔ %d — %s', $session, 'complete' === $marker ? 'برگزار شده' : ( 'current' === $marker ? 'پیش رو' : 'باقی‌مانده' ) ) ); ?></span></li>

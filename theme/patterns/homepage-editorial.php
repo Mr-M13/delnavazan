@@ -33,7 +33,7 @@
 
 <!-- wp:group {"className":"dzn-home-hero__media dzn-owned-media-slot dzn-owned-media-slot\u002d\u002dhero","layout":{"type":"default"}} -->
 <div class="wp-block-group dzn-home-hero__media dzn-owned-media-slot dzn-owned-media-slot--hero"><!-- wp:image {"id":1270,"sizeSlug":"full","linkDestination":"none","className":"dzn-home-hero__figure"} -->
-<figure class="wp-block-image size-full dzn-home-hero__figure"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/home-hero.png' ) ); ?>" alt="فضای ایرانی با تار و تنبک در کنار پنجره" class="wp-image-1270"/></figure>
+<figure class="wp-block-image size-full dzn-home-hero__figure"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/home-hero.png' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/home-hero-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/home-hero-1600.webp' ) . ' 1600w, ' . get_theme_file_uri( 'assets/images/home-hero.png' ) . ' 1672w' ); ?>" sizes="(max-width: 64rem) 100vw, 56vw" width="1672" height="941" fetchpriority="high" decoding="async" alt="فضای ایرانی با تار و تنبک در کنار پنجره" class="wp-image-1270"/></figure>
 <!-- /wp:image --></div>
 <!-- /wp:group --></div>
 <!-- /wp:group --></section>
@@ -44,18 +44,18 @@
 <div class="wp-block-columns"><!-- wp:column {"width":"100%"} -->
 <div class="wp-block-column" style="flex-basis:100%"><!-- wp:group {"align":"wide","className":"dzn-instrument-folio","layout":{"type":"constrained"}} -->
 <div class="wp-block-group alignwide dzn-instrument-folio">
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--setar"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Setar.webp' ) ); ?>" alt="سه‌تار" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">سه‌تار</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tar"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tar.webp' ) ); ?>" alt="تار" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">تار</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--piano"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Piano.webp' ) ); ?>" alt="پیانو" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">پیانو</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--santur"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-santour.webp' ) ); ?>" alt="سنتور" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">سنتور</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tombak"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tombak.webp' ) ); ?>" alt="تنبک" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">تنبک</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--kamancheh"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Kamancheh.webp' ) ); ?>" alt="کمانچه" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">کمانچه</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--daf"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Daf.webp' ) ); ?>" alt="دف" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">دف</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--avaz"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Avaz.webp' ) ); ?>" alt="آواز" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">آواز</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tanboor"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tanboor.webp' ) ); ?>" alt="تنبور" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">تنبور</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--ney"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Ney.webp' ) ); ?>" alt="نی" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">نی</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--violin"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Violin.webp' ) ); ?>" alt="ویولن" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">ویولن</h3></article>
-<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--guitar"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Guitar.webp' ) ); ?>" alt="گیتار" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">گیتار</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--setar"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Setar.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Setar-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Setar-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Setar.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="سه‌تار" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">سه‌تار</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tar"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tar.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Tar-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Tar-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Tar.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="تار" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">تار</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--piano"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Piano.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Piano-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Piano-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Piano.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="پیانو" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">پیانو</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--santur"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-santour.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-santour-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-santour-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-santour.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="سنتور" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">سنتور</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tombak"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tombak.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Tombak-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Tombak-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Tombak.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="تنبک" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">تنبک</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--kamancheh"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Kamancheh.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Kamancheh-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Kamancheh-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Kamancheh.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="کمانچه" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">کمانچه</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--daf"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Daf.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Daf-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Daf-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Daf.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="دف" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">دف</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--avaz"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Avaz.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Avaz-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Avaz-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Avaz.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="آواز" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">آواز</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--tanboor"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Tanboor.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Tanboor-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Tanboor-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Tanboor.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="تنبور" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">تنبور</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--ney"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Ney.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Ney-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Ney-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Ney.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="نی" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">نی</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--violin"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Violin.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Violin-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Violin-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Violin.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="ویولن" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">ویولن</h3></article>
+<article class="wp-block-group dzn-instrument-tile dzn-instrument-tile--guitar"><figure class="wp-block-image size-full dzn-instrument-tile__media"><img src="<?php echo esc_url( get_theme_file_uri( 'assets/images/C-Guitar.webp' ) ); ?>" srcset="<?php echo esc_attr( get_theme_file_uri( 'assets/images/C-Guitar-400.webp' ) . ' 400w, ' . get_theme_file_uri( 'assets/images/C-Guitar-800.webp' ) . ' 800w, ' . get_theme_file_uri( 'assets/images/C-Guitar.webp' ) . ' 1200w' ); ?>" sizes="(max-width: 48rem) 46vw, (max-width: 64rem) 24vw, 18vw" width="1200" height="1200" loading="lazy" decoding="async" alt="گیتار" style="aspect-ratio:1;object-fit:contain"/></figure><h3 class="wp-block-heading dzn-instrument-tile__copy">گیتار</h3></article>
 </div>
 <!-- /wp:group --></div>
 <!-- /wp:column --></div>
@@ -68,7 +68,7 @@
     <section class="dzn-story__act dzn-story__act--quick" aria-labelledby="dzn-story-offer-title">
       <div class="dzn-story__layout">
         <header class="dzn-story__chapter">
-          <h2 id="dzn-story-offer-title" class="dzn-story__chapter-title"> چرا دلنوازان؟ </h2>
+          <h2 id="dzn-story-offer-title" class="dzn-story__chapter-title">چرا دلنوازان؟</h2>
         </header>
 
         <div class="dzn-story__stream">
@@ -76,7 +76,7 @@
             <div class="dzn-story__beat">
               <h3 class="dzn-story__title">پرداخت از طریق درگاه‌های رایج بین‌المللی
 </h3>
-              <p class="dzn-story__copy">امکان پرداخت شهریه باواحد پولی کشور شما
+              <p class="dzn-story__copy">امکان پرداخت شهریه با واحد پولی کشور شما
 
  </p>
             </div>
@@ -119,7 +119,7 @@
     <section class="dzn-story__act dzn-story__act--process" aria-labelledby="dzn-story-process-title">
       <div class="dzn-story__layout">
         <header class="dzn-story__chapter">
-          <h2 id="dzn-story-process-title" class="dzn-story__chapter-title">چطور ثبت نام کنم؟</h2>
+          <h2 id="dzn-story-process-title" class="dzn-story__chapter-title">چطور ثبت‌نام کنم؟</h2>
         </header>
 
         <div class="dzn-story__stream">
@@ -140,14 +140,14 @@
           <article class="dzn-story__item">
             <div class="dzn-story__beat dzn-story__step">
               <h3 class="dzn-story__title">آغاز ترم</h3>
-              <p class="dzn-story__copy">بعد از توافق با استاد در مورد زمان کلاس و پرداخت شهریه، ثبت نام شما تکمیل و ترم آموزشی آغاز می شود.هر ترم شامل ۱۲ جلسهٔ خصوصی است؛ هفته‌ای یک جلسه، هر جلسه ۳۰-۴۵ دقیقه بر اساس نیاز شما.</p>
+              <p class="dzn-story__copy">بعد از توافق با استاد در مورد زمان کلاس و پرداخت شهریه، ثبت‌نام شما تکمیل و ترم آموزشی آغاز می‌شود. هر ترم شامل ۱۲ جلسهٔ خصوصی است؛ هفته‌ای یک جلسه، هر جلسه ۳۰-۴۵ دقیقه بر اساس نیاز شما.</p>
             </div>
           </article>
 
 <article class="dzn-story__item dzn-story__item--closing">
             <div class="dzn-story__beat dzn-story__rhythm">
               <h3 class="dzn-story__title">درگاه هنرجو  </h3>
-              <p class="dzn-story__copy">لینک کلاس های شما از طریق درگاه هنرجو قابل درسترس خواهد بود. همچنین هر هفته از طریق ایمیل و واتساپ لینک کلاس و یادآوری را دریافت می کنید </p>
+              <p class="dzn-story__copy">لینک کلاس‌های شما از طریق درگاه هنرجو قابل دسترس خواهد بود. همچنین هر هفته از طریق ایمیل و واتساپ لینک کلاس و یادآوری را دریافت می‌کنید.</p>
             </div>
           </article>
 
@@ -275,13 +275,13 @@
 
 <!-- wp:details -->
 <details class="wp-block-details"><summary><strong>اگر یک جلسه را غیبت کنم چه می‌شود؟</strong></summary><!-- wp:paragraph -->
-<p>در این مورد، استاد می‌تواند برای شما&nbsp;<strong>جلسه جبرانی</strong>&nbsp;برگزار کند. هر ترم شما می توانید دو جلسه جبرانی داشته باشید که باید قبل از پایان ترم برگزار شوند.</p>
+<p>در این مورد، استاد می‌تواند برای شما&nbsp;<strong>جلسه جبرانی</strong>&nbsp;برگزار کند. هر ترم شما می‌توانید دو جلسه جبرانی داشته باشید که باید قبل از پایان ترم برگزار شوند.</p>
 <!-- /wp:paragraph --></details>
 <!-- /wp:details -->
 
 <!-- wp:details -->
-<details class="wp-block-details"><summary><strong>برنامه کاری/تحصیلی من اجازه شرکت در کلاس ها با روز و زمان ثابت را نمی دهد؟ راه حلی دارید؟</strong></summary><!-- wp:paragraph -->
-<p>اگر نمی‌توانید هر هفته در روز و ساعت ثابت کلاس داشته باشید، بعد از ثبت‌نام و&nbsp;جلسه معرفی، می‌توانید با استاد برای کلاس های متغییر هماهنگ کنید.<br>اساتید بر اساس برنامه خودشان،&nbsp;روزها و ساعت‌های متغیر&nbsp;را با شما تنظیم می‌کنند و ما آن را در سایت وارد می‌کنیم.</p>
+<details class="wp-block-details"><summary><strong>برنامه کاری/تحصیلی من اجازه شرکت در کلاس‌ها با روز و زمان ثابت را نمی‌دهد؟ راه حلی دارید؟</strong></summary><!-- wp:paragraph -->
+<p>اگر نمی‌توانید هر هفته در روز و ساعت ثابت کلاس داشته باشید، بعد از ثبت‌نام و&nbsp;جلسه معرفی، می‌توانید با استاد برای کلاس‌های متغیر هماهنگ کنید.<br>اساتید بر اساس برنامه خودشان،&nbsp;روزها و ساعت‌های متغیر&nbsp;را با شما تنظیم می‌کنند و ما آن را در سایت وارد می‌کنیم.</p>
 <!-- /wp:paragraph --></details>
 <!-- /wp:details -->
 

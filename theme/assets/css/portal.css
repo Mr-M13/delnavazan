@@ -475,7 +475,7 @@
 
   .dzn-term__markers {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--dzn-term-count, 12), minmax(0, 1fr));
     gap: var(--dzn-space-1);
     margin: var(--dzn-space-3) 0 var(--dzn-space-4);
     list-style: none;

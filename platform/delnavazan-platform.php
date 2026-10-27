@@ -8,10 +8,10 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '52' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '53' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-finance-administration-20261026.3' );
+define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2y-recording-consent-retention-deletion-20261027.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );
@@ -56,7 +56,11 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\OperationalCashbookController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
+	Delnavazan\Platform\Admin\Controller\RecordingConsentController::register();
+	Delnavazan\Platform\Admin\Controller\DeletionRequestController::register();
+	Delnavazan\Platform\Admin\Controller\RetentionController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();
+	Delnavazan\Platform\Integrations\RetentionSweepWorker::register();
 	// Delnavazan's operational overview lives in the capability-filtered Academy
 	// console. Do not duplicate a stale snapshot on WordPress's generic dashboard.
 	Delnavazan\Platform\Admin\Controller\AdminShellController::register();

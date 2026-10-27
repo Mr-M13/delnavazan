@@ -419,3 +419,7 @@ Academy owns canonical Lesson scheduling and Teacher occupied-time authority. It
 Teacher availability remains an upstream fact and is consumed as a constraint, never as occupancy authority. Teacher Assignment remains the sole current-Teacher authority; scheduling snapshots the recorded Assignment and refuses stale or replaced Assignments. No module may treat Amelia, Google Calendar, Google Meet, Meta/WhatsApp, Stripe or any other provider as canonical scheduling authority, and no module may cascade schedule release from Lesson, Enrolment, Term, Assignment or Teacher lifecycle changes.
 
 The cross-phase guards (Lesson completion/cancellation, Enrolment closure, Term close/cancel, Assignment replacement, Teacher archival) validate the affected schedule aggregates before deciding, so corrupted scheduling state blocks the consuming authority instead of silently approving or stranding future Teacher time.
+
+## Phase 2A.2-Y Recording Consent & Retention
+
+New module "Recording Consent & Retention" — not Core identity, not Attendance, not Finance. Owns consent grants/revocations, retention policy versions, deletion requests/executions, retention runs, recording provenance. Provider I/O lives in Integrations; Core uses RecordingProviderPort.

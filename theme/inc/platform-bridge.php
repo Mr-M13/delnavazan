@@ -437,7 +437,8 @@ function dzn_theme_platform_student_schedule_rows( array $lessons, array $bookin
  */
 function dzn_theme_student_payments_enabled() {
 	$enabled = defined( 'DZN_THEME_STUDENT_PAYMENTS' ) && true === DZN_THEME_STUDENT_PAYMENTS;
-	return (bool) apply_filters( 'dzn_theme_student_payments_enabled', $enabled );
+	$filtered = function_exists( 'apply_filters' ) ? apply_filters( 'dzn_theme_student_payments_enabled', $enabled ) : $enabled;
+	return (bool) $filtered;
 }
 
 /** Shape the commercial read for presentation without recalculating money. */

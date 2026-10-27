@@ -1,7 +1,8 @@
 <?php
 $root = dirname(__DIR__);
 $theme = $root . '/../theme';
-$script = (string) file_get_contents($theme . '/assets/js/navigation.js');
+$script = (string) file_get_contents($theme . '/assets/js/navigation.js') . "\n" . (string) file_get_contents($theme . '/assets/js/home-carousel.js');
+$assets = (string) file_get_contents($theme . '/inc/assets.php');
 $home = (string) file_get_contents($theme . '/patterns/homepage-editorial.php');
 $booking = (string) file_get_contents($theme . '/inc/booking.php');
 foreach (array(
@@ -16,6 +17,9 @@ foreach (array(
 ) as $description => $needle) {
     $source = str_contains($description, 'booking instrument order') ? $booking : $script;
     if (!str_contains($source, $needle)) throw new RuntimeException('Homepage instrument belt contract failed: ' . $description);
+}
+if (!str_contains($assets, 'if ( ! is_front_page() )')) {
+    throw new RuntimeException('Homepage carousel and pricing scripts must be gated to the front page.');
 }
 $style = (string) file_get_contents($theme . '/assets/css/theme.css');
 if (!preg_match('/\.dzn-instrument-folio\.is-auto-scrolling\s*\{[^}]*scroll-snap-type:\s*none !important/s', $style)) {

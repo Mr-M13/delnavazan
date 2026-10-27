@@ -12,7 +12,7 @@ $root   = dirname( __DIR__, 2 );
 $theme  = $root . '/theme';
 $routes = (string) file_get_contents( $theme . '/inc/routes.php' );
 $assets = (string) file_get_contents( $theme . '/inc/assets.php' );
-$js     = (string) file_get_contents( $theme . '/assets/js/navigation.js' );
+$js     = (string) file_get_contents( $theme . '/assets/js/home-carousel.js' );
 $price  = (string) file_get_contents( $theme . '/assets/js/pricing-region.js' );
 $home   = (string) file_get_contents( $theme . '/patterns/homepage-editorial.php' );
 $css    = (string) file_get_contents( $theme . '/assets/css/theme.css' );
@@ -33,6 +33,7 @@ $check( 'legacy redirect no longer drops the query on a 301', ! str_contains( $r
 
 /* 2. Acquisition links go to the canonical /enrol/ renderer. */
 $check( 'navigation script receives the canonical enrol URL', str_contains( $assets, "'dznThemeNavigation'" ) && str_contains( $assets, "'enrolUrl' => home_url( '/enrol/' )" ) );
+$check( 'homepage carousel and pricing scripts are front-page only', str_contains( $assets, 'if ( ! is_front_page() )' ) && str_contains( $assets, 'home-carousel.js' ) );
 $check( 'instrument tiles link to the canonical enrol URL', str_contains( $js, 'enrolUrl + enrolSeparator' ) );
 $check( 'instrument tiles no longer hardcode /booking/', ! str_contains( $js, "'/booking/?instrument='" ) );
 $check( 'the homepage enrolment action uses /enrol/', str_contains( $home, "home_url( '/enrol/' )" ) );

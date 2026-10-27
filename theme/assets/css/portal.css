@@ -637,9 +637,9 @@
     display: grid;
     gap: 0.75rem;
     padding: 1rem;
-    border: 1px solid var(--dzn-border, #d8d6d1);
+    border: 1px solid var(--dzn-color-border);
     border-radius: 0.9rem;
-    background: var(--dzn-surface-muted, #f7f5f0);
+    background: var(--dzn-color-surface);
   }
 
   .dzn-checkout__plan-heading {
@@ -663,14 +663,14 @@
   .dzn-checkout__row-detail,
   .dzn-checkout__next-term {
     margin: 0;
-    color: var(--dzn-color-text-muted, #5d5a54);
+    color: var(--dzn-color-text-muted);
     font-size: 0.9rem;
   }
 
   .dzn-checkout__next-term {
     padding-block-start: 0.75rem;
     border-block-start: 1px solid var(--dzn-color-border, #d8d6d1);
-    color: var(--dzn-color-text, #1f1d1a);
+    color: var(--dzn-color-text-primary);
   }
 
   .dzn-checkout__row {
@@ -679,9 +679,9 @@
     gap: 0.5rem 1rem;
     align-items: center;
     padding: 1rem;
-    border: 1px solid var(--dzn-border, #d8d6d1);
+    border: 1px solid var(--dzn-color-border);
     border-radius: 0.75rem;
-    background: var(--dzn-surface, #fff);
+    background: var(--dzn-color-surface-elevated);
   }
 
   .dzn-checkout__row-status {
@@ -697,7 +697,7 @@
     border: 0;
     border-radius: 0.5rem;
     color: #fff;
-    background: var(--dzn-accent, #315f57);
+    background: var(--dzn-color-accent);
     cursor: pointer;
   }
 
@@ -856,7 +856,7 @@
 }
 
 .dzn-portal__provisioning {
-  background: var(--dzn-color-surface-muted, #f7f3e8);
+  background: var(--dzn-color-surface);
   border: 1px solid var(--dzn-color-border, #d8d2c4);
   border-radius: 1rem;
   margin-block-end: 1.5rem;
@@ -893,7 +893,7 @@
 }
 
 .dzn-post-intro__plan--full {
-  background: var(--dzn-surface, #fff);
+  background: var(--dzn-color-surface-elevated);
 }
 
 .dzn-post-intro__plan h4 {
@@ -907,7 +907,7 @@
 }
 
 .dzn-post-intro__plan--instalments {
-  background: var(--dzn-surface-muted, #f7f5f0);
+  background: var(--dzn-color-surface);
 }
 
 .dzn-post-intro__plan--instalments summary {
@@ -934,9 +934,136 @@
 }
 
 .dzn-post-intro__instalment-list small {
-  color: var(--dzn-color-text-muted, #5d5a54);
+  color: var(--dzn-color-text-muted);
 }
 
 .dzn-post-intro__selected {
   margin-block: 0.75rem;
+}
+
+/* =========================================================
+   RESPONSIVE SHELL
+   One canonical main region; the desktop masthead and the
+   mobile app bar/tab bar are alternative navigations over the
+   same navigation map, never a second screen or form.
+   ========================================================= */
+
+.dzn-appbar,
+.dzn-portal-tabs,
+.dzn-portal__mobile-greeting {
+  display: none;
+}
+
+.dzn-portal {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.dzn-portal input,
+.dzn-portal select,
+.dzn-portal textarea,
+.dzn-portal button {
+  font-size: 1rem;
+}
+
+@media (max-width: 47.99rem) {
+  .dzn-portal__masthead {
+    display: none;
+  }
+
+  .dzn-appbar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 20;
+    display: block;
+    border-block-end: 1px solid var(--dzn-color-border);
+    background: var(--dzn-color-surface-elevated);
+    padding-block-start: env(safe-area-inset-top);
+  }
+
+  .dzn-appbar__inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--dzn-space-3);
+    min-block-size: 56px;
+    padding-inline: 16px;
+  }
+
+  .dzn-appbar__brand,
+  .dzn-appbar__action {
+    display: inline-flex;
+    min-block-size: 44px;
+    align-items: center;
+    color: var(--dzn-color-text-secondary);
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  .dzn-appbar__title {
+    margin: 0;
+    overflow: hidden;
+    font-weight: 800;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dzn-portal__mobile-greeting {
+    display: block;
+    margin: 0 0 var(--dzn-space-4);
+    color: var(--dzn-color-text-secondary);
+    font-size: 1.125rem;
+    font-weight: 800;
+  }
+
+  .dzn-portal__content {
+    padding-block: var(--dzn-space-4) calc(64px + env(safe-area-inset-bottom) + var(--dzn-space-6));
+    padding-inline: 16px;
+  }
+
+  .dzn-portal-tabs {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 30;
+    display: block;
+    border-block-start: 1px solid var(--dzn-color-border);
+    background: var(--dzn-color-surface-elevated);
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+
+  .dzn-portal-tabs ul {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .dzn-portal-tabs__link {
+    display: flex;
+    min-block-size: 64px;
+    align-items: center;
+    justify-content: center;
+    padding: .5rem .25rem;
+    color: var(--dzn-color-text-secondary);
+    font-size: .9rem;
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  .dzn-portal-tabs__link.is-current {
+    color: var(--dzn-color-action-primary);
+    box-shadow: inset 0 3px 0 var(--dzn-color-action-primary);
+  }
+}
+
+@media (min-width: 48rem) {
+  .dzn-appbar,
+  .dzn-portal-tabs,
+  .dzn-portal__mobile-greeting {
+    display: none !important;
+  }
 }

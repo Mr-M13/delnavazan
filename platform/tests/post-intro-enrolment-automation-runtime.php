@@ -605,6 +605,9 @@ $partialRecovery = $recovery->recover((int) $enrolment->id);
 dzn_pia_assert(($partialRecovery['state'] ?? '') === 'completed', 'partial recovery must complete the missing Lessons');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $termId)) === 12, 'partial recovery must restore exactly twelve Lessons');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT id) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $termId)) === 12, 'partial recovery must not duplicate Lesson identities');
+$recoveredScheduleCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id WHERE l.term_id=%d AND l.lesson_type='standard' AND v.superseded_at IS NULL", $termId));
+$recoveredScheduledLessonCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT v.lesson_id) FROM {$p}canonical_lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id WHERE l.term_id=%d AND l.lesson_type='standard' AND v.superseded_at IS NULL", $termId));
+dzn_pia_assert($recoveredScheduleCount === 12 && $recoveredScheduledLessonCount === 12, 'partial recovery must restore one active schedule for each of the twelve canonical Lessons without duplicates');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_assignments WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'partial recovery must not duplicate the Teacher Assignment');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $enrolment->id)) === 1, 'partial recovery must not duplicate the Term');
 // Once the canonical Lesson exists the operator projection must hand off, not duplicate the booking.

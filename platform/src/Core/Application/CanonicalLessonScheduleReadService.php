@@ -11,6 +11,10 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthority
  */
 final class CanonicalLessonScheduleReadService {
     private const CAPABILITY='dzn_manage_canonical_lesson_schedules';
+    /** Completion is deliberately independent of schedule-edit authority. */
+    private const COMPLETION_CAPABILITY='dzn_manage_canonical_lessons';
+    /** Delivery recording also needs the applicable occurrence, not schedule editing. */
+    private const DELIVERY_CAPABILITY='dzn_manage_canonical_lesson_delivery';
     public function __construct(private ?CanonicalLessonScheduleRepository $repository=null,private ?CanonicalLessonAuthorityRepository $lessons=null){
         $this->repository??=new CanonicalLessonScheduleRepository();
         $this->lessons??=new CanonicalLessonAuthorityRepository();
@@ -18,6 +22,20 @@ final class CanonicalLessonScheduleReadService {
     /** @return array{lesson_id:int,state:string,active_version:?object,versions:array,events:array} */
     public function forLesson(int $lessonId):array{
         if(!current_user_can(self::CAPABILITY))throw new \RuntimeException('Unauthorized');
+        return $this->readLesson($lessonId);
+    }
+    /** Schedule truth for the independent completion action; never grants schedule editing. */
+    public function forLessonCompletion(int $lessonId):array{
+        if(!current_user_can(self::COMPLETION_CAPABILITY))throw new \RuntimeException('Unauthorized');
+        return $this->readLesson($lessonId);
+    }
+    /** Schedule truth for delivery recording; never grants schedule editing. */
+    public function forLessonDelivery(int $lessonId):array{
+        if(!current_user_can(self::DELIVERY_CAPABILITY))throw new \RuntimeException('Unauthorized');
+        return $this->readLesson($lessonId);
+    }
+    /** @return array{lesson_id:int,state:string,active_version:?object,versions:array,events:array} */
+    private function readLesson(int $lessonId):array{
         $lesson=$this->lessons->lesson($lessonId);
         if(!$lesson||(string)($lesson->record_model??'')!=='canonical_term_lesson_v1')throw new \InvalidArgumentException('canonical_lesson_required');
         if(!CanonicalLessonScheduleValidator::validForLesson($lessonId,$this->repository,$this->lessons))throw new \InvalidArgumentException('canonical_schedule_integrity_conflict');

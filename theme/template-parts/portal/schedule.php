@@ -33,6 +33,8 @@ $group_days = static function ( array $rows ): array {
 	}
 	return $groups;
 };
+$join_status = sanitize_key( (string) ( $_GET['join_status'] ?? '' ) );
+$absence_status = sanitize_key( (string) ( $_GET['absence_status'] ?? '' ) );
 $render_rows = static function ( array $rows ) use ( $labels ): void {
 	foreach ( $rows as $item ) :
 		$state = (string) ( $item['state'] ?? 'unknown' );
@@ -51,7 +53,12 @@ $render_rows = static function ( array $rows ) use ( $labels ): void {
 				<?php if ( ! empty( $item['join_available'] ) && ! empty( $item['join_action_url'] ) ) : ?>
 					<form method="post" target="_blank" rel="noopener noreferrer" action="<?php echo esc_url( (string) $item['join_action_url'] ); ?>">
 						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['join_nonce'] ?? '' ) ); ?>">
-						<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $item['confirmation_uid'] ?? '' ) ); ?>">
+						<?php if ( ! empty( $item['confirmation_uid'] ) ) : ?>
+							<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) $item['confirmation_uid'] ); ?>">
+						<?php else : ?>
+							<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>">
+							<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>">
+						<?php endif; ?>
 						<button class="dzn-button" type="submit"><?php esc_html_e( 'ورود به کلاس', 'delnavazan-theme' ); ?></button>
 					</form>
 				<?php elseif ( $is_intro && ! empty( $item['join_message'] ) ) : ?>
@@ -77,6 +84,7 @@ $render_rows = static function ( array $rows ) use ( $labels ): void {
 	<?php endforeach;
 };
 ?>
+<?php if ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ورود به کلاس ممکن نشد؛ لینک امن یا زمان ورود را بررسی کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ثبت اطلاع غیبت برای این جلسه ممکن نشد. لطفاً دوباره تلاش کنید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 <section class="dzn-portal-section dzn-schedule" aria-labelledby="dzn-schedule-title">
 	<div class="dzn-portal-section__heading">
 		<div><p class="dzn-portal-kicker"><?php esc_html_e( 'برنامهٔ شما', 'delnavazan-theme' ); ?></p><h2 id="dzn-schedule-title"><?php esc_html_e( 'کلاس‌های امروز و آینده', 'delnavazan-theme' ); ?></h2></div>

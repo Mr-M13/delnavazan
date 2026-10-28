@@ -1311,3 +1311,11 @@
   .dzn-portal~.site-footer{padding-block-end:calc(86px + env(safe-area-inset-bottom) + var(--dzn-space-5))}
 }
 @media (forced-colors:active){.dzn-account-status{border:2px solid CanvasText}}
+
+/* High-contrast mobile tab bar. */
+@media (max-width:47.99rem){
+  .dzn-portal-tabs{background:var(--dzn-color-surface-elevated);border-color:var(--dzn-color-border);backdrop-filter:none}
+  .dzn-portal-tabs__link{color:var(--dzn-color-text-primary);font-size:.92rem;font-weight:800;letter-spacing:0}
+  .dzn-portal-tabs__link.is-current{background:var(--dzn-color-action-primary);color:#fff;box-shadow:none}
+  .dzn-portal-tabs__link.is-current .dzn-portal-tabs__label{color:#fff}
+}

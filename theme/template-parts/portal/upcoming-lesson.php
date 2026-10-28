@@ -50,7 +50,12 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 			<?php if ( ! empty( $lesson['join_available'] ) && ! empty( $lesson['join_action_url'] ) ) : ?>
 				<form method="post" target="_blank" action="<?php echo esc_url( (string) $lesson['join_action_url'] ); ?>">
 					<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $lesson['join_nonce'] ?? '' ) ); ?>">
-					<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $lesson['confirmation_uid'] ?? '' ) ); ?>">
+					<?php if ( ! empty( $lesson['confirmation_uid'] ) ) : ?>
+						<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) $lesson['confirmation_uid'] ); ?>">
+					<?php else : ?>
+						<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $lesson['lesson_uid'] ?? '' ) ); ?>">
+						<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $lesson['schedule_version_uid'] ?? '' ) ); ?>">
+					<?php endif; ?>
 					<button class="dzn-button dzn-upcoming__join" type="submit"><?php esc_html_e( 'ورود به کلاس', 'delnavazan-theme' ); ?></button>
 				</form>
 			<?php elseif ( ! empty( $lesson['join_url'] ) ) : ?>

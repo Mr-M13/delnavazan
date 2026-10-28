@@ -54,12 +54,13 @@ $portal = (string) file_get_contents( $theme . '/inc/portal.php' );
 $check( 'routes accept schedule and payments', str_contains( $routes, "array( 'home', 'account', 'schedule', 'payments' )" ) );
 $check( 'view model accepts schedule and payments', str_contains( $portal, "array( 'home', 'account', 'schedule', 'payments' )" ) );
 
-$full = dzn_theme_platform_student_navigation( 'schedule', true, true );
-$check( 'four destinations are offered only when both reads produced data', count( $full ) === 4 );
-$check( 'schedule is marked current', ( $full[1]['label'] ?? '' ) === 'برنامه' && ! empty( $full[1]['current'] ) );
-$check( 'payments is marked current only on its own screen', ( $full[2]['label'] ?? '' ) === 'پرداخت' );
+$full = dzn_theme_platform_student_navigation( 'home', true, true );
+$check( 'classes, payments and account are offered when both reads produced data', count( $full ) === 3 );
+$check( 'the merged classes tab is marked current for home and schedule', ( $full[0]['label'] ?? '' ) === 'کلاس‌ها' && ! empty( $full[0]['current'] ) );
+$payments_nav = dzn_theme_platform_student_navigation( 'payments', true, true );
+$check( 'payments is marked current only on its own screen', ( $payments_nav[1]['label'] ?? '' ) === 'پرداخت' && ! empty( $payments_nav[1]['current'] ) );
 $minimal = dzn_theme_platform_student_navigation( 'home', false, false );
-$check( 'no empty schedule or payments tab without data', count( $minimal ) === 2 && ! str_contains( json_encode( $minimal ), 'برنامه' ) );
+$check( 'no empty payments tab without data and no separate schedule tab', count( $minimal ) === 2 && ! str_contains( json_encode( $minimal ), 'پرداخت' ) && ! str_contains( json_encode( $minimal ), 'برنامه' ) );
 
 /* 2. Payments reuse the existing read and expose no new authority. */
 $bridge = (string) file_get_contents( $theme . '/inc/platform-bridge.php' );
@@ -110,7 +111,7 @@ $past = $lesson( gmdate( 'Y-m-d H:i:s', $now - 86400 ), gmdate( 'Y-m-d H:i:s', $
 $rows = dzn_theme_platform_student_schedule_rows( array( $future, $past, $active ), array(), array( array( 'enrolment_uid' => 'E', 'assigned_teacher_display_reference' => 'نازنین' ) ), 'Asia/Tehran', $now );
 $check( 'active class sorts first', 'in_progress' === ( $rows[0]['temporal_state'] ?? '' ) );
 $check( 'upcoming class sorts before ended', 'upcoming' === ( $rows[1]['temporal_state'] ?? '' ) && 'ended' === ( $rows[2]['temporal_state'] ?? '' ) );
-$check( 'canonical term rows never receive a student join action', empty( $rows[0]['join_available'] ) && '' === $rows[0]['join_action_url'] );
+$check( 'canonical term rows use the secure student class join action', empty( $rows[0]['join_available'] ) && str_contains( (string) $rows[0]['join_action_url'], 'dzn_student_join_class' ) );
 $check( 'an active class cannot be reported absent after it starts', empty( $rows[0]['absence_available'] ) );
 $check( 'a future canonical row exposes the authorised absence action', ! empty( $rows[1]['absence_available'] ) );
 $check( 'schedule shows a human timezone with the identifier', 'تهران · Asia/Tehran' === $rows[0]['timezone_label'] );

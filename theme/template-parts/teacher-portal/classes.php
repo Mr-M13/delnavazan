@@ -18,28 +18,22 @@ if ( ! $today_items && ! $upcoming_items && is_array( $args['items'] ?? null ) &
 	$upcoming_items = $args['items'];
 }
 $sections = array(
-	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'kicker' => 'برنامهٔ امروز', 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است', 'empty_text' => 'کلاس‌های امروز، شامل کلاس‌های برگزارشده، در حال برگزاری و پیش رو، همین‌جا نمایش داده می‌شوند.' ),
-	array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'kicker' => 'از فردا تا ۳۰ روز آینده', 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است', 'empty_text' => 'کلاس‌های فردا تا ۳۰ روز آینده در این بخش نمایش داده می‌شوند.' ),
+	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => false, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
+	array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' ),
 );
 $jalali_months = array( 1 => 'فروردین', 2 => 'اردیبهشت', 3 => 'خرداد', 4 => 'تیر', 5 => 'مرداد', 6 => 'شهریور', 7 => 'مهر', 8 => 'آبان', 9 => 'آذر', 10 => 'دی', 11 => 'بهمن', 12 => 'اسفند' );
 $card_index = 0;
 ?>
 <section class="dzn-tp-section dzn-tp-classes" aria-labelledby="tp-classes">
 	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">برنامهٔ کلاس‌ها</p><h2 id="tp-classes">برنامهٔ کلاس‌ها</h2></div>
-		<div class="dzn-tp-heading__meta">
-			<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> منطقهٔ زمانی: <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
-		</div>
+		<h2 id="tp-classes">برنامهٔ کلاس‌ها امروز به ترتیب</h2>
+		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
-	<p class="dzn-tp-help dzn-tp-join-note">ورود به کلاس فقط در بازهٔ مجاز و پس از تأیید امن سامانه فعال می‌شود.</p>
 <?php foreach ( $sections as $section ) : ?>
 	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">
-		<div class="dzn-tp-heading dzn-tp-heading--sub">
-			<div><p class="dzn-tp-kicker"><?php echo esc_html( $section['kicker'] ); ?></p><h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>"><?php echo esc_html( $section['heading'] ); ?></h3></div>
-			<div class="dzn-tp-heading__meta"><span class="dzn-tp-count-badge"><?php echo esc_html( $section['items'] ? sprintf( '%d کلاس · به ترتیب زمان', count( $section['items'] ) ) : 'به ترتیب زمان' ); ?></span></div>
-		</div>
+		<h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>" class="<?php echo $section['visible_heading'] ? 'dzn-tp-class-section__title' : 'dzn-tp-sr'; ?>"><?php echo esc_html( $section['heading'] ); ?></h3>
 	<?php if ( ! $section['items'] ) : ?>
-		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3><?php echo esc_html( $section['empty_title'] ); ?></h3><p><?php echo esc_html( $section['empty_text'] ); ?></p><?php if ( 'upcoming' === $section['key'] && '' !== $settings ) : ?><div class="dzn-tp-empty-state__actions"><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $settings ); ?>">بررسی زمان‌های در دسترس</a></div><?php endif; ?></div>
+		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3><?php echo esc_html( $section['empty_title'] ); ?></h3><?php if ( 'upcoming' === $section['key'] && '' !== $settings ) : ?><div class="dzn-tp-empty-state__actions"><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $settings ); ?>">بررسی زمان‌های در دسترس</a></div><?php endif; ?></div>
 	<?php else : ?>
 		<ol class="dzn-tp-class-list">
 		<?php foreach ( $section['items'] as $item ) :

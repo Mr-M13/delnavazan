@@ -276,3 +276,41 @@
 @media (max-width:35rem){.dzn-tp-reschedule__date{grid-template-columns:1fr}.dzn-tp-chevron{inline-size:100%;block-size:2.75rem}}
 @media (forced-colors:active){.dzn-tp-chevron,.dzn-tp-reschedule{border:1px solid CanvasText}}
 @media (prefers-reduced-motion:reduce){.dzn-tp-chevron__icon{transition:none}}
+
+/* Compact teacher shell and class cards (2026-10-28 UX pass). */
+.dzn-tp-masthead{padding:1rem 0}
+.dzn-tp-masthead__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 1.25rem}
+.dzn-tp-masthead h1{font-size:clamp(1.25rem,2.2vw,1.65rem);margin:0}
+.dzn-tp-masthead nav ul{gap:.35rem}
+.dzn-tp-masthead nav a{padding:.38rem .75rem;font-size:.88rem}
+.dzn-tp-account{margin:0}
+.dzn-tp-account a{font-size:.88rem;font-weight:700;text-decoration:none}
+.dzn-tp-appbar__inner{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.dzn-tp-appbar__title{flex:1;text-align:start}
+.dzn-tp-classes>.dzn-tp-heading{align-items:center;margin-block-end:.35rem}
+.dzn-tp-classes>.dzn-tp-heading h2{font-size:1.15rem;margin:0}
+.dzn-tp-class-section{margin-block-start:.9rem}
+.dzn-tp-class-section__title{font-size:1rem;margin:0 0 .5rem;color:var(--dzn-color-text-secondary)}
+.dzn-tp-empty-state--compact h3{font-size:.95rem;margin:0}
+.dzn-tp-class-list{gap:.55rem}
+.dzn-tp-class{padding:.7rem .8rem;gap:.6rem;border-radius:.8rem;box-shadow:0 1px 2px rgb(0 0 0 / 4%)}
+.dzn-tp-class__time{font-size:1.05rem}
+.dzn-tp-time-date{font-size:.72rem;color:var(--dzn-color-text-secondary);line-height:1.35}
+.dzn-tp-class__student{font-size:1rem;margin:0}
+.dzn-tp-class__course-line{font-size:.86rem}
+.dzn-tp-class__schedule-summary{font-size:.76rem}
+.dzn-tp-state{font-size:.72rem;padding:.12rem .5rem}
+.dzn-tp-class .dzn-tp-actions{gap:.4rem}
+.dzn-tp-class .dzn-button{min-block-size:2.35rem;padding:.45rem .8rem;font-size:.85rem}
+.dzn-tp-calendar-action{font-size:.78rem}
+.dzn-tp-chevron{inline-size:2.25rem;block-size:2.25rem}
+.dzn-tp-section{padding:clamp(.9rem,2.5vw,1.35rem)}
+@media (min-width:48rem){
+  .dzn-tp-class{grid-template-columns:5.25rem minmax(0,1fr) auto}
+  .dzn-tp-masthead__inner{align-items:center}
+}
+@media (max-width:47.99rem){
+  .dzn-tp-appbar__inner{display:flex}
+  .dzn-tp-appbar__title{text-align:start}
+  .dzn-tp-class{padding:.65rem .7rem}
+}

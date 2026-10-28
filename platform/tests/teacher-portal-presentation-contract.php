@@ -84,7 +84,7 @@ namespace {
     $check('fixture satisfies the unchanged display contract', dzn_theme_teacher_portal_validate_model($home, 'home'));
     $html = $render('home', $home);
     $check('today and upcoming sections use the required Persian headings', str_contains($html, 'کلاس‌های امروز') && str_contains($html, 'کلاس‌های آینده'));
-    $check('card count is announced', str_contains($html, '2 کلاس · به ترتیب زمان'));
+    $check('home uses the simple welcome header without a Delnavazan brand link', str_contains($html, 'درود بر شما') && !str_contains($html, 'dzn-tp-appbar__brand') && !str_contains($html, 'صفحهٔ اصلی'));
     $check('classes render as an ordered list of labelled articles', substr_count($html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($html, 'id="tp-class-title-0"') && str_contains($html, 'id="tp-class-title-1"'));
     $check('date and timezone are visible on a booking class that has no details panel', str_contains($html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($html, 'id="tp-details-0"'));
     $check('lesson date badge and machine-readable start are rendered', str_contains($html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($html, 'datetime="2026-10-03T06:30:00Z"'));
@@ -144,7 +144,7 @@ namespace {
 
     // 5. Actionable empty states.
     $empty = $render('home', $model());
-    $check('empty classes, attention and calendar each explain themselves', str_contains($empty, 'کلاسی برای امروز ثبت نشده است') && str_contains($empty, 'کلاسی برای روزهای آینده ثبت نشده است') && str_contains($empty, 'اکنون کار فوری‌ای ندارید') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && 4 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
+    $check('empty classes and calendar explain themselves while empty attention is hidden', str_contains($empty, 'کلاسی برای امروز ثبت نشده است') && str_contains($empty, 'کلاسی برای روزهای آینده ثبت نشده است') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && ! str_contains($empty, 'id="tp-attention"') && ! str_contains($empty, 'اکنون کار فوری‌ای ندارید') && 3 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
     $check('empty classes links to real availability settings', str_contains($empty, 'href="https://example.invalid/teacher-portal/?teacher-view=settings">بررسی زمان‌های در دسترس'));
 
     // 6. Outcome and error states reach the teacher; arbitrary query text never does.

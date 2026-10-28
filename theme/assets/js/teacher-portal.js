@@ -76,6 +76,12 @@
       else { tour.dataset.dznTpFallback = 'disclosure'; tour.setAttribute('open', ''); }
     }
   }
+  document.querySelectorAll('.dzn-tp-instrument input[type="checkbox"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const card = input.closest('.dzn-tp-instrument');
+      if (card) card.classList.toggle('is-selected', input.checked);
+    });
+  });
   document.querySelectorAll('[data-dzn-tp-presentation]').forEach((button) => button.addEventListener('click', () => {
     const scope = button.closest('section, dialog') || document;
     const status = scope.querySelector('.dzn-tp-action-status');

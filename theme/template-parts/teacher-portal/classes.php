@@ -39,6 +39,7 @@ $card_index = 0;
 		<?php foreach ( $section['items'] as $item ) :
 			$index = $card_index++;
 			$valid = dzn_theme_teacher_portal_class_valid( $item );
+			$is_today = ! empty( $item['is_today'] );
 			$state = $valid ? $item['state'] : 'unknown';
 			$title = 'tp-class-title-' . $index;
 			$help  = 'tp-join-' . $index;
@@ -47,7 +48,7 @@ $card_index = 0;
 			$starts_at = $valid ? (string) ( $item['starts_at_iso'] ?? '' ) : '';
 			$join_reason = ! empty( $item['confirmation_uid'] ) && ! empty( $item['join_message'] ) ? (string) $item['join_message'] : 'زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است.';
 			?>
-		<li><article class="dzn-tp-class is-<?php echo esc_attr( $state ); ?>" aria-labelledby="<?php echo esc_attr( $title ); ?>">
+		<li><article class="dzn-tp-class is-<?php echo esc_attr( $state ); ?><?php echo $is_today ? '' : ' is-compact'; ?>" aria-labelledby="<?php echo esc_attr( $title ); ?>">
 			<div class="dzn-tp-class__time-col">
 				<time class="dzn-tp-class__time"<?php if ( '' !== $starts_at ) : ?> datetime="<?php echo esc_attr( $starts_at ); ?>"<?php endif; ?>>
 					<span class="dzn-tp-time-clock"><span class="dzn-tp-sr">ساعت </span><?php echo esc_html( $valid ? $item['time'] : '—' ); ?></span>
@@ -60,7 +61,7 @@ $card_index = 0;
 					<?php if ( $valid ) : ?><p class="dzn-tp-state dzn-tp-state--<?php echo esc_attr( $state ); ?>"><span class="dzn-tp-state__bullet" aria-hidden="true">●</span> <span class="dzn-tp-sr">وضعیت: </span><?php echo esc_html( $item['status'] ); ?></p><?php endif; ?>
 				</div>
 				<?php if ( $valid ) : ?>
-					<p class="dzn-tp-class__course-line"><span class="dzn-tp-class__course"><?php echo esc_html( $item['course'] ); ?></span> <span class="dzn-tp-class__dot" aria-hidden="true">·</span> <span class="dzn-tp-class__progress"><?php echo esc_html( $item['progress'] ); ?></span></p>
+					<p class="dzn-tp-class__course-line"><span class="dzn-tp-class__course"><?php echo esc_html( $item['course'] ); ?></span><?php if ( $is_today ) : ?> <span class="dzn-tp-class__dot" aria-hidden="true">·</span> <span class="dzn-tp-class__progress"><?php echo esc_html( $item['progress'] ); ?></span><?php endif; ?></p>
 					<p class="dzn-tp-class__schedule-summary"><span aria-hidden="true">◷</span> <span class="dzn-tp-sr">زمان کلاس: </span><?php echo esc_html( $item['schedule_summary'] ); ?></p>
 				<?php else : ?>
 					<p class="dzn-tp-state">اطلاعات این کلاس کامل یا معتبر نیست؛ اقدام‌ها غیرفعال شدند. صفحه را دوباره بارگذاری کنید و اگر ادامه داشت به مدیر آموزشگاه خبر دهید.</p>
@@ -68,22 +69,33 @@ $card_index = 0;
 			</div>
 			<?php if ( $valid ) : ?>
 			<div class="dzn-tp-actions">
-				<?php if ( true === $item['start_available'] ) : ?>
-					<form method="post" target="_blank" rel="noopener noreferrer" action="<?php echo esc_url( (string) ( $item['join_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit data-dzn-tp-reenable="5000"><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['join_nonce'] ?? '' ) ); ?>"><?php if ( ! empty( $item['confirmation_uid'] ) ) : ?><input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) $item['confirmation_uid'] ); ?>"><?php else : ?><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><?php endif; ?><button class="dzn-button dzn-tp-btn-join" type="submit" data-dzn-tp-busy-label="در حال باز کردن کلاس…"><span aria-hidden="true">▶</span> شروع کلاس</button></form>
-				<?php else : ?>
-					<span id="<?php echo esc_attr( $help ); ?>" class="dzn-tp-sr"><?php echo esc_html( $join_reason ); ?></span>
-					<button class="dzn-button dzn-tp-btn-join" type="button" disabled title="<?php echo esc_attr( $join_reason ); ?>" aria-describedby="<?php echo esc_attr( $help ); ?>"><span aria-hidden="true">▶</span> شروع کلاس</button>
+				<?php if ( $is_today ) : ?>
+					<?php if ( true === $item['start_available'] ) : ?>
+						<form method="post" target="_blank" rel="noopener noreferrer" action="<?php echo esc_url( (string) ( $item['join_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit data-dzn-tp-reenable="5000"><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['join_nonce'] ?? '' ) ); ?>"><?php if ( ! empty( $item['confirmation_uid'] ) ) : ?><input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) $item['confirmation_uid'] ); ?>"><?php else : ?><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><?php endif; ?><button class="dzn-button dzn-tp-btn-join" type="submit" data-dzn-tp-busy-label="در حال باز کردن کلاس…"><span aria-hidden="true">▶</span> شروع کلاس</button></form>
+					<?php else : ?>
+						<span id="<?php echo esc_attr( $help ); ?>" class="dzn-tp-sr"><?php echo esc_html( $join_reason ); ?></span>
+						<button class="dzn-button dzn-tp-btn-join" type="button" disabled title="<?php echo esc_attr( $join_reason ); ?>" aria-describedby="<?php echo esc_attr( $help ); ?>"><span aria-hidden="true">▶</span> شروع کلاس</button>
+					<?php endif; ?>
+					<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
 				<?php endif; ?>
 				<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-tp-calendar-action" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>" title="افزودن به تقویم" aria-label="افزودن این کلاس به تقویم"><span aria-hidden="true">＋</span> تقویم</a><?php endif; ?>
-				<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
 			</div>
 			<?php if ( true === $item['details_available'] ) : ?>
 			<div id="<?php echo esc_attr( $details_id ); ?>" class="dzn-tp-class-details" hidden>
 				<div class="dzn-tp-detail-grid">
-					<section class="dzn-tp-detail-card"><h4>خلاصهٔ هنرجو</h4><p><?php echo esc_html( $item['student_summary'] ); ?></p><h4>زمان‌بندی</h4><p><?php echo esc_html( $item['schedule_summary'] ); ?></p><?php if ( isset( $item['previous_private_note'] ) && '' !== trim( (string) $item['previous_private_note'] ) ) : ?><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( (string) $item['previous_private_note'] ); ?></p><?php endif; ?></section>
-					<section class="dzn-tp-detail-card"><h4>گزارش برگزاری کلاس</h4><p class="dzn-tp-detail-help">گزارش شما شواهد بررسی است و به‌تنهایی وضعیت نهایی یا مالی کلاس را تعیین نمی‌کند. تکرار ارسال همان گزارش، رکورد تکراری نمی‌سازد.</p>
-						<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">ثبت برگزاری کلاس</button></form>
-						<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_issue_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_issue_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">گزارش مشکل در برگزاری کلاس</button></form>
+					<section class="dzn-tp-detail-card"><h4>اطلاعات هنرجو</h4><p><?php echo esc_html( $item['student_summary'] ); ?></p>
+						<?php $whatsapp = preg_replace( '/[^0-9]/', '', (string) ( $item['student_whatsapp'] ?? '' ) ); ?>
+						<p class="dzn-tp-student-contact"><span>واتس‌اپ:</span> <?php if ( '' !== $whatsapp ) : ?><a href="<?php echo esc_url( 'https://wa.me/' . $whatsapp ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $item['student_whatsapp'] ); ?></a><?php else : ?><span class="dzn-tp-muted">ثبت نشده</span><?php endif; ?></p>
+						<h4>زمان‌بندی</h4><p><?php echo esc_html( $item['schedule_summary'] ); ?></p>
+						<?php if ( ! empty( $item['term_total'] ) ) : ?><h4>پیشرفت ترم</h4><p><?php echo esc_html( sprintf( 'تکمیل‌شده: %d از %d · باقی‌مانده: %d', (int) $item['term_completed'], (int) $item['term_total'], (int) $item['term_remaining'] ) ); ?></p><?php endif; ?>
+						<?php if ( isset( $item['previous_private_note'] ) && '' !== trim( (string) $item['previous_private_note'] ) ) : ?><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( (string) $item['previous_private_note'] ); ?></p><?php endif; ?></section>
+					<section class="dzn-tp-detail-card"><h4>لینک Google Meet</h4><p class="dzn-tp-detail-help">ورود فقط در بازهٔ مجاز و با تأیید امن سامانه فعال می‌شود.</p>
+						<?php if ( true === $item['start_available'] ) : ?>
+							<form method="post" target="_blank" rel="noopener noreferrer" action="<?php echo esc_url( (string) ( $item['join_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit data-dzn-tp-reenable="5000"><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['join_nonce'] ?? '' ) ); ?>"><?php if ( ! empty( $item['confirmation_uid'] ) ) : ?><input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) $item['confirmation_uid'] ); ?>"><?php else : ?><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><?php endif; ?><button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال باز کردن لینک…">ورود با Google Meet</button></form>
+						<?php else : ?><p class="dzn-tp-help"><?php echo esc_html( $join_reason ); ?></p><?php endif; ?>
+					</section>
+					<section class="dzn-tp-detail-card"><h4>تأیید برگزاری و حضور</h4><p class="dzn-tp-detail-help">این گزارش شواهد بررسی است و به‌تنهایی وضعیت نهایی یا مالی کلاس را تعیین نمی‌کند.</p>
+						<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">تأیید برگزاری و حضور</button></form>
 						<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
 				</div>
 				<?php if ( true === ( $item['reschedule_available'] ?? false ) ) :

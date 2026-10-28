@@ -45,6 +45,35 @@ final class PortalAuthenticatedReadService {
         );
     }
 
+    /** Bounded current-Term progress for the Teacher's visible canonical Lessons. */
+    private function attachTeacherTermProgress(array $lessons): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $cache = array();
+        foreach ( $lessons as &$lesson ) {
+            $termId = (int) ( $lesson['term_id'] ?? 0 );
+            if ( $termId < 1 ) { continue; }
+            if ( ! isset( $cache[ $termId ] ) ) {
+                $row = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT COUNT(*) total,SUM(lifecycle_state='completed') completed,SUM(lifecycle_state='cancelled') cancelled
+                     FROM {$p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND archived_at IS NULL",
+                    $termId
+                ) );
+                if ( $wpdb->last_error !== '' ) throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+                $total = (int) ( $row->total ?? 0 );
+                $completed = (int) ( $row->completed ?? 0 );
+                $cancelled = (int) ( $row->cancelled ?? 0 );
+                $cache[ $termId ] = array( 'total' => $total, 'completed' => $completed, 'cancelled' => $cancelled, 'remaining' => max( 0, $total - $completed - $cancelled ) );
+            }
+            $lesson['term_lesson_total'] = $cache[ $termId ]['total'];
+            $lesson['term_lesson_completed'] = $cache[ $termId ]['completed'];
+            $lesson['term_lesson_cancelled'] = $cache[ $termId ]['cancelled'];
+            $lesson['term_lesson_remaining'] = $cache[ $termId ]['remaining'];
+        }
+        unset( $lesson );
+        return $lessons;
+    }
+
     /** Pending teacher-initiated reschedule proposals owned by this Student. */
     private function studentRescheduleProposals(int $studentId): array {
         global $wpdb;
@@ -163,6 +192,7 @@ final class PortalAuthenticatedReadService {
         $principal = (new PortalPrincipalResolver())->resolve('teacher');
         if ( ! ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository() )->hasActiveTeacherAuthority( (int) get_current_user_id(), (int) $principal['id'] ) ) throw new \InvalidArgumentException( 'teacher_onboarding_required' );
         $lessons = $this->lessonsFor('teacher', (int) $principal['id'], $principal, $fromUtc, $toUtc);
+        $lessons = $this->attachTeacherTermProgress($lessons);
         $assignments = $this->teacherAssignments((int) $principal['id'], $principal);
         $bookingClasses = (new TeacherUpcomingBookingReadService())->forTeacher((int) $principal['id'], $fromUtc, $toUtc);
         return array(

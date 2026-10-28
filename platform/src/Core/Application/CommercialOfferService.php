@@ -25,7 +25,8 @@ final class CommercialOfferService {
         private ?CommercialAdjustmentService $adjustments=null,
         private ?CanonicalContinuationRepository $continuations=null,
         private ?CheckoutSessionRepository $checkoutSessions=null,
-        private ?PostIntroRepository $postIntro=null
+        private ?PostIntroRepository $postIntro=null,
+        private ?CommercialPaymentService $payments=null
     ){
         $this->repository??=new CommercialAuthorityRepository();
         $this->catalogue??=new CommercialCatalogueService($this->repository);
@@ -34,6 +35,7 @@ final class CommercialOfferService {
         $this->continuations??=new CanonicalContinuationRepository();
         $this->checkoutSessions??=new CheckoutSessionRepository();
         $this->postIntro??=new PostIntroRepository();
+        $this->payments??=new CommercialPaymentService($this->repository);
     }
 
     /** Issue one authoritative offer for a continuing Student's first paid Term. */
@@ -368,6 +370,15 @@ final class CommercialOfferService {
             // so settlement cannot create a paid offer with no activation path.
             $this->repointPostIntroOffer((int)$offer->continuation_case_id,(int)$offer->id,$newOfferId,$newUid,$now);
 
+            // A 100% discount has a zero authorised payable amount. It is accepted through the
+            // internal zero-value settlement path so funding, entitlement and activation derive
+            // exactly as they do for verified payment, without creating a Stripe charge.
+            if($amountDue===0){
+                $zeroOffer=$this->repository->offer($newOfferId,true);
+                if(!$zeroOffer)throw new \RuntimeException('commercial_offer_integrity_conflict');
+                $this->payments->settleZeroValueOffer($zeroOffer,'student-promotion-zero:'.$newOfferId.':'.$studentId,$actor,$now);
+            }
+
             $newOffer=$this->repository->offer($newOfferId,true);
             if(!$newOffer)throw new \RuntimeException('commercial_offer_integrity_conflict');
             CommercialLineageValidator::assertOfferAggregate($newOfferId,true,$this->repository,$this->continuations);
@@ -527,7 +538,7 @@ final class CommercialOfferService {
             $adjustmentAmount=$this->adjustments->discountFor($adjustment,CommercialMoney::subtract($base,$promotionAmount));
         }
         $amountDue=$base-$promotionAmount-$adjustmentAmount;
-        if($amountDue<1)throw new \InvalidArgumentException('promotion_ineligible:commercial_offer_amount_invalid');
+        if($amountDue<0)throw new \InvalidArgumentException('promotion_ineligible:commercial_offer_amount_invalid');
         return array(
             'valid'=>true,'already_applied'=>false,'promotion_id'=>(int)$promotion->id,
             'kind'=>(string)$promotion->kind,'percentage_bp'=>$promotion->percentage_bp===null?null:(int)$promotion->percentage_bp,

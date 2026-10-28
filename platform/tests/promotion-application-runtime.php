@@ -7,7 +7,7 @@
  * portal consumes.
  */
 if(getenv('DZN_PROMOTION_APPLICATION_RUNTIME_TEST')!=='authority'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Promotion application runtime refused.\n");exit(1);}
-use Delnavazan\Platform\Core\Application\{CanonicalContinuationService,CommercialCatalogueService,CommercialOfferService,CommercialPaymentService,CommercialPromotionService,LessonScheduleService,LessonService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{CanonicalContinuationService,CommercialCatalogueService,CommercialOfferService,CommercialPaymentService,CommercialPromotionService,CommercialTermFundingService,LessonScheduleService,LessonService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Application\Checkout\StudentCommercialCheckoutReadService;
 use Delnavazan\Platform\Core\Support\Identifier;
 global $wpdb;$p=$wpdb->prefix.'dzn_';
@@ -223,8 +223,11 @@ $otherProduct=$promotions->define(array('promotion_code'=>'OTHERPRODUCT','kind'=
 dzn_promo_rejected(fn()=>$apply($offerC,'OTHERPRODUCT',(int)$c['student_id'],$principalC),'promotion_ineligible:promotion_product_mismatch','a promotion scoped to another product');
 
 $tooBig=$promotions->define(array('promotion_code'=>'TOOBIG','kind'=>'fixed','fixed_amount_minor'=>40000,'currency'=>'AUD','per_beneficiary_limit'=>1,'evidence_channel'=>'staff_record','evidence_reference'=>'promo-too-big','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_promo_key('promo-too-big'));
-dzn_promo_rejected(fn()=>$apply($offerC,'TOOBIG',(int)$c['student_id'],$principalC),'promotion_ineligible:commercial_offer_amount_invalid','a discount larger than the whole payable amount');
-dzn_promo_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_offers WHERE continuation_case_id=%d",(int)$c['case_id']))===1,'a refused promotion must not create a revision');
+$tooBigScenario=$scenario(2,'promo-too-big');
+$offerTooBig=$offerFor($tooBigScenario,$productC,'too-big');
+$principalTooBig=$principalOf((int)$tooBigScenario['student_id']);
+$appliedTooBig=$apply($offerTooBig,'TOOBIG',(int)$tooBigScenario['student_id'],$principalTooBig);
+dzn_promo_assert((int)$appliedTooBig['promotion_amount_minor']===30000&&(int)$appliedTooBig['final_amount_minor']===0&&(string)$appliedTooBig['offer_state']==='accepted','a fixed discount larger than the payable amount must be capped at exactly 100%');
 
 $round=$promotions->define(array('promotion_code'=>'ROUND3333','kind'=>'percentage','percentage_bp'=>3333,'per_beneficiary_limit'=>1,'evidence_channel'=>'staff_record','evidence_reference'=>'promo-round','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_promo_key('promo-round'));
 
@@ -261,7 +264,55 @@ $appliedC=$apply($offerC,'ROUND3333',(int)$c['student_id'],$principalC);
 dzn_promo_assert((int)$appliedC['promotion_amount_minor']===9999&&(int)$appliedC['final_amount_minor']===20001,'33.33% of 30000 must be exact integer minor units');
 
 // ---------------------------------------------------------------------------
-// C. A promotion reaching its global redemption limit after one settlement.
+// C. A 100% code settles at zero value, completes funding and creates activation work.
+// ---------------------------------------------------------------------------
+$f=$scenario(5,'promo-free');
+$productF=$productFor((int)$f['course_id'],'AU',25000);
+$offerF=$offerFor($f,$productF,'f');
+$principalF=$principalOf((int)$f['student_id']);
+$prepF=$wpdb->insert($p.'post_intro_preparations',array(
+    'uid'=>Identifier::uid(),'booking_request_id'=>9200000+wp_rand(1,99999),'outcome_id'=>9300000+wp_rand(1,99999),
+    'student_id'=>(int)$f['student_id'],'teacher_id'=>(int)$f['teacher_id'],'intro_lesson_id'=>(int)$f['lesson_id'],
+    'continuation_case_id'=>(int)$f['case_id'],'offer_id'=>(int)$offerF['offer_id'],'offer_uid'=>(string)$offerF['offer_uid'],
+    'state'=>'checkout_pending','created_at'=>gmdate('Y-m-d H:i:s'),'updated_at'=>gmdate('Y-m-d H:i:s'),
+));
+$preparationF=(int)$wpdb->insert_id;
+$choiceF=$wpdb->insert($p.'post_intro_plan_choices',array(
+    'uid'=>Identifier::uid(),'preparation_id'=>$preparationF,'active_slot'=>1,'student_id'=>(int)$f['student_id'],
+    'plan_kind'=>'full','quote_digest'=>str_repeat('e',64),'quoted_amount_due_minor'=>25000,'currency'=>'AUD',
+    'instalment_due_at'=>null,'policy_version'=>null,'offer_id'=>(int)$offerF['offer_id'],
+    'chosen_at'=>gmdate('Y-m-d H:i:s'),'chosen_by'=>$admin,'created_at'=>gmdate('Y-m-d H:i:s'),
+));
+dzn_promo_assert($prepF!==false&&$choiceF!==false&&$preparationF>0,'100% post-intro preparation fixture required');
+$free=$promotions->define(array('promotion_code'=>'FREE100','kind'=>'percentage','percentage_bp'=>10000,'per_beneficiary_limit'=>1,'evidence_channel'=>'staff_record','evidence_reference'=>'promo-free100','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_promo_key('promo-free100'));
+$appliedF=$apply($offerF,'FREE100',(int)$f['student_id'],$principalF);
+dzn_promo_assert($appliedF['applied']===true&&(int)$appliedF['final_amount_minor']===0,'a 100% code must produce an exact zero payable amount');
+dzn_promo_assert((int)$appliedF['promotion_amount_minor']===25000&&(string)$appliedF['offer_state']==='accepted','a 100% code must be accepted without a provider charge');
+$freeOfferRow=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_offers WHERE id=%d",(int)$appliedF['offer_id']));
+$freeOldRow=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_offers WHERE id=%d",(int)$offerF['offer_id']));
+$freeObligation=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_offer_obligations WHERE offer_id=%d ORDER BY obligation_sequence,id LIMIT 1",(int)$appliedF['offer_id']));
+$freeSettlement=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_obligation_settlements WHERE obligation_id=%d",(int)$freeObligation->id));
+$freeEvidence=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_payment_evidence WHERE id=%d",(int)$freeSettlement->evidence_id));
+$freePurchase=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_purchases WHERE offer_id=%d",(int)$appliedF['offer_id']));
+$freeRedemption=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_promotion_redemptions WHERE offer_id=%d",(int)$appliedF['offer_id']));
+dzn_promo_assert((string)$freeOldRow->state==='superseded'&&(int)$freeOldRow->amount_due_minor===25000,'the original offer must remain immutable after a 100% application');
+dzn_promo_assert($freeOfferRow!==null&&(int)$freeOfferRow->amount_due_minor===0&&(string)$freeOfferRow->state==='accepted','the 100% successor must be an accepted zero-value offer');
+dzn_promo_assert($freeSettlement!==null&&(int)$freeSettlement->amount_minor===0,'the zero-value obligation must be settled at exactly zero');
+dzn_promo_assert($freeEvidence!==null&&(string)$freeEvidence->evidence_kind==='promotion'&&(int)$freeEvidence->amount_minor===0&&(string)$freeEvidence->processing_state==='accepted','zero-value settlement must use internal accepted promotion evidence');
+dzn_promo_assert($freePurchase!==null&&(int)$freePurchase->amount_minor===0,'zero-value settlement must create a zero-value purchase');
+dzn_promo_assert($freeRedemption!==null&&(string)$freeRedemption->state==='consumed'&&(int)$freeRedemption->promotion_id===(int)$free['promotion_id'],'zero-value settlement must consume exactly one promotion redemption');
+dzn_promo_assert((int)(new CommercialTermFundingService())->effectiveSessions((int)$appliedF['offer_id'])===12,'zero-value settlement must make all 12 sessions effective');
+$freePreparation=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}post_intro_preparations WHERE id=%d",$preparationF));
+$freeJob=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}post_intro_activation_jobs WHERE purchase_id=%d",(int)$freePurchase->id));
+dzn_promo_assert($freePreparation!==null&&(int)$freePreparation->offer_id===(int)$appliedF['offer_id']&&(string)$freePreparation->state==='payment_received','the 100% path must keep the post-intro preparation on the live offer');
+dzn_promo_assert($freeJob!==null&&(int)$freeJob->funding_target===12,'the 100% path must create the activation job for all 12 sessions');
+wp_set_current_user($principalF);
+$freeRead=(new StudentCommercialCheckoutReadService())->read();
+wp_set_current_user($admin);
+dzn_promo_assert(count($freeRead['obligations'])===1&&$freeRead['obligations'][0]['payment_state']==='paid'&&$freeRead['obligations'][0]['term_paid']===true,'the Student portal must show the 100% offer as paid');
+
+// ---------------------------------------------------------------------------
+// D. A promotion reaching its global redemption limit after one settlement.
 // ---------------------------------------------------------------------------
 $d=$scenario(3,'promo-d');
 $productD=$productFor((int)$d['course_id'],'AU',25000);
@@ -277,5 +328,26 @@ $settledD=$settle($appliedD,'promo-d-current',22500);
 dzn_promo_assert($settledD['processing_state']==='accepted','the first limited redemption must settle');
 dzn_promo_rejected(fn()=>$apply($offerE,'ONCE10',(int)$e['student_id'],$principalE),'promotion_ineligible:promotion_usage_limit_reached','a promotion whose global limit is already consumed');
 dzn_promo_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_offers WHERE continuation_case_id=%d",(int)$e['case_id']))===1,'a limit refusal must not create a revision');
+
+// The Finance → Payments panel must render the create form with the exact requested controls.
+wp_set_current_user($admin);
+$previousGet=$_GET;
+$_GET=array('page'=>'dzn-finance','tab'=>'payments');
+ob_start();
+\Delnavazan\Platform\Admin\Controller\FinanceAdminController::screen();
+$adminHtml=(string)ob_get_clean();
+$_GET=$previousGet;
+foreach(array('id="discount-codes"','name="promotion_code"','name="promotion_percentage"','name="max_redemptions"','name="per_beneficiary_limit"','name="stackable"','max="100"') as $needle){
+    dzn_promo_assert(str_contains($adminHtml,$needle),'the Finance Payments discount-code panel is missing: '.$needle);
+}
+
+// The dashboard percentage parser must accept exactly 100% and still reject values above it.
+$adminPercentage=new \ReflectionMethod(\Delnavazan\Platform\Admin\Controller\FinanceAdminController::class,'promotionPercentageBasisPoints');
+dzn_promo_assert($adminPercentage->invoke(null,'100')===10000,'the dashboard parser must accept 100%');
+dzn_promo_assert($adminPercentage->invoke(null,'10.5')===1050,'the dashboard parser must accept fractional percentages');
+dzn_promo_assert($adminPercentage->invoke(null,'0.01')===1,'the dashboard parser must accept the minimum percentage');
+$overPercentage=false;
+try{$adminPercentage->invoke(null,'100.01');}catch(\Throwable$ignored){$overPercentage=true;}
+dzn_promo_assert($overPercentage,'the dashboard parser must reject more than 100%');
 
 echo "Promotion application runtime passed\n";

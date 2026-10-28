@@ -48,6 +48,11 @@ final class CommercialRule {
     public const CLAIM_SOURCE_KINDS=array('q_succession','regular_pattern');
     public const CLAIM_RELEASE_REASONS=array('payment_opportunity_lapsed','commercial_resolution','commitment_cancelled');
     public const EVIDENCE_KINDS=array('attempt','success','failure','refund','mandate');
+    /**
+     * Internal evidence produced by the Platform itself, never accepted from a provider or a
+     * browser. `promotion` is the zero-value settlement of a fully discounted offer.
+     */
+    public const INTERNAL_EVIDENCE_KINDS=array('promotion');
     public const EVIDENCE_STATES=array('accepted','rejected','unmatched');
     public const PATTERN_STATES=array('active','superseded','retired');
     public const PATTERN_SOURCE_KINDS=array('continuation_slot_authority');

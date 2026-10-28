@@ -67,7 +67,9 @@ final class CommercialPromotionService {
             return array('promotion_id'=>$id,'kind'=>$kind,'status'=>$status,'code_registered'=>$codeDigest!==null,'created'=>true);
         }catch(\Throwable$e){
             $this->repository->rollback();
-            if($this->repository->duplicate($e)==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replay($winner,$payload);
+            $constraint=$this->repository->duplicate($e);
+            if($constraint==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replay($winner,$payload);
+            if($constraint==='code_digest')throw new \InvalidArgumentException('promotion_code_exists');
             throw $e;
         }
     }
@@ -150,7 +152,9 @@ final class CommercialPromotionService {
     }
     private function view(object $promotion):array{
         return array(
-            'promotion_id'=>(int)$promotion->id,'kind'=>(string)$promotion->kind,'status'=>(string)$promotion->status,
+            'promotion_id'=>(int)$promotion->id,'name'=>$promotion->name===null?null:(string)$promotion->name,
+            'kind'=>(string)$promotion->kind,'status'=>(string)$promotion->status,
+            'code_registered'=>$promotion->code_digest!==null,
             'percentage_bp'=>$promotion->percentage_bp===null?null:(int)$promotion->percentage_bp,
             'fixed_amount_minor'=>$promotion->fixed_amount_minor===null?null:(int)$promotion->fixed_amount_minor,
             'currency'=>$promotion->currency===null?null:(string)$promotion->currency,
@@ -159,6 +163,9 @@ final class CommercialPromotionService {
             'max_redemptions'=>$promotion->max_redemptions===null?null:(int)$promotion->max_redemptions,
             'per_beneficiary_limit'=>(int)$promotion->per_beneficiary_limit,
             'stackable'=>(int)$promotion->stackable===1,
+            'valid_from'=>$promotion->valid_from===null?null:(string)$promotion->valid_from,
+            'valid_until'=>$promotion->valid_until===null?null:(string)$promotion->valid_until,
+            'archived_at'=>$promotion->archived_at===null?null:(string)$promotion->archived_at,
         );
     }
     private function replay(object $command,string $payload):array{

@@ -146,16 +146,75 @@ final class CommercialPaymentService {
 
 
     /**
+     * Accept a fully discounted offer whose authorised amount due is exactly zero.
+     *
+     * The caller owns the surrounding commercial transaction, has locked the account root and has
+     * proved that the offer belongs to the acting Student. One internal `promotion` evidence row and
+     * one zero-value settlement per obligation are written, so purchase, entitlement, funding and
+     * activation derive exactly as they do for verified provider evidence. No provider charge is
+     * created and no provider boundary is bypassed.
+     *
+     * @return array<string,mixed>
+     */
+    public function settleZeroValueOffer(object $offer,string $key,int $actor,string $now):array{
+        $offerId=(int)$offer->id;
+        if($offerId<1||(int)$offer->amount_due_minor!==0)throw new \InvalidArgumentException('commercial_zero_value_offer_required');
+        if((string)$offer->state!=='issued')throw new \InvalidArgumentException('commercial_zero_value_offer_not_payable');
+        $obligations=$this->repository->obligationsForOffer($offerId,true);
+        if(!$obligations)throw new \InvalidArgumentException('commercial_obligation_required');
+        $benefitsConsumed=$offer->promotion_id!==null&&$this->repository->redemptionForOffer($offerId)!==null;
+        $result=null;
+        foreach($obligations as $obligation){
+            $sequence=(int)$obligation->obligation_sequence;
+            $providerKey='platform';
+            $reference='promotion-zero:'.(string)$offer->uid.':'.$sequence;
+            $providerDigest=CommercialIdempotency::providerReference($providerKey,$reference);
+            $existing=$this->payments->evidenceByProviderReference($providerKey,$providerDigest,true);
+            if($existing){$result=$this->evidenceOutcome($existing);continue;}
+            $obligationDigest=(string)$obligation->obligation_reference_digest;
+            $purchase=$this->repository->purchaseByOffer($offerId,true);
+            $factDigest=CommercialIdempotency::providerFact(array(
+                'provider_key'=>$providerKey,'provider_reference_digest'=>$providerDigest,'evidence_kind'=>'promotion',
+                'amount_minor'=>0,'currency'=>(string)$offer->currency,'obligation_reference_digest'=>$obligationDigest,
+                'provider_occurred_at'=>$now,'provider_account_digest'=>null,'offer_id'=>$offerId,'obligation_id'=>(int)$obligation->id,
+            ));
+            $evidenceId=$this->payments->insertEvidence(array(
+                'uid'=>Identifier::uid(),'reference_code'=>null,'provider_key'=>$providerKey,'provider_account_digest'=>null,
+                'evidence_reference_digest'=>$providerDigest,'evidence_fact_digest'=>$factDigest,'evidence_kind'=>'promotion',
+                'amount_minor'=>0,'currency'=>(string)$offer->currency,'obligation_reference_digest'=>$obligationDigest,
+                'provider_occurred_at'=>$now,'ingested_at'=>$now,'processing_state'=>'accepted','reason_code'=>null,
+                'offer_id'=>$offerId,'purchase_id'=>$purchase?(int)$purchase->id:null,'obligation_id'=>(int)$obligation->id,
+                'created_at'=>$now,'created_by'=>$actor,
+            ));
+            $digest=CommercialSupport::keyString($key.':zero:'.$sequence);
+            $payload=CommercialIdempotency::payload(array(
+                'domain'=>CommercialRule::DOMAIN,'operation'=>'settle_zero_value','offer_id'=>$offerId,
+                'obligation_id'=>(int)$obligation->id,'amount_minor'=>0,'currency'=>(string)$offer->currency,
+                'occurred_at'=>$now,
+            ));
+            // Re-read after the previous iteration may have accepted the offer and created the
+            // purchase/entitlement. The commercial benefits are consumed once per offer.
+            $current=$this->repository->offer($offerId,true);
+            if(!$current)throw new \InvalidArgumentException('commercial_offer_required');
+            $purchase=$this->repository->purchaseByOffer($offerId,true);
+            $result=$this->settleAcceptedEvidence($current,$obligation,$evidenceId,$purchase,0,(string)$offer->currency,$now,$digest,$payload,$actor,$now,!$benefitsConsumed);
+            $benefitsConsumed=true;
+        }
+        if($result===null)throw new \RuntimeException('commercial_zero_value_settlement_required');
+        return $result;
+    }
+
+    /**
      * Settle one accepted evidence row and materialise its purchase/entitlement truth.
      * The caller owns the surrounding transaction and commit.
      *
      * @return array<string,mixed>
      */
-    private function settleAcceptedEvidence(object $offer,object $obligation,int $evidenceId,?object $purchase,int $amount,string $currency,string $occurredAt,string $digest,string $payload,int $actor,string $now):array{
+    private function settleAcceptedEvidence(object $offer,object $obligation,int $evidenceId,?object $purchase,int $amount,string $currency,string $occurredAt,string $digest,string $payload,int $actor,string $now,bool $consumeBenefits=true):array{
         $studentId=(int)$offer->beneficiary_student_id;
         // Accepted purchase convergence is the ONLY boundary at which the accepted offer's
         // commercial benefits are consumed. Offer issuance merely snapshots them.
-        $this->consumeBenefits($offer,$occurredAt,$now,$actor);
+        if($consumeBenefits)$this->consumeBenefits($offer,$occurredAt,$now,$actor);
         $this->payments->insertSettlement(array(
             'uid'=>Identifier::uid(),'obligation_id'=>(int)$obligation->id,'evidence_id'=>$evidenceId,
             'amount_minor'=>$amount,'currency'=>$currency,'settled_at'=>$now,

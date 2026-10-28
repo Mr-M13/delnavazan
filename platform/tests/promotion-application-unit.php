@@ -26,6 +26,8 @@ promotion_unit_assert(CommercialMoney::percentage(10001, 1000) === 1000, '10% of
 promotion_unit_assert(CommercialMoney::percentage(25000, 3333) === 8333, '3333 bp of 25000 must be 8333');
 promotion_unit_assert(CommercialMoney::percentage(1, 5000) === 1, '50% of one minor unit must round half-up to one');
 promotion_unit_assert(CommercialMoney::percentage(0, 10000) === 0, 'A zero amount must never produce a discount');
+promotion_unit_assert(CommercialMoney::percentage(25000, 10000) === 25000, 'A 100% promotion must discount the whole payable amount');
+promotion_unit_assert(CommercialMoney::subtract(25000, 25000) === 0, 'A 100% promotion must produce an exact zero payable amount');
 
 // A discount is capped by the eligible payable amount and can never create a negative balance.
 promotion_unit_assert(CommercialMoney::discount(25000, 30000) === 25000, 'A fixed discount must be capped at the payable amount');
@@ -66,5 +68,16 @@ promotion_unit_assert(!CommercialValidator::offerValid($mutated, array($obligati
 $wrongObligation = clone $obligation;
 $wrongObligation->amount_minor = 20000;
 promotion_unit_assert(!CommercialValidator::offerValid($offer, array($wrongObligation), array($adjustment)), 'Obligations must sum to the amount due');
+
+// A fully discounted offer is structurally valid with a zero payable amount and zero obligations.
+$freeOffer = clone $offer;
+$freeOffer->discount_total_minor = 25000;
+$freeOffer->amount_due_minor = 0;
+$freeOffer->promotion_amount_minor = 25000;
+$freeObligation = clone $obligation;
+$freeObligation->amount_minor = 0;
+$freeAdjustment = clone $adjustment;
+$freeAdjustment->applied_amount_minor = 25000;
+promotion_unit_assert(CommercialValidator::offerValid($freeOffer, array($freeObligation), array($freeAdjustment)), 'A 100% discounted offer must be valid at zero payable');
 
 echo "Promotion application financial unit passed\n";

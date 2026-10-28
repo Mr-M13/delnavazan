@@ -78,11 +78,15 @@ final class CommercialValidator {
     public static function evidenceValid(object $evidence):bool{
         if(trim((string)$evidence->provider_key)==='')return false;
         if(!self::digest((string)$evidence->evidence_reference_digest))return false;
-        if(!in_array((string)$evidence->evidence_kind,CommercialRule::EVIDENCE_KINDS,true))return false;
+        $kind=(string)$evidence->evidence_kind;
+        if(!in_array($kind,array_merge(CommercialRule::EVIDENCE_KINDS,CommercialRule::INTERNAL_EVIDENCE_KINDS),true))return false;
         if(!in_array((string)$evidence->processing_state,CommercialRule::EVIDENCE_STATES,true))return false;
         $amount=$evidence->amount_minor;$currency=$evidence->currency;
         if(($amount===null)!==($currency===null))return false;
-        if($amount!==null&&(int)$amount<1)return false;
+        // An internal `promotion` fact is the exact zero-value settlement of a fully discounted
+        // offer. Every provider-facing evidence kind still requires a positive amount.
+        if($amount!==null&&(int)$amount<0)return false;
+        if($amount!==null&&(int)$amount<1&&$kind!=='promotion')return false;
         if($currency!==null&&CommercialRule::currency((string)$currency)!==(string)$currency)return false;
         if($evidence->obligation_reference_digest!==null&&!self::digest((string)$evidence->obligation_reference_digest))return false;
         if(!self::digest((string)($evidence->evidence_fact_digest??'')))return false;

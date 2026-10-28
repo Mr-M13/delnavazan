@@ -98,7 +98,9 @@ final class StudentCommercialCheckoutReadService {
                     'offer_currency'=>(string)$offer->currency,
                     'offer_expires_at'=>$offer->expires_at===null?null:(string)$offer->expires_at,
                     'term_sequence'=>$termSequence,
-                    'term_paid'=>$totalMinor>0&&$paidMinor>=$totalMinor,
+                    // A fully discounted offer has a zero total, but it is still paid when every
+                    // obligation has a verified (or internal zero-value) settlement.
+                    'term_paid'=>$paidObligations>0&&$paidObligations===count($obligations),
                     'paid_minor'=>$paidMinor,
                     'outstanding_minor'=>max(0,$totalMinor-$paidMinor),
                     'paid_instalments'=>$paidObligations,

@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\CommercialPolicyService;
+use Delnavazan\Platform\Core\Application\CommercialPromotionService;
 use Delnavazan\Platform\Core\Application\CommercialRule;
 use Delnavazan\Platform\Core\Application\Finance\FinancePolicyService;
 use Delnavazan\Platform\Core\Application\Finance\FinanceRule;
@@ -36,6 +37,7 @@ final class FinanceAdminController {
 
     public static function register(): void {
         add_action('admin_post_dzn_finance_settings', array(__CLASS__, 'handleSettings'));
+        add_action('admin_post_dzn_finance_promotion', array(__CLASS__, 'handlePromotion'));
         add_action('admin_post_dzn_finance_statement_export', array(__CLASS__, 'exportStatement'));
     }
 
@@ -142,6 +144,94 @@ final class FinanceAdminController {
         exit;
     }
 
+    /** Create or deactivate one Student discount code from Finance → Payments. */
+    public static function handlePromotion(): void {
+        if (!current_user_can('dzn_manage_commercial_promotions')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_promotion');
+        $_POST = wp_unslash($_POST);
+        $operation = sanitize_key((string) ($_POST['promotion_operation'] ?? ''));
+        $result = 'error';
+        $errorCode = '';
+        $promotionId = 0;
+        try {
+            $service = new CommercialPromotionService();
+            if ($operation === 'create') {
+                $code = strtoupper(trim((string) ($_POST['promotion_code'] ?? '')));
+                if (preg_match('/^[A-Z0-9._-]{3,64}$/D', $code) !== 1) {
+                    throw new \InvalidArgumentException('promotion_code_invalid');
+                }
+                $percentage = trim(str_replace(',', '.', (string) ($_POST['promotion_percentage'] ?? '')));
+                $basisPoints = self::promotionPercentageBasisPoints($percentage);
+                $maxRedemptions = self::promotionLimit($_POST['max_redemptions'] ?? '', 1000000, true, 'promotion_limit_invalid');
+                $perBeneficiary = self::promotionLimit($_POST['per_beneficiary_limit'] ?? '1', 100, false, 'promotion_limit_invalid');
+                $created = $service->define(array(
+                    'promotion_code' => $code,
+                    'name' => 'Student percentage discount',
+                    'kind' => 'percentage',
+                    'percentage_bp' => $basisPoints,
+                    'first_term_only' => false,
+                    'max_redemptions' => $maxRedemptions,
+                    'per_beneficiary_limit' => $perBeneficiary,
+                    'stackable' => isset($_POST['stackable']) ? 1 : 0,
+                    'status' => 'active',
+                    'evidence_channel' => 'staff_record',
+                    'evidence_reference' => 'admin-promotion-' . strtolower($code) . '-' . gmdate('YmdHis'),
+                    'evidence_at' => gmdate('Y-m-d H:i:s'),
+                ), 'admin-promotion-' . strtolower($code) . '-' . wp_generate_uuid4());
+                $promotionId = (int) ($created['promotion_id'] ?? 0);
+                $result = 'promotion_created';
+            } elseif ($operation === 'deactivate') {
+                $promotionId = absint($_POST['promotion_id'] ?? 0);
+                if ($promotionId < 1) throw new \InvalidArgumentException('promotion_required');
+                $service->updateStatus($promotionId, array(
+                    'status' => 'inactive',
+                    'reason_code' => 'admin_deactivated',
+                    'evidence_channel' => 'staff_record',
+                    'evidence_reference' => 'admin-promotion-deactivate-' . $promotionId . '-' . gmdate('YmdHis'),
+                    'evidence_at' => gmdate('Y-m-d H:i:s'),
+                ), 'admin-promotion-deactivate-' . $promotionId . '-' . wp_generate_uuid4());
+                $result = 'promotion_deactivated';
+            } else {
+                throw new \InvalidArgumentException('promotion_operation_invalid');
+            }
+        } catch (\Throwable $error) {
+            $message = trim($error->getMessage());
+            $errorCode = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'promotion_operation_failed';
+        }
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS, 'finance_result' => $result);
+        if ($errorCode !== '') $args['finance_error'] = $errorCode;
+        if ($promotionId > 0) $args['finance_promotion_id'] = $promotionId;
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#discount-codes');
+        exit;
+    }
+
+    /** Parse a human percentage (including 100) into exact integer basis points. */
+    private static function promotionPercentageBasisPoints(string $value): int {
+        if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/D', $value, $matches) !== 1) {
+            throw new \InvalidArgumentException('promotion_percentage_invalid');
+        }
+        $whole = (int) $matches[1];
+        $fraction = isset($matches[2]) ? str_pad($matches[2], 2, '0') : '00';
+        $basisPoints = $whole * 100 + (int) $fraction;
+        if ($basisPoints < 1 || $basisPoints > 10000) {
+            throw new \InvalidArgumentException('promotion_percentage_invalid');
+        }
+        return $basisPoints;
+    }
+
+    /** Parse an optional positive usage limit without accepting floats or signs. */
+    private static function promotionLimit(mixed $value, int $max, bool $nullable, string $error): ?int {
+        $value = trim((string) $value);
+        if ($value === '') {
+            if ($nullable) return null;
+            throw new \InvalidArgumentException($error);
+        }
+        if (preg_match('/^\d{1,8}$/D', $value) !== 1) throw new \InvalidArgumentException($error);
+        $limit = (int) $value;
+        if ($limit < 1 || $limit > $max) throw new \InvalidArgumentException($error);
+        return $limit;
+    }
+
     public static function exportStatement(): void {
         if (!current_user_can('dzn_view_finance_authority')) wp_die('Forbidden', 403);
         check_admin_referer('dzn_finance_statement_export');
@@ -222,6 +312,58 @@ final class FinanceAdminController {
             echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG . '&tab=' . self::TAB_SETTINGS . '#stripe')) . '">Open Stripe configuration and readiness</a></p>';
         }
         echo '<p class="description">Failed or unmatched Stripe events are reconciled only through the existing guarded action in the payment execution service. No provider payload or secret is shown here.</p></section>';
+        self::renderPromotionCodes();
+    }
+
+    /** Create, list and deactivate Student percentage discount codes. */
+    private static function renderPromotionCodes(): void {
+        $canView = current_user_can('dzn_view_commercial_authority');
+        $canManage = current_user_can('dzn_manage_commercial_promotions');
+        if (!$canView && !$canManage) return;
+        echo '<section class="dzn-finance-panel" id="discount-codes"><h2>Discount codes</h2>';
+        echo '<p>Create a percentage code that Students can apply themselves on the payment page. The backend re-reads the offer, recalculates the discount and controls Checkout; the browser never supplies an amount. A 100% code settles the offer at zero value and completes the enrolment without a Stripe charge.</p>';
+        if ($canManage) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-promotion-form">';
+            echo '<input type="hidden" name="action" value="dzn_finance_promotion"><input type="hidden" name="promotion_operation" value="create">';
+            wp_nonce_field('dzn_finance_promotion');
+            echo '<label for="dzn-promotion-code">Code <span class="dzn-finance-muted">(3–64 letters, numbers, . _ -)</span><input id="dzn-promotion-code" type="text" name="promotion_code" maxlength="64" pattern="[A-Za-z0-9._-]{3,64}" autocomplete="off" spellcheck="false" required></label>';
+            echo '<label for="dzn-promotion-percentage">Discount %<input id="dzn-promotion-percentage" type="number" name="promotion_percentage" min="0.01" max="100" step="0.01" required></label>';
+            echo '<label for="dzn-promotion-max">Total uses <span class="dzn-finance-muted">(blank = unlimited)</span><input id="dzn-promotion-max" type="number" name="max_redemptions" min="1" max="1000000" step="1"></label>';
+            echo '<label for="dzn-promotion-per">Uses per Student<input id="dzn-promotion-per" type="number" name="per_beneficiary_limit" min="1" max="100" step="1" value="1" required></label>';
+            echo '<label class="dzn-finance-checkbox" for="dzn-promotion-stackable"><input id="dzn-promotion-stackable" type="checkbox" name="stackable" value="1"> Can combine with another code</label>';
+            echo '<button class="button button-primary">Create discount code</button></form>';
+            echo '<p class="description">The stackable flag is saved on the code. The current payment authority applies one promotion per offer, so a second code is rejected as already applied; true multi-code stacking requires a later schema change. The raw code is never stored and cannot be displayed again — keep a record when you create it.</p>';
+        }
+        try {
+            $promotions = (new CommercialPromotionService())->promotions();
+        } catch (\Throwable) {
+            $promotions = array();
+        }
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>ID</th><th>Discount</th><th>Status</th><th>Total uses</th><th>Per Student</th><th>Stackable</th><th>Valid from</th><th>Valid until</th><th>Action</th></tr></thead><tbody>';
+        if (!$promotions) echo '<tr><td colspan="9">No discount codes have been created yet.</td></tr>';
+        foreach ($promotions as $promotion) {
+            $id = (int) $promotion['promotion_id'];
+            $discount = $promotion['kind'] === 'percentage' && $promotion['percentage_bp'] !== null
+                ? number_format(((int) $promotion['percentage_bp']) / 100, 2) . '%'
+                : ($promotion['fixed_amount_minor'] !== null ? PricingMoney::format((int) $promotion['fixed_amount_minor'], (string) $promotion['currency']) : '—');
+            $status = (string) $promotion['status'];
+            if ($promotion['archived_at'] !== null) $status .= ' · archived';
+            $max = $promotion['max_redemptions'] === null ? 'Unlimited' : (string) $promotion['max_redemptions'];
+            $from = $promotion['valid_from'] ?? '—';
+            $until = $promotion['valid_until'] ?? '—';
+            echo '<tr><td>#' . $id . '</td><td>' . esc_html($discount) . '</td><td><span class="dzn-finance-pill">' . esc_html($status) . '</span></td><td>' . esc_html($max) . '</td><td>' . esc_html((string) (int) $promotion['per_beneficiary_limit']) . '</td><td>' . (!empty($promotion['stackable']) ? 'Yes' : 'No') . '</td><td>' . esc_html((string) $from) . '</td><td>' . esc_html((string) $until) . '</td><td>';
+            if ($canManage && $status === 'active') {
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
+                echo '<input type="hidden" name="action" value="dzn_finance_promotion"><input type="hidden" name="promotion_operation" value="deactivate"><input type="hidden" name="promotion_id" value="' . $id . '">';
+                wp_nonce_field('dzn_finance_promotion');
+                echo '<button class="button button-small">Deactivate</button></form>';
+            } else {
+                echo '—';
+            }
+            echo '</td></tr>';
+        }
+        echo '</tbody></table>';
+        echo '<p class="description">Codes are case-insensitive. A code that has reached its total-use limit, its per-Student limit, or its validity window is rejected by the backend. The stackable flag is recorded but is not yet enforced for multi-code offers.</p></section>';
     }
 
     private static function renderInstalmentSchedules(FinanceAdminReadService $read): void {
@@ -629,11 +771,17 @@ final class FinanceAdminController {
             'template_saved' => array('success', 'The statement template was saved. Financial calculations were not changed.'),
             'template_reset' => array('success', 'The statement template was reset to the delivered default.'),
             'policy_saved' => array('success', 'A new policy version was recorded.'),
+            'promotion_created' => array('success', 'The discount code was created and is active.'),
+            'promotion_deactivated' => array('success', 'The discount code was deactivated. Existing offers keep their recorded snapshot.'),
             'use_settings' => array('info', 'Student pricing is configured once per region in Finance → Settings. No technical catalogue fields were changed.'),
             'error' => array('error', 'The change was not saved. Review the highlighted values, permissions and effective dates, then try again.'),
         );
         if (isset($messages[$state])) {
             $detail = '';
+            if ($state === 'promotion_created') {
+                $createdId = absint(self::query('finance_promotion_id'));
+                if ($createdId > 0) $detail = 'Promotion #' . $createdId . '.';
+            }
             if ($state === 'error') {
                 $detailMap = array(
                     'invalid_amount' => 'Enter a valid amount.',
@@ -650,6 +798,14 @@ final class FinanceAdminController {
                     'unsafe_template_url' => 'The logo URL must use https.',
                     'template_html_too_large' => 'The template HTML is too large.',
                     'template_css_too_large' => 'The template CSS is too large.',
+                    'promotion_code_invalid' => 'Use 3–64 letters, numbers, dots, underscores or hyphens for the code.',
+                    'promotion_percentage_invalid' => 'Enter a discount percentage from 0.01 to 100.',
+                    'promotion_limit_invalid' => 'Enter a whole number within the allowed usage range.',
+                    'promotion_code_exists' => 'That code already exists. Choose a different code.',
+                    'promotion_required' => 'Choose a discount code to deactivate.',
+                    'commercial_promotion_required' => 'The discount code was not found.',
+                    'promotion_operation_invalid' => 'The requested discount-code operation is not supported.',
+                    'promotion_operation_failed' => 'The discount-code change failed. No financial record was changed.',
                 );
                 $detail = $detailMap[self::query('finance_error')] ?? '';
             }
@@ -734,6 +890,11 @@ final class FinanceAdminController {
         .dzn-finance-region-card h3{margin-block-start:0}.dzn-finance-region-card label{display:block;margin-block:8px}.dzn-finance-region-card input:not([type=radio]):not([type=checkbox]),.dzn-finance-region-card select{width:100%;margin-block-start:4px}
         .dzn-finance-split{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
         .dzn-finance-inline-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-block:12px}.dzn-finance-inline-form label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:12px}
+        .dzn-finance-promotion-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end;margin-block:14px;padding:14px;border:1px solid #dcdcde;border-radius:6px;background:#f6f7f7}
+        .dzn-finance-promotion-form label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:12px}
+        .dzn-finance-promotion-form input[type=text],.dzn-finance-promotion-form input[type=number]{width:100%;margin-block-start:0}
+        .dzn-finance-promotion-form .dzn-finance-checkbox{flex-direction:row;align-items:center;gap:8px;min-block-size:30px;font-weight:600}
+        .dzn-finance-promotion-form .dzn-finance-checkbox input{margin:0}
         .dzn-finance-statement-preview{margin-block-start:20px}.dzn-finance-statement-preview__head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
         .dzn-finance-statement-frame{width:100%;min-height:620px;border:1px solid #dcdcde;border-radius:6px;background:#fff}.dzn-finance-template-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,1fr);gap:18px;align-items:start}
         .dzn-finance-template-grid textarea{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.dzn-finance-template-preview{position:sticky;top:40px}

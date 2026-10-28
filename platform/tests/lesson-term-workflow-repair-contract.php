@@ -88,13 +88,14 @@ $assert(str_contains($postIntroActivation, 'stableEvidenceAt') && !str_contains(
 // 4. Unscheduled canonical Lessons must not break portal reads; scheduled classes stay authoritative.
 $contains($portalRead, array(
     'INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1',
-    'ORDER BY v.starts_at_utc DESC,l.id DESC',
+    'ORDER BY v.starts_at_utc {$direction},l.id {$direction}',
+    '$window = null !== $fromUtc && null !== $toUtc',
     'authorised but unscheduled Lesson has no date/time to present',
-), 'portal lesson reads must select the newest scheduled canonical classes rather than failing on an unscheduled one');
+), 'portal lesson reads must select bounded scheduled canonical classes rather than failing on an unscheduled one');
 $contains($portalBridge, array(
     "\$student_timezone = (string) ( \$student_profile['timezone'] ?? '' );",
     "\$display_timezone = \$student_timezone;",
-    "dzn_theme_platform_zoned_time( \$lesson['starts_at_utc'] ?? '', 'j F Y', \$timezone )",
-), 'the Student Portal must present upcoming lessons in the canonical Student timezone while retaining authoritative UTC schedule facts');
+    "dzn_theme_platform_calendar_time( \$next['starts_at_utc'] ?? '', \$display_timezone, \$student_calendar, \$student_locale, 'date' )",
+), 'the Student Portal must present upcoming lessons in the canonical Student timezone and calendar preference while retaining authoritative UTC schedule facts');
 
 echo "PASS Terms, Classes, introductory outcome and portal visibility workflow repair\n";

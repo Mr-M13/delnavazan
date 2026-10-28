@@ -1274,3 +1274,13 @@
     align-items: start;
   }
 }
+
+/* Pending teacher-initiated reschedule proposals. */
+.dzn-reschedule-list{display:grid;gap:.75rem;list-style:none;margin:0;padding:0}
+.dzn-reschedule-card{display:grid;gap:1rem;border:1px solid var(--dzn-color-border);border-inline-start:5px solid var(--dzn-color-warning);border-radius:1rem;padding:1rem}
+.dzn-reschedule-card__facts h3{margin:0 0 .25rem}
+.dzn-reschedule-card__facts p{margin:.15rem 0}
+.dzn-reschedule-card__actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.dzn-reschedule-card__actions form{display:contents}
+@media (min-width:48rem){.dzn-reschedule-card{grid-template-columns:minmax(0,1fr) auto;align-items:center}}
+@media (max-width:35rem){.dzn-reschedule-card__actions form{display:block;inline-size:100%}.dzn-reschedule-card__actions .dzn-button{inline-size:100%}}

@@ -29,7 +29,7 @@ $theme = $read('../theme/template-parts/portal/post-intro.php');
 $checkoutUi = $read('../theme/assets/js/checkout.js');
 $payments = $read('../theme/template-parts/portal/payments.php');
 
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '52'"), 'B2a must publish Schema 52');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '54'"), 'B2a must publish Schema 54');
 $contains($migration, array(
     "'052_payment_plan_choice'", 'install_payment_plan_choice', 'verify_payment_plan_choice_schema',
     'post_intro_plan_choices', 'preparation_active', 'quote_digest', 'funding_target', 'funding_materialised',

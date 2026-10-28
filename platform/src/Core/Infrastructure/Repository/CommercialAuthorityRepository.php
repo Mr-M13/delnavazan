@@ -153,6 +153,11 @@ final class CommercialAuthorityRepository {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offers WHERE continuation_case_id=%d ORDER BY id",$caseId))?:array();
     }
+    /** The newest immutable offer revision for one continuation case; the live offer is the last row. */
+    public function latestOfferForContinuation(int $caseId,bool $lock=false):?object{
+        $suffix=$lock?' FOR UPDATE':'';
+        return $this->one("SELECT * FROM {$this->p}commercial_offers WHERE continuation_case_id=%d ORDER BY id DESC LIMIT 1".$suffix,$caseId);
+    }
     public function offersForBeneficiary(int $studentId):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offers WHERE beneficiary_student_id=%d ORDER BY id DESC",$studentId))?:array();

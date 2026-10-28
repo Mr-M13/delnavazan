@@ -115,3 +115,4 @@ add_action( 'dzn_teacher_activated', static function ( int $teacherId ): void {
 	}
 }, 10, 1 );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\StudentCheckoutController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\CommercialPromotionRestController', 'register' ) );

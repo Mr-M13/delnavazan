@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Portals\{AuthenticatedPortalReadSubject,StudentEnrolmentPortalReadPort};
-use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,CourseRepository,EnrolmentRepository,StudentRepository,TeacherAssignmentRepository,TeacherRepository};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,CourseRepository,EnrolmentRepository,InstrumentRepository,StudentRepository,TeacherAssignmentRepository,TeacherRepository};
 
 /**
  * Student-owned Enrolment read that is usable before Term/Teacher Assignment provisioning.
@@ -51,13 +51,18 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
         }
 
         $teacherReference = '';
+        $teacherName = '';
         if ($assignment) {
             $teacher = (new TeacherRepository())->find((int) $assignment->teacher_id);
             if (!$teacher || $teacher->archived_at !== null || trim((string) $teacher->reference_code) === '') {
                 throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
             }
             $teacherReference = (string) $teacher->reference_code;
+            $teacherName = trim((string) ($teacher->display_name ?? ''));
+            if ($teacherName === '') { $teacherName = trim((string) ($teacher->english_name ?? $teacher->persian_name ?? $teacher->reference_code)); }
         }
+        $instrument = (new InstrumentRepository())->find((int) ($course->instrument_id ?? 0));
+        $instrumentName = $instrument ? (trim((string) ($instrument->name_fa ?? '')) !== '' ? (string) $instrument->name_fa : (string) ($instrument->name_en ?? '')) : (trim((string) ($course->name_fa ?? '')) !== '' ? (string) $course->name_fa : (string) ($course->name_en ?? ''));
 
         $termReference = '';
         $termState = 'none';
@@ -111,6 +116,9 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
             'enrolment_uid' => (string) $enrolment->uid,
             'course_reference' => (string) $course->reference_code,
             'course_name' => trim((string) ($course->name_fa ?? '')) !== '' ? (string) $course->name_fa : (string) ($course->name_en ?? ''),
+            'instrument_name' => $instrumentName,
+            'teacher_name' => $teacherName,
+            'student_name' => trim((string) ($student->display_name ?? '')) !== '' ? (string) $student->display_name : (string) $student->reference_code,
             'term_reference' => $termReference,
             'assignment_state' => $assignment ? (string) $assignment->state : 'pending',
             'accepted_at' => $acceptedAt,

@@ -38,6 +38,10 @@ namespace Delnavazan\Platform\Portals {
 					$lesson( $now + 3600, $now + 7200, 'FUTURE' ),
 					$lesson( $now - 7200, $now - 3600, 'RECENT' ),
 					$lesson( $now - 600, $now + 600, 'ACTIVE' ),
+					$lesson( $now - 36 * 3600, $now - 35 * 3600, 'YESTERDAY' ),
+					$lesson( $now + 24 * 3600, $now + 25 * 3600, 'TOMORROW' ),
+					$lesson( $now + 30 * 86400, $now + 30 * 86400 + 3600, 'DAY30' ),
+					$lesson( $now + 32 * 86400, $now + 32 * 86400 + 3600, 'DAY32' ),
 				),
 				'assignments' => array(),
 				'booking_classes' => array(
@@ -94,6 +98,8 @@ namespace {
 		return rtrim( (string) $url, '/' ) . '/?' . rawurlencode( (string) $key ) . '=' . rawurlencode( (string) $value );
 	}
 	function wp_create_nonce( string $action ): string { return 'nonce-' . $action; }
+	function wp_generate_uuid4(): string { return '11111111-2222-4333-8444-555555555555'; }
+	function selected( $a, $b = true, $echo = true ): string { return (string) $a === (string) $b ? ' selected' : ''; }
 	function number_format_i18n( float $number, int $decimals = 0 ): string { return number_format( $number, $decimals, '.', '' ); }
 	function sanitize_key( string $key ): string { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $key ) ); }
 	function wp_unslash( mixed $value ): mixed { return $value; }
@@ -122,8 +128,18 @@ namespace {
 	foreach ( (array) ( $model['classes'] ?? array() ) as $class ) {
 		if ( is_array( $class ) ) { $classes_by_ref[ (string) ( $class['ref'] ?? '' ) ] = $class; }
 	}
-	$check( 'the active class is first', 'in_progress' === ( $model['classes'][0]['state'] ?? '' ) );
-	$check( 'future and recently ended rows remain present', 'starting_soon' === ( $classes_by_ref['REF-FUTURE']['state'] ?? '' ) && 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) );
+	$today_starts = array_map( static fn( array $row ) => (string) ( $row['starts_at_utc'] ?? '' ), (array) ( $model['today_classes'] ?? array() ) );
+	$sorted_starts = $today_starts;
+	usort( $sorted_starts, static fn( string $a, string $b ) => strcmp( $a, $b ) );
+	$check( 'today classes are chronological', $today_starts === $sorted_starts );
+	$check( 'today and upcoming sections do not overlap', ! array_intersect( array_column( (array) ( $model['today_classes'] ?? array() ), 'starts_at_utc' ), array_column( (array) ( $model['upcoming_classes'] ?? array() ), 'starts_at_utc' ) ) );
+	$today_refs = array_column( (array) ( $model['today_classes'] ?? array() ), 'ref' );
+	$upcoming_refs = array_column( (array) ( $model['upcoming_classes'] ?? array() ), 'ref' );
+	$check( 'previous-day classes are excluded from both sections', ! in_array( 'REF-YESTERDAY', $today_refs, true ) && ! in_array( 'REF-YESTERDAY', $upcoming_refs, true ) );
+	$check( 'tomorrow and day-30 classes are upcoming', in_array( 'REF-TOMORROW', $upcoming_refs, true ) && in_array( 'REF-DAY30', $upcoming_refs, true ) );
+	$check( 'beyond-day-30 classes are excluded', ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $upcoming_refs, true ) );
+	$check( 'future and recently ended rows remain present', isset( $classes_by_ref['REF-FUTURE'] ) && 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) );
+	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) && in_array( 'REF-ACTIVE', $today_refs, true ) );
 	$check( 'a just-ended intro keeps the teacher late join window', true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
 	$check( 'navigation has four destinations', 4 === count( $model['navigation'] ?? array() ) );
 	$check( 'classes is the current navigation item', ! empty( $model['navigation'][1]['current'] ) && 'classes' === ( $model['navigation'][1]['screen'] ?? '' ) );

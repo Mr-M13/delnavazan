@@ -251,3 +251,28 @@
     display: none !important;
   }
 }
+
+/* Compact Today/Upcoming class cards and the accessible disclosure control. */
+.dzn-tp-class-section{margin-block-start:1.25rem}
+.dzn-tp-heading--sub{align-items:center;margin-block-end:.6rem}
+.dzn-tp-heading--sub h3{font-size:1.1rem;margin:0}
+.dzn-tp-class{position:relative;padding:1rem;gap:.9rem}
+.dzn-tp-class__time-col,.dzn-tp-class__info-col{min-inline-size:0}
+.dzn-tp-class__schedule-summary{overflow-wrap:anywhere}
+.dzn-tp-actions{align-items:center;gap:.5rem}
+.dzn-tp-calendar-action{display:inline-flex;align-items:center;gap:.3rem;color:var(--dzn-color-text-secondary);font-size:.85rem;text-decoration:underline;text-underline-offset:.15em}
+.dzn-tp-chevron{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5rem;block-size:2.5rem;border:1px solid var(--dzn-color-border);border-radius:999px;background:var(--dzn-color-surface);color:var(--dzn-color-text-primary);cursor:pointer;padding:0}
+.dzn-tp-chevron:hover,.dzn-tp-chevron:focus-visible{border-color:var(--dzn-color-action-primary);outline:3px solid color-mix(in srgb,var(--dzn-color-action-primary) 35%,transparent);outline-offset:2px}
+.dzn-tp-chevron__icon{display:inline-block;font-size:1.35rem;line-height:1;transition:transform .18s ease}
+.dzn-tp-chevron[aria-expanded="true"] .dzn-tp-chevron__icon{transform:rotate(180deg)}
+.dzn-tp-reschedule{border:1px solid var(--dzn-color-border);border-radius:.85rem;padding:1rem;margin-block-start:.5rem;background:var(--dzn-color-surface)}
+.dzn-tp-reschedule h4{margin-block:0 .35rem}
+.dzn-tp-reschedule form{display:grid;gap:.65rem;margin-block-start:.65rem}
+.dzn-tp-reschedule__date{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dzn-tp-account-identity__summary{display:flex;align-items:center;gap:1rem}
+.dzn-tp-account-identity__monogram{display:grid;place-items:center;inline-size:3.5rem;block-size:3.5rem;border-radius:999px;background:var(--dzn-color-action-primary);color:#fff;font-size:1.5rem;font-weight:800}
+.dzn-tp-account-identity h2{margin:0}
+.dzn-tp-account-identity p{margin:.15rem 0}
+@media (max-width:35rem){.dzn-tp-reschedule__date{grid-template-columns:1fr}.dzn-tp-chevron{inline-size:100%;block-size:2.75rem}}
+@media (forced-colors:active){.dzn-tp-chevron,.dzn-tp-reschedule{border:1px solid CanvasText}}
+@media (prefers-reduced-motion:reduce){.dzn-tp-chevron__icon{transition:none}}

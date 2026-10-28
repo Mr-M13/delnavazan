@@ -197,12 +197,21 @@ function dzn_theme_teacher_portal_response_notice_allowlist() {
 		'پذیرش ثبت شد. این جلسهٔ معارفه پرداختی است؛ رویداد تقویم و پیوند Meet پس از پرداخت موفق هنرجو ساخته می‌شود.',
 		'برای پذیرش کلاس، ابتدا اتصال Google Calendar را کامل کنید.',
 		'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.',
+		'درخواست تغییر زمان ثبت شد و برای پذیرش هنرجو ارسال می‌شود.',
+		'زمان انتخاب‌شده با کلاس دیگری از شما تداخل دارد.',
+		'زمان انتخاب‌شده با کلاس دیگری از هنرجو تداخل دارد.',
+		'برای تغییر زمان، دست‌کم یک ساعت پیش از شروع کلاس اقدام کنید.',
+		'این کلاس دیگر قابل تغییر زمان نیست.',
+		'زمان کلاس هم‌زمان تغییر کرده است. صفحه را تازه کنید و دوباره تلاش کنید.',
+		'تغییر زمان برای این نوع کلاس از پرتال فعال نیست.',
+		'برای این کلاس یک درخواست تغییر زمان در انتظار پاسخ هنرجو است.',
+		'درخواست تغییر زمان ثبت نشد. زمان و سیاست‌های کلاس را بررسی کنید.',
 	);
 }
 /** Outcome notices for the home screen: array of array( 'success'|'error', message ). Only allowlisted, server-issued text is rendered. */
 function dzn_theme_teacher_portal_notices( $screen ) {
 	$notices = array();
-	if ( 'home' !== $screen ) { return $notices; }
+	if ( ! in_array( $screen, array( 'home', 'classes' ), true ) ) { return $notices; }
 	$status = isset( $_GET['class_status'] ) ? sanitize_key( (string) wp_unslash( $_GET['class_status'] ) ) : '';
 	$class_messages = array(
 		'delivery_recorded'          => array( 'success', 'گزارش برگزاری کلاس ثبت شد و برای بررسی مدیر در دسترس است.' ),

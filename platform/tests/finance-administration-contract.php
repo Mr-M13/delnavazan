@@ -43,7 +43,7 @@ $contains($menu, array('FINANCE_WORKSPACE_CAP', "'dzn_view_finance_authority'", 
 $contains($finance, array('current_user_can(Menu::FINANCE_WORKSPACE_CAP)', "check_admin_referer('dzn_finance_settings')", "current_user_can('dzn_view_payment_execution_authority')", "current_user_can('dzn_view_cash_ledger')", "current_user_can('dzn_view_finance_authority')"), 'Every Finance surface must stay capability- and nonce-gated');
 
 // Additive migration and rollback-safe preservation.
-$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '52'"), 'Schema version must advance to 52');
+$assert(str_contains($platform, "DZN_PLATFORM_SCHEMA_VERSION', '53'"), 'Schema version must advance to 52');
 $contains($migration, array(
     "'049_finance_administration'", 'install_finance_administration', 'verify_finance_administration_schema',
     "'050_intro_payment_authority'", 'install_intro_payment_authority', 'verify_intro_payment_authority_schema',

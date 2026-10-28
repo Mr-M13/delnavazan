@@ -43,6 +43,6 @@ $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_
 <?php endif; ?>
 <?php dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array() ) ); ?>
-<?php dzn_theme_teacher_portal_component( 'classes', array( 'items' => $model['classes'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
+<?php dzn_theme_teacher_portal_component( 'classes', array( 'items' => $model['classes'] ?? array(), 'today_items' => $model['today_classes'] ?? array(), 'upcoming_items' => $model['upcoming_classes'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'calendar', array( 'items' => $model['calendar'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'help' ); ?>

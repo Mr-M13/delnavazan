@@ -29,7 +29,10 @@
     panel.hidden = !panel.hidden;
     button.setAttribute('aria-expanded', String(!panel.hidden));
     const label = panel.hidden ? button.dataset.dznTpLabelClosed : button.dataset.dznTpLabelOpen;
-    if (label) button.textContent = label;
+    // Icon-only disclosure controls expose their state through aria-label; text controls keep
+    // their visible label. Neither path ever changes the submitted form fields.
+    if (label && button.querySelector('.dzn-tp-chevron__icon')) button.setAttribute('aria-label', label);
+    else if (label) button.textContent = label;
   }));
   // Real backend-authorised forms: show progress and block double submission. The server remains the only authority;
   // this changes presentation only and never alters the submitted fields.

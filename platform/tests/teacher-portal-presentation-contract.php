@@ -83,7 +83,7 @@ namespace {
     $home = $model(array('classes' => array($booking, $lesson), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
     $check('fixture satisfies the unchanged display contract', dzn_theme_teacher_portal_validate_model($home, 'home'));
     $html = $render('home', $home);
-    $check('heading is not "today" while the list holds the next lessons', str_contains($html, 'کلاس‌های پیش رو') && !str_contains($html, 'کلاس‌های امروز'));
+    $check('today and upcoming sections use the required Persian headings', str_contains($html, 'کلاس‌های امروز') && str_contains($html, 'کلاس‌های آینده'));
     $check('card count is announced', str_contains($html, '2 کلاس · به ترتیب زمان'));
     $check('classes render as an ordered list of labelled articles', substr_count($html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($html, 'id="tp-class-title-0"') && str_contains($html, 'id="tp-class-title-1"'));
     $check('date and timezone are visible on a booking class that has no details panel', str_contains($html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($html, 'id="tp-details-0"'));
@@ -113,9 +113,9 @@ namespace {
     $joined = $render('home', $model(array('classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))))));
     $check('booking join form posts only the confirmation identifier', str_contains($joined, 'name="confirmation_uid" value="CONF-UID"') && !str_contains($joined, 'name="lesson_uid"') && str_contains($joined, 'value="nonce-booking-join"'));
     $check('join is never offered when the backend has not authorised it', substr_count($html, 'name="_wpnonce" value="nonce-join"') === 1 && !str_contains(substr($html, 0, strpos($html, 'id="tp-class-title-1"')), 'name="_wpnonce" value="nonce-join"'));
-    $check('unavailable start is a disabled button explained by visible text', str_contains($html, 'disabled aria-describedby="tp-join-0"') && str_contains($html, 'id="tp-join-0" class="dzn-tp-help dzn-tp-class__help">ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'));
+    $check('unavailable start is a disabled button with a contextual accessible reason', str_contains($html, 'disabled title="ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود." aria-describedby="tp-join-0"') && str_contains($html, 'id="tp-join-0" class="dzn-tp-sr">ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'));
     $generic = $render('home', $model(array('classes' => array($class()))));
-    $check('a lesson that cannot start still explains why', str_contains($generic, 'disabled aria-describedby="tp-join-0"') && str_contains($generic, 'id="tp-join-0"') && str_contains($generic, 'سامانه ورود امن را تأیید کرده'));
+    $check('a lesson that cannot start still explains why', str_contains($generic, 'disabled title="زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است."') && str_contains($generic, 'id="tp-join-0" class="dzn-tp-sr">'));
     $check('delivery issue report keeps its nonce and identifiers', str_contains($html, 'name="_wpnonce" value="nonce-issue"') && str_contains($html, 'name="lesson_uid" value="LESSON-UID"') && str_contains($html, 'name="schedule_version_uid" value="SCHEDULE-UID"'));
     $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 2 && str_contains($html, 'data-dzn-tp-busy-label="در حال باز کردن کلاس…"'));
 
@@ -144,7 +144,7 @@ namespace {
 
     // 5. Actionable empty states.
     $empty = $render('home', $model());
-    $check('empty classes, attention and calendar each explain themselves', str_contains($empty, 'کلاسی در برنامهٔ پیش رو ندارید') && str_contains($empty, 'اکنون کار فوری‌ای ندارید') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && 3 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
+    $check('empty classes, attention and calendar each explain themselves', str_contains($empty, 'کلاسی برای امروز ثبت نشده است') && str_contains($empty, 'کلاسی برای روزهای آینده ثبت نشده است') && str_contains($empty, 'اکنون کار فوری‌ای ندارید') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && 4 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
     $check('empty classes links to real availability settings', str_contains($empty, 'href="https://example.invalid/teacher-portal/?teacher-view=settings">بررسی زمان‌های در دسترس'));
 
     // 6. Outcome and error states reach the teacher; arbitrary query text never does.
@@ -186,7 +186,7 @@ namespace {
     $joined_src = implode("\n", $parts) . (string) file_get_contents($theme . '/inc/teacher-portal.php');
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
     $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
-    $check('view model supplies date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_zoned_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' =>") && str_contains($bridge, "(string) ( \$onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' )"));
+    $check('view model supplies locale-aware date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_calendar_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' => \$teacher_timezone") && str_contains($bridge, "dzn_theme_platform_teacher_day_window"));
     $check('canonical term lessons fall back from empty display reference to lesson UID', str_contains($bridge, 'reference_code') && str_contains($bridge, 'lesson_uid') && str_contains($bridge, "if ( '' === \$reference )"));
     $check('shell never echoes an arbitrary dzn_notice query value', !str_contains($parts['shell'], "\$_GET['dzn_notice']") && str_contains($parts['shell'], 'dzn_theme_teacher_portal_notices'));
     $js = (string) file_get_contents($theme . '/assets/js/teacher-portal.js');

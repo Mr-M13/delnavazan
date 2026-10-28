@@ -37,6 +37,7 @@ namespace {
     $tehranTime = dzn_theme_platform_calendar_time('2026-11-01 08:30:00', 'Asia/Tehran', 'persian', 'fa_IR', 'time');
     $brisbaneTime = dzn_theme_platform_calendar_time('2026-11-01 08:30:00', 'Australia/Brisbane', 'persian', 'fa_IR', 'time');
     $fail('timezone remains independent from calendar selection', $tehranTime !== $brisbaneTime);
+    $fail('auto calendar follows Gregorian unless Persian is explicitly selected', dzn_theme_platform_calendar_preference('auto', 'fa_IR') === 'gregorian' && dzn_theme_platform_calendar_preference('persian', 'en_AU') === 'persian');
     $parts = dzn_theme_platform_jalali_parts('2026-11-01 08:30:00', 'Asia/Tehran');
     $fail('Jalali parts use ICU', is_array($parts) && $parts['year'] === 1405 && $parts['month'] === 8 && $parts['day'] === 10);
 

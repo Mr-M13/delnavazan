@@ -18,7 +18,7 @@ if ( ! $today_items && ! $upcoming_items && is_array( $args['items'] ?? null ) &
 	$upcoming_items = $args['items'];
 }
 $sections = array(
-	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => false, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
+	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => true, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
 	array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' ),
 );
 $jalali_months = array( 1 => 'فروردین', 2 => 'اردیبهشت', 3 => 'خرداد', 4 => 'تیر', 5 => 'مرداد', 6 => 'شهریور', 7 => 'مهر', 8 => 'آبان', 9 => 'آذر', 10 => 'دی', 11 => 'بهمن', 12 => 'اسفند' );

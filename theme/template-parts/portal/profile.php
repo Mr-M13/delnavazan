@@ -39,6 +39,11 @@ if ( ! empty( $profile['full_name'] ) && preg_match( '/^./u', (string) $profile[
 			<p class="dzn-portal-value" dir="ltr"><?php echo esc_html( $profile['timezone_label'] ?? 'منطقهٔ زمانی انتخاب نشده' ); ?></p>
 			<p class="dzn-portal-help"><?php esc_html_e( 'تغییر این ترجیح فقط شیوهٔ نمایش ساعت را عوض می‌کند؛ زمان کلاس را جابه‌جا نمی‌کند.', 'delnavazan-theme' ); ?></p>
 		</div>
+		<div class="dzn-portal-control">
+			<p class="dzn-portal-control__label"><?php esc_html_e( 'تقویم نمایش', 'delnavazan-theme' ); ?></p>
+			<p class="dzn-portal-value"><?php echo esc_html( 'persian' === ( $profile['calendar'] ?? 'gregorian' ) ? 'شمسی' : 'میلادی' ); ?></p>
+			<p class="dzn-portal-help"><?php esc_html_e( 'تقویم و منطقهٔ زمانی مستقل‌اند؛ گزینهٔ «خودکار» تقویم میلادی را نمایش می‌دهد.', 'delnavazan-theme' ); ?></p>
+		</div>
 		<div class="dzn-profile__actions">
 			<p id="dzn-profile-note" class="dzn-portal-help"><?php esc_html_e( 'این مشخصات از حساب معتبر شما خوانده می‌شود و ویرایش آن از مسیر رسمی دلنوازان انجام می‌شود؛ در این نسخه فقط نمایش داده می‌شود.', 'delnavazan-theme' ); ?></p>
 			<?php if ( ! empty( $profile['password_url'] ) ) : ?>

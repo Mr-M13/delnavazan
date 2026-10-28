@@ -7,6 +7,9 @@
 
 $items = isset( $args['items'] ) && is_array( $args['items'] ) ? $args['items'] : array();
 $status = sanitize_key( (string) ( $_GET['reschedule_status'] ?? '' ) );
+if ( ! $items && ! in_array( $status, array( 'ok', 'failed' ), true ) ) {
+	return;
+}
 ?>
 <section class="dzn-portal-section dzn-reschedule" aria-labelledby="dzn-reschedule-title">
 	<div class="dzn-portal-section__heading">

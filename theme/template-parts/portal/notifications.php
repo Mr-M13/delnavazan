@@ -8,6 +8,9 @@
 $items = isset( $args['items'] ) && is_array( $args['items'] ) ? array_slice( $args['items'], 0, 5 ) : array();
 $archive_url = isset( $args['archive_url'] ) ? (string) $args['archive_url'] : '';
 $available = ! empty( $args['available'] );
+if ( ! $available || ! $items ) {
+	return;
+}
 ?>
 <section class="dzn-portal-section dzn-notifications" aria-labelledby="dzn-notifications-title">
 	<div class="dzn-portal-section__heading">

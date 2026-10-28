@@ -1284,3 +1284,30 @@
 .dzn-reschedule-card__actions form{display:contents}
 @media (min-width:48rem){.dzn-reschedule-card{grid-template-columns:minmax(0,1fr) auto;align-items:center}}
 @media (max-width:35rem){.dzn-reschedule-card__actions form{display:block;inline-size:100%}.dzn-reschedule-card__actions .dzn-button{inline-size:100%}}
+
+/* Compact Student shell and account-first hierarchy (2026-10-29 UX pass). */
+.dzn-portal__masthead{padding:1rem 0}
+.dzn-portal__masthead-inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 1.25rem}
+.dzn-portal__title{font-size:clamp(1.25rem,2.2vw,1.65rem);margin:0}
+.dzn-portal__account{margin:0}
+.dzn-portal__account a{font-size:.88rem;font-weight:700;text-decoration:none}
+.dzn-appbar__inner{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.dzn-appbar__title{flex:1;text-align:start}
+.dzn-schedule-period{margin-block-start:1.1rem}
+.dzn-schedule-period>h3{font-size:1rem;margin:0 0 .55rem;color:var(--dzn-color-text-secondary)}
+.dzn-schedule-period--today{border-inline-start:3px solid var(--dzn-color-action-primary);padding-inline-start:.8rem}
+.dzn-schedule-period--future{border-block-start:1px solid var(--dzn-color-border);padding-block-start:1rem}
+.dzn-schedule-day>h4{font-size:.9rem;margin:.8rem 0 .35rem;color:var(--dzn-color-text-secondary)}
+.dzn-account-status{border-inline-start:5px solid var(--dzn-color-success,var(--dzn-color-action-primary))}
+.dzn-account-status__summary{margin:.2rem 0;font-weight:700}
+.dzn-account-status__course{margin:.2rem 0;color:var(--dzn-color-text-secondary)}
+.dzn-account-status__actions{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-block-start:.7rem}
+.dzn-account-status__actions .dzn-portal-help{margin:0;flex:1;min-inline-size:14rem}
+@media (max-width:47.99rem){
+  .dzn-portal-tabs{inset-inline:.7rem;inset-block-end:calc(.7rem + env(safe-area-inset-bottom));border:1px solid color-mix(in srgb,var(--dzn-color-border) 80%,transparent);border-radius:1.1rem;background:color-mix(in srgb,var(--dzn-color-surface-elevated) 88%,transparent);box-shadow:0 10px 30px rgb(0 0 0 / 18%);backdrop-filter:blur(14px)}
+  .dzn-portal-tabs ul{gap:.2rem;padding:.3rem}
+  .dzn-portal-tabs__link{min-block-size:54px;border-radius:.8rem;font-size:.82rem}
+  .dzn-portal-tabs__link.is-current{background:color-mix(in srgb,var(--dzn-color-action-primary) 14%,transparent);box-shadow:none}
+  .dzn-portal~.site-footer{padding-block-end:calc(86px + env(safe-area-inset-bottom) + var(--dzn-space-5))}
+}
+@media (forced-colors:active){.dzn-account-status{border:2px solid CanvasText}}

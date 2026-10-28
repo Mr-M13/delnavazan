@@ -26,6 +26,9 @@ $messages = array(
 	'activated' => 'ثبت‌نام شما فعال شد.',
 	'post_intro_unavailable' => 'انجام این اقدام در حال حاضر ممکن نیست. لطفاً با پشتیبانی تماس بگیرید.',
 );
+$items = array_values( array_filter( $items, static function ( $item ): bool {
+	return is_array( $item ) && ! empty( $item['actionable'] );
+} ) );
 if ( ! $items && ! isset( $messages[ $status ] ) ) {
 	return;
 }

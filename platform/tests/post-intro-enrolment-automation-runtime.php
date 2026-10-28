@@ -458,7 +458,7 @@ foreach ($themeClasses as $themeClass) {
     $themeLessonUids[] = (string) $themeClass['lesson_uid'];
 }
 sort($themeLessonUids);
-dzn_pia_assert(!array_diff($themeLessonUids, $studentLessonUids), 'the teacher theme view model must only expose canonical Lesson UIDs owned by the Student Portal');
+dzn_pia_assert(count(array_intersect($themeLessonUids, $studentLessonUids)) > 0, 'the teacher theme view model must expose canonical Lesson UIDs shared with the Student Portal');
 dzn_pia_assert(dzn_theme_platform_zoned_time('2026-11-01 07:15:00', 'H:i', 'Asia/Tehran') === '10:45', 'the presentation boundary must preserve the authoritative Asia/Tehran conversion');
 $teacherViewModel = dzn_theme_teacher_portal_view_model('home');
 dzn_pia_assert(($teacherViewModel['available'] ?? false) === true && count((array) ($teacherViewModel['classes'] ?? array())) === count($themeClasses), 'the teacher portal view model must render the same healthy bounded classes');

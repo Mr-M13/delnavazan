@@ -1069,6 +1069,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}
+	// An active canonical class must remain reachable on its local calendar day; Today includes
+	// completed, in-progress and upcoming rows, while Upcoming starts at tomorrow's local midnight.
 	$today_rows = array();
 	$upcoming_rows = array();
 	$seen_rows = array();

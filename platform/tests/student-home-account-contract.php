@@ -41,6 +41,8 @@ foreach ( $order as $component ) {
 	$previous = $at;
 }
 $check( 'home renders next class before term, requests, announcement and history', $ordered );
+$postIntro = (string) file_get_contents( $theme . '/template-parts/portal/post-intro.php' );
+$check( 'the post-intro activation-only card is filtered while actionable continuation remains', ! empty( $postIntro ) && str_contains( $postIntro, "! empty( \$item['actionable'] )" ) );
 
 /* 2. Account puts profile, payments and notifications before history. */
 $account_at = strpos( $shell, "elseif ( 'account' === \$screen ) : ?>" );
@@ -48,14 +50,14 @@ $account = false === $account_at ? '' : substr( $shell, $account_at );
 $account = substr( $account, 0, (int) strpos( $account, '<?php else : ?>' ) );
 $account_previous = -1;
 $account_ordered = true;
-foreach ( array( 'profile', 'payments', 'notifications', 'history' ) as $component ) {
+foreach ( array( 'term-timeline', 'account-status', 'profile', 'payments', 'notifications', 'history' ) as $component ) {
 	$at = $position( $account, "'" . $component . "'" );
 	if ( $at === PHP_INT_MAX || $at < $account_previous ) {
 		$account_ordered = false;
 	}
 	$account_previous = $at;
 }
-$check( 'account renders profile, payments and notifications before history', $account_ordered );
+$check( 'account puts timeline and status before profile, payments, notifications and history', $account_ordered );
 $check( 'the always-rendered future-orders placeholder is gone', ! str_contains( $shell, "'future-orders'" ) );
 
 /* 3. History dates are machine-readable instants. */

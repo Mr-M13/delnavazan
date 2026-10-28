@@ -115,6 +115,7 @@ $check( 'an active class cannot be reported absent after it starts', empty( $row
 $check( 'a future canonical row exposes the authorised absence action', ! empty( $rows[1]['absence_available'] ) );
 $check( 'schedule shows a human timezone with the identifier', 'تهران · Asia/Tehran' === $rows[0]['timezone_label'] );
 $check( 'schedule rows carry the teacher from the enrolment', 'نازنین' === $rows[0]['teacher'] );
+$check( 'schedule rows distinguish today from future days', ! empty( $rows[0]['is_today'] ) && empty( $rows[0]['is_future'] ) && ! empty( $rows[1]['is_future'] ) && ! empty( $rows[2]['is_past'] ) );
 
 $booking = $lesson( gmdate( 'Y-m-d H:i:s', $now - 300 ), gmdate( 'Y-m-d H:i:s', $now + 900 ), array(
 	'version' => 'student_booking_class_v1', 'confirmation_state' => 'confirmed',

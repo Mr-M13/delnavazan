@@ -17,14 +17,11 @@ $student = isset( $model['student'] ) && is_array( $model['student'] ) ? $model[
 $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) $student['first_name'] : '';
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $screen_title = 'account' === $screen ? 'حساب کاربری' : ( 'schedule' === $screen ? 'برنامه' : ( 'payments' === $screen ? 'پرداخت' : 'خانه' ) );
-$heading = 'account' === $screen ? 'حساب کاربری' : ( 'schedule' === $screen ? 'برنامهٔ کلاس‌ها' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( $first_name ? sprintf( 'سلام %s،', $first_name ) : 'خانهٔ هنرجو' ) ) );
-$lede = 'account' === $screen ? 'جزئیات شخصی، پرداخت و اعلان‌های حساب شما' : ( 'schedule' === $screen ? 'کلاس‌های جاری، پیش رو و گذشته در منطقهٔ زمانی شما' : ( 'payments' === $screen ? 'وضعیت پرداخت و گزینه‌های مجاز از منبع مالی معتبر' : 'کلاس بعدی و مسیر ترم را یک‌جا ببینید.' ) );
-$mobile_greeting = 'account' === $screen ? 'حساب کاربری شما' : ( 'schedule' === $screen ? 'برنامهٔ کلاس‌ها' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( $first_name ? sprintf( 'سلام %s،', $first_name ) : 'خانهٔ هنرجو' ) ) );
+$heading = 'account' === $screen ? 'حساب کاربری' : ( 'schedule' === $screen ? 'برنامهٔ کلاس‌ها' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : 'درود بر شما' ) );
 ?>
 <main id="main-content" class="site-main dzn-portal dzn-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1">
 	<header class="dzn-appbar">
 		<div class="dzn-appbar__inner">
-			<a class="dzn-appbar__brand" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'دلنوازان', 'delnavazan-theme' ); ?></a>
 			<p class="dzn-appbar__title"><?php echo esc_html( $screen_title ); ?></p>
 			<?php if ( is_user_logged_in() ) : ?>
 				<a class="dzn-appbar__action" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>"><?php esc_html_e( 'خروج', 'delnavazan-theme' ); ?></a>
@@ -33,25 +30,15 @@ $mobile_greeting = 'account' === $screen ? 'حساب کاربری شما' : ( 's
 	</header>
 	<div class="dzn-portal__masthead">
 		<div class="dzn-container dzn-portal__masthead-inner">
-			<div>
-				<p class="dzn-portal__eyebrow"><?php esc_html_e( 'هنرجوی دلنوازان', 'delnavazan-theme' ); ?></p>
-				<h1 class="dzn-portal__title"><?php echo esc_html( $heading ); ?></h1>
-				<p class="dzn-portal__lede"><?php echo esc_html( $lede ); ?></p>
-			</div>
+			<h1 class="dzn-portal__title"><?php echo esc_html( $heading ); ?></h1>
 			<?php dzn_theme_portal_component( 'navigation', array( 'items' => $navigation, 'id' => 'dzn-portal-nav-desktop' ) ); ?>
 			<?php if ( is_user_logged_in() ) : ?>
-				<p class="dzn-portal__account">
-					<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'صفحهٔ اصلی', 'delnavazan-theme' ); ?></a>
-					<a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>"><?php esc_html_e( 'خروج از حساب', 'delnavazan-theme' ); ?></a>
-				</p>
+				<p class="dzn-portal__account"><a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>"><?php esc_html_e( 'خروج', 'delnavazan-theme' ); ?></a></p>
 			<?php endif; ?>
 		</div>
 	</div>
 
 	<div class="dzn-container dzn-portal__content">
-		<?php if ( 'ok' === $state ) : ?>
-			<p class="dzn-portal__mobile-greeting"><?php echo esc_html( $mobile_greeting ); ?></p>
-		<?php endif; ?>
 		<?php if ( 'ok' === $state && ! empty( $model['provisioning'] ) ) : ?>
 			<?php $provisioning = $model['provisioning']; ?>
 			<div class="dzn-portal__provisioning" role="status">
@@ -123,8 +110,12 @@ $mobile_greeting = 'account' === $screen ? 'حساب کاربری شما' : ( 's
 		<?php elseif ( 'payments' === $screen ) : ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 		<?php elseif ( 'account' === $screen ) : ?>
+			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'account-status', array( 'status' => $model['account_status'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
+			<?php if ( ! in_array( (string) ( $model['payments']['state'] ?? '' ), array( 'disabled', 'unavailable' ), true ) ) : ?>
+				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
+			<?php endif; ?>
 			<?php
 			dzn_theme_portal_component(
 				'notifications',

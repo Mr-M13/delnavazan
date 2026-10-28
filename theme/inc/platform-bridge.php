@@ -55,7 +55,9 @@ function dzn_theme_platform_calendar_preference( $calendar, $locale = '' ) {
 	$calendar = strtolower( trim( (string) $calendar ) );
 	$locale   = trim( (string) $locale );
 	if ( in_array( $calendar, array( 'gregorian', 'persian' ), true ) ) { return $calendar; }
-	return str_starts_with( strtolower( $locale ), 'fa' ) ? 'persian' : 'gregorian';
+	// `auto` follows the portal's configured Gregorian presentation. A Student who wants the
+	// Persian calendar must select it explicitly; timezone never silently changes the calendar.
+	return 'gregorian';
 }
 
 /**
@@ -451,8 +453,10 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 	$completed = count( array_filter( $related, static function ( $row ) {
 		return in_array( $row['delivery_state_summary'] ?? '', array( 'completed', 'delivered' ), true );
 	} ) );
+	$instrument = trim( (string) ( $enrolment['instrument_name'] ?? '' ) );
+	if ( '' === $instrument ) { $instrument = trim( (string) ( $enrolment['course_name'] ?? '' ) ); }
 	return array(
-		'title' => $term_reference,
+		'title' => '' !== $instrument ? 'ترم جاری · ' . $instrument : 'ترم جاری',
 		'completed' => $completed,
 		'total' => count( $related ),
 		'current_label' => count( $related ) ? sprintf( '%d جلسه ثبت‌شده', count( $related ) ) : '',
@@ -568,6 +572,8 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		: dzn_theme_platform_lesson_state( $row, $now );
 	$join_available = $is_booking && ! empty( $row['join_available'] ) && $within_join;
 	$absence_available = ! $is_booking && ! empty( $row['absence_available'] ) && 'authorised' === (string) ( $row['lifecycle_state'] ?? '' ) && $start && $start > $now;
+	$day_key = dzn_theme_platform_local_date_key( (string) ( $row['starts_at_utc'] ?? '' ), $timezone );
+	$today_key = dzn_theme_platform_local_date_key( gmdate( 'Y-m-d H:i:s', $now ), $timezone );
 	return array(
 		'kind' => $is_booking ? 'intro' : 'term',
 		'state' => $state,
@@ -575,7 +581,10 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'course' => $course,
 		'teacher' => $teacher,
 		'date' => dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'date' ),
-		'day_key' => dzn_theme_platform_local_date_key( (string) ( $row['starts_at_utc'] ?? '' ), $timezone ),
+		'day_key' => $day_key,
+		'is_today' => $day_key === $today_key,
+		'is_future' => $day_key > $today_key,
+		'is_past' => $day_key < $today_key,
 		'time' => dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ) . '–' . dzn_theme_platform_calendar_time( (string) ( $row['ends_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ),
 		'starts_at_utc' => (string) ( $row['starts_at_utc'] ?? '' ),
 		'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $row['starts_at_utc'] ?? '' ) ),
@@ -800,8 +809,19 @@ function dzn_theme_platform_student_model( $screen ) {
 			'timezone_label' => dzn_theme_platform_timezone_label( $student_timezone ),
 			'timezone' => $student_timezone,
 			'password_url' => wp_lostpassword_url(),
+			'calendar' => $student_calendar,
 		);
 		$model['history'] = array_map( static fn( array $lesson ) => dzn_theme_platform_history_item( $lesson, $student_calendar, $student_locale ), array_slice( $past, 0, 20 ) );
+		$current_enrolment = is_array( $enrolments[0] ?? null ) ? $enrolments[0] : array();
+		$term_progress = dzn_theme_platform_student_term_progress( $current_enrolment, null, $lessons );
+		$model['term'] = $term_progress ? array_merge( $term_progress, array( 'next_label' => '', 'normal_replacement' => '', 'academy_owed_remedial' => '', 'academy_owed_tone' => 'muted' ) ) : array();
+		$model['account_status'] = array(
+			'active' => in_array( (string) ( $current_enrolment['lifecycle_state'] ?? '' ), array( 'current', 'authorised' ), true ),
+			'payment_verified' => ! empty( $current_enrolment['payment_verified'] ),
+			'fulfilment_state' => (string) ( $current_enrolment['fulfilment_state'] ?? 'not_applicable' ),
+			'course' => (string) ( $current_enrolment['instrument_name'] ?? $current_enrolment['course_name'] ?? '' ),
+			'teacher' => (string) ( $current_enrolment['teacher_name'] ?? $current_enrolment['assigned_teacher_display_reference'] ?? '' ),
+		);
 		$model['payments'] = $payments_model;
 		$model['notifications'] = array();
 		$model['notifications_available'] = false;

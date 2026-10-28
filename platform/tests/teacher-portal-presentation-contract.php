@@ -48,6 +48,7 @@ namespace {
     $class = static function (array $o = array()): array {
         return array_merge(array(
             'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'date' => 'Saturday 3 October', 'starts_at_utc' => '2026-10-03 06:30:00', 'starts_at_iso' => '2026-10-03T06:30:00Z', 'timezone' => 'Asia/Tehran',
+            'is_today' => true, 'student_whatsapp' => '+98 912 000 0000', 'term_total' => 12, 'term_completed' => 4, 'term_remaining' => 8,
             'student' => 'Student One', 'course' => 'Setar',
             'progress' => 'Term 1 · 2/12', 'status' => 'پیش رو', 'student_summary' => 'Summary', 'previous_private_note' => 'No private note here',
             'schedule_summary' => 'Saturday 3 October، 10:00 · Asia/Tehran', 'start_available' => false, 'details_available' => true,
@@ -112,11 +113,12 @@ namespace {
     $check('lesson join form posts backend URL, nonce, lesson and schedule identifiers', (bool) preg_match('#<form method="post" target="_blank" rel="noopener noreferrer" action="https://example.invalid/wp-admin/admin-post.php\?action=dzn_teacher_join_class"[^>]*><input type="hidden" name="_wpnonce" value="nonce-join"><input type="hidden" name="lesson_uid" value="LESSON-UID"><input type="hidden" name="schedule_version_uid" value="SCHEDULE-UID">#', $html) && !str_contains($html, 'name="confirmation_uid" value=""'));
     $joined = $render('home', $model(array('classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))))));
     $check('booking join form posts only the confirmation identifier', str_contains($joined, 'name="confirmation_uid" value="CONF-UID"') && !str_contains($joined, 'name="lesson_uid"') && str_contains($joined, 'value="nonce-booking-join"'));
-    $check('join is never offered when the backend has not authorised it', substr_count($html, 'name="_wpnonce" value="nonce-join"') === 1 && !str_contains(substr($html, 0, strpos($html, 'id="tp-class-title-1"')), 'name="_wpnonce" value="nonce-join"'));
+    $check('join is never offered when the backend has not authorised it', substr_count($html, 'name="_wpnonce" value="nonce-join"') >= 1 && !str_contains(substr($html, 0, strpos($html, 'id="tp-class-title-1"')), 'name="_wpnonce" value="nonce-join"'));
     $check('unavailable start is a disabled button with a contextual accessible reason', str_contains($html, 'disabled title="ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود." aria-describedby="tp-join-0"') && str_contains($html, 'id="tp-join-0" class="dzn-tp-sr">ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'));
     $generic = $render('home', $model(array('classes' => array($class()))));
     $check('a lesson that cannot start still explains why', str_contains($generic, 'disabled title="زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است."') && str_contains($generic, 'id="tp-join-0" class="dzn-tp-sr">'));
-    $check('delivery issue report keeps its nonce and identifiers', str_contains($html, 'name="_wpnonce" value="nonce-issue"') && str_contains($html, 'name="lesson_uid" value="LESSON-UID"') && str_contains($html, 'name="schedule_version_uid" value="SCHEDULE-UID"'));
+    $check('the disruptive delivery-issue action is removed', ! str_contains($html, 'nonce-issue') && ! str_contains($html, 'گزارش مشکل در برگزاری کلاس'));
+    $check('expanded today class includes attendance, contact and term progress', str_contains($html, 'تأیید برگزاری و حضور') && str_contains($html, 'واتس‌اپ:') && str_contains($html, 'تکمیل‌شده: 4 از 12') && str_contains($html, 'ورود با Google Meet'));
     $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 2 && str_contains($html, 'data-dzn-tp-busy-label="در حال باز کردن کلاس…"'));
 
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
@@ -192,6 +194,11 @@ namespace {
     $js = (string) file_get_contents($theme . '/assets/js/teacher-portal.js');
     $check('script disables the whole scope after submit, restores on bfcache return, and keeps the server as authority', str_contains($js, 'form[data-dzn-tp-submit]') && str_contains($js, "'pageshow'") && str_contains($js, 'setTimeout(() => scopeButtons(form)') && str_contains($js, 'event.persisted') && !str_contains($js, 'fetch(') && !str_contains($js, 'XMLHttpRequest'));
     $check('toggle swaps its label and keeps aria-expanded in sync', str_contains($js, 'dznTpLabelOpen') && str_contains($js, "setAttribute('aria-expanded'"));
+    $accountSource = (string) file_get_contents($theme . '/template-parts/teacher-portal/account.php');
+    $check('settings uses instrument thumbnails with selected colour state', str_contains($accountSource, 'dzn-tp-instrument-grid') && str_contains($accountSource, 'is-selected') && str_contains($accountSource, 'instrument_images'));
+    $check('settings explains timezone, availability types and holidays', str_contains($accountSource, 'ما زمان کلاس‌ها را با زمان هنرجو هماهنگ می‌کنیم') && str_contains($accountSource, 'ترجیحی: زمان‌های اصلی') && str_contains($accountSource, 'مثلاً تولد، سفر یا مناسبت خانوادگی'));
+    $check('the accepting-students section is removed', ! str_contains($accountSource, 'tp-accepting') && ! str_contains($accountSource, 'پذیرش هنرجو'));
+    $check('empty attention is not rendered', str_contains($parts['attention'], 'if ( ! $items ) { return; }'));
     $css = (string) file_get_contents($theme . '/assets/css/teacher-portal.css');
     $check('stylesheet covers mobile, forced colours, reduced motion and screen-reader text', str_contains($css, 'max-width:35rem') && str_contains($css, 'forced-colors:active') && str_contains($css, 'prefers-reduced-motion') && str_contains($css, '.dzn-tp-sr{'));
     if (trim((string) shell_exec('command -v node 2>/dev/null')) !== '') {

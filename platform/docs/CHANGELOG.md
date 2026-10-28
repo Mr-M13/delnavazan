@@ -14,6 +14,10 @@ currency selector lists AUD, NZD, USD, CAD, EUR and GBP. See
 Follow-up `386225bce57724779be8dffc50b85297e92bdc0a` (build `main-386225bce577`) merged #383 and
 deployed in run `40502315523`; the header login CTA now uses the original enrolment button styling.
 
+Follow-up `f9517eb159920c1aa078a5920aee232d7d252435` (build `main-f9517eb15992`) merged #385 and
+deployed in run `40616439515`; the menu order is خانه / مقالات / ورود and the currency selector is
+centred under the pricing copy with the pricing block palette.
+
 ## Presentation, portals and protected release gate — deployed 2026-10-27
 
 Release `508a8224e76943f25c5e56bd5996f41f08cb12aa` (build `main-508a8224e769`, schema 52) merged

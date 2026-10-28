@@ -36,6 +36,8 @@ $assert(str_contains($canonical, 'public function reviseWithinTransaction'), 'Ca
 $assert(str_contains($canonical, 'if(!$ownTransaction){') && str_contains($canonical, 'return $work($digest,$facts,$payload);'), 'Caller-owned transaction must not start/commit its own transaction');
 $assert(str_contains($service, 'reviseWithinTransaction') && !str_contains($service, '->revise('), 'Acceptance must use the caller-owned canonical transaction seam');
 $assert(str_contains($service, 'ensureAndLockStudentRoot') && str_contains($service, 'studentConflict'), 'Acceptance must lock the Student root before final conflict validation');
+$ownerPorts = (string) file_get_contents($root . '/src/Core/Application/PortalOwnerReadPorts.php');
+$assert(str_contains($ownerPorts, "'enrolment_lifecycle_state'=>") && !str_contains($ownerPorts, "'lifecycle_state'=>(string)\$enrolment->lifecycle_state"), 'Teacher lesson lifecycle must not be overwritten by enrolment lifecycle in the portal projection');
 $assert(str_contains($service, 'LessonRescheduleSystemActor::run') && str_contains($service, 'reviseWithinTransaction'), 'Canonical commit must run under the least-privilege scheduling system actor');
 $assert(str_contains($canonical, 'private function actor()') && str_contains($canonical, 'get_current_user_id()'), 'Canonical schedule versions must record the active system actor');
 $repository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/LessonRescheduleRepository.php');

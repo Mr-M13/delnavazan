@@ -77,6 +77,7 @@ namespace {
     $fail('teacher card shows the instrument name', ($class['course'] ?? '') === 'سه‌تار');
     $fail('teacher card never exposes the term reference', !str_contains(wp_json_encode($class), 'TERM-INTERNAL-77') && !str_contains(wp_json_encode($class), 'STUDENT-REF-42'));
     $fail('teacher header uses the registered full name', ($model['teacher']['full_name'] ?? '') === 'استاد علی رضایی');
+    $fail('an authorised future canonical class exposes the reschedule action', ($class['reschedule_available'] ?? false) === true && !empty($class['reschedule_action_url']));
     $fail('teacher card date is Persian, not English Gregorian', preg_match('/\p{Arabic}/u', (string) ($class['date'] ?? '')) === 1 && !preg_match('/Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|January|February|March|April|May|June|July|August|September|October|November|December/', (string) ($class['date'] ?? '')));
 
     $row = dzn_theme_platform_student_schedule_row(array(

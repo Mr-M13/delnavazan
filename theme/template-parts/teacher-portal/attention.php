@@ -6,6 +6,7 @@
 $items   = is_array( $args['items'] ?? null ) ? $args['items'] : array();
 $context = dzn_theme_teacher_portal_context();
 $demo    = ! empty( $context['demo'] );
+if ( ! $items ) { return; }
 ?>
 <section class="dzn-tp-section" aria-labelledby="tp-attention"><div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">نیازمند توجه شما</p><h2 id="tp-attention">کارهای مهم</h2></div><span class="dzn-tp-count-badge"><?php echo esc_html( sprintf( '%d مورد', count( $items ) ) ); ?></span></div>
 <?php if ( ! $items ) : ?>

@@ -91,10 +91,14 @@ function dzn_theme_platform_calendar_time( $utc, $timezone, $calendar, $locale =
 	} catch ( Throwable ) {
 		$zone = wp_timezone();
 	}
+	if ( 'persian' === $calendar ) {
+		$persian = dzn_theme_platform_persian_date( $timestamp, $zone, $kind );
+		if ( '' !== $persian ) { return $persian; }
+	}
 	if ( class_exists( 'IntlDateFormatter' ) ) {
-		$format_locale = 'persian' === $calendar ? 'fa_IR@calendar=persian' : ( '' !== $locale ? $locale . '@calendar=gregorian' : 'en_AU@calendar=gregorian' );
+		$format_locale = '' !== $locale ? $locale . '@calendar=gregorian' : 'en_AU@calendar=gregorian';
 		try {
-			$formatter = new IntlDateFormatter( $format_locale, IntlDateFormatter::FULL, IntlDateFormatter::NONE, $zone->getName(), 'persian' === $calendar ? IntlDateFormatter::TRADITIONAL : IntlDateFormatter::GREGORIAN );
+			$formatter = new IntlDateFormatter( $format_locale, IntlDateFormatter::FULL, IntlDateFormatter::NONE, $zone->getName(), IntlDateFormatter::GREGORIAN );
 			$formatter->setPattern( $pattern );
 			$formatted = $formatter->format( ( new DateTimeImmutable( '@' . $timestamp ) )->setTimezone( $zone ) );
 			if ( is_string( $formatted ) && '' !== $formatted ) { return $formatted; }
@@ -109,6 +113,50 @@ function dzn_theme_platform_calendar_time( $utc, $timezone, $calendar, $locale =
 		'datetime' => 'l j F Y، H:i', 'date_time_short' => 'j F، H:i', 'time' => 'H:i', 'year_month' => 'F Y',
 	);
 	return wp_date( $fallback[ $kind ] ?? $fallback['date'], $timestamp, $zone );
+}
+
+/** Persian digits without relying on ICU locale data being installed. */
+function dzn_theme_platform_persian_digits( $value ) {
+	return strtr( (string) $value, array( '0' => '۰', '1' => '۱', '2' => '۲', '3' => '۳', '4' => '۴', '5' => '۵', '6' => '۶', '7' => '۷', '8' => '۸', '9' => '۹' ) );
+}
+
+/**
+ * Persian-calendar presentation from IntlCalendar fields.
+ *
+ * The calendar conversion is ICU's; the Persian month/weekday vocabulary and digits are fixed
+ * application vocabulary so a host with a reduced ICU locale data set still renders correctly.
+ */
+function dzn_theme_platform_persian_date( $timestamp, DateTimeZone $zone, $kind = 'date' ) {
+	if ( ! class_exists( 'IntlCalendar' ) ) { return ''; }
+	$months = array( 1 => 'فروردین', 2 => 'اردیبهشت', 3 => 'خرداد', 4 => 'تیر', 5 => 'مرداد', 6 => 'شهریور', 7 => 'مهر', 8 => 'آبان', 9 => 'آذر', 10 => 'دی', 11 => 'بهمن', 12 => 'اسفند' );
+	$weekdays = array( 1 => 'یکشنبه', 2 => 'دوشنبه', 3 => 'سه‌شنبه', 4 => 'چهارشنبه', 5 => 'پنجشنبه', 6 => 'جمعه', 7 => 'شنبه' );
+	try {
+		$calendar = IntlCalendar::createInstance( $zone, '@calendar=persian' );
+		$calendar->setTime( (int) $timestamp * 1000 );
+		$year = (int) $calendar->get( IntlCalendar::FIELD_YEAR );
+		$month = (int) $calendar->get( IntlCalendar::FIELD_MONTH ) + 1;
+		$day = (int) $calendar->get( IntlCalendar::FIELD_DAY_OF_MONTH );
+		$weekday = (int) $calendar->get( IntlCalendar::FIELD_DAY_OF_WEEK );
+		$hour = (int) $calendar->get( IntlCalendar::FIELD_HOUR_OF_DAY );
+		$minute = (int) $calendar->get( IntlCalendar::FIELD_MINUTE );
+	} catch ( Throwable ) {
+		return '';
+	}
+	$day_text = dzn_theme_platform_persian_digits( $day );
+	$month_text = $months[ $month ] ?? '';
+	$weekday_text = $weekdays[ $weekday ] ?? '';
+	$year_text = dzn_theme_platform_persian_digits( $year );
+	$time_text = dzn_theme_platform_persian_digits( sprintf( '%02d:%02d', $hour, $minute ) );
+	$formatted = array(
+		'date' => $weekday_text . ' ' . $day_text . ' ' . $month_text . ' ' . $year_text,
+		'month_day' => $day_text . ' ' . $month_text,
+		'weekday_month_day' => $weekday_text . ' ' . $day_text . ' ' . $month_text,
+		'datetime' => $weekday_text . ' ' . $day_text . ' ' . $month_text . ' ' . $year_text . '، ' . $time_text,
+		'date_time_short' => $day_text . ' ' . $month_text . '، ' . $time_text,
+		'time' => $time_text,
+		'year_month' => $month_text . ' ' . $year_text,
+	);
+	return trim( (string) ( $formatted[ $kind ] ?? $formatted['date'] ) );
 }
 
 /**
@@ -150,7 +198,7 @@ function dzn_theme_platform_jalali_parts( $utc, $timezone ) {
 	if ( ! $timestamp || ! class_exists( 'IntlCalendar' ) ) { return null; }
 	try {
 		$zone = new DateTimeZone( (string) $timezone );
-		$calendar = IntlCalendar::createInstance( $zone, 'fa_IR@calendar=persian' );
+		$calendar = IntlCalendar::createInstance( $zone, '@calendar=persian' );
 		$calendar->setTime( $timestamp * 1000 );
 		return array(
 			'year'  => (int) $calendar->get( IntlCalendar::FIELD_YEAR ),

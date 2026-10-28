@@ -82,12 +82,16 @@ final class LessonRescheduleNotificationService {
     private function format(string $utc,string $timezone):string{
         $timestamp=strtotime($utc.' UTC');
         if(!$timestamp)return $utc;
-        if(class_exists('IntlDateFormatter')){
+        if(class_exists('IntlCalendar')){
             try{
-                $formatter=new \IntlDateFormatter('fa_IR@calendar=persian',\IntlDateFormatter::FULL,\IntlDateFormatter::SHORT,$timezone,\IntlDateFormatter::TRADITIONAL);
-                $formatter->setPattern('EEEE d MMMM y، H:mm');
-                $formatted=$formatter->format((new \DateTimeImmutable('@'.$timestamp))->setTimezone(new \DateTimeZone($timezone)));
-                if(is_string($formatted)&&''!==$formatted)return $formatted;
+                $zone=new \DateTimeZone($timezone);
+                $calendar=\IntlCalendar::createInstance($zone,'@calendar=persian');
+                $calendar->setTime($timestamp*1000);
+                $months=array(1=>'فروردین',2=>'اردیبهشت',3=>'خرداد',4=>'تیر',5=>'مرداد',6=>'شهریور',7=>'مهر',8=>'آبان',9=>'آذر',10=>'دی',11=>'بهمن',12=>'اسفند');
+                $weekdays=array(1=>'یکشنبه',2=>'دوشنبه',3=>'سه‌شنبه',4=>'چهارشنبه',5=>'پنجشنبه',6=>'جمعه',7=>'شنبه');
+                $digits=static fn($v):string=>strtr((string)$v,array('0'=>'۰','1'=>'۱','2'=>'۲','3'=>'۳','4'=>'۴','5'=>'۵','6'=>'۶','7'=>'۷','8'=>'۸','9'=>'۹'));
+                $month=(int)$calendar->get(\IntlCalendar::FIELD_MONTH)+1;$weekday=(int)$calendar->get(\IntlCalendar::FIELD_DAY_OF_WEEK);
+                return ($weekdays[$weekday]??'').' '.$digits((int)$calendar->get(\IntlCalendar::FIELD_DAY_OF_MONTH)).' '.($months[$month]??'').' '.$digits((int)$calendar->get(\IntlCalendar::FIELD_YEAR)).'، '.$digits(sprintf('%02d:%02d',(int)$calendar->get(\IntlCalendar::FIELD_HOUR_OF_DAY),(int)$calendar->get(\IntlCalendar::FIELD_MINUTE)));
             }catch(\Throwable){}
         }
         return wp_date('Y-m-d H:i',$timestamp,new \DateTimeZone($timezone));

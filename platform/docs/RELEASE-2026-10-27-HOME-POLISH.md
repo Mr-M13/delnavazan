@@ -3,12 +3,19 @@
 Status: **deployed to production and verified**. Follows the presentation/portal
 release `508a822`.
 
-**Follow-up 2026-10-27:** the header login CTA now keeps the original enrolment
+**Follow-up 2026-10-28:** the primary menu order is now **خانه / مقالات / ورود**
+with the login button last. The currency selector is centred on the same axis as
+the pricing copy and uses the pricing block palette (translucent cream surface,
+light border/text, centred label). Deployed source is
+`f9517eb159920c1aa078a5920aee232d7d252435` (build `main-f9517eb15992`),
+deployment run `40616439515`. The rest of this record documents the preceding
+`9d568c6` home-polish release.
+
+**Follow-up 2026-10-27:** the header login CTA keeps the original enrolment
 button styling (`dzn-nav-action`): dark teal background, white text, rounded
 corners and a 40px control. Deployed source is
 `386225bce57724779be8dffc50b85297e92bdc0a` (build `main-386225bce577`),
-deployment run `40502315523`. The rest of this record documents the preceding
-`9d568c6` home-polish release.
+deployment run `40502315523`.
 
 ## Release identity
 

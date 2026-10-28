@@ -15,7 +15,10 @@ final class LessonRescheduleSystemActor {
         $userId=(int)get_option(self::USER_OPTION,0);
         if($userId<1)throw new \RuntimeException('reschedule_system_actor_unconfigured');
         $user=get_user_by('id',$userId);
-        if(!$user instanceof \WP_User||!user_can($user,'dzn_manage_canonical_lesson_schedules'))throw new \RuntimeException('reschedule_system_actor_invalid');
+        if(!$user instanceof \WP_User||(int)($user->user_status??0)!==0)throw new \RuntimeException('reschedule_system_actor_invalid');
+        if(!user_can($user,'dzn_manage_canonical_lesson_schedules'))throw new \RuntimeException('reschedule_system_actor_invalid');
+        // The scheduling actor must not be a general administrator or an integration manager.
+        if(user_can($user,'manage_options')||user_can($user,'dzn_manage_provider_integrations'))throw new \RuntimeException('reschedule_system_actor_invalid');
         $previous=get_current_user_id();wp_set_current_user($userId);
         try{return $work($userId);}finally{wp_set_current_user($previous>0?$previous:0);}
     }

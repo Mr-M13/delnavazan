@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '53' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '54' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-finance-administration-20261026.3' );

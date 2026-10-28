@@ -21,6 +21,7 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     public function proposalByDecisionDigest(string $digest):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE decision_key_digest=%s LIMIT 1",$digest);}
     public function proposal(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE id=%d LIMIT 1".($lock?' FOR UPDATE':''),$id);}
     public function pendingForStudent(int $studentId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE student_id=%d AND state='pending' ORDER BY created_at,id",$studentId);}
+    public function pendingForLesson(int $lessonId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE lesson_id=%d AND state='pending' ORDER BY id DESC LIMIT 1".($lock?' FOR UPDATE':''),$lessonId);}
     public function pendingForTeacher(int $teacherId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE teacher_id=%d AND state='pending' ORDER BY created_at,id",$teacherId);}
 
     /** One canonical Lesson and its current applicable schedule version, or null if not eligible. */
@@ -71,6 +72,11 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
         return(int)$changed;
     }
 
+    /** Acquire the canonical per-Student scheduling root before final conflict validation. */
+    public function ensureAndLockStudentRoot(int $studentId,string $now,int $actor):void{
+        (new CanonicalLessonScheduleRepository())->ensureAndLockStudentRoot($studentId,$now,$actor);
+    }
+
     /**
      * Authoritative student-occupancy check across canonical and legacy Lessons plus confirmed
      * booking classes. [start,end) is the instructional interval.
@@ -78,11 +84,11 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     public function studentConflict(int $studentId,string $startsAtUtc,string $endsAtUtc,int $excludeLessonId):array{
         $conflicts=array();
         $canonical=$this->rows(
-            "SELECT l.id lesson_id,v.starts_at_utc,v.ends_at_utc,'canonical' source FROM {$this->p}lessons l INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.student_id=%d AND l.id<>%d AND l.archived_at IS NULL AND v.starts_at_utc<%s AND v.ends_at_utc>%s ORDER BY v.starts_at_utc LIMIT 20",
+            "SELECT l.id lesson_id,v.starts_at_utc,v.occupied_ends_at_utc ends_at_utc,'canonical' source FROM {$this->p}lessons l INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.student_id=%d AND l.id<>%d AND l.archived_at IS NULL AND v.starts_at_utc<%s AND v.occupied_ends_at_utc>%s ORDER BY v.starts_at_utc LIMIT 20",
             $studentId,$excludeLessonId,$endsAtUtc,$startsAtUtc
         );
         $legacy=$this->rows(
-            "SELECT l.id lesson_id,v.starts_at_utc,v.ends_at_utc,'legacy' source FROM {$this->p}lessons l INNER JOIN {$this->p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.student_id=%d AND l.id<>%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL AND v.starts_at_utc<%s AND v.ends_at_utc>%s ORDER BY v.starts_at_utc LIMIT 20",
+            "SELECT l.id lesson_id,v.starts_at_utc,DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE) ends_at_utc,'legacy' source FROM {$this->p}lessons l INNER JOIN {$this->p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.student_id=%d AND l.id<>%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL AND v.starts_at_utc<%s AND DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE)>%s ORDER BY v.starts_at_utc LIMIT 20",
             $studentId,$excludeLessonId,$endsAtUtc,$startsAtUtc
         );
         // A provider-confirmed introductory booking is authoritative Student occupancy even

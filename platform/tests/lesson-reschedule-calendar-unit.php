@@ -19,6 +19,7 @@ namespace {
         public function proposalByDecisionDigest(string $digest):?object { return null; }
         public function proposal(int $id, bool $lock = false):?object { return null; }
         public function pendingForStudent(int $studentId):array { return array(); }
+        public function pendingForLesson(int $lessonId, bool $lock = false):?object { return null; }
         public function lessonContext(int $lessonId):?object { return null; }
         public function lessonContextByUid(string $lessonUid):?object { return null; }
         public function versionIdByUid(string $uid):int { return 0; }
@@ -35,6 +36,7 @@ namespace {
         public function pendingCalendarJobs(int $limit = 10):array { return array_values(array_filter($this->jobs, static fn($row) => in_array($row->state, array('queued', 'retry'), true))); }
         public function calendarJob(int $id, bool $lock = false):?object { return $this->jobs[$id - 1] ?? null; }
         public function updateCalendarJob(int $id, array $data):int { $this->jobs[$id - 1] = (object) array_merge((array) $this->jobs[$id - 1], $data); return 1; }
+        public function ensureAndLockStudentRoot(int $studentId, string $now, int $actor):void {}
         public function studentConflict(int $studentId, string $startsAtUtc, string $endsAtUtc, int $excludeLessonId):array { return array(); }
         public function duplicate(Throwable $e):?string { return null; }
     }
@@ -51,6 +53,12 @@ namespace {
     $fail('a retry completes the calendar hand-off', $second['completed'] === 1 && $store->jobs[0]->state === 'completed' && $store->jobs[0]->completed_at !== null);
     $third = $service->dispatchPending(5);
     $fail('a completed job is never dispatched twice', $third['completed'] === 0 && $calls === 2);
+
+    $missingActor = new CalendarStore();
+    $missingActor->jobs[] = (object) array('id' => 1, 'uid' => 'JOB-2', 'proposal_id' => 4, 'lesson_id' => 42, 'from_schedule_version_id' => 72, 'to_schedule_version_id' => 100, 'state' => 'queued', 'attempt_count' => 0);
+    $missingService = new LessonRescheduleCalendarService($missingActor, static function (array $job): array { throw new RuntimeException('reschedule_calendar_actor_unconfigured'); }, static fn(): int => time());
+    $missing = $missingService->dispatchPending(5);
+    $fail('a missing calendar actor leaves the job queued and un-attempted', $missing['failed'] === 1 && $missingActor->jobs[0]->state === 'queued' && $missingActor->jobs[0]->attempt_count === 0 && $missingActor->jobs[0]->last_error_code === 'reschedule_calendar_actor_unconfigured');
 
     echo "Lesson reschedule calendar unit passed\n";
 }

@@ -45,14 +45,24 @@ final class LessonRescheduleCalendarService {
                 $this->store->rollback();
                 try{
                     $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
-                    $attempt=(int)($row->attempt_count??0)+1;
-                    $state=$attempt>=self::MAX_ATTEMPTS?'failed':'retry';
-                    $this->store->updateCalendarJob((int)$row->id,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',(int)($this->clock)()+min(3600,60*(2**min(5,$attempt)))),'last_error_code'=>substr((string)$e->getMessage(),0,64),'updated_at'=>$now));
+                    $code=self::safeErrorCode((string)$e->getMessage());
+                    $actorUnavailable=in_array($code,array('reschedule_calendar_actor_unconfigured','reschedule_calendar_actor_invalid'),true);
+                    $attempt=(int)($row->attempt_count??0)+($actorUnavailable?0:1);
+                    // Missing or underprivileged actors keep the job queued and retryable; an
+                    // already accepted canonical reschedule is never rolled back for this.
+                    $state=$actorUnavailable?'queued':($attempt>=self::MAX_ATTEMPTS?'failed':'retry');
+                    $this->store->updateCalendarJob((int)$row->id,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt))))),'last_error_code'=>$code,'updated_at'=>$now));
                 }catch(\Throwable){}
                 $failed++;
             }
         }
         return array('completed'=>$completed,'failed'=>$failed);
+    }
+
+    /** Store only controlled codes; never persist raw provider references, tokens or payload text. */
+    private static function safeErrorCode(string $message):string{
+        $message=trim($message);
+        return preg_match('/^[a-z0-9_]{1,64}$/D',$message)===1?$message:'calendar_handoff_failed';
     }
 
     /** Existing integration authority: retract old references, then record new projections. */

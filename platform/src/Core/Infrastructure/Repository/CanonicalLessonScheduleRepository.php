@@ -34,6 +34,27 @@ final class CanonicalLessonScheduleRepository {
     }
     public function teacherRoot(int $teacherId):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}teacher_schedule_roots WHERE teacher_id=%d",$teacherId));}
 
+    /**
+     * Ensure and lock the per-Student scheduling root.
+     *
+     * Global order: reschedule proposal row → Student scheduling root → Student–Course identity
+     * root → Enrolment → Term → Lesson → schedule versions → events → Assignment → Teacher lock
+     * → Teacher scheduling root. This root serialises final Student-conflict validation and any
+     * canonical schedule change affecting the same Student. It is acquired before the Teacher
+     * root and never after it.
+     */
+    public function ensureAndLockStudentRoot(int $studentId,string $now,int $actor):object{
+        global $wpdb;
+        $sql=$wpdb->prepare("INSERT INTO {$this->p}student_schedule_roots(student_id,created_at,created_by) VALUES(%d,%s,%d) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",$studentId,$now,$actor);
+        if($wpdb->query($sql)===false)throw new \RuntimeException('Student scheduling root persistence failed: '.$wpdb->last_error);
+        $id=(int)$wpdb->insert_id;
+        if($id<1)$id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}student_schedule_roots WHERE student_id=%d",$studentId));
+        $row=$id>0?$wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}student_schedule_roots WHERE id=%d FOR UPDATE",$id)):null;
+        if(!$row||(int)$row->student_id!==$studentId)throw new \RuntimeException('Student scheduling root lock failed');
+        return $row;
+    }
+    public function studentRoot(int $studentId):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}student_schedule_roots WHERE student_id=%d",$studentId));}
+
     public function versionsForLesson(int $lessonId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE lesson_id=%d ORDER BY version_number,id{$suffix}",$lessonId));if($wpdb->last_error!=='')throw new \RuntimeException('Canonical schedule version read failed: '.$wpdb->last_error);return is_array($rows)?$rows:array();}
     public function eventsForLesson(int $lessonId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_schedule_events WHERE lesson_id=%d ORDER BY event_sequence,id{$suffix}",$lessonId));if($wpdb->last_error!=='')throw new \RuntimeException('Canonical schedule event read failed: '.$wpdb->last_error);return is_array($rows)?$rows:array();}
     public function applicableVersion(int $lessonId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}canonical_lesson_schedule_versions WHERE lesson_id=%d AND applicable_slot=1".($lock?' FOR UPDATE':''),$lessonId);}

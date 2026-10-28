@@ -21,6 +21,7 @@ namespace {
         public function proposalByDecisionDigest(string $digest):?object { return null; }
         public function proposal(int $id, bool $lock = false):?object { return $this->proposal; }
         public function pendingForStudent(int $studentId):array { return array(); }
+        public function pendingForLesson(int $lessonId, bool $lock = false):?object { return null; }
         public function lessonContext(int $lessonId):?object { return null; }
         public function lessonContextByUid(string $lessonUid):?object { return null; }
         public function versionIdByUid(string $uid):int { return 0; }
@@ -37,6 +38,7 @@ namespace {
         public function pendingCalendarJobs(int $limit = 10):array { return array(); }
         public function calendarJob(int $id, bool $lock = false):?object { return null; }
         public function updateCalendarJob(int $id, array $data):int { return 0; }
+        public function ensureAndLockStudentRoot(int $studentId, string $now, int $actor):void {}
         public function studentConflict(int $studentId, string $startsAtUtc, string $endsAtUtc, int $excludeLessonId):array { return array(); }
         public function duplicate(Throwable $e):?string { return null; }
     }

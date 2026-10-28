@@ -345,3 +345,10 @@
   .dzn-tp-instrument,.dzn-tp-instrument.is-selected{border:2px solid CanvasText}
   .dzn-tp-instrument.is-selected .dzn-tp-instrument__thumb img{filter:none;opacity:1}
 }
+
+/* High-contrast mobile tab bar. */
+@media (max-width:47.99rem){
+  .dzn-tp-tabs{background:var(--dzn-color-surface-elevated);border-color:var(--dzn-color-border);backdrop-filter:none}
+  .dzn-tp-tabs__link{color:var(--dzn-color-text-primary);font-size:.92rem;font-weight:800;letter-spacing:0}
+  .dzn-tp-tabs__link.is-current{background:var(--dzn-color-action-primary);color:#fff;box-shadow:none}
+}

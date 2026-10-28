@@ -26,6 +26,7 @@ login_and_expect() {
 	[ -n "$primary_nav" ] || { echo "error: primary navigation was not rendered" >&2; exit 1; }
 	[ "$(grep -Fo '>ورود</a>' <<<"$primary_nav" | wc -l | tr -d ' ')" = 1 ] || { echo "error: primary navigation must expose exactly one login CTA labelled ورود" >&2; exit 1; }
 	grep -Fq 'class="dzn-nav-portal dzn-nav-action" href="' <<<"$primary_nav" || { echo "error: primary navigation login CTA must keep the original enrolment button styling" >&2; exit 1; }
+	[ "$(grep -o '<a [^>]*>[^<]*</a>' <<<"$primary_nav" | tail -1 | grep -Fc '>ورود</a>')" = 1 ] || { echo "error: the login CTA must be the last primary navigation item" >&2; exit 1; }
 	! grep -Fq '/enrol/' <<<"$primary_nav" || { echo "error: primary navigation must not duplicate the homepage enrolment action" >&2; exit 1; }
 	! grep -Eq 'ورود هنرجویان|ورود اساتید|ورود به پرتال مدرس' "$login_page" || { echo "error: a competing role-specific login entry is still rendered" >&2; exit 1; }
 	meta="$(curl --fail --silent --show-error --location --max-redirs 10 --cookie "@$jar" --cookie-jar "$jar" --output "$response" --write-out '%{http_code} %{url_effective}' \

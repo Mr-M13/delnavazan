@@ -46,7 +46,9 @@ if ( 1 !== preg_match( '/\.dzn-pricing-region\s*\{([^}]*)\}/', $css, $region_blo
 $check( 'the pricing region rule is not display:none', ! preg_match( '/display\s*:\s*none/', $region_block[1] ) );
 $check( 'the pricing region rule is a visible flex control', preg_match( '/display\s*:\s*flex/', $region_block[1] ) === 1 );
 $check( 'the select control retains a usable height', str_contains( $css, 'min-block-size:' ) && str_contains( $css, '.dzn-pricing-region__select' ) );
-$check( 'the select control is compact', (bool) preg_match( '/\.dzn-pricing-region__select\s*\{[^}]*max-inline-size:\s*9rem/s', $css ) );
+$check( 'the select control is compact', (bool) preg_match( '/\.dzn-pricing-region__select\s*\{[^}]*max-inline-size:\s*8\.5rem/s', $css ) );
+$check( 'the selector is centred under the pricing copy', (bool) preg_match( '/\.dzn-pricing-region\s*\{[^}]*align-items:\s*center/s', $css ) && (bool) preg_match( '/\.dzn-pricing-region__select\s*\{[^}]*align-self:\s*center/s', $css ) );
+$check( 'the selector uses the pricing block palette', (bool) preg_match( '/\.dzn-pricing-region__select\s*\{[^}]*background:\s*rgb\(255 253 248 \/ \.08\)/s', $css ) && str_contains( $css, 'color-scheme:' ) );
 $check( 'the homepage no longer claims a base price fallback', ! str_contains( $home, 'قیمت پایه در صورت عدم شناسایی موقعیت' ) );
 $check( 'the approval disclaimers were removed', ! str_contains( $home, 'تقریبی' ) && ! str_contains( $home, 'نشانی دقیق شما را ذخیره نمی‌کند' ) );
 $check( 'the script no longer carries the approval disclaimer', ! str_contains( $price, 'انتخاب دستی شما همیشه مقدم است' ) && ! str_contains( $price, 'این منطقه فقط' ) );

@@ -174,8 +174,8 @@ add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
 function dzn_theme_primary_menu_fallback() {
 	$items = array(
 		array( 'خانه', home_url( '/' ), '' ),
-		array( 'ورود', home_url( '/login/' ), 'dzn-nav-portal dzn-nav-action' ),
 		array( 'مقالات', home_url( '/articles/' ), '' ),
+		array( 'ورود', home_url( '/login/' ), 'dzn-nav-portal dzn-nav-action' ),
 	);
 
 	echo '<ul class="primary-navigation__list">';

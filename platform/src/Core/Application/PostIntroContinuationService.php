@@ -55,6 +55,11 @@ final class PostIntroContinuationService {
         $existingOffer = null;
         if ((int) ($preparation->offer_id ?? 0) > 0) {
             $existingOffer = $repository->offer((int) $preparation->offer_id);
+            // A superseded snapshot is history. Follow the live successor rather than making the
+            // Student's later portal visit repeat a stale plan choice.
+            if ($existingOffer && (string) $existingOffer->state === 'superseded') {
+                $existingOffer = null;
+            }
         }
         if (!$existingOffer && (int) ($preparation->continuation_case_id ?? 0) > 0) {
             $existingOffer = $repository->offerByContinuationCase((int) $preparation->continuation_case_id);

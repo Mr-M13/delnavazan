@@ -69,7 +69,7 @@ if(!str_contains($migration,'$phaseR1Grants')||!str_contains($migration,'$teache
 foreach(array(
     "RULE_VERSION='commercial_purchase_v1'","PLAN_KINDS=array('full','two_instalments')",
     "INSTALMENT_TRANCHES=2","TRANCHE_ONE_FROM=1","TRANCHE_ONE_TO=6","TRANCHE_TWO_FROM=7","TRANCHE_TWO_TO=12",
-    "OFFER_STATES=array('issued','accepted','expired','withdrawn')","ENTITLEMENT_STATES=array('issued','term_bound')",
+    "OFFER_STATES=array('issued','accepted','expired','withdrawn','superseded')","ENTITLEMENT_STATES=array('issued','term_bound')",
     "CLAIM_STATES=array('active','released','expired')","CLAIM_INTERVAL_STATES=array('protected','satisfied','released')",
     "CLAIM_SOURCE_KINDS=array('q_succession','regular_pattern')","EVIDENCE_KINDS=array('attempt','success','failure','refund','mandate')",
     "ADJUSTMENT_SOURCE_TYPES=array('promotion','account_adjustment','credit')","IMPLEMENTED_ADJUSTMENT_SOURCES=array('promotion','account_adjustment')",

@@ -8,8 +8,36 @@
 	const status = root.querySelector('[data-checkout-status]');
 	const list = root.querySelector('[data-checkout-list]');
 	const apiRoot = config.apiRoot.replace(/\/$/, '') + '/';
+
+	const promotionCodeInput = root.querySelector('#dzn-promotion-code');
+	const promotionApplyBtn = root.querySelector('#dzn-promotion-apply');
+	const promotionStatus = root.querySelector('[data-promotion-status]');
+	let promotionBusy = false;
+	let lastObligations = null;
 	const labels = {
 		pay: 'پرداخت', continue: 'ادامهٔ پرداخت', resume: 'بررسی وضعیت پرداخت', retry: 'تلاش دوباره'
+	};
+	const promotionMessages = {
+		promotion_not_found: 'این کد تخفیف معتبر نیست.',
+		promotion_inactive: 'این کد تخفیف غیرفعال است.',
+		promotion_expired: 'مهلت استفاده از این کد تخفیف به پایان رسیده است.',
+		promotion_not_yet_valid: 'این کد تخفیف هنوز فعال نشده است.',
+		promotion_usage_limit_reached: 'ظرفیت استفاده از این کد تخفیف تکمیل شده است.',
+		promotion_beneficiary_limit_reached: 'این کد تخفیف قبلاً برای حساب شما استفاده شده است.',
+		promotion_first_term_only: 'این کد تخفیف فقط برای ترم اول قابل استفاده است.',
+		promotion_product_mismatch: 'این کد تخفیف برای دورهٔ شما معتبر نیست.',
+		promotion_currency_mismatch: 'این کد تخفیف با واحد پول پرداخت شما سازگار نیست.',
+		promotion_discount_too_small: 'مبلغ این تخفیف برای پرداخت شما قابل اعمال نیست.',
+		promotion_discount_not_applicable: 'این کد تخفیف برای مبلغ قابل پرداخت شما قابل اعمال نیست.',
+		promotion_already_applied: 'برای این طرح از قبل یک کد تخفیف اعمال شده است.',
+		promotion_offer_already_paid: 'این طرح پرداخت شده و تغییر آن ممکن نیست.',
+		promotion_offer_expired: 'زمان این طرح پرداخت به پایان رسیده است.',
+		promotion_offer_superseded: 'وضعیت پرداخت تغییر کرده است. صفحه در حال به‌روزرسانی است.',
+		promotion_offer_unavailable: 'این طرح در حال حاضر قابل پرداخت نیست.',
+		promotion_rate_limited: 'تعداد تلاش‌ها زیاد است. لطفاً چند دقیقه دیگر دوباره تلاش کنید.',
+		promotion_code_required: 'کد تخفیف را وارد کنید.',
+		promotion_code_invalid: 'کد تخفیف واردشده معتبر نیست.',
+		promotion_unavailable: 'اعمال کد تخفیف اکنون ممکن نیست. لطفاً دوباره تلاش کنید.'
 	};
 	const messages = {
 		paid: 'پرداخت ثبت شده است.',
@@ -25,7 +53,13 @@
 	function api(path, options) {
 		const request = Object.assign({ credentials: 'same-origin', headers: { 'X-WP-Nonce': config.nonce, 'Accept': 'application/json' } }, options || {});
 		return fetch(apiRoot + path, request).then(function (response) {
-			if (!response.ok) throw new Error('checkout_unavailable');
+			if (!response.ok) {
+				return response.json().catch(function () { return {}; }).then(function (payload) {
+					const error = new Error('checkout_unavailable');
+					error.payload = payload || {};
+					throw error;
+				});
+			}
 			return response.json();
 		});
 	}
@@ -116,7 +150,21 @@
 		const heading = document.createElement('div');
 		heading.className = 'dzn-checkout__plan-heading';
 		addText(heading, 'h3', 'dzn-checkout__plan-title', planLabel(first, plan));
-		addText(heading, 'span', 'dzn-checkout__plan-total', formatAmount(first.offer_amount_due_minor, first.offer_currency));
+		const currency = first.offer_currency || first.currency;
+		const base = Number(first.offer_base_amount_minor);
+		const discount = Number(first.offer_discount_total_minor || 0);
+		const total = Number(first.offer_amount_due_minor);
+		if (Number.isFinite(base) && Number.isFinite(discount) && discount > 0) {
+			addText(heading, 'span', 'dzn-checkout__plan-original', 'مبلغ اصلی: ' + formatAmount(base, currency));
+		}
+		addText(heading, 'span', 'dzn-checkout__plan-total', formatAmount(total, currency));
+		if (Number.isFinite(discount) && discount > 0) {
+			const saving = document.createElement('span');
+			saving.className = 'dzn-checkout__plan-saving';
+			const percentage = first.offer_promotion_percentage;
+			saving.textContent = 'تخفیف: ' + formatAmount(discount, currency) + (percentage !== null && percentage !== undefined ? ' (' + faDigits(percentage) + '٪)' : '');
+			heading.appendChild(saving);
+		}
 		section.appendChild(heading);
 		const meta = [];
 		if (Number(first.committed_sessions) > 0) meta.push('تعداد جلسات: ' + faDigits(first.committed_sessions));
@@ -174,6 +222,7 @@
 		if (payable) say('برای پرداخت، گزینهٔ موردنظر را انتخاب کنید.');
 		else if (rows.some(function (row) { return row.payment_state === 'processing'; })) say(messages.processing);
 		else say('وضعیت پرداخت ترم در بالا نمایش داده شده است.');
+		syncPromotionUi(rows);
 	}
 	function start(row, button) {
 		if (!/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/.test(String(row.obligation_uid || ''))) { say(messages.unavailable); return; }
@@ -191,12 +240,131 @@
 			}).catch(function () { say(messages.unavailable); button.disabled = false; });
 	}
 
+	function payableRow(rows) {
+		return (rows || []).find(function (row) {
+			return Object.prototype.hasOwnProperty.call(labels, row.action);
+		}) || null;
+	}
+	function promotionAppliedRow(rows) {
+		const payable = payableRow(rows);
+		return (rows || []).find(function (row) {
+			if (!row.offer_has_promotion) return false;
+			return !payable || String(row.offer_uid || '') === String(payable.offer_uid || '');
+		}) || null;
+	}
+	function promotionSummary(row) {
+		if (!row) return '';
+		const currency = row.offer_currency || row.currency;
+		const discount = Number(row.offer_promotion_amount_minor || row.offer_discount_total_minor || 0);
+		return 'مبلغ اصلی: ' + formatAmount(row.offer_base_amount_minor, currency)
+			+ ' · تخفیف: ' + formatAmount(discount, currency)
+			+ ' · مبلغ قابل پرداخت: ' + formatAmount(row.offer_amount_due_minor, currency);
+	}
+	function syncPromotionUi(rows) {
+		if (!promotionCodeInput || !promotionApplyBtn || !promotionStatus) return;
+		const applied = promotionAppliedRow(rows);
+		const payable = payableRow(rows);
+		if (applied) {
+			promotionCodeInput.disabled = true;
+			promotionApplyBtn.disabled = true;
+			promotionApplyBtn.textContent = 'اعمال شده';
+			promotionStatus.textContent = 'کد تخفیف اعمال شده است. ' + promotionSummary(applied);
+			return;
+		}
+		promotionCodeInput.disabled = false;
+		promotionApplyBtn.textContent = 'اعمال';
+		promotionApplyBtn.disabled = promotionBusy || !payable;
+		if (!payable) {
+			promotionStatus.textContent = 'طرح قابل پرداختی برای اعمال کد تخفیف وجود ندارد.';
+		}
+	}
+	function promotionErrorMessage(error) {
+		const reason = error && error.payload && error.payload.reason ? String(error.payload.reason) : '';
+		return promotionMessages[reason] || 'اعمال کد تخفیف ممکن نیست. لطفاً دوباره تلاش کنید.';
+	}
+	function refreshPayments() {
+		return api('student/commercial-checkout').then(function (data) {
+			lastObligations = data.obligations || [];
+			render(lastObligations);
+			syncPromotionUi(lastObligations);
+			return lastObligations;
+		});
+	}
+	function applyPromotion() {
+		if (!promotionCodeInput || !promotionApplyBtn || !promotionStatus || promotionBusy) return;
+		const row = payableRow(lastObligations || []);
+		if (!row) {
+			promotionStatus.textContent = 'طرح قابل پرداختی برای اعمال کد تخفیف وجود ندارد.';
+			return;
+		}
+		const code = String(promotionCodeInput.value || '').trim();
+		if (code === '') {
+			promotionStatus.textContent = promotionMessages.promotion_code_required;
+			promotionCodeInput.focus();
+			return;
+		}
+		if (code.length > 64) {
+			promotionStatus.textContent = promotionMessages.promotion_code_invalid;
+			return;
+		}
+		promotionBusy = true;
+		promotionApplyBtn.disabled = true;
+		promotionCodeInput.disabled = true;
+		promotionStatus.setAttribute('aria-busy', 'true');
+		promotionStatus.textContent = 'در حال بررسی و اعمال کد تخفیف…';
+		api('commercial/promotion/apply', {
+			method: 'POST',
+			headers: { 'X-WP-Nonce': config.nonce, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ obligation_uid: row.obligation_uid, promotion_code: code }),
+		}).then(function (data) {
+			if (!data || data.applied !== true) {
+				const refusal = new Error('promotion_refused');
+				refusal.payload = data || {};
+				throw refusal;
+			}
+			promotionStatus.textContent = 'کد تخفیف با موفقیت اعمال شد. '
+				+ 'مبلغ اصلی: ' + formatAmount(data.original_amount_minor, data.currency)
+				+ ' · تخفیف: ' + formatAmount(data.discount_total_minor, data.currency)
+				+ ' · مبلغ قابل پرداخت: ' + formatAmount(data.final_amount_minor, data.currency);
+			promotionCodeInput.value = code;
+			promotionBusy = false;
+			promotionStatus.removeAttribute('aria-busy');
+			// The apply response is already authoritative; the refresh aligns the full obligation
+			// list, and every Checkout click re-reads the server amount again.
+			refreshPayments().catch(function () {
+				promotionStatus.textContent = 'کد تخفیف اعمال شد. برای نمایش جزئیات، صفحه را دوباره بارگذاری کنید.';
+			});
+		}).catch(function (error) {
+			promotionBusy = false;
+			promotionStatus.removeAttribute('aria-busy');
+			promotionStatus.textContent = promotionErrorMessage(error);
+			promotionCodeInput.disabled = false;
+			promotionApplyBtn.disabled = false;
+			if (error && error.payload && error.payload.refresh_required) {
+				refreshPayments().catch(function () {});
+			}
+		});
+	}
+
+	if (promotionApplyBtn) {
+		promotionApplyBtn.addEventListener('click', applyPromotion);
+	}
+	if (promotionCodeInput) {
+		promotionCodeInput.addEventListener('keydown', function (event) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				applyPromotion();
+			}
+		});
+	}
+
 	const query = new URLSearchParams(window.location.search);
 	const returnKind = query.get('checkout');
 	const attempt = query.get('attempt');
 	if ((returnKind === 'return' || returnKind === 'cancel') && attempt) loadStatus(attempt, returnKind);
 	api('student/commercial-checkout').then(function (data) {
-		render(data.obligations);
+		lastObligations = data.obligations || [];
+		render(lastObligations);
 		if ((returnKind === 'return' || returnKind === 'cancel') && attempt) loadStatus(attempt, returnKind);
 	}).catch(function () { say(messages.unavailable); });
 }());

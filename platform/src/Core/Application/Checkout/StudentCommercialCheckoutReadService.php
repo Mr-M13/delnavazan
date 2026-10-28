@@ -27,6 +27,9 @@ final class StudentCommercialCheckoutReadService {
         $rows=array();$now=gmdate('Y-m-d H:i:s');
         foreach($this->authority->offersForBeneficiary($studentId) as $offer){
             if((int)$offer->beneficiary_student_id!==$studentId)throw new \RuntimeException('checkout_authority_unavailable');
+            // A superseded snapshot is immutable history, never a second payable obligation set.
+            // Its successor is the newest offer for the same continuation and is shown instead.
+            if((string)$offer->state==='superseded')continue;
             CommercialLineageValidator::assertForOffer($offer,false,$this->authority);
             // An accepted commitment keeps later instalments payable after the initial checkout
             // hold; only an unaccepted issued offer is bounded by its expiry instant.
@@ -38,6 +41,8 @@ final class StudentCommercialCheckoutReadService {
             foreach((array)($funding['obligations']??array()) as $fundingRow)$settledBySequence[(int)$fundingRow['obligation_sequence']]=$fundingRow;
             $termSequence=$this->authority->termSequenceForOffer((int)$offer->id);
             if($termSequence===null&&(string)$offer->source_kind==='continuation_case')$termSequence=1;
+            $promotion=$offer->promotion_id===null?null:$this->authority->promotion((int)$offer->promotion_id);
+            $promotionAmount=(int)($offer->promotion_amount_minor??0);
             $paidMinor=0;$totalMinor=0;$paidObligations=0;$obligations=$this->authority->obligationsForOffer((int)$offer->id);
             foreach($obligations as $obligation){$totalMinor+=(int)$obligation->amount_minor;if(!empty($settledBySequence[(int)$obligation->obligation_sequence]['settled'])){$paidMinor+=(int)$obligation->amount_minor;$paidObligations++;}}
             foreach($obligations as $obligation){
@@ -84,6 +89,12 @@ final class StudentCommercialCheckoutReadService {
                     'plan_kind'=>(string)$offer->plan_kind,
                     'committed_sessions'=>(int)$offer->committed_sessions,
                     'offer_amount_due_minor'=>(int)$offer->amount_due_minor,
+                    'offer_base_amount_minor'=>(int)$offer->base_amount_minor,
+                    'offer_discount_total_minor'=>(int)$offer->discount_total_minor,
+                    'offer_promotion_amount_minor'=>$promotionAmount,
+                    'offer_has_promotion'=>$promotionAmount>0,
+                    'offer_promotion_percentage'=>$promotion!==null&&$promotion->percentage_bp!==null?(int)$promotion->percentage_bp/100:null,
+                    'offer_promotion_kind'=>$promotion===null?null:(string)$promotion->kind,
                     'offer_currency'=>(string)$offer->currency,
                     'offer_expires_at'=>$offer->expires_at===null?null:(string)$offer->expires_at,
                     'term_sequence'=>$termSequence,

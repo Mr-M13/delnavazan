@@ -51,6 +51,61 @@ $render_items = static function ( array $rows ): void {
 	<?php if ( $checkout_enabled ) : ?>
 		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">
 			<p class="dzn-checkout__status" data-checkout-status aria-live="polite"><?php esc_html_e( 'در حال دریافت وضعیت پرداخت…', 'delnavazan-theme' ); ?></p>
+
+			<?php
+			// Initial server-rendered promotion state is derived only from the authoritative
+			// commercial read. The browser never supplies an amount or a discount.
+			$promo_rows = isset( $payments['obligations'] ) && is_array( $payments['obligations'] ) ? $payments['obligations'] : array();
+			$promo = array( 'enabled' => true, 'applied' => false );
+			foreach ( $promo_rows as $promo_row ) {
+				if ( ! is_array( $promo_row ) || empty( $promo_row['offer_has_promotion'] ) ) { continue; }
+				$promo = array(
+					'enabled'            => true,
+					'applied'            => true,
+					'original_minor'     => (int) ( $promo_row['offer_base_amount_minor'] ?? 0 ),
+					'discount_minor'     => (int) ( $promo_row['offer_promotion_amount_minor'] ?? 0 ),
+					'final_minor'        => (int) ( $promo_row['offer_amount_due_minor'] ?? 0 ),
+					'percentage'         => isset( $promo_row['offer_promotion_percentage'] ) && $promo_row['offer_promotion_percentage'] !== null ? (float) $promo_row['offer_promotion_percentage'] : null,
+					'currency'           => (string) ( $promo_row['offer_currency'] ?? ( $promo_row['currency'] ?? '' ) ),
+				);
+				break;
+			}
+			$promoApplied = ! empty( $promo['applied'] );
+			$promoDiscount = (int) ( $promo['discount_minor'] ?? 0 );
+			$promoOriginal = (int) ( $promo['original_minor'] ?? 0 );
+			$promoFinal = (int) ( $promo['final_minor'] ?? 0 );
+			$promoPercentage = array_key_exists( 'percentage', $promo ) ? $promo['percentage'] : null;
+			$promoCurrency = (string) ( $promo['currency'] ?? '' );
+			$format_promo = static function ( int $minor, string $currency ): string {
+				if ( $currency !== '' && class_exists( '\Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney' ) ) {
+					return \Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney::format( $minor, $currency, true );
+				}
+				return number_format( $minor ) . ( $currency !== '' ? ' ' . $currency : '' );
+			};
+			?>
+
+			<div class="dzn-checkout__promotion">
+				<label class="dzn-checkout__promotion-label" for="dzn-promotion-code"><?php esc_html_e( 'کد تخفیف', 'delnavazan-theme' ); ?></label>
+				<div class="dzn-checkout__promotion-inputs">
+					<input type="text" id="dzn-promotion-code" class="dzn-checkout__promotion-code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="<?php esc_attr_e( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ); ?>"<?php echo $promoApplied ? ' disabled' : ''; ?> />
+					<button type="button" id="dzn-promotion-apply" class="dzn-button dzn-button--secondary dzn-checkout__promotion-apply"<?php echo $promoApplied ? ' disabled' : ''; ?>>
+						<?php echo $promoApplied ? esc_html__( 'اعمال شده', 'delnavazan-theme' ) : esc_html__( 'اعمال', 'delnavazan-theme' ); ?>
+					</button>
+				</div>
+				<p class="dzn-checkout__promotion-status" data-promotion-status aria-live="polite" aria-atomic="true">
+					<?php if ( $promoApplied && $promoDiscount > 0 ) : ?>
+						<?php
+						$promo_label = null !== $promoPercentage
+							? sprintf( esc_html__( 'تخفیف %s٪ اعمال شده است.', 'delnavazan-theme' ), esc_html( number_format( $promoPercentage, 0 ) ) )
+							: sprintf( esc_html__( 'تخفیف %s اعمال شده است.', 'delnavazan-theme' ), esc_html( $format_promo( $promoDiscount, $promoCurrency ) ) );
+						echo $promo_label . ' ' . esc_html( sprintf( __( 'مبلغ اصلی: %1$s · مبلغ قابل پرداخت: %2$s', 'delnavazan-theme' ), $format_promo( $promoOriginal, $promoCurrency ), $format_promo( $promoFinal, $promoCurrency ) ) );
+						?>
+					<?php else : ?>
+						<?php esc_html_e( 'کد تخفیفی اعمال نشده است.', 'delnavazan-theme' ); ?>
+					<?php endif; ?>
+				</p>
+			</div>
+
 			<div class="dzn-checkout__list" data-checkout-list></div>
 		</div>
 		<noscript><?php $render_items( $items ); ?></noscript>

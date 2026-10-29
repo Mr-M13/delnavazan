@@ -1,0 +1,958 @@
+{
+  "logins": {
+    "student": {
+      "url": "http://127.0.0.1:18081/student-portal/",
+      "title": "Disposable Delnavazan acceptance",
+      "body": "home blog logged-in wp-embed-responsive wp-theme-delnavazan",
+      "expected": "http://127.0.0.1:18081/student-portal/",
+      "pass": true
+    },
+    "teacher": {
+      "url": "http://127.0.0.1:18081/teacher-portal/",
+      "title": "Disposable Delnavazan acceptance",
+      "body": "home blog logged-in wp-embed-responsive wp-theme-delnavazan",
+      "expected": "http://127.0.0.1:18081/teacher-portal/",
+      "pass": true
+    },
+    "studentSweep": {
+      "url": "http://127.0.0.1:18081/student-portal/",
+      "title": "Disposable Delnavazan acceptance",
+      "body": "home blog logged-in wp-embed-responsive wp-theme-delnavazan",
+      "expected": "http://127.0.0.1:18081/student-portal/",
+      "pass": true
+    },
+    "teacherSweep": {
+      "url": "http://127.0.0.1:18081/teacher-portal/",
+      "title": "Disposable Delnavazan acceptance",
+      "body": "home blog logged-in wp-embed-responsive wp-theme-delnavazan",
+      "expected": "http://127.0.0.1:18081/teacher-portal/",
+      "pass": true
+    },
+    "studentInteraction": {
+      "url": "http://127.0.0.1:18081/student-portal/",
+      "title": "Disposable Delnavazan acceptance",
+      "body": "home blog logged-in wp-embed-responsive wp-theme-delnavazan",
+      "expected": "http://127.0.0.1:18081/student-portal/",
+      "pass": true
+    }
+  },
+  "pages": [],
+  "interactions": {
+    "disclosure": {
+      "found": true,
+      "before": {
+        "expanded": "false",
+        "hidden": true
+      },
+      "after": {
+        "expanded": "true",
+        "hidden": false,
+        "visible": true
+      },
+      "closed": {
+        "expanded": "false",
+        "hidden": true
+      },
+      "id": "tp-details-0"
+    },
+    "reschedule": {
+      "found": true,
+      "open": true,
+      "forms": 1,
+      "ids": [
+        "tp-reschedule-1"
+      ]
+    },
+    "focus": {
+      "focusVisible": false,
+      "outline": "3px none rgb(37, 39, 38)",
+      "offset": "0px"
+    }
+  },
+  "textResize": [
+    {
+      "page": "student-home",
+      "vw": 390,
+      "sw": 390,
+      "inner": 390,
+      "client": 390,
+      "overflow": false,
+      "wide": [],
+      "offenders": []
+    },
+    {
+      "page": "teacher-classes",
+      "vw": 390,
+      "sw": 390,
+      "inner": 390,
+      "client": 390,
+      "overflow": false,
+      "wide": [],
+      "offenders": []
+    },
+    {
+      "page": "teacher-settings",
+      "vw": 390,
+      "sw": 390,
+      "inner": 390,
+      "client": 390,
+      "overflow": false,
+      "wide": [
+        {
+          "tag": "div",
+          "cls": "dzn-container dzn-tp-content",
+          "w": 310,
+          "sw": 314,
+          "cw": 310,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "section",
+          "cls": "dzn-tp-section",
+          "w": 278,
+          "sw": 297,
+          "cw": 276,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "form",
+          "cls": "",
+          "w": 218,
+          "sw": 268,
+          "cw": 218,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "fieldset",
+          "cls": "",
+          "w": 214,
+          "sw": 264,
+          "cw": 210,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "div",
+          "cls": "dzn-tp-instrument-grid",
+          "w": 162,
+          "sw": 240,
+          "cw": 162,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "form",
+          "cls": "",
+          "w": 218,
+          "sw": 222,
+          "cw": 218,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "div",
+          "cls": "dzn-tp-form-grid",
+          "w": 218,
+          "sw": 222,
+          "cw": 218,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "label",
+          "cls": "",
+          "w": 218,
+          "sw": 222,
+          "cw": 218,
+          "pos": "static",
+          "ox": "visible"
+        }
+      ],
+      "offenders": []
+    },
+    {
+      "page": "teacher-home",
+      "vw": 390,
+      "sw": 390,
+      "inner": 390,
+      "client": 390,
+      "overflow": false,
+      "wide": [],
+      "offenders": []
+    },
+    {
+      "page": "teacher-finance",
+      "vw": 390,
+      "sw": 390,
+      "inner": 390,
+      "client": 390,
+      "overflow": false,
+      "wide": [
+        {
+          "tag": "div",
+          "cls": "dzn-tp-stats dzn-tp-stats--finance",
+          "w": 218,
+          "sw": 245,
+          "cw": 218,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "div",
+          "cls": "",
+          "w": 97,
+          "sw": 118,
+          "cw": 95,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "div",
+          "cls": "",
+          "w": 97,
+          "sw": 116,
+          "cw": 95,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "div",
+          "cls": "",
+          "w": 97,
+          "sw": 123,
+          "cw": 95,
+          "pos": "static",
+          "ox": "visible"
+        },
+        {
+          "tag": "div",
+          "cls": "",
+          "w": 97,
+          "sw": 121,
+          "cw": 95,
+          "pos": "static",
+          "ox": "visible"
+        }
+      ],
+      "offenders": []
+    },
+    {
+      "page": "student-account",
+      "vw": 390,
+      "sw": 390,
+      "inner": 390,
+      "client": 390,
+      "overflow": false,
+      "wide": [],
+      "offenders": []
+    }
+  ],
+  "tabs": {
+    "found": true,
+    "bar": {
+      "left": 11,
+      "right": 379,
+      "top": 825,
+      "bottom": 889,
+      "height": 64
+    },
+    "links": [
+      {
+        "label": "امروز",
+        "w": 89,
+        "h": 54,
+        "left": 284,
+        "right": 374
+      },
+      {
+        "label": "کلاس‌ها",
+        "w": 89,
+        "h": 54,
+        "left": 195,
+        "right": 284
+      },
+      {
+        "label": "مالی",
+        "w": 89,
+        "h": 54,
+        "left": 106,
+        "right": 195
+      },
+      {
+        "label": "تنظیمات",
+        "w": 89,
+        "h": 54,
+        "left": 16,
+        "right": 106
+      }
+    ],
+    "contentPaddingBottom": "96px",
+    "contentPaddingInline": "16px 16px"
+  },
+  "studentHomeDesktop": {
+    "vw": 1440,
+    "sw": 1440,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 1,
+    "unnamedFields": [],
+    "controls": 41,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "درود بر شما، باران",
+    "scrollHeight": 4494
+  },
+  "studentHomeMobile": {
+    "vw": 390,
+    "sw": 390,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 1,
+    "unnamedFields": [],
+    "controls": 40,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "درود بر شما، باران"
+  },
+  "studentAccountDesktop": {
+    "vw": 1440,
+    "sw": 1440,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 5,
+    "unnamedFields": [],
+    "controls": 17,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "حساب کاربری"
+  },
+  "studentAccountMobile": {
+    "vw": 390,
+    "sw": 390,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 5,
+    "unnamedFields": [],
+    "controls": 16,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "حساب کاربری"
+  },
+  "teacherClassesDesktop": {
+    "vw": 1440,
+    "sw": 1440,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 80,
+    "unnamedFields": [],
+    "controls": 79,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "کلاس‌ها"
+  },
+  "teacherClassesMobile": {
+    "vw": 390,
+    "sw": 390,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 80,
+    "unnamedFields": [],
+    "controls": 78,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "کلاس‌ها"
+  },
+  "teacherSettingsNarrow": {
+    "vw": 320,
+    "sw": 320,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 17,
+    "unnamedFields": [],
+    "controls": 25,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "تنظیمات"
+  },
+  "teacherSettingsDesktop": {
+    "vw": 1440,
+    "sw": 1440,
+    "overflow": false,
+    "offenders": [],
+    "duplicateIds": [],
+    "fields": 17,
+    "unnamedFields": [],
+    "controls": 27,
+    "unnamedControls": [],
+    "images": 6,
+    "missingAlt": 0,
+    "h1": "تنظیمات"
+  },
+  "responsive": [
+    {
+      "role": "student",
+      "page": "home",
+      "width": 320,
+      "vw": 320,
+      "sw": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "account",
+      "width": 320,
+      "vw": 320,
+      "sw": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "home",
+      "width": 375,
+      "vw": 375,
+      "sw": 375,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "account",
+      "width": 375,
+      "vw": 375,
+      "sw": 375,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "home",
+      "width": 430,
+      "vw": 430,
+      "sw": 430,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "account",
+      "width": 430,
+      "vw": 430,
+      "sw": 430,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "home",
+      "width": 768,
+      "vw": 768,
+      "sw": 768,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "account",
+      "width": 768,
+      "vw": 768,
+      "sw": 768,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "home",
+      "width": 1024,
+      "vw": 1024,
+      "sw": 1024,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "account",
+      "width": 1024,
+      "vw": 1024,
+      "sw": 1024,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "home",
+      "width": 1440,
+      "vw": 1440,
+      "sw": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "student",
+      "page": "account",
+      "width": 1440,
+      "vw": 1440,
+      "sw": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "home",
+      "width": 320,
+      "vw": 320,
+      "sw": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "classes",
+      "width": 320,
+      "vw": 320,
+      "sw": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "finance",
+      "width": 320,
+      "vw": 320,
+      "sw": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "settings",
+      "width": 320,
+      "vw": 320,
+      "sw": 320,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "home",
+      "width": 375,
+      "vw": 375,
+      "sw": 375,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "classes",
+      "width": 375,
+      "vw": 375,
+      "sw": 375,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "finance",
+      "width": 375,
+      "vw": 375,
+      "sw": 375,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "settings",
+      "width": 375,
+      "vw": 375,
+      "sw": 375,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "home",
+      "width": 430,
+      "vw": 430,
+      "sw": 430,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "classes",
+      "width": 430,
+      "vw": 430,
+      "sw": 430,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "finance",
+      "width": 430,
+      "vw": 430,
+      "sw": 430,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "settings",
+      "width": 430,
+      "vw": 430,
+      "sw": 430,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "home",
+      "width": 768,
+      "vw": 768,
+      "sw": 768,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "classes",
+      "width": 768,
+      "vw": 768,
+      "sw": 768,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "finance",
+      "width": 768,
+      "vw": 768,
+      "sw": 768,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "settings",
+      "width": 768,
+      "vw": 768,
+      "sw": 768,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "home",
+      "width": 1024,
+      "vw": 1024,
+      "sw": 1024,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "classes",
+      "width": 1024,
+      "vw": 1024,
+      "sw": 1024,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "finance",
+      "width": 1024,
+      "vw": 1024,
+      "sw": 1024,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "settings",
+      "width": 1024,
+      "vw": 1024,
+      "sw": 1024,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "home",
+      "width": 1440,
+      "vw": 1440,
+      "sw": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "classes",
+      "width": 1440,
+      "vw": 1440,
+      "sw": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "finance",
+      "width": 1440,
+      "vw": 1440,
+      "sw": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    },
+    {
+      "role": "teacher",
+      "page": "settings",
+      "width": 1440,
+      "vw": 1440,
+      "sw": 1440,
+      "overflow": false,
+      "duplicateIds": [],
+      "unnamedFields": [],
+      "unnamedControls": [],
+      "missingAlt": 0
+    }
+  ],
+  "focusSequence": [
+    {
+      "tag": "a",
+      "cls": "skip-link screen-reader-text",
+      "label": "رفتن به محتوای اصلی",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "a",
+      "cls": "custom-logo-link",
+      "label": "خانهٔ دلنوازان",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "button",
+      "cls": "menu-toggle",
+      "label": "فهرست اصلی",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "a",
+      "cls": "dzn-tp-appbar__bell",
+      "label": "اعلان‌ها",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "a",
+      "cls": "dzn-tp-appbar__action",
+      "label": "خروج",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "button",
+      "cls": "dzn-tp-chevron",
+      "label": "نمایش جزئیات کلاس",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "a",
+      "cls": "dzn-tp-calendar-action",
+      "label": "افزودن این کلاس به تقویم",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "a",
+      "cls": "dzn-tp-calendar-action",
+      "label": "افزودن این کلاس به تقویم",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "summary",
+      "cls": "",
+      "label": "تغییر زمان کلاس",
+      "focusVisible": true,
+      "outline": "3px solid"
+    },
+    {
+      "tag": "a",
+      "cls": "dzn-tp-calendar-action",
+      "label": "افزودن این کلاس به تقویم",
+      "focusVisible": true,
+      "outline": "3px solid"
+    }
+  ],
+  "dialog": {
+    "open": true,
+    "active": "BUTTON",
+    "closeLabel": "بستن",
+    "role": "",
+    "closed": true,
+    "focusReturned": true
+  },
+  "formValidation": {
+    "found": true,
+    "valid": false,
+    "invalid": 1,
+    "required": [
+      "jalali_year",
+      "jalali_month",
+      "jalali_day",
+      "local_time"
+    ]
+  },
+  "teacherErrorNotice": {
+    "text": "پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی ",
+    "role": "alert"
+  },
+  "studentErrorNotice": {
+    "found": false
+  },
+  "absence": {
+    "found": true,
+    "open": true,
+    "summary": "اطلاع غیبت",
+    "formFields": 3,
+    "submitLabel": "ثبت اطلاع غیبت"
+  },
+  "studentPresentation": {
+    "absenceDisclosures": 12,
+    "rescheduleCards": 0,
+    "notifications": 0,
+    "paymentRows": 0,
+    "emptyStates": 0,
+    "accountStatus": 0
+  },
+  "studentSuccessNotice": {
+    "text": "اطلاع غیبت شما ثبت شد."
+  }
+}

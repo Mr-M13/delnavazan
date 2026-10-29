@@ -23,7 +23,7 @@ $calendar_preference = (string) ( $profile['calendar_preference'] ?? 'auto' );
 		<div><h3><?php echo esc_html( $profile['full_name'] ?? '' ); ?></h3><p><?php esc_html_e( 'هنرجوی دلنوازان', 'delnavazan-theme' ); ?></p></div>
 	</div>
 	<form class="dzn-profile__fields" method="post" action="<?php echo esc_url( (string) ( $profile['action_url'] ?? '' ) ); ?>" aria-labelledby="dzn-profile-title">
-		<?php wp_nonce_field( 'dzn_student_profile_update' ); ?>
+		<?php dzn_theme_nonce_field( 'dzn_student_profile_update' ); ?>
 		<div class="dzn-portal-control">
 			<label for="dzn-profile-email"><?php esc_html_e( 'ایمیل', 'delnavazan-theme' ); ?></label>
 			<input id="dzn-profile-email" class="is-readonly" type="email" dir="ltr" readonly aria-describedby="dzn-profile-note" aria-disabled="true" value="<?php echo esc_attr( $profile['email'] ?? '' ); ?>">

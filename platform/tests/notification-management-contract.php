@@ -57,7 +57,7 @@ $fail('dedupe is a keyed digest', str_contains($inbox, 'hash_hmac(') && str_cont
 /* 5. Both portals show a bell and an owned list, and a read action is never a business approval. */
 $fail('student shell has a bell', str_contains($studentShell, 'dzn-appbar__bell') && str_contains($studentShell, 'dzn-appbar__badge'));
 $fail('teacher shell has a bell', str_contains($teacherShell, 'dzn-tp-appbar__bell') && str_contains($teacherShell, 'dzn-tp-appbar__badge'));
-$fail('student inbox has read state and nonce', str_contains($studentInbox, 'dzn_portal_notification_read') && str_contains($studentInbox, 'wp_nonce_field'));
+$fail('student inbox has read state and nonce', str_contains($studentInbox, 'dzn_portal_notification_read') && str_contains($studentInbox, 'dzn_theme_nonce_field'));
 $fail('student inbox never approves a business action', str_contains($studentInbox, 'هیچ اقدام کاری') || str_contains($studentInbox, 'تأیید یا تغییر کلاس'));
 
 echo "Notification management contract passed\n";

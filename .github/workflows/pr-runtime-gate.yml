@@ -296,6 +296,15 @@ jobs:
           bash deployment/qa/provision-production-projection-worker-contract.sh
           bash deployment/qa/production-calendar-projection-dispatch-contract.sh
 
+  recording-decision-migration-runtime:
+    name: Recording decision migration runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: platform/runtime/bin/run-recording-decision-migration-runtime.sh
+
   stripe-runtime-e2e:
     name: Stripe runtime E2E
     runs-on: ubuntu-24.04

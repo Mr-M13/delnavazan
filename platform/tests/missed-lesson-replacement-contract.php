@@ -88,6 +88,7 @@ $assert($dispatchBlock!==''&&!str_contains($dispatchBlock,'$this->store->begin()
 $assert(str_contains($calendar, "reschedule-project-calendar:'.\$job['uid']"), 'Calendar retries must use deterministic provider command keys');
 $assert(str_contains($calendarTransport, 'conferenceDataVersion') && str_contains($calendarTransport, 'google_meet_join_uri_untrusted'), 'The Calendar transport must request Meet conference data and validate the returned join URI');
 $assert(str_contains($googleProjection, 'ProviderCredentialRefresher') && str_contains($googleProjection, 'google-calendar-refresh:') && str_contains($googleProjection, 'provider_credential_refresh_required'), 'Expired Google credentials must be refreshed before a projection is refused');
+$assert(str_contains($googleProjection, 'DISPATCH_CAPABILITY'), 'The projection worker principal must be able to dispatch with the dispatch capability');
 $assert(str_contains($credentialRefresher, 'refreshConnection') && str_contains($credentialRefresher, 'GoogleOAuthTransport'), 'The credential refresher must use the existing encrypted provider authority');
 $assert(str_contains($studentRead, 'original_starts_at_utc') && str_contains($studentRead, 'teacher_replacement_proposed'), 'Student proposals must include the original occurrence and kind');
 $assert(str_contains($admin, 'dzn-academy-reschedule-history') && str_contains($admin, 'expired'), 'Admin must see confirmed, rejected, failed and expired proposals');

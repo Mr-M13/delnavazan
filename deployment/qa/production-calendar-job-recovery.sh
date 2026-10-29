@@ -19,6 +19,10 @@ root_rel="$1"; code="$2"; job_id="$3"
 root="$HOME/$root_rel"
 [[ -f "$root/wp-load.php" ]] || { echo 'FAIL expected WordPress root is unavailable' >&2; exit 1; }
 command -v wp >/dev/null || { echo 'FAIL WP-CLI is required' >&2; exit 1; }
-state="$(DZN_CALENDAR_JOB_ID="$job_id" wp --path="$root" eval "eval(base64_decode('$code'));")"
+set +e
+state="$(DZN_CALENDAR_JOB_ID="$job_id" wp --path="$root" eval "eval(base64_decode('$code'));" 2>&1)"
+rc=$?
+set -e
 printf 'CALENDAR_JOB_RECOVERY=%s\n' "$state"
+exit $rc
 REMOTE

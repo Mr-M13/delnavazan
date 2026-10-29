@@ -143,7 +143,9 @@ final class NotificationManagementController {
         $subject=(string)($working['editable']['subject']??'');
         $body=(string)($working['editable']['body']??'');
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-editor">';
-        echo '<input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
+        // Pressing Enter in a field must never publish: the hidden default saves a draft, and a clicked
+        // button's own action value is submitted after it and therefore wins.
+        echo '<input type="hidden" name="action" value="dzn_notification_copy_save_draft"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
         wp_nonce_field('dzn_notification_copy_save_draft','dzn_draft_nonce');
         wp_nonce_field('dzn_notification_copy_publish','dzn_publish_nonce');
         wp_nonce_field('dzn_notification_copy_discard','dzn_discard_nonce');

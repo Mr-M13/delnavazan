@@ -54,6 +54,7 @@ jobs:
           contracts=(
             platform/tests/integration-control-plane-contract.php
             platform/tests/recording-research-architecture-contract.php
+            platform/tests/recording-decision-authority-contract.php
             platform/tests/integration-settings-runtime.php
             platform/tests/google-integration-test-runtime.php
             platform/tests/integration-mail-diagnostics-runtime.php

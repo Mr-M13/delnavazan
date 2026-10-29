@@ -75,6 +75,7 @@ $actorInfo = static function (int $actorId): array {
 };
 $replacementActorId = (int) get_option('dzn_replacement_system_user_id', 0);
 $rescheduleActorId = (int) get_option('dzn_reschedule_system_user_id', 0);
+$calendarActorId = (int) get_option('dzn_reschedule_calendar_system_user_id', 0);
 $out = array(
     'schema' => (string) get_option('dzn_platform_schema_version'),
     'build' => defined('DZN_PLATFORM_BUILD_ID') ? (string) DZN_PLATFORM_BUILD_ID : null,
@@ -90,6 +91,7 @@ $out = array(
     'admin_lesson_screen' => $adminLessonScreen,
     'replacement_actor' => $actorInfo($replacementActorId),
     'reschedule_actor' => $actorInfo($rescheduleActorId),
+    'calendar_actor' => $actorInfo($calendarActorId),
     'completed_052' => in_array('052_payment_plan_choice', (array) get_option('dzn_platform_completed_migrations', array()), true),
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,
     'cron_hooks' => $hooks,

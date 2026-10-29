@@ -29,10 +29,14 @@ $now = gmdate('Y-m-d H:i:s');
 $requeued = $wpdb->update($p . 'lesson_reschedule_calendar_jobs', array('state' => 'retry', 'next_attempt_at' => $now, 'updated_at' => $now), array('id' => $jobId, 'state' => 'failed'));
 if ($requeued !== 1) $fail('requeue_conflict');
 $dispatchError = null;
+$dispatchErrorClass = null;
+$dispatchErrorHint = null;
 try {
     (new \Delnavazan\Platform\Integrations\LessonRescheduleCalendarService())->dispatchJob($jobId);
 } catch (\Throwable $error) {
     $dispatchError = preg_match('/^[a-z0-9_]{1,64}$/D', (string) $error->getMessage()) ? (string) $error->getMessage() : 'calendar_recovery_failed';
+    $dispatchErrorClass = get_class($error);
+    $dispatchErrorHint = substr(preg_replace('/[^A-Za-z0-9_ .:-]/', '_', (string) $error->getMessage()), 0, 160);
 }
 $workerError = null;
 $workerReady = false;
@@ -57,6 +61,8 @@ $result = array(
     'attempt_count' => $jobAfter === null ? null : (int) $jobAfter->attempt_count,
     'last_error_code' => $jobAfter === null || $jobAfter->last_error_code === null ? null : (string) $jobAfter->last_error_code,
     'dispatch_error' => $dispatchError,
+    'dispatch_error_class' => $dispatchErrorClass,
+    'dispatch_error_hint' => $dispatchErrorHint,
     'projection_worker_ready' => $workerReady,
     'google_oauth_configured' => $oauthConfigured,
     'projection_worker_error' => $workerError,

@@ -11,8 +11,9 @@
 
 namespace Delnavazan\Platform\Portals {
 	final class PortalAuthenticatedReadService {
+		public static ?int $fixture_now = null;
 		public function teacher(): array {
-			$now = time();
+			$now = self::$fixture_now ??= time();
 			$lesson = static fn( int $start, int $end, string $ref ): array => array(
 				'version' => 'portal_lesson_v1',
 				'lesson_uid' => 'UID-' . $ref,
@@ -138,8 +139,12 @@ namespace {
 	$check( 'previous-day classes are excluded from both sections', ! in_array( 'REF-YESTERDAY', $today_refs, true ) && ! in_array( 'REF-YESTERDAY', $upcoming_refs, true ) );
 	$check( 'tomorrow and day-30 classes are upcoming', in_array( 'REF-TOMORROW', $upcoming_refs, true ) && in_array( 'REF-DAY30', $upcoming_refs, true ) );
 	$check( 'beyond-day-30 classes are excluded', ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $upcoming_refs, true ) );
-	$check( 'future and recently ended rows remain present', isset( $classes_by_ref['REF-FUTURE'] ) && 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) );
-	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) && in_array( 'REF-ACTIVE', $today_refs, true ) );
+	$fixture_now = \Delnavazan\Platform\Portals\PortalAuthenticatedReadService::$fixture_now;
+	$day_window = dzn_theme_platform_teacher_day_window( 'Asia/Tehran' );
+	$recent_is_today = ( $fixture_now - 7200 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$recent_present = isset( $classes_by_ref['REF-RECENT'] );
+	$check( 'future row remains present and recently ended row follows the local-day boundary', isset( $classes_by_ref['REF-FUTURE'] ) && $recent_present === $recent_is_today );
+	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && in_array( 'REF-ACTIVE', $today_refs, true ) && ( ! $recent_is_today || ( 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) ) ) );
 	$check( 'a just-ended intro keeps the teacher late join window', true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
 	$check( 'navigation has four destinations', 4 === count( $model['navigation'] ?? array() ) );
 	$check( 'classes is the current navigation item', ! empty( $model['navigation'][1]['current'] ) && 'classes' === ( $model['navigation'][1]['screen'] ?? '' ) );

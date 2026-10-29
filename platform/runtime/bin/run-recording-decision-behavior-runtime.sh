@@ -4,6 +4,7 @@ set -euo pipefail
 # never be reused. The reset removes only this project and this disposable state.
 export DZN_COMPOSE_PROJECT="${DZN_RECORDING_BEHAVIOR_PROJECT:-dzn-recording-decision-behavior}"
 export DZN_RUNTIME_STATE_DIR="${DZN_RECORDING_BEHAVIOR_STATE:-${TMPDIR:-/tmp}/dzn-recording-decision-behavior}"
+export DZN_WP_PORT="${DZN_RECORDING_BEHAVIOR_PORT:-18081}"
 source "$(dirname "$BASH_SOURCE")/common.sh"
 bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 # The candidate worktree belongs to this runtime only. Remove it when a previous

@@ -2802,7 +2802,7 @@ final class Migrator {
 	/** Schema 55: prospective recording/research decisions only; no provider, asset or capture table. */
 	private static function install_recording_decision_authority():void{global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();foreach(array(
 "CREATE TABLE {$p}recording_notice_versions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,audience_code varchar(64) NOT NULL,language_code char(2) NOT NULL,version_number int unsigned NOT NULL,publication_state varchar(16) NOT NULL,body_text longtext NOT NULL,text_digest char(64) NOT NULL,published_at datetime NULL,expires_at datetime NULL,withdrawn_at datetime NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY audience_language_version(audience_code,language_code,version_number),KEY publication(audience_code,language_code,publication_state),KEY current_notice(audience_code,language_code,publication_state,expires_at,withdrawn_at)) ENGINE=InnoDB $c",
-"CREATE TABLE {$p}recording_decisions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,subject_type varchar(16) NOT NULL,subject_id bigint unsigned NOT NULL,guardian_actor_user_id bigint unsigned NULL,purpose_code varchar(32) NOT NULL,decision_code varchar(16) NOT NULL,notice_version_id bigint unsigned NOT NULL,notice_text_digest char(64) NOT NULL,evidence_key_version varchar(64) NOT NULL,evidence_digest char(64) NOT NULL,decided_at datetime NOT NULL,decided_by_user_id bigint unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),KEY subject_purpose(subject_type,subject_id,purpose_code,decided_at),KEY guardian_actor(guardian_actor_user_id)) ENGINE=InnoDB $c",
+"CREATE TABLE {$p}recording_decisions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,subject_type varchar(16) NOT NULL,subject_id bigint unsigned NOT NULL,guardian_actor_user_id bigint unsigned NULL,purpose_code varchar(32) NOT NULL,decision_code varchar(16) NOT NULL,notice_version_id bigint unsigned NOT NULL,notice_uid char(26) NOT NULL,notice_audience_code varchar(64) NOT NULL,notice_language_code char(2) NOT NULL,notice_version_number int unsigned NOT NULL,notice_text_digest char(64) NOT NULL,evidence_key_version varchar(64) NOT NULL,evidence_digest char(64) NOT NULL,decided_at datetime NOT NULL,decided_by_user_id bigint unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),KEY subject_purpose(subject_type,subject_id,purpose_code,decided_at),KEY guardian_actor(guardian_actor_user_id)) ENGINE=InnoDB $c",
 "CREATE TABLE {$p}recording_decision_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,domain varchar(48) NOT NULL,operation varchar(24) NOT NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,result_decision_id bigint unsigned NOT NULL,result_state varchar(16) NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest)) ENGINE=InnoDB $c"
 )as$sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Recording decision migration failed: '.$wpdb->last_error);}}
 	/** Fail closed unless the append-only decision authority is exactly the declared shape. */
@@ -2810,7 +2810,7 @@ final class Migrator {
 		global $wpdb;$p=$wpdb->prefix.'dzn_';
 		$spec=array(
 			'recording_notice_versions'=>array('required'=>array('uid','audience_code','language_code','version_number','publication_state','body_text','text_digest','created_at','created_by'),'optional'=>array('published_at','expires_at','withdrawn_at')),
-			'recording_decisions'=>array('required'=>array('uid','subject_type','subject_id','purpose_code','decision_code','notice_version_id','notice_text_digest','evidence_key_version','evidence_digest','decided_at','decided_by_user_id','created_at'),'optional'=>array('guardian_actor_user_id')),
+			'recording_decisions'=>array('required'=>array('uid','subject_type','subject_id','purpose_code','decision_code','notice_version_id','notice_uid','notice_audience_code','notice_language_code','notice_version_number','notice_text_digest','evidence_key_version','evidence_digest','decided_at','decided_by_user_id','created_at'),'optional'=>array('guardian_actor_user_id')),
 			'recording_decision_commands'=>array('required'=>array('uid','domain','operation','command_key_digest','command_payload_digest','result_decision_id','result_state','created_at','created_by'),'optional'=>array()),
 		);
 		foreach($spec as$table=>$shape){
@@ -2826,8 +2826,10 @@ final class Migrator {
 			array('recording_notice_versions','audience_language_version',true,array('audience_code','language_code','version_number')),
 			array('recording_notice_versions','publication',false,array('audience_code','language_code','publication_state')),
 			array('recording_notice_versions','current_notice',false,array('audience_code','language_code','publication_state','expires_at','withdrawn_at')),
+			array('recording_decisions','uid',true,array('uid')),
 			array('recording_decisions','subject_purpose',false,array('subject_type','subject_id','purpose_code','decided_at')),
 			array('recording_decisions','guardian_actor',false,array('guardian_actor_user_id')),
+			array('recording_decision_commands','uid',true,array('uid')),
 			array('recording_decision_commands','command_key_digest',true,array('command_key_digest')),
 		)as$x)if(!self::has_index_columns($p.$x[0],$x[1],$x[2],$x[3]))throw new \RuntimeException('Migration verification failed: recording decision index '.$x[0].'.'.$x[1]);
 	}

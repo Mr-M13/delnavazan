@@ -35,12 +35,12 @@ final class RecordingDecisionAuthorityService {
     }
 
     /** Guardian decisions remain unavailable: service_acceptance is not reviewed for these purposes. */
-    public function recordGuardianChoiceForResolvedStudent(int $studentId,string $purpose,string $choice,string $noticeUid,string $language,string $key):array {
+    public function recordGuardianChoiceForResolvedStudent(string $purpose,string $choice,string $noticeUid,string $language,string $key):array {
         $this->actor(); throw new \RuntimeException('recording_guardian_scope_unavailable');
     }
 
     /** Reserved for a future approved legal policy; this disabled slice never makes it available. */
-    public function recordApprovedOptOutBasisForResolvedStudent(int $studentId,string $noticeUid,string $key):array {
+    public function recordApprovedOptOutBasisForResolvedStudent(string $noticeUid,string $key):array {
         $this->actor(); throw new \RuntimeException('recording_default_on_policy_unavailable');
     }
 
@@ -52,7 +52,8 @@ final class RecordingDecisionAuthorityService {
         $actor=$this->actor();
         try{$teacher=$this->resolveTeacher($actor);}catch(\RuntimeException $e){return array('available'=>false,'reason'=>$e->getMessage(),'accepted'=>false,'accepted_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null);}
         $row=$this->latestDecision('teacher',$teacher,'teacher_terms');
-        return array('available'=>true,'reason'=>null,'accepted'=>$row!==null&&(string)$row->decision_code==='accepted','accepted_at'=>$row?->decided_at,'notice_uid'=>$row?->notice_uid,'notice_version'=>$row!==null?(int)$row->version_number:null,'language'=>$row?->language_code);
+        $accepted=$row!==null&&(string)$row->decision_code==='accepted'&&$this->noticeIsCurrent((int)$row->notice_version_id);
+        return array('available'=>true,'reason'=>null,'accepted'=>$accepted,'accepted_at'=>$row?->decided_at,'notice_uid'=>$row?->notice_uid,'notice_version'=>$row!==null?(int)$row->notice_version_number:null,'language'=>$row?->notice_language_code);
     }
 
     /**
@@ -95,8 +96,11 @@ final class RecordingDecisionAuthorityService {
         global $wpdb; $p=$wpdb->prefix.'dzn_'; $keyDigest=$this->digest('command:'.$key); $now=gmdate('Y-m-d H:i:s');
         if($key===''||!preg_match('/^[A-Za-z0-9:_-]{12,160}$/D',$key))throw new \InvalidArgumentException('recording_decision_key_required');
         if(!in_array($language,array('en','fa'),true))throw new \InvalidArgumentException('recording_decision_language_invalid');
-        $payload=$this->digest(wp_json_encode(array('v'=>2,'actor'=>$actor,'subject_type'=>$subjectType,'subject_id'=>$subjectId,'guardian_actor'=>$guardianActor,'purpose'=>$purpose,'choice'=>$choice,'notice'=>$noticeUid,'language'=>$language)));
-        $wpdb->query('START TRANSACTION');
+        if(!preg_match('/^[0-9A-HJKMNP-TV-Z]{26}$/D',$noticeUid))throw new \RuntimeException('recording_notice_unavailable');
+        $encoded=wp_json_encode(array('v'=>2,'actor'=>$actor,'subject_type'=>$subjectType,'subject_id'=>$subjectId,'guardian_actor'=>$guardianActor,'purpose'=>$purpose,'choice'=>$choice,'notice'=>$noticeUid,'language'=>$language));
+        if($encoded===false)throw new \InvalidArgumentException('recording_decision_payload_invalid');
+        $payload=$this->digest($encoded);
+        if($wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('recording_decision_transaction_failed');
         try {
             // Revalidate current identity and capacity before an exact replay can return a stored result.
             if($subjectType==='student')$this->lockAdultStudent($subjectId,$actor); else $this->lockTeacher($subjectId,$actor);
@@ -104,16 +108,16 @@ final class RecordingDecisionAuthorityService {
             if($prior){
                 if(!hash_equals((string)$prior->command_payload_digest,$payload))throw new \RuntimeException('recording_decision_replay_conflict');
                 $stored=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_decisions WHERE id=%d FOR UPDATE",(int)$prior->result_decision_id));
-                if(!$stored||(string)$stored->subject_type!==$subjectType||(int)$stored->subject_id!==$subjectId||(string)$stored->purpose_code!==$purpose)throw new \RuntimeException('recording_decision_replay_conflict');
-                $wpdb->query('COMMIT');
+                if(!$stored||(string)$prior->result_state!==$choice||(string)$stored->subject_type!==$subjectType||(int)$stored->subject_id!==$subjectId||(string)$stored->purpose_code!==$purpose||(string)$stored->decision_code!==$choice||(string)$stored->notice_uid!==$noticeUid||(string)$stored->notice_language_code!==$language)throw new \RuntimeException('recording_decision_replay_conflict');
+                if($wpdb->query('COMMIT')===false)throw new \RuntimeException('recording_decision_transaction_failed');
                 return array('decision_id'=>(int)$stored->id,'state'=>(string)$stored->decision_code,'decided_at'=>(string)$stored->decided_at,'idempotent'=>true);
             }
             $notice=$this->noticeForDecision($noticeUid,$language,$subjectType,$purpose);
-            $wpdb->insert($p.'recording_decisions',array('uid'=>Identifier::uid(),'subject_type'=>$subjectType,'subject_id'=>$subjectId,'guardian_actor_user_id'=>$guardianActor,'purpose_code'=>$purpose,'decision_code'=>$choice,'notice_version_id'=>(int)$notice->id,'notice_text_digest'=>(string)$notice->text_digest,'evidence_key_version'=>self::EVIDENCE_KEY_VERSION,'evidence_digest'=>$this->digest('decision:'.$payload.':'.$now),'decided_at'=>$now,'decided_by_user_id'=>$actor,'created_at'=>$now));
+            if($wpdb->insert($p.'recording_decisions',array('uid'=>Identifier::uid(),'subject_type'=>$subjectType,'subject_id'=>$subjectId,'guardian_actor_user_id'=>$guardianActor,'purpose_code'=>$purpose,'decision_code'=>$choice,'notice_version_id'=>(int)$notice->id,'notice_uid'=>(string)$notice->uid,'notice_audience_code'=>(string)$notice->audience_code,'notice_language_code'=>(string)$notice->language_code,'notice_version_number'=>(int)$notice->version_number,'notice_text_digest'=>(string)$notice->text_digest,'evidence_key_version'=>self::EVIDENCE_KEY_VERSION,'evidence_digest'=>$this->digest('decision:'.$payload.':'.$now),'decided_at'=>$now,'decided_by_user_id'=>$actor,'created_at'=>$now))===false)throw new \RuntimeException('recording_decision_persistence_failed');
             $id=(int)$wpdb->insert_id; if($id<1)throw new \RuntimeException('recording_decision_persistence_failed');
-            $wpdb->insert($p.'recording_decision_commands',array('uid'=>Identifier::uid(),'domain'=>self::DOMAIN,'operation'=>'record','command_key_digest'=>$keyDigest,'command_payload_digest'=>$payload,'result_decision_id'=>$id,'result_state'=>$choice,'created_at'=>$now,'created_by'=>$actor));
+            if($wpdb->insert($p.'recording_decision_commands',array('uid'=>Identifier::uid(),'domain'=>self::DOMAIN,'operation'=>'record','command_key_digest'=>$keyDigest,'command_payload_digest'=>$payload,'result_decision_id'=>$id,'result_state'=>$choice,'created_at'=>$now,'created_by'=>$actor))===false)throw new \RuntimeException('recording_decision_command_persistence_failed');
             if((int)$wpdb->insert_id<1)throw new \RuntimeException('recording_decision_command_persistence_failed');
-            $wpdb->query('COMMIT');
+            if($wpdb->query('COMMIT')===false)throw new \RuntimeException('recording_decision_transaction_failed');
             return array('decision_id'=>$id,'state'=>$choice,'decided_at'=>$now,'idempotent'=>false);
         } catch(\Throwable $e){$wpdb->query('ROLLBACK');throw $e;}
     }
@@ -123,18 +127,20 @@ final class RecordingDecisionAuthorityService {
         $audience=$subjectType==='teacher'?self::AUDIENCE_TEACHER_TERMS:($purpose==='lesson_recording'?self::AUDIENCE_STUDENT_RECORDING:self::AUDIENCE_STUDENT_RESEARCH);
         $notice=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_notice_versions WHERE uid=%s AND language_code=%s AND audience_code=%s AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL FOR UPDATE",$noticeUid,$language,$audience,$now,$now));
         if(!$notice||(string)$notice->audience_code!==$audience)throw new \RuntimeException('recording_notice_unavailable');
+        if(!$this->noticeVersionIsCurrent($audience,$language,(int)$notice->version_number))throw new \RuntimeException('recording_notice_unavailable');
         return $notice;
     }
+    private function noticeVersionIsCurrent(string $audience,string $language,int $version):bool{global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');return(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND version_number>%d AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$audience,$language,$version,$now,$now))===0;}
 
     private function actor():int{$id=(int)get_current_user_id();if($id<1||!is_user_logged_in())throw new \RuntimeException('recording_authenticated_principal_required');return $id;}
     private function resolveTeacher(int $user):int{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_col($wpdb->prepare("SELECT l.teacher_id FROM {$p}teacher_principal_links l INNER JOIN {$p}teachers t ON t.id=l.teacher_id WHERE l.wordpress_user_id=%d AND l.status='active' AND l.revoked_at IS NULL AND t.status='active' AND t.archived_at IS NULL",$user));if(count($rows)===0)throw new \RuntimeException('recording_teacher_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_teacher_principal_ambiguous');return(int)$rows[0];}
-    private function resolveStudent(int $user):object{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_results($wpdb->prepare("SELECT l.student_id,c.classification FROM {$p}student_principal_links l INNER JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id WHERE l.wordpress_user_id=%d AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL AND s.status='active' AND s.archived_at IS NULL",$user));if(count($rows)===0)throw new \RuntimeException('recording_student_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_student_principal_ambiguous');if((string)$rows[0]->classification!=='adult')throw new \RuntimeException('recording_student_capacity_unavailable');return$rows[0];}
+    private function resolveStudent(int $user):object{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_results($wpdb->prepare("SELECT l.student_id,c.classification FROM {$p}student_principal_links l INNER JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE l.wordpress_user_id=%d AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL AND s.status='active' AND s.archived_at IS NULL",$user));if(count($rows)===0)throw new \RuntimeException('recording_student_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_student_principal_ambiguous');if((string)$rows[0]->classification!=='adult')throw new \RuntimeException('recording_student_capacity_unavailable');return$rows[0];}
     private function lockTeacher(int $teacher,int $actor):void{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_col($wpdb->prepare("SELECT l.teacher_id FROM {$p}teacher_principal_links l INNER JOIN {$p}teachers t ON t.id=l.teacher_id WHERE l.wordpress_user_id=%d AND l.teacher_id=%d AND l.status='active' AND l.revoked_at IS NULL AND t.status='active' AND t.archived_at IS NULL FOR UPDATE",$actor,$teacher));if(count($rows)===0)throw new \RuntimeException('recording_teacher_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_teacher_principal_ambiguous');}
     /** Lock the identity and capacity projection with the decision command. */
-    private function lockAdultStudent(int $student,int $actor):void{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_results($wpdb->prepare("SELECT s.id,c.classification FROM {$p}student_principal_links l INNER JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id WHERE l.wordpress_user_id=%d AND l.student_id=%d AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL AND s.status='active' AND s.archived_at IS NULL FOR UPDATE",$actor,$student));if(count($rows)===0)throw new \RuntimeException('recording_student_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_student_principal_ambiguous');if((string)$rows[0]->classification!=='adult')throw new \RuntimeException('recording_student_capacity_unavailable');}
-    private function latestDecision(string $subjectType,int $subjectId,string $purpose):?object{global $wpdb;$p=$wpdb->prefix.'dzn_';return$wpdb->get_row($wpdb->prepare("SELECT d.*,n.uid AS notice_uid,n.version_number,n.language_code FROM {$p}recording_decisions d INNER JOIN {$p}recording_notice_versions n ON n.id=d.notice_version_id WHERE d.subject_type=%s AND d.subject_id=%d AND d.purpose_code=%s ORDER BY d.decided_at DESC,d.id DESC LIMIT 1",$subjectType,$subjectId,$purpose));}
-    private function noticeIsCurrent(int $noticeId):bool{global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');return(bool)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}recording_notice_versions WHERE id=%d AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$noticeId,$now,$now));}
+    private function lockAdultStudent(int $student,int $actor):void{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_results($wpdb->prepare("SELECT s.id,c.classification FROM {$p}student_principal_links l INNER JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE l.wordpress_user_id=%d AND l.student_id=%d AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL AND s.status='active' AND s.archived_at IS NULL FOR UPDATE",$actor,$student));if(count($rows)===0)throw new \RuntimeException('recording_student_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_student_principal_ambiguous');if((string)$rows[0]->classification!=='adult')throw new \RuntimeException('recording_student_capacity_unavailable');}
+    private function latestDecision(string $subjectType,int $subjectId,string $purpose):?object{global $wpdb;$p=$wpdb->prefix.'dzn_';return$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_decisions WHERE subject_type=%s AND subject_id=%d AND purpose_code=%s ORDER BY decided_at DESC,id DESC LIMIT 1",$subjectType,$subjectId,$purpose));}
+    private function noticeIsCurrent(int $noticeId):bool{global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');$row=$wpdb->get_row($wpdb->prepare("SELECT audience_code,language_code,version_number FROM {$p}recording_notice_versions WHERE id=%d AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$noticeId,$now,$now));if(!$row)return false;return$this->noticeVersionIsCurrent((string)$row->audience_code,(string)$row->language_code,(int)$row->version_number);}
     private function emptyChoice():array{return array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null);}
-    private function choiceState(?object $row):array{return $row?array('decision'=>(string)$row->decision_code,'decided_at'=>(string)$row->decided_at,'notice_uid'=>(string)$row->notice_uid,'notice_version'=>(int)$row->version_number,'language'=>(string)$row->language_code):$this->emptyChoice();}
+    private function choiceState(?object $row):array{return $row?array('decision'=>(string)$row->decision_code,'decided_at'=>(string)$row->decided_at,'notice_uid'=>(string)$row->notice_uid,'notice_version'=>(int)$row->notice_version_number,'language'=>(string)$row->notice_language_code):$this->emptyChoice();}
     private function digest(string $value):string{return hash('sha256',self::EVIDENCE_KEY_VERSION."\n".$value);}
 }

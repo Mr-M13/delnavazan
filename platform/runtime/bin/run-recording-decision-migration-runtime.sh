@@ -5,6 +5,7 @@ set -euo pipefail
 # this state directory; it never prunes global Docker state or unrelated work.
 export DZN_COMPOSE_PROJECT="${DZN_RECORDING_MIGRATION_PROJECT:-dzn-recording-decision-migration}"
 export DZN_RUNTIME_STATE_DIR="${DZN_RECORDING_MIGRATION_STATE:-${TMPDIR:-/tmp}/dzn-recording-decision-migration}"
+export DZN_WP_PORT="${DZN_RECORDING_MIGRATION_PORT:-18082}"
 source "$(dirname "$BASH_SOURCE")/common.sh"
 bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 # The candidate worktree belongs to this runtime only. Remove it when a previous

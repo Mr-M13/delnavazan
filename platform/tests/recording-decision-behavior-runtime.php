@@ -34,10 +34,12 @@ $teacherTermsFa=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACH
 $teacherDraft=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',2,'draft','Draft teacher terms',null);
 $teacherExpired=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',3,'published','Expired teacher terms',$now,gmdate('Y-m-d H:i:s',time()-3600));
 $teacherWithdrawn=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',4,'published','Withdrawn teacher terms',$now,null,$now);
+$teacherFuture=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',5,'published','Future teacher terms',gmdate('Y-m-d H:i:s',time()+3600));
 $recording=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',1,'published','Student recording notice v1',$now);
 $recordingDraft=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',2,'draft','Draft recording notice',null);
 $recordingExpired=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',3,'published','Expired recording notice',$now,gmdate('Y-m-d H:i:s',time()-3600));
 $recordingWithdrawn=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',4,'published','Withdrawn recording notice',$now,null,$now);
+$recordingFuture=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',5,'published','Future recording notice',gmdate('Y-m-d H:i:s',time()+3600));
 $recordingFa=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'fa',1,'published','اطلاعیه ضبط درس نسخه ۱',$now);
 $research=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH,'en',1,'published','Student research notice v1',$now);
 
@@ -46,9 +48,16 @@ wp_set_current_user(0);
 dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','unauthenticated-teacher-01'),'recording_authenticated_principal_required','unauthenticated teacher acceptance');
 dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'en','unauthenticated-student-01'),'recording_authenticated_principal_required','unauthenticated student choice');
 
+// A missing Teacher link fails closed before any terms can be recorded.
+wp_set_current_user($unlinkedUser);
+$state=$service->teacherTermsState();dzn_rda_assert($state['available']===false&&$state['reason']==='recording_teacher_principal_required','unlinked Teacher state must be unavailable');
+dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','missing-teacher-link-01'),'recording_teacher_principal_required','unlinked Teacher acceptance');
+
 // Teacher terms: exactly one active authenticated Teacher link, published and correctly targeted.
 wp_set_current_user($teacherUser);
 $state=$service->teacherTermsState();dzn_rda_assert($state['available']===true&&$state['accepted']===false,'new Teacher must begin unaccepted');
+dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'fr','teacher-invalid-language-01'),'recording_decision_language_invalid','unsupported Teacher language');
+dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','short'),'recording_decision_key_required','short Teacher idempotency key');
 $result=$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0001');
 dzn_rda_assert($result['state']==='accepted'&&$result['idempotent']===false&&$result['decision_id']>0,'Teacher acceptance must write evidence');
 $state=$service->teacherTermsState();dzn_rda_assert($state['accepted']===true&&$state['notice_version']===1&&$state['language']==='en','Teacher state must expose the recorded terms version');
@@ -57,22 +66,35 @@ $replay=$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0
 dzn_rda_assert($replay['idempotent']===true&&$replay['decision_id']===$result['decision_id'],'Exact Teacher replay must return the original result');
 dzn_rda_assert(dzn_rda_count('teacher',$teacherA)===1,'Exact Teacher replay must not duplicate evidence');
 dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTermsFa['uid'],'fa','teacher-accept-0001'),'recording_decision_replay_conflict','Changed Teacher replay payload');
-foreach(array($teacherDraft,$teacherExpired,$teacherWithdrawn,$recording)as$notice)dzn_rda_expect(fn()=>$service->acceptTeacherTerms($notice['uid'],'en','teacher-notice-'.substr($notice['uid'],0,10)),'recording_notice_unavailable','unavailable Teacher notice');
+foreach(array($teacherDraft,$teacherExpired,$teacherWithdrawn,$teacherFuture,$recording)as$notice)dzn_rda_expect(fn()=>$service->acceptTeacherTerms($notice['uid'],'en','teacher-notice-'.substr($notice['uid'],0,10)),'recording_notice_unavailable','unavailable Teacher notice');
 dzn_rda_assert(dzn_rda_count('teacher',$teacherA)===1,'Refused Teacher notices must not write evidence');
 dzn_rda_assert($service->publishedNotice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'fa')['version']===1,'Published Persian Teacher terms must be discoverable');
 dzn_rda_assert($service->publishedNotice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en')['uid']===$teacherTerms['uid'],'Published Teacher terms must resolve the approved current version');
 dzn_rda_assert($service->publishedNotice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en')['uid']===$recording['uid'],'Published recording notice must resolve');
 
+// A newly published terms version makes the older acceptance stale; the old notice cannot authorise a new decision.
+$teacherTermsNext=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',6,'published','Teacher recording terms v2',$now);
+$state=$service->teacherTermsState();dzn_rda_assert($state['available']===true&&$state['accepted']===false,'older Teacher acceptance must become stale after a newer published version');
+dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-stale-notice-01'),'recording_notice_unavailable','older Teacher notice must not authorise a new decision');
+$nextAccept=$service->acceptTeacherTerms($teacherTermsNext['uid'],'en','teacher-accept-next-01');
+dzn_rda_assert($nextAccept['state']==='accepted','current Teacher terms version must be acceptable');
+$state=$service->teacherTermsState();dzn_rda_assert($state['accepted']===true&&$state['notice_version']===6,'current Teacher acceptance must cite the newer version');
+$priorAccept=$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0001');
+dzn_rda_assert($priorAccept['idempotent']===true&&$priorAccept['decision_id']===$result['decision_id'],'exact Teacher replay must still return the original decision while authority is current');
+
 // Revocation must fail before an exact replay can return a stored Teacher result.
 $wpdb->update($p.'teacher_principal_links',array('status'=>'revoked','revoked_at'=>$now,'revoked_by'=>1,'reason_code'=>'synthetic_revocation'),array('teacher_id'=>$teacherA));
 dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0001'),'recording_teacher_principal_required','revoked Teacher exact replay');
-dzn_rda_assert(dzn_rda_count('teacher',$teacherA)===1,'Revoked Teacher replay must not rewrite evidence');
+dzn_rda_assert(dzn_rda_count('teacher',$teacherA)===2,'Revoked Teacher replay must not rewrite evidence');
 $state=$service->teacherTermsState();dzn_rda_assert($state['available']===false,'Revoked Teacher must not remain writable');
 
 // Student recording and research are independent purposes with append-only history.
 wp_set_current_user($adultUser);
 $state=$service->studentDecisionState();dzn_rda_assert($state['available']===true&&$state['capture_eligible']===false,'unanswered recording must be ineligible for capture');
 dzn_rda_assert($state['recording']['decision']===null&&$state['research']['decision']===null,'new Student must have no recorded choices');
+dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'fr','student-invalid-language-01'),'recording_decision_language_invalid','unsupported Student language');
+dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'en','short'),'recording_decision_key_required','short Student idempotency key');
+dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',str_repeat('?',26),'en','student-malformed-notice-01'),'recording_notice_unavailable','malformed notice identifier');
 $allow=$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'en','student-record-allow-01');
 dzn_rda_assert($allow['state']==='allow'&&$allow['idempotent']===false,'Student recording allow must persist');
 $state=$service->studentDecisionState();dzn_rda_assert($state['capture_eligible']===true,'recorded allow with current notice must be eligible for capture');
@@ -111,35 +133,73 @@ foreach(array($minor,$unknown,$missingCapacity)as$student)dzn_rda_assert(dzn_rda
 
 // Published, current, correctly targeted notices are mandatory; a valid Student still gets no decision otherwise.
 wp_set_current_user($noticeAdultUser);
-foreach(array($recordingDraft,$recordingExpired,$recordingWithdrawn,$teacherTerms)as$notice)dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$notice['uid'],'en','notice-adult-'.substr($notice['uid'],0,10)),'recording_notice_unavailable','unavailable Student notice');
+foreach(array($recordingDraft,$recordingExpired,$recordingWithdrawn,$recordingFuture,$teacherTerms)as$notice)dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$notice['uid'],'en','notice-adult-'.substr($notice['uid'],0,10)),'recording_notice_unavailable','unavailable Student notice');
 dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recordingFa['uid'],'en','notice-adult-wrong-language'),'recording_notice_unavailable','wrong-language notice');
 dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('research_model_training','opt_in',$recording['uid'],'en','notice-adult-wrong-audience'),'recording_notice_unavailable','wrong-audience research notice');
 dzn_rda_assert(dzn_rda_count('student',$noticeAdult)===0,'refused notices must not write Student evidence');
 
 // Guardian and default-on paths remain explicitly unavailable in this slice.
-dzn_rda_expect(fn()=>$service->recordGuardianChoiceForResolvedStudent($noticeAdult,'lesson_recording','allow',$recording['uid'],'en','guardian-unavailable-01'),'recording_guardian_scope_unavailable','guardian path');
-dzn_rda_expect(fn()=>$service->recordApprovedOptOutBasisForResolvedStudent($noticeAdult,$recording['uid'],'default-on-unavailable-01'),'recording_default_on_policy_unavailable','default-on path');
+dzn_rda_expect(fn()=>$service->recordGuardianChoiceForResolvedStudent('lesson_recording','allow',$recording['uid'],'en','guardian-unavailable-01'),'recording_guardian_scope_unavailable','guardian path');
+dzn_rda_expect(fn()=>$service->recordApprovedOptOutBasisForResolvedStudent($recording['uid'],'default-on-unavailable-01'),'recording_default_on_policy_unavailable','default-on path');
+wp_set_current_user(0);
+dzn_rda_expect(fn()=>$service->recordGuardianChoiceForResolvedStudent('lesson_recording','allow',$recording['uid'],'en','guardian-unauthenticated-01'),'recording_authenticated_principal_required','unauthenticated guardian path');
+dzn_rda_expect(fn()=>$service->recordApprovedOptOutBasisForResolvedStudent($recording['uid'],'default-on-unauthenticated-01'),'recording_authenticated_principal_required','unauthenticated default-on path');
+wp_set_current_user($noticeAdultUser);
 dzn_rda_assert(dzn_rda_count('student',$noticeAdult)===0,'unavailable guardian/default-on paths must not write evidence');
+
+// A newer published notice supersedes the older version for new decisions and capture eligibility.
+$versionUser=dzn_rda_user('version-student');$versionStudent=dzn_rda_student('version-student','Version Student','adult');dzn_rda_link_student($versionStudent,$versionUser);
+wp_set_current_user($versionUser);
+$versionAllow=$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'en','version-student-allow-01');
+$state=$service->studentDecisionState();dzn_rda_assert($state['capture_eligible']===true,'current v1 notice must initially be eligible');
+$recordingNext=dzn_rda_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',6,'published','Student recording notice v2',$now);
+$state=$service->studentDecisionState();dzn_rda_assert($state['capture_eligible']===false,'older decision must become ineligible after a newer published notice');
+dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'en','version-student-stale-01'),'recording_notice_unavailable','older notice must not authorise a new decision');
+$versionNext=$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','version-student-next-01');
+dzn_rda_assert($versionNext['state']==='allow','newer notice must authorise a new decision');
+$state=$service->studentDecisionState();dzn_rda_assert($state['capture_eligible']===true&&$state['recording']['notice_version']===6,'newer decision must cite and use the current notice');
+dzn_rda_assert(dzn_rda_count('student',$versionStudent)===2,'notice supersession must append evidence, not rewrite it');
+
+// Capacity downgrade must fail before an exact replay can return a stored result.
+$capacityUser=dzn_rda_user('capacity-downgrade');$capacityStudent=dzn_rda_student('capacity-downgrade','Capacity Downgrade','adult');dzn_rda_link_student($capacityStudent,$capacityUser);
+wp_set_current_user($capacityUser);
+$capacityAllow=$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','capacity-downgrade-allow-01');
+dzn_rda_capacity($capacityStudent,'minor');
+$state=$service->studentDecisionState();dzn_rda_assert($state['available']===false&&$state['capture_eligible']===false,'capacity downgrade must close the Student state');
+dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','capacity-downgrade-allow-01'),'recording_student_capacity_unavailable','capacity-downgrade exact replay');
+dzn_rda_assert(dzn_rda_count('student',$capacityStudent)===1,'capacity-downgrade replay must not rewrite evidence');
+dzn_rda_assert($capacityAllow['idempotent']===false,'capacity fixture must begin with a fresh decision');
+
+// Withdrawing the notice invalidates capture but does not rewrite an exact replay.
+$withdrawUser=dzn_rda_user('notice-withdrawal');$withdrawStudent=dzn_rda_student('notice-withdrawal','Notice Withdrawal','adult');dzn_rda_link_student($withdrawStudent,$withdrawUser);
+wp_set_current_user($withdrawUser);
+$withdrawAllow=$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','notice-withdrawal-allow-01');
+$state=$service->studentDecisionState();dzn_rda_assert($state['capture_eligible']===true,'withdrawal fixture must begin eligible');
+$wpdb->update($p.'recording_notice_versions',array('withdrawn_at'=>$now),array('id'=>$recordingNext['id']));
+$state=$service->studentDecisionState();dzn_rda_assert($state['capture_eligible']===false,'withdrawn notice must invalidate capture eligibility');
+$withdrawReplay=$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','notice-withdrawal-allow-01');
+dzn_rda_assert($withdrawReplay['idempotent']===true&&$withdrawReplay['decision_id']===$withdrawAllow['decision_id'],'exact replay must remain stable after notice withdrawal');
+dzn_rda_assert(dzn_rda_count('student',$withdrawStudent)===1,'withdrawn-notice replay must not append evidence');
 
 // Ambiguous identity links fail closed. The disposable fixture briefly relaxes only
 // its own unique link index so the service's ambiguity guard can be exercised.
 $ambiguousTeacherUser=dzn_rda_user('ambiguous-teacher');$teacherC=dzn_rda_teacher('c','Teacher C');$teacherD=dzn_rda_teacher('d','Teacher D');
-$wpdb->query("ALTER TABLE {$p}teacher_principal_links DROP INDEX wordpress_user_id");
+dzn_rda_assert($wpdb->query("ALTER TABLE {$p}teacher_principal_links DROP INDEX wordpress_user_id")!==false,'fixture must relax the Teacher link uniqueness index');
 dzn_rda_link_teacher($teacherC,$ambiguousTeacherUser);dzn_rda_link_teacher($teacherD,$ambiguousTeacherUser);
 wp_set_current_user($ambiguousTeacherUser);
 $state=$service->teacherTermsState();dzn_rda_assert($state['available']===false&&$state['reason']==='recording_teacher_principal_ambiguous','ambiguous Teacher state must be unavailable');
 dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','ambiguous-teacher-01'),'recording_teacher_principal_ambiguous','ambiguous Teacher acceptance');
-$wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_principal_links WHERE wordpress_user_id=%d",$ambiguousTeacherUser));
-$wpdb->query("ALTER TABLE {$p}teacher_principal_links ADD UNIQUE KEY wordpress_user_id(wordpress_user_id)");
+dzn_rda_assert($wpdb->query($wpdb->prepare("DELETE FROM {$p}teacher_principal_links WHERE wordpress_user_id=%d",$ambiguousTeacherUser))!==false,'fixture must clean ambiguous Teacher links');
+dzn_rda_assert($wpdb->query("ALTER TABLE {$p}teacher_principal_links ADD UNIQUE KEY wordpress_user_id(wordpress_user_id)")!==false,'fixture must restore the Teacher link uniqueness index');
 
 $ambiguousStudentUser=dzn_rda_user('ambiguous-student');$studentI1=dzn_rda_student('ambiguous-one','Ambiguous One','adult');$studentI2=dzn_rda_student('ambiguous-two','Ambiguous Two','adult');
-$wpdb->query("ALTER TABLE {$p}student_principal_links DROP INDEX principal_active");
+dzn_rda_assert($wpdb->query("ALTER TABLE {$p}student_principal_links DROP INDEX principal_active")!==false,'fixture must relax the Student link uniqueness index');
 dzn_rda_link_student($studentI1,$ambiguousStudentUser);dzn_rda_link_student($studentI2,$ambiguousStudentUser);
 wp_set_current_user($ambiguousStudentUser);
 $state=$service->studentDecisionState();dzn_rda_assert($state['available']===false&&$state['reason']==='recording_student_principal_ambiguous'&&$state['capture_eligible']===false,'ambiguous Student state must be unavailable');
 dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recording['uid'],'en','ambiguous-student-01'),'recording_student_principal_ambiguous','ambiguous Student choice');
-$wpdb->query($wpdb->prepare("DELETE FROM {$p}student_principal_links WHERE wordpress_user_id=%d",$ambiguousStudentUser));
-$wpdb->query("ALTER TABLE {$p}student_principal_links ADD UNIQUE KEY principal_active(wordpress_user_id,active_slot)");
+dzn_rda_assert($wpdb->query($wpdb->prepare("DELETE FROM {$p}student_principal_links WHERE wordpress_user_id=%d",$ambiguousStudentUser))!==false,'fixture must clean ambiguous Student links');
+dzn_rda_assert($wpdb->query("ALTER TABLE {$p}student_principal_links ADD UNIQUE KEY principal_active(wordpress_user_id,active_slot)")!==false,'fixture must restore the Student link uniqueness index');
 foreach(array($studentI1,$studentI2)as$student)dzn_rda_assert(dzn_rda_count('student',$student)===0,'ambiguous Student must not gain a decision');
 
 echo "Recording decision behavior runtime: PASS\n";

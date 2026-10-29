@@ -308,6 +308,13 @@ jobs:
           docker pull wordpress:php8.3-apache
           docker pull wordpress:cli-php8.3
       - run: platform/runtime/bin/run-recording-decision-migration-runtime.sh
+      - name: Dispose recording decision migration runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-decision-migration
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-decision-migration
+          export DZN_WP_PORT=18082
+          platform/runtime/bin/destroy.sh YES
 
   recording-decision-behavior-runtime:
     name: Recording decision behavior runtime
@@ -321,6 +328,13 @@ jobs:
           docker pull wordpress:php8.3-apache
           docker pull wordpress:cli-php8.3
       - run: platform/runtime/bin/run-recording-decision-behavior-runtime.sh
+      - name: Dispose recording decision behavior runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-decision-behavior
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-decision-behavior
+          export DZN_WP_PORT=18081
+          platform/runtime/bin/destroy.sh YES
 
   stripe-runtime-e2e:
     name: Stripe runtime E2E

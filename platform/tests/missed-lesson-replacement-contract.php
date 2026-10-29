@@ -79,6 +79,7 @@ $assert(str_contains($notification, 'proposalKind') && str_contains($notificatio
 $assert(str_contains($calendar, 'PERMANENT_ERRORS') && str_contains($calendar, 'google_calendar_projection_refused'), 'Deterministic provider refusals must fail visibly instead of retrying forever');
 $assert(str_contains($calendar, 'calendarJob($jobId)') && str_contains($calendar, "\$job->state,array('queued','retry'),true"), 'Calendar dispatch must re-check the exact job state before dispatch');
 $assert(str_contains($calendar, 'reschedule-project-calendar:') && str_contains($calendar, 'reschedule-project-meeting:'), 'Calendar dispatch must use deterministic provider command keys');
+$assert(str_contains($calendar, "'projection_reference'=>'reschedule-handoff:'"), 'Calendar dispatch must supply the provider projection reference');
 $assert(str_contains($calendar, 'new ProviderIntegrationService(null,null,new GoogleOAuthTransport(),$adapter,$adapter)'), 'Calendar hand-off must construct the provider authority with its required adapter ports');
 $dispatchStart=strpos($calendar,'public function dispatchJob');$dispatchBlock=$dispatchStart===false?'':substr($calendar,$dispatchStart,2400);
 $assert($dispatchBlock!==''&&!str_contains($dispatchBlock,'$this->store->begin()')&&!str_contains($dispatchBlock,'$this->store->commit()'), 'Calendar dispatch must not nest a transaction around the provider authority');

@@ -16,12 +16,14 @@ final class GoogleCalendarProjectionService {
         private ?ProviderIntegrationRepository $repository=null,
         private ?IntegrationSecretService $secrets=null,
         private ?GoogleCalendarMeetAdapter $adapter=null,
-        private ?GoogleCalendarProjectionTransport $transport=null
+        private ?GoogleCalendarProjectionTransport $transport=null,
+        private ?ProviderCredentialRefresher $refresher=null
     ){
         $this->repository??=new ProviderIntegrationRepository();
         $this->secrets??=new IntegrationSecretService();
         $this->adapter??=new GoogleCalendarMeetAdapter();
         $this->transport??=new GoogleCalendarProjectionTransport();
+        $this->refresher??=new ProviderCredentialRefresher();
     }
 
     public function dispatch(int $mappingId,string $commandKey):array{
@@ -32,7 +34,14 @@ final class GoogleCalendarProjectionService {
         if(!$connection||(string)$connection->connection_state!=='connected')throw new \InvalidArgumentException('provider_connection_unusable');
         $credential=$this->repository->credential((int)$connection->id,false);
         if(!$credential)throw new \InvalidArgumentException('provider_credential_required');
-        if($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60)throw new \InvalidArgumentException('provider_credential_refresh_required');
+        if($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60){
+            // An expired access token is renewable through the existing encrypted refresh token.
+            // The projection worker principal holds the dispatch capability; a failed refresh
+            // remains visible and leaves the credential/connection fail-closed.
+            $this->refresher->refresh((int)$connection->id,'google-calendar-refresh:'.$mappingId.':'.(int)($mapping->mapping_version??1));
+            $credential=$this->repository->credential((int)$connection->id,false);
+            if(!$credential||($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60))throw new \InvalidArgumentException('provider_credential_refresh_required');
+        }
         $material=$this->secrets->open((int)$connection->id,'google_calendar',$credential);
         $translation=$this->adapter->project(array(
             'provider_code'=>'google_calendar','operation'=>'project',

@@ -27,6 +27,14 @@ $support_message = rawurlencode( 'سلام، درخواست بررسی توقف 
 	<?php if ( ! empty( $status['course'] ) || ! empty( $status['teacher'] ) ) : ?>
 		<p class="dzn-account-status__course"><?php echo esc_html( trim( (string) ( $status['course'] ?? '' ) . ( ! empty( $status['teacher'] ) ? ' · ' . (string) $status['teacher'] : '' ) ) ); ?></p>
 	<?php endif; ?>
+	<?php if ( (int) ( $status['replacement_allowance'] ?? 0 ) > 0 ) : ?>
+		<p class="dzn-account-status__replacement">
+			<?php echo esc_html( sprintf( 'جایگزین‌های ترم: %d از %d استفاده شده · %d باقی‌مانده', (int) ( $status['replacement_used'] ?? 0 ), (int) $status['replacement_allowance'], (int) ( $status['replacement_remaining'] ?? 0 ) ) ); ?>
+			<?php if ( ! empty( $status['replacement_pending'] ) ) : ?>
+				· <?php echo esc_html( sprintf( '%d جایگزین در انتظار تعیین زمان', (int) $status['replacement_pending'] ) ); ?>
+			<?php endif; ?>
+		</p>
+	<?php endif; ?>
 	<div class="dzn-account-status__actions">
 		<a class="dzn-button" href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>"><?php esc_html_e( 'ادامهٔ کلاس‌ها', 'delnavazan-theme' ); ?></a>
 		<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( 'https://wa.me/61413413004?text=' . $support_message ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'درخواست توقف ثبت‌نام', 'delnavazan-theme' ); ?></a>

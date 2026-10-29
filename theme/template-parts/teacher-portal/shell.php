@@ -2,7 +2,9 @@
 $screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'classes', 'finance', 'settings', 'onboarding' ), true ) ? $args['screen'] : 'home';
 $model = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model['teacher'] : array();
-$title = 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'classes' === $screen ? 'کلاس‌ها' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : 'درود بر شما' ) ) );
+$teacher_first_name = trim( (string) ( $model['teacher']['first_name'] ?? '' ) );
+$title = 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'classes' === $screen ? 'کلاس‌ها' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : 'امروز' ) ) );
+$heading = 'home' === $screen ? 'درود بر شما' . ( '' !== $teacher_first_name ? '، ' . $teacher_first_name : '' ) : $title;
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navigation;
 ?>
@@ -13,7 +15,7 @@ $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navi
    <?php if ( is_user_logged_in() ) : ?><a class="dzn-tp-appbar__action" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">خروج</a><?php endif; ?>
   </div>
  </header>
- <header class="dzn-tp-masthead"><div class="dzn-container dzn-tp-masthead__inner"><h1><?php echo esc_html( $title ); ?></h1>
+ <header class="dzn-tp-masthead"><div class="dzn-container dzn-tp-masthead__inner"><h1><?php echo esc_html( $heading ); ?></h1>
  <nav id="dzn-tp-nav-desktop" aria-label="پیمایش پرتال مدرس"><ul><?php foreach ( $navigation as $item ) : ?><li><a href="<?php echo esc_url( $item['url'] ?? '' ); ?>"<?php if ( ! empty( $item['current'] ) ) : ?> aria-current="page"<?php endif; ?>><?php echo esc_html( $item['label'] ?? '' ); ?></a></li><?php endforeach; ?></ul></nav><?php if ( is_user_logged_in() ) : ?><p class="dzn-tp-account"><a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">خروج</a></p><?php endif; ?></div></header>
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>

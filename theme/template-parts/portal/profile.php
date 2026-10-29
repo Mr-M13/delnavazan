@@ -26,7 +26,7 @@ $calendar_preference = (string) ( $profile['calendar_preference'] ?? 'auto' );
 		<?php wp_nonce_field( 'dzn_student_profile_update' ); ?>
 		<div class="dzn-portal-control">
 			<label for="dzn-profile-email"><?php esc_html_e( 'ایمیل', 'delnavazan-theme' ); ?></label>
-			<input id="dzn-profile-email" type="email" dir="ltr" readonly aria-describedby="dzn-profile-note" value="<?php echo esc_attr( $profile['email'] ?? '' ); ?>">
+			<input id="dzn-profile-email" class="is-readonly" type="email" dir="ltr" readonly aria-describedby="dzn-profile-note" aria-disabled="true" value="<?php echo esc_attr( $profile['email'] ?? '' ); ?>">
 		</div>
 		<div class="dzn-portal-control">
 			<label for="dzn-profile-phone"><?php esc_html_e( 'شمارهٔ همراه', 'delnavazan-theme' ); ?></label>

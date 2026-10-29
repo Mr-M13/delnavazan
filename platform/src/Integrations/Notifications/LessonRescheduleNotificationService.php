@@ -67,14 +67,22 @@ final class LessonRescheduleNotificationService {
     private function render(object $proposal,string $eventType,string $audience,string $name):array{
         $timezone=(string)$proposal->schedule_timezone;
         $when=$this->format((string)$proposal->proposed_starts_at_utc,$timezone);
-        $role='student'===$audience?'هنرجو':'مدرس';
         $subject='دلنوازان · تغییر زمان کلاس';
-        $messages=array(
-            'proposed'=>'درخواست تغییر زمان کلاس برای شما ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). لطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید.',
-            'accepted'=>'زمان جدید کلاس تأیید شد. زمان: '.$when.' ('.$timezone.').',
-            'rejected'=>'پیشنهاد تغییر زمان کلاس رد شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.',
-            'failed'=>'تغییر زمان کلاس ثبت نشد. زمان فعلی بدون تغییر باقی می‌ماند؛ لطفاً زمان تازه‌ای پیشنهاد کنید.',
-        );
+        if('admin'===$audience){
+            $messages=array(
+                'proposed'=>'درخواست تغییر زمان کلاس از سوی مدرس ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). این پیشنهاد تا پاسخ هنرجو قطعی نیست و در پرتال هنرجو برای پذیرش نمایش داده می‌شود.',
+                'accepted'=>'هنرجو زمان جدید کلاس را پذیرفت و تغییر زمان قطعی شد. زمان: '.$when.' ('.$timezone.').',
+                'rejected'=>'هنرجو پیشنهاد تغییر زمان کلاس را رد کرد. زمان فعلی کلاس بدون تغییر باقی ماند.',
+                'failed'=>'تغییر زمان کلاس ثبت نشد. زمان فعلی بدون تغییر باقی می‌ماند.',
+            );
+        }else{
+            $messages=array(
+                'proposed'=>'درخواست تغییر زمان کلاس برای شما ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). لطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید.',
+                'accepted'=>'زمان جدید کلاس تأیید شد. زمان: '.$when.' ('.$timezone.').',
+                'rejected'=>'پیشنهاد تغییر زمان کلاس رد شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.',
+                'failed'=>'تغییر زمان کلاس ثبت نشد. زمان فعلی بدون تغییر باقی می‌ماند؛ لطفاً زمان تازه‌ای پیشنهاد کنید.',
+            );
+        }
         $body='سلام'.(''!==trim($name)?' '.trim($name):'')."،\n\n".($messages[$eventType]??$messages['failed'])."\n\nدلنوازان";
         return array('subject'=>$subject,'body'=>$body);
     }
@@ -100,6 +108,11 @@ final class LessonRescheduleNotificationService {
     /** Default recipient lookup stays on the owning domain row; no contact data enters the job. */
     public static function defaultRecipient(object $proposal,string $audience):?array{
         global $wpdb;$p=$wpdb->prefix.'dzn_';
+        if('admin'===$audience){
+            $email=trim((string)apply_filters('dzn_reschedule_admin_recipient',(string)get_option('admin_email'),$proposal));
+            if(!is_email($email))return null;
+            return array('email'=>$email,'name'=>'مدیر دلنوازان');
+        }
         if('student'===$audience){
             $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
         }else{

@@ -124,6 +124,7 @@ final class LessonRescheduleService {
             $row=$this->store->proposal($id);
             $this->event($row,'proposed',null,self::STATE_PENDING,'teacher_reschedule_proposed',$digest,$teacherUserId,null,$now);
             $this->notify($id,'proposed','student',$uid);
+            $this->notify($id,'proposed','admin',$uid);
             $this->store->commit();
             return $this->row($row)+array('idempotent'=>false);
         }catch(\Throwable $e){
@@ -176,6 +177,7 @@ final class LessonRescheduleService {
                 $this->store->updateProposal((int)$proposal->id,(int)$proposal->version,array('state'=>self::STATE_REJECTED,'pending_slot'=>null,'decision_key_digest'=>$decisionDigest,'decided_at'=>$now,'decided_by'=>$authenticatedUserId,'updated_at'=>$now,'updated_by'=>$authenticatedUserId));
                 $this->event($proposal,'rejected',self::STATE_PENDING,self::STATE_REJECTED,'student_reschedule_rejected',$decisionDigest,$authenticatedUserId,null,$now);
                 $this->notify((int)$proposal->id,'rejected','teacher',(string)$proposal->uid);
+                $this->notify((int)$proposal->id,'rejected','admin',(string)$proposal->uid);
                 $this->store->commit();
                 return $this->row($this->store->proposal((int)$proposal->id))+array('idempotent'=>false);
             }
@@ -218,6 +220,7 @@ final class LessonRescheduleService {
             $this->event($proposal,'accepted',self::STATE_PENDING,self::STATE_ACCEPTED,'student_reschedule_accepted',$decisionDigest,$authenticatedUserId,$versionId,$now);
             $this->notify((int)$proposal->id,'accepted','student',(string)$proposal->uid);
             $this->notify((int)$proposal->id,'accepted','teacher',(string)$proposal->uid);
+            $this->notify((int)$proposal->id,'accepted','admin',(string)$proposal->uid);
             $this->store->insertCalendarJob(array(
                 'uid'=>Identifier::uid(),'proposal_id'=>(int)$proposal->id,'lesson_id'=>(int)$proposal->lesson_id,
                 'from_schedule_version_id'=>(int)$proposal->schedule_version_id,'to_schedule_version_id'=>$versionId,

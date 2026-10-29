@@ -26,6 +26,8 @@ $actor = $read('src/Core/Application/LessonReplacementSystemActor.php');
 $absenceRead = $read('src/Core/Application/TeacherAbsenceAttentionReadService.php');
 $rejectedRead = $read('src/Core/Application/TeacherRescheduleAttentionReadService.php');
 $notification = $read('src/Integrations/Notifications/LessonRescheduleNotificationService.php');
+$calendar = $read('src/Integrations/LessonRescheduleCalendarService.php');
+$calendarTransport = $read('src/Integrations/GoogleCalendarProjectionTransport.php');
 $studentRead = $read('src/Portals/PortalAuthenticatedReadService.php');
 $admin = $read('src/Admin/Controller/AcademyOperationsController.php');
 $capacity = $read('src/Core/Application/CommercialCapacityAuthority.php');
@@ -74,6 +76,10 @@ $assert(str_contains($rejectedRead, 'function ownPending'), 'The Teacher must be
 $assert(str_contains($bridge, 'reschedule_pending'), 'The Teacher portal must display pending proposals without duplicating the action');
 
 $assert(str_contains($notification, 'proposalKind') && str_contains($notification, 'جلسهٔ جبرانی'), 'Notifications must distinguish replacement from reschedule');
+$assert(str_contains($calendar, 'PERMANENT_ERRORS') && str_contains($calendar, 'google_calendar_projection_refused'), 'Deterministic provider refusals must fail visibly instead of retrying forever');
+$assert(str_contains($calendar, 'calendarJob((int)$row->id,true)'), 'Calendar workers must re-read the job under a row lock before dispatching');
+$assert(str_contains($calendar, "reschedule-project-calendar:'.\$job['uid']") && str_contains($calendar, "reschedule-project-meeting:'.\$job['uid']"), 'Calendar retries must use deterministic provider command keys');
+$assert(str_contains($calendarTransport, 'conferenceDataVersion') && str_contains($calendarTransport, 'google_meet_join_uri_untrusted'), 'The Calendar transport must request Meet conference data and validate the returned join URI');
 $assert(str_contains($studentRead, 'original_starts_at_utc') && str_contains($studentRead, 'teacher_replacement_proposed'), 'Student proposals must include the original occurrence and kind');
 $assert(str_contains($admin, 'dzn-academy-reschedule-history') && str_contains($admin, 'expired'), 'Admin must see confirmed, rejected, failed and expired proposals');
 $assert(str_contains($capacity, "lesson_type??'')==='replacement'") && substr_count($capacity, "==='replacement'") >= 3, 'Replacement issuance must not bind, satisfy or reopen a standard protected capacity interval');

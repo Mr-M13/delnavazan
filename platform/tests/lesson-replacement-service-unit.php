@@ -222,5 +222,14 @@ namespace {
     $threw = false; try { $progressService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-replacement-0070'); } catch (Throwable $e) { $threw = $e->getMessage() === 'reschedule_lesson_in_progress'; }
     $fail('an in-progress occurrence is refused', $threw);
 
+
+    // An expired proposal is terminal and cannot be accepted.
+    $expiredStore = new ReplacementFakeStore(); $expiredStore->context = $context('completed');
+    $expiredService = new LessonRescheduleService($expiredStore, static fn() => array(), $rescheduleCommit, static fn() => time(), static fn() => true, $replacementCommit, $exception);
+    $expiredProposal = $expiredService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-replacement-expired-01');
+    $expiredStore->proposals[0]->expires_at = gmdate('Y-m-d H:i:s', time() - 60);
+    $threw = false; try { $expiredService->decideForStudent(9, (string) $expiredProposal['proposal_uid'], 'accept', 'decision-key-replacement-expired-01'); } catch (Throwable $e) { $threw = $e->getMessage() === 'reschedule_proposal_expired'; }
+    $fail('an expired replacement proposal is refused and closed', $threw && (string) $expiredStore->proposals[0]->state === 'failed' && (string) $expiredStore->proposals[0]->failure_code === 'reschedule_proposal_expired');
+
     echo "Lesson replacement service unit passed\n";
 }

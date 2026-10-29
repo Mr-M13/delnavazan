@@ -15,6 +15,8 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{LessonRescheduleReposito
  */
 final class LessonRescheduleCalendarService {
     private const MAX_ATTEMPTS=6;
+    /** Provider refusals that cannot converge by retrying the same immutable request. */
+    private const PERMANENT_ERRORS=array('google_calendar_projection_refused','google_meet_join_uri_untrusted','google_calendar_projection_identity_mismatch','google_calendar_event_id_invalid','google_calendar_request_not_allowed','google_calendar_request_incomplete','reschedule_calendar_binding_invalid');
     /** @var callable(array):array */
     private $dispatch;
     /** @var callable():int */
@@ -47,11 +49,15 @@ final class LessonRescheduleCalendarService {
                     $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
                     $code=self::safeErrorCode((string)$e->getMessage());
                     $actorUnavailable=in_array($code,array('reschedule_calendar_actor_unconfigured','reschedule_calendar_actor_invalid'),true);
+                    $permanent=in_array($code,self::PERMANENT_ERRORS,true);
                     $attempt=(int)($row->attempt_count??0)+($actorUnavailable?0:1);
                     // Missing or underprivileged actors keep the job queued and retryable; an
                     // already accepted canonical reschedule is never rolled back for this.
-                    $state=$actorUnavailable?'queued':($attempt>=self::MAX_ATTEMPTS?'failed':'retry');
-                    $this->store->updateCalendarJob((int)$row->id,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt))))),'last_error_code'=>$code,'updated_at'=>$now));
+                    // A deterministic provider refusal is terminal, while transport/outage
+                    // failures use bounded exponential backoff.
+                    $state=$actorUnavailable?'queued':(($permanent||$attempt>=self::MAX_ATTEMPTS)?'failed':'retry');
+                    $next=$permanent?null:gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt)))));
+                    $this->store->updateCalendarJob((int)$row->id,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>$next,'last_error_code'=>$code,'updated_at'=>$now));
                 }catch(\Throwable){}
                 $failed++;
             }

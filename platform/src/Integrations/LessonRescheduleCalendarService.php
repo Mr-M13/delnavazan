@@ -51,23 +51,23 @@ final class LessonRescheduleCalendarService {
      * worker's queue snapshot is stale.
      */
     public function dispatchJob(int $jobId):string{
-        $this->store->begin();
+        // The provider authority owns its own transaction. Wrapping it in a second transaction
+        // would make ProviderIntegrationRepository::begin() attempt SET TRANSACTION while a
+        // transaction is already open (MySQL refuses), and a nested rollback would be ambiguous.
+        // The outbox row is therefore advanced after the provider command commits; the provider
+        // command key is deterministic, so a crash between the two converges on retry without a
+        // second calendar event.
+        $job=$this->store->calendarJob($jobId);
+        if(!$job||!in_array((string)$job->state,array('queued','retry'),true))return 'skipped';
         try{
-            $locked=$this->store->calendarJob($jobId,true);
-            if(!$locked||!in_array((string)$locked->state,array('queued','retry'),true)){
-                $this->store->commit();
-                return 'skipped';
-            }
-            $result=($this->dispatch)((array)$locked);
-            $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
-            $this->store->updateCalendarJob((int)$locked->id,array('state'=>'completed','attempt_count'=>(int)$locked->attempt_count+1,'completed_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'updated_at'=>$now));
-            $this->store->commit();
-            return 'completed';
+            $result=($this->dispatch)((array)$job);
         }catch(\Throwable $e){
-            $this->store->rollback();
             $this->recordFailure($jobId,$e);
             throw $e;
         }
+        $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
+        $this->store->updateCalendarJob($jobId,array('state'=>'completed','attempt_count'=>(int)$job->attempt_count+1,'completed_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'updated_at'=>$now));
+        return 'completed';
     }
 
     private function recordFailure(int $jobId,\Throwable $e):void{

@@ -1614,3 +1614,24 @@
     display: none !important;
   }
 }
+
+/* Teacher website notifications. */
+.dzn-tp-appbar__bell{position:relative;display:inline-flex;align-items:center;justify-content:center;min-inline-size:44px;min-block-size:44px;margin-inline-end:.35rem;color:currentColor;text-decoration:none;border-radius:999px}
+.dzn-tp-appbar__bell:hover,.dzn-tp-appbar__bell:focus-visible{background:rgb(14 140 140 / 10%)}
+.dzn-tp-appbar__badge{position:absolute;inset-block-start:2px;inset-inline-end:0;min-inline-size:18px;padding:0 4px;border-radius:999px;background:#B23A48;color:#fff;font-size:.68rem;font-weight:800;line-height:18px;text-align:center}
+.dzn-tp-section__heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-block-end:.75rem}
+.dzn-tp-note{margin-block-start:.75rem;color:var(--dzn-tp-muted,#646970);font-size:.82rem;line-height:1.9}
+.dzn-notifications__count{display:inline-block;margin-inline-start:.4rem;padding:.1rem .5rem;border-radius:999px;background:rgb(178 58 72 / 12%);color:#B23A48;font-size:.72rem;font-weight:800;vertical-align:middle}
+.dzn-notifications__all{display:flex;justify-content:flex-end;margin-block-end:.5rem}
+.dzn-notifications__all form{margin:0}
+.dzn-notifications__list{margin:0;padding:0;list-style:none;border-block-start:1px solid var(--dzn-tp-border,#e6dfd2)}
+.dzn-notifications__item{display:grid;gap:.35rem;padding-block:1rem;border-block-end:1px solid var(--dzn-tp-border,#e6dfd2)}
+.dzn-notifications__item.is-unread{background:linear-gradient(90deg,rgb(14 140 140 / 6%),transparent)}
+.dzn-notifications__item time{color:#B23A48;font-size:.76rem;font-weight:800}
+.dzn-notifications__body h3{margin:0 0 .25rem;font-size:1rem}
+.dzn-notifications__body p{margin:0;color:var(--dzn-tp-muted,#646970);line-height:1.9}
+.dzn-notifications__dot{display:inline-block;inline-size:.5rem;block-size:.5rem;margin-inline-start:.45rem;border-radius:50%;background:#B23A48;vertical-align:middle}
+.dzn-notifications__actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block-start:.5rem}
+.dzn-notifications__actions form{margin:0}
+.dzn-notifications__actions button{background:none;border:0;padding:0;font:inherit;color:#0E8C8C;text-decoration:underline;cursor:pointer}
+@media (max-width:47.99rem){.dzn-notifications__actions .dzn-button,.dzn-notifications__all-button{min-block-size:44px}}

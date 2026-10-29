@@ -88,7 +88,8 @@ $check( 'fake teacher private-note sentence is gone', ! str_contains( $bridge, '
 $check( 'finance formats minor units with the currency exponent', str_contains( $finance, 'PricingMoney::format' ) && ! str_contains( $finance, 'واحد خرد ارز' ) );
 $check( 'teacher classes only show a sourced private note', str_contains( $classes, "isset( \$item['previous_private_note'] )" ) );
 $check( 'student payment block no longer claims a demo view', ! str_contains( (string) file_get_contents( $theme . '/template-parts/portal/payments.php' ), 'نمایش آزمایشی' ) );
-$check( 'student account marks notifications unavailable without a read', str_contains( $bridge, "\$model['notifications_available'] = false;" ) );
+$check( 'student account reads notifications from the owned inbox', str_contains( $bridge, 'dzn_theme_platform_notification_model' ) && str_contains( $bridge, "\$model['notification_unread_count']" ) );
+$check( 'student account still distinguishes an unavailable source from no notifications', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/notifications.php' ), 'منبع اعلان معتبر متصل نشده' ) );
 $check( 'unavailable join is not a disabled primary button', ! str_contains( $upcoming, 'disabled aria-describedby="dzn-join-pending"' ) );
 $check( 'unavailable absence is not a disabled button', ! str_contains( $upcoming, "disabled><?php esc_html_e( 'اطلاع غیبت'" ) );
 

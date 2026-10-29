@@ -781,6 +781,55 @@ function dzn_theme_platform_student_payments_model( array $read, $timezone, $ena
 	);
 }
 
+
+/**
+ * The website inbox model for one authenticated portal user.
+ *
+ * Ownership is decided by the WordPress user link recorded on the notification row, never by a
+ * query-string id. When the inbox source is unavailable the model says so instead of claiming
+ * "no notifications".
+ */
+function dzn_theme_platform_notification_model( $user_id, $timezone, $calendar, $locale, $role = 'student' ) {
+	$empty = array( 'items' => array(), 'available' => false, 'unread' => 0, 'archive_url' => '', 'actions' => array() );
+	if ( (int) $user_id < 1 || ! class_exists( '\Delnavazan\Platform\Portals\PortalNotificationInbox' ) ) { return $empty; }
+	try {
+		$inbox = new \Delnavazan\Platform\Portals\PortalNotificationInbox();
+		$rows  = $inbox->forUser( (int) $user_id, 20 );
+		$items = array();
+		foreach ( $rows as $row ) {
+			$when = function_exists( 'dzn_theme_platform_calendar_time' )
+				? dzn_theme_platform_calendar_time( (string) ( $row['created_at'] ?? '' ), $timezone, $calendar, $locale, 'date_time_short' )
+				: (string) ( $row['created_at'] ?? '' );
+			$link = (string) ( $row['link_url'] ?? '' );
+			$items[] = array(
+				'id'        => (int) ( $row['id'] ?? 0 ),
+				'title'     => (string) ( $row['title'] ?? '' ),
+				'message'   => (string) ( $row['body'] ?? '' ),
+				'date'      => $when,
+				'created_at'=> (string) ( $row['created_at'] ?? '' ),
+				'is_unread' => ! empty( $row['is_unread'] ),
+				'link_url'  => in_array( strtolower( (string) parse_url( $link, PHP_URL_SCHEME ) ), array( 'http', 'https' ), true ) ? $link : '',
+				'category'  => (string) ( $row['category'] ?? '' ),
+			);
+		}
+		return array(
+			'items'       => $items,
+			'available'   => true,
+			'unread'      => (int) $inbox->unreadCount( (int) $user_id ),
+			'archive_url' => '',
+			'actions'     => array(
+				'read_url'      => admin_url( 'admin-post.php?action=dzn_portal_notification_read' ),
+				'read_nonce'    => wp_create_nonce( 'dzn_portal_notification_read' ),
+				'read_all_url'  => admin_url( 'admin-post.php?action=dzn_portal_notification_read_all' ),
+				'read_all_nonce'=> wp_create_nonce( 'dzn_portal_notification_read_all' ),
+				'role'          => $role,
+			),
+		);
+	} catch ( Throwable $error ) {
+		return $empty;
+	}
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -837,6 +886,12 @@ function dzn_theme_platform_student_model( $screen ) {
 		'navigation' => $navigation,
 		'provisioning' => $provisioning,
 	);
+	$student_inbox = dzn_theme_platform_notification_model( (int) ( $data['principal']['principal_id'] ?? 0 ), $student_timezone, $student_calendar, $student_locale, 'student' );
+	$model['notifications']            = $student_inbox['items'];
+	$model['notifications_available']  = $student_inbox['available'];
+	$model['notification_archive_url'] = $student_inbox['archive_url'];
+	$model['notification_unread_count'] = $student_inbox['unread'];
+	$model['notification_actions']     = $student_inbox['actions'];
 	if ( 'schedule' === $screen ) {
 		$model['schedule'] = dzn_theme_platform_student_schedule_rows( $lessons, $booking_classes, $enrolments, $student_timezone, $now, $student_calendar, $student_locale );
 		$model['reschedule_proposals'] = dzn_theme_platform_student_reschedule_proposals( $reschedule_proposals, $student_timezone, $student_calendar, $student_locale );
@@ -883,9 +938,6 @@ function dzn_theme_platform_student_model( $screen ) {
 			'replacement_pending' => count( array_filter( $replacement_lessons, static fn( $row ) => is_array( $row ) && empty( $row['scheduled'] ) ) ),
 		);
 		$model['payments'] = $payments_model;
-		$model['notifications'] = array();
-		$model['notifications_available'] = false;
-		$model['notification_archive_url'] = '';
 		return $model;
 	}
     $booking_temporal = static fn( $row ) => dzn_theme_platform_lesson_temporal_state( $row, $now );
@@ -1457,12 +1509,18 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	} catch ( \Throwable $e ) {
 		$post_intro_outcomes = array();
 	}
+	$teacher_wp_user = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+	$teacher_inbox = dzn_theme_platform_notification_model( $teacher_wp_user, $teacher_timezone, $teacher_calendar, $teacher_locale, 'teacher' );
 	return array(
 		'available' => true,
 		'screen' => $screen,
 		'source' => 'platform',
 		'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ),
 		'navigation' => $nav,
+		'notifications' => $teacher_inbox['items'],
+		'notifications_available' => $teacher_inbox['available'],
+		'notification_unread_count' => $teacher_inbox['unread'],
+		'notification_actions' => $teacher_inbox['actions'],
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => $bookingAttention,
 		'post_intro_outcomes' => $post_intro_outcomes,

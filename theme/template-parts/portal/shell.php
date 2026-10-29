@@ -16,6 +16,9 @@ $student = isset( $model['student'] ) && is_array( $model['student'] ) ? $model[
 // greet the visitor with a name from another principal.
 $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) $student['first_name'] : '';
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
+$notification_unread = isset( $model['notification_unread_count'] ) ? max( 0, (int) $model['notification_unread_count'] ) : 0;
+$notifications_available = ! empty( $model['notifications_available'] );
+$notification_account_url = add_query_arg( 'portal-view', 'account', home_url( '/student-portal/' ) ) . '#dzn-portal-notifications';
 $screen_title = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت' : 'کلاس‌ها' );
 $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( 'درود بر شما' . ( '' !== $first_name ? '، ' . $first_name : '' ) ) );
 ?>
@@ -23,6 +26,12 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 	<header class="dzn-appbar">
 		<div class="dzn-appbar__inner">
 			<p class="dzn-appbar__title"><?php echo esc_html( $screen_title ); ?></p>
+			<?php if ( is_user_logged_in() && $notifications_available ) : ?>
+				<a class="dzn-appbar__bell<?php echo $notification_unread > 0 ? ' has-unread' : ''; ?>" href="<?php echo esc_url( $notification_account_url ); ?>" aria-label="<?php echo esc_attr( $notification_unread > 0 ? 'اعلان‌ها، ' . number_format_i18n( $notification_unread ) . ' خوانده‌نشده' : 'اعلان‌ها' ); ?>">
+					<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 22a2.6 2.6 0 0 0 2.6-2.6h-5.2A2.6 2.6 0 0 0 12 22Zm7-6.2V11a7 7 0 0 0-5.3-6.8V3.5a1.7 1.7 0 1 0-3.4 0v.7A7 7 0 0 0 5 11v4.8l-1.7 1.7v1h17.4v-1Z"/></svg>
+					<?php if ( $notification_unread > 0 ) : ?><span class="dzn-appbar__badge"><?php echo esc_html( number_format_i18n( $notification_unread ) ); ?></span><?php endif; ?>
+				</a>
+			<?php endif; ?>
 			<?php if ( is_user_logged_in() ) : ?>
 				<a class="dzn-appbar__action" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>"><?php esc_html_e( 'خروج', 'delnavazan-theme' ); ?></a>
 			<?php endif; ?>
@@ -121,6 +130,8 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 					'items'       => $model['notifications'] ?? array(),
 					'archive_url' => $model['notification_archive_url'] ?? '',
 					'available'   => ! empty( $model['notifications_available'] ),
+					'unread'      => $notification_unread,
+					'actions'     => $model['notification_actions'] ?? array(),
 				)
 			);
 			?>

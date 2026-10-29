@@ -98,7 +98,7 @@ function dzn_theme_teacher_portal_statistics_valid( $statistics ) {
 	return true;
 }
 function dzn_theme_teacher_portal_attention_valid( $item ) {
-	$states = array( 'intro_request', 'student_absence', 'reschedule_declined', 'teacher_disruption', 'replacement', 'paid_term_review', 'flexible_term_dates', 'google_problem', 'availability_conflict', 'admin_request' );
+	$states = array( 'intro_request', 'student_absence', 'reschedule_declined', 'reschedule_pending', 'teacher_disruption', 'replacement', 'paid_term_review', 'flexible_term_dates', 'google_problem', 'availability_conflict', 'admin_request' );
 	if ( ! is_array( $item ) || ! in_array( $item['state'] ?? null, $states, true ) ) { return false; }
 	foreach ( array( 'ref', 'title', 'context', 'message', 'due', 'primary' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
 	if ( true !== ( $item['action_available'] ?? false ) ) { return false; }

@@ -26,9 +26,10 @@ if ( ! $items && ! in_array( $status, array( 'ok', 'failed' ), true ) ) {
 			<?php foreach ( $items as $item ) : ?>
 				<li class="dzn-reschedule-card">
 					<div class="dzn-reschedule-card__facts">
-						<h3><?php echo esc_html( (string) ( $item['instrument'] ?? '' ) ); ?></h3>
+						<h3><?php echo esc_html( (string) ( $item['instrument'] ?? '' ) ); ?> <span class="dzn-status dzn-status--information"><?php echo esc_html( (string) ( $item['kind_label'] ?? 'تغییر زمان کلاس' ) ); ?></span></h3>
 						<p><?php echo esc_html( sprintf( 'مدرس: %s', (string) ( $item['teacher'] ?? '' ) ) ); ?></p>
-						<p><time datetime="<?php echo esc_attr( (string) ( $item['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( (string) ( $item['date'] ?? '' ) . ' · ' . (string) ( $item['time'] ?? '' ) ); ?></time></p>
+						<?php if ( ! empty( $item['original_date'] ) ) : ?><p class="dzn-reschedule-card__original"><span><?php esc_html_e( 'زمان اصلی:', 'delnavazan-theme' ); ?></span> <time datetime="<?php echo esc_attr( (string) ( $item['original_starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( (string) $item['original_date'] . ' · ' . (string) ( $item['original_time'] ?? '' ) ); ?></time></p><?php endif; ?>
+						<p class="dzn-reschedule-card__proposed"><strong><?php esc_html_e( 'زمان پیشنهادی:', 'delnavazan-theme' ); ?></strong> <time datetime="<?php echo esc_attr( (string) ( $item['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( (string) ( $item['date'] ?? '' ) . ' · ' . (string) ( $item['time'] ?? '' ) ); ?></time></p>
 						<?php if ( ! empty( $item['timezone_label'] ) ) : ?><p class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( (string) $item['timezone_label'] ); ?></p><?php endif; ?>
 					</div>
 					<div class="dzn-reschedule-card__actions">

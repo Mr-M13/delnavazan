@@ -10,6 +10,8 @@ $timezone = (string) ( $args['timezone'] ?? ( $item['reschedule_timezone'] ?? ''
 $index    = (int) ( $args['index'] ?? 0 );
 $demo     = ! empty( $args['demo'] );
 $calendar = (string) ( $item['reschedule_calendar'] ?? 'gregorian' );
+$request_kind = (string) ( $item['request_kind'] ?? 'reschedule' );
+$replacement  = 'replacement' === $request_kind;
 $months   = array( 1 => 'فروردین', 2 => 'اردیبهشت', 3 => 'خرداد', 4 => 'تیر', 5 => 'مرداد', 6 => 'شهریور', 7 => 'مهر', 8 => 'آبان', 9 => 'آذر', 10 => 'دی', 11 => 'بهمن', 12 => 'اسفند' );
 $current_year = 0;
 $current_month = 1;
@@ -22,8 +24,8 @@ if ( 'persian' === $calendar && function_exists( 'dzn_theme_platform_jalali_part
 }
 ?>
 <section class="dzn-tp-reschedule" aria-labelledby="tp-reschedule-<?php echo esc_attr( $index ); ?>">
-	<h4 id="tp-reschedule-<?php echo esc_attr( $index ); ?>">تغییر زمان کلاس</h4>
-	<p class="dzn-tp-detail-help">زمان فعلی: <strong><?php echo esc_html( (string) ( $item['reschedule_current'] ?? $item['schedule_summary'] ?? '' ) ); ?></strong>. زمان جدید پس از پذیرش هنرجو قطعی می‌شود و مدت کلاس حفظ می‌شود.</p>
+	<h4 id="tp-reschedule-<?php echo esc_attr( $index ); ?>"><?php echo $replacement ? 'ثبت جلسهٔ جبرانی' : 'تغییر زمان کلاس'; ?></h4>
+	<p class="dzn-tp-detail-help"><?php echo $replacement ? 'این جلسه برگزار نشده است؛ زمان جلسهٔ جبرانی را انتخاب کنید. جلسهٔ اصلی و شاهد غیبت حفظ می‌شوند و یک جلسهٔ جایگزین به پروندهٔ ترم اضافه می‌شود.' : 'زمان فعلی:'; ?> <strong><?php echo esc_html( (string) ( $item['reschedule_current'] ?? $item['schedule_summary'] ?? '' ) ); ?></strong><?php echo $replacement ? '' : '. زمان جدید پس از پذیرش هنرجو قطعی می‌شود و مدت کلاس حفظ می‌شود.'; ?></p>
 	<form method="post" action="<?php echo esc_url( (string) ( $item['reschedule_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit>
 		<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['reschedule_nonce'] ?? '' ) ); ?>">
 		<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>">
@@ -42,7 +44,7 @@ if ( 'persian' === $calendar && function_exists( 'dzn_theme_platform_jalali_part
 			<label>تاریخ جدید<input type="date" name="local_date" required min="<?php echo esc_attr( $min_date ); ?>"></label>
 		<?php endif; ?>
 		<label>ساعت شروع<input type="time" name="local_time" required></label>
-		<button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال ارسال درخواست…">ارسال درخواست تغییر زمان</button>
+		<button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال ارسال درخواست…"><?php echo $replacement ? 'ارسال زمان جلسهٔ جبرانی' : 'ارسال درخواست تغییر زمان'; ?></button>
 	</form>
 	<?php if ( $demo ) : ?><p class="dzn-tp-action-status" role="status" aria-live="polite"></p><?php endif; ?>
 </section>

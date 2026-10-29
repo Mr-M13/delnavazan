@@ -77,7 +77,8 @@ final class AcademyOperationsController {
                     COALESCE(NULLIF(s.display_name,''),NULLIF(s.reference_code,''),'Student') student_name,
                     COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
                     COALESCE(NULLIF(i.name_fa,''),NULLIF(c.name_fa,''),NULLIF(c.name_en,''),'Course') course_name,
-                    (SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals x WHERE x.lesson_id=r.lesson_id AND x.state='rejected') rejection_count
+                    (SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals x WHERE x.lesson_id=r.lesson_id AND x.state='rejected') rejection_count,
+                    (SELECT e.reason_code FROM {$p}lesson_reschedule_events e WHERE e.proposal_id=r.id AND e.event_type='proposed' ORDER BY e.id ASC LIMIT 1) proposal_reason
              FROM {$p}lesson_reschedule_proposals r
              INNER JOIN {$p}lessons l ON l.id=r.lesson_id AND l.archived_at IS NULL
              INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
@@ -103,7 +104,22 @@ final class AcademyOperationsController {
              HAVING COUNT(*)>=3
              ORDER BY last_rejected_at DESC LIMIT 20"
         );
-        if(!$rows&&!$escalated&&''===$status)return;
+        $history=$wpdb->get_results(
+            "SELECT r.uid proposal_uid,r.lesson_id,r.state,r.failure_code,r.proposed_starts_at_utc,r.schedule_timezone,r.created_at,r.decided_at,r.expires_at,
+                    (SELECT e.reason_code FROM {$p}lesson_reschedule_events e WHERE e.proposal_id=r.id AND e.event_type='proposed' ORDER BY e.id ASC LIMIT 1) proposal_reason,
+                    COALESCE(NULLIF(s.display_name,''),NULLIF(s.reference_code,''),'Student') student_name,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
+                    COALESCE(NULLIF(i.name_fa,''),NULLIF(c.name_fa,''),NULLIF(c.name_en,''),'Course') course_name
+             FROM {$p}lesson_reschedule_proposals r
+             INNER JOIN {$p}lessons l ON l.id=r.lesson_id AND l.archived_at IS NULL
+             INNER JOIN {$p}students s ON s.id=r.student_id
+             INNER JOIN {$p}teachers t ON t.id=r.teacher_id
+             LEFT JOIN {$p}courses c ON c.id=l.course_id
+             LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
+             WHERE r.state IN ('accepted','rejected','failed','cancelled') OR (r.state='pending' AND r.expires_at IS NOT NULL AND r.expires_at<UTC_TIMESTAMP())
+             ORDER BY r.id DESC LIMIT 30"
+        )?:array();
+        if(!$rows&&!$escalated&&!$history&&''===$status)return;
         echo '<section class="dzn-academy-reschedules" id="dzn-academy-reschedules"><h2>Class time changes</h2>';
         if('saved'===$status)echo '<div class="notice notice-success"><p>Class time change decision recorded.</p></div>';
         elseif('error'===$status)echo '<div class="notice notice-error"><p>The class time change could not be recorded. Refresh and review the current class schedule before retrying.</p></div>';
@@ -116,7 +132,8 @@ final class AcademyOperationsController {
                 $current=wp_date('Y-m-d H:i',(int)strtotime((string)$row->current_start_utc.' UTC'),$zone);
                 $proposed=wp_date('Y-m-d H:i',(int)strtotime((string)$row->proposed_starts_at_utc.' UTC'),$zone);
                 $classUrl=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->lesson_id),admin_url('admin.php'));
-                echo '<tr><td><strong>'.esc_html((string)$row->student_name).'</strong><br><small>'.esc_html((string)$row->teacher_name).'</small></td><td>'.esc_html((string)$row->course_name).'</td><td>'.esc_html($current.' · '.$tz).'</td><td>'.esc_html($proposed.' · '.$tz).'</td><td>'.(int)$row->rejection_count.'</td><td>';
+                $kindLabel=(string)($row->proposal_reason??'')==='teacher_replacement_proposed'?'Replacement':'Reschedule';
+                echo '<tr><td><strong>'.esc_html((string)$row->student_name).'</strong><br><small>'.esc_html((string)$row->teacher_name).'</small></td><td>'.esc_html((string)$row->course_name).'<br><small>'.esc_html($kindLabel).'</small></td><td>'.esc_html($current.' · '.$tz).'</td><td>'.esc_html($proposed.' · '.$tz).'</td><td>'.(int)$row->rejection_count.'</td><td>';
                 $nonceKey=wp_generate_uuid4();
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="display:inline-block;margin:0 4px 4px 0">';
                 wp_nonce_field('dzn_admin_reschedule_confirm');
@@ -137,6 +154,21 @@ final class AcademyOperationsController {
                 echo '<li><strong>'.esc_html((string)$row->student_name).'</strong> · '.esc_html((string)$row->teacher_name).' · '.(int)$row->rejections.' rejections · <a class="button" href="'.esc_url($classUrl).'">Open class and fix manually</a></li>';
             }
             echo '</ul>';
+        }
+        if($history){
+            echo '<details class="dzn-academy-reschedule-history"><summary>Confirmed, rejected, failed and expired class time changes</summary><table class="widefat striped"><thead><tr><th>Student / Teacher</th><th>Class</th><th>Kind</th><th>Proposed time</th><th>State</th><th>Recorded</th></tr></thead><tbody>';
+            foreach($history as $row){
+                $tz=(string)$row->schedule_timezone;
+                try{$zone=new \DateTimeZone($tz);}catch(\Throwable){$zone=wp_timezone();}
+                $proposed=wp_date('Y-m-d H:i',(int)strtotime((string)$row->proposed_starts_at_utc.' UTC'),$zone);
+                $kindLabel=(string)($row->proposal_reason??'')==='teacher_replacement_proposed'?'Replacement':'Reschedule';
+                $state=(string)$row->state;
+                if($state==='pending')$state='expired';
+                if($row->failure_code!==null&&(string)$row->failure_code!=='')$state.=' · '.$row->failure_code;
+                $recorded=(string)($row->decided_at?:$row->created_at);
+                echo '<tr><td><strong>'.esc_html((string)$row->student_name).'</strong><br><small>'.esc_html((string)$row->teacher_name).'</small></td><td>'.esc_html((string)$row->course_name).'</td><td>'.esc_html($kindLabel).'</td><td>'.esc_html($proposed.' · '.$tz).'</td><td>'.esc_html($state).'</td><td>'.esc_html($recorded).'</td></tr>';
+            }
+            echo '</tbody></table></details>';
         }
         echo '</section>';
     }

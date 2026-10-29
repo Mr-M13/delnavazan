@@ -31,6 +31,9 @@ final class CanonicalLessonAuthorityValidator {
      * aggregate context is read on the same connection and lock scope as the mutation.
      */
     public static function valid(object $lesson,array $events,?CanonicalLessonAuthorityRepository $repository=null,bool $lock=false):bool{
+        // Replacement provenance is durable workflow authority. Every caller (delivery, finance,
+        // enrolment closure and portal reads) must therefore validate it against the same store,
+        // even when it does not already hold a repository instance.
         $repository??=new CanonicalLessonAuthorityRepository();
         $origin=null;$originEvents=array();$originTerm=null;$originEnrolment=null;$originAssignment=null;
         $originId=(int)($lesson->canonical_replacement_origin_lesson_id??0);
@@ -53,7 +56,8 @@ final class CanonicalLessonAuthorityValidator {
             $originEvents,
             $originTerm,
             $originEnrolment,
-            $originAssignment
+            $originAssignment,
+            $repository
         );
     }
 
@@ -61,15 +65,21 @@ final class CanonicalLessonAuthorityValidator {
      * Controlled replacement eligibility: generic cancellation alone is never sufficient. This is
      * the Phase-M Student replacement allowance only; a Phase-O academy-owed occurrence is DISTINCT
      * canonical authority and is never materialised as a `replacement` Lesson.
+     *
+     * A missed occurrence is never reopened or cancelled merely to make it eligible. The Student's
+     * accepted attendance-replacement proposal is the durable authorisation that lets a replacement
+     * Lesson be issued while the original Lesson, its completion state, schedule versions and
+     * attendance evidence remain untouched.
      */
-    public static function replacementEligible(object $origin,array $events):bool{
+    public static function replacementEligible(object $origin,array $events,?CanonicalLessonAuthorityRepository $repository=null):bool{
         if((string)($origin->record_model??'')!==self::MODEL)return false;
-        if((string)($origin->lifecycle_state??'')!=='cancelled')return false;
-        foreach($events as$event)if((string)($event->to_state??'')==='cancelled'&&(string)($event->reason_code??'')===self::REPLACEMENT_ELIGIBLE_REASON)return true;
-        return false;
+        if((string)($origin->lifecycle_state??'')==='cancelled'){
+            foreach($events as$event)if((string)($event->to_state??'')==='cancelled'&&(string)($event->reason_code??'')===self::REPLACEMENT_ELIGIBLE_REASON)return true;
+        }
+        return $repository!==null&&$repository->acceptedReplacementAuthorisation((int)($origin->id??0));
     }
 
-    private static function integrity(object $lesson,array $events,?object $term,?object $enrolment,?object $assignment,?object $origin,array $originEvents,?object $originTerm,?object $originEnrolment,?object $originAssignment):bool{
+    private static function integrity(object $lesson,array $events,?object $term,?object $enrolment,?object $assignment,?object $origin,array $originEvents,?object $originTerm,?object $originEnrolment,?object $originAssignment,?CanonicalLessonAuthorityRepository $repository=null):bool{
         if(!self::structure($lesson,$events))return false;
         if((string)($lesson->status??'')!=='canonical')return false;
         if(($lesson->archived_at??null)!==null||$lesson->replacement_for_lesson_id!==null)return false;
@@ -83,7 +93,7 @@ final class CanonicalLessonAuthorityValidator {
         if((string)($origin->lesson_type??'')!=='standard')return false;
         if((int)($origin->id??0)===(int)($lesson->id??0))return false;
         if((int)($origin->term_id??0)!==(int)($lesson->term_id??0))return false;
-        if(!self::replacementEligible($origin,$originEvents))return false;
+        if(!self::replacementEligible($origin,$originEvents,$repository))return false;
         if(!self::provenance($origin,$originTerm,$originEnrolment,$originAssignment))return false;
         return true;
     }

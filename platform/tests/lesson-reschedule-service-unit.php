@@ -21,6 +21,8 @@ namespace {
     use Delnavazan\Platform\Core\Application\{LessonRescheduleService,LessonRescheduleStore};
 
     final class FakeRescheduleStore implements LessonRescheduleStore {
+        public array $proposalKinds = array();
+        public array $replacementFactsData = array('replacement_lesson_id'=>null,'replacement_allowance'=>2,'replacement_used'=>0,'attendance_case_id'=>null,'attendance_state'=>null,'attendance_reason'=>null,'attendance_schedule_version_id'=>null,'delivery_outcome'=>null,'replacement_proposal_state'=>null);
         public array $proposals = array();
         public array $events = array();
         public array $notifications = array();
@@ -47,6 +49,9 @@ namespace {
         public function proposal(int $id, bool $lock = false):?object { foreach ($this->proposals as $row) { if ((int) $row->id === $id) return $row; } return null; }
         public function pendingForStudent(int $studentId):array { return array_values(array_filter($this->proposals, static fn($row) => (int) $row->student_id === $studentId && $row->state === 'pending')); }
         public function pendingForLesson(int $lessonId, bool $lock = false):?object { foreach ($this->proposals as $row) { if ((int) $row->lesson_id === $lessonId && $row->state === 'pending') return $row; } return null; }
+        public function proposalRejectionCount(int $lessonId):int { return count(array_filter($this->proposals, static fn($row) => (int) $row->lesson_id === $lessonId && $row->state === 'rejected')); }
+        public function proposalKind(int $proposalId):string { return $this->proposalKinds[(int) $proposalId] ?? 'reschedule'; }
+        public function replacementFacts(int $lessonId,int $termId):array { return $this->replacementFactsData; }
         public function lessonContext(int $lessonId):?object { foreach ($this->proposals as $row) { if ((int) $row->lesson_id === $lessonId) return $this->context; } return $this->context; }
         public function lessonContextByUid(string $lessonUid):?object { return $lessonUid === $this->context->lesson_uid ? $this->context : null; }
         public function versionIdByUid(string $uid):int { return 7; }

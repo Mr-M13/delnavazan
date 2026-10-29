@@ -12,6 +12,15 @@ interface LessonRescheduleStore {
     public function proposal(int $id,bool $lock=false):?object;
     public function pendingForStudent(int $studentId):array;
     public function pendingForLesson(int $lessonId,bool $lock=false):?object;
+    public function proposalRejectionCount(int $lessonId):int;
+    /** reschedule|replacement, derived from the immutable proposed event. */
+    public function proposalKind(int $proposalId):string;
+    /**
+     * Attendance and replacement-entitlement facts for one origin occurrence.
+     *
+     * @return array{replacement_lesson_id:?int,replacement_allowance:int,replacement_used:int,attendance_case_id:?int,attendance_state:?string,attendance_reason:?string,attendance_schedule_version_id:?int,delivery_outcome:?string,replacement_proposal_state:?string}
+     */
+    public function replacementFacts(int $lessonId,int $termId):array;
     public function lessonContext(int $lessonId):?object;
     public function lessonContextByUid(string $lessonUid):?object;
     public function versionIdByUid(string $uid):int;

@@ -11,6 +11,8 @@ namespace {
     use Delnavazan\Platform\Integrations\Notifications\LessonRescheduleNotificationService;
 
     final class NotificationStore implements LessonRescheduleStore {
+        public array $proposalKinds = array();
+        public array $replacementFactsData = array('replacement_lesson_id'=>null,'replacement_allowance'=>2,'replacement_used'=>0,'attendance_case_id'=>null,'attendance_state'=>null,'attendance_reason'=>null,'attendance_schedule_version_id'=>null,'delivery_outcome'=>null,'replacement_proposal_state'=>null);
         public array $notifications = array();
         public object $proposal;
         public function begin():void {}
@@ -22,6 +24,9 @@ namespace {
         public function proposal(int $id, bool $lock = false):?object { return $this->proposal; }
         public function pendingForStudent(int $studentId):array { return array(); }
         public function pendingForLesson(int $lessonId, bool $lock = false):?object { return null; }
+        public function proposalRejectionCount(int $lessonId):int { return 0; }
+        public function proposalKind(int $proposalId):string { return $this->proposalKinds[(int) $proposalId] ?? 'reschedule'; }
+        public function replacementFacts(int $lessonId,int $termId):array { return $this->replacementFactsData; }
         public function lessonContext(int $lessonId):?object { return null; }
         public function lessonContextByUid(string $lessonUid):?object { return null; }
         public function versionIdByUid(string $uid):int { return 0; }

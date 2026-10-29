@@ -12,7 +12,7 @@ use Delnavazan\Platform\Core\Application\LessonRescheduleStore;
 final class LessonRescheduleRepository implements LessonRescheduleStore {
     private string $p;
     public function __construct(){global $wpdb;$this->p=$wpdb->prefix.'dzn_';}
-    public function begin():void{global $wpdb;if($wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Transaction start failed');}
+    public function begin():void{global $wpdb;if($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')===false||$wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Transaction start failed');}
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
 
@@ -23,6 +23,75 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     public function pendingForStudent(int $studentId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE student_id=%d AND state='pending' ORDER BY created_at,id",$studentId);}
     public function pendingForLesson(int $lessonId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE lesson_id=%d AND state='pending' ORDER BY id DESC LIMIT 1".($lock?' FOR UPDATE':''),$lessonId);}
     public function pendingForTeacher(int $teacherId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE teacher_id=%d AND state='pending' ORDER BY created_at,id",$teacherId);}
+    public function proposalRejectionCount(int $lessonId):int{return(int)$this->scalar("SELECT COUNT(*) FROM {$this->p}lesson_reschedule_proposals WHERE lesson_id=%d AND state='rejected'",$lessonId);}
+
+    /**
+     * The proposal kind is immutable workflow evidence, never caller input. A replacement proposal
+     * is the only proposal whose original `proposed` event carries the replacement reason.
+     */
+    public function proposalKind(int $proposalId):string{
+        $reason=(string)$this->scalar("SELECT reason_code FROM {$this->p}lesson_reschedule_events WHERE proposal_id=%d AND event_type='proposed' ORDER BY id ASC LIMIT 1",$proposalId);
+        return $reason==='teacher_replacement_proposed'?'replacement':'reschedule';
+    }
+
+    /**
+     * Facts required to decide whether a missed occurrence can consume one replacement entitlement.
+     * The current applicable schedule version is the origin occurrence; the attendance case is
+     * evidence only and never establishes entitlement by itself.
+     */
+    public function replacementFacts(int $lessonId,int $termId):array{
+        $facts=array(
+            'replacement_lesson_id'=>null,'replacement_allowance'=>0,'replacement_used'=>0,
+            'attendance_case_id'=>null,'attendance_state'=>null,'attendance_reason'=>null,
+            'attendance_schedule_version_id'=>null,'delivery_outcome'=>null,'replacement_proposal_state'=>null,
+        );
+        $term=$this->one("SELECT replacement_allowance FROM {$this->p}terms WHERE id=%d LIMIT 1",$termId);
+        $facts['replacement_allowance']=$term?(int)$term->replacement_allowance:0;
+        $facts['replacement_used']=(int)$this->scalar(
+            "SELECT COUNT(*) FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",
+            $termId
+        );
+        $replacement=$this->one(
+            "SELECT id FROM {$this->p}lessons WHERE canonical_replacement_origin_lesson_id=%d AND record_model='canonical_term_lesson_v1' AND archived_at IS NULL LIMIT 1",
+            $lessonId
+        );
+        if($replacement)$facts['replacement_lesson_id']=(int)$replacement->id;
+        $outcome=$this->one(
+            "SELECT outcome_code FROM {$this->p}canonical_lesson_delivery_outcomes WHERE lesson_id=%d AND applicable_slot=1 LIMIT 1",
+            $lessonId
+        );
+        if($outcome)$facts['delivery_outcome']=(string)$outcome->outcome_code;
+        $case=$this->one(
+            "SELECT c.id,c.state,c.schedule_version_id,e.reason_code
+             FROM {$this->p}canonical_attendance_cases c
+             INNER JOIN (
+                 SELECT case_id,MAX(id) evidence_id
+                 FROM {$this->p}canonical_attendance_evidence
+                 WHERE source_kind='student'
+                 GROUP BY case_id
+             ) latest ON latest.case_id=c.id
+             INNER JOIN {$this->p}canonical_attendance_evidence e ON e.id=latest.evidence_id
+             WHERE c.lesson_id=%d
+             ORDER BY c.id DESC LIMIT 1",
+            $lessonId
+        );
+        if($case){
+            $facts['attendance_case_id']=(int)$case->id;
+            $facts['attendance_state']=(string)$case->state;
+            $facts['attendance_reason']=(string)$case->reason_code;
+            $facts['attendance_schedule_version_id']=(int)$case->schedule_version_id;
+        }
+        $proposal=$this->one(
+            "SELECT r.state
+             FROM {$this->p}lesson_reschedule_proposals r
+             INNER JOIN {$this->p}lesson_reschedule_events e ON e.proposal_id=r.id AND e.event_type='proposed' AND e.reason_code='teacher_replacement_proposed'
+             WHERE r.lesson_id=%d AND r.state IN ('pending','committing','accepted')
+             ORDER BY r.id DESC LIMIT 1",
+            $lessonId
+        );
+        if($proposal)$facts['replacement_proposal_state']=(string)$proposal->state;
+        return $facts;
+    }
 
     /** One canonical Lesson and its current applicable schedule version, or null if not eligible. */
     public function lessonContext(int $lessonId):?object{

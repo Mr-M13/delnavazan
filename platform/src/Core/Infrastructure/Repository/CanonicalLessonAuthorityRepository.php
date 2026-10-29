@@ -41,6 +41,22 @@ final class CanonicalLessonAuthorityRepository {
         return array_values(array_map('intval',is_array($rows)?$rows:array()));
     }
     public function events(int $lessonId,bool $lock=false):array{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_lesson_lifecycle_events WHERE lesson_id=%d ORDER BY event_sequence,id{$suffix}",$lessonId))?:array();}
+    /**
+     * Attendance-replacement authorisation for a missed occurrence.
+     *
+     * The authorisation is the Student-accepted, Teacher-proposed replacement workflow row. It is
+     * read here (never written) so the canonical Lesson validator can prove provenance without
+     * reopening, cancelling or otherwise mutating the completed original Lesson.
+     */
+    public function acceptedReplacementAuthorisation(int $originLessonId):bool{
+        if($originLessonId<1)return false;
+        global $wpdb;
+        $count=(int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->p}lesson_reschedule_proposals r INNER JOIN {$this->p}lesson_reschedule_events e ON e.proposal_id=r.id AND e.event_type='proposed' AND e.reason_code='teacher_replacement_proposed' WHERE r.lesson_id=%d AND r.state IN ('committing','accepted')",
+            $originLessonId
+        ));
+        return $count>0;
+    }
     public function insertLesson(array $data):int{return $this->insert('lessons',$data,'Canonical Lesson persistence failed');}
     /**
      * Phase 2A.2-O reconciliation: the Phase-M replacement-eligible cancellation reason is an

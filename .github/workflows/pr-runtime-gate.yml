@@ -216,6 +216,13 @@ jobs:
           php platform/tests/admin-read-capability-authority.php
           php platform/tests/student-operations-journey-contract.php
           php platform/tests/lesson-operator-workflow-contract.php
+          php platform/tests/lesson-reschedule-migration-contract.php
+          php platform/tests/lesson-reschedule-service-unit.php
+          php platform/tests/lesson-reschedule-calendar-unit.php
+          php platform/tests/lesson-reschedule-notification-unit.php
+          php platform/tests/lesson-reschedule-system-actors-unit.php
+          php platform/tests/lesson-replacement-service-unit.php
+          php platform/tests/missed-lesson-replacement-contract.php
           php platform/tests/class-portal-completion-contract.php
           php platform/tests/canonical-lesson-admin-class-resolution-unit.php
           php platform/tests/canonical-lesson-admin-permission-unit.php

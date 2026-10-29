@@ -9,16 +9,30 @@ accounts are configured.
 
 | Item | Value |
 |---|---|
-| Deployed SHA | `9ba61e639b1a42dcf4ed95e8062894a78238f6a7` |
-| Build | `main-9ba61e639b1a` |
-| Deploy run | `40820864508` / follow-up `40820942398` — success |
+| Initial deployed SHA (PR #402) | `9ba61e639b1a42dcf4ed95e8062894a78238f6a7` |
+| Initial build | `main-9ba61e639b1a` |
+| Initial deploy run | `40820864508` / follow-up `40820942398` — success |
+| Follow-up deployed SHA (PR #407) | `3939feed0ec977f056eaf3ed262d4d2dbfbce167` |
+| Follow-up build | `main-3939feed0ec9` |
+| Follow-up deploy run | `40826085963` — success |
 | Schema | `54` |
-| Current `origin/main` at verification | `099d6d0` (PR #403 ops diagnostic on top of the deployed merge) |
-| Production CSS | `theme.css` 108,637 B, `teacher-portal.css` 34,908 B, `booking.css` 20,600 B |
+| Production CSS | `theme.css` 108,637 B; versioned `teacher-portal.css` 37,664 B; `booking.css` 20,600 B |
 
 The deployed CSS was fetched from production and compared with the local
 worktree. The live public pages were re-checked at 320–1440 px with no document
 overflow.
+
+### Deployment verification (PR #407)
+
+- Deployment artifact: `production-deployment-3939feed0ec9...`; status
+  `deployed`; before build `main-25857feb8b22`; after build
+  `main-3939feed0ec9`; schema `54`.
+- Read-only production smoke passed in the deploy job.
+- `/`, `/enrol/` and `/admin-operations/` return 200; signed-out
+  `/student-portal/` and `/teacher-portal/` redirect to `/login/`.
+- The versioned `teacher-portal.css` URL now serves 37,664 B and contains the
+  state-label wrap rule. The unversioned direct URL is an old Cloudflare cache
+  entry; WordPress enqueues the filemtime-versioned URL, which is current.
 
 ## Authenticated test environment
 

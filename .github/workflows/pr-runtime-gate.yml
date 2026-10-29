@@ -309,6 +309,19 @@ jobs:
           docker pull wordpress:cli-php8.3
       - run: platform/runtime/bin/run-recording-decision-migration-runtime.sh
 
+  recording-decision-behavior-runtime:
+    name: Recording decision behavior runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - run: platform/runtime/bin/run-recording-decision-behavior-runtime.sh
+
   stripe-runtime-e2e:
     name: Stripe runtime E2E
     runs-on: ubuntu-24.04

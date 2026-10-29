@@ -106,6 +106,11 @@ if ( str_contains( $menu, 'dzn-academy-operations' )
     || ! str_contains( $operations, "echo '<div class=\"wrap\"><h1>Academy</h1><p>Today’s work is collected here." ) ) {
     throw new RuntimeException( 'The Academy dashboard must be the operational default without a second Operations route.' );
 }
+if ( ! str_contains( $operations, 'Student absence reports awaiting review' )
+    || ! str_contains( $operations, 'Class time changes awaiting student response' )
+    || ! str_contains( $operations, "'dzn-attendance-review','Review attendance'" ) ) {
+    throw new RuntimeException( 'Academy pending actions must surface Student absences and pending class-time changes.' );
+}
 if ( str_contains( file_get_contents( $root . '/delnavazan-platform.php' ), 'AdminDashboardController::register()' ) ) {
     throw new RuntimeException( 'The generic WordPress dashboard must not duplicate the Academy console.' );
 }

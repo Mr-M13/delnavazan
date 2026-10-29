@@ -1319,3 +1319,49 @@
   .dzn-portal-tabs__link.is-current{background:var(--dzn-color-action-primary);color:#fff;box-shadow:none}
   .dzn-portal-tabs__link.is-current .dzn-portal-tabs__label{color:#fff}
 }
+
+/* Read-only identity fields stay visibly inactive. */
+.dzn-profile__fields input[readonly],
+.dzn-profile__fields input.is-readonly,
+.dzn-portal-control input[readonly] {
+  background: var(--dzn-color-surface-muted, #f1f1f1);
+  color: var(--dzn-color-text-muted, #6b7280);
+  border-color: var(--dzn-color-border);
+  cursor: not-allowed;
+}
+
+/* Term replacement allowance and labelled replacement classes. */
+.dzn-term__replacements {
+  margin-block-start: var(--dzn-space-4);
+  padding: var(--dzn-space-4);
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius, 16px);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-term__replacements h3 {
+  margin: 0 0 var(--dzn-space-2);
+  font-size: 1rem;
+}
+.dzn-term__replacements ul {
+  display: grid;
+  gap: var(--dzn-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dzn-term__replacements li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dzn-space-2);
+  overflow-wrap: anywhere;
+}
+.dzn-term__replacements .dzn-status {
+  font-size: .8rem;
+}
+
+.dzn-account-status__replacement {
+  margin-block: var(--dzn-space-2) 0;
+  font-weight: 700;
+  color: var(--dzn-color-text-primary);
+}

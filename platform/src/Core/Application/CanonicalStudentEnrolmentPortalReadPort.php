@@ -66,6 +66,7 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
 
         $termReference = '';
         $termState = 'none';
+        $currentTerm = null;
         try {
             $inspection = (new TermApplicabilityAssessment())->inspectForAuthority($enrolmentId);
             $termState = (string) ($inspection['classification'] ?? 'none');
@@ -73,6 +74,7 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
                 if ((int) ($term->applicable_slot ?? 0) === 1) {
                     $termReference = trim((string) ($term->reference_code ?? ''));
                     if ($termReference === '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+                    $currentTerm = $term;
                     break;
                 }
             }
@@ -84,6 +86,36 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
         } catch (\Throwable) {
             throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
         }
+
+        // Replacement-lesson usage is part of the Student's visible Term entitlement. It is read
+        // only after the Enrolment has been ownership-proved; unscheduled replacements remain visible
+        // as pending so the Student never has to infer them from a missing class row.
+        $replacementLessons = array();
+        if ($currentTerm && (int) ($currentTerm->id ?? 0) > 0) {
+            global $wpdb;
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT l.uid,l.reference_code,l.lifecycle_state,v.uid schedule_version_uid,v.starts_at_utc,v.ends_at_utc
+                 FROM {$wpdb->prefix}dzn_lessons l
+                 LEFT JOIN {$wpdb->prefix}dzn_canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
+                 WHERE l.term_id=%d AND l.record_model='canonical_term_lesson_v1' AND l.lesson_type='replacement' AND l.archived_at IS NULL
+                 ORDER BY l.id ASC",
+                (int) $currentTerm->id
+            ));
+            if ($wpdb->last_error !== '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+            foreach ((array) $rows as $row) {
+                $replacementLessons[] = array(
+                    'lesson_uid' => (string) $row->uid,
+                    'reference_code' => (string) ($row->reference_code ?? ''),
+                    'lifecycle_state' => (string) $row->lifecycle_state,
+                    'schedule_version_uid' => (string) ($row->schedule_version_uid ?? ''),
+                    'starts_at_utc' => (string) ($row->starts_at_utc ?? ''),
+                    'ends_at_utc' => (string) ($row->ends_at_utc ?? ''),
+                    'scheduled' => trim((string) ($row->schedule_version_uid ?? '')) !== '',
+                );
+            }
+        }
+        $replacementAllowance = $currentTerm ? (int) ($currentTerm->replacement_allowance ?? 0) : 0;
+        $replacementUsed = count($replacementLessons);
 
         $source = $this->assignments->initialSource($enrolmentId);
         $frequency = 0;
@@ -131,6 +163,10 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
             'payment_verified' => $fulfilment['payment_verified'],
             'provisioning_message_code' => $fulfilment['provisioning_message_code'],
             'term_state' => $termState,
+            'replacement_allowance' => $replacementAllowance,
+            'replacement_used' => $replacementUsed,
+            'replacement_remaining' => max(0, $replacementAllowance - $replacementUsed),
+            'replacement_lessons' => $replacementLessons,
         );
     }
 

@@ -17,7 +17,7 @@ $student = isset( $model['student'] ) && is_array( $model['student'] ) ? $model[
 $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) $student['first_name'] : '';
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $screen_title = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت' : 'کلاس‌ها' );
-$heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : 'کلاس‌ها' );
+$heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( 'درود بر شما' . ( '' !== $first_name ? '، ' . $first_name : '' ) ) );
 ?>
 <main id="main-content" class="site-main dzn-portal dzn-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1">
 	<header class="dzn-appbar">
@@ -110,7 +110,6 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 		<?php elseif ( 'payments' === $screen ) : ?>
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 		<?php elseif ( 'account' === $screen ) : ?>
-			<?php dzn_theme_portal_component( 'account-status', array( 'status' => $model['account_status'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php if ( ! in_array( (string) ( $model['payments']['state'] ?? '' ), array( 'disabled', 'unavailable' ), true ) ) : ?>
 				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
@@ -125,10 +124,11 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 				)
 			);
 			?>
+			<?php dzn_theme_portal_component( 'account-status', array( 'status' => $model['account_status'] ?? array() ) ); ?>
 		<?php else : ?>
+			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
-			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>

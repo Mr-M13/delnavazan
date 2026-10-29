@@ -44,7 +44,7 @@ $render_rows = static function ( array $rows ) use ( $labels ): void {
 		<li class="dzn-schedule-row is-<?php echo esc_attr( $state ); ?>">
 			<div class="dzn-schedule-row__time"><time datetime="<?php echo esc_attr( (string) ( $item['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( (string) ( $item['time'] ?? '' ) ); ?></time></div>
 			<div class="dzn-schedule-row__main">
-				<h4><?php echo esc_html( (string) ( $item['course'] ?? '' ) ); ?></h4>
+				<h4><?php echo esc_html( (string) ( $item['course'] ?? '' ) ); ?><?php if ( 'replacement' === ( $item['lesson_kind'] ?? '' ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'جلسهٔ جایگزین', 'delnavazan-theme' ); ?></span><?php elseif ( ! empty( $item['rescheduled'] ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'زمان جدید', 'delnavazan-theme' ); ?></span><?php endif; ?></h4>
 				<?php if ( ! empty( $item['teacher'] ) ) : ?><p class="dzn-schedule-row__teacher"><?php echo esc_html( sprintf( 'با %s', $item['teacher'] ) ); ?></p><?php endif; ?>
 				<p class="dzn-status dzn-status--<?php echo esc_attr( $presentation[1] ); ?>"><?php echo esc_html( $presentation[0] ); ?></p>
 				<?php if ( $is_intro ) : ?><p class="dzn-portal-help"><?php esc_html_e( 'جلسهٔ معارفه؛ شرایط آن از منبع معتبر خوانده شده است.', 'delnavazan-theme' ); ?></p><?php endif; ?>

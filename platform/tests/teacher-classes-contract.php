@@ -154,6 +154,10 @@ namespace {
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
+	$check( 'teacher pending tasks query student absence reports', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'TeacherAbsenceAttentionReadService' ) );
+	$check( 'teacher absence prompt explains the replacement conversation', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان همین جلسه را به زمان جایگزین تغییر دهید' ) );
+	$check( 'teacher absence task exposes the reschedule form', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/attention.php' ), "'reschedule-form'" ) );
+	$check( 'teacher shell greets the teacher by first name', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/shell.php' ), "'درود بر شما' . ( '' !== \$teacher_first_name" ) );
 
 	$check( 'teacher can propose a reschedule for a class that starts within the hour', true === ( $classes_by_ref['REF-ACTIVE']['reschedule_available'] ?? false ) );
 	$check( 'teacher can propose a reschedule for a future class', true === ( $classes_by_ref['REF-FUTURE']['reschedule_available'] ?? false ) );

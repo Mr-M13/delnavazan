@@ -90,7 +90,7 @@ namespace {
     $proposal = $service->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0001');
     $fail('a teacher proposal is pending and changes no schedule', $proposal['state'] === 'pending' && $commits === array());
     $fail('proposal preserves canonical duration', $store->proposals[0]->duration_minutes === 30 && $store->proposals[0]->buffer_minutes === 15);
-    $fail('student notification and audit event exist', count($store->notifications) === 1 && $store->notifications[0]->audience === 'student' && count($store->events) === 1);
+    $fail('student and admin proposal notifications plus audit event exist', count($store->notifications) === 2 && $store->notifications[0]->audience === 'student' && $store->notifications[1]->audience === 'admin' && count($store->events) === 1);
     $again = $service->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0001');
     $fail('proposal request key is idempotent', $again['idempotent'] === true && count($store->proposals) === 1);
     $threw = false; try { $service->proposeForTeacher(6, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0002'); } catch (Throwable $e) { $threw = $e->getMessage() === 'portal_object_not_owned'; }
@@ -109,7 +109,7 @@ namespace {
     $accepted = $service->decideForStudent(9, (string) $store->proposals[0]->uid, 'accept', 'decision-key-0001');
     $fail('acceptance commits through the canonical service', $accepted['state'] === 'accepted' && count($commits) === 1 && $accepted['result_schedule_version_id'] === 99);
     $fail('acceptance preserves duration in the canonical payload', $commits[0]['input']['duration_minutes'] === 30 && $commits[0]['input']['expected_schedule_version_id'] === 71);
-    $fail('acceptance queues both parties and calendar sync', count($store->notifications) === 3 && count($store->calendarJobs) === 1);
+    $fail('acceptance queues student, teacher, admin and calendar sync', count($store->notifications) === 5 && count($store->calendarJobs) === 1);
     $acceptedEvent = null; foreach ($store->events as $event) { if ($event->event_type === 'accepted') { $acceptedEvent = $event; } }
     $fail('accepted event attributes the real student decision actor and schedule facts', $acceptedEvent
         && (int) $acceptedEvent->authenticated_user_id === 11
@@ -149,7 +149,7 @@ namespace {
     $atomicService = new LessonRescheduleService($atomicStore, static fn() => array(), static function (array $p) use ($atomicStore): array { $atomicStore->canonicalRevision = 1; return array('schedule_version_id' => 103); }, static fn() => time());
     $atomicService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0040');
     $threw = false; try { $atomicService->decideForStudent(9, (string) $atomicStore->proposals[0]->uid, 'accept', 'decision-key-0040'); } catch (Throwable $e) { $threw = $e->getMessage() === 'outbox_write_failed'; }
-    $fail('a failure after canonical revision rolls back proposal, event and outbox state', $threw && $atomicStore->lastTransaction === 'rollback' && $atomicStore->canonicalRevision === 0 && $atomicStore->proposals[0]->state === 'pending' && count($atomicStore->events) === 1 && count($atomicStore->notifications) === 1 && $atomicStore->calendarJobs === array());
+    $fail('a failure after canonical revision rolls back proposal, event and outbox state', $threw && $atomicStore->lastTransaction === 'rollback' && $atomicStore->canonicalRevision === 0 && $atomicStore->proposals[0]->state === 'pending' && count($atomicStore->events) === 1 && count($atomicStore->notifications) === 2 && $atomicStore->calendarJobs === array());
 
     $store6 = new FakeRescheduleStore(); $store6->context = $context();
     $replaceService = new LessonRescheduleService($store6, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 105), static fn() => time());

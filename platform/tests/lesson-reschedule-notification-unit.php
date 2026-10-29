@@ -67,5 +67,21 @@ namespace {
     $third = $service->dispatchPending(10);
     $fail('no notification is emitted twice after convergence', $third['sent'] === 0 && count($sent) === 3);
 
+    $adminStore = new NotificationStore();
+    $adminStore->proposal = (object) array('uid' => 'PROPOSAL-2', 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'Asia/Tehran', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $adminStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 1, 'event_type' => 'proposed', 'audience' => 'admin', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $adminSent = array();
+    $adminService = new LessonRescheduleNotificationService(
+        $adminStore,
+        static function (string $email, string $subject, string $body) use (&$adminSent): bool { $adminSent[] = array($email, $subject, $body); return true; },
+        static fn(object $proposal, string $audience): array => array('email' => 'admin@example.invalid', 'name' => 'Admin'),
+        static fn(): int => time()
+    );
+    $adminResult = $adminService->dispatchPending(10);
+    $fail('admin receives the pending proposal notice', $adminResult['sent'] === 1 && str_contains($adminSent[0][2], 'از سوی مدرس'));
+    $fail('admin reschedule recipient is resolved from the site administrator address', str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/LessonRescheduleNotificationService.php'), "get_option('admin_email')"));
+
     echo "Lesson reschedule notification unit passed\n";
 }

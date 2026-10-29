@@ -50,6 +50,14 @@ final class AcademyOperationsController {
             $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
             $items[]=['Teacher booking requests pending response',$count,'dzn-booking-requests','Review request delivery',[]];
         }
+        if(current_user_can('dzn_manage_canonical_attendance_review')){
+            $count=(int)$wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student'");
+            $items[]=['Student absence reports awaiting review',$count,'dzn-attendance-review','Review attendance',[]];
+        }
+        if(current_user_can('dzn_manage_lessons')){
+            $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending'");
+            $items[]=['Class time changes awaiting student response',$count,'dzn-lesson','Open classes',[]];
+        }
         if(!$items)return;
         echo '<section class="notice notice-warning dzn-academy-pending-actions"><h2>Pending actions</h2><ul>';
         foreach($items as[$label,$count,$page,$action,$args])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(add_query_arg(array_merge(['page'=>$page],$args),admin_url('admin.php'))).'">'.esc_html($action).'</a></li>';

@@ -159,6 +159,7 @@ $check( 'payments template distinguishes a disabled release', str_contains( $pay
 $check( 'schedule renders machine-readable start instants', str_contains( $schedule, '<time datetime=' ) );
 $absenceController = (string) file_get_contents( dirname( __DIR__, 2 ) . '/platform/src/Portals/StudentAbsenceController.php' );
 $check( 'a notice submitted after the start becomes a missed-class claim', str_contains( $absenceController, "'student_reports_missed_class'" ) && str_contains( $absenceController, '$claimKind=\'attendance_claim\'' ) );
+$check( 'an absence claim immediately notifies the owning teacher', str_contains( $absenceController, 'CanonicalAttendanceNotificationService' ) && str_contains( $absenceController, 'notifyTeacher' ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Student schedule/payments contract failed: ' . implode( '; ', $failures ) );

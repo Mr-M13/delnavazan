@@ -97,7 +97,7 @@ namespace {
     $fail('a failed permanent job is not retried', $permanentCalls === 1);
 
     $calendarSource = (string) file_get_contents(dirname(__DIR__) . '/src/Integrations/LessonRescheduleCalendarService.php');
-    $fail('provider commands use deterministic retry keys', str_contains($calendarSource, "reschedule-retract-calendar:'.\$job['uid']") && str_contains($calendarSource, "reschedule-project-calendar:'.\$job['uid']") && str_contains($calendarSource, "reschedule-project-meeting:'.\$job['uid']"));
+    $fail('provider commands use deterministic retry keys', str_contains($calendarSource, "reschedule-retract-calendar:'.\$job['uid']") && str_contains($calendarSource, "reschedule-project-calendar:'.\$job['uid']") && str_contains($calendarSource, "reschedule-retract-meeting:'.\$job['uid']"));
 
 
     // A worker with a stale queue snapshot must not dispatch an already-completed job.

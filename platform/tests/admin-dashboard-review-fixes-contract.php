@@ -24,7 +24,10 @@ $contains($queueRead, array(
     'public function stageCounts',
     'COUNT(DISTINCT CASE WHEN',
     "self::stageSql(\$stage)",
-), 'Pipeline and queue must share one stage rule source.');
+    'ELIGIBLE_SQL',
+    "br.lifecycle_status='closed' AND br.resolution_state='teacher_confirmed'",
+    'br.privacy_erased_at IS NULL',
+), 'Pipeline and queue must share one eligible stage rule source.');
 $expect(!str_contains($dashboardRead, 'SUM(cc.id IS NULL)'), 'Dashboard pipeline must not sum joined rows.');
 $contains($dashboardRead, array('new AcademyJourneyReadService())->stageCounts()'), 'Dashboard must use the shared queue stage counts.');
 $contains($dashboard, array('AcademyJourneyReadService::PIPELINE_STAGES'), 'Dashboard labels must come from the shared stage map.');

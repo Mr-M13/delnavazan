@@ -110,10 +110,36 @@ $out = array(
         'stale_calendar_jobs' => $staleCalendarJobs,
         'notifications' => $group('lesson_reschedule_notifications', 'state'),
         'proposals_by_kind_state' => $proposalKindRows,
-        'failed_calendar_detail' => array_map(static function (array $row): array {
+        'failed_calendar_detail' => array_map(static function (array $row) use ($wpdb, $p): array {
+            $lessonId = (int) ($row['lesson_id'] ?? 0);
+            $fromVersion = (int) ($row['from_schedule_version_id'] ?? 0);
+            $toVersion = (int) ($row['to_schedule_version_id'] ?? 0);
             $row['to_applicable'] = (int) ($row['to_applicable'] ?? 0) === 1;
             $row['recoverable'] = (string) ($row['proposal_state'] ?? '') === 'accepted' && $row['to_applicable'] && $row['to_superseded'] === null;
             unset($row['to_superseded']);
+            try {
+                $applicable = \Delnavazan\Platform\Core\Application\ProviderIntegrationValidator::projectionApplicable($lessonId, $toVersion);
+                $row['projection_applicable'] = !empty($applicable['applicable']);
+                $row['projection_reason'] = $applicable['reason'] ?? null;
+                $row['occurrence_aggregate_valid'] = \Delnavazan\Platform\Core\Application\ProviderIntegrationValidator::occurrenceAggregateValid($lessonId);
+            } catch (\Throwable $e) {
+                $row['projection_applicable'] = false;
+                $row['projection_reason'] = 'projection_validation_exception';
+                $row['occurrence_aggregate_valid'] = false;
+            }
+            $repository = new \Delnavazan\Platform\Core\Infrastructure\Repository\ProviderIntegrationRepository();
+            $row['from_calendar_mapping_active'] = $repository->activeCalendarMapping($lessonId, $fromVersion) !== null;
+            $toCalendar = $wpdb->get_row($wpdb->prepare("SELECT projection_state FROM {$p}provider_calendar_event_mappings WHERE lesson_id=%d AND schedule_version_id=%d ORDER BY id DESC LIMIT 1", $lessonId, $toVersion));
+            $toMeeting = $wpdb->get_row($wpdb->prepare("SELECT projection_state FROM {$p}provider_meeting_mappings WHERE lesson_id=%d AND schedule_version_id=%d ORDER BY id DESC LIMIT 1", $lessonId, $toVersion));
+            $teacherId = (int) $wpdb->get_var($wpdb->prepare("SELECT teacher_id FROM {$p}lessons WHERE id=%d", $lessonId));
+            $connection = $wpdb->get_row($wpdb->prepare("SELECT id,connection_state,identity_state,active_slot FROM {$p}provider_connections WHERE provider_code='google_calendar' AND teacher_id=%d ORDER BY id DESC LIMIT 1", $teacherId));
+            $credential = $connection ? $wpdb->get_row($wpdb->prepare("SELECT state,valid_until_utc FROM {$p}provider_credentials WHERE connection_id=%d ORDER BY id DESC LIMIT 1", (int) $connection->id)) : null;
+            $row['to_calendar_mapping_state'] = $toCalendar === null ? null : (string) $toCalendar->projection_state;
+            $row['to_meeting_mapping_state'] = $toMeeting === null ? null : (string) $toMeeting->projection_state;
+            $row['teacher_connection_state'] = $connection === null ? null : (string) $connection->connection_state;
+            $row['teacher_connection_identity_state'] = $connection === null ? null : (string) $connection->identity_state;
+            $row['teacher_credential_state'] = $credential === null ? null : (string) $credential->state;
+            $row['teacher_credential_expired'] = $credential !== null && $credential->valid_until_utc !== null && strtotime((string) $credential->valid_until_utc . ' UTC') <= time() + 60;
             return $row;
         }, $failedCalendarDetail),
     ),

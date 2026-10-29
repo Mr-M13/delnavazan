@@ -30,7 +30,15 @@ any feature flag can be enabled:
 | Research sharing, access controls, withdrawal/deletion limits and model-treatment statement | Legal, owner and security | Pending |
 
 Until a reviewed decision exists, `unknown`, `unreviewed`, conflicting, expired, withdrawn and
-unsupported states deny the affected capture or use.  Existing users are not backfilled as agreed.
+unsupported states deny the affected capture or use. Existing users are not backfilled as agreed.
+
+A default-on recording approach is not an affirmative consent grant. It may be used only for the exact
+cohort, locations, provider method and purposes that legal review has approved. Its capture evidence is
+the archived notice displayed, the completed enrolment, and the absence of a recorded opt-out at the
+relevant decision time. It records the approved default-on basis and notice version, never an invented
+`agreed` or `consent granted` value. Until that approval and notice are recorded, an unanswered or
+unknown recording decision blocks capture. Research and model-training participation always remains a
+separate active opt-in.
 
 ## Canonical decisions and evidence
 
@@ -41,7 +49,7 @@ or principal IDs are ignored.
 | Evidence | Subject | Purpose | Validity |
 | --- | --- | --- | --- |
 | Teacher terms acceptance | Canonical Teacher | recorded-work terms | Exact terms version, language, acceptance actor/time; required before assignment to recorded work |
-| Student recording preference | Canonical Student | future lesson capture | Explicit allow or decline; unanswered is not allow |
+| Student recording preference or approved default-on evidence | Canonical Student | future lesson capture | Explicit allow or decline; or, only for a legally approved cohort, archived notice + completed enrolment + no opt-out. Unanswered is not allow unless that exact approved default applies. |
 | Guardian recording decision | Authorised guardian acting for Canonical Student | future lesson capture | Required where capacity rules require it; authority is revalidated |
 | Student research participation | Canonical Student or authorised guardian | research and model training | Separate active opt-in; never inferred from recording permission |
 | Guardian research decision | Authorised guardian acting for Canonical Student | research and model training | Separate from recording decision |
@@ -89,6 +97,15 @@ reviewed policy and is recorded per asset.
 
 Practice uploads use the same purpose checks but exist only after a deliberate student submission.
 No background practice capture is permitted.
+
+## What the current CI guard proves
+
+`recording-research-architecture-contract.php` is a document and migration guard only. It checks that
+this decision log states the required boundaries, that current main does not adopt PR #380's rejected
+migration 053, and that the contract provider is not registered by the production bootstrap. The guard does
+not prove that feature flags, participant authorisation, provider capture, research eligibility,
+retention or deletion work. Each safeguard requires behavioural, migration, runtime, security and
+real-provider tests in the PR that implements it.
 
 ## Delivery sequence
 

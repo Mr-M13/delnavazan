@@ -1,5 +1,5 @@
 <?php
-/** Guard the approved recording/research release boundary while implementation is pending. */
+/** Document and migration guard only; behavioural safeguards require their implementation tests. */
 $root = dirname(__DIR__);
 $document = (string) file_get_contents($root . '/docs/RECORDING-RESEARCH-ARCHITECTURE-AND-DECISION-LOG.md');
 $migrator = (string) file_get_contents($root . '/src/Core/Infrastructure/Migration/Migrator.php');
@@ -14,6 +14,10 @@ $need = array(
     'Recording authorisation never satisfies research eligibility',
     'Provider acknowledgement',
     'Decisions requiring owner and legal review',
+    'absence of a recorded opt-out',
+    'not an affirmative consent grant',
+    'document and migration guard only',
+    'feature flags, participant authorisation, provider capture',
 );
 foreach ($need as $text) if (!str_contains($document, $text)) $failures[] = 'missing architecture decision: ' . $text;
 if (str_contains($migrator, '053_recording_consent_retention_deletion_authority')) $failures[] = 'main must not adopt rejected PR #380 migration 053';

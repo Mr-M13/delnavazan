@@ -11,7 +11,7 @@ $assert = static function (bool $condition, string $message): void {
 };
 
 $assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '55'"), 'The current additive migrations must publish Schema 55');
-$assert(str_contains($plugin, "DZN_PLATFORM_BUILD_ID', 'phase2a2x-missed-lesson-replacement-20261029.1'"), 'The package needs an explicit build identity');
+$assert(str_contains($plugin, "DZN_PLATFORM_BUILD_ID', 'phase2a2x-telnyx-sms-whatsapp-20261030.1'"), 'The package needs an explicit build identity');
 
 $matched = preg_match('/^\s*("CREATE TABLE \{\$p\}renewal_cycles .*",)$/m', $migrator, $ddl);
 $assert($matched === 1, 'The historical renewal CREATE TABLE statement must remain present');

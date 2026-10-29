@@ -10,16 +10,29 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationSuppressionRe
  * notification sits `queued` moves it to `suppressed` without a send. Nothing here decides consent: it
  * records an exclusion the identity/consent owner asked for.
  */
-final class NotificationSuppressionService {
+class NotificationSuppressionService {
     private const CAPABILITY='dzn_manage_notification_suppressions';
     public function __construct(private ?NotificationSuppressionRepository $repository=null){$this->repository??=new NotificationSuppressionRepository();}
 
     public function suppress(array $input,string $key):array{
         NotificationSupport::requireCapability(self::CAPABILITY);
-        $actor=NotificationSupport::actor();
+        return $this->applySuppression($input,$key,NotificationSupport::actor());
+    }
+
+    /**
+     * A STOP/opt-out observed on a signature-verified provider webhook. The webhook signature is the
+     * authority boundary; no WordPress administrator is impersonated. The evidence channel is forced
+     * to `provider_evidence`, so this path cannot be used to fabricate a staff-record suppression.
+     */
+    public function suppressFromVerifiedProvider(array $input,string $key):array{
+        $input['evidence_channel']='provider_evidence';
+        return $this->applySuppression($input,$key,0);
+    }
+
+    private function applySuppression(array $input,string $key,int $actor):array{
         $evidence=NotificationSupport::evidence($input);
         $subjectKind=trim((string)($input['subject_kind']??''));
-        if(!in_array($subjectKind,array('student','guardian','academy'),true))throw new \InvalidArgumentException('suppressed');
+        if(!in_array($subjectKind,array('student','teacher','guardian','academy'),true))throw new \InvalidArgumentException('suppressed');
         $subjectDigest=(string)($input['subject_digest']??'');
         if(!preg_match('/^[0-9a-f]{64}$/',$subjectDigest))throw new \InvalidArgumentException('suppressed');
         $purpose=substr(trim((string)($input['purpose']??'')),0,48);

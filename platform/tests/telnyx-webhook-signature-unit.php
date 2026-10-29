@@ -1,0 +1,24 @@
+<?php
+require_once dirname(__DIR__).'/src/Integrations/Notifications/TelnyxWebhookSignature.php';
+use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookSignature;
+if(!function_exists('sodium_crypto_sign_keypair'))throw new RuntimeException('sodium is required for the Telnyx webhook contract');
+$keypair=sodium_crypto_sign_keypair();$public=sodium_crypto_sign_publickey($keypair);$secret=sodium_crypto_sign_secretkey($keypair);
+$body='{"data":{"event_type":"message.finalized","id":"evt_1","occurred_at":"2026-10-30T10:00:00Z","payload":{"id":"msg_1","to":[{"status":"delivered"}]}}}';
+$timestamp=(string)time();$signature=base64_encode(sodium_crypto_sign_detached($timestamp.'|'.$body,$secret));
+$verifier=TelnyxWebhookSignature::fromSettings(base64_encode($public));
+$headers=array('telnyx-signature-ed25519'=>$signature,'telnyx-timestamp'=>$timestamp);
+$r=$verifier->verify($body,$headers,time());
+if(!$r['valid']||$r['code']!=='verified')throw new RuntimeException('valid Telnyx signature was refused');
+$r=$verifier->verify($body.' ',$headers,time());
+if($r['valid']||$r['code']!=='webhook_signature_invalid')throw new RuntimeException('tampered body must fail signature verification');
+$r=$verifier->verify($body,$headers,time()+301);
+if($r['valid']||$r['code']!=='webhook_timestamp_stale')throw new RuntimeException('stale webhook timestamp must be refused');
+$r=$verifier->verify($body,array('telnyx-signature-ed25519'=>$signature),time());
+if($r['valid']||$r['code']!=='webhook_signature_missing')throw new RuntimeException('missing timestamp must be refused');
+$r=TelnyxWebhookSignature::fromSettings('')->verify($body,$headers,time());
+if($r['valid']||$r['code']!=='webhook_public_key_unconfigured')throw new RuntimeException('missing public key must fail closed');
+$r=TelnyxWebhookSignature::fromSettings('not-base64!!')->verify($body,$headers,time());
+if($r['valid']||$r['code']!=='webhook_public_key_invalid')throw new RuntimeException('invalid public key must fail closed');
+$r=$verifier->verify($body,array('telnyx-signature-ed25519'=>'not-base64','telnyx-timestamp'=>$timestamp),time());
+if($r['valid']||$r['code']!=='webhook_signature_invalid')throw new RuntimeException('invalid signature encoding must fail closed');
+echo "Telnyx webhook signature unit passed\n";

@@ -16,8 +16,14 @@ final class NotificationSuppressionRepository {
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
 
     public function find(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notification_suppressions WHERE id=%d".($lock?' FOR UPDATE':''),$id);}
-    /** An active suppression matching one recipient digest and purpose; expiry bounds its reach. */
-    public function active(string $subjectDigest,string $purpose,string $now):?object{
+    /**
+     * An active suppression matching one recipient digest and purpose; expiry bounds its reach.
+     * A provider STOP is recorded with purpose `*`. The caller decides whether that wildcard may
+     * reach the purpose: the canonical authority passes false for its mandatory account, payment
+     * and security intents, so a carrier STOP never disables a mandatory message.
+     */
+    public function active(string $subjectDigest,string $purpose,string $now,bool $allowWildcard=true):?object{
+        if($allowWildcard)return $this->one("SELECT * FROM {$this->p}notification_suppressions WHERE subject_digest=%s AND (purpose=%s OR purpose='*') AND state='active' AND effective_from<=%s AND (expires_at IS NULL OR expires_at>%s) ORDER BY (purpose='*') DESC,id DESC LIMIT 1",$subjectDigest,$purpose,$now,$now);
         return $this->one("SELECT * FROM {$this->p}notification_suppressions WHERE subject_digest=%s AND purpose=%s AND state='active' AND effective_from<=%s AND (expires_at IS NULL OR expires_at>%s) ORDER BY id DESC LIMIT 1",$subjectDigest,$purpose,$now,$now);
     }
     public function insertSuppression(array $data):int{return $this->insert('notification_suppressions',$data,'Notification suppression persistence failed');}

@@ -23,7 +23,11 @@ final class NotificationRuntimeFactory {
   $bindings=(array)apply_filters('dzn_notification_transport_bindings',array());
   $recipients=new StudentNotificationRecipientReadModel();
   $resolver=new NotificationTransportRecipientResolver($recipients);
-  $transport=new CompositeNotificationTransport(new NotificationTransportRouter($bindings),new ConfiguredNotificationCopy($copy),$resolver);
+  $policy=static function(string $eventKey,string $channel,bool $fallback):bool{
+   if($channel==='sms'&&$fallback)return NotificationChannelPolicy::allowsSmsFallback($eventKey);
+   return NotificationChannelPolicy::allows($eventKey,$channel);
+  };
+  $transport=new CompositeNotificationTransport(new NotificationTransportRouter($bindings),new ConfiguredNotificationCopy($copy),$resolver,$policy);
   return new NotificationDispatchWorker(new NotificationDispatchService(transport:$transport,recipients:$recipients,subjects:new StudentAccountClaimNotificationSubjectReadModel()));
  }
  private static function hasConfiguredBinding(array $bindings):bool{

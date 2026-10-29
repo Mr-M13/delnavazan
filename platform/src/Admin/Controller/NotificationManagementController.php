@@ -274,7 +274,7 @@ final class NotificationManagementController {
         echo '<div class="dzn-notif-grid">';
         $channels=array(
             'email'=>array('Email','Email settings','dzn-integration-email'),
-            'whatsapp'=>array('WhatsApp (Meta Cloud API)','WhatsApp settings','dzn-integration-whatsapp'),
+            'whatsapp'=>array('WhatsApp (Telnyx / Meta WABA)','WhatsApp settings','dzn-integration-whatsapp'),
             'sms'=>array('SMS (Telnyx)','SMS settings','dzn-integration-sms'),
         );
         foreach($channels as $channel=>[$label,$link,$slug]){
@@ -282,7 +282,8 @@ final class NotificationManagementController {
             echo '<section class="dzn-notif-card"><h3>'.esc_html($label).'</h3><p>Connection status: <strong>'.esc_html($state==='configured'?'Configured (unverified)':'Not configured').'</strong></p><p class="dzn-notif-note">Configured does not mean delivery verified.</p><p><a class="button button-small" href="'.esc_url(admin_url('admin.php?page='.$slug)).'">'.esc_html($link).'</a></p></section>';
         }
         echo '</div>';
-        echo '<h3>WhatsApp Template Mapping</h3><p>For business-initiated messages, each event must map to a Meta-approved template and language code. Changing local copy requires provider re-approval, and sending never starts without a valid mapping.</p>';
+        echo '<h3>Telnyx Webhook</h3><p>Telnyx signs every delivery and inbound event. The public key is configured on the provider settings page; the URL is shown there and in the Integrations overview.</p>';
+        echo '<h3>WhatsApp Template Mapping</h3><p>For business-initiated messages, each event must map to a provider-approved template and language code. Discovered templates and variable-contract warnings are shown on the WhatsApp settings page. Changing local copy requires provider re-approval, and sending never starts without a valid mapping.</p>';
         $library=new NotificationTemplateLibrary();
         echo '<table class="widefat striped"><thead><tr><th>Event</th><th>Mapping Status</th><th>Template ID &amp; Language</th><th></th></tr></thead><tbody>';
         foreach(NotificationCatalogue::events() as $eventKey=>$event){

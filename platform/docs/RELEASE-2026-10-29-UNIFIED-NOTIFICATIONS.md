@@ -4,6 +4,24 @@ Date: 2026-10-29
 Branch: `feature/unified-notification-management`
 Base: `origin/main` `b67f510`
 
+## Production deployment (2026-10-29)
+
+- Pull request: #404 (`feature/unified-notification-management`).
+- Merge commit and deployed source: `25857feb8b2246fddb3a67d54b7f3c2396e77384`.
+- Deploy workflow run: `40824363269` (Deploy production, target `production`).
+- Deployed build identity: `main-25857feb8b22`; plugin active; maintenance inactive.
+- Schema before/after: `54`/`54`. The deploy calls `Migrator::maybe_upgrade()` and fails closed;
+  `verify_current_schema()` requires `056_notification_management`, so the additive inbox table and its
+  verifier completed successfully.
+- Read-only release diagnostic: run `40824807952`, schema `54`, build `main-25857feb8b22`.
+- Production smoke: `RESULT: PASS` (read-only; no booking, payment, Google event or notification send).
+- Backup stamp recorded by the deployment:
+  `20261029T053945Z-3705951-25857feb8b2246fddb3a67d54b7f3c2396e77384`.
+- Provider readiness stayed closed: copy definitions are now `configured`; notification runtime and all
+  transport channels remain `not_configured`. No new recipient category or live campaign was activated.
+- The source constant `DZN_PLATFORM_BUILD_ID` was not bumped in this release; the workflow-stamped
+  `main-25857feb8b22` identity is authoritative. A future release should update the constant.
+
 ## What changed
 
 - One **notification definition catalogue** (`NotificationCatalogue`) covering 50 business

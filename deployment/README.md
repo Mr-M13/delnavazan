@@ -36,6 +36,16 @@ The live staging environment is being retired separately after its hosting accou
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.
 
+## Release 2026-10-29
+
+Release `25857feb8b2246fddb3a67d54b7f3c2396e77384` (build `main-25857feb8b22`, schema 54) merged
+#404 and deployed in run `40824363269`. It adds the unified notification management workspace, branded
+email shell, editable immutable copy and the additive Schema 056 website inbox. Smoke passed; the
+read-only diagnostic (`40824807952`) reports schema 54 and the deployed build. Copy is configured, but
+no transport channel or new recipient category is activated. Back up the database and application files
+before any rollback; dropping `portal_notifications` is safe only after code rollback. See
+`platform/docs/RELEASE-2026-10-29-UNIFIED-NOTIFICATIONS.md`.
+
 ## Payment plan selection and interim attendance (Schema 52)
 
 Release `payment-plan-selection-b2a-20261026` adds Schema 52 (`052_payment_plan_choice`). It is

@@ -255,6 +255,9 @@ jobs:
             echo 'Operations portal contract not present on this PR base yet.'
           fi
 
+      - name: Run CSS architecture and overflow contract
+        run: php platform/tests/css-architecture-contract.php
+
       - name: Check reusable site smoke runner syntax
         run: bash -n deployment/qa/site-smoke.sh
 

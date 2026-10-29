@@ -32,6 +32,7 @@ $card_index = 0;
 		<h2 id="tp-classes"><?php echo esc_html( $section_heading ); ?></h2>
 		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
+	<p class="dzn-tp-help dzn-tp-classes__guidance">برای دیدن جزئیات یا تغییر زمان، فلش کنار هر کلاس را باز کنید. زمان جدید فقط پس از پذیرش هنرجو قطعی می‌شود و مدت کلاس حفظ می‌شود.</p>
 <?php foreach ( $sections as $section ) : ?>
 	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">
 		<h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>" class="<?php echo $section['visible_heading'] ? 'dzn-tp-class-section__title' : 'dzn-tp-sr'; ?>"><?php echo esc_html( $section['heading'] ); ?></h3>
@@ -79,8 +80,8 @@ $card_index = 0;
 						<span id="<?php echo esc_attr( $help ); ?>" class="dzn-tp-sr"><?php echo esc_html( $join_reason ); ?></span>
 						<button class="dzn-button dzn-tp-btn-join" type="button" disabled title="<?php echo esc_attr( $join_reason ); ?>" aria-describedby="<?php echo esc_attr( $help ); ?>"><span aria-hidden="true">▶</span> شروع کلاس</button>
 					<?php endif; ?>
-					<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
 				<?php endif; ?>
+				<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
 				<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-tp-calendar-action" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>" title="افزودن به تقویم" aria-label="افزودن این کلاس به تقویم"><span aria-hidden="true">＋</span> تقویم</a><?php endif; ?>
 			</div>
 			<?php if ( true === $item['details_available'] ) : ?>
@@ -101,7 +102,7 @@ $card_index = 0;
 						<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">تأیید برگزاری و حضور</button></form>
 						<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
 				</div>
-				<?php if ( true === ( $item['reschedule_available'] ?? false ) ) {
+				<?php if ( $is_today && true === ( $item['reschedule_available'] ?? false ) ) {
 					dzn_theme_teacher_portal_component(
 						'reschedule-form',
 						array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo )

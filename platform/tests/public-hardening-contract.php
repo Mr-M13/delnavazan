@@ -56,7 +56,9 @@ $check( 'body text targets 16px', (bool) preg_match( '/--dzn-text-body:\s*1rem;/
 $check( 'small text is at least 13px', (bool) preg_match( '/--dzn-text-small:\s*\.8125rem;/', $css ) );
 $check( 'the hero lead starts at 14.4px or larger', (bool) preg_match( '/\.dzn-home-hero__lead\s*\{[^}]*font-size:\s*clamp\(\s*\.9rem/s', $css ) );
 $check( 'the story copy starts at 14.4px or larger', (bool) preg_match( '/\.dzn-story__copy\s*\{[^}]*font-size:\s*clamp\(\s*\.9rem/s', $css ) );
-$check( 'horizontal overflow is clipped without a scroll container', (bool) preg_match( '/html,\s*body\s*\{[^}]*overflow-x:\s*clip/s', $css ) );
+$check( 'decorative story ornaments are clipped at their component boundary', (bool) preg_match( '/\.dzn-story\s*\{[^}]*overflow:\s*clip/s', $css ) );
+$check( 'the instrument rail owns its horizontal scrolling', (bool) preg_match( '/\.dzn-instrument-folio\s*\{[^}]*overflow-x:\s*auto/s', $css ) );
+$check( 'no document-wide overflow guard hides layout regressions', ! preg_match( '/html\s*,\s*body\s*\{[^}]*overflow-x:\s*clip/s', $css ) );
 
 /* 6. Approved copy corrections are present. */
 $check( 'the run-together payment sentence is repaired', str_contains( $home, 'با واحد پولی' ) && ! str_contains( $home, 'باواحد پولی' ) );

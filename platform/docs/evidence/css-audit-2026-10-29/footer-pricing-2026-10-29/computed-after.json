@@ -1,0 +1,93 @@
+{
+  "url": "https://delnavazan.com/",
+  "widths": {
+    "320": {
+      "footer": {
+        "selector": ".site-footer",
+        "x": 0,
+        "y": 5690.625,
+        "w": 320,
+        "h": 291.5625,
+        "bg": "rgb(16, 74, 77)",
+        "img": "none",
+        "color": "rgb(255, 255, 255)"
+      },
+      "pricing": {
+        "selector": ".dzn-story__finale",
+        "x": 0,
+        "y": 2919.6875,
+        "w": 320,
+        "h": 1305,
+        "bg": "rgb(16, 74, 77)",
+        "img": "radial-gradient(circle at 18% 28%, rgba(255, 253, 248, 0.08), rgba(0, 0, 0, 0) 352px), radial-gradient(circle at 82% 78%, rgba(147, 55, 42, 0.14), rgba(0, 0, 0, 0) 416px), none",
+        "color": "rgb(255, 253, 248)"
+      }
+    },
+    "390": {
+      "footer": {
+        "selector": ".site-footer",
+        "x": 0,
+        "y": 5669.71875,
+        "w": 390,
+        "h": 299.5625,
+        "bg": "rgb(16, 74, 77)",
+        "img": "none",
+        "color": "rgb(255, 255, 255)"
+      },
+      "pricing": {
+        "selector": ".dzn-story__finale",
+        "x": 0,
+        "y": 2967.859375,
+        "w": 390,
+        "h": 1305,
+        "bg": "rgb(16, 74, 77)",
+        "img": "radial-gradient(circle at 18% 28%, rgba(255, 253, 248, 0.08), rgba(0, 0, 0, 0) 352px), radial-gradient(circle at 82% 78%, rgba(147, 55, 42, 0.14), rgba(0, 0, 0, 0) 416px), none",
+        "color": "rgb(255, 253, 248)"
+      }
+    },
+    "768": {
+      "footer": {
+        "selector": ".site-footer",
+        "x": 0,
+        "y": 5873.984375,
+        "w": 768,
+        "h": 304.15625,
+        "bg": "rgb(16, 74, 77)",
+        "img": "none",
+        "color": "rgb(255, 255, 255)"
+      },
+      "pricing": {
+        "selector": ".dzn-story__finale",
+        "x": 0,
+        "y": 3330.671875,
+        "w": 768,
+        "h": 1260,
+        "bg": "rgb(16, 74, 77)",
+        "img": "radial-gradient(circle at 18% 28%, rgba(255, 253, 248, 0.08), rgba(0, 0, 0, 0) 352px), radial-gradient(circle at 82% 78%, rgba(147, 55, 42, 0.14), rgba(0, 0, 0, 0) 416px), none",
+        "color": "rgb(255, 253, 248)"
+      }
+    },
+    "1440": {
+      "footer": {
+        "selector": ".site-footer",
+        "x": 0,
+        "y": 5987.828125,
+        "w": 1440,
+        "h": 200.15625,
+        "bg": "rgb(16, 74, 77)",
+        "img": "none",
+        "color": "rgb(255, 255, 255)"
+      },
+      "pricing": {
+        "selector": ".dzn-story__finale",
+        "x": 0,
+        "y": 3327.53125,
+        "w": 1440,
+        "h": 1260,
+        "bg": "rgb(16, 74, 77)",
+        "img": "radial-gradient(circle at 18% 28%, rgba(255, 253, 248, 0.08), rgba(0, 0, 0, 0) 352px), radial-gradient(circle at 82% 78%, rgba(147, 55, 42, 0.14), rgba(0, 0, 0, 0) 416px), none",
+        "color": "rgb(255, 253, 248)"
+      }
+    }
+  }
+}

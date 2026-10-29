@@ -43,6 +43,7 @@ foreach ( $order as $component ) {
 $check( 'the merged classes tab puts pending reschedule first, then timeline and schedule', $ordered );
 $postIntro = (string) file_get_contents( $theme . '/template-parts/portal/post-intro.php' );
 $check( 'the post-intro activation-only card is filtered while actionable continuation remains', ! empty( $postIntro ) && str_contains( $postIntro, "! empty( \$item['actionable'] )" ) );
+$check( 'student first tab ends with WhatsApp support', str_contains( $shell, "'support'" ) && str_contains( (string) file_get_contents( $theme . '/template-parts/portal/support.php' ), 'https://wa.me/61413413004' ) );
 
 $check( 'student home greets the student by first name', str_contains( $shell, "'درود بر شما' . ( '' !== \$first_name" ) );
 $check( 'student email is visibly read-only', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/profile.php' ), 'is-readonly' ) );

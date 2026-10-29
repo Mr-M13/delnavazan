@@ -89,7 +89,7 @@ final class CommercialCapacityAuthority {
      * commitment claims the whole Term; any time, Teacher, Term, sequence, timezone or wall-clock
      * mismatch fails closed rather than silently satisfying a different interval.
      */
-    public static function assertScheduleAllowed(object $lesson,array $schedule,?CommercialCapacityRepository $repository=null):void{
+    public static function assertScheduleAllowed(object $lesson,array $schedule,?CommercialCapacityRepository $repository=null,int $allowMoveIntervalId=0):void{
         $repository??=new CommercialCapacityRepository();
         $termId=(int)($lesson->term_id??0);
         $sequence=(int)($lesson->canonical_sequence??0);
@@ -111,7 +111,7 @@ final class CommercialCapacityAuthority {
             }else{
                 $interval=$candidates[0];
                 if((int)$interval->teacher_id!==(int)$lesson->teacher_id)throw new \InvalidArgumentException('protected_interval_teacher_mismatch');
-                if(!CommercialValidator::intervalMatchesSchedule($interval,$schedule))throw new \InvalidArgumentException('protected_interval_mismatch');
+                if(!CommercialValidator::intervalMatchesSchedule($interval,$schedule)&&(int)$interval->id!==$allowMoveIntervalId)throw new \InvalidArgumentException('protected_interval_mismatch');
                 $excludeIntervalId=(int)$interval->id;
             }
         }
@@ -136,6 +136,37 @@ final class CommercialCapacityAuthority {
         }
         if((string)$interval->state!=='protected')return null;
         $repository->satisfyInterval((int)$interval->id,(int)$interval->interval_version,(int)$lesson->id,$scheduleVersionId,$now,$actor);
+        return (int)$interval->id;
+    }
+
+    /**
+     * Move the satisfied protected interval to the revised canonical schedule in the same Phase-N
+     * transaction. The claim, interval identity and Teacher remain the same; only the exact
+     * occurrence time and its bound schedule version change.
+     */
+    public static function reviseForReschedule(object $lesson,int $fromScheduleVersionId,int $toScheduleVersionId,array $schedule,int $actor,string $now,?CommercialCapacityRepository $repository=null):?int{
+        $repository??=new CommercialCapacityRepository();
+        $interval=self::authorisingInterval($lesson,$repository,true);
+        if($interval===null)return null;
+        if((string)$interval->state!=='satisfied'
+            ||(int)($interval->satisfied_lesson_id??0)!==(int)$lesson->id
+            ||(int)($interval->satisfied_schedule_version_id??0)!==$fromScheduleVersionId)throw new \InvalidArgumentException('commercial_capacity_integrity_conflict');
+        if((int)$interval->teacher_id!==(int)$lesson->teacher_id)throw new \InvalidArgumentException('protected_interval_teacher_mismatch');
+        $claim=$repository->claim((int)$interval->claim_id,true);
+        $siblings=$repository->intervals((int)$interval->claim_id,true);
+        if(!$claim||!CommercialValidator::claimValid($claim,$siblings)||(string)$claim->state!=='active')throw new \InvalidArgumentException('commercial_capacity_integrity_conflict');
+        $repository->reviseInterval((int)$interval->id,(int)$interval->interval_version,array(
+            'starts_at_utc'=>(string)$schedule['starts_at_utc'],
+            'ends_at_utc'=>(string)$schedule['ends_at_utc'],
+            'occupied_ends_at_utc'=>(string)$schedule['occupied_ends_at_utc'],
+            'duration_minutes'=>(int)$schedule['duration_minutes'],
+            'buffer_minutes'=>(int)$schedule['buffer_minutes'],
+            'schedule_timezone'=>(string)$schedule['schedule_timezone'],
+            'local_wall_date'=>(string)$schedule['local_wall_date'],
+            'local_wall_time'=>(string)$schedule['local_wall_time'],
+            'satisfied_schedule_version_id'=>$toScheduleVersionId,
+            'satisfied_at'=>$now,
+        ),$now,$actor);
         return (int)$interval->id;
     }
 

@@ -37,3 +37,4 @@ dzn_theme_teacher_portal_component(
 	)
 );
 ?>
+<?php dzn_theme_teacher_portal_component( 'support', array() ); ?>

@@ -366,3 +366,12 @@
 .dzn-tp-class__reschedule[open]>summary{margin-block-end:.5rem}
 .dzn-tp-class__reschedule .dzn-tp-reschedule{margin-block-start:0}
 @media(min-width:60rem){.dzn-tp-stats--finance{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+.dzn-tp-support {
+  border-block-start: 1px solid var(--dzn-color-border);
+  margin-block-start: 1.5rem;
+  padding-block-start: 1rem;
+}
+.dzn-tp-support .dzn-button {
+  text-decoration: none;
+}

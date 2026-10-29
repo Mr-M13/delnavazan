@@ -61,6 +61,8 @@ final class LessonRescheduleController {
             'teacher_slot_conflict'=>'زمان انتخاب‌شده با کلاس دیگری از شما تداخل دارد.',
             'student_slot_conflict'=>'زمان انتخاب‌شده با کلاس دیگری از هنرجو تداخل دارد.',
             'reschedule_notice_too_short'=>'برای تغییر زمان، دست‌کم یک ساعت پیش از شروع کلاس اقدام کنید.',
+            'reschedule_start_not_future'=>'زمان جدید باید در آینده باشد.',
+            'teacher_unavailable'=>'این زمان خارج از زمان‌های در دسترس شماست. زمان دیگری انتخاب کنید.',
             'reschedule_lesson_in_progress','reschedule_lesson_not_eligible'=>'این کلاس دیگر قابل تغییر زمان نیست.',
             'stale_schedule_version'=>'زمان کلاس هم‌زمان تغییر کرده است. صفحه را تازه کنید و دوباره تلاش کنید.',
             'reschedule_booking_not_supported'=>'تغییر زمان برای این نوع کلاس از پرتال فعال نیست.',
@@ -74,6 +76,8 @@ final class LessonRescheduleController {
             'reschedule_proposal_already_decided','reschedule_proposal_in_progress'=>'این پیشنهاد دیگر قابل پاسخ نیست.',
             'reschedule_proposal_not_found','portal_object_not_owned'=>'پیشنهاد تغییر زمان در دسترس نیست.',
             'student_slot_conflict','teacher_slot_conflict','stale_schedule_version','reschedule_proposal_expired'=>'زمان پیشنهادی دیگر معتبر نیست؛ از مدرس زمان تازه بخواهید.',
+            'teacher_unavailable'=>'این زمان خارج از زمان‌های در دسترس مدرس است؛ از مدرس زمان تازه بخواهید.',
+            'lesson_not_schedulable','delivery_outcome_exists','enrolment_not_schedulable','term_not_current','schedule_start_not_future'=>'این جلسه دیگر قابل تغییر زمان نیست؛ از مدرس یا پشتیبانی زمان تازه بخواهید.',
             default=>'پاسخ شما ثبت نشد. صفحه را تازه کنید و دوباره تلاش کنید.',
         };
     }

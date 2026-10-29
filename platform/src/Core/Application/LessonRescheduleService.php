@@ -30,12 +30,15 @@ final class LessonRescheduleService {
     private $commit;
     /** @var callable():int */
     private $clock;
+    /** @var callable(int,string,string):bool */
+    private $availability;
 
     public function __construct(
         private ?LessonRescheduleStore $store=null,
         ?callable $teacherConflict=null,
         ?callable $commit=null,
-        ?callable $clock=null
+        ?callable $clock=null,
+        ?callable $availability=null
     ){
         $this->store??=new LessonRescheduleRepository();
         $this->teacherConflict=$teacherConflict??static function(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId):array{
@@ -47,6 +50,7 @@ final class LessonRescheduleService {
             });
         };
         $this->clock=$clock??static fn():int=>time();
+        $this->availability=$availability??fn(int $teacherId,string $starts,string $ends):bool=>$this->teacherAvailabilityCovers($teacherId,$starts,$ends);
     }
 
     /** Authenticated Teacher entry point. */
@@ -93,6 +97,8 @@ final class LessonRescheduleService {
         $starts=$wall->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $ends=$wall->modify('+'.$duration.' minutes')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $occupied=$wall->modify('+'.($duration+$buffer).' minutes')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        if($starts<=$now)throw new \InvalidArgumentException('reschedule_start_not_future');
+        if(!($this->availability)((int)$context->teacher_id,$starts,$ends))throw new \InvalidArgumentException('teacher_unavailable');
         if($starts===(string)$context->starts_at_utc)throw new \InvalidArgumentException('reschedule_unchanged');
         if(strtotime($starts.' UTC')>(($this->clock)()+self::MAX_HORIZON_DAYS*86400))throw new \InvalidArgumentException('reschedule_horizon_exceeded');
         if(($this->teacherConflict)((int)$context->teacher_id,$starts,$occupied,(int)$context->lesson_id))throw new \InvalidArgumentException('teacher_slot_conflict');
@@ -236,6 +242,70 @@ final class LessonRescheduleService {
                 if((int)$winner->student_id!==$studentId)throw new \InvalidArgumentException('portal_object_not_owned');
                 return $this->row($winner)+array('idempotent'=>true);
             }
+            // A canonical refusal is a terminal refusal for this proposal, not a hidden pending
+            // request the Student will see forever. The Teacher is prompted to send a fresh time.
+            $permanent=array('teacher_unavailable','lesson_not_schedulable','delivery_outcome_exists','enrolment_not_schedulable','term_not_current','schedule_start_not_future','reschedule_start_not_future','reschedule_proposal_expired','schedule_unchanged','stale_teacher_assignment','teacher_not_available','canonical_lesson_required','canonical_enrolment_required');
+            if(isset($proposal)&&is_object($proposal)&&(int)($proposal->student_id??0)===$studentId&&(string)($proposal->state??'')==='pending'&&in_array((string)$e->getMessage(),$permanent,true)){
+                $this->failPendingProposal($proposal,$e);
+            }
+            throw $e;
+        }
+    }
+
+    /** Record a failed acceptance without leaving an undecidable pending proposal behind. */
+    private function failPendingProposal(object $proposal,\Throwable $error):void{
+        $code=preg_replace('/[^a-z0-9_]+/','_',strtolower(trim($error->getMessage()))) ?: 'reschedule_acceptance_failed';
+        $code=substr((string)$code,0,64);
+        $now=$this->now();
+        $actor=(int)get_current_user_id();
+        if($actor<1)$actor=(int)$proposal->student_id;
+        $this->store->begin();
+        try{
+            $fresh=$this->store->proposal((int)$proposal->id,true);
+            if(!$fresh||(string)$fresh->state!=='pending'){ $this->store->commit(); return; }
+            $this->store->updateProposal((int)$fresh->id,(int)$fresh->version,array('state'=>self::STATE_FAILED,'pending_slot'=>null,'failure_code'=>$code,'decided_at'=>$now,'decided_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor));
+            $this->event($fresh,'failed',self::STATE_PENDING,self::STATE_FAILED,'reschedule_acceptance_failed',hash('sha256','reschedule-failed:'.$fresh->uid.':'.$code),$actor,null,$now);
+            $this->notify((int)$fresh->id,'failed','student',(string)$fresh->uid);
+            $this->notify((int)$fresh->id,'failed','teacher',(string)$fresh->uid);
+            $this->notify((int)$fresh->id,'failed','admin',(string)$fresh->uid);
+            $this->store->commit();
+        }catch(\Throwable){
+            $this->store->rollback();
+        }
+    }
+
+    /** Administrator confirmation on behalf of the Student for an already-negotiated proposal. */
+    public function confirmAsAdministrator(string $proposalUid,string $decisionKey):array{
+        if(!current_user_can('dzn_manage_lessons')&&!current_user_can('dzn_manage_canonical_lesson_schedules'))throw new \RuntimeException('Unauthorized');
+        $proposal=$this->store->proposalByUid(trim($proposalUid));
+        if(!$proposal)throw new \InvalidArgumentException('reschedule_proposal_not_found');
+        return $this->decideForStudent((int)$proposal->student_id,(string)$proposal->uid,'accept',$decisionKey);
+    }
+
+    /** Cancel a pending proposal before a staff-initiated manual schedule change. */
+    public function cancelAsAdministrator(string $proposalUid,string $decisionKey):array{
+        if(!current_user_can('dzn_manage_lessons')&&!current_user_can('dzn_manage_canonical_lesson_schedules'))throw new \RuntimeException('Unauthorized');
+        $proposalUid=trim($proposalUid);
+        $decisionKey=trim($decisionKey);
+        if(strlen($decisionKey)<16)throw new \InvalidArgumentException('reschedule_decision_key_required');
+        $digest=hash('sha256',$decisionKey);
+        $now=$this->now();
+        $actor=(int)get_current_user_id();
+        if($existing=$this->store->proposalByDecisionDigest($digest))return $this->row($existing)+array('idempotent'=>true);
+        $this->store->begin();
+        try{
+            $proposal=$this->store->proposalByUid($proposalUid,true);
+            if(!$proposal)throw new \InvalidArgumentException('reschedule_proposal_not_found');
+            if((string)$proposal->state!==self::STATE_PENDING)throw new \InvalidArgumentException('reschedule_proposal_already_decided');
+            $this->store->updateProposal((int)$proposal->id,(int)$proposal->version,array('state'=>self::STATE_CANCELLED,'pending_slot'=>null,'decision_key_digest'=>$digest,'decided_at'=>$now,'decided_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor));
+            $this->event($proposal,'cancelled',self::STATE_PENDING,self::STATE_CANCELLED,'administrator_reschedule_cancelled',$digest,$actor,null,$now);
+            $this->notify((int)$proposal->id,'cancelled','student',(string)$proposal->uid);
+            $this->notify((int)$proposal->id,'cancelled','teacher',(string)$proposal->uid);
+            $this->notify((int)$proposal->id,'cancelled','admin',(string)$proposal->uid);
+            $this->store->commit();
+            return $this->row($this->store->proposal((int)$proposal->id))+array('idempotent'=>false);
+        }catch(\Throwable $e){
+            $this->store->rollback();
             throw $e;
         }
     }
@@ -271,6 +341,20 @@ final class LessonRescheduleService {
         }catch(\Throwable $e){
             if($this->store->duplicate($e)!=='idempotency_key')throw $e;
         }
+    }
+
+    /** The proposed replacement must already be inside the Teacher's effective availability. */
+    private function teacherAvailabilityCovers(int $teacherId,string $starts,string $ends):bool{
+        try{$segments=(new TeacherAvailabilityService())->effective($teacherId,$starts,$ends);}catch(\Throwable){return false;}
+        $cursor=$starts;
+        foreach((array)$segments as $segment){
+            if((string)($segment['state']??'')==='blocked')continue;
+            if((string)($segment['starts_at_utc']??'')>$cursor)break;
+            if((string)($segment['ends_at_utc']??'')<=$cursor)continue;
+            $cursor=(string)$segment['ends_at_utc'];
+            if($cursor>=$ends)return true;
+        }
+        return false;
     }
 
     private function localDate(string $calendar,array $input,string $timezone):string{

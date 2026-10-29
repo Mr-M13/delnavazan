@@ -1365,3 +1365,12 @@
   font-weight: 700;
   color: var(--dzn-color-text-primary);
 }
+
+.dzn-support {
+  border-block-start: 1px solid var(--dzn-color-border);
+  margin-block-start: var(--dzn-space-5);
+  padding-block-start: var(--dzn-space-4);
+}
+.dzn-support .dzn-button {
+  text-decoration: none;
+}

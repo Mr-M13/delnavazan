@@ -109,5 +109,37 @@ namespace {
     $replacementService->dispatchPending(10);
     $fail('replacement notification is never emitted twice', count($replacementSent) === 1);
 
+
+    // Recipient timezone/calendar wins over the Teacher's schedule timezone.
+    $timezoneStore = new NotificationStore();
+    $timezoneStore->proposal = (object) array('uid' => 'PROPOSAL-TZ', 'id' => 10, 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'Asia/Tehran', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $timezoneStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 10, 'event_type' => 'proposed', 'audience' => 'student', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $timezoneSent = array();
+    $timezoneService = new LessonRescheduleNotificationService(
+        $timezoneStore,
+        static function (string $email, string $subject, string $body) use (&$timezoneSent): bool { $timezoneSent[] = array($email, $subject, $body); return true; },
+        static fn(object $proposal, string $audience): array => array('email' => 'student@example.invalid', 'name' => 'Student', 'timezone' => 'America/New_York', 'calendar' => 'gregorian'),
+        static fn(): int => time()
+    );
+    $timezoneService->dispatchPending(10);
+    $fail('recipient Gregorian/timezone presentation is used in the notification', str_contains($timezoneSent[0][2], '2026-11-05 10:00') && !str_contains($timezoneSent[0][2], 'آبان'));
+
+    $persianStore = new NotificationStore();
+    $persianStore->proposal = (object) array('uid' => 'PROPOSAL-PTZ', 'id' => 11, 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'UTC', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $persianStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 11, 'event_type' => 'proposed', 'audience' => 'student', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $persianSent = array();
+    $persianService = new LessonRescheduleNotificationService(
+        $persianStore,
+        static function (string $email, string $subject, string $body) use (&$persianSent): bool { $persianSent[] = array($email, $subject, $body); return true; },
+        static fn(object $proposal, string $audience): array => array('email' => 'student@example.invalid', 'name' => 'Student', 'timezone' => 'Asia/Tehran', 'calendar' => 'persian'),
+        static fn(): int => time()
+    );
+    $persianService->dispatchPending(10);
+    $fail('recipient Jalali/Tehran presentation is used in the notification', str_contains($persianSent[0][2], 'آبان') && str_contains($persianSent[0][2], 'Asia/Tehran'));
+
     echo "Lesson reschedule notification unit passed\n";
 }

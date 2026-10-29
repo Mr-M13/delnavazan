@@ -185,10 +185,13 @@ command; CI still runs the individual jobs. A release is not ready if this comma
 ## Release 2026-10-29 (CSS and authenticated portal accessibility follow-up)
 
 The CSS consolidation from #402 and the portal accessibility follow-up from
-#407 are deployed at `3939feed0ec977f056eaf3ed262d4d2dbfbce167`
-(build `main-3939feed0ec9`, schema 54). The successful production run is
-`40826085963`; the deployment artifact records `status: deployed` and the
-previous build `main-25857feb8b22`. The read-only production smoke gate passed.
+#407 are deployed. #407 was deployed at
+`3939feed0ec977f056eaf3ed262d4d2dbfbce167` (build `main-3939feed0ec9`, run
+`40826085963`). The current production build is
+`370a65ebebf895b60a1f559e63893fc646ded1e0` (build `main-370a65ebebf8`, schema
+54, run `40826395133`), which includes #407 together with the bounded smoke
+retry/verification changes from #405. Both deployment artifacts record
+`status: deployed`; the read-only production smoke gate passed.
 
 The follow-up fixes long teacher status labels wrapping at 200% text and gives
 rendered nonce fields request-unique DOM ids via `dzn_theme_nonce_field()`;

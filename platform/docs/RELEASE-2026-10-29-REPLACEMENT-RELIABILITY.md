@@ -7,8 +7,8 @@ logic was redesigned. This release closes three operational gaps:
 
 1. intermittent production smoke `403` handling;
 2. staging end-to-end coverage of the replacement lifecycle, including both portal projections;
-3. controlled Google Calendar/Meet retry and idempotency verification, plus production worker
-   diagnostics.
+3. controlled Google Calendar/Meet retry and idempotency verification, live production
+   projection recovery and worker diagnostics.
 
 ## Smoke `403` investigation
 
@@ -80,10 +80,67 @@ Deterministic provider refusals are now terminal (`failed`) instead of consuming
 transport/outage failures keep bounded backoff. The canonical replacement is never rolled back by a
 provider failure.
 
-**Live provider limitation:** no real staging Google account/calendar was available for this run, and
-production synthetic lesson changes are prohibited. The production Google OAuth connection and
-calendar actor are verified read-only; the final live event/Meet write remains to be observed on the
-first genuine accepted replacement or a dedicated staging Google account.
+### Live provider verification
+
+Production had one failed reschedule calendar job (job 1, lesson 16, target version 14) and a
+second pending projection (lesson 5). Read-only diagnostics exposed six real defects in the
+hand-off path:
+
+1. `ProviderIntegrationService` was constructed without its OAuth/calendar/meeting adapter ports;
+2. `defaultDispatch` omitted the required `projection_reference`;
+3. `dispatchJob` nested a transaction around the provider authority, so MySQL refused
+   `SET TRANSACTION ISOLATION LEVEL READ COMMITTED`;
+4. `GoogleCalendarProjectionService` required the management capability although the dedicated
+   projection-worker principal holds only the dispatch capability;
+5. an expired active Google credential was never refreshed;
+6. the hand-off tried to project a separate `google_meet` mapping, which requires a second OAuth
+   connection that the Google flow never creates.
+
+After the fixes were deployed and the least-privilege projection-worker principal was provisioned,
+the worker refreshed the expired credential through the existing encrypted refresh token and
+dispatched the pending projections. Evidence:
+
+- pending projections before: `2`; after: `0`;
+- verified calendar mappings: `2`;
+- verified join-reference count: `2`;
+- lesson 16/version 14 and lesson 5/version 1: `projection_state=verified`, connection `connected`,
+  identity `verified`, active credential not expired, event reference present, join reference
+  present, `portal_join_ready=true`;
+- failed calendar jobs: `0`; stale calendar jobs: `0`; the original failed job is `completed`.
+
+This is **real Google Calendar/Meet provider verification** for existing real reschedule
+occurrences. No synthetic production lesson change was made. No live replacement-specific event
+exists because production has no real replacement lesson; the replacement hand-off is verified in
+the disposable runtime with a controlled connected Teacher connection and by the shared Google
+transport/worker tests.
+
+Remaining limitation: a live replacement-specific event/Meet link requires the first genuine
+accepted replacement or a dedicated staging Google account. Do not create a synthetic replacement
+in production to satisfy that test.
+
+### Operational recovery commands
+
+- Failed hand-off: `recover-production-calendar-job.yml` with the exact main SHA, the failed
+  `job_id` and `RECOVER`.
+- Pending projections: `dispatch-production-calendar-projections.yml` with the exact main SHA and
+  `DISPATCH`.
+- Worker principal: `provision-production-projection-worker.yml` with
+  `PROVISION_PROJECTION`.
+- Read-only state: `diagnose-production-release.yml` and
+  `diagnose-production-google-oauth.yml`.
+
+## Production verification
+
+- Deployed schema: 54 (no migration).
+- Public smoke: `primary_smoke=success`, confirmation not required, maintenance `not_required`.
+- Replacement actor: configured, active, canonical Lesson + schedule capabilities, no admin/provider
+  capability.
+- Reschedule actor: configured, active, scheduling capability only.
+- Calendar actor: configured, active, provider-integration capability only.
+- Projection worker: configured, active, dispatch capability only.
+- Google OAuth: configured, connection connected, identity verified, provider reachable.
+- Calendar jobs/projections: no failed or stale jobs; verified projections and join references
+  present.
 
 ## Production diagnostics
 

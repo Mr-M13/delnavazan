@@ -14,8 +14,8 @@
  */
 if(getenv('DZN_LESSON_REPLACEMENT_RUNTIME')!=='authority'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Lesson replacement runtime refused.\n");exit(1);}
 
-use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIntakeService,CanonicalEnrolmentLifecycleService,CanonicalLessonAuthorityService,CanonicalLessonAuthorityValidator,CanonicalLessonScheduleService,CanonicalTeacherOccupancyReadService,CanonicalTermAuthorityService,LessonRescheduleService,TeacherAcceptingStateService,TeacherAssignmentService,TeacherAvailabilityService,TeacherService,TeachingEligibilityService};
-use Delnavazan\Platform\Integrations\LessonCompletionAutomationWorker;
+use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIntakeService,CanonicalEnrolmentLifecycleService,CanonicalLessonAuthorityService,CanonicalLessonAuthorityValidator,CanonicalLessonScheduleService,CanonicalTeacherOccupancyReadService,CanonicalTermAuthorityService,LessonRescheduleService,ProviderIntegrationRule,ProviderIntegrationService,TeacherAcceptingStateService,TeacherAssignmentService,TeacherAvailabilityService,TeacherService,TeachingEligibilityService};
+use Delnavazan\Platform\Integrations\{ContractProviderAdapters,LessonCompletionAutomationWorker,LessonRescheduleCalendarService};
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
 global $wpdb;
@@ -200,6 +200,31 @@ $rescheduleJob=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lesson_reschedul
 dzn_rr_assert($rescheduleJob instanceof stdClass&&(int)$rescheduleJob->lesson_id===$newLessonId&&(int)$rescheduleJob->from_schedule_version_id===(int)$newVersion->id&&(int)$rescheduleJob->to_schedule_version_id===(int)$movedVersion->id,'the replacement reschedule must queue a new calendar hand-off for the same Lesson');
 dzn_rr_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE canonical_replacement_origin_lesson_id=%d AND archived_at IS NULL",$originId))===1,'rescheduling the replacement must not issue another replacement');
 dzn_rr_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='replacement' AND archived_at IS NULL",(int)$origin->term_id))===1,'rescheduling must not consume an additional replacement allowance');
+
+// Controlled provider hand-off: create a synthetic connected Teacher connection, configure the
+// calendar actor, and dispatch the replacement reschedule job through the real defaultDispatch
+// path. The Google seam is translation-only here, so this records pending projections and never
+// contacts Google.
+wp_set_current_user(1);
+$calendarSystemUserId=wp_insert_user(array('user_login'=>'calendar-actor-'.wp_generate_uuid4(),'user_pass'=>wp_generate_password(32,true,true),'user_email'=>'calendar-actor-'.wp_generate_uuid4().'@dzn.invalid','role'=>'subscriber'));
+dzn_rr_assert(!is_wp_error($calendarSystemUserId),'the calendar actor user must be created');
+$calendarActorUser=get_user_by('id',(int)$calendarSystemUserId);
+$calendarActorUser->add_cap('dzn_manage_provider_integrations');
+update_option('dzn_reschedule_calendar_system_user_id',(int)$calendarSystemUserId,false);
+$providerPorts=new ContractProviderAdapters(array(),ContractProviderAdapters::PROJECTION_PENDING);
+$integration=new ProviderIntegrationService(null,null,$providerPorts,$providerPorts,$providerPorts);
+$integrationEvidence=static fn(string $ref):array=>array('evidence_channel'=>'staff_record','evidence_reference'=>$ref,'evidence_at'=>gmdate('Y-m-d H:i:s'));
+$begin=$integration->beginAuthorization(array('provider_code'=>'google_calendar','teacher_id'=>(int)$origin->teacher_id,'client_reference'=>'runtime-calendar-client','redirect_uri'=>'https://academy.example/cb','scope_snapshot'=>ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE)+$integrationEvidence('runtime-calendar-consent'),dzn_rr_key('calendar-consent'));
+$connected=$integration->completeAuthorization(array('state'=>(string)$begin['state'],'code'=>'runtime-calendar-code','code_verifier'=>(string)$begin['code_verifier'],'redirect_uri'=>'https://academy.example/cb')+$integrationEvidence('runtime-calendar-complete'),dzn_rr_key('calendar-complete'));
+dzn_rr_assert((string)$connected['connection_state']==='connected','the synthetic Teacher Google connection must be connected');
+$handoff=(new LessonRescheduleCalendarService())->dispatchJob((int)$rescheduleJob->id);
+dzn_rr_assert($handoff==='completed','the real calendar hand-off path must complete the queued replacement reschedule job');
+$calendarMapping=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}provider_calendar_event_mappings WHERE lesson_id=%d AND schedule_version_id=%d LIMIT 1",$newLessonId,(int)$movedVersion->id));
+$meetingMapping=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}provider_meeting_mappings WHERE lesson_id=%d AND schedule_version_id=%d LIMIT 1",$newLessonId,(int)$movedVersion->id));
+dzn_rr_assert($calendarMapping instanceof stdClass&&(string)$calendarMapping->projection_state==='pending','the hand-off must record a pending calendar projection for the replacement occurrence');
+dzn_rr_assert($meetingMapping===null,'the calendar hand-off must not require a second google_meet connection');
+dzn_rr_assert((string)$calendarMapping->starts_at_utc===(string)$movedVersion->starts_at_utc&&(string)$calendarMapping->schedule_timezone===(string)$movedVersion->schedule_timezone,'the calendar projection must copy the exact canonical interval and timezone');
+dzn_rr_assert(!empty($calendarMapping->event_digest),'provider references must persist as digests, never raw values');
 
 // No double issuance and no second replacement for one origin.
 $threw=null;

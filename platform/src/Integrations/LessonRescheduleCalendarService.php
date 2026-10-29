@@ -112,13 +112,14 @@ final class LessonRescheduleCalendarService {
             if($old=$repository->activeCalendarMapping($lessonId,$from))$authority->retractCalendarProjection((int)$old->id,$evidence,'reschedule-retract-calendar:'.$job['uid']);
             if($oldMeeting=$repository->activeMeetingMapping($lessonId,$from))$authority->retractMeetingProjection((int)$oldMeeting->id,$evidence,'reschedule-retract-meeting:'.$job['uid']);
             $projection=array('lesson_id'=>$lessonId,'schedule_version_id'=>$to,'projection_reference'=>'reschedule-handoff:'.$job['uid'],'evidence_channel'=>'authenticated_platform','evidence_reference'=>'reschedule-calendar:'.$job['uid'],'evidence_at'=>$now);
-            foreach(array('calendar','meeting') as $kind){
-                try{
-                    if('calendar'===$kind)$authority->projectCalendarEvent($projection,'reschedule-project-calendar:'.$job['uid']);
-                    else $authority->projectMeetingConference($projection,'reschedule-project-meeting:'.$job['uid']);
-                }catch(\InvalidArgumentException $e){
-                    if($e->getMessage()!=='projection_already_recorded')throw $e;
-                }
+            // The real Google projection worker creates the calendar event with its conferenceData
+            // and records the returned Meet URI on the calendar mapping acknowledgement. A separate
+            // google_meet projection would require a second connection that the Google OAuth flow
+            // never creates; it is not part of the live Calendar/Meet path.
+            try{
+                $authority->projectCalendarEvent($projection,'reschedule-project-calendar:'.$job['uid']);
+            }catch(\InvalidArgumentException $e){
+                if($e->getMessage()!=='projection_already_recorded')throw $e;
             }
             return array('lesson_id'=>$lessonId,'from_schedule_version_id'=>$from,'to_schedule_version_id'=>$to,'state'=>'handed_off');
         });

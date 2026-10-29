@@ -271,6 +271,7 @@ jobs:
           bash -n deployment/qa/production-google-oauth-diagnostic.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+          bash deployment/qa/provision-production-replacement-actor-contract.sh
 
   stripe-runtime-e2e:
     name: Stripe runtime E2E

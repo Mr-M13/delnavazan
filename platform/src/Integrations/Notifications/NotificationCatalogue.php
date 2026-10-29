@@ -151,10 +151,11 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'Your enrolment is ready','body'=>'Your introductory {{course}} lesson was delivered. Complete your enrolment in the Student Portal.'),
             ),
         ));
-        $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(
+        $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · ثبت‌نام شما فعال شد','body'=>"سلام {{name}}،\n\nپرداخت شما تأیید شد و ثبت‌نام «{{course}}» با {{teacher}} فعال است. برنامهٔ هفتگی و کلاس‌های آیندهٔ شما در پرتال هنرجو نمایش داده می‌شود.\n\nمشاهدهٔ برنامه و کلاس‌ها:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'ثبت‌نام شما فعال شد','body'=>'ثبت‌نام «{{course}}» با {{teacher}} فعال شد و برنامهٔ کلاس‌ها در پرتال نمایش داده می‌شود.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، ثبت‌نام «{{course}}» شما با استاد {{teacher}} فعال شد. برنامهٔ کلاس‌ها در پرتال هنرجو در دسترس است: {{portal_url}}'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Your Delnavazan enrolment is active','body'=>"Hello {{name}},\n\nYour payment was verified and your {{course}} enrolment with {{teacher}} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal:\n{{portal_url}}\n\nDelnavazan"),
@@ -289,10 +290,11 @@ final class NotificationCatalogue {
         );
         $out=array();
         foreach($definitions as $key=>[$label,$intent,$faLabel]){
-            $event=self::event($key,$label,'payment','student','canonical:'.$intent,'canonical',array('email','website'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),array(
+            $event=self::event($key,$label,'payment','student','canonical:'.$intent,'canonical',array('email','website','whatsapp'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),array(
                 self::PRIMARY_LOCALE=>array(
                     'email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{name}}،\n\n".$faLabel.".\n\nمبلغ: {{amount}}\nمهلت: {{due_date}}\n\nبرای مشاهدهٔ جزئیات و اقدام به پرتال هنرجو بروید:\n{{portal_url}}\n\nاین متن پیش‌فرض است و پیش از فعال‌سازی باید از نظر مالی و حقوقی بازبینی شود.\n\nبا احترام، دلنوازان"),
                     'website'=>array('subject'=>$faLabel,'body'=>$faLabel.' — جزئیات در پرتال هنرجو.'),
+                    'whatsapp'=>array('body'=>"درود {{name}} عزیز،\n\n".$faLabel.".\n\nمبلغ: {{amount}}\nمهلت: {{due_date}}\n\nبرای مشاهدهٔ جزئیات و اقدام به پرتال هنرجو بروید:\n{{portal_url}}"),
                 ),
                 'en'=>array('email'=>array('subject'=>'Delnavazan · '.$label,'body'=>"Hello {{name}},\n\n".$label.".\n\nAmount: {{amount}}\nDeadline: {{due_date}}\n\nOpen your Student Portal:\n{{portal_url}}\n\nThis default requires financial and legal review before activation.\n\nDelnavazan")),
             ));
@@ -320,8 +322,8 @@ final class NotificationCatalogue {
                 if($state==='proposed')$studentVariables=array_merge($studentVariables,array('when','timezone','teacher','course','current_when','new_when'));
                 elseif($state==='accepted')$studentVariables=array_merge($studentVariables,array('when','timezone','course','teacher','previous_when','new_when'));
                 elseif($state==='rejected')$studentVariables=array_merge($studentVariables,array('course','teacher','when'));
-                $out[]=self::event($prefix.'.'.$state.'.student',$label.' · '.ucfirst($state),'lesson','student','LessonRescheduleService','queue',array('email','website'),'operational',true,$studentVariables,$prefix.'.'.$state,array(
-                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body'])),
+                $out[]=self::event($prefix.'.'.$state.'.student',$label.' · '.ucfirst($state),'lesson','student','LessonRescheduleService','queue',array('email','website','whatsapp'),'operational',true,$studentVariables,$prefix.'.'.$state,array(
+                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body']),'whatsapp'=>array('body'=>$copy['body'])),
                 ));
             }
         }
@@ -341,8 +343,8 @@ final class NotificationCatalogue {
                 if($state==='proposed')$teacherVariables=array_merge($teacherVariables,array('when','timezone','course','student','current_when','new_when'));
                 elseif($state==='accepted')$teacherVariables=array_merge($teacherVariables,array('when','timezone','course','student','previous_when','new_when'));
                 elseif($state==='rejected')$teacherVariables=array_merge($teacherVariables,array('course','student','when'));
-                $out[]=self::event($prefix.'.'.$state.'.teacher',$label.' · '.ucfirst($state),'lesson','teacher','LessonRescheduleService','queue',array('email','website'),'operational',true,$teacherVariables,$prefix.'.'.$state,array(
-                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body'])),
+                $out[]=self::event($prefix.'.'.$state.'.teacher',$label.' · '.ucfirst($state),'lesson','teacher','LessonRescheduleService','queue',array('email','website','whatsapp'),'operational',true,$teacherVariables,$prefix.'.'.$state,array(
+                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body']),'whatsapp'=>array('body'=>$copy['body'])),
                 ));
             }
         }

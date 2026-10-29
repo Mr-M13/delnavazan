@@ -125,6 +125,38 @@ if ( ! str_contains( $teacherBothHtml, 'dzn-admin-shell__subtabs' )
     throw new RuntimeException( 'Teachers must expose exactly Overview and Onboarding & Invitations when both authorities are held.' );
 }
 
+// Settings is one area with five work groups. The active group exposes only its
+// own member routes; every group remains reachable from the group row.
+$GLOBALS['dzn_shell_test_caps'] = array_values( array_unique( array_merge( ...array_values( $routeCaps ) ) ) );
+$_GET['page'] = 'dzn-integration-email';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$settingsHtml = ob_get_clean();
+if ( ! str_contains( $settingsHtml, 'Settings groups' )
+    || ! str_contains( $settingsHtml, 'General' )
+    || ! str_contains( $settingsHtml, 'Messaging' )
+    || ! str_contains( $settingsHtml, 'Integrations' )
+    || ! str_contains( $settingsHtml, 'Access' )
+    || ! str_contains( $settingsHtml, 'System' )
+    || ! str_contains( $settingsHtml, 'Email' )
+    || ! str_contains( $settingsHtml, 'Notification templates' )
+    || str_contains( $settingsHtml, 'Portal capabilities' ) ) {
+    throw new RuntimeException( 'Grouped Settings must show five groups and only the active group member routes.' );
+}
+
+// A notification-only operator lands in Messaging and cannot see access routes.
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_notification_authority' );
+$_GET['page'] = 'dzn-communications';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$restrictedSettings = ob_get_clean();
+if ( ! str_contains( $restrictedSettings, 'Messaging' )
+    || ! str_contains( $restrictedSettings, 'Communications health' )
+    || str_contains( $restrictedSettings, 'Staff access' )
+    || str_contains( $restrictedSettings, 'Portal capabilities' ) ) {
+    throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work group.' );
+}
+
 // Route registrations remain available to WordPress, but the legacy submenu must
 // not become a second Delnavazan navigation surface on unrelated admin screens.
 $_GET['page'] = 'plugins';

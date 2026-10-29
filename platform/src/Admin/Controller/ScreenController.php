@@ -545,11 +545,12 @@ final class ScreenController {
     private static function teacherFinanceLinks(object $teacher): void {
         if (!current_user_can('dzn_view_finance_authority')) return;
         $id = (int) $teacher->id;
-        echo '<section id="teacher-finance"><h2>Finance follow-up</h2><p>Teacher-specific rates, statements and reconciliation move onto this record in the next implementation stage. The current central reports remain available.</p><p>';
-        echo '<a class="button" href="' . esc_url(add_query_arg(array('page' => 'dzn-finance', 'tab' => 'settings', 'teacher_id' => $id), admin_url('admin.php'))) . '">Current rate report</a> ';
-        echo '<a class="button" href="' . esc_url(add_query_arg(array('page' => 'dzn-finance', 'tab' => 'statements', 'teacher_id' => $id), admin_url('admin.php'))) . '">Current statement report</a> ';
-        echo '<a class="button" href="' . esc_url(add_query_arg(array('page' => 'dzn-finance', 'tab' => 'ledger'), admin_url('admin.php'))) . '">Central reconciliation</a>';
-        echo '</p></section>';
+        echo '<section id="teacher-finance"><h2>Finance</h2><p>Review this Teacher’s effective-dated rate, compensation statements and lesson payability. Central reconciliation remains read-only and never repairs a record.</p><div class="dzn-quick">';
+        echo '<a href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-rates', 'teacher_id' => $id), admin_url('admin.php'))) . '">Rate timeline</a>';
+        echo '<a href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-statements', 'teacher_id' => $id), admin_url('admin.php'))) . '">Statements &amp; reconciliation</a>';
+        echo '<a href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-payability', 'teacher_id' => $id), admin_url('admin.php'))) . '">Lesson payability</a>';
+        echo '<a href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings')) . '">Teacher rate settings</a>';
+        echo '</div></section>';
     }
 
     /**

@@ -80,11 +80,14 @@ final class PortalAuthenticatedReadService {
         $p = $wpdb->prefix . 'dzn_';
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT r.uid proposal_uid,r.proposed_starts_at_utc,r.proposed_ends_at_utc,r.schedule_timezone,r.state,
-                    l.uid lesson_uid,l.reference_code lesson_reference,l.course_id,
+                    l.uid lesson_uid,l.reference_code lesson_reference,l.course_id,l.lesson_type,
+                    v.uid original_schedule_version_uid,v.starts_at_utc original_starts_at_utc,v.ends_at_utc original_ends_at_utc,
+                    (SELECT e.reason_code FROM {$p}lesson_reschedule_events e WHERE e.proposal_id=r.id AND e.event_type='proposed' ORDER BY e.id ASC LIMIT 1) proposal_reason,
                     COALESCE(NULLIF(i.name_fa,''),i.name_en,c.name_fa,c.name_en) instrument_name,
                     COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name
              FROM {$p}lesson_reschedule_proposals r
              INNER JOIN {$p}lessons l ON l.id=r.lesson_id AND l.archived_at IS NULL
+             INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=r.schedule_version_id AND v.lesson_id=l.id
              LEFT JOIN {$p}courses c ON c.id=l.course_id
              LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
              LEFT JOIN {$p}teachers t ON t.id=r.teacher_id AND t.archived_at IS NULL
@@ -102,6 +105,9 @@ final class PortalAuthenticatedReadService {
                 'lesson_reference' => (string) $row->lesson_reference,
                 'instrument_name' => (string) $row->instrument_name,
                 'teacher_name' => (string) $row->teacher_name,
+                'kind' => (string) ($row->proposal_reason ?? '') === 'teacher_replacement_proposed' ? 'replacement' : 'reschedule',
+                'original_starts_at_utc' => (string) $row->original_starts_at_utc,
+                'original_ends_at_utc' => (string) $row->original_ends_at_utc,
                 'starts_at_utc' => (string) $row->proposed_starts_at_utc,
                 'ends_at_utc' => (string) $row->proposed_ends_at_utc,
                 'schedule_timezone' => (string) $row->schedule_timezone,

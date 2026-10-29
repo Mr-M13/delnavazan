@@ -98,6 +98,14 @@ final class CommercialCapacityRepository {
         ),array('id'=>$intervalId,'interval_version'=>$expectedVersion,'state'=>'protected'));
         if($changed!==1)throw new \RuntimeException('Stale protected capacity interval');
     }
+    /** Move an already-satisfied protected interval to the revised canonical schedule. */
+    public function reviseInterval(int $intervalId,int $expectedVersion,array $fields,string $now,int $actor):void{
+        global $wpdb;
+        $fields=array_merge($fields,array('interval_version'=>$expectedVersion+1,'updated_at'=>$now,'updated_by'=>$actor));
+        $changed=$wpdb->update($this->p.'commercial_capacity_claim_intervals',$fields,array('id'=>$intervalId,'interval_version'=>$expectedVersion,'state'=>'satisfied'));
+        if($changed!==1)throw new \RuntimeException('Stale protected capacity interval');
+    }
+
     public function reopenInterval(int $intervalId,int $expectedVersion,string $now,int $actor):void{
         global $wpdb;
         $changed=$wpdb->update($this->p.'commercial_capacity_claim_intervals',array(

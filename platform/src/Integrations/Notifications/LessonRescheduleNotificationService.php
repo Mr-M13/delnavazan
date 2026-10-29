@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Integrations\Notifications;
 
 use Delnavazan\Platform\Core\Application\LessonRescheduleStore;
+use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
 
 /**
@@ -27,7 +28,10 @@ final class LessonRescheduleNotificationService {
         ?callable $clock=null
     ){
         $this->store??=new LessonRescheduleRepository();
-        $this->transport=$transport??static fn(string $email,string $subject,string $body):bool=>wp_mail($email,$subject,$body);
+        $this->transport=$transport??static function(string $email,string $subject,string $body):bool{
+            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$subject,$body,array('locale'=>NotificationCatalogue::PRIMARY_LOCALE));
+            return (bool)wp_mail($email,$subject,$body);
+        };
         $this->recipient=$recipient??array(__CLASS__,'defaultRecipient');
         $this->clock=$clock??static fn():int=>time();
     }
@@ -43,7 +47,8 @@ final class LessonRescheduleNotificationService {
                 if(!$proposal)throw new \RuntimeException('reschedule_proposal_not_found');
                 $recipient=($this->recipient)($proposal,(string)$locked->audience);
                 if(!$recipient||empty($recipient['email']))throw new \RuntimeException('reschedule_recipient_unresolved');
-                $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''));
+                $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''),$recipient);
+                $this->recordInbox($proposal,(string)$locked->event_type,(string)$locked->audience,$rendered['variables']);
                 $ok=(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body']);
                 $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
                 if($ok){
@@ -64,24 +69,78 @@ final class LessonRescheduleNotificationService {
         return array('sent'=>$sent,'failed'=>$failed,'skipped'=>$skipped);
     }
 
-    private function render(object $proposal,string $eventType,string $audience,string $name):array{
-        $timezone=(string)$proposal->schedule_timezone;
-        $when=$this->format((string)$proposal->proposed_starts_at_utc,$timezone);
-        $role='student'===$audience?'هنرجو':'مدرس';
-        $subject='دلنوازان · تغییر زمان کلاس';
-        $messages=array(
-            'proposed'=>'درخواست تغییر زمان کلاس برای شما ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). لطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید.',
-            'accepted'=>'زمان جدید کلاس تأیید شد. زمان: '.$when.' ('.$timezone.').',
-            'rejected'=>'پیشنهاد تغییر زمان کلاس رد شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.',
-            'failed'=>'تغییر زمان کلاس ثبت نشد. زمان فعلی بدون تغییر باقی می‌ماند؛ لطفاً زمان تازه‌ای پیشنهاد کنید.',
-        );
+    private function render(object $proposal,string $eventType,string $audience,string $name,array $recipient=array()):array{
+        // The recipient's canonical profile timezone/calendar wins; the teacher's schedule
+        // timezone is only the fallback for an administrative recipient or a malformed profile.
+        $timezone=(string)($recipient['timezone']??'');
+        if(!in_array($timezone,timezone_identifiers_list(),true))$timezone=(string)$proposal->schedule_timezone;
+        $calendar=in_array((string)($recipient['calendar']??''),array('gregorian','persian'),true)?(string)$recipient['calendar']:'persian';
+        $when=$this->format((string)$proposal->proposed_starts_at_utc,$timezone,$calendar);
+        $kind='reschedule';
+        try{$kind=$this->store->proposalKind((int)($proposal->id??0));}catch(\Throwable){}
+        $replacement=$kind==='replacement';
+        $subject=$replacement?'دلنوازان · جلسهٔ جبرانی':'دلنوازان · تغییر زمان کلاس';
+        if('admin'===$audience){
+            $messages=$replacement?array(
+                'proposed'=>'درخواست جلسهٔ جبرانی از سوی مدرس برای یک جلسهٔ ازدست‌رفته ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). این پیشنهاد تا پاسخ هنرجو قطعی نیست.',
+                'accepted'=>'هنرجو جلسهٔ جبرانی را پذیرفت و جلسهٔ جایگزین قطعی شد. زمان: '.$when.' ('.$timezone.').',
+                'rejected'=>'هنرجو پیشنهاد جلسهٔ جبرانی را رد کرد. جلسهٔ اصلی بدون تغییر باقی ماند.',
+                'failed'=>'جلسهٔ جبرانی ثبت نشد و پیشنهاد بسته شد؛ مورد برای بررسی در صف مدیر قرار گرفت.',
+                'cancelled'=>'درخواست جلسهٔ جبرانی توسط مدیر لغو شد.',
+            ):array(
+                'proposed'=>'درخواست تغییر زمان کلاس از سوی مدرس ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). این پیشنهاد تا پاسخ هنرجو قطعی نیست و در پرتال هنرجو برای پذیرش نمایش داده می‌شود.',
+                'accepted'=>'هنرجو زمان جدید کلاس را پذیرفت و تغییر زمان قطعی شد. زمان: '.$when.' ('.$timezone.').',
+                'rejected'=>'هنرجو پیشنهاد تغییر زمان کلاس را رد کرد. زمان فعلی کلاس بدون تغییر باقی ماند.',
+                'failed'=>'تغییر زمان کلاس ثبت نشد و پیشنهاد بسته شد. زمان فعلی بدون تغییر باقی می‌ماند؛ در صورت نیاز کلاس را از صفحهٔ کلاس‌ها دستی تغییر دهید.',
+                'cancelled'=>'درخواست تغییر زمان توسط مدیر لغو شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.',
+            );
+        }else{
+            $messages=$replacement?array(
+                'proposed'=>'برای جلسهٔ ازدست‌رفتهٔ شما یک زمان جلسهٔ جبرانی پیشنهاد شد. زمان: '.$when.' ('.$timezone.'). لطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید.',
+                'accepted'=>'جلسهٔ جبرانی شما تأیید شد. زمان: '.$when.' ('.$timezone.').',
+                'rejected'=>'پیشنهاد جلسهٔ جبرانی رد شد. جلسهٔ اصلی بدون تغییر باقی می‌ماند.',
+                'failed'=>'جلسهٔ جبرانی ثبت نشد؛ لطفاً زمان تازه‌ای پیشنهاد کنید یا با پشتیبانی تماس بگیرید.',
+                'cancelled'=>'درخواست جلسهٔ جبرانی توسط مدیر لغو شد.',
+            ):array(
+                'proposed'=>'درخواست تغییر زمان کلاس برای شما ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). لطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید.',
+                'accepted'=>'زمان جدید کلاس تأیید شد. زمان: '.$when.' ('.$timezone.').',
+                'rejected'=>'پیشنهاد تغییر زمان کلاس رد شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.',
+                'failed'=>'تغییر زمان کلاس ثبت نشد و پیشنهاد بسته شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند؛ لطفاً زمان تازه‌ای پیشنهاد کنید.',
+                'cancelled'=>'درخواست تغییر زمان کلاس توسط مدیر لغو شد. زمان فعلی بدون تغییر باقی می‌ماند.',
+            );
+        }
         $body='سلام'.(''!==trim($name)?' '.trim($name):'')."،\n\n".($messages[$eventType]??$messages['failed'])."\n\nدلنوازان";
-        return array('subject'=>$subject,'body'=>$body);
+        $portal='admin'===$audience?'':(function_exists('home_url')?home_url('student'===$audience?'/student-portal/':'/teacher-portal/'):'');
+        $variables=array('name'=>trim($name),'teacher'=>trim($name),'student'=>trim($name),'when'=>$when,'timezone'=>$timezone,'portal_url'=>$portal,'teacher_portal_url'=>$portal);
+        $eventKey=$this->eventKey($proposal,$eventType,$audience);
+        $copy=array('subject'=>$subject,'body'=>$body,'source'=>'fallback');
+        if(class_exists(NotificationCopyResolver::class))$copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
+        return array('subject'=>$copy['subject'],'body'=>$copy['body'],'variables'=>$variables,'event_key'=>$eventKey,'source'=>$copy['source']);
     }
 
-    private function format(string $utc,string $timezone):string{
+    /**
+     * The event key follows the same catalogue identity the dashboard edits. Recording the inbox entry
+     * here is idempotent per proposal state and never changes the email hand-off result.
+     */
+    private function recordInbox(object $proposal,string $eventType,string $audience,array $variables):void{
+        if(!in_array($audience,array('student','teacher'),true)||!class_exists(PortalNotificationRecorder::class))return;
+        $eventKey=$this->eventKey($proposal,$eventType,$audience);
+        $link=(string)($audience==='student'?($variables['portal_url']??''):($variables['teacher_portal_url']??''));
+        if('student'===$audience)PortalNotificationRecorder::student((int)$proposal->student_id,$eventKey,'lesson_reschedule',(int)$proposal->id,$variables,$link);
+        else PortalNotificationRecorder::teacher((int)$proposal->teacher_id,$eventKey,'lesson_reschedule',(int)$proposal->id,$variables,$link);
+    }
+
+    /** @return string Stable catalogue identity for one proposal, state and audience. */
+    private function eventKey(object $proposal,string $eventType,string $audience):string{
+        $kind='reschedule';
+        try{$kind=$this->store->proposalKind((int)($proposal->id??0));}catch(\Throwable){}
+        return 'reschedule.'.($kind==='replacement'?'replacement':'change').'.'.$eventType.'.'.$audience;
+    }
+
+    private function format(string $utc,string $timezone,string $calendar='persian'):string{
         $timestamp=strtotime($utc.' UTC');
         if(!$timestamp)return $utc;
+        if($calendar==='gregorian')return wp_date('Y-m-d H:i',$timestamp,new \DateTimeZone($timezone));
         if(class_exists('IntlCalendar')){
             try{
                 $zone=new \DateTimeZone($timezone);
@@ -100,12 +159,17 @@ final class LessonRescheduleNotificationService {
     /** Default recipient lookup stays on the owning domain row; no contact data enters the job. */
     public static function defaultRecipient(object $proposal,string $audience):?array{
         global $wpdb;$p=$wpdb->prefix.'dzn_';
+        if('admin'===$audience){
+            $email=trim((string)apply_filters('dzn_reschedule_admin_recipient',(string)get_option('admin_email'),$proposal));
+            if(!is_email($email))return null;
+            return array('email'=>$email,'name'=>'مدیر دلنوازان');
+        }
         if('student'===$audience){
-            $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
+            $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name,timezone,calendar_preference FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
         }else{
-            $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
+            $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name,timezone,calendar_preference FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
         }
         if(!$row||trim((string)($row->email??''))==='')return null;
-        return array('email'=>(string)$row->email,'name'=>(string)($row->name??''));
+        return array('email'=>(string)$row->email,'name'=>(string)($row->name??''),'timezone'=>(string)($row->timezone??''),'calendar'=>(string)($row->calendar_preference??''));
     }
 }

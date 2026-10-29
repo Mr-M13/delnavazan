@@ -23,6 +23,126 @@ Use this path for every release:
 
 The workflow does not edit DNS, WordPress URLs, mail records, SSL settings, or catalogue data. Those are controlled production configuration and data operations. Production currently serves `https://delnavazan.com`; `www` redirects to the apex.
 
+## Production smoke reliability and maintenance recovery
+
+The deploy workflow runs `deployment/qa/production-smoke.sh` after the atomic deployment and
+identity check. Smoke requests send browser-like `User-Agent`, `Accept` and `Accept-Language`
+headers and use a bounded retry policy (`deployment/qa/production-smoke-lib.sh`):
+
+- immediate success is one request;
+- transports timeouts/connection failures (`curl` 6/7/28/35/52/56), HTTP `429`, `503`, `504` and
+  Cloudflare origin `52x` are retried up to three attempts with short delays and a 50-second
+  per-probe budget;
+- HTTP `403` is retried **only** when Cloudflare explicitly marks a challenge
+  (`cf-mitigated: challenge|managed_challenge`) and the body is a Cloudflare challenge page;
+- plain `403`, `401`, `404`, `500`, `502` and application failures are terminal on the first
+  response;
+- every attempt logs its label, status, classification and elapsed time. Non-success responses
+  also log safe edge headers (`server`, `cf-ray`, `cf-mitigated`, `retry-after`, etc.) and a body
+  marker; no credentials, cookies or tokens are sent or logged.
+
+If the primary smoke fails, the workflow runs an independent `--confirm` probe. Maintenance mode
+is enabled only when both the primary and confirmation probes fail, or when the decision step
+itself is unavailable. A passing confirmation leaves production live and records a warning in the
+run plus `production-verification.json`. This preserves fail-closed protection while avoiding an
+unnecessary maintenance window for a temporary edge request failure.
+
+Recovery when maintenance is active:
+
+1. Inspect the failed run's `PROBE` lines and `production-verification.json`.
+2. If both probes failed for an application reason, fix and redeploy current `main`. Do not
+   manually disable maintenance without a healthy confirmation.
+3. The deployment script detects an existing maintenance window, preserves it during the atomic
+   replacement, and deactivates it only after migration/identity verification and a successful
+   smoke/confirmation path.
+
+## Replacement and calendar operations
+
+Accepted missed-lesson replacements use the existing canonical authority:
+
+- `dzn_replacement_system_user_id` — active service user with only
+  `dzn_manage_canonical_lessons` and `dzn_manage_canonical_lesson_schedules`; no
+  `manage_options` and no provider-integration capability.
+- `dzn_reschedule_system_user_id` — scheduling capability only.
+- `dzn_reschedule_calendar_system_user_id` — provider-integration capability only; no canonical
+  schedule or administrator capability.
+- `dzn_platform_provider_projection_worker_principal` — subscriber service user with only
+  `dzn_dispatch_provider_integrations`; no canonical schedule, management, revoke, ingest, connect
+  or administrator capability.
+
+Student acceptance creates the replacement Lesson and its first schedule version in one
+transaction, then queues one idempotent notification set and one `lesson_reschedule_calendar_jobs`
+row. The job targets the replacement Lesson; a later reschedule of that replacement uses the same
+Lesson and queues a new job from the old schedule version to the new one. The real Google worker
+uses deterministic provider command keys and the transport converges on HTTP `409` by reading the
+same event; retries therefore never intentionally create a second event. Deterministic provider
+refusals are terminal; transport/outage failures use bounded backoff. A provider failure never
+rolls back the committed canonical replacement.
+
+## One-job calendar recovery
+
+When the read-only release diagnostic reports a failed calendar job with
+`"recoverable": true`, recover exactly that job:
+
+```sh
+gh workflow run recover-production-calendar-job.yml --ref main   -f commit_sha=<current-main-sha> -f job_id=<job-id> -f confirm=RECOVER
+```
+
+The workflow verifies the exact main SHA and the literal `RECOVER` confirmation, then the payload
+re-proves that the job is `failed`, its proposal is `accepted`, the Lesson is active and the target
+schedule version is still the applicable, non-superseded version. It requeues only that job,
+dispatches it under the existing calendar actor, optionally runs the Google projection worker, and
+prints safe job/mapping state booleans. It never edits canonical lessons, attendance, payments,
+enrolments, proposals or notifications. A provider failure leaves the job visible as `retry`/`failed`;
+the committed canonical schedule is never reversed.
+
+## Pending Google Calendar/Meet projections
+
+When the diagnostic reports pending calendar projections, run the existing projection worker
+through the audited one-shot workflow:
+
+```sh
+gh workflow run dispatch-production-calendar-projections.yml --ref main   -f commit_sha=<current-main-sha> -f confirm=DISPATCH
+```
+
+The payload verifies the projection-worker principal and Google OAuth configuration, runs the
+existing `GoogleCalendarProjectionWorker`, and reports pending-before/after, verified count and
+verified join-reference count. It never edits canonical lessons, schedules, attendance, payments,
+enrolments, proposals or notifications. The Google projection service refreshes an expired active
+credential through the existing encrypted refresh token before projecting; a failed refresh leaves
+the mapping pending/fail-closed and visible. The diagnostic reports `join_reference_present` and
+`portal_join_ready` without printing the Meet URL.
+
+## Staging acceptance and production diagnostics
+
+The disposable attendance runtime is the staging acceptance path:
+
+```sh
+DZN_RUNTIME_STATE_DIR=/tmp/dzn-attendance-runtime DZN_COMPOSE_PROJECT=dzn-attendance-runtime DZN_WP_PORT=18086 platform/runtime/bin/run-attendance-runtime.sh
+```
+
+It creates synthetic WordPress principals, Teacher/Student links, an Enrolment, Term, Teacher
+Assignment and Lessons; reports a missed class; presumes completion; proposes and accepts a
+replacement; reads both portal projections; verifies the linked replacement, preserved original,
+allowance consumption, notification rows, calendar job and replacement reschedule. It does not
+contact a live Google account.
+
+Read-only production diagnostics:
+
+```sh
+gh workflow run diagnose-production-release.yml --ref main -f commit_sha=<current-main-sha>
+gh workflow run diagnose-production-google-oauth.yml --ref main -f commit_sha=<current-main-sha>
+```
+
+The release diagnostic reports schema/build, maintenance state, replacement/reschedule/calendar
+actor capabilities, replacement proposal and Lesson counts, calendar-job states, stale jobs,
+notification states and worker cron hooks. It never prints secrets or mutates production.
+
+Known limitation: a live Google Calendar/Meet event for a real replacement is not created by the
+staging fixture. Verification of the final provider write requires a staging Google account and
+calendar specifically authorised for testing. Do not create synthetic lesson changes in production
+to satisfy that test.
+
 ## Pre-launch acceptance data
 
 The live staging environment is being retired separately after its hosting account, database, and storage boundaries are positively verified. The staging deployment workflow is removed from the source tree. Production acceptance data must remain blocked until authenticated inspection confirms there is no genuine academy data and the synthetic fixture has an exact, complete manifest and verified teardown for every created record.
@@ -35,6 +155,35 @@ The live staging environment is being retired separately after its hosting accou
 - `.github/workflows/deploy-production.yml` -> protected, manual production release
 
 Generated `deploy-platform` and `deploy-theme` subtree branches are legacy packaging artefacts. `deployment/sync-mirrors.sh` force-pushes component mirrors and does not back up, migrate, or verify a production deployment. Do not use it for releases.
+
+## Release 2026-10-29
+
+Release `25857feb8b2246fddb3a67d54b7f3c2396e77384` (build `main-25857feb8b22`, schema 54) merged
+#404 and deployed in run `40824363269`. It adds the unified notification management workspace, branded
+email shell, editable immutable copy and the additive Schema 056 website inbox. Smoke passed; the
+read-only diagnostic (`40824807952`) reports schema 54 and the deployed build. Copy is configured, but
+no transport channel or new recipient category is activated. Back up the database and application files
+before any rollback; dropping `portal_notifications` is safe only after code rollback. See
+`platform/docs/RELEASE-2026-10-29-UNIFIED-NOTIFICATIONS.md`.
+
+## Release 2026-10-29 (footer and homepage pricing surface)
+
+PR #425 restored the footer and homepage price-finale turquoise backgrounds.
+The cause was four self-referential design tokens, not a selector or block-style
+override: `--dzn-color-text-secondary`, `--dzn-color-on-action`,
+`--dzn-color-on-dark` and `--dzn-color-surface-elevated` resolved to
+transparent. The original token values were restored in `theme.css`; the
+active selectors are `.site-footer` and `.dzn-story__finale` (the transparent
+`.dzn-price-ledger` sits inside the finale). No schema, attendance, enrolment,
+payment, scheduling or replacement rule changed.
+
+The fix merge is `45dbd2d0630795a5586c40234db61e1f4cfa60fd`. It was first
+deployed in `e07b98cdaa37fc6e981dc54991bcaccc9a55e4df` (run `40837789338`) and
+is included in the current production build
+`ab5a4ac2a1ff878e6b666e66d2c369a2a5405b90` (build `main-ab5a4ac2a1ff`, schema
+54, run `40838148666`, smoke passed). A stale-SHA dispatch at `45dbd2d` was
+correctly refused by the exact-current-main gate. See
+`platform/docs/RELEASE-2026-10-29-FOOTER-PRICING.md`.
 
 ## Payment plan selection and interim attendance (Schema 52)
 
@@ -88,6 +237,27 @@ post-intro lifecycle (booking → delivered intro → settlement → 12 canonica
 partial recovery), and the interim attendance/presumed-completion runtime. It is an operator
 command; CI still runs the individual jobs. A release is not ready if this command does not end with
 `Student lifecycle regression bundle: PASS`.
+
+## Release 2026-10-29 (CSS and authenticated portal accessibility follow-up)
+
+The CSS consolidation from #402 and the portal accessibility follow-up from
+#407 are deployed. #407 was deployed at
+`3939feed0ec977f056eaf3ed262d4d2dbfbce167` (build `main-3939feed0ec9`, run
+`40826085963`) and is included in the current production build
+`ab5a4ac2a1ff878e6b666e66d2c369a2a5405b90` (see the footer/pricing release
+above). Both deployment artifacts record `status: deployed`; the read-only
+production smoke gate passed.
+
+The follow-up fixes long teacher status labels wrapping at 200% text and gives
+rendered nonce fields request-unique DOM ids via `dzn_theme_nonce_field()`;
+field names, actions and server-side verification are unchanged. No attendance,
+enrolment, payment, scheduling or replacement rule changed, and there is no
+schema change. A code-only rollback to `9ba61e639b1a` is safe.
+
+Authenticated Student/Teacher verification was run in the isolated acceptance
+runtime with the deployed theme/CSS and the Phase-J/post-intro synthetic
+lessons. Authenticated production accounts remain unavailable; see
+`platform/docs/CSS-AUTH-VERIFICATION-2026-10-29.md`.
 
 ## Release 2026-10-27
 

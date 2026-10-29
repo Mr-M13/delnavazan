@@ -123,6 +123,9 @@ jobs:
           php platform/tests/renewal-historical-upgrade-unit.php
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
+          php platform/tests/notification-management-contract.php
+          php platform/tests/notification-management-unit.php
+          php platform/tests/notification-admin-language-contract.php
           php platform/tests/notification-action-link-policy-contract.php
           php platform/tests/teacher-invitation-presentation-contract.php
           php platform/tests/branded-password-reset-contract.php
@@ -212,11 +215,24 @@ jobs:
           php platform/tests/teacher-workspaces-contract.php
           php platform/tests/admin-navigation-teacher-finance-contract.php
           php platform/tests/admin-navigation-target-contract.php
+          php platform/tests/admin-dashboard-ux-contract.php
+          php platform/tests/admin-dashboard-screen-unit.php
+          php platform/tests/admin-dashboard-review-fixes-contract.php
+          php platform/tests/academy-pipeline-stage-unit.php
           php platform/tests/admin-navigation-composite-cap-unit.php
           php platform/tests/admin-shell-route-capability-runtime.php
           php platform/tests/admin-read-capability-authority.php
           php platform/tests/student-operations-journey-contract.php
           php platform/tests/lesson-operator-workflow-contract.php
+          php platform/tests/lesson-reschedule-migration-contract.php
+          php platform/tests/lesson-reschedule-service-unit.php
+          php platform/tests/lesson-reschedule-calendar-unit.php
+          php platform/tests/lesson-reschedule-notification-unit.php
+          php platform/tests/lesson-reschedule-system-actors-unit.php
+          php platform/tests/lesson-replacement-service-unit.php
+          php platform/tests/google-calendar-transport-unit.php
+          php platform/tests/google-credential-refresher-unit.php
+          php platform/tests/missed-lesson-replacement-contract.php
           php platform/tests/class-portal-completion-contract.php
           php platform/tests/canonical-lesson-admin-class-resolution-unit.php
           php platform/tests/canonical-lesson-admin-permission-unit.php
@@ -249,6 +265,15 @@ jobs:
             echo 'Operations portal contract not present on this PR base yet.'
           fi
 
+      - name: Run CSS architecture and overflow contract
+        run: php platform/tests/css-architecture-contract.php
+
+      - name: Run portal nonce-id and text-resize contract
+        run: php platform/tests/portal-nonce-id-contract.php
+
+      - name: Run homepage footer/pricing background contract
+        run: php platform/tests/homepage-footer-pricing-background-contract.php
+
       - name: Check reusable site smoke runner syntax
         run: bash -n deployment/qa/site-smoke.sh
 
@@ -265,6 +290,10 @@ jobs:
           bash -n deployment/qa/production-google-oauth-diagnostic.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
           bash deployment/qa/production-google-oauth-diagnostic-contract.sh
+          bash deployment/qa/provision-production-replacement-actor-contract.sh
+          bash deployment/qa/production-calendar-job-recovery-contract.sh
+          bash deployment/qa/provision-production-projection-worker-contract.sh
+          bash deployment/qa/production-calendar-projection-dispatch-contract.sh
 
   stripe-runtime-e2e:
     name: Stripe runtime E2E

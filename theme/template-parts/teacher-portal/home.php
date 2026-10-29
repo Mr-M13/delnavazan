@@ -22,6 +22,7 @@ $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_
 <?php endif; ?>
 <?php dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array() ) ); ?>
+<?php dzn_theme_teacher_portal_component( 'notifications', array( 'items' => $model['notifications'] ?? array(), 'available' => ! empty( $model['notifications_available'] ), 'unread' => (int) ( $model['notification_unread_count'] ?? 0 ), 'actions' => $model['notification_actions'] ?? array() ) ); ?>
 <?php
 // Today is the operational screen: pending work first, then the current local day only.
 // The full list, including future days and the 30-day calendar, belongs to the Classes tab.
@@ -37,3 +38,4 @@ dzn_theme_teacher_portal_component(
 	)
 );
 ?>
+<?php dzn_theme_teacher_portal_component( 'support', array() ); ?>

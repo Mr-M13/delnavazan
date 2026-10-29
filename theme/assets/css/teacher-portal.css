@@ -1,158 +1,1429 @@
-.dzn-teacher-portal{background:var(--dzn-color-background);color:var(--dzn-color-text-primary);padding-block-end:clamp(3rem,7vw,6rem)}
-.dzn-tp-masthead{background:linear-gradient(135deg,var(--dzn-color-surface-elevated),var(--dzn-color-background));border-block-end:1px solid var(--dzn-color-border);padding:clamp(2rem,6vw,4.5rem) 0}
-.dzn-tp-masthead__inner{display:grid;gap:1.5rem}.dzn-tp-masthead h1{font-size:clamp(2rem,7vw,4rem);margin:.25rem 0}.dzn-tp-masthead nav ul{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;margin:0;padding:0}.dzn-tp-masthead nav a{border:1px solid var(--dzn-color-border);border-radius:999px;display:block;padding:.6rem 1rem;text-decoration:none}.dzn-tp-masthead nav a[aria-current=page]{background:var(--dzn-color-action-primary);color:var(--dzn-color-on-action)}
-.dzn-tp-content{display:grid;gap:1.25rem;padding-block-start:1.5rem}.dzn-tp-demo{background:var(--dzn-color-highlight);border-radius:.75rem;padding:.75rem 1rem}.dzn-tp-section,.dzn-tp-banner{background:var(--dzn-color-surface);border:1px solid var(--dzn-color-border);border-radius:1.25rem;padding:clamp(1rem,4vw,2rem)}.dzn-tp-kicker{color:var(--dzn-color-text-secondary);font-size:.85rem;font-weight:700;margin:0}.dzn-tp-heading{align-items:start;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;margin-block-end:1rem}.dzn-tp-heading h2{margin:.2rem 0 0}.dzn-tp-banner{align-items:start;border-inline-start:5px solid var(--dzn-color-information);display:flex;gap:.75rem}.dzn-tp-banner.is-technical,.dzn-tp-banner.is-error{border-inline-start-color:var(--dzn-color-error)}
-.dzn-tp-attention-grid{display:grid;gap:1rem}.dzn-tp-attention-card{border:1px solid var(--dzn-color-border);border-inline-start:5px solid var(--dzn-color-warning);border-radius:1rem;padding:1rem}.dzn-tp-attention-card.is-student_absence,.dzn-tp-attention-card.is-google_problem,.dzn-tp-attention-card.is-unknown{border-inline-start-color:var(--dzn-color-error)}.dzn-tp-attention-card.is-replacement,.dzn-tp-attention-card.is-teacher_issue{border-inline-start-color:var(--dzn-color-warning)}.dzn-tp-attention-card.is-intro_request{border-inline-start-color:var(--dzn-color-accent)}.dzn-tp-attention-card.is-term_review,.dzn-tp-attention-card.is-flexible_term{border-inline-start-color:var(--dzn-color-action-primary)}.dzn-tp-state{font-size:.85rem;font-weight:700}.dzn-tp-actions{display:flex;flex-wrap:wrap;gap:.5rem}
-.dzn-tp-class-list{display:grid;gap:.75rem}.dzn-tp-class{align-items:center;border:1px solid var(--dzn-color-border);border-radius:1rem;display:grid;gap:1rem;grid-template-columns:4rem 1fr;padding:1rem}.dzn-tp-class>time{font-size:1.1rem;font-weight:800}.dzn-tp-class.is-student_absence{border-inline-start:5px solid var(--dzn-color-error)}.dzn-tp-class.is-replacement{border-inline-start:5px solid var(--dzn-color-warning)}.dzn-tp-class.is-intro{border-inline-start:5px solid var(--dzn-color-accent)}.dzn-tp-class-details{grid-column:1/-1;border-block-start:1px solid var(--dzn-color-border);padding-block-start:1rem}.dzn-tp-detail-grid{display:grid;gap:1rem}.dzn-tp-private-note,.dzn-tp-practice{border-radius:.75rem;margin-block-start:1rem;padding:1rem}.dzn-tp-private-note{background:#fff3dd;border:2px solid var(--dzn-color-warning)}.dzn-tp-practice{background:#e8f8f5;border:2px solid var(--dzn-color-action-primary)}.dzn-tp-private-note textarea,.dzn-tp-practice textarea{box-sizing:border-box;width:100%}
-.dzn-tp-calendar{display:grid;gap:.75rem}.dzn-tp-calendar article{border-inline-start:4px solid var(--dzn-color-information);display:grid;gap:.25rem;padding:.75rem 1rem}.dzn-tp-calendar .is-intro{border-color:var(--dzn-color-accent)}.dzn-tp-calendar .is-replacement{border-color:var(--dzn-color-warning)}.dzn-tp-calendar .is-student_absence,.dzn-tp-calendar .is-unknown{border-color:var(--dzn-color-error)}
-.dzn-tp-help-grid,.dzn-tp-form-grid,.dzn-tp-availability,.dzn-tp-stats{display:grid;gap:1rem}.dzn-tp-form-grid label{display:grid;gap:.4rem}.dzn-tp-form-grid input,.dzn-tp-form-grid select{min-height:2.8rem;padding:.5rem}.dzn-tp-availability article{border:1px solid var(--dzn-color-border);border-radius:.75rem;display:flex;flex-direction:column;gap:.5rem;padding:1rem}.dzn-tp-availability span{border-radius:.4rem;padding:.35rem .5rem}.dzn-tp-availability .is-available{background:#e8f8f5}.dzn-tp-availability .is-booked{background:#ece9f7;border:1px dashed var(--dzn-color-accent)}.dzn-tp-recommended{background:var(--dzn-color-highlight);padding:.75rem}.dzn-tp-stats{grid-template-columns:repeat(2,1fr)}.dzn-tp-stats div{border:1px solid var(--dzn-color-border);border-radius:.75rem;display:grid;padding:1rem}.dzn-tp-stats strong{font-size:1.5rem}.dzn-tp-statement{align-items:center;border-block-start:1px solid var(--dzn-color-border);display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;margin-block-start:1rem;padding-block-start:1rem}
-.dzn-tp-onboarding{display:grid;gap:.6rem;padding-inline-start:1.5rem}.dzn-tp-onboarding li{border-inline-start:4px solid var(--dzn-color-border);padding:.5rem}.dzn-tp-onboarding .is-complete{border-color:var(--dzn-color-success)}.dzn-tp-onboarding .is-current{border-color:var(--dzn-color-action-primary);font-weight:800}.dzn-tp-checklist{display:grid;gap:.75rem;margin-block:1rem}.dzn-tp-help{color:var(--dzn-color-text-secondary);font-size:.9rem}
-.dzn-tp-dialog{border:0;border-radius:1rem;max-inline-size:min(90vw,40rem);padding:0}.dzn-tp-dialog::backdrop{background:rgba(20,31,32,.65)}.dzn-tp-dialog>div{padding:1.5rem}.dzn-tp-dialog[data-dzn-tp-fallback=disclosure]{display:block;margin:1rem 0;position:static}.dzn-tp-close{float:left;font-size:1.5rem}.dzn-tp-schedule-summary{columns:2;max-height:15rem;overflow:auto}.dzn-teacher-portal :focus-visible{outline:3px solid var(--dzn-color-focus);outline-offset:3px}
-@media(min-width:48rem){.dzn-tp-masthead__inner{align-items:end;grid-template-columns:1fr auto}.dzn-tp-attention-grid{grid-template-columns:repeat(2,1fr)}.dzn-tp-class{grid-template-columns:5rem 1fr auto}.dzn-tp-calendar{grid-template-columns:repeat(4,1fr)}.dzn-tp-detail-grid,.dzn-tp-form-grid{grid-template-columns:repeat(2,1fr)}.dzn-tp-availability{grid-template-columns:repeat(3,1fr)}.dzn-tp-stats{grid-template-columns:repeat(5,1fr)}}
-@media(min-width:80rem){.dzn-tp-attention-grid{grid-template-columns:repeat(3,1fr)}}
+/*
+ * Teacher Portal
+ *
+ * Ownership: teacher shell, today/upcoming class cards, attention tasks,
+ * availability and account presentation, finance summary and the shared
+ * teacher dialogs. Design tokens live in theme.css; this file only defines
+ * role-specific semantic aliases and component rules.
+ *
+ * Canonical breakpoints: 35rem (compact phone), 48rem (tablet), 60rem (finance),
+ * 80rem (wide). Every state variant sits beside its owning component.
+ */
 
-.dzn-tp-form{display:grid;gap:1rem}.dzn-tp-inline-form{margin-block:1rem}.dzn-tp-form input,.dzn-tp-form select{box-sizing:border-box;max-inline-size:100%;width:100%}.dzn-tp-form :disabled{cursor:not-allowed;opacity:.72}.dzn-tp-notice,.dzn-tp-review-note{border-inline-start:4px solid var(--dzn-color-information);border-radius:.5rem;margin-block:1rem;padding:.8rem 1rem}.dzn-tp-notice.is-success{background:#e8f8f5;border-color:var(--dzn-color-success)}.dzn-tp-notice.is-error,.dzn-tp-review-note{background:#fff3dd;border-color:var(--dzn-color-warning)}.dzn-tp-rule-list{display:grid;gap:.5rem;margin-block:1rem;padding-inline-start:1.25rem}.dzn-tp-rule-list li{border-block-end:1px solid var(--dzn-color-border);padding:.5rem 0}
-.dzn-teacher-portal form,.dzn-teacher-portal fieldset,.dzn-tp-rule-list li{min-inline-size:0}.dzn-teacher-portal button,.dzn-teacher-portal .dzn-button{min-block-size:2.75rem}.dzn-tp-review-note,.dzn-tp-rule-list li{overflow-wrap:anywhere}
+.dzn-teacher-portal {
+  --dzn-tp-surface: var(--dzn-color-surface);
+  --dzn-tp-card: var(--dzn-color-surface-elevated);
+  --dzn-tp-border: var(--dzn-color-border);
+  --dzn-tp-shadow: 0 1px 2px rgb(var(--dzn-rgb-ink) / .05);
+  --dzn-tp-state-neutral-bg: var(--dzn-color-surface-sunken);
+  --dzn-tp-state-success-bg: color-mix(in srgb, var(--dzn-color-success) 12%, var(--dzn-color-surface-elevated));
+  --dzn-tp-state-warning-bg: color-mix(in srgb, var(--dzn-color-warning) 12%, var(--dzn-color-surface-elevated));
+  --dzn-tp-state-error-bg: color-mix(in srgb, var(--dzn-color-error) 10%, var(--dzn-color-surface-elevated));
+  --dzn-tp-state-info-bg: color-mix(in srgb, var(--dzn-color-information) 10%, var(--dzn-color-surface-elevated));
+  --dzn-tp-state-accent-bg: color-mix(in srgb, var(--dzn-color-accent) 9%, var(--dzn-color-surface-elevated));
+  --dzn-tp-state-gold-bg: color-mix(in srgb, var(--dzn-color-highlight) 22%, var(--dzn-color-surface-elevated));
+  background: var(--dzn-color-background);
+  color: var(--dzn-color-text-primary);
+  padding-block-end: clamp(3rem, 7vw, 6rem);
+  font-size: 1rem;
+  line-height: var(--dzn-leading-ui);
+}
 
-@media(max-width:35rem){.dzn-tp-masthead nav,.dzn-tp-masthead nav ul,.dzn-tp-masthead nav li,.dzn-tp-masthead nav a{inline-size:100%}.dzn-tp-masthead nav a{text-align:center}.dzn-tp-class{grid-template-columns:1fr}.dzn-tp-class-details{grid-column:1}.dzn-tp-section,.dzn-tp-banner{border-radius:.8rem}.dzn-teacher-portal button,.dzn-teacher-portal .dzn-button{inline-size:100%}}
+/* -------------------------------------------------------------------------
+   Shell: compact masthead, sticky mobile app bar and one bottom tab bar.
+   ------------------------------------------------------------------------- */
 
-.dzn-tp-tour-entry{display:flex;justify-content:flex-end;margin-block-end:1rem}.dzn-tp-tour__steps{display:grid;gap:1rem;padding-inline-start:1.4rem}.dzn-tp-tour__steps li{padding-inline-start:.25rem}.dzn-tp-tour__steps p{margin:.25rem 0 0}
+.dzn-tp-masthead {
+  border-block-end: 1px solid var(--dzn-tp-border);
+  background: linear-gradient(135deg, var(--dzn-color-surface-elevated), var(--dzn-color-background));
+  padding: 1rem 0;
+}
 
-/* Presentation completion: upcoming lessons, schedule clarity, states, mobile and accessibility. */
-.dzn-tp-sr{border:0;clip:rect(0 0 0 0);clip-path:inset(50%);block-size:1px;inline-size:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;white-space:nowrap}
-.dzn-tp-class-list{list-style:none;margin:0;padding:0}
-.dzn-tp-class{align-items:start;grid-template-columns:auto 1fr}
-.dzn-tp-class__time{font-size:1.25rem;font-weight:800;margin:0;min-inline-size:4.5rem}
-.dzn-tp-class__body h3{margin:0 0 .25rem;overflow-wrap:anywhere}
-.dzn-tp-class__body p{margin:.15rem 0}
-.dzn-tp-class__schedule{color:var(--dzn-color-text-secondary);overflow-wrap:anywhere}
-.dzn-tp-class__help{grid-column:1/-1;margin:0}
-.dzn-tp-class.is-starting_soon{border-inline-start:5px solid var(--dzn-color-action-primary)}
-.dzn-tp-class.is-unknown{border-inline-start:5px solid var(--dzn-color-error)}
-.dzn-tp-class .dzn-tp-actions{align-items:center;grid-column:1/-1}
-@media(min-width:48rem){.dzn-tp-class{grid-template-columns:5rem 1fr auto}.dzn-tp-class .dzn-tp-actions{grid-column:auto}.dzn-tp-class__help,.dzn-tp-class-details{grid-column:1/-1}}
-.dzn-tp-class .dzn-tp-actions form{display:contents}
-.dzn-tp-empty{border:1px dashed var(--dzn-color-border);border-radius:1rem;padding:1.25rem}
-.dzn-tp-empty h3{margin:0 0 .5rem}.dzn-tp-empty p{margin:0 0 1rem}.dzn-tp-empty :last-child{margin-block-end:0}
-.dzn-tp-calendar{list-style:none;margin:0;padding:0}
-.dzn-tp-calendar li{border-inline-start:4px solid var(--dzn-color-information);display:grid;gap:.25rem;padding:.75rem 1rem}
-.dzn-tp-calendar li p{margin:0}.dzn-tp-calendar__time{font-weight:800}.dzn-tp-calendar li strong{overflow-wrap:anywhere}
-.dzn-tp-calendar li.is-intro{border-color:var(--dzn-color-accent)}.dzn-tp-calendar li.is-replacement{border-color:var(--dzn-color-warning)}.dzn-tp-calendar li.is-student_absence,.dzn-tp-calendar li.is-unknown{border-color:var(--dzn-color-error)}
-.dzn-tp-notice{font-weight:700}
-.dzn-tp-unavailable .dzn-button{display:inline-block;text-decoration:none}
-.dzn-tp-dialog{max-block-size:90vh;overflow:auto}
-.dzn-tp-dialog .dzn-tp-actions form{margin:0}
-.dzn-teacher-portal [aria-busy=true]{cursor:progress}
-.dzn-teacher-portal button:disabled{cursor:not-allowed}
-@media(max-width:35rem){.dzn-tp-class{grid-template-columns:1fr}.dzn-tp-class__time{min-inline-size:0}.dzn-tp-class .dzn-tp-actions form{display:block;inline-size:100%}.dzn-tp-dialog{max-inline-size:100vw;inline-size:calc(100vw - 1rem)}.dzn-tp-heading>span{inline-size:100%}}
-@media(forced-colors:active){.dzn-tp-class,.dzn-tp-attention-card,.dzn-tp-calendar li{border:1px solid CanvasText}}
-@media(prefers-reduced-motion:reduce){.dzn-teacher-portal *{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+.dzn-tp-masthead__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem 1.25rem;
+}
 
-/* Integrated presentation layer: date/timezone clarity, lesson details and responsive states. */
-.dzn-tp-heading__meta{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
-.dzn-tp-count-badge,.dzn-timezone-label{display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;font-weight:600;color:var(--dzn-color-text-secondary);background:var(--dzn-color-surface-elevated,#f4f4f5);padding:.3rem .75rem;border-radius:999px;border:1px solid var(--dzn-color-border)}
-.dzn-tp-class-list{display:grid;gap:1rem}
-.dzn-tp-class{align-items:center;grid-template-columns:5.5rem minmax(0,1fr);gap:1.25rem;background:var(--dzn-color-surface)}
-.dzn-tp-class.is-upcoming{border-inline-start:5px solid var(--dzn-color-action-primary)}
-.dzn-tp-class.is-student_absence{border-inline-start:5px solid var(--dzn-color-error)}
-.dzn-tp-class.is-replacement{border-inline-start:5px solid var(--dzn-color-warning)}
-.dzn-tp-class.is-intro{border-inline-start:5px solid var(--dzn-color-information)}
-.dzn-tp-class.is-flexible{border-inline-start:5px solid #0d9488}
-.dzn-tp-class__time-col{display:flex;flex-direction:column;align-items:start;min-inline-size:0}
-.dzn-tp-class__time{display:flex;flex-direction:column;gap:.2rem;font-size:inherit;font-weight:inherit;min-inline-size:0}
-.dzn-tp-time-clock{font-size:1.35rem;font-weight:800;line-height:1.1;white-space:nowrap}
-.dzn-tp-time-date{font-size:.8rem;font-weight:600;color:var(--dzn-color-text-secondary)}
-.dzn-tp-class__info-col{display:grid;gap:.4rem;min-inline-size:0}
-.dzn-tp-class__title-row{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
-.dzn-tp-class__student{margin:0;font-size:1.2rem;font-weight:700;overflow-wrap:anywhere}
-.dzn-tp-class__course-line{margin:0;font-size:.95rem;color:var(--dzn-color-text-secondary);display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
-.dzn-tp-class__course{font-weight:600;color:var(--dzn-color-text-primary)}
-.dzn-tp-class__schedule-summary{margin:0;font-size:.85rem;color:var(--dzn-color-text-secondary);display:flex;align-items:flex-start;gap:.35rem;overflow-wrap:anywhere}
-.dzn-tp-state{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.2rem .65rem;border-radius:999px;line-height:1.4;white-space:nowrap}
-.dzn-tp-state__bullet{font-size:.65rem}
-.dzn-tp-state--starting_soon{background:#fee2e2;color:#991b1b;border:1px solid #f87171}
-.dzn-tp-state--upcoming{background:#f0fdf4;color:#166534;border:1px solid #86efac}
-.dzn-tp-state--student_absence{background:#fff7ed;color:#9a3412;border:1px solid #fdba74}
-.dzn-tp-state--replacement{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
-.dzn-tp-state--intro{background:#eff6ff;color:#1e40af;border:1px solid #93c5fd}
-.dzn-tp-state--flexible{background:#f0fdfa;color:#115e59;border:1px solid #5eead4}
-.dzn-tp-state--unknown{background:#f4f4f5;color:#52525b;border:1px solid #d4d4d8}
-.dzn-tp-btn-join{display:inline-flex;align-items:center;gap:.4rem;font-weight:700}
-.dzn-tp-class-details{display:grid;gap:1.25rem}
-.dzn-tp-detail-card{border:1px solid var(--dzn-color-border);border-radius:.75rem;padding:1.25rem;background:var(--dzn-color-surface-elevated,#fafafa);display:grid;gap:.75rem;align-content:start}
-.dzn-tp-detail-card h4{margin:0;font-size:1rem}
-.dzn-tp-detail-card p{margin:0;font-size:.9rem;line-height:1.6}
-.dzn-tp-detail-help{color:var(--dzn-color-text-secondary)}
-.dzn-tp-calendar li{background:var(--dzn-color-surface-elevated,#fafafa);border-radius:.5rem}
-.dzn-tp-calendar__day{margin:0;font-size:.85rem;color:var(--dzn-color-text-secondary)}
-.dzn-tp-calendar__time{font-size:1.1rem;font-weight:700}
-.dzn-tp-calendar__label{font-size:.95rem}
-.dzn-tp-empty-state{border:2px dashed var(--dzn-color-border);border-radius:1rem;padding:2.5rem 1.5rem;text-align:center;background:var(--dzn-color-surface-elevated,#fafafa);display:grid;justify-items:center;gap:.75rem}
-.dzn-tp-empty-state h3{margin:0;font-size:1.2rem}
-.dzn-tp-empty-state p{margin:0;max-inline-size:36rem;color:var(--dzn-color-text-secondary);line-height:1.6;font-size:.95rem}
-.dzn-tp-empty-state__actions{margin-block-start:.75rem;display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center}
-.dzn-tp-empty-state--compact{border-style:solid;border-width:1px;padding:1rem 1.25rem;justify-items:start;text-align:start}
-.dzn-tp-empty-state--compact p{max-inline-size:100%}
-.dzn-tp-unavailable{display:grid;gap:1rem}
-.dzn-tp-unavailable h2{margin:0}
-.dzn-tp-unavailable p{margin:0;color:var(--dzn-color-text-secondary);line-height:1.6}
-.dzn-tp-unavailable__actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-block-start:.5rem}
-.dzn-button--danger{color:#dc2626!important;border-color:#fca5a5!important;background:#fef2f2!important}
-.dzn-button--danger:hover{background:#fee2e2!important;border-color:#f87171!important}
-.dzn-button--small{min-block-size:2.2rem!important;padding:.3rem .75rem!important;font-size:.85rem!important}
-@media(min-width:48rem){.dzn-tp-class{grid-template-columns:6.5rem minmax(0,1fr) auto}.dzn-tp-stats{grid-template-columns:repeat(4,1fr)}}
-@media(max-width:35rem){.dzn-tp-class{grid-template-columns:1fr}.dzn-tp-class__time{min-inline-size:0}.dzn-tp-actions{inline-size:100%}.dzn-tp-actions form{inline-size:100%}}
+.dzn-tp-masthead h1 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.2vw, 1.65rem);
+}
 
-/* =========================================================
-   RESPONSIVE SHELL AND SEMANTIC STATE TOKENS
-   ========================================================= */
+.dzn-tp-masthead nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-tp-masthead nav a {
+  display: block;
+  min-block-size: 2.35rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: var(--dzn-radius-pill);
+  padding: .38rem .75rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: .88rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dzn-tp-masthead nav a:hover,
+.dzn-tp-masthead nav a:focus-visible {
+  border-color: var(--dzn-color-action-primary);
+  background: var(--dzn-color-surface-elevated);
+}
+
+.dzn-tp-masthead nav a[aria-current="page"] {
+  border-color: var(--dzn-color-action-primary);
+  background: var(--dzn-color-action-primary);
+  color: var(--dzn-color-on-action);
+}
+
+.dzn-tp-account {
+  margin: 0;
+}
+
+.dzn-tp-account a {
+  font-size: .88rem;
+  font-weight: 700;
+  text-decoration: none;
+}
 
 .dzn-tp-appbar,
 .dzn-tp-tabs {
   display: none;
 }
 
-.dzn-teacher-portal {
-  --dzn-tp-state-warning-bg: color-mix(in srgb, var(--dzn-color-warning) 12%, var(--dzn-color-surface));
-  --dzn-tp-state-success-bg: color-mix(in srgb, var(--dzn-color-success) 12%, var(--dzn-color-surface));
-  --dzn-tp-state-info-bg: color-mix(in srgb, var(--dzn-color-information) 10%, var(--dzn-color-surface));
+.dzn-tp-content {
+  display: grid;
+  gap: 1.25rem;
+  padding-block-start: 1.5rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-content > * {
+  min-inline-size: 0;
+}
+
+.dzn-tp-demo {
+  margin: 0;
+  border: 1px solid var(--dzn-color-highlight);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-highlight);
+  padding: .6rem 1rem;
+  color: var(--dzn-color-text-primary);
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------
+   Shared section, heading, notice and empty-state primitives.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-section {
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: 1.1rem;
+  background: var(--dzn-tp-surface);
+  padding: clamp(.9rem, 2.5vw, 1.35rem);
+}
+
+.dzn-tp-banner {
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .85rem;
+  background: var(--dzn-color-information-surface);
+  padding: clamp(.9rem, 2.5vw, 1.35rem);
+}
+
+.dzn-tp-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: .75rem 1rem;
+  margin-block-end: .9rem;
+}
+
+.dzn-tp-heading h2 {
+  margin: .1rem 0 0;
+}
+
+.dzn-tp-heading__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+.dzn-tp-heading--sub {
+  align-items: center;
+  margin-block-end: .6rem;
+}
+
+.dzn-tp-heading--sub h3 {
+  margin: 0;
   font-size: 1rem;
+}
+
+.dzn-tp-kicker {
+  margin: 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.dzn-tp-help,
+.dzn-tp-muted {
+  color: var(--dzn-color-text-secondary);
+  font-size: .9rem;
+}
+
+.dzn-tp-help {
+  line-height: 1.75;
+}
+
+.dzn-tp-count-badge,
+.dzn-timezone-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-block-size: 1.85rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-color-surface-elevated);
+  padding: .2rem .7rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.dzn-tp-banner {
+  display: flex;
+  align-items: start;
+  gap: .75rem;
+  border-inline-start: 5px solid var(--dzn-color-information);
+}
+
+.dzn-tp-banner.is-technical {
+  border-inline-start-color: var(--dzn-color-warning);
+  background: var(--dzn-color-warning-surface);
+}
+
+.dzn-tp-banner.is-error {
+  border-inline-start-color: var(--dzn-color-error);
+  background: var(--dzn-color-error-surface);
+}
+
+.dzn-tp-banner.is-reminder {
+  border-inline-start-color: var(--dzn-color-warning);
+  background: var(--dzn-color-warning-surface);
+}
+
+.dzn-tp-notice,
+.dzn-tp-review-note {
+  border-inline-start: 4px solid var(--dzn-color-information);
+  border-radius: var(--dzn-radius-sm);
+  margin-block: 1rem;
+  padding: .8rem 1rem;
+}
+
+.dzn-tp-notice {
+  background: var(--dzn-color-information-surface);
+  font-weight: 700;
+}
+
+.dzn-tp-review-note {
+  border-color: var(--dzn-color-warning);
+  background: var(--dzn-color-warning-surface);
+}
+
+.dzn-tp-notice.is-success {
+  border-color: var(--dzn-color-success);
+  background: var(--dzn-color-success-surface);
+  color: var(--dzn-color-success);
+}
+
+.dzn-tp-notice.is-error {
+  border-color: var(--dzn-color-error);
+  background: var(--dzn-color-error-surface);
+  color: var(--dzn-color-error);
+}
+
+.dzn-tp-empty,
+.dzn-tp-empty-state {
+  border: 1px dashed var(--dzn-tp-border);
+  border-radius: 1rem;
+  background: var(--dzn-color-surface-elevated);
+}
+
+.dzn-tp-empty {
+  padding: 1.25rem;
+}
+
+.dzn-tp-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: .6rem;
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+
+.dzn-tp-empty h3,
+.dzn-tp-empty-state h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dzn-tp-empty p,
+.dzn-tp-empty-state p {
+  max-inline-size: 36rem;
+  margin: 0;
+  color: var(--dzn-color-text-secondary);
   line-height: 1.7;
 }
 
-.dzn-tp-notice.is-success,
-.dzn-tp-availability .is-available {
-  background: var(--dzn-tp-state-success-bg);
+.dzn-tp-empty :last-child,
+.dzn-tp-empty-state :last-child {
+  margin-block-end: 0;
 }
 
-.dzn-tp-notice.is-error,
-.dzn-tp-review-note,
-.dzn-tp-private-note {
+.dzn-tp-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  justify-content: center;
+  margin-block-start: .5rem;
+}
+
+.dzn-tp-empty-state--compact {
+  justify-items: start;
+  padding: .9rem 1rem;
+  text-align: start;
+}
+
+.dzn-tp-empty-state--compact p {
+  max-inline-size: 100%;
+}
+
+.dzn-tp-unavailable {
+  display: grid;
+  gap: .75rem;
+}
+
+.dzn-tp-unavailable h2,
+.dzn-tp-unavailable p {
+  margin: 0;
+}
+
+.dzn-tp-unavailable p {
+  color: var(--dzn-color-text-secondary);
+  line-height: 1.7;
+}
+
+.dzn-tp-unavailable__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-block-start: .35rem;
+}
+
+/* -------------------------------------------------------------------------
+   Attention tasks: absence, replacement, rescheduling and technical states.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-attention-grid {
+  display: grid;
+  gap: .85rem;
+}
+
+.dzn-tp-attention-card {
+  display: grid;
+  align-content: start;
+  gap: .35rem;
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-inline-start: 4px solid var(--dzn-color-warning);
+  border-radius: .9rem;
+  background: var(--dzn-tp-card);
+  padding: 1rem;
+  box-shadow: var(--dzn-tp-shadow);
+}
+
+.dzn-tp-attention-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-attention-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-attention-context {
+  color: var(--dzn-color-text-secondary);
+  font-size: .86rem;
+}
+
+.dzn-tp-attention-msg {
+  color: var(--dzn-color-text-primary);
+  font-size: .9rem;
+  line-height: 1.7;
+}
+
+.dzn-tp-attention-card .dzn-tp-state {
+  justify-self: start;
+  background: var(--dzn-tp-state-neutral-bg);
+}
+
+.dzn-tp-attention-card.is-student_absence,
+.dzn-tp-attention-card.is-google_problem,
+.dzn-tp-attention-card.is-reschedule_declined,
+.dzn-tp-attention-card.is-unknown {
+  border-inline-start-color: var(--dzn-color-error);
+}
+
+.dzn-tp-attention-card.is-teacher_disruption,
+.dzn-tp-attention-card.is-teacher_issue,
+.dzn-tp-attention-card.is-availability_conflict,
+.dzn-tp-attention-card.is-replacement {
+  border-inline-start-color: var(--dzn-color-warning);
+}
+
+.dzn-tp-attention-card.is-intro_request,
+.dzn-tp-attention-card.is-admin_request {
+  border-inline-start-color: var(--dzn-color-accent);
+}
+
+.dzn-tp-attention-card.is-term_review,
+.dzn-tp-attention-card.is-paid_term_review,
+.dzn-tp-attention-card.is-flexible_term,
+.dzn-tp-attention-card.is-flexible_term_dates {
+  border-inline-start-color: var(--dzn-color-action-primary);
+}
+
+.dzn-tp-attention-card.is-student_absence .dzn-tp-state,
+.dzn-tp-attention-card.is-google_problem .dzn-tp-state,
+.dzn-tp-attention-card.is-reschedule_declined .dzn-tp-state {
+  background: var(--dzn-tp-state-error-bg);
+  color: var(--dzn-color-error);
+}
+
+.dzn-tp-attention-card.is-teacher_disruption .dzn-tp-state,
+.dzn-tp-attention-card.is-teacher_issue .dzn-tp-state,
+.dzn-tp-attention-card.is-availability_conflict .dzn-tp-state,
+.dzn-tp-attention-card.is-replacement .dzn-tp-state {
   background: var(--dzn-tp-state-warning-bg);
+  color: var(--dzn-color-warning);
 }
 
-.dzn-tp-availability .is-booked {
-  background: var(--dzn-tp-state-info-bg);
+.dzn-tp-attention-card.is-intro_request .dzn-tp-state,
+.dzn-tp-attention-card.is-admin_request .dzn-tp-state {
+  background: var(--dzn-tp-state-accent-bg);
+  color: var(--dzn-color-accent);
 }
 
-.dzn-tp-class.is-in_progress {
+.dzn-tp-attention-card.is-term_review .dzn-tp-state,
+.dzn-tp-attention-card.is-paid_term_review .dzn-tp-state,
+.dzn-tp-attention-card.is-flexible_term .dzn-tp-state,
+.dzn-tp-attention-card.is-flexible_term_dates .dzn-tp-state {
+  background: var(--dzn-tp-state-success-bg);
+  color: var(--dzn-color-success);
+}
+
+.dzn-tp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem;
+}
+
+.dzn-tp-actions form {
+  display: contents;
+  margin: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Class cards: time, student, course, schedule, status, disclosure and actions.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-classes > .dzn-tp-heading {
+  align-items: center;
+  margin-block-end: .35rem;
+}
+
+.dzn-tp-classes > .dzn-tp-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.dzn-tp-classes__guidance {
+  margin-block: 0 .75rem;
+}
+
+.dzn-tp-class-section {
+  margin-block-start: .9rem;
+}
+
+.dzn-tp-class-section__title {
+  margin: 0 0 .5rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: 1rem;
+}
+
+.dzn-tp-class-list {
+  display: grid;
+  gap: .55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-tp-class {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .85rem;
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .8rem;
+  background: var(--dzn-tp-card);
+  padding: .7rem .8rem;
+  box-shadow: var(--dzn-tp-shadow);
+}
+
+.dzn-tp-class.is-compact {
+  gap: .6rem;
+  background: color-mix(in srgb, var(--dzn-color-surface-sunken) 78%, var(--dzn-color-surface-elevated));
+  box-shadow: none;
+}
+
+.dzn-tp-class.is-upcoming,
+.dzn-tp-class.is-in_progress,
+.dzn-tp-class.is-starting_soon {
   border-inline-start: 5px solid var(--dzn-color-action-primary);
 }
 
-.dzn-tp-state--in_progress {
-  color: var(--dzn-color-action-primary);
+.dzn-tp-class.is-student_absence {
+  border-inline-start: 5px solid var(--dzn-color-error);
+}
+
+.dzn-tp-class.is-replacement {
+  border-inline-start: 5px solid var(--dzn-color-warning);
+}
+
+.dzn-tp-class.is-intro {
+  border-inline-start: 5px solid var(--dzn-color-information);
+}
+
+.dzn-tp-class.is-flexible {
+  border-inline-start: 5px solid var(--dzn-color-success);
 }
 
 .dzn-tp-class.is-ended {
   border-inline-start: 5px solid var(--dzn-color-border);
 }
 
-.dzn-teacher-portal input,
-.dzn-teacher-portal select,
-.dzn-teacher-portal textarea,
-.dzn-teacher-portal button {
+.dzn-tp-class.is-unknown {
+  border-inline-start: 5px solid var(--dzn-color-error);
+  background: var(--dzn-color-error-surface);
+}
+
+.dzn-tp-class__time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: .15rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-class__time {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-tp-time-clock {
+  color: var(--dzn-color-text-primary);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.dzn-tp-time-date {
+  color: var(--dzn-color-text-secondary);
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.dzn-tp-class__info-col {
+  display: grid;
+  gap: .22rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-class__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+.dzn-tp-class__student {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-class__course-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem;
+  margin: 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .86rem;
+}
+
+.dzn-tp-class__course {
+  color: var(--dzn-color-text-primary);
+  font-weight: 700;
+}
+
+.dzn-tp-class__schedule-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: .3rem;
+  margin: 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .76rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-class__dot {
+  color: var(--dzn-color-border-strong);
+}
+
+.dzn-tp-class__progress {
+  font-weight: 600;
+}
+
+.dzn-tp-state {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  max-inline-size: 100%;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-tp-state-neutral-bg);
+  padding: .12rem .5rem;
+  color: var(--dzn-color-text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-state__bullet {
+  font-size: .6rem;
+}
+
+.dzn-tp-state--upcoming {
+  border-color: var(--dzn-color-success-border);
+  background: var(--dzn-tp-state-success-bg);
+  color: var(--dzn-color-success);
+}
+
+.dzn-tp-state--starting_soon,
+.dzn-tp-state--in_progress {
+  border-color: var(--dzn-color-accent);
+  background: var(--dzn-tp-state-accent-bg);
+  color: var(--dzn-color-accent);
+}
+
+.dzn-tp-state--student_absence {
+  border-color: var(--dzn-color-warning-border);
+  background: var(--dzn-tp-state-warning-bg);
+  color: var(--dzn-color-warning);
+}
+
+.dzn-tp-state--replacement {
+  border-color: var(--dzn-color-highlight);
+  background: var(--dzn-tp-state-gold-bg);
+  color: var(--dzn-color-highlight-ink);
+}
+
+.dzn-tp-state--intro {
+  border-color: var(--dzn-color-information-border);
+  background: var(--dzn-tp-state-info-bg);
+  color: var(--dzn-color-information);
+}
+
+.dzn-tp-state--flexible {
+  border-color: var(--dzn-color-success-border);
+  background: var(--dzn-tp-state-success-bg);
+  color: var(--dzn-color-success);
+}
+
+.dzn-tp-state--ended,
+.dzn-tp-state--unknown {
+  border-color: var(--dzn-tp-border);
+  background: var(--dzn-tp-state-neutral-bg);
+  color: var(--dzn-color-text-muted);
+}
+
+.dzn-tp-class .dzn-tp-actions {
+  justify-content: flex-end;
+}
+
+.dzn-tp-class .dzn-button {
+  min-block-size: 2.35rem;
+  padding: .45rem .8rem;
+  font-size: .85rem;
+}
+
+.dzn-tp-btn-join {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-weight: 700;
+}
+
+.dzn-tp-calendar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  min-block-size: 2.35rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: .78rem;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+
+.dzn-tp-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
+  padding: 0;
+  cursor: pointer;
+}
+
+.dzn-tp-chevron:hover,
+.dzn-tp-chevron:focus-visible {
+  border-color: var(--dzn-color-action-primary);
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.dzn-tp-chevron__icon {
+  display: inline-block;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: transform .18s ease;
+}
+
+.dzn-tp-chevron[aria-expanded="true"] .dzn-tp-chevron__icon {
+  transform: rotate(180deg);
+}
+
+.dzn-tp-class-details {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 1rem;
+  min-inline-size: 0;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  margin-block-start: .15rem;
+  padding-block-start: .9rem;
+}
+
+.dzn-tp-class-details[hidden] {
+  display: none;
+}
+
+.dzn-tp-detail-grid {
+  display: grid;
+  gap: .85rem;
+}
+
+.dzn-tp-detail-card {
+  display: grid;
+  align-content: start;
+  gap: .5rem;
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .75rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .9rem;
+}
+
+.dzn-tp-detail-card h4 {
+  margin: 0;
+  font-size: .92rem;
+}
+
+.dzn-tp-detail-card p {
+  margin: 0;
+  font-size: .86rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-detail-help {
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-tp-student-contact a {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+
+.dzn-tp-private-note,
+.dzn-tp-practice {
+  border-radius: .75rem;
+  margin-block-start: .75rem;
+  padding: .9rem;
+}
+
+.dzn-tp-private-note {
+  border: 2px solid var(--dzn-color-warning);
+  background: var(--dzn-color-warning-surface);
+}
+
+.dzn-tp-practice {
+  border: 2px solid var(--dzn-color-action-primary);
+  background: var(--dzn-color-success-surface);
+}
+
+.dzn-tp-private-note textarea,
+.dzn-tp-practice textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+/* Future-card reschedule disclosure stays compact and secondary. */
+.dzn-tp-class__reschedule {
+  grid-column: 1 / -1;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  padding-block-start: .5rem;
+}
+
+.dzn-tp-class__reschedule > summary {
+  cursor: pointer;
+  padding-block: .3rem;
+  color: var(--dzn-color-action-secondary);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.dzn-tp-class__reschedule[open] > summary {
+  margin-block-end: .5rem;
+}
+
+.dzn-tp-class__reschedule .dzn-tp-reschedule {
+  margin-block-start: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Reschedule form.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-reschedule {
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .85rem;
+  margin-block-start: .5rem;
+  background: var(--dzn-color-surface);
+  padding: .9rem;
+}
+
+.dzn-tp-reschedule h4 {
+  margin-block: 0 .3rem;
+}
+
+.dzn-tp-reschedule form {
+  display: grid;
+  gap: .65rem;
+  margin-block-start: .55rem;
+}
+
+.dzn-tp-reschedule__date {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* -------------------------------------------------------------------------
+   Forms, availability and account.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-form {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-inline-form {
+  margin-block: 1rem;
+}
+
+.dzn-tp-form-grid {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-form-grid > * {
+  min-inline-size: 0;
+}
+
+.dzn-tp-form-grid label {
+  display: grid;
+  gap: .4rem;
+  min-inline-size: 0;
+  font-weight: 700;
+}
+
+.dzn-tp-form input,
+.dzn-tp-form select,
+.dzn-tp-form textarea,
+.dzn-tp-reschedule input,
+.dzn-tp-reschedule select {
+  box-sizing: border-box;
+  inline-size: 100%;
+  width: 100%;
+  min-inline-size: 0;
+  min-width: 0;
+  max-inline-size:100%;
+  max-width: 100%;
+  min-block-size: 2.8rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
+  padding: .5rem .65rem;
+  font: inherit;
+}
+
+.dzn-tp-reschedule form > *,
+.dzn-tp-reschedule__date > * {
+  min-inline-size: 0;
+  min-width: 0;
+}
+
+.dzn-tp-form input[type="checkbox"],
+.dzn-tp-form input[type="radio"] {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  min-block-size: 0;
+}
+
+.dzn-tp-form input[readonly],
+.dzn-tp-form input:disabled,
+.dzn-tp-form select:disabled,
+.dzn-tp-form textarea:disabled {
+  background: var(--dzn-color-surface-muted);
+  color: var(--dzn-color-text-secondary);
+  cursor: not-allowed;
+  opacity: .8;
+}
+
+.dzn-tp-form :disabled {
+  cursor: not-allowed;
+  opacity: .72;
+}
+
+.dzn-teacher-portal form,
+.dzn-teacher-portal fieldset,
+.dzn-tp-rule-list li {
+  min-inline-size: 0;
+}
+
+.dzn-teacher-portal button,
+.dzn-teacher-portal .dzn-button {
+  min-block-size: var(--dzn-control-height);
+}
+
+.dzn-teacher-portal button:disabled {
+  cursor: not-allowed;
+}
+
+.dzn-teacher-portal [aria-busy="true"] {
+  cursor: progress;
+}
+
+.dzn-tp-rule-list {
+  display: grid;
+  gap: .4rem;
+  margin-block: 1rem;
+  padding-inline-start: 1.25rem;
+}
+
+.dzn-tp-rule-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  border-block-end: 1px solid var(--dzn-color-border);
+  padding: .5rem 0;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-onboarding {
+  display: grid;
+  gap: .55rem;
+  padding-inline-start: 1.5rem;
+}
+
+.dzn-tp-onboarding li {
+  border-inline-start: 4px solid var(--dzn-color-border);
+  padding: .5rem;
+}
+
+.dzn-tp-onboarding .is-complete {
+  border-color: var(--dzn-color-success);
+}
+
+.dzn-tp-onboarding .is-current {
+  border-color: var(--dzn-color-action-primary);
+  font-weight: 800;
+}
+
+.dzn-tp-account-identity__summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dzn-tp-account-identity__monogram {
+  display: grid;
+  flex: 0 0 auto;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  place-items: center;
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-color-action-primary);
+  color: var(--dzn-color-on-action);
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.dzn-tp-account-identity h2 {
+  margin: 0;
+}
+
+.dzn-tp-account-identity p {
+  margin: .15rem 0;
+}
+
+.dzn-tp-instrument-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: .7rem;
+  margin-block: .5rem 1rem;
+}
+
+.dzn-tp-instrument {
+  position: relative;
+  display: grid;
+  gap: .35rem;
+  border: 2px solid var(--dzn-color-border);
+  border-radius: .85rem;
+  background: var(--dzn-color-surface);
+  padding: .45rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.dzn-tp-instrument input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dzn-tp-instrument__thumb {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border-radius: .6rem;
+  background: var(--dzn-color-background);
+}
+
+.dzn-tp-instrument__thumb img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  opacity: .42;
+  filter: grayscale(1);
+  transition: filter .15s ease, opacity .15s ease;
+}
+
+.dzn-tp-instrument__fallback {
+  display: grid;
+  inline-size: 100%;
+  block-size: 100%;
+  place-items: center;
+  background: var(--dzn-color-background);
+  color: var(--dzn-color-text-secondary);
+  font-size: 2rem;
+}
+
+.dzn-tp-instrument__name {
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.dzn-tp-instrument.is-selected {
+  border-color: var(--dzn-color-action-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dzn-color-action-primary) 18%, transparent);
+}
+
+.dzn-tp-instrument.is-selected .dzn-tp-instrument__thumb img {
+  opacity: 1;
+  filter: none;
+}
+
+.dzn-tp-instrument:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.dzn-tp-dayoff {
+  margin-block-start: 1.25rem;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  padding-block-start: .9rem;
+}
+
+.dzn-tp-dayoff form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .65rem;
+  margin-block-start: .5rem;
+}
+
+/* -------------------------------------------------------------------------
+   Calendar and finance summary.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-calendar {
+  display: grid;
+  gap: .6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-tp-calendar li {
+  display: grid;
+  gap: .2rem;
+  border-inline-start: 4px solid var(--dzn-color-information);
+  border-radius: .5rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .7rem .85rem;
+}
+
+.dzn-tp-calendar li p {
+  margin: 0;
+}
+
+.dzn-tp-calendar li strong {
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-calendar li.is-intro {
+  border-color: var(--dzn-color-accent);
+}
+
+.dzn-tp-calendar li.is-replacement {
+  border-color: var(--dzn-color-warning);
+}
+
+.dzn-tp-calendar li.is-student_absence,
+.dzn-tp-calendar li.is-unknown {
+  border-color: var(--dzn-color-error);
+}
+
+.dzn-tp-calendar__day {
+  margin: 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .8rem;
+}
+
+.dzn-tp-calendar__time {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.dzn-tp-calendar__label {
+  font-size: .92rem;
+}
+
+.dzn-tp-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.dzn-tp-stats div {
+  display: grid;
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .75rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .8rem;
+}
+
+.dzn-tp-stats strong {
+  font-size: 1.4rem;
+}
+
+.dzn-tp-stats--finance div {
+  gap: .15rem;
+}
+
+.dzn-tp-stats--finance span,
+.dzn-tp-stats--finance small {
+  color: var(--dzn-color-text-secondary);
+  font-size: .78rem;
+}
+
+.dzn-tp-finance-next,
+.dzn-tp-finance-terms {
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .85rem;
+  margin-block-start: 1rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .9rem;
+}
+
+.dzn-tp-finance-next h3,
+.dzn-tp-finance-terms h3 {
+  margin-block: 0 .35rem;
   font-size: 1rem;
 }
+
+.dzn-tp-finance-next p {
+  margin: .2rem 0;
+}
+
+.dzn-tp-finance-terms__list li {
+  padding-block: .5rem;
+}
+
+/* -------------------------------------------------------------------------
+   Dialogs, tour and support.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-dialog {
+  max-inline-size: min(90vw, 40rem);
+  max-block-size: 90vh;
+  overflow: auto;
+  border: 0;
+  border-radius: 1rem;
+  padding: 0;
+  box-shadow: var(--dzn-shadow-lifted);
+}
+
+.dzn-tp-dialog::backdrop {
+  background: rgb(var(--dzn-rgb-ink) / .58);
+}
+
+.dzn-tp-dialog > div {
+  padding: 1.35rem;
+}
+
+.dzn-tp-dialog[data-dzn-tp-fallback="disclosure"] {
+  position: static;
+  display: block;
+  margin: 1rem 0;
+}
+
+.dzn-tp-dialog .dzn-tp-actions form {
+  margin: 0;
+}
+
+.dzn-tp-close {
+  float: inline-start;
+  min-inline-size: var(--dzn-tap);
+  min-block-size: var(--dzn-tap);
+  border: 0;
+  border-radius: var(--dzn-radius-pill);
+  background: transparent;
+  color: var(--dzn-color-text-primary);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.dzn-tp-close:hover,
+.dzn-tp-close:focus-visible {
+  background: var(--dzn-color-surface);
+}
+
+.dzn-tp-schedule-summary {
+  columns: 2;
+  max-height: 15rem;
+  overflow: auto;
+}
+
+.dzn-tp-tour-entry {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: 1rem;
+}
+
+.dzn-tp-tour__steps {
+  display: grid;
+  gap: .9rem;
+  padding-inline-start: 1.4rem;
+}
+
+.dzn-tp-tour__steps li {
+  padding-inline-start: .25rem;
+}
+
+.dzn-tp-tour__steps p {
+  margin: .25rem 0 0;
+}
+
+.dzn-tp-finance-terms__list,
+.dzn-tp-schedule-summary {
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-support {
+  border-block-start: 1px solid var(--dzn-color-border);
+  margin-block-start: 1.5rem;
+  padding-block-start: 1rem;
+}
+
+.dzn-tp-support .dzn-button {
+  text-decoration: none;
+}
+
+.dzn-tp-help-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.dzn-tp-help-grid details {
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .75rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .7rem .85rem;
+}
+
+.dzn-tp-help-grid summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.dzn-tp-action-status {
+  margin-block: .5rem 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .85rem;
+}
+
+/* -------------------------------------------------------------------------
+   Accessibility utilities and state guards.
+   ------------------------------------------------------------------------- */
+
+.dzn-tp-sr{
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+}
+
+.dzn-teacher-portal :focus-visible {
+  outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+  outline-offset: var(--dzn-focus-offset);
+}
+
+.dzn-teacher-portal a,
+.dzn-teacher-portal p,
+.dzn-teacher-portal h1,
+.dzn-teacher-portal h2,
+.dzn-teacher-portal h3,
+.dzn-teacher-portal h4,
+.dzn-teacher-portal li {
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive: tablet and wide layouts.
+   ------------------------------------------------------------------------- */
+
+@media(min-width:48rem) {
+  .dzn-tp-attention-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dzn-tp-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dzn-tp-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dzn-tp-calendar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dzn-tp-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+}
+
+@media (min-width: 80rem) {
+  .dzn-tp-attention-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 60rem) {
+  .dzn-tp-stats--finance {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Responsive: compact phone shell and stacked action rows.
+   ------------------------------------------------------------------------- */
 
 @media (max-width: 47.99rem) {
   .dzn-tp-masthead {
@@ -162,18 +1433,18 @@
   .dzn-tp-appbar {
     position: sticky;
     inset-block-start: 0;
-    z-index: 20;
+    z-index: var(--dzn-z-appbar);
     display: block;
-    border-block-end: 1px solid var(--dzn-color-border);
+    border-block-end: 1px solid var(--dzn-tp-border);
     background: var(--dzn-color-surface-elevated);
     padding-block-start: env(safe-area-inset-top);
   }
 
   .dzn-tp-appbar__inner {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    display: flex;
     align-items: center;
-    gap: var(--dzn-space-3);
+    justify-content: space-between;
+    gap: .75rem;
     min-block-size: 56px;
     padding-inline: 16px;
   }
@@ -184,15 +1455,16 @@
     min-block-size: 44px;
     align-items: center;
     color: var(--dzn-color-text-secondary);
-    font-weight: 750;
+    font-weight: 700;
     text-decoration: none;
   }
 
   .dzn-tp-appbar__title {
+    flex: 1;
     margin: 0;
     overflow: hidden;
     font-weight: 800;
-    text-align: center;
+    text-align: start;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -204,165 +1476,173 @@
 
   .dzn-tp-tabs {
     position: fixed;
-    inset-inline: 0;
-    inset-block-end: 0;
-    z-index: 30;
+    inset-inline: .7rem;
+    inset-block-end: calc(.7rem + env(safe-area-inset-bottom));
+    z-index: var(--dzn-z-tabs);
     display: block;
-    border-block-start: 1px solid var(--dzn-color-border);
+    overflow: hidden;
+    border: 1px solid var(--dzn-tp-border);
+    border-radius: 1.1rem;
     background: var(--dzn-color-surface-elevated);
+    box-shadow: 0 10px 30px rgb(var(--dzn-rgb-ink) / .18);
     padding-block-end: env(safe-area-inset-bottom);
   }
 
   .dzn-tp-tabs ul {
     display: grid;
-    grid-auto-columns: 1fr;
-    grid-auto-flow: column;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin: 0;
-    padding: 0;
+    padding: .25rem;
     list-style: none;
   }
 
   .dzn-tp-tabs__link {
     display: flex;
-    min-block-size: 64px;
+    min-inline-size: 0;
+    min-block-size: 54px;
     align-items: center;
     justify-content: center;
-    padding: .5rem .25rem;
-    color: var(--dzn-color-text-secondary);
-    font-size: .9rem;
-    font-weight: 750;
+    border-radius: .8rem;
+    padding: .4rem .2rem;
+    color: var(--dzn-color-text-primary);
+    font-size: .82rem;
+    font-weight: 800;
     text-decoration: none;
   }
 
   .dzn-tp-tabs__link.is-current {
-    color: var(--dzn-color-action-primary);
-    box-shadow: inset 0 3px 0 var(--dzn-color-action-primary);
+    background: var(--dzn-color-action-primary);
+    color: var(--dzn-color-on-action);
   }
 
-  /* The fixed teacher tab bar overlays the document footer. */
   .dzn-teacher-portal ~ .site-footer {
-    padding-block-end: calc(64px + env(safe-area-inset-bottom) + var(--dzn-space-5));
+    padding-block-end: calc(86px + env(safe-area-inset-bottom) + var(--dzn-space-5));
   }
 }
 
-@media (min-width: 48rem) {
+@media (max-width:35rem) {
+  .dzn-tp-class {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .5rem;
+    padding: .65rem .7rem;
+  }
+
+  .dzn-tp-class__time-col {
+    flex-direction: row;
+    align-items: baseline;
+    gap: .45rem;
+  }
+
+  .dzn-tp-class__time {
+    flex-direction: row;
+    align-items: baseline;
+    gap: .45rem;
+  }
+
+  .dzn-tp-time-clock {
+    font-size: 1.05rem;
+  }
+
+  .dzn-tp-time-date {
+    font-size: .74rem;
+  }
+
+  .dzn-tp-class .dzn-tp-actions {
+    inline-size: 100%;
+    justify-content: flex-start;
+    gap: .4rem;
+  }
+
+  .dzn-tp-class .dzn-tp-actions form {
+    display: block;
+    inline-size: auto;
+  }
+
+  .dzn-tp-actions form {
+    display: block;
+  }
+
+  .dzn-tp-chevron {
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+  }
+
+  .dzn-tp-reschedule__date {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dzn-tp-section,
+  .dzn-tp-banner {
+    border-radius: .8rem;
+  }
+
+  .dzn-tp-heading > span {
+    inline-size: 100%;
+  }
+
+  .dzn-tp-dialog {
+    inline-size: calc(100vw - 1rem);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   High contrast, forced colours and reduced motion.
+   ------------------------------------------------------------------------- */
+
+@media (forced-colors:active) {
+  .dzn-tp-class,
+  .dzn-tp-attention-card,
+  .dzn-tp-calendar li,
+  .dzn-tp-chevron,
+  .dzn-tp-reschedule,
+  .dzn-tp-instrument,
+  .dzn-tp-instrument.is-selected {
+    border: 1px solid CanvasText;
+  }
+
+  .dzn-tp-instrument.is-selected .dzn-tp-instrument__thumb img {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .dzn-teacher-portal * {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+
+  .dzn-tp-chevron__icon {
+    transition: none;
+  }
+}
+
+@media print {
   .dzn-tp-appbar,
-  .dzn-tp-tabs {
+  .dzn-tp-tabs,
+  .dzn-tp-tour-entry {
     display: none !important;
   }
 }
 
-/* Compact Today/Upcoming class cards and the accessible disclosure control. */
-.dzn-tp-class-section{margin-block-start:1.25rem}
-.dzn-tp-heading--sub{align-items:center;margin-block-end:.6rem}
-.dzn-tp-heading--sub h3{font-size:1.1rem;margin:0}
-.dzn-tp-class{position:relative;padding:1rem;gap:.9rem}
-.dzn-tp-class__time-col,.dzn-tp-class__info-col{min-inline-size:0}
-.dzn-tp-class__schedule-summary{overflow-wrap:anywhere}
-.dzn-tp-actions{align-items:center;gap:.5rem}
-.dzn-tp-calendar-action{display:inline-flex;align-items:center;gap:.3rem;color:var(--dzn-color-text-secondary);font-size:.85rem;text-decoration:underline;text-underline-offset:.15em}
-.dzn-tp-chevron{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5rem;block-size:2.5rem;border:1px solid var(--dzn-color-border);border-radius:999px;background:var(--dzn-color-surface);color:var(--dzn-color-text-primary);cursor:pointer;padding:0}
-.dzn-tp-chevron:hover,.dzn-tp-chevron:focus-visible{border-color:var(--dzn-color-action-primary);outline:3px solid color-mix(in srgb,var(--dzn-color-action-primary) 35%,transparent);outline-offset:2px}
-.dzn-tp-chevron__icon{display:inline-block;font-size:1.35rem;line-height:1;transition:transform .18s ease}
-.dzn-tp-chevron[aria-expanded="true"] .dzn-tp-chevron__icon{transform:rotate(180deg)}
-.dzn-tp-reschedule{border:1px solid var(--dzn-color-border);border-radius:.85rem;padding:1rem;margin-block-start:.5rem;background:var(--dzn-color-surface)}
-.dzn-tp-reschedule h4{margin-block:0 .35rem}
-.dzn-tp-reschedule form{display:grid;gap:.65rem;margin-block-start:.65rem}
-.dzn-tp-reschedule__date{grid-template-columns:repeat(3,minmax(0,1fr))}
-.dzn-tp-account-identity__summary{display:flex;align-items:center;gap:1rem}
-.dzn-tp-account-identity__monogram{display:grid;place-items:center;inline-size:3.5rem;block-size:3.5rem;border-radius:999px;background:var(--dzn-color-action-primary);color:#fff;font-size:1.5rem;font-weight:800}
-.dzn-tp-account-identity h2{margin:0}
-.dzn-tp-account-identity p{margin:.15rem 0}
-@media (max-width:35rem){.dzn-tp-reschedule__date{grid-template-columns:1fr}.dzn-tp-chevron{inline-size:100%;block-size:2.75rem}}
-@media (forced-colors:active){.dzn-tp-chevron,.dzn-tp-reschedule{border:1px solid CanvasText}}
-@media (prefers-reduced-motion:reduce){.dzn-tp-chevron__icon{transition:none}}
-
-/* Compact teacher shell and class cards (2026-10-28 UX pass). */
-.dzn-tp-masthead{padding:1rem 0}
-.dzn-tp-masthead__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 1.25rem}
-.dzn-tp-masthead h1{font-size:clamp(1.25rem,2.2vw,1.65rem);margin:0}
-.dzn-tp-masthead nav ul{gap:.35rem}
-.dzn-tp-masthead nav a{padding:.38rem .75rem;font-size:.88rem}
-.dzn-tp-account{margin:0}
-.dzn-tp-account a{font-size:.88rem;font-weight:700;text-decoration:none}
-.dzn-tp-appbar__inner{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
-.dzn-tp-appbar__title{flex:1;text-align:start}
-.dzn-tp-classes>.dzn-tp-heading{align-items:center;margin-block-end:.35rem}
-.dzn-tp-classes>.dzn-tp-heading h2{font-size:1.15rem;margin:0}
-.dzn-tp-class-section{margin-block-start:.9rem}
-.dzn-tp-class-section__title{font-size:1rem;margin:0 0 .5rem;color:var(--dzn-color-text-secondary)}
-.dzn-tp-empty-state--compact h3{font-size:.95rem;margin:0}
-.dzn-tp-class-list{gap:.55rem}
-.dzn-tp-class{padding:.7rem .8rem;gap:.6rem;border-radius:.8rem;box-shadow:0 1px 2px rgb(0 0 0 / 4%)}
-.dzn-tp-class__time{font-size:1.05rem}
-.dzn-tp-time-date{font-size:.72rem;color:var(--dzn-color-text-secondary);line-height:1.35}
-.dzn-tp-class__student{font-size:1rem;margin:0}
-.dzn-tp-class__course-line{font-size:.86rem}
-.dzn-tp-class__schedule-summary{font-size:.76rem}
-.dzn-tp-state{font-size:.72rem;padding:.12rem .5rem}
-.dzn-tp-class .dzn-tp-actions{gap:.4rem}
-.dzn-tp-class .dzn-button{min-block-size:2.35rem;padding:.45rem .8rem;font-size:.85rem}
-.dzn-tp-calendar-action{font-size:.78rem}
-.dzn-tp-chevron{inline-size:2.25rem;block-size:2.25rem}
-.dzn-tp-section{padding:clamp(.9rem,2.5vw,1.35rem)}
-@media (min-width:48rem){
-  .dzn-tp-class{grid-template-columns:5.25rem minmax(0,1fr) auto}
-  .dzn-tp-masthead__inner{align-items:center}
-}
-@media (max-width:47.99rem){
-  .dzn-tp-appbar__inner{display:flex}
-  .dzn-tp-appbar__title{text-align:start}
-  .dzn-tp-class{padding:.65rem .7rem}
-}
-
-/* Instrument thumbnails, availability spacing and compact future classes. */
-.dzn-tp-instrument-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr));gap:.75rem;margin-block:.5rem 1rem}
-.dzn-tp-instrument{position:relative;display:grid;gap:.4rem;text-align:center;border:2px solid var(--dzn-color-border);border-radius:.85rem;padding:.45rem;cursor:pointer;background:var(--dzn-color-surface);transition:border-color .15s ease,transform .15s ease}
-.dzn-tp-instrument input{position:absolute;inline-size:1px;block-size:1px;opacity:0;pointer-events:none}
-.dzn-tp-instrument__thumb{display:block;aspect-ratio:1;border-radius:.6rem;overflow:hidden;background:var(--dzn-color-background)}
-.dzn-tp-instrument__thumb img{display:block;inline-size:100%;block-size:100%;object-fit:cover;filter:grayscale(1);opacity:.42;transition:filter .15s ease,opacity .15s ease}
-.dzn-tp-instrument__fallback{display:grid;place-items:center;inline-size:100%;block-size:100%;font-size:2rem;color:var(--dzn-color-text-secondary);background:var(--dzn-color-background)}
-.dzn-tp-instrument__name{font-size:.82rem;font-weight:700;line-height:1.3}
-.dzn-tp-instrument.is-selected{border-color:var(--dzn-color-action-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dzn-color-action-primary) 18%,transparent)}
-.dzn-tp-instrument.is-selected .dzn-tp-instrument__thumb img{filter:none;opacity:1}
-.dzn-tp-instrument:focus-within{outline:3px solid color-mix(in srgb,var(--dzn-color-action-primary) 45%,transparent);outline-offset:2px}
-.dzn-tp-dayoff{margin-block-start:1.5rem;padding-block-start:1rem;border-block-start:1px dashed var(--dzn-color-border)}
-.dzn-tp-dayoff form{display:flex;flex-wrap:wrap;align-items:end;gap:.75rem;margin-block-start:.6rem}
-.dzn-tp-class.is-compact{padding:.55rem .7rem;box-shadow:none;border-style:solid;background:color-mix(in srgb,var(--dzn-color-surface) 92%,var(--dzn-color-background))}
-.dzn-tp-class.is-compact .dzn-tp-class__student{font-size:.95rem}
-.dzn-tp-class.is-compact .dzn-tp-class__course-line{font-size:.8rem}
-.dzn-tp-class.is-compact .dzn-tp-calendar-action{font-size:.72rem}
-.dzn-tp-student-contact a{font-weight:700;text-decoration:underline;text-underline-offset:.15em}
-.dzn-tp-muted{color:var(--dzn-color-text-secondary)}
-@media (max-width:47.99rem){
-  .dzn-tp-tabs{inset-inline:.7rem;inset-block-end:calc(.7rem + env(safe-area-inset-bottom));border:1px solid color-mix(in srgb,var(--dzn-color-border) 80%,transparent);border-radius:1.1rem;background:color-mix(in srgb,var(--dzn-color-surface-elevated) 88%,transparent);box-shadow:0 10px 30px rgb(0 0 0 / 18%);backdrop-filter:blur(14px)}
-  .dzn-tp-tabs ul{gap:.2rem;padding:.3rem}
-  .dzn-tp-tabs__link{min-block-size:54px;border-radius:.8rem;font-size:.82rem}
-  .dzn-tp-tabs__link.is-current{background:color-mix(in srgb,var(--dzn-color-action-primary) 14%,transparent);box-shadow:none}
-  .dzn-teacher-portal~.site-footer{padding-block-end:calc(86px + env(safe-area-inset-bottom) + var(--dzn-space-5))}
-}
-@media (forced-colors:active){
-  .dzn-tp-instrument,.dzn-tp-instrument.is-selected{border:2px solid CanvasText}
-  .dzn-tp-instrument.is-selected .dzn-tp-instrument__thumb img{filter:none;opacity:1}
-}
-
-/* High-contrast mobile tab bar. */
-@media (max-width:47.99rem){
-  .dzn-tp-tabs{background:var(--dzn-color-surface-elevated);border-color:var(--dzn-color-border);backdrop-filter:none}
-  .dzn-tp-tabs__link{color:var(--dzn-color-text-primary);font-size:.92rem;font-weight:800;letter-spacing:0}
-  .dzn-tp-tabs__link.is-current{background:var(--dzn-color-action-primary);color:#fff;box-shadow:none}
-}
-
-/* Finance snapshot and always-available rescheduling. */
-.dzn-tp-stats--finance div{gap:.15rem}
-.dzn-tp-stats--finance span{font-size:.85rem;color:var(--dzn-color-text-secondary)}
-.dzn-tp-stats--finance small{font-size:.75rem;color:var(--dzn-color-text-secondary)}
-.dzn-tp-finance-next,.dzn-tp-finance-terms{border:1px solid var(--dzn-color-border);border-radius:.85rem;margin-block-start:1rem;padding:1rem;background:var(--dzn-color-surface-elevated,#fafafa)}
-.dzn-tp-finance-next h3,.dzn-tp-finance-terms h3{margin-block:0 .4rem;font-size:1rem}
-.dzn-tp-finance-next p{margin:.2rem 0}
-.dzn-tp-finance-terms__list li{padding-block:.55rem}
-.dzn-tp-class__reschedule{grid-column:1/-1;border-block-start:1px dashed var(--dzn-color-border);padding-block-start:.75rem}
-.dzn-tp-class__reschedule>summary{cursor:pointer;font-weight:700;padding-block:.35rem}
-.dzn-tp-class__reschedule[open]>summary{margin-block-end:.5rem}
-.dzn-tp-class__reschedule .dzn-tp-reschedule{margin-block-start:0}
-@media(min-width:60rem){.dzn-tp-stats--finance{grid-template-columns:repeat(5,minmax(0,1fr))}}
+/* Teacher website notifications. */
+.dzn-tp-appbar__bell{position:relative;display:inline-flex;align-items:center;justify-content:center;min-inline-size:44px;min-block-size:44px;margin-inline-end:.35rem;color:currentColor;text-decoration:none;border-radius:999px}
+.dzn-tp-appbar__bell:hover,.dzn-tp-appbar__bell:focus-visible{background:color-mix(in srgb, var(--dzn-color-action-primary) 10%, transparent)}
+.dzn-tp-appbar__badge{position:absolute;inset-block-start:2px;inset-inline-end:0;min-inline-size:18px;padding:0 4px;border-radius:999px;background:var(--dzn-color-accent);color:var(--dzn-color-on-action);font-size:.68rem;font-weight:800;line-height:18px;text-align:center}
+.dzn-tp-section__heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-block-end:.75rem}
+.dzn-tp-note{margin-block-start:.75rem;color:var(--dzn-color-text-muted);font-size:.82rem;line-height:1.9}
+.dzn-notifications__count{display:inline-block;margin-inline-start:.4rem;padding:.1rem .5rem;border-radius:999px;background:color-mix(in srgb, var(--dzn-color-accent) 12%, transparent);color:var(--dzn-color-accent);font-size:.72rem;font-weight:800;vertical-align:middle}
+.dzn-notifications__all{display:flex;justify-content:flex-end;margin-block-end:.5rem}
+.dzn-notifications__all form{margin:0}
+.dzn-notifications__list{margin:0;padding:0;list-style:none;border-block-start:1px solid var(--dzn-tp-border)}
+.dzn-notifications__item{display:grid;gap:.35rem;padding-block:1rem;border-block-end:1px solid var(--dzn-tp-border)}
+.dzn-notifications__item.is-unread{background:linear-gradient(90deg,color-mix(in srgb, var(--dzn-color-action-primary) 6%, transparent),transparent)}
+.dzn-notifications__item time{color:var(--dzn-color-accent);font-size:.76rem;font-weight:800}
+.dzn-notifications__body h3{margin:0 0 .25rem;font-size:1rem}
+.dzn-notifications__body p{margin:0;color:var(--dzn-color-text-muted);line-height:1.9}
+.dzn-notifications__dot{display:inline-block;inline-size:.5rem;block-size:.5rem;margin-inline-start:.45rem;border-radius:50%;background:var(--dzn-color-accent);vertical-align:middle}
+.dzn-notifications__actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block-start:.5rem}
+.dzn-notifications__actions form{margin:0}
+.dzn-notifications__actions button{background:none;border:0;padding:0;font:inherit;color:var(--dzn-color-action-primary);text-decoration:underline;cursor:pointer}
+@media (max-width:47.99rem){.dzn-notifications__actions .dzn-button,.dzn-notifications__all-button{min-block-size:44px}}

@@ -103,15 +103,28 @@ if ( str_contains( $menu, 'dzn-academy-operations' )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-academy-dashboard'" )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-system-health'" )
     || ! str_contains( $menu, "add_menu_page('Delnavazan', 'Delnavazan', 'read', self::ROOT_SLUG" )
-    || ! str_contains( $operations, "echo '<div class=\"wrap\"><h1>Academy</h1><p>Today’s work is collected here." ) ) {
+    || ! str_contains( $operations, '<h1>Academy</h1>' )
+    || ! str_contains( $operations, 'Today’s work is collected here.' ) ) {
     throw new RuntimeException( 'The Academy dashboard must be the operational default without a second Operations route.' );
+}
+if ( ! str_contains( $operations, 'Student absence reports awaiting review' )
+    || ! str_contains( $operations, 'Class time changes awaiting student response' )
+    || ! str_contains( $operations, "'dzn-attendance-review'" )
+    || ! str_contains( $operations, "'Review attendance'" )
+    || ! str_contains( $operations, 'Reschedule negotiations needing admin intervention' )
+    || ! str_contains( $operations, 'Confirm proposed time' )
+    || ! str_contains( $operations, 'Open class to change manually' ) ) {
+    throw new RuntimeException( 'Academy pending actions must surface Student absences and pending class-time changes.' );
+}
+if ( ! str_contains( (string) file_get_contents( $root . '/delnavazan-platform.php' ), 'RescheduleReviewController::register()' ) ) {
+    throw new RuntimeException( 'Administrator reschedule confirm/cancel actions must be registered.' );
 }
 if ( str_contains( file_get_contents( $root . '/delnavazan-platform.php' ), 'AdminDashboardController::register()' ) ) {
     throw new RuntimeException( 'The generic WordPress dashboard must not duplicate the Academy console.' );
 }
-if ( ! str_contains( $operations, '\'booking_request_id\'=>(int)$r->request_id' )
-    || ! str_contains( $operations, '\'accepted_service_arrangement_id\'=>(int)$r->arrangement_id' )
-    || ! str_contains( $operations, '\'teacher_assignment_id\'=>(int)$r->assignment_id' ) ) {
+if ( ! str_contains( $operations, "'booking_request_id' => (int) \$r->request_id" )
+    || ! str_contains( $operations, "'accepted_service_arrangement_id' => (int) \$r->arrangement_id" )
+    || ! str_contains( $operations, "'teacher_assignment_id' => (int) \$r->assignment_id" ) ) {
     throw new RuntimeException( 'Journey links must carry authoritative record context to the next step' );
 }
 if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()' )
@@ -124,7 +137,7 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
 if ( ! str_contains( $operations, "private static function classOperationalState(): void" )
     || ! str_contains( $operations, "current_user_can('dzn_manage_lessons')" )
     || ! str_contains( $operations, '(new CoreReadService())->classOperatorRows()' )
-    || ! str_contains( $operations, 'Classes: today and next' )
+    || ! str_contains( $operations, 'Today and upcoming lessons' )
     || ! str_contains( $operations, 'private static function scheduleDate(object $row): string' )
     || str_contains( $operations, 'FROM {$p}lessons' )
     || ! str_contains( $core_read, 'public function lessonOperatorRows(): array' )

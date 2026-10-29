@@ -457,6 +457,36 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 		'completed' => $completed,
 		'total' => count( $related ),
 		'current_label' => count( $related ) ? sprintf( '%d جلسه ثبت‌شده', count( $related ) ) : '',
+		'replacement_allowance' => max( 0, (int) ( $enrolment['replacement_allowance'] ?? 0 ) ),
+		'replacement_used' => max( 0, (int) ( $enrolment['replacement_used'] ?? 0 ) ),
+		'replacement_remaining' => max( 0, (int) ( $enrolment['replacement_remaining'] ?? 0 ) ),
+		'replacement_lessons' => is_array( $enrolment['replacement_lessons'] ?? null ) ? $enrolment['replacement_lessons'] : array(),
+	);
+}
+
+/** Presentation of the Student's Term replacement allowance and replacement class states. */
+function dzn_theme_platform_student_replacement_summary( array $term, $timezone, $calendar = 'gregorian', $locale = '' ) {
+	$allowance = max( 0, (int) ( $term['replacement_allowance'] ?? 0 ) );
+	$used = max( 0, (int) ( $term['replacement_used'] ?? 0 ) );
+	$remaining = max( 0, (int) ( $term['replacement_remaining'] ?? 0 ) );
+	if ( $allowance < 1 ) {
+		return array( 'normal_replacement' => '', 'replacement_items' => array() );
+	}
+	$items = array();
+	foreach ( (array) ( $term['replacement_lessons'] ?? array() ) as $row ) {
+		if ( ! is_array( $row ) ) { continue; }
+		$scheduled = ! empty( $row['starts_at_utc'] ) && '' !== (string) ( $row['schedule_version_uid'] ?? '' );
+		$lifecycle = (string) ( $row['lifecycle_state'] ?? '' );
+		$status = 'cancelled' === $lifecycle ? 'لغو شده' : ( $scheduled ? 'زمان تأییدشده' : 'در انتظار تعیین زمان' );
+		$items[] = array(
+			'when' => $scheduled ? dzn_theme_platform_calendar_time( (string) $row['starts_at_utc'], $timezone, $calendar, $locale, 'datetime' ) : '',
+			'status' => $status,
+			'confirmed' => $scheduled && 'cancelled' !== $lifecycle,
+		);
+	}
+	return array(
+		'normal_replacement' => sprintf( '%d از %d جایگزین استفاده شده · %d باقی‌مانده', $used, $allowance, $remaining ),
+		'replacement_items' => $items,
 	);
 }
 
@@ -581,6 +611,9 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	$today_key = dzn_theme_platform_local_date_key( gmdate( 'Y-m-d H:i:s', $now ), $timezone );
 	return array(
 		'kind' => $is_booking ? 'intro' : 'term',
+		'lesson_kind' => (string) ( $row['lesson_kind'] ?? '' ),
+		'rescheduled' => ! $is_booking && (int) ( $row['schedule_revision_count'] ?? 1 ) > 1,
+		'kind_label' => $is_booking ? 'جلسهٔ معارفه' : ( 'replacement' === (string) ( $row['lesson_kind'] ?? '' ) ? 'جلسهٔ جایگزین' : ( (int) ( $row['schedule_revision_count'] ?? 1 ) > 1 ? 'زمان جدید' : '' ) ),
 		'state' => $state,
 		'temporal_state' => $temporal,
 		'course' => $course,
@@ -638,10 +671,16 @@ function dzn_theme_platform_student_reschedule_proposals( array $rows, $timezone
 		if ( ! is_array( $row ) || 'student_reschedule_proposal_v1' !== ( $row['version'] ?? '' ) ) { continue; }
 		$uid = trim( (string) ( $row['proposal_uid'] ?? '' ) );
 		if ( '' === $uid ) { continue; }
+		$kind = 'replacement' === (string) ( $row['kind'] ?? '' ) ? 'replacement' : 'reschedule';
 		$out[] = array(
 			'proposal_uid' => $uid,
+			'kind' => $kind,
+			'kind_label' => 'replacement' === $kind ? 'جلسهٔ جبرانی' : 'تغییر زمان کلاس',
 			'instrument' => (string) ( $row['instrument_name'] ?? '' ),
 			'teacher' => (string) ( $row['teacher_name'] ?? '' ),
+			'original_date' => dzn_theme_platform_calendar_time( (string) ( $row['original_starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'date' ),
+			'original_time' => dzn_theme_platform_calendar_time( (string) ( $row['original_starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ),
+			'original_starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $row['original_starts_at_utc'] ?? '' ) ),
 			'date' => dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'date' ),
 			'time' => dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ) . '–' . dzn_theme_platform_calendar_time( (string) ( $row['ends_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ),
 			'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $row['starts_at_utc'] ?? '' ) ),
@@ -742,6 +781,57 @@ function dzn_theme_platform_student_payments_model( array $read, $timezone, $ena
 	);
 }
 
+
+/**
+ * The website inbox model for one authenticated portal user.
+ *
+ * Ownership is decided by the WordPress user link recorded on the notification row, never by a
+ * query-string id. When the inbox source is unavailable the model says so instead of claiming
+ * "no notifications".
+ */
+function dzn_theme_platform_notification_model( $timezone, $calendar, $locale, $role = 'student' ) {
+	$empty = array( 'items' => array(), 'available' => false, 'unread' => 0, 'archive_url' => '', 'actions' => array() );
+	if ( ! class_exists( '\Delnavazan\Platform\Portals\PortalNotificationInbox' ) ) { return $empty; }
+	try {
+		$inbox = new \Delnavazan\Platform\Portals\PortalNotificationInbox();
+		$own   = $inbox->forCurrentUser( 20 );
+		if ( empty( $own['user_id'] ) ) { return $empty; }
+		$rows  = $own['items'];
+		$items = array();
+		foreach ( $rows as $row ) {
+			$when = function_exists( 'dzn_theme_platform_calendar_time' )
+				? dzn_theme_platform_calendar_time( (string) ( $row['created_at'] ?? '' ), $timezone, $calendar, $locale, 'date_time_short' )
+				: (string) ( $row['created_at'] ?? '' );
+			$link = (string) ( $row['link_url'] ?? '' );
+			$items[] = array(
+				'id'        => (int) ( $row['id'] ?? 0 ),
+				'title'     => (string) ( $row['title'] ?? '' ),
+				'message'   => (string) ( $row['body'] ?? '' ),
+				'date'      => $when,
+				'created_at'=> (string) ( $row['created_at'] ?? '' ),
+				'is_unread' => ! empty( $row['is_unread'] ),
+				'link_url'  => in_array( strtolower( (string) parse_url( $link, PHP_URL_SCHEME ) ), array( 'http', 'https' ), true ) ? $link : '',
+				'category'  => (string) ( $row['category'] ?? '' ),
+			);
+		}
+		return array(
+			'items'       => $items,
+			'available'   => true,
+			'unread'      => (int) $own['unread'],
+			'archive_url' => '',
+			'actions'     => array(
+				'read_url'      => admin_url( 'admin-post.php?action=dzn_portal_notification_read' ),
+				'read_nonce'    => wp_create_nonce( 'dzn_portal_notification_read' ),
+				'read_all_url'  => admin_url( 'admin-post.php?action=dzn_portal_notification_read_all' ),
+				'read_all_nonce'=> wp_create_nonce( 'dzn_portal_notification_read_all' ),
+				'role'          => $role,
+			),
+		);
+	} catch ( Throwable $error ) {
+		return $empty;
+	}
+}
+
 function dzn_theme_platform_student_model( $screen ) {
 	$read = dzn_theme_platform_student_read();
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_student_state_model( $screen, (string) $read['state'] ); }
@@ -798,6 +888,12 @@ function dzn_theme_platform_student_model( $screen ) {
 		'navigation' => $navigation,
 		'provisioning' => $provisioning,
 	);
+	$student_inbox = dzn_theme_platform_notification_model( $student_timezone, $student_calendar, $student_locale, 'student' );
+	$model['notifications']            = $student_inbox['items'];
+	$model['notifications_available']  = $student_inbox['available'];
+	$model['notification_archive_url'] = $student_inbox['archive_url'];
+	$model['notification_unread_count'] = $student_inbox['unread'];
+	$model['notification_actions']     = $student_inbox['actions'];
 	if ( 'schedule' === $screen ) {
 		$model['schedule'] = dzn_theme_platform_student_schedule_rows( $lessons, $booking_classes, $enrolments, $student_timezone, $now, $student_calendar, $student_locale );
 		$model['reschedule_proposals'] = dzn_theme_platform_student_reschedule_proposals( $reschedule_proposals, $student_timezone, $student_calendar, $student_locale );
@@ -829,18 +925,21 @@ function dzn_theme_platform_student_model( $screen ) {
 		}
 		if ( ! $current_enrolment ) { $current_enrolment = is_array( $enrolments[0] ?? null ) ? $enrolments[0] : array(); }
 		$term_progress = dzn_theme_platform_student_term_progress( $current_enrolment, null, $lessons );
-		$model['term'] = $term_progress ? array_merge( $term_progress, array( 'next_label' => '', 'normal_replacement' => '', 'academy_owed_remedial' => '', 'academy_owed_tone' => 'muted' ) ) : array();
+		$replacement_summary = $term_progress ? dzn_theme_platform_student_replacement_summary( $term_progress, $student_timezone, $student_calendar, $student_locale ) : array();
+		$model['term'] = $term_progress ? array_merge( $term_progress, array( 'next_label' => '', 'normal_replacement' => (string) ( $replacement_summary['normal_replacement'] ?? '' ), 'replacement_items' => (array) ( $replacement_summary['replacement_items'] ?? array() ), 'academy_owed_remedial' => '', 'academy_owed_tone' => 'muted' ) ) : array();
+		$replacement_lessons = is_array( $current_enrolment['replacement_lessons'] ?? null ) ? $current_enrolment['replacement_lessons'] : array();
 		$model['account_status'] = array(
 			'active' => in_array( (string) ( $current_enrolment['lifecycle_state'] ?? '' ), array( 'current', 'authorised' ), true ),
 			'payment_verified' => ! empty( $current_enrolment['payment_verified'] ),
 			'fulfilment_state' => (string) ( $current_enrolment['fulfilment_state'] ?? 'not_applicable' ),
 			'course' => (string) ( $current_enrolment['instrument_name'] ?? $current_enrolment['course_name'] ?? '' ),
 			'teacher' => (string) ( $current_enrolment['teacher_name'] ?? $current_enrolment['assigned_teacher_display_reference'] ?? '' ),
+			'replacement_allowance' => max( 0, (int) ( $current_enrolment['replacement_allowance'] ?? 0 ) ),
+			'replacement_used' => max( 0, (int) ( $current_enrolment['replacement_used'] ?? 0 ) ),
+			'replacement_remaining' => max( 0, (int) ( $current_enrolment['replacement_remaining'] ?? 0 ) ),
+			'replacement_pending' => count( array_filter( $replacement_lessons, static fn( $row ) => is_array( $row ) && empty( $row['scheduled'] ) ) ),
 		);
 		$model['payments'] = $payments_model;
-		$model['notifications'] = array();
-		$model['notifications_available'] = false;
-		$model['notification_archive_url'] = '';
 		return $model;
 	}
     $booking_temporal = static fn( $row ) => dzn_theme_platform_lesson_temporal_state( $row, $now );
@@ -905,9 +1004,11 @@ function dzn_theme_platform_student_model( $screen ) {
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
 	$term_progress = $is_booking ? array() : dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
+	$replacement_summary = $term_progress ? dzn_theme_platform_student_replacement_summary( $term_progress, $display_timezone, $student_calendar, $student_locale ) : array();
 	$model['term'] = $term_progress ? array_merge( $term_progress, array(
 		'next_label' => $next ? 'کلاس بعدی: ' . dzn_theme_platform_calendar_time( $next['starts_at_utc'] ?? '', $display_timezone, $student_calendar, $student_locale, 'month_day' ) : 'کلاس آینده‌ای ثبت نشده است',
-		'normal_replacement' => '',
+		'normal_replacement' => (string) ( $replacement_summary['normal_replacement'] ?? '' ),
+		'replacement_items' => (array) ( $replacement_summary['replacement_items'] ?? array() ),
 		'academy_owed_remedial' => '',
 		'academy_owed_tone' => 'muted',
 	) ) : array();
@@ -1264,6 +1365,131 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'due'=>'در انتظار پاسخ','primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());
+	$absenceAttention = array();
+	$absence_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAbsenceAttentionReadService';
+	if ( class_exists( $absence_read_class ) ) {
+		try {
+			foreach ( ( new $absence_read_class() )->own() as $absence_row ) {
+				if ( ! is_array( $absence_row ) ) { continue; }
+				$occurrence = (string) ( $absence_row['occurrence_start_utc'] ?? '' );
+				$is_future = (bool) ( dzn_theme_platform_utc_timestamp( (string) ( $absence_row['current_start_utc'] ?? $occurrence ) ) > time() );
+				$request_kind = (string) ( $absence_row['request_kind'] ?? ( $is_future ? 'reschedule' : 'replacement' ) );
+				$current_time = (string) ( $absence_row['current_start_utc'] ?? $occurrence );
+				$can_reschedule = ! empty( $absence_row['can_request'] )
+					&& '' !== (string) ( $absence_row['lesson_uid'] ?? '' )
+					&& '' !== (string) ( $absence_row['schedule_version_uid'] ?? '' );
+				$when = dzn_theme_platform_calendar_time( $current_time, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$message = 'replacement' === $request_kind
+					? 'هنرجو اعلام کرده جلسهٔ ' . dzn_theme_platform_calendar_time( $occurrence, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ) . ' را از دست داده است. زمان جلسهٔ جبرانی را پیشنهاد دهید؛ پس از پذیرش هنرجو، جلسهٔ جایگزین قطعی و در تقویم ثبت می‌شود. جلسهٔ اصلی و شاهد غیبت حفظ می‌شوند.'
+					: 'هنرجو برای جلسهٔ ' . $when . ' اطلاع غیبت ثبت کرده است. زمان تازه را پیشنهاد دهید؛ پس از پذیرش هنرجو، زمان همین جلسه به‌روز می‌شود.';
+				if ( ! $can_reschedule ) { $message .= ' این مورد نیازمند بررسی مدیر آموزشگاه است و از پرتال مدرس قابل تغییر نیست.'; }
+				$absenceAttention[] = array(
+					'ref' => 'absence-' . (int) ( $absence_row['case_id'] ?? 0 ),
+					'action_available' => true,
+					'authoritative_request' => false,
+					'state' => 'student_absence',
+					'title' => 'اطلاع غیبت هنرجو',
+					'context' => trim( (string) ( $absence_row['student'] ?? '' ) . ( '' !== (string) ( $absence_row['course'] ?? '' ) ? ' · ' . (string) $absence_row['course'] : '' ) ),
+					'message' => $message,
+					'due' => 'replacement' === $request_kind ? 'ثبت جلسهٔ جبرانی' : 'هماهنگی برای زمان جایگزین',
+					'primary' => 'تغییر زمان / جلسهٔ جبرانی',
+					'request_kind' => $request_kind,
+					'lesson_uid' => (string) ( $absence_row['lesson_uid'] ?? '' ),
+					'schedule_version_uid' => (string) ( $absence_row['schedule_version_uid'] ?? '' ),
+					'reschedule_available' => $can_reschedule,
+					'reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_propose_reschedule' ),
+					'reschedule_nonce' => wp_create_nonce( 'dzn_teacher_propose_reschedule' ),
+					'reschedule_timezone' => $teacher_timezone,
+					'reschedule_calendar' => $teacher_calendar,
+					'reschedule_locale' => $teacher_locale,
+					'reschedule_current' => dzn_theme_platform_calendar_time( $current_time, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+				);
+			}
+		} catch ( Throwable $e ) {
+			$absenceAttention = array();
+		}
+	}
+	$pendingAttention = array();
+	$reschedule_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherRescheduleAttentionReadService';
+	if ( class_exists( $reschedule_read_class ) ) {
+		try {
+			foreach ( ( new $reschedule_read_class() )->ownPending() as $pending ) {
+				if ( ! is_array( $pending ) ) { continue; }
+				$proposed_when = dzn_theme_platform_calendar_time( (string) ( $pending['proposed_starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$kind = (string) ( $pending['request_kind'] ?? 'reschedule' );
+				$pendingAttention[] = array(
+					'ref' => 'pending-' . (int) ( $pending['proposal_id'] ?? 0 ),
+					'action_available' => true,
+					'authoritative_request' => false,
+					'state' => 'reschedule_pending',
+					'title' => 'در انتظار پاسخ هنرجو',
+					'context' => trim( (string) ( $pending['student'] ?? '' ) . ( '' !== (string) ( $pending['course'] ?? '' ) ? ' · ' . (string) $pending['course'] : '' ) ),
+					'message' => ( 'replacement' === $kind ? 'پیشنهاد جلسهٔ جبرانی در ' : 'پیشنهاد تغییر زمان در ' ) . $proposed_when . ' برای هنرجو ارسال شد و در انتظار پذیرش یا رد اوست. تا پاسخ هنرجو زمان تازه‌ای ارسال نکنید.',
+					'due' => 'در انتظار پاسخ هنرجو',
+					'primary' => 'در انتظار پاسخ هنرجو',
+					'request_kind' => $kind,
+					'lesson_uid' => (string) ( $pending['lesson_uid'] ?? '' ),
+					'schedule_version_uid' => (string) ( $pending['schedule_version_uid'] ?? '' ),
+					'reschedule_available' => false,
+					'reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_propose_reschedule' ),
+					'reschedule_nonce' => wp_create_nonce( 'dzn_teacher_propose_reschedule' ),
+					'reschedule_timezone' => $teacher_timezone,
+					'reschedule_calendar' => $teacher_calendar,
+					'reschedule_locale' => $teacher_locale,
+					'reschedule_current' => dzn_theme_platform_calendar_time( (string) ( $pending['current_start_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+				);
+			}
+		} catch ( Throwable $e ) {
+			$pendingAttention = array();
+		}
+	}
+	$rescheduleAttention = array();
+	if ( class_exists( $reschedule_read_class ) ) {
+		try {
+			foreach ( ( new $reschedule_read_class() )->own() as $declined ) {
+				if ( ! is_array( $declined ) ) { continue; }
+				$rejections = max( 1, (int) ( $declined['rejection_count'] ?? 1 ) );
+				$escalated = $rejections >= 3;
+				$request_kind = (string) ( $declined['request_kind'] ?? 'reschedule' );
+				$can_reschedule = ! $escalated
+					&& in_array( (string) ( $declined['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true )
+					&& empty( $declined['has_outcome'] )
+					&& '' !== (string) ( $declined['lesson_uid'] ?? '' )
+					&& '' !== (string) ( $declined['schedule_version_uid'] ?? '' );
+				$proposed_when = dzn_theme_platform_calendar_time( (string) ( $declined['proposed_starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$failed = 'failed' === (string) ( $declined['proposal_state'] ?? '' );
+				$message = $escalated
+					? 'هنرجو سه بار زمان پیشنهادی را رد کرده است. این مورد به مدیر ارجاع شده تا زمان کلاس را بررسی و در صورت نیاز دستی اصلاح کند. تا هماهنگی مدیر زمان تازه نفرستید.'
+					: ( $failed
+						? 'پیشنهاد قبلی به دلیل محدودیت سامانه بسته شد و جلسه بدون تغییر ماند. با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.'
+						: 'هنرجو زمان پیشنهادی ' . $proposed_when . ' را رد کرد. با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.' );
+				$rescheduleAttention[] = array(
+					'ref' => 'declined-' . (int) ( $declined['proposal_id'] ?? 0 ),
+					'action_available' => true,
+					'authoritative_request' => false,
+					'state' => 'reschedule_declined',
+					'title' => $failed ? 'پیشنهاد زمان بسته شد' : 'زمان پیشنهادی رد شد',
+					'context' => trim( (string) ( $declined['student'] ?? '' ) . ( '' !== (string) ( $declined['course'] ?? '' ) ? ' · ' . (string) $declined['course'] : '' ) ),
+					'message' => $message,
+					'due' => $escalated ? 'ارجاع به مدیر' : 'نیازمند زمان تازه',
+					'primary' => $escalated ? 'در انتظار اقدام مدیر' : ( 'replacement' === $request_kind ? 'ارسال زمان جلسهٔ جبرانی' : 'ارسال زمان تازه' ),
+					'request_kind' => $request_kind,
+					'lesson_uid' => (string) ( $declined['lesson_uid'] ?? '' ),
+					'schedule_version_uid' => (string) ( $declined['schedule_version_uid'] ?? '' ),
+					'reschedule_available' => $can_reschedule,
+					'reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_propose_reschedule' ),
+					'reschedule_nonce' => wp_create_nonce( 'dzn_teacher_propose_reschedule' ),
+					'reschedule_timezone' => $teacher_timezone,
+					'reschedule_calendar' => $teacher_calendar,
+					'reschedule_locale' => $teacher_locale,
+					'reschedule_current' => dzn_theme_platform_calendar_time( (string) ( $declined['current_start_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+				);
+			}
+		} catch ( Throwable $e ) {
+			$rescheduleAttention = array();
+		}
+	}
+	$bookingAttention = array_merge( $pendingAttention, $rescheduleAttention, $absenceAttention, $bookingAttention );
 	$upcoming_count = count( array_filter( $upcoming_rows, static function( $row ) use ( $now ) {
 		$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
 		return $start && $start >= $now;
@@ -1285,12 +1511,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	} catch ( \Throwable $e ) {
 		$post_intro_outcomes = array();
 	}
+	$teacher_inbox = dzn_theme_platform_notification_model( $teacher_timezone, $teacher_calendar, $teacher_locale, 'teacher' );
 	return array(
 		'available' => true,
 		'screen' => $screen,
 		'source' => 'platform',
 		'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ),
 		'navigation' => $nav,
+		'notifications' => $teacher_inbox['items'],
+		'notifications_available' => $teacher_inbox['available'],
+		'notification_unread_count' => $teacher_inbox['unread'],
+		'notification_actions' => $teacher_inbox['actions'],
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => $bookingAttention,
 		'post_intro_outcomes' => $post_intro_outcomes,

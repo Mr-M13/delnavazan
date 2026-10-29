@@ -513,6 +513,22 @@ final class FinanceAdminController {
         echo '</section>';
     }
 
+    /** Read-only finance review entry points. Each route keeps its own authority. */
+    private static function renderReviewQueues(): void {
+        if (!current_user_can('dzn_view_finance_authority')) return;
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $payability = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_payability_evaluations WHERE applicable_slot=1 AND disposition='pending'");
+        $exceptions = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_exceptions WHERE state='open'");
+        $statements = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_statements WHERE state IN ('draft','issued')");
+        echo '<section class="dzn-finance-settings-section" id="finance-review"><h2>Finance review</h2><p>Open the read-only views that support statement issuance and reconciliation. These screens never repair a record or change a payment.</p><div class="dzn-finance-cards">';
+        echo '<a class="dzn-finance-card" href="' . esc_url(add_query_arg(array('page' => FinancePayabilityController::MENU_SLUG), admin_url('admin.php'))) . '"><strong>' . esc_html(number_format_i18n($payability)) . '</strong><span>Lessons with pending payability</span></a>';
+        echo '<a class="dzn-finance-card" href="' . esc_url(add_query_arg(array('page' => FinanceReconciliationController::MENU_SLUG), admin_url('admin.php'))) . '"><strong>' . esc_html(number_format_i18n($exceptions)) . '</strong><span>Open finance exceptions</span></a>';
+        echo '<a class="dzn-finance-card" href="' . esc_url(self::tabUrl(self::TAB_STATEMENTS)) . '"><strong>' . esc_html(number_format_i18n($statements)) . '</strong><span>Draft or issued statements</span></a>';
+        echo '<a class="dzn-finance-card" href="' . esc_url(add_query_arg(array('page' => FinanceRateController::MENU_SLUG), admin_url('admin.php'))) . '"><strong>→</strong><span>Teacher rate timelines</span></a>';
+        echo '</div></section>';
+    }
+
     private static function renderSettings(FinanceAdminReadService $read): void {
         if (!current_user_can('dzn_view_finance_authority') && !current_user_can(RegionalPricingService::MANAGE_CAPABILITY)) { self::denied('Finance settings authority is required.'); return; }
         $pricing = new RegionalPricingService();
@@ -521,6 +537,7 @@ final class FinanceAdminController {
         foreach ($pricing->activeAll() as $row) $regions[$row['region_code']] = $row;
         $conflicts = array();
         try { $conflicts = $pricing->conflicts(); } catch (\Throwable) { $conflicts = array(); }
+        self::renderReviewQueues();
         echo '<section class="dzn-finance-settings-section" id="regional-pricing"><h2>Global regional pricing</h2><p><strong>One standard lesson price applies to every standard Course in a currency region.</strong> Prices are entered in normal currency units and stored as exact minor units. Changing a price preserves every historical offer, payment and statement.</p>';
         if ($conflicts) {
             echo '<div class="notice notice-warning"><p><strong>Existing course prices need explicit resolution.</strong> These regions have conflicting or non-authoritative course prices. Choose one amount below; existing offers keep their original price snapshot.</p><ul>';

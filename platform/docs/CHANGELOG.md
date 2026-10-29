@@ -3,6 +3,16 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Unified notification management — 2026-10-29
+
+Branch `feature/unified-notification-management` (base `b67f510`). One notification definition
+catalogue, an editable immutable-copy library, the «اعلان‌ها و پیام‌رسانی» admin workspace, a branded
+RTL email shell and a persistent student/teacher website inbox (Schema 056). The five operational
+senders keep their delivery authority and idempotency; only wording becomes editable. No transport
+binding, Meta template, Telnyx policy or financial copy is activated by this change. See
+`RELEASE-2026-10-29-UNIFIED-NOTIFICATIONS.md`, `UNIFIED-NOTIFICATION-AUDIT.md`,
+`NOTIFICATION-EDITORIAL-STANDARD.md` and `evidence/`.
+
 ## Home-menu and currency-selector follow-up — deployed 2026-10-27
 
 Release `9d568c69bd604d2e57fa551e3c2173a3287402d9` (build `main-9d568c69bd60`, schema 52) merged

@@ -9,7 +9,7 @@ final class ExceptionService {
         'core_integrity_failure', 'migration_failed', 'migration_lock_stale',
         'invalid_entity_relationship', 'duplicate_identity_candidate', 'schedule_conflict',
         'timezone_missing', 'reference_generation_failed', 'archive_conflict', 'unknown_system_error',
-        'booking_request_match_attention',
+        'booking_request_match_attention', 'reschedule_negotiation_escalated', 'lesson_replacement_exception',
     ];
     private const ENTITY_TYPES = ['teacher', 'student', 'instrument', 'course', 'enrolment', 'term', 'lesson', 'booking_request', 'system'];
 

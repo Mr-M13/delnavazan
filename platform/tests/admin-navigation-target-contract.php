@@ -106,10 +106,18 @@ foreach (array(
 
 // A single-destination area must not render a second navigation row.
 $contains($shell, array(
-    'count($visible) > 1',
+    'count($visible) <= 1',
     'dzn-admin-shell__subtabs',
     'firstAvailableDestinationUrl',
 ), 'The shell must suppress sub-tabs for a single destination and resolve the first permitted destination URL');
+$contains($shell, array(
+    'SETTINGS_GROUPS',
+    'renderSettingsNavigation',
+    "'messaging' => ['Messaging'",
+    "'integrations' => ['Integrations'",
+    "'access' => ['Access'",
+    "'system' => ['System'",
+), 'Settings must be grouped into General, Messaging, Integrations, Access and System without removing protected routes');
 
 // Legacy Academy deep links must keep resolving without restoring the tabs.
 $contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-academy-attention'"), 'Legacy Academy view URLs must focus the combined page without restoring sub-tabs');

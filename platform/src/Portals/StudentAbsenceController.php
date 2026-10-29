@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Portals;
 
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService;
+use Delnavazan\Platform\Core\Application\CanonicalAttendanceNotificationService;
 
 /**
  * Student-owned attendance reports.
@@ -58,6 +59,9 @@ final class StudentAbsenceController {
                 'observed_at'=>$anchoredAt,
                 'evidence_reference'=>'authenticated-student:'.get_current_user_id().':'.$lesson.':'.(int)$schedule->id.':'.$reasonCode,
             ),'student-claim:'.get_current_user_id().':'.$lesson.':'.(int)$schedule->id.':'.$reasonCode);
+            // The Teacher owns the replacement conversation. Email is best-effort; the durable
+            // pending task is the Teacher portal absence read.
+            try{(new CanonicalAttendanceNotificationService())->notifyTeacher($lesson,(int)$schedule->id,$claimKind);}catch(\Throwable){}
             self::back($success);
         }catch(\Throwable){self::back($failure);}
     }

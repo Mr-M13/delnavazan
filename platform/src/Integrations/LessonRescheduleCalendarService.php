@@ -15,6 +15,8 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{LessonRescheduleReposito
  */
 final class LessonRescheduleCalendarService {
     private const MAX_ATTEMPTS=6;
+    /** Provider refusals that cannot converge by retrying the same immutable request. */
+    private const PERMANENT_ERRORS=array('google_calendar_projection_refused','google_meet_join_uri_untrusted','google_calendar_projection_identity_mismatch','google_calendar_event_id_invalid','google_calendar_request_not_allowed','google_calendar_request_incomplete','reschedule_calendar_binding_invalid');
     /** @var callable(array):array */
     private $dispatch;
     /** @var callable():int */
@@ -31,32 +33,60 @@ final class LessonRescheduleCalendarService {
     }
 
     public function dispatchPending(int $limit=10):array{
-        $completed=0;$failed=0;
+        $completed=0;$failed=0;$skipped=0;
         foreach($this->store->pendingCalendarJobs($limit) as $row){
-            $this->store->begin();
             try{
-                $locked=$this->store->calendarJob((int)$row->id,true);
-                if(!$locked||!in_array((string)$locked->state,array('queued','retry'),true)){$this->store->commit();continue;}
-                $result=($this->dispatch)((array)$locked);
-                $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
-                $this->store->updateCalendarJob((int)$locked->id,array('state'=>'completed','attempt_count'=>(int)$locked->attempt_count+1,'completed_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'updated_at'=>$now));
-                $this->store->commit();$completed++;
+                $state=$this->dispatchJob((int)$row->id);
+                if($state==='completed')$completed++;else $skipped++;
             }catch(\Throwable $e){
-                $this->store->rollback();
-                try{
-                    $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
-                    $code=self::safeErrorCode((string)$e->getMessage());
-                    $actorUnavailable=in_array($code,array('reschedule_calendar_actor_unconfigured','reschedule_calendar_actor_invalid'),true);
-                    $attempt=(int)($row->attempt_count??0)+($actorUnavailable?0:1);
-                    // Missing or underprivileged actors keep the job queued and retryable; an
-                    // already accepted canonical reschedule is never rolled back for this.
-                    $state=$actorUnavailable?'queued':($attempt>=self::MAX_ATTEMPTS?'failed':'retry');
-                    $this->store->updateCalendarJob((int)$row->id,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt))))),'last_error_code'=>$code,'updated_at'=>$now));
-                }catch(\Throwable){}
                 $failed++;
             }
         }
-        return array('completed'=>$completed,'failed'=>$failed);
+        return array('completed'=>$completed,'failed'=>$failed,'skipped'=>$skipped);
+    }
+
+    /**
+     * Dispatch one exact job. Used by the worker and by an authorised recovery action.
+     * The row is re-read under a lock; a completed job is never dispatched twice even when a
+     * worker's queue snapshot is stale.
+     */
+    public function dispatchJob(int $jobId):string{
+        // The provider authority owns its own transaction. Wrapping it in a second transaction
+        // would make ProviderIntegrationRepository::begin() attempt SET TRANSACTION while a
+        // transaction is already open (MySQL refuses), and a nested rollback would be ambiguous.
+        // The outbox row is therefore advanced after the provider command commits; the provider
+        // command key is deterministic, so a crash between the two converges on retry without a
+        // second calendar event.
+        $job=$this->store->calendarJob($jobId);
+        if(!$job||!in_array((string)$job->state,array('queued','retry'),true))return 'skipped';
+        try{
+            $result=($this->dispatch)((array)$job);
+        }catch(\Throwable $e){
+            $this->recordFailure($jobId,$e);
+            throw $e;
+        }
+        $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
+        $this->store->updateCalendarJob($jobId,array('state'=>'completed','attempt_count'=>(int)$job->attempt_count+1,'completed_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'updated_at'=>$now));
+        return 'completed';
+    }
+
+    private function recordFailure(int $jobId,\Throwable $e):void{
+        try{
+            $job=$this->store->calendarJob($jobId);
+            if(!$job)return;
+            $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
+            $code=self::safeErrorCode((string)$e->getMessage());
+            $actorUnavailable=in_array($code,array('reschedule_calendar_actor_unconfigured','reschedule_calendar_actor_invalid'),true);
+            $permanent=in_array($code,self::PERMANENT_ERRORS,true);
+            $attempt=(int)($job->attempt_count??0)+($actorUnavailable?0:1);
+            // Missing or underprivileged actors keep the job queued and retryable; an
+            // already accepted canonical reschedule is never rolled back for this.
+            // A deterministic provider refusal is terminal, while transport/outage
+            // failures use bounded exponential backoff.
+            $state=$actorUnavailable?'queued':(($permanent||$attempt>=self::MAX_ATTEMPTS)?'failed':'retry');
+            $next=$permanent?null:gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt)))));
+            $this->store->updateCalendarJob($jobId,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>$next,'last_error_code'=>$code,'updated_at'=>$now));
+        }catch(\Throwable){}
     }
 
     /** Store only controlled codes; never persist raw provider references, tokens or payload text. */
@@ -71,19 +101,25 @@ final class LessonRescheduleCalendarService {
             $lessonId=(int)$job['lesson_id'];$from=(int)$job['from_schedule_version_id'];$to=(int)$job['to_schedule_version_id'];
             if($lessonId<1||$from<1||$to<1)throw new \InvalidArgumentException('reschedule_calendar_binding_invalid');
             $repository=new ProviderIntegrationRepository();
-            $authority=new ProviderIntegrationService();
+            // The provider authority requires its adapter ports; constructing it without them
+            // always fails before any canonical/projection work. Use the same translation-only
+            // Google seam as the projection service; the real HTTP write still belongs to the
+            // authorised projection worker.
+            $adapter=new GoogleCalendarMeetAdapter();
+            $authority=new ProviderIntegrationService(null,null,new GoogleOAuthTransport(),$adapter,$adapter);
             $now=gmdate('Y-m-d H:i:s');
             $evidence=array('reason_code'=>'reschedule_accepted','evidence_channel'=>'authenticated_platform','evidence_reference'=>'reschedule-calendar:'.(string)$job['uid'],'evidence_at'=>$now);
             if($old=$repository->activeCalendarMapping($lessonId,$from))$authority->retractCalendarProjection((int)$old->id,$evidence,'reschedule-retract-calendar:'.$job['uid']);
             if($oldMeeting=$repository->activeMeetingMapping($lessonId,$from))$authority->retractMeetingProjection((int)$oldMeeting->id,$evidence,'reschedule-retract-meeting:'.$job['uid']);
-            $projection=array('lesson_id'=>$lessonId,'schedule_version_id'=>$to,'evidence_channel'=>'authenticated_platform','evidence_reference'=>'reschedule-calendar:'.$job['uid'],'evidence_at'=>$now);
-            foreach(array('calendar','meeting') as $kind){
-                try{
-                    if('calendar'===$kind)$authority->projectCalendarEvent($projection,'reschedule-project-calendar:'.$job['uid']);
-                    else $authority->projectMeetingConference($projection,'reschedule-project-meeting:'.$job['uid']);
-                }catch(\InvalidArgumentException $e){
-                    if($e->getMessage()!=='projection_already_recorded')throw $e;
-                }
+            $projection=array('lesson_id'=>$lessonId,'schedule_version_id'=>$to,'projection_reference'=>'reschedule-handoff:'.$job['uid'],'evidence_channel'=>'authenticated_platform','evidence_reference'=>'reschedule-calendar:'.$job['uid'],'evidence_at'=>$now);
+            // The real Google projection worker creates the calendar event with its conferenceData
+            // and records the returned Meet URI on the calendar mapping acknowledgement. A separate
+            // google_meet projection would require a second connection that the Google OAuth flow
+            // never creates; it is not part of the live Calendar/Meet path.
+            try{
+                $authority->projectCalendarEvent($projection,'reschedule-project-calendar:'.$job['uid']);
+            }catch(\InvalidArgumentException $e){
+                if($e->getMessage()!=='projection_already_recorded')throw $e;
             }
             return array('lesson_id'=>$lessonId,'from_schedule_version_id'=>$from,'to_schedule_version_id'=>$to,'state'=>'handed_off');
         });

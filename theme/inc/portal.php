@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/nonce.php';
+
 /**
  * Portal templates owned by this presentation increment.
  *

@@ -11,7 +11,7 @@ define( 'DZN_PLATFORM_VERSION', '0.1.0' );
 define( 'DZN_PLATFORM_SCHEMA_VERSION', '54' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-finance-administration-20261026.3' );
+define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-missed-lesson-replacement-20261029.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );
@@ -54,6 +54,20 @@ add_action( 'plugins_loaded', static function () {
 	}
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
+	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();
+	Delnavazan\Platform\Portals\PortalNotificationController::register();
+	Delnavazan\Platform\Core\Application\PortalNotificationRecorder::register();
+	// The admin-editable copy store is the canonical copy source once a template version is published.
+	// Registering definitions never installs a transport binding, so delivery stays behind its own gate.
+	add_filter( 'dzn_notification_copy_definitions', static function ( $definitions ) {
+		$definitions = is_array( $definitions ) ? $definitions : array();
+		try {
+			$stored = ( new Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary() )->copyDefinitions();
+		} catch ( \Throwable $error ) {
+			$stored = array();
+		}
+		return array_merge( $definitions, $stored );
+	} );
 	Delnavazan\Platform\Admin\Controller\OperationalCashbookController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();
@@ -73,6 +87,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\FinanceReconciliationController::register();
 	Delnavazan\Platform\Admin\Controller\CoreDatasetReadinessController::register();
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
+	Delnavazan\Platform\Admin\Controller\RescheduleReviewController::register();
 	Delnavazan\Platform\Portals\StudentProfileController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
 	Delnavazan\Platform\Portals\TeacherAvailabilitySelfServiceController::register();

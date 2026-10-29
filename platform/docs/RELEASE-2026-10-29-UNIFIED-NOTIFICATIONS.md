@@ -4,6 +4,15 @@ Date: 2026-10-29
 Branch: `feature/unified-notification-management`
 Base: `origin/main` `b67f510`
 
+## Admin language follow-up (2026-10-29)
+
+The WordPress administration surface for this feature is now English: navigation, tabs, headings,
+controls, field labels, statuses, provider/consent wording, diagnostics and error messages. Notification
+copy sent to students and teachers remains Persian, and the editor/preview/history areas keep
+`lang="fa" dir="rtl"` inside an otherwise LTR WordPress admin. Internal event keys, capabilities, nonces,
+validation, version history and delivery behaviour are unchanged. See
+`tests/notification-admin-language-contract.php` and the refreshed `docs/evidence/admin-*.html` captures.
+
 ## Production deployment (2026-10-29)
 
 - Pull request: #404 (`feature/unified-notification-management`).

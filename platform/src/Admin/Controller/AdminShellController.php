@@ -30,7 +30,7 @@ final class AdminShellController {
             ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
             ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
             ['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
-            ['اعلان‌ها و پیام‌رسانی', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
+            ['Notifications & Messaging', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
             ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],

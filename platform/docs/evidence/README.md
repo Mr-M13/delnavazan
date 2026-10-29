@@ -1,18 +1,19 @@
 # Evidence: unified notification management
 
 These files are read-only visual evidence captured from a **disposable local WordPress** instance
-(`http://127.0.0.1:18081`) provisioned by `acceptance/`, with synthetic `@example.invalid` identities
+(`http://127.0.0.1:18081`). The WordPress administration interface is English; notification copy and
+portal content remain Persian with RTL presentation. provisioned by `acceptance/`, with synthetic `@example.invalid` identities
 only. No production site, provider credential or real recipient was used.
 
-- `admin-templates.html` — «قالب پیام‌ها»: 90 event/channel/locale rows, version state and warnings.
-- `admin-editor.html` — editor: allowed/required placeholders, active version, synthetic preview,
-  draft/publish/restore controls and immutable version history.
-- `admin-rules.html` — «قوانین ارسال»: category channel policy and event → channel mapping.
-- `admin-monitoring.html` — «وضعیت ارسال»: aggregate states, hand-off vs verified delivery wording,
+- `admin-templates.html` — **Templates**: 90 event/channel/locale rows, version state and warnings.
+- `admin-editor.html` — editor: allowed/required placeholders, active version, synthetic Persian
+  preview (RTL), draft/publish/restore controls and immutable version history.
+- `admin-rules.html` — **Delivery Rules**: category channel policy and event → channel mapping.
+- `admin-monitoring.html` — **Delivery Monitoring**: aggregate states, hand-off vs verified delivery wording,
   diagnostics and portal inbox counts.
-- `admin-channels.html` — «تنظیمات کانال‌ها»: secret-free readiness, WhatsApp template mapping and SMS
+- `admin-channels.html` — **Channels**: secret-free readiness, WhatsApp template mapping and SMS
   segmentation rule.
-- `admin-website.html` — «اعلان‌های پرتال»: student/teacher/admin counts, recent rows, retention and the
+- `admin-website.html` — **Portal Notifications**: student/teacher/admin counts, recent rows, retention and the
   admin-only test action.
 - `student-portal-notifications.html` — Student shell with bell, unread badge and account inbox.
 - `teacher-portal-notifications.html` — Teacher shell with bell, unread badge and inbox section.

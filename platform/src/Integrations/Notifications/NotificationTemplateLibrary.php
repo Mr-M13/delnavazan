@@ -111,17 +111,17 @@ final class NotificationTemplateLibrary {
             // A catalogue default is a usable, reviewed fallback for the operational queues. It is only a
             // configuration gap when there is no default at all, or when the canonical authority (which
             // renders strictly from a frozen version) is expected to dispatch this event.
-            if(!is_array($default))$issues[]='متن پیش‌فرضی ثبت نشده و هنوز نسخه‌ای منتشر نشده است.';
-            elseif((string)($event['authority']??'')==='canonical')$issues[]='رویداد کانونیک بدون نسخهٔ منتشرشده، قابل ارسال نیست.';
-        }elseif(!$active)$issues[]='هیچ نسخهٔ فعالی برای این قالب وجود ندارد.';
-        elseif($activeBody===null)$issues[]='متن نسخهٔ فعال در دسترس نیست؛ انتشار دوباره لازم است.';
+            if(!is_array($default))$issues[]='No default copy and no published version exist.';
+            elseif((string)($event['authority']??'')==='canonical')$issues[]='A canonical event cannot be dispatched without a published version.';
+        }elseif(!$active)$issues[]='No active version exists for this template.';
+        elseif($activeBody===null)$issues[]='The active version body is unavailable; publish again.';
         $mapping=$this->providerMapping($templateKey);
         $providerState='not_applicable';
         if($channel==='whatsapp'){
-            if($mapping['name']===''){$providerState='not_mapped';$issues[]='شناسهٔ قالب تأییدشدهٔ Meta ثبت نشده است. ارسال تجاری آغاز نمی‌شود.';}
+            if($mapping['name']===''){$providerState='not_mapped';$issues[]='No Meta-approved template is mapped. Business-initiated sending will not start.';}
             elseif($activeBody!==null&&!hash_equals((string)$mapping['body_digest'],$this->copyDigest((string)$activeBody['body']))){
                 $providerState='approval_required';
-                $issues[]='متن محلی پس از آخرین نگاشت تغییر کرده است؛ قالب باید در Meta بازبینی و تأیید شود.';
+                $issues[]='Local copy changed after the last mapping; the template must be reviewed and approved again in Meta.';
             }else{$providerState='mapped';}
         }elseif($channel==='sms'){
             $providerState='restricted_fallback';
@@ -161,14 +161,14 @@ final class NotificationTemplateLibrary {
         $drafts=$this->option(self::OPTION_DRAFTS);
         $drafts[$key]=array('event_key'=>$eventKey,'channel'=>$channel,'locale'=>$locale,'subject'=>$validated['subject'],'body'=>$validated['body'],'updated_at'=>$this->now(),'updated_by'=>$this->actor());
         $this->putOption(self::OPTION_DRAFTS,$drafts);
-        $this->audit('save_draft',$eventKey,$channel,$locale,null,'پیش‌نویس ذخیره شد');
+        $this->audit('save_draft',$eventKey,$channel,$locale,null,'Draft saved');
         return array('ok'=>true,'draft'=>$drafts[$key]);
     }
 
     public function discardDraft(string $eventKey,string $channel,string $locale):array{
         $key=$this->draftKey($eventKey,$channel,$locale);
         $drafts=$this->option(self::OPTION_DRAFTS);
-        if(isset($drafts[$key])){unset($drafts[$key]);$this->putOption(self::OPTION_DRAFTS,$drafts);$this->audit('discard_draft',$eventKey,$channel,$locale,null,'پیش‌نویس کنار گذاشته شد');}
+        if(isset($drafts[$key])){unset($drafts[$key]);$this->putOption(self::OPTION_DRAFTS,$drafts);$this->audit('discard_draft',$eventKey,$channel,$locale,null,'Draft discarded');}
         return array('ok'=>true);
     }
 
@@ -226,14 +226,14 @@ final class NotificationTemplateLibrary {
         $key=$this->draftKey($eventKey,$channel,$locale);
         $drafts=$this->option(self::OPTION_DRAFTS);
         if(isset($drafts[$key])){unset($drafts[$key]);$this->putOption(self::OPTION_DRAFTS,$drafts);}
-        $this->audit($source==='rollback'?'rollback_publish':'publish',$eventKey,$channel,$locale,$versionId,'نسخهٔ '.($version['version_number']??'?').' منتشر و فعال شد');
+        $this->audit($source==='rollback'?'rollback_publish':'publish',$eventKey,$channel,$locale,$versionId,'Version '.($version['version_number']??'?').' published and active');
         return array('ok'=>true,'template_id'=>$templateId,'template_version_id'=>$versionId,'version_number'=>(int)($version['version_number']??0),'state'=>(string)($activated['state']??'active'),'idempotent'=>(bool)($version['idempotent']??false));
     }
 
     /** Re-publish an older body as a new active version; the older version itself is never mutated. */
     public function restoreVersion(string $eventKey,string $channel,string $locale,int $versionId):array{
         $copy=$this->versionCopy($versionId);
-        if($copy===null)throw new \InvalidArgumentException('نسخهٔ انتخابی متن ذخیره‌شده ندارد.');
+        if($copy===null)throw new \InvalidArgumentException('The selected version has no stored copy.');
         // A rollback is a new publish intent, so it must not collapse onto the older content's
         // idempotency key; the minute-stable correlation makes a double click converge.
         return $this->publish($eventKey,$channel,$locale,(string)$copy['subject'],(string)$copy['body'],'rollback',$versionId,'restore:'.$versionId.':'.gmdate('YmdHi'));
@@ -241,7 +241,7 @@ final class NotificationTemplateLibrary {
 
     public function restoreDefault(string $eventKey,string $channel,string $locale):array{
         $default=NotificationCatalogue::defaultCopy($eventKey,$channel,$locale);
-        if($default===null)throw new \InvalidArgumentException('برای این رویداد و کانال، متن پیش‌فرضی ثبت نشده است.');
+        if($default===null)throw new \InvalidArgumentException('No default copy is defined for this event and channel.');
         return $this->publish($eventKey,$channel,$locale,(string)($default['subject']??''),(string)($default['body']??''),'default',null,'default:'.gmdate('YmdHi'));
     }
 
@@ -286,16 +286,16 @@ final class NotificationTemplateLibrary {
         $cta=$this->ctaFor($eventKey,$body,$variables,(string)(NotificationCatalogue::get($eventKey)['audience']??'student'));
         $rendered=DelnavazanEmailRenderer::render($renderedSubject,$renderedBody,array(
             'locale'=>$locale,'cta'=>$cta,'preheader'=>$renderedSubject,
-            'footer_note'=>NotificationCatalogue::previewNotice(),
+            'footer_note'=>NotificationCatalogue::previewNotice($locale),
         ));
         return array('subject'=>$rendered['subject'],'text'=>$rendered['text'],'html'=>$rendered['html'],'segments'=>null);
     }
 
     /** The one primary action of an event, derived from the simulated variables of an action placeholder. */
-    private function ctaFor(string $eventKey,string $body,array $variables,string $audience):?array{
+    private function ctaFor(string $eventKey,string $body,array $variables,string $audience,string $locale):?array{
         foreach(array('portal_url','teacher_portal_url','claim_url','payment_url') as $code){
             if(!str_contains($body,'{{'.$code.'}}')||!isset($variables[$code]))continue;
-            $label=$audience==='teacher'?'رفتن به پرتال مدرس':($audience==='admin'?'رفتن به پیشخوان دلنوازان':'رفتن به پرتال هنرجو');
+            $label=NotificationCatalogue::normaliseLocale($locale)==='en'?($audience==='teacher'?'Open Teacher Portal':($audience==='admin'?'Open Delnavazan Admin':'Open Student Portal')):($audience==='teacher'?'رفتن به پرتال مدرس':($audience==='admin'?'رفتن به پیشخوان دلنوازان':'رفتن به پرتال هنرجو'));
             return array('label'=>$label,'url'=>(string)$variables[$code]);
         }
         return null;
@@ -314,11 +314,11 @@ final class NotificationTemplateLibrary {
     }
 
     public function saveProviderMapping(string $eventKey,string $channel,string $locale,string $name,string $language):array{
-        if($channel!=='whatsapp')throw new \InvalidArgumentException('نگاشت قالب ارائه‌دهنده فقط برای واتس‌اپ کاربرد دارد.');
+        if($channel!=='whatsapp')throw new \InvalidArgumentException('Provider template mapping applies to WhatsApp only.');
         $name=trim($name);$language=trim($language);
-        if($name==='')throw new \InvalidArgumentException('شناسهٔ قالب تأییدشده الزامی است.');
-        if(preg_match('/^[a-z0-9_]{1,191}$/',$name)!==1)throw new \InvalidArgumentException('شناسهٔ قالب فقط می‌تواند شامل حروف کوچک لاتین، رقم و زیرخط باشد.');
-        if(preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/',$language)!==1)throw new \InvalidArgumentException('کد زبان قالب معتبر نیست؛ نمونه: fa یا en_US.');
+        if($name==='')throw new \InvalidArgumentException('A provider template ID is required.');
+        if(preg_match('/^[a-z0-9_]{1,191}$/',$name)!==1)throw new \InvalidArgumentException('The template ID may contain lowercase Latin letters, digits and underscores only.');
+        if(preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/',$language)!==1)throw new \InvalidArgumentException('The template language code is invalid; examples: fa or en_US.');
         $templateKey=NotificationCatalogue::templateKey($eventKey,$channel,$locale);
         $active=$this->activeCopy($eventKey,$channel,$locale);
         $map=$this->option(self::OPTION_WHATSAPP);
@@ -328,7 +328,7 @@ final class NotificationTemplateLibrary {
             'mapped_at'=>$this->now(),'mapped_by'=>$this->actor(),
         );
         $this->putOption(self::OPTION_WHATSAPP,$map);
-        $this->audit('map_provider_template',$eventKey,$channel,NotificationCatalogue::normaliseLocale($locale),null,'نگاشت قالب واتس‌اپ ثبت شد؛ تأیید Meta جداگانه لازم است');
+        $this->audit('map_provider_template',$eventKey,$channel,NotificationCatalogue::normaliseLocale($locale),null,'WhatsApp template mapping saved; Meta approval is still required separately');
         return array('ok'=>true,'mapping'=>$map[$templateKey]);
     }
 
@@ -368,7 +368,7 @@ final class NotificationTemplateLibrary {
             $saved[$category]=$flags;
         }
         $this->putOption(self::OPTION_CHANNEL_POLICY,$saved);
-        $this->audit('save_channel_policy','','','',null,'قوانین کانال به‌روزرسانی شد');
+        $this->audit('save_channel_policy','','','',null,'Channel rules updated');
         return $this->channelPolicies();
     }
 
@@ -409,7 +409,7 @@ final class NotificationTemplateLibrary {
 
     private function storeVersionBody(int $versionId,array $body):void{
         $bodies=$this->option(self::OPTION_COPY_VERSIONS);
-        if(isset($bodies[$versionId])&&!hash_equals((string)$bodies[$versionId]['body'],(string)$body['body']))throw new \RuntimeException('نسخهٔ قالب تغییرناپذیر است و متن آن قابل بازنویسی نیست.');
+        if(isset($bodies[$versionId])&&!hash_equals((string)$bodies[$versionId]['body'],(string)$body['body']))throw new \RuntimeException('A template version is immutable and its body cannot be rewritten.');
         if(isset($bodies[$versionId]))return;
         $bodies[$versionId]=$body;
         $this->putOption(self::OPTION_COPY_VERSIONS,$bodies);

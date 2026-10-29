@@ -68,6 +68,9 @@ final class CommercialCapacityAuthority {
     /** @return array<int,object> intervals of active claims for this Term and canonical session */
     public static function candidates(object $lesson,?CommercialCapacityRepository $repository=null,bool $lock=false):array{
         $repository??=new CommercialCapacityRepository();
+        // A replacement Lesson is funded by the Term replacement allowance, never by one of the
+        // committed standard-session intervals. It must not bind, satisfy or reopen that interval.
+        if((string)($lesson->lesson_type??'')==='replacement')return array();
         $termId=(int)($lesson->term_id??0);
         $sequence=(int)($lesson->canonical_sequence??0);
         if($termId<1||$sequence<1)return array();
@@ -95,6 +98,7 @@ final class CommercialCapacityAuthority {
         $sequence=(int)($lesson->canonical_sequence??0);
         if($termId<1||$sequence<1)return;
         $excludeIntervalId=0;
+        $isReplacement=(string)($lesson->lesson_type??'')==='replacement';
         $claims=$repository->claimsForTerm($termId,true);
         if($claims){
             $candidates=array();$claimsWholeTerm=false;
@@ -107,7 +111,7 @@ final class CommercialCapacityAuthority {
             }
             if(count($candidates)>1)throw new \InvalidArgumentException('commercial_capacity_integrity_conflict');
             if(!$candidates){
-                if($claimsWholeTerm)throw new \InvalidArgumentException('protected_interval_missing');
+                if($claimsWholeTerm&&!$isReplacement)throw new \InvalidArgumentException('protected_interval_missing');
             }else{
                 $interval=$candidates[0];
                 if((int)$interval->teacher_id!==(int)$lesson->teacher_id)throw new \InvalidArgumentException('protected_interval_teacher_mismatch');
@@ -127,6 +131,7 @@ final class CommercialCapacityAuthority {
      */
     public static function satisfyForLesson(object $lesson,int $scheduleVersionId,array $schedule,int $actor,string $now,?CommercialCapacityRepository $repository=null):?int{
         $repository??=new CommercialCapacityRepository();
+        if((string)($lesson->lesson_type??'')==='replacement')return null;
         $interval=self::authorisingInterval($lesson,$repository,true);
         if($interval===null)return null;
         if(!CommercialValidator::intervalMatchesSchedule($interval,$schedule))throw new \InvalidArgumentException('protected_interval_mismatch');
@@ -176,6 +181,7 @@ final class CommercialCapacityAuthority {
      */
     public static function reopenForLesson(object $lesson,int $expectedScheduleVersionId,int $actor,string $now,?CommercialCapacityRepository $repository=null):?int{
         $repository??=new CommercialCapacityRepository();
+        if((string)($lesson->lesson_type??'')==='replacement')return null;
         $termId=(int)($lesson->term_id??0);
         $sequence=(int)($lesson->canonical_sequence??0);
         if($termId<1||$sequence<1)return null;

@@ -37,6 +37,8 @@ final class CanonicalLessonScheduleService {
         $this->occupancy??=new CanonicalTeacherOccupancyReadService($this->repository,$this->lessons);
     }
     public function schedule(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_initial',$lessonId,$expectedAssignmentId,$input,$key);}
+    /** Initial schedule inside a caller-owned transaction (used when issuing a replacement Lesson). */
+    public function scheduleWithinTransaction(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_initial',$lessonId,$expectedAssignmentId,$input,$key,false);}
     public function revise(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_revise',$lessonId,$expectedAssignmentId,$input,$key);}
     public function release(int $lessonId,array $input,string $key):array{return $this->apply('schedule_release',$lessonId,0,$input,$key);}
 

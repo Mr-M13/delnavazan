@@ -671,10 +671,16 @@ function dzn_theme_platform_student_reschedule_proposals( array $rows, $timezone
 		if ( ! is_array( $row ) || 'student_reschedule_proposal_v1' !== ( $row['version'] ?? '' ) ) { continue; }
 		$uid = trim( (string) ( $row['proposal_uid'] ?? '' ) );
 		if ( '' === $uid ) { continue; }
+		$kind = 'replacement' === (string) ( $row['kind'] ?? '' ) ? 'replacement' : 'reschedule';
 		$out[] = array(
 			'proposal_uid' => $uid,
+			'kind' => $kind,
+			'kind_label' => 'replacement' === $kind ? 'جلسهٔ جبرانی' : 'تغییر زمان کلاس',
 			'instrument' => (string) ( $row['instrument_name'] ?? '' ),
 			'teacher' => (string) ( $row['teacher_name'] ?? '' ),
+			'original_date' => dzn_theme_platform_calendar_time( (string) ( $row['original_starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'date' ),
+			'original_time' => dzn_theme_platform_calendar_time( (string) ( $row['original_starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ),
+			'original_starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $row['original_starts_at_utc'] ?? '' ) ),
 			'date' => dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'date' ),
 			'time' => dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ) . '–' . dzn_theme_platform_calendar_time( (string) ( $row['ends_at_utc'] ?? '' ), $timezone, $calendar, $locale, 'time' ),
 			'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $row['starts_at_utc'] ?? '' ) ),
@@ -1312,13 +1318,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			foreach ( ( new $absence_read_class() )->own() as $absence_row ) {
 				if ( ! is_array( $absence_row ) ) { continue; }
 				$occurrence = (string) ( $absence_row['occurrence_start_utc'] ?? '' );
-				$is_future = (bool) ( dzn_theme_platform_utc_timestamp( $occurrence ) > time() );
-				$can_reschedule = 'authorised' === (string) ( $absence_row['lifecycle_state'] ?? '' ) && empty( $absence_row['has_outcome'] ) && '' !== (string) ( $absence_row['lesson_uid'] ?? '' ) && '' !== (string) ( $absence_row['schedule_version_uid'] ?? '' );
-				$when = dzn_theme_platform_calendar_time( $occurrence, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
-				$message = $is_future
-					? 'هنرجو برای جلسهٔ ' . $when . ' اطلاع غیبت ثبت کرده است. با هنرجو تماس بگیرید و اگر توافق کردید، زمان همین جلسه را به زمان جایگزین تغییر دهید. پس از پذیرش هنرجو، زمان جدید در تقویم و پرتال او به‌روز می‌شود.'
-					: 'هنرجو اعلام کرده جلسهٔ ' . $when . ' را از دست داده است. با هنرجو برای جلسهٔ جایگزین هماهنگ کنید و زمان تازه را در همین کارت ثبت کنید.';
-				if ( ! $can_reschedule ) { $message .= ' این جلسه از نظر سامانه بسته شده است؛ برای ثبت جلسهٔ جایگزین با مدیر آموزشگاه هماهنگ کنید.'; }
+				$is_future = (bool) ( dzn_theme_platform_utc_timestamp( (string) ( $absence_row['current_start_utc'] ?? $occurrence ) ) > time() );
+				$request_kind = (string) ( $absence_row['request_kind'] ?? ( $is_future ? 'reschedule' : 'replacement' ) );
+				$current_time = (string) ( $absence_row['current_start_utc'] ?? $occurrence );
+				$can_reschedule = ! empty( $absence_row['can_request'] )
+					&& '' !== (string) ( $absence_row['lesson_uid'] ?? '' )
+					&& '' !== (string) ( $absence_row['schedule_version_uid'] ?? '' );
+				$when = dzn_theme_platform_calendar_time( $current_time, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$message = 'replacement' === $request_kind
+					? 'هنرجو اعلام کرده جلسهٔ ' . dzn_theme_platform_calendar_time( $occurrence, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ) . ' را از دست داده است. زمان جلسهٔ جبرانی را پیشنهاد دهید؛ پس از پذیرش هنرجو، جلسهٔ جایگزین قطعی و در تقویم ثبت می‌شود. جلسهٔ اصلی و شاهد غیبت حفظ می‌شوند.'
+					: 'هنرجو برای جلسهٔ ' . $when . ' اطلاع غیبت ثبت کرده است. زمان تازه را پیشنهاد دهید؛ پس از پذیرش هنرجو، زمان همین جلسه به‌روز می‌شود.';
+				if ( ! $can_reschedule ) { $message .= ' این مورد نیازمند بررسی مدیر آموزشگاه است و از پرتال مدرس قابل تغییر نیست.'; }
 				$absenceAttention[] = array(
 					'ref' => 'absence-' . (int) ( $absence_row['case_id'] ?? 0 ),
 					'action_available' => true,
@@ -1327,8 +1337,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 					'title' => 'اطلاع غیبت هنرجو',
 					'context' => trim( (string) ( $absence_row['student'] ?? '' ) . ( '' !== (string) ( $absence_row['course'] ?? '' ) ? ' · ' . (string) $absence_row['course'] : '' ) ),
 					'message' => $message,
-					'due' => $is_future ? 'هماهنگی برای زمان جایگزین' : 'پیگیری جلسهٔ ازدست‌رفته',
-					'primary' => 'تغییر زمان کلاس',
+					'due' => 'replacement' === $request_kind ? 'ثبت جلسهٔ جبرانی' : 'هماهنگی برای زمان جایگزین',
+					'primary' => 'تغییر زمان / جلسهٔ جبرانی',
+					'request_kind' => $request_kind,
 					'lesson_uid' => (string) ( $absence_row['lesson_uid'] ?? '' ),
 					'schedule_version_uid' => (string) ( $absence_row['schedule_version_uid'] ?? '' ),
 					'reschedule_available' => $can_reschedule,
@@ -1337,40 +1348,78 @@ function dzn_theme_platform_teacher_model( $screen ) {
 					'reschedule_timezone' => $teacher_timezone,
 					'reschedule_calendar' => $teacher_calendar,
 					'reschedule_locale' => $teacher_locale,
-					'reschedule_current' => dzn_theme_platform_calendar_time( $occurrence, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+					'reschedule_current' => dzn_theme_platform_calendar_time( $current_time, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
 				);
 			}
 		} catch ( Throwable $e ) {
 			$absenceAttention = array();
 		}
 	}
-	$rescheduleAttention = array();
+	$pendingAttention = array();
 	$reschedule_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherRescheduleAttentionReadService';
+	if ( class_exists( $reschedule_read_class ) ) {
+		try {
+			foreach ( ( new $reschedule_read_class() )->ownPending() as $pending ) {
+				if ( ! is_array( $pending ) ) { continue; }
+				$proposed_when = dzn_theme_platform_calendar_time( (string) ( $pending['proposed_starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$kind = (string) ( $pending['request_kind'] ?? 'reschedule' );
+				$pendingAttention[] = array(
+					'ref' => 'pending-' . (int) ( $pending['proposal_id'] ?? 0 ),
+					'action_available' => true,
+					'authoritative_request' => false,
+					'state' => 'reschedule_pending',
+					'title' => 'در انتظار پاسخ هنرجو',
+					'context' => trim( (string) ( $pending['student'] ?? '' ) . ( '' !== (string) ( $pending['course'] ?? '' ) ? ' · ' . (string) $pending['course'] : '' ) ),
+					'message' => ( 'replacement' === $kind ? 'پیشنهاد جلسهٔ جبرانی در ' : 'پیشنهاد تغییر زمان در ' ) . $proposed_when . ' برای هنرجو ارسال شد و در انتظار پذیرش یا رد اوست. تا پاسخ هنرجو زمان تازه‌ای ارسال نکنید.',
+					'due' => 'در انتظار پاسخ هنرجو',
+					'primary' => 'در انتظار پاسخ هنرجو',
+					'request_kind' => $kind,
+					'lesson_uid' => (string) ( $pending['lesson_uid'] ?? '' ),
+					'schedule_version_uid' => (string) ( $pending['schedule_version_uid'] ?? '' ),
+					'reschedule_available' => false,
+					'reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_propose_reschedule' ),
+					'reschedule_nonce' => wp_create_nonce( 'dzn_teacher_propose_reschedule' ),
+					'reschedule_timezone' => $teacher_timezone,
+					'reschedule_calendar' => $teacher_calendar,
+					'reschedule_locale' => $teacher_locale,
+					'reschedule_current' => dzn_theme_platform_calendar_time( (string) ( $pending['current_start_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+				);
+			}
+		} catch ( Throwable $e ) {
+			$pendingAttention = array();
+		}
+	}
+	$rescheduleAttention = array();
 	if ( class_exists( $reschedule_read_class ) ) {
 		try {
 			foreach ( ( new $reschedule_read_class() )->own() as $declined ) {
 				if ( ! is_array( $declined ) ) { continue; }
 				$rejections = max( 1, (int) ( $declined['rejection_count'] ?? 1 ) );
 				$escalated = $rejections >= 3;
+				$request_kind = (string) ( $declined['request_kind'] ?? 'reschedule' );
 				$can_reschedule = ! $escalated
-					&& 'authorised' === (string) ( $declined['lifecycle_state'] ?? '' )
+					&& in_array( (string) ( $declined['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true )
 					&& empty( $declined['has_outcome'] )
 					&& '' !== (string) ( $declined['lesson_uid'] ?? '' )
 					&& '' !== (string) ( $declined['schedule_version_uid'] ?? '' );
 				$proposed_when = dzn_theme_platform_calendar_time( (string) ( $declined['proposed_starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$failed = 'failed' === (string) ( $declined['proposal_state'] ?? '' );
 				$message = $escalated
 					? 'هنرجو سه بار زمان پیشنهادی را رد کرده است. این مورد به مدیر ارجاع شده تا زمان کلاس را بررسی و در صورت نیاز دستی اصلاح کند. تا هماهنگی مدیر زمان تازه نفرستید.'
-					: 'هنرجو زمان پیشنهادی ' . $proposed_when . ' را رد کرد. با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.';
+					: ( $failed
+						? 'پیشنهاد قبلی به دلیل محدودیت سامانه بسته شد و جلسه بدون تغییر ماند. با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.'
+						: 'هنرجو زمان پیشنهادی ' . $proposed_when . ' را رد کرد. با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.' );
 				$rescheduleAttention[] = array(
 					'ref' => 'declined-' . (int) ( $declined['proposal_id'] ?? 0 ),
 					'action_available' => true,
 					'authoritative_request' => false,
 					'state' => 'reschedule_declined',
-					'title' => 'زمان پیشنهادی رد شد',
+					'title' => $failed ? 'پیشنهاد زمان بسته شد' : 'زمان پیشنهادی رد شد',
 					'context' => trim( (string) ( $declined['student'] ?? '' ) . ( '' !== (string) ( $declined['course'] ?? '' ) ? ' · ' . (string) $declined['course'] : '' ) ),
 					'message' => $message,
 					'due' => $escalated ? 'ارجاع به مدیر' : 'نیازمند زمان تازه',
-					'primary' => $escalated ? 'در انتظار اقدام مدیر' : 'ارسال زمان تازه',
+					'primary' => $escalated ? 'در انتظار اقدام مدیر' : ( 'replacement' === $request_kind ? 'ارسال زمان جلسهٔ جبرانی' : 'ارسال زمان تازه' ),
+					'request_kind' => $request_kind,
 					'lesson_uid' => (string) ( $declined['lesson_uid'] ?? '' ),
 					'schedule_version_uid' => (string) ( $declined['schedule_version_uid'] ?? '' ),
 					'reschedule_available' => $can_reschedule,
@@ -1386,7 +1435,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$rescheduleAttention = array();
 		}
 	}
-	$bookingAttention = array_merge( $rescheduleAttention, $absenceAttention, $bookingAttention );
+	$bookingAttention = array_merge( $pendingAttention, $rescheduleAttention, $absenceAttention, $bookingAttention );
 	$upcoming_count = count( array_filter( $upcoming_rows, static function( $row ) use ( $now ) {
 		$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
 		return $start && $start >= $now;

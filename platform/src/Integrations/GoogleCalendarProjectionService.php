@@ -27,7 +27,9 @@ final class GoogleCalendarProjectionService {
     }
 
     public function dispatch(int $mappingId,string $commandKey):array{
-        if(!current_user_can(ProviderIntegrationService::MANAGE_CAPABILITY))throw new \RuntimeException('Unauthorized');
+        // The projection worker principal intentionally holds only the dispatch capability. A
+        // general integration manager may also dispatch; the worker must not need management.
+        if(!current_user_can(ProviderIntegrationService::MANAGE_CAPABILITY)&&!current_user_can(ProviderIntegrationService::DISPATCH_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $mapping=$this->repository->calendarMapping($mappingId,false);
         if(!$mapping||(string)$mapping->provider_code!=='google_calendar'||(string)$mapping->projection_state!=='pending')throw new \InvalidArgumentException('pending_google_calendar_projection_required');
         $connection=$this->repository->connection((int)$mapping->connection_id,false);

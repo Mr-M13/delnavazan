@@ -12,9 +12,11 @@ accounts are configured.
 | Initial deployed SHA (PR #402) | `9ba61e639b1a42dcf4ed95e8062894a78238f6a7` |
 | Initial build | `main-9ba61e639b1a` |
 | Initial deploy run | `40820864508` / follow-up `40820942398` — success |
-| Follow-up deployed SHA (PR #407) | `3939feed0ec977f056eaf3ed262d4d2dbfbce167` |
-| Follow-up build | `main-3939feed0ec9` |
+| Follow-up merge SHA (PR #407) | `3939feed0ec977f056eaf3ed262d4d2dbfbce167` |
 | Follow-up deploy run | `40826085963` — success |
+| Current deployed SHA (includes #407 via #405) | `370a65ebebf895b60a1f559e63893fc646ded1e0` |
+| Current deployed build | `main-370a65ebebf8` |
+| Current deploy run | `40826395133` — success |
 | Schema | `54` |
 | Production CSS | `theme.css` 108,637 B; versioned `teacher-portal.css` 37,664 B; `booking.css` 20,600 B |
 
@@ -22,15 +24,20 @@ The deployed CSS was fetched from production and compared with the local
 worktree. The live public pages were re-checked at 320–1440 px with no document
 overflow.
 
-### Deployment verification (PR #407)
+### Deployment verification
 
-- Deployment artifact: `production-deployment-3939feed0ec9...`; status
-  `deployed`; before build `main-25857feb8b22`; after build
-  `main-3939feed0ec9`; schema `54`.
-- Read-only production smoke passed in the deploy job.
+- PR #407 deployed build `main-3939feed0ec9` in run `40826085963`; the
+  deployment artifact recorded `status: deployed`.
+- PR #405 then merged `370a65e` (bounded smoke retries, confirmation gate and
+  replacement verification) and deployed it in run `40826395133`. `370a65e`
+  contains #407; the deployment artifact records before
+  `main-3939feed0ec9`, after `main-370a65ebebf8`, schema `54`, status
+  `deployed`.
+- Read-only production smoke passed in both deploy jobs; the manual smoke
+  rerun against `https://delnavazan.com` also ended `RESULT: PASS`.
 - `/`, `/enrol/` and `/admin-operations/` return 200; signed-out
   `/student-portal/` and `/teacher-portal/` redirect to `/login/`.
-- The versioned `teacher-portal.css` URL now serves 37,664 B and contains the
+- The versioned `teacher-portal.css` URL serves 37,664 B and contains the
   state-label wrap rule. The unversioned direct URL is an old Cloudflare cache
   entry; WordPress enqueues the filemtime-versioned URL, which is current.
 

@@ -30,7 +30,7 @@ if ( 1 !== preg_match( '/\$routes\s*=\s*array\(([^;]+)\);/', $routes, $route_mat
 	throw new RuntimeException( 'Could not read the canonical route allowlist.' );
 }
 preg_match_all( "/'([^']+)'/", $route_match[1], $route_tokens );
-$expected_routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' );
+$expected_routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'recording-and-research' );
 $check( 'canonical route allowlist is exact', $route_tokens[1] === $expected_routes );
 $check( 'no /app/ route exists in the virtual router', ! str_contains( $routes, "'app'" ) && ! str_contains( $routes, '/app/' ) );
 $check( '/enrol/ maps to the canonical booking renderer', str_contains( $routes, "if ( 'enrol' === \$path ) { \$path = 'booking'; }" ) );

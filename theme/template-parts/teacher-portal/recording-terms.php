@@ -24,6 +24,7 @@ $format_date = static function ( string $value ): string {
 	$timestamp = strtotime( $value . ' UTC' );
 	return $timestamp ? wp_date( 'Y-m-d H:i', $timestamp ) : $value;
 };
+$iso_datetime = static function ( string $value ): string { return '' === $value ? '' : str_replace( ' ', 'T', $value ) . 'Z'; };
 ?>
 <section class="dzn-tp-section dzn-teacher-recording-terms" id="dzn-teacher-recording-terms" aria-labelledby="tp-recording-terms">
 	<div class="dzn-tp-heading">
@@ -37,7 +38,7 @@ $format_date = static function ( string $value ): string {
 		<p class="dzn-tp-help" role="status"><strong>Acceptance is unavailable.</strong> No approved teacher-recording terms publication is currently available, so no record can be created. · پذیرش شرایط در دسترس نیست؛ هیچ سابقه‌ای ساخته نمی‌شود.</p>
 	<?php else : ?>
 		<?php if ( $accepted && ! empty( $recording['accepted_at'] ) ) : ?>
-			<p class="dzn-tp-notice is-success">Recorded: <time datetime="<?php echo esc_attr( (string) $recording['accepted_at'] ); ?>"><?php echo esc_html( $format_date( (string) $recording['accepted_at'] ) ); ?></time> · version <?php echo esc_html( (string) ( $recording['notice_version'] ?? '' ) ); ?> · <?php echo esc_html( $language_label( (string) ( $recording['language'] ?? 'en' ) ) ); ?></p>
+			<p class="dzn-tp-notice is-success">Recorded: <time datetime="<?php echo esc_attr( $iso_datetime( (string) $recording['accepted_at'] ) ); ?>"><?php echo esc_html( $format_date( (string) $recording['accepted_at'] ) ); ?></time> · version <?php echo esc_html( (string) ( $recording['notice_version'] ?? '' ) ); ?> · <?php echo esc_html( $language_label( (string) ( $recording['language'] ?? 'en' ) ) ); ?></p>
 		<?php else : ?>
 			<p class="dzn-tp-help">Read the approved publication below and accept it explicitly. Accepting one language version records that version; it does not backfill any historic Teacher record.</p>
 		<?php endif; ?>

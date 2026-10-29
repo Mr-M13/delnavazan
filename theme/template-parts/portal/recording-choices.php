@@ -46,6 +46,7 @@ $format_date = static function ( string $value ): string {
 	$timestamp = strtotime( $value . ' UTC' );
 	return $timestamp ? wp_date( 'Y-m-d H:i', $timestamp ) : $value;
 };
+$iso_datetime = static function ( string $value ): string { return '' === $value ? '' : str_replace( ' ', 'T', $value ) . 'Z'; };
 ?>
 <section class="dzn-portal-section dzn-recording-choices" id="dzn-recording-choices" aria-labelledby="dzn-recording-choices-title">
 	<div class="dzn-portal-section__heading">
@@ -67,11 +68,11 @@ $format_date = static function ( string $value ): string {
 
 	<div class="dzn-recording-choices__current">
 		<p><strong><?php echo esc_html( $decision_label( 'lesson_recording', $current_recording ) ); ?></strong>
-			<?php if ( ! empty( $recording_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( (string) $recording_state['decided_at'] ); ?>"><?php echo esc_html( $format_date( (string) $recording_state['decided_at'] ) ); ?></time><?php endif; ?>
+			<?php if ( ! empty( $recording_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( $iso_datetime( (string) $recording_state['decided_at'] ) ); ?>"><?php echo esc_html( $format_date( (string) $recording_state['decided_at'] ) ); ?></time><?php endif; ?>
 			<?php if ( ! empty( $recording_state['notice_version'] ) ) : ?>· <?php echo esc_html( $language_label( (string) ( $recording_state['language'] ?? 'en' ) ) ); ?> v<?php echo esc_html( (string) $recording_state['notice_version'] ); ?><?php endif; ?>
 		</p>
 		<p><strong><?php echo esc_html( $decision_label( 'research_model_training', $current_research ) ); ?></strong>
-			<?php if ( ! empty( $research_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( (string) $research_state['decided_at'] ); ?>"><?php echo esc_html( $format_date( (string) $research_state['decided_at'] ) ); ?></time><?php endif; ?>
+			<?php if ( ! empty( $research_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( $iso_datetime( (string) $research_state['decided_at'] ) ); ?>"><?php echo esc_html( $format_date( (string) $research_state['decided_at'] ) ); ?></time><?php endif; ?>
 			<?php if ( ! empty( $research_state['notice_version'] ) ) : ?>· <?php echo esc_html( $language_label( (string) ( $research_state['language'] ?? 'en' ) ) ); ?> v<?php echo esc_html( (string) $research_state['notice_version'] ); ?><?php endif; ?>
 		</p>
 	</div>

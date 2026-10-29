@@ -54,7 +54,7 @@ if ( class_exists( $authority ) ) {
 			<h3>Expected future Mbox local processing</h3>
 			<p>Raw recordings are expected to be stored and processed later on the local Mbox hard drive under an approved retention and deletion process. No Mbox transfer, processing, deletion worker or provider capture is implemented or active in this release.</p>
 			<h3>Current status</h3>
-			<p>Recording capture and research export are currently disabled. A future legally approved default-on recording policy is not a choice or permission in this release and remains unavailable until separately approved legal-policy evidence exists.</p>
+			<p>Recording capture and research export are currently disabled. No default-on policy is approved for this release, and no choice on this page is a substitute for separately approved legal-policy evidence.</p>
 			<h3>Project information</h3>
 			<?php if ( '' !== $project_url ) : ?>
 				<p><a href="<?php echo esc_url( $project_url ); ?>">Project information page</a></p>
@@ -76,7 +76,7 @@ if ( class_exists( $authority ) ) {
 			<h3>پردازش محلی آینده روی Mbox</h3>
 			<p>انتظار می‌رود ضبط‌های خام بعداً روی هارد Mbox و تحت فرایند تأییدشدهٔ نگهداری و حذف ذخیره و پردازش شوند. هیچ انتقال، پردازش، کارگر حذف یا ضبط از طریق ارائه‌دهنده در این نسخه پیاده‌سازی یا فعال نشده است.</p>
 			<h3>وضعیت کنونی</h3>
-			<p>ضبط و خروجی پژوهش در حال حاضر غیرفعال است. مدل پیش‌فرضِ روشنِ ضبط، حتی اگر بعداً از نظر حقوقی تأیید شود، در این نسخه انتخاب یا اجازه محسوب نمی‌شود و تا وجود شواهد سیاست حقوقی تأییدشده در دسترس نیست.</p>
+			<p>ضبط و خروجی پژوهش در حال حاضر غیرفعال است. هیچ سیاست پیش‌فرضِ روشنی برای این نسخه تأیید نشده است و هیچ انتخاب در این صفحه جایگزین شواهد سیاست حقوقی تأییدشدهٔ جداگانه نیست.</p>
 			<h3>اطلاعات پروژه</h3>
 			<?php if ( '' !== $project_url ) : ?>
 				<p><a href="<?php echo esc_url( $project_url ); ?>">صفحهٔ اطلاعات پروژه</a></p>

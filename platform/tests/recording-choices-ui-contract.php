@@ -72,8 +72,9 @@ $need(str_contains($bridge,'RecordingDecisionUiReadService'),'the theme must use
 $need(str_contains($bridge,"\$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' )"),'the Account Settings model must actually supply the choices');
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' )"),'the Teacher onboarding model must actually supply the terms');
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' )"),'Teacher Settings must supply the current terms state');
-$need(str_contains($booking,'Recording during future lessons'),'online enrolment must show a recording notice');
-$need(str_contains($booking,'No recording choice is collected on this form'),'the public enrolment notice must not collect an unlinked decision');
+$need(str_contains($booking,'Recording and research'),'online enrolment must link the recording/research information');
+$need(str_contains($booking,'currently disabled'),'the public enrolment notice must state the disabled status');
+$need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
 foreach(array('What future lesson recording may involve','Why Delnavazan collects data','Separate optional research','How choices can be changed','Mbox local processing','currently disabled','Project information page')as$text)$need(str_contains($infoBody,$text),'the public information page must explain '.$text);
 $need(str_contains($infoBody,'lang="fa"')&&str_contains($infoBody,'lang="en"'),'the information page must be bilingual');

@@ -236,10 +236,9 @@ function dzn_theme_render_booking_route(): void {
                                 </ul>
                             </aside>
                             <aside class="dzn-booking__notice" role="note">
-                                <h4>Recording during future lessons · ضبط در درس‌های آینده</h4>
-                                <p><strong>Draft product copy — not legally approved yet. No recording choice is collected on this form.</strong></p>
-                                <p lang="en" dir="ltr">Delnavazan may record future online lessons and practice activities to improve teaching and learning. You can choose whether your lessons may be recorded, and you can change this choice later in Account Settings.</p>
-                                <p lang="fa" dir="rtl">دلنوازان ممکن است درس‌های آنلاین و تمرین‌های آینده را برای بهبود آموزش و یادگیری ضبط کند. شما می‌توانید انتخاب کنید که درس‌هایتان ضبط شود یا نه و این انتخاب را بعداً در تنظیمات حساب تغییر دهید.</p>
+                                <h4>Recording and research · ضبط و پژوهش</h4>
+                                <p lang="en" dir="ltr">Recording and research export are currently disabled. Read the public information page to understand the planned capability and how choices work after an adult student account is linked.</p>
+                                <p lang="fa" dir="rtl">ضبط و خروجی پژوهش در حال حاضر غیرفعال است. برای آشنایی با قابلیت برنامه‌ریزی‌شده و نحوهٔ انتخاب‌ها پس از اتصال حساب هنرجوی بزرگسال، صفحهٔ اطلاعات عمومی را بخوانید.</p>
                                 <p><a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
                             </aside>
                         </div>

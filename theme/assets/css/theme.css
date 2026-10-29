@@ -90,16 +90,16 @@
 
     --dzn-color-background: #fbf8f2;
     --dzn-color-surface: #f2ece1;
-    --dzn-color-surface-elevated: var(--dzn-color-on-action);
+    --dzn-color-surface-elevated: #ffffff;
     --dzn-color-surface-muted: #e9e2d5;
     --dzn-color-surface-sunken: #f6f1e8;
 
     --dzn-color-text-primary: #252726;
-    --dzn-color-text-secondary: var(--dzn-color-text-secondary);
+    --dzn-color-text-secondary: #104a4d;
     --dzn-color-text-muted: #5f625f;
 
     --dzn-color-action-primary: #1e7b70;
-    --dzn-color-action-primary-hover: var(--dzn-color-text-secondary);
+    --dzn-color-action-primary-hover: #104a4d;
     --dzn-color-action-secondary: #315c82;
 
     --dzn-color-border: #ddd6ca;
@@ -124,8 +124,8 @@
 
     --dzn-color-focus: #315c82;
     --dzn-color-focus-on-dark: #fff8ed;
-    --dzn-color-on-action: var(--dzn-color-on-action);
-    --dzn-color-on-dark: var(--dzn-color-on-dark);
+    --dzn-color-on-action: #ffffff;
+    --dzn-color-on-dark: #fffdf8;
 
     /*
      * Channel tokens for translucent elevation and overlays. Keep raw colour

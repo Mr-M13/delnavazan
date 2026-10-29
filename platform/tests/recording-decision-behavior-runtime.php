@@ -66,6 +66,16 @@ $replay=$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0
 dzn_rda_assert($replay['idempotent']===true&&$replay['decision_id']===$result['decision_id'],'Exact Teacher replay must return the original result');
 dzn_rda_assert(dzn_rda_count('teacher',$teacherA)===1,'Exact Teacher replay must not duplicate evidence');
 dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTermsFa['uid'],'fa','teacher-accept-0001'),'recording_decision_replay_conflict','Changed Teacher replay payload');
+$command=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_decision_commands WHERE result_decision_id=%d",$result['decision_id']));
+dzn_rda_assert($command!==null,'Teacher command evidence must exist for tamper checks');
+dzn_rda_assert($wpdb->update($p.'recording_decision_commands',array('result_state'=>'decline'),array('id'=>$command->id))===1,'fixture must tamper the command state');
+dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0001'),'recording_decision_replay_conflict','Tampered Teacher command state');
+dzn_rda_assert($wpdb->update($p.'recording_decision_commands',array('result_state'=>$result['state']),array('id'=>$command->id))===1,'fixture must restore the command state');
+dzn_rda_assert($wpdb->update($p.'recording_decisions',array('notice_uid'=>str_repeat('X',26)),array('id'=>$result['decision_id']))===1,'fixture must tamper the decision notice identity');
+dzn_rda_expect(fn()=>$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0001'),'recording_decision_replay_conflict','Tampered Teacher decision notice identity');
+dzn_rda_assert($wpdb->update($p.'recording_decisions',array('notice_uid'=>$teacherTerms['uid']),array('id'=>$result['decision_id']))===1,'fixture must restore the decision notice identity');
+$restoredReplay=$service->acceptTeacherTerms($teacherTerms['uid'],'en','teacher-accept-0001');
+dzn_rda_assert($restoredReplay['idempotent']===true&&$restoredReplay['decision_id']===$result['decision_id'],'restored Teacher evidence must replay exactly');
 foreach(array($teacherDraft,$teacherExpired,$teacherWithdrawn,$teacherFuture,$recording)as$notice)dzn_rda_expect(fn()=>$service->acceptTeacherTerms($notice['uid'],'en','teacher-notice-'.substr($notice['uid'],0,10)),'recording_notice_unavailable','unavailable Teacher notice');
 dzn_rda_assert(dzn_rda_count('teacher',$teacherA)===1,'Refused Teacher notices must not write evidence');
 dzn_rda_assert($service->publishedNotice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'fa')['version']===1,'Published Persian Teacher terms must be discoverable');
@@ -169,6 +179,16 @@ $state=$service->studentDecisionState();dzn_rda_assert($state['available']===fal
 dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','capacity-downgrade-allow-01'),'recording_student_capacity_unavailable','capacity-downgrade exact replay');
 dzn_rda_assert(dzn_rda_count('student',$capacityStudent)===1,'capacity-downgrade replay must not rewrite evidence');
 dzn_rda_assert($capacityAllow['idempotent']===false,'capacity fixture must begin with a fresh decision');
+
+// A mispointed capacity projection must not borrow another Student's adult classification.
+$donorStudent=dzn_rda_student('capacity-donor','Capacity Donor','adult');
+$donorCapacity=(int)$wpdb->get_var($wpdb->prepare("SELECT current_acceptance_capacity_classification_id FROM {$p}students WHERE id=%d",$donorStudent));
+$mispointedUser=dzn_rda_user('mispointed-capacity');$mispointedStudent=dzn_rda_student('mispointed-capacity','Mispointed Capacity','none');dzn_rda_link_student($mispointedStudent,$mispointedUser);
+dzn_rda_assert($wpdb->update($p.'students',array('current_acceptance_capacity_classification_id'=>$donorCapacity),array('id'=>$mispointedStudent))===1,'fixture must mispoint the capacity projection');
+wp_set_current_user($mispointedUser);
+$state=$service->studentDecisionState();dzn_rda_assert($state['available']===false&&$state['reason']==='recording_student_capacity_unavailable'&&$state['capture_eligible']===false,'mispointed capacity must fail closed');
+dzn_rda_expect(fn()=>$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNext['uid'],'en','mispointed-capacity-01'),'recording_student_capacity_unavailable','mispointed capacity choice');
+dzn_rda_assert(dzn_rda_count('student',$mispointedStudent)===0,'mispointed capacity must not write evidence');
 
 // Withdrawing the notice invalidates capture but does not rewrite an exact replay.
 $withdrawUser=dzn_rda_user('notice-withdrawal');$withdrawStudent=dzn_rda_student('notice-withdrawal','Notice Withdrawal','adult');dzn_rda_link_student($withdrawStudent,$withdrawUser);

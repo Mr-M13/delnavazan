@@ -150,9 +150,32 @@ namespace {
 	dzn_theme_render_teacher_portal( 'classes', $model );
 	$html = (string) ob_get_clean();
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
+	$check( 'future cards expose the reschedule form without expanding details', str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
+
+	$check( 'teacher can propose a reschedule for a class that starts within the hour', true === ( $classes_by_ref['REF-ACTIVE']['reschedule_available'] ?? false ) );
+	$check( 'teacher can propose a reschedule for a future class', true === ( $classes_by_ref['REF-FUTURE']['reschedule_available'] ?? false ) );
+
+	$homeModel = dzn_theme_platform_teacher_model( 'home' );
+	ob_start();
+	dzn_theme_render_teacher_portal( 'home', $homeModel );
+	$homeHtml = (string) ob_get_clean();
+	$check( 'today renders only the current local day', str_contains( $homeHtml, 'کلاس‌های امروز' ) && ! str_contains( $homeHtml, 'کلاس‌های آینده' ) );
+	$check( 'today does not render the 30-day calendar', ! str_contains( $homeHtml, 'رویدادی در تقویم پیش رو نیست' ) && ! str_contains( $homeHtml, 'dzn-tp-calendar' ) );
+
+	$financeModel = dzn_theme_platform_teacher_model( 'finance' );
+	ob_start();
+	dzn_theme_render_teacher_portal( 'finance', $financeModel );
+	$financeHtml = (string) ob_get_clean();
+	$financeTemplate = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/finance.php' );
+	$check( 'finance renders its operational snapshot and statements together', str_contains( $financeHtml, 'وضعیت این ماه' ) && str_contains( $financeHtml, 'صورت‌حساب‌ها' ) && str_contains( $financeTemplate, 'هنرجویان فعال' ) && str_contains( $financeTemplate, 'ساعت تدریس این ماه' ) && str_contains( $financeTemplate, 'ترم‌های نزدیک به پایان' ) );
+	$check( 'finance explains a refused snapshot instead of guessing', str_contains( $financeHtml, 'نمای کاری این ماه در دسترس نیست' ) );
+	$financeSummarySource = (string) file_get_contents( ABSPATH . 'platform/src/Core/Application/Finance/Read/TeacherFinanceSummaryReadService.php' );
+	$check( 'finance summary reads active students, monthly minutes, ending terms and pending reschedules from the Platform', str_contains( $financeSummarySource, 'active_students' ) && str_contains( $financeSummarySource, 'minutes_month' ) && str_contains( $financeSummarySource, 'ending_terms' ) && str_contains( $financeSummarySource, 'pending_reschedules' ) );
+	$rescheduleService = (string) file_get_contents( ABSPATH . 'platform/src/Core/Application/LessonRescheduleService.php' );
+	$check( 'reschedule no longer hides proposals behind a notice window', ! str_contains( $rescheduleService, 'MIN_NOTICE_MINUTES' ) && ! str_contains( $rescheduleService, 'reschedule_notice_too_short' ) );
 
 	$routes = (string) file_get_contents( ABSPATH . 'theme/inc/routes.php' );
 	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding' )" ) );

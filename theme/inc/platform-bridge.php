@@ -567,11 +567,16 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	$state = $is_booking
 		? ( 'unknown' === $temporal ? 'unknown' : ( 'ended' === $temporal ? 'ended' : ( 'in_progress' === $temporal ? 'in_progress' : ( $within_join ? 'starting_soon' : 'upcoming' ) ) ) )
 		: dzn_theme_platform_lesson_state( $row, $now );
-	$join_available = $is_booking && ! empty( $row['join_available'] ) && $within_join;
-	$absence_available = ! $is_booking && 'authorised' === (string) ( $row['lifecycle_state'] ?? '' ) && $start && $start > $now && empty( $row['absence_final'] );
-	$join_available = $is_booking
-		? ( ! empty( $row['join_available'] ) && $within_join )
-		: ( ! empty( $row['join_available'] ) && $within_join );
+	$join_available = ! empty( $row['join_available'] ) && $within_join;
+	// A Student may report an absence before the class or after a missed occurrence. The
+	// Platform remains the authority on term state, cutover policy and finality; the Theme must
+	// not hide the action only because the occurrence is no longer in the future.
+	$absence_available = ! $is_booking
+		&& in_array( (string) ( $row['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true )
+		&& 'current' === (string) ( $enrolment['lifecycle_state'] ?? '' )
+		&& 'settled' !== (string) ( $row['attendance_state_summary'] ?? '' )
+		&& empty( $row['absence_final'] )
+		&& '' !== (string) ( $row['schedule_version_uid'] ?? '' );
 	$day_key = dzn_theme_platform_local_date_key( (string) ( $row['starts_at_utc'] ?? '' ), $timezone );
 	$today_key = dzn_theme_platform_local_date_key( gmdate( 'Y-m-d H:i:s', $now ), $timezone );
 	return array(
@@ -889,7 +894,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			: ( ! empty( $next['join_available'] ) ? ( $within_join_window ? 'ورود به کلاس در همین لحظه فعال است.' : 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.' ) : 'لینک امن Google Meet برای این کلاس هنوز آماده نیست.' ),
 		// Action eligibility is not evidence that an absence was reported. The
 		// label follows an explicit Platform fact only.
-		'absence_available' => ! $is_booking && 'authorised' === (string) ( $next['lifecycle_state'] ?? '' ) && $next_start && $next_start > $now && 'settled' !== (string) ( $next['attendance_state_summary'] ?? '' ),
+		'absence_available' => ! $is_booking && in_array( (string) ( $next['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true ) && 'settled' !== (string) ( $next['attendance_state_summary'] ?? '' ) && empty( $next['absence_final'] ),
 		'absence_message' => '',
 		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
@@ -1070,7 +1075,27 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'teacher_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
 	$all_scheduled_classes = array_merge( $all_lessons, $booking_classes );
-	if ( 'finance' === $screen ) { $finance='\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TeacherStatementReadService';$statements=array();$state='unavailable';if(class_exists($finance)){try{$statements=(new $finance())->ownStatements();$state=$statements?'available':'empty';}catch(Throwable){$state='unavailable';}}return array( 'available' => true, 'screen' => 'finance', 'source' => 'platform', 'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ), 'navigation' => $nav, 'finance_state' => $state, 'statements' => $statements ); }
+	if ( 'finance' === $screen ) {
+		$finance = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TeacherStatementReadService';
+		$statements = array();
+		$state = 'unavailable';
+		if ( class_exists( $finance ) ) {
+			try { $statements = ( new $finance() )->ownStatements(); $state = $statements ? 'available' : 'empty'; } catch ( Throwable ) { $state = 'unavailable'; }
+		}
+		$summary = array();
+		$summary_state = 'unavailable';
+		$summary_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TeacherFinanceSummaryReadService';
+		if ( class_exists( $summary_class ) ) {
+			try { $summary = ( new $summary_class() )->own( $teacher_timezone ); $summary_state = 'available'; } catch ( Throwable ) { $summary = array(); $summary_state = 'unavailable'; }
+		}
+		return array(
+			'available' => true, 'screen' => 'finance', 'source' => 'platform',
+			'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ), 'navigation' => $nav,
+			'finance_state' => $state, 'statements' => $statements,
+			'finance_summary' => $summary, 'finance_summary_state' => $summary_state,
+			'teacher_timezone' => $teacher_timezone, 'teacher_calendar' => $teacher_calendar, 'teacher_locale' => $teacher_locale,
+		);
+	}
 	if ( in_array( $screen, array( 'settings', 'finance' ), true ) ) {
 		$month = wp_date( 'Y-m', $now, wp_timezone() );
 		$year = wp_date( 'Y', $now, wp_timezone() );
@@ -1158,7 +1183,13 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$student_label = trim( (string) ( $lesson['student_name'] ?? '' ) );
 		if ( '' === $student_label ) { $student_label = trim( (string) ( $lesson['student_display_reference'] ?? '' ) ); }
 		if ( '' === $student_label ) { $student_label = 'هنرجو'; }
-		$can_reschedule = ! $is_booking && 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' ) && in_array( $temporal, array( 'upcoming' ), true ) && $start && $start > $now + HOUR_IN_SECONDS;
+		// Rescheduling is a Teacher-owned decision available for any authorised, undelivered
+		// occurrence. The proposal still requires a future replacement instant and the Student's
+		// acceptance; the portal no longer hides the action behind a notice window.
+		$can_reschedule = ! $is_booking
+			&& 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' )
+			&& in_array( (string) ( $lesson['delivery_state_summary'] ?? 'not_recorded' ), array( '', 'not_recorded' ), true )
+			&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' );
 		$class = array(
 			'ref' => $reference,
 			'start_available' => $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $within_join ),

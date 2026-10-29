@@ -107,13 +107,14 @@ $lesson = static fn( string $start, string $end, array $extra = array() ): array
 ), $extra );
 $active = $lesson( gmdate( 'Y-m-d H:i:s', $now - 600 ), gmdate( 'Y-m-d H:i:s', $now + 600 ) );
 $future = $lesson( gmdate( 'Y-m-d H:i:s', $now + 86400 ), gmdate( 'Y-m-d H:i:s', $now + 90000 ) );
-$past = $lesson( gmdate( 'Y-m-d H:i:s', $now - 86400 ), gmdate( 'Y-m-d H:i:s', $now - 82800 ) );
-$rows = dzn_theme_platform_student_schedule_rows( array( $future, $past, $active ), array(), array( array( 'enrolment_uid' => 'E', 'assigned_teacher_display_reference' => 'نازنین' ) ), 'Asia/Tehran', $now );
+$past = $lesson( gmdate( 'Y-m-d H:i:s', $now - 86400 ), gmdate( 'Y-m-d H:i:s', $now - 82800 ), array( 'lifecycle_state' => 'completed' ) );
+$rows = dzn_theme_platform_student_schedule_rows( array( $future, $past, $active ), array(), array( array( 'enrolment_uid' => 'E', 'assigned_teacher_display_reference' => 'نازنین', 'lifecycle_state' => 'current' ) ), 'Asia/Tehran', $now );
 $check( 'active class sorts first', 'in_progress' === ( $rows[0]['temporal_state'] ?? '' ) );
 $check( 'upcoming class sorts before ended', 'upcoming' === ( $rows[1]['temporal_state'] ?? '' ) && 'ended' === ( $rows[2]['temporal_state'] ?? '' ) );
 $check( 'canonical term rows use the secure student class join action', empty( $rows[0]['join_available'] ) && str_contains( (string) $rows[0]['join_action_url'], 'dzn_student_join_class' ) );
-$check( 'an active class cannot be reported absent after it starts', empty( $rows[0]['absence_available'] ) );
-$check( 'a future canonical row exposes the authorised absence action', ! empty( $rows[1]['absence_available'] ) );
+$check( 'an active class can be reported absent after it starts', ! empty( $rows[0]['absence_available'] ) );
+$check( 'a future canonical row exposes the absent action at any time', ! empty( $rows[1]['absence_available'] ) );
+$check( 'a completed canonical row still accepts a missed-class report', ! empty( $rows[2]['absence_available'] ) );
 $check( 'schedule shows a human timezone with the identifier', 'تهران · Asia/Tehran' === $rows[0]['timezone_label'] );
 $check( 'schedule rows carry the teacher from the enrolment', 'نازنین' === $rows[0]['teacher'] );
 $check( 'schedule rows distinguish today from future days', ! empty( $rows[0]['is_today'] ) && empty( $rows[0]['is_future'] ) && ! empty( $rows[1]['is_future'] ) && ! empty( $rows[2]['is_past'] ) );
@@ -156,6 +157,8 @@ $check( 'schedule does not claim a persisted absence report', ! str_contains( $s
 $check( 'schedule renders the backend join explanation', str_contains( $schedule, "\$item['join_message']" ) );
 $check( 'payments template distinguishes a disabled release', str_contains( $payments, "'disabled' === (string)" ) );
 $check( 'schedule renders machine-readable start instants', str_contains( $schedule, '<time datetime=' ) );
+$absenceController = (string) file_get_contents( dirname( __DIR__, 2 ) . '/platform/src/Portals/StudentAbsenceController.php' );
+$check( 'a notice submitted after the start becomes a missed-class claim', str_contains( $absenceController, "'student_reports_missed_class'" ) && str_contains( $absenceController, '$claimKind=\'attendance_claim\'' ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Student schedule/payments contract failed: ' . implode( '; ', $failures ) );

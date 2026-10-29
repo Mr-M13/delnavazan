@@ -42,7 +42,16 @@ final class StudentAbsenceController {
         $schedule=$wpdb->get_row($wpdb->prepare("SELECT id,starts_at_utc,ends_at_utc FROM {$p}canonical_lesson_schedule_versions WHERE uid=%s AND lesson_id=%d AND applicable_slot=1 LIMIT 1",$scheduleUid,$lesson));
         try{
             if($lesson<1||!$schedule)throw new \InvalidArgumentException('portal_object_not_portal_visible');
+            // A notice submitted after the occurrence began is still the Student's own report that
+            // they missed the class. It becomes a post-occurrence attendance claim instead of a
+            // prospective advance notice, so the same form works before and after the class.
+            $startTs=strtotime((string)$schedule->starts_at_utc.' UTC');
             $anchoredAt=$claimKind==='advance_absence_claim'?(string)$schedule->starts_at_utc:(string)$schedule->ends_at_utc;
+            if($claimKind==='advance_absence_claim' && $startTs && $startTs<=time()){
+                $claimKind='attendance_claim';
+                $reasonCode='student_reports_missed_class';
+                $anchoredAt=gmdate('Y-m-d H:i:s');
+            }
             (new CanonicalAttendanceIntakeService())->submitClaim($lesson,(int)$schedule->id,array(
                 'claim_kind'=>$claimKind,
                 'reason_code'=>$reasonCode,

@@ -22,7 +22,6 @@ final class LessonRescheduleService {
     public const STATE_REJECTED='rejected';
     public const STATE_FAILED='failed';
     public const STATE_CANCELLED='cancelled';
-    public const MIN_NOTICE_MINUTES=60;
     public const MAX_HORIZON_DAYS=30;
 
     /** @var callable(int,string,string,int):array */
@@ -84,8 +83,6 @@ final class LessonRescheduleService {
         if((string)$context->lifecycle_state!=='authorised')throw new \InvalidArgumentException('reschedule_lesson_not_eligible');
         if((string)$context->schedule_version_uid!==$scheduleVersionUid)throw new \InvalidArgumentException('stale_schedule_version');
         $now=$this->now();
-        if((string)$context->starts_at_utc<=$now)throw new \InvalidArgumentException('reschedule_lesson_in_progress');
-        if(strtotime((string)$context->starts_at_utc.' UTC')<(($this->clock)()+self::MIN_NOTICE_MINUTES*60))throw new \InvalidArgumentException('reschedule_notice_too_short');
 
         $calendar=dzn_reschedule_calendar($input['calendar']??'gregorian');
         $localDate=$this->localDate($calendar,$input,$timezone);
@@ -189,7 +186,6 @@ final class LessonRescheduleService {
             $this->store->ensureAndLockStudentRoot($studentId,$now,$authenticatedUserId);
             $context=$this->store->lessonContext((int)$proposal->lesson_id);
             if(!$context||(int)$context->schedule_version_id!==(int)$proposal->schedule_version_id)throw new \InvalidArgumentException('stale_schedule_version');
-            if((string)$context->starts_at_utc<=$now)throw new \InvalidArgumentException('reschedule_lesson_in_progress');
             if((string)$proposal->proposed_starts_at_utc<=$now)throw new \InvalidArgumentException('reschedule_proposal_expired');
             if($this->store->studentConflict($studentId,(string)$proposal->proposed_starts_at_utc,(string)$proposal->proposed_occupied_ends_at_utc,(int)$proposal->lesson_id))throw new \InvalidArgumentException('student_slot_conflict');
             // The canonical service rechecks Teacher occupancy, protected capacity, availability,

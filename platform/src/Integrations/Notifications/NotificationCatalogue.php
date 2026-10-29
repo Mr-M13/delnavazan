@@ -289,7 +289,7 @@ final class NotificationCatalogue {
         );
         $out=array();
         foreach($definitions as $key=>[$label,$intent,$faLabel]){
-            $event=self::event($key,$label,'payment','student','canonical:'.$intent,'canonical',array('email','website'),'financial',true,array('name','amount','due_date','portal_url'),strtolower(str_replace('.student','',$key)),array(
+            $event=self::event($key,$label,'payment','student','canonical:'.$intent,'canonical',array('email','website'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),array(
                 self::PRIMARY_LOCALE=>array(
                     'email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{name}}،\n\n".$faLabel.".\n\nمبلغ: {{amount}}\nمهلت: {{due_date}}\n\nبرای مشاهدهٔ جزئیات و اقدام به پرتال هنرجو بروید:\n{{portal_url}}\n\nاین متن پیش‌فرض است و پیش از فعال‌سازی باید از نظر مالی و حقوقی بازبینی شود.\n\nبا احترام، دلنوازان"),
                     'website'=>array('subject'=>$faLabel,'body'=>$faLabel.' — جزئیات در پرتال هنرجو.'),
@@ -311,12 +311,15 @@ final class NotificationCatalogue {
             $messages=array(
                 'proposed'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{name}}،\n\nبرای شما یک زمان تازه برای ".('replacement'===$kind?'جلسهٔ جبرانی':'کلاس')." پیشنهاد شد:\n{{when}} ({{timezone}})\n\nلطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید:\n{{portal_url}}\n\nتا پاسخ شما، زمان فعلی کلاس تغییر نمی‌کند.\n\nبا احترام، دلنوازان"),
                 'accepted'=>array('subject'=>'دلنوازان · تأیید زمان پیشنهادی','body'=>"سلام {{name}}،\n\nزمان پیشنهادی تأیید شد.\n\nزمان جدید: {{when}} ({{timezone}})\n\nجزئیات در پرتال هنرجو در دسترس است:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
-                'rejected'=>array('subject'=>'دلنوازان · زمان پیشنهادی رد شد','body'=>"سلام {{name}}،\n\nزمان پیشنهادی رد شد و زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nاگر زمان تازه‌ای مناسب شماست، از پرتال هنرجو با مدرس هماهنگ کنید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'rejected'=>array('subject'=>'دلنوازان · زمان پیشنهادی رد شد','body'=>"سلام {{name}}،\n\nزمان پیشنهادی رد شد و زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nزمان فعلی: {{when}}\n\nاگر زمان تازه‌ای مناسب شماست، از پرتال هنرجو با مدرس هماهنگ کنید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'failed'=>array('subject'=>'دلنوازان · زمان پیشنهادی ثبت نشد','body'=>"سلام {{name}}،\n\nزمان پیشنهادی ثبت نشد و بسته شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nلطفاً زمان تازه‌ای پیشنهاد کنید یا با پشتیبانی دلنوازان تماس بگیرید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'cancelled'=>array('subject'=>'دلنوازان · پیشنهاد زمان لغو شد','body'=>"سلام {{name}}،\n\nپیشنهاد زمان توسط مدیر لغو شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nجزئیات در پرتال هنرجو:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
             );
             foreach($messages as $state=>$copy){
-                $studentVariables=array_merge(array('name','portal_url'),in_array($state,array('proposed','accepted'),true)?array('when','timezone'):array());
+                $studentVariables=array('name','portal_url');
+                if($state==='proposed')$studentVariables=array_merge($studentVariables,array('when','timezone','teacher','course','current_when','new_when'));
+                elseif($state==='accepted')$studentVariables=array_merge($studentVariables,array('when','timezone','course','teacher','previous_when','new_when'));
+                elseif($state==='rejected')$studentVariables=array_merge($studentVariables,array('course','teacher','when'));
                 $out[]=self::event($prefix.'.'.$state.'.student',$label.' · '.ucfirst($state),'lesson','student','LessonRescheduleService','queue',array('email','website'),'operational',true,$studentVariables,$prefix.'.'.$state,array(
                     self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body'])),
                 ));
@@ -329,12 +332,15 @@ final class NotificationCatalogue {
             $messages=array(
                 'proposed'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{teacher}}،\n\nدرخواست ".('replacement'===$kind?'جلسهٔ جبرانی':'تغییر زمان')." ثبت شد.\n\nزمان پیشنهادی: {{when}} ({{timezone}})\n\nتا پاسخ هنرجو، این پیشنهاد قطعی نیست. وضعیت را در پرتال مدرس ببینید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'accepted'=>array('subject'=>'دلنوازان · هنرجو زمان پیشنهادی را پذیرفت','body'=>"سلام {{teacher}}،\n\nهنرجو زمان پیشنهادی را پذیرفت و زمان {{when}} ({{timezone}}) قطعی شد.\n\nمشاهدهٔ کلاس‌ها:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
-                'rejected'=>array('subject'=>'دلنوازان · هنرجو زمان پیشنهادی را رد کرد','body'=>"سلام {{teacher}}،\n\nهنرجو زمان پیشنهادی را رد کرد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nلطفاً با هنرجو هماهنگ کنید و زمان تازه‌ای پیشنهاد دهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'rejected'=>array('subject'=>'دلنوازان · هنرجو زمان پیشنهادی را رد کرد','body'=>"سلام {{teacher}}،\n\nهنرجو زمان پیشنهادی را رد کرد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nزمان فعلی: {{when}}\n\nلطفاً با هنرجو هماهنگ کنید و زمان تازه‌ای پیشنهاد دهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'failed'=>array('subject'=>'دلنوازان · پیشنهاد زمان ثبت نشد','body'=>"سلام {{teacher}}،\n\nپیشنهاد زمان ثبت نشد و بسته شد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nدر صورت نیاز، زمان تازه‌ای پیشنهاد دهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'cancelled'=>array('subject'=>'دلنوازان · پیشنهاد زمان لغو شد','body'=>"سلام {{teacher}}،\n\nپیشنهاد زمان توسط مدیر لغو شد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nجزئیات در پرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
             );
             foreach($messages as $state=>$copy){
-                $teacherVariables=array_merge(array('teacher','teacher_portal_url'),in_array($state,array('proposed','accepted'),true)?array('when','timezone'):array());
+                $teacherVariables=array('teacher','teacher_portal_url');
+                if($state==='proposed')$teacherVariables=array_merge($teacherVariables,array('when','timezone','course','student','current_when','new_when'));
+                elseif($state==='accepted')$teacherVariables=array_merge($teacherVariables,array('when','timezone','course','student','previous_when','new_when'));
+                elseif($state==='rejected')$teacherVariables=array_merge($teacherVariables,array('course','student','when'));
                 $out[]=self::event($prefix.'.'.$state.'.teacher',$label.' · '.ucfirst($state),'lesson','teacher','LessonRescheduleService','queue',array('email','website'),'operational',true,$teacherVariables,$prefix.'.'.$state,array(
                     self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body'])),
                 ));

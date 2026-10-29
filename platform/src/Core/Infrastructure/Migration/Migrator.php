@@ -670,9 +670,9 @@ final class Migrator {
 			array('telnyx_events','event_reference',true),
 			array('telnyx_events','message_reference',false),
 		) as $index)if(!self::has_index($p.$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: '.$index[0].'.'.$index[1]);
-		foreach(array('message_reference_digest','event_reference_digest') as $column){
-			$found=$wpdb->get_row("SHOW COLUMNS FROM {$p}telnyx_events LIKE '{$column}'");
-			if($column==='event_reference_digest'&&(!$found||strtolower((string)$found->Type)!=='char(64)'||$found->Null!=='NO'))throw new \RuntimeException('Migration verification failed: event reference digest');
+		foreach(array(array('telnyx_messages','message_reference_digest'),array('telnyx_events','event_reference_digest')) as $shape){
+			$found=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");
+			if(!$found||strtolower((string)$found->Type)!=='char(64)'||$found->Null!=='NO')throw new \RuntimeException('Migration verification failed: provider reference digest '.$shape[0].'.'.$shape[1]);
 		}
 	}
 

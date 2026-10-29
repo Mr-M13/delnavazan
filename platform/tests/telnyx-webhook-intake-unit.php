@@ -41,7 +41,7 @@ class DznFakeProvider extends NotificationProviderRepository {
     public function event(string $digest):?object{return $this->events[$digest]??null;}
     public function insertEvent(array $data):int{$id=count($this->events)+1;$data['id']=$id;$this->events[$data['event_reference_digest']]=(object)$data;return $id;}
     public function updateEvent(int $id,array $fields):void{foreach($this->events as $key=>$row)if((int)$row->id===$id){foreach($fields as $k=>$v)$row->$k=$v;$this->events[$key]=$row;}}
-    public function incrementReplay(int $id,string $now):void{$this->replays++;foreach($this->events as $key=>$row)if((int)$row->id===$id){$row->replay_count++;$this->events[$key]=$row;}}
+    public function incrementReplay(int $id):void{$this->replays++;foreach($this->events as $key=>$row)if((int)$row->id===$id){$row->replay_count++;$this->events[$key]=$row;}}
     public function messageForReference(string $digest):?object{return $this->messages[$digest]??null;}
     public function updateMessageState(string $digest,string $state,string $now):void{if(isset($this->messages[$digest]))$this->messages[$digest]->state=$state;}
 }
@@ -54,9 +54,11 @@ class DznFakeSuppressions extends NotificationSuppressionService {
     public function suppressFromVerifiedProvider(array $input,string $key):array{$this->calls[]=array($input,$key);return array('suppression_id'=>1,'state'=>'active','created'=>true);}
 }
 class DznFakeContacts extends StudentNotificationContactLookup {
-    public array $students=array();
-    public function studentIdForPhone(string $phone):?int{return $this->students[$phone]??null;}
+    public array $studentIds=array();public array $teacherIds=array();
+    public function studentIdsForPhone(string $phone):array{return $this->studentIds[$phone]??array();}
+    public function teacherIdsForPhone(string $phone):array{return $this->teacherIds[$phone]??array();}
     public function recipientDigest(int $studentId):string{return hash_hmac('sha256','recipient:student:'.$studentId,NotificationSupport::salt());}
+    public function teacherRecipientDigest(int $teacherId):string{return hash_hmac('sha256','recipient:teacher:'.$teacherId,NotificationSupport::salt());}
 }
 
 function dzn_telnyx_body(array $data):string{return json_encode(array('data'=>$data),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);}
@@ -64,7 +66,7 @@ function dzn_telnyx_headers(string $body,$secret):array{$timestamp=(string)time(
 
 $keypair=sodium_crypto_sign_keypair();$secret=sodium_crypto_sign_secretkey($keypair);$public=base64_encode(sodium_crypto_sign_publickey($keypair));
 $signature=TelnyxWebhookSignature::fromSettings($public);
-$provider=new DznFakeProvider();$evidence=new DznFakeEvidence();$suppressions=new DznFakeSuppressions();$contacts=new DznFakeContacts();$contacts->students['+15550001111']=42;
+$provider=new DznFakeProvider();$evidence=new DznFakeEvidence();$suppressions=new DznFakeSuppressions();$contacts=new DznFakeContacts();$contacts->studentIds['+15550001111']=array(42);$contacts->teacherIds['+15550002222']=array(73);$contacts->studentIds['+15550003333']=array(5,6);
 $service=new TelnyxWebhookService($signature,$provider,$evidence,$suppressions,$contacts);
 $reference='msg_1';$digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());
 $provider->messages[$digest]=(object)array('notification_id'=>7,'attempt_id'=>9,'state'=>'sent');
@@ -89,6 +91,12 @@ if(!$r['replayed']||count($suppressions->calls)!==1)throw new RuntimeException('
 $data['id']='evt-4';$data['payload']['from']['phone_number']='+15559999999';$body=dzn_telnyx_body($data);$headers=dzn_telnyx_headers($body,$secret);
 $r=$service->receive($body,$headers,time());
 if($r['outcome']!=='suppression_unresolved')throw new RuntimeException('unknown STOP sender must be recorded without suppression');
+$data['id']='evt-5';$data['payload']['from']['phone_number']='+15550002222';$body=dzn_telnyx_body($data);$headers=dzn_telnyx_headers($body,$secret);
+$r=$service->receive($body,$headers,time());
+if($r['outcome']!=='suppressed'||($suppressions->calls[1][0]['subject_kind']??'')!=='teacher')throw new RuntimeException('teacher STOP was not suppressed');
+$data['id']='evt-6';$data['payload']['from']['phone_number']='+15550003333';$body=dzn_telnyx_body($data);$headers=dzn_telnyx_headers($body,$secret);
+$r=$service->receive($body,$headers,time());
+if($r['outcome']!=='suppressed'||count($suppressions->calls)!==4)throw new RuntimeException('shared-number STOP must suppress every matching student');
 $body='not-json';$headers=dzn_telnyx_headers($body,$secret);
 $r=$service->receive($body,$headers,time());
 if($r['http']!==400||$r['outcome']!=='webhook_payload_invalid')throw new RuntimeException('malformed verified JSON must be refused');

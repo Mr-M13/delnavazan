@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
@@ -196,12 +197,13 @@ final class IntegrationTestRunner {
     }
     private function whatsapp(IntegrationSettingsService $s,array $input):array {
         $raw=preg_replace('/[^0-9+]/','',(string)($input['destination']??''));
-        $e164=preg_match('/^\+[1-9][0-9]{7,14}$/',$raw)?$raw:'';
+        $e164=PhoneNumberNormalizer::toE164($raw);
         $telnyx=new TelnyxConfiguration($s);
-        if($telnyx->whatsappReady()){
+        if($telnyx->apiKey()!==''&&$telnyx->whatsappSender()!==''&&$telnyx->wabaId()!==''){
             if($e164==='')return array('state'=>'failed','code'=>'destination_invalid');
             $template=preg_replace('/[^a-zA-Z0-9_]/','',(string)$s->value('whatsapp','test_template_name'));
             $language=(string)($s->value('whatsapp','test_template_language')?:TelnyxTemplateRegistry::LANGUAGE);
+            if(str_starts_with(strtolower($language),'fa'))$language=TelnyxTemplateRegistry::LANGUAGE;
             $eventKey=TelnyxTemplateRegistry::eventKeyForName($template);
             if($eventKey===null){
                 $status=(new TelnyxTemplateDiscoveryService($s))->status();

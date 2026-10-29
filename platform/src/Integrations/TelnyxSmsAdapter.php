@@ -5,6 +5,7 @@ use Delnavazan\Platform\Core\Application\NotificationSupport;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationAttemptRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 
 /**
  * Telnyx Messaging API v2 SMS adapter.
@@ -27,6 +28,8 @@ final class TelnyxSmsAdapter {
     }
 
     public function sendTest(string $destination):array{
+        $destination=PhoneNumberNormalizer::toE164($destination);
+        if($destination==='')return array('state'=>'failed','code'=>'destination_invalid');
         $from=(string)$this->settings->value('sms','sender_id');
         $profile=(string)$this->settings->value('sms','messaging_profile_id');
         if($from===''&&$profile==='')return array('state'=>'failed','code'=>'telnyx_sender_not_configured');
@@ -43,7 +46,7 @@ final class TelnyxSmsAdapter {
 
     /** NotificationTransportPort callable. Returns only the channel-neutral acknowledgement vocabulary. */
     public function send(array $command):array{
-        $to=(string)($command['to']??'');
+        $to=PhoneNumberNormalizer::toE164((string)($command['to']??''));
         $text=(string)($command['body']??'');
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
         if($text==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');

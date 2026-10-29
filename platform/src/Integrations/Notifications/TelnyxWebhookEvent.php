@@ -35,11 +35,15 @@ final class TelnyxWebhookEvent {
         $channel=$type==='WHATSAPP'||($type===''&&isset($inner['from']))?'whatsapp':'sms';
         $direction=strtolower((string)($payload['direction']??($inner['direction']??'')));
         if($eventType==='message.received')$direction='inbound';
-        $innerBody=is_array($inner['body']??null)?$inner['body']:array();
-        $text=self::firstString(array($payload['text']??null,$inner['text']??null,$innerBody['text']??null));
+        $innerText=$inner['text']??null;
+        $nestedText=is_array($innerText)?($innerText['body']??null):(is_string($innerText)?$innerText:null);
+        $text=self::firstString(array($payload['text']??null,$nestedText));
         $from=$payload['from']??null;$innerFrom=$inner['from']??null;
+        $bodyFromPhone=is_array($innerFrom)?($innerFrom['phone_number']??null):$innerFrom;
         $fromPhone=is_array($from)?($from['phone_number']??null):$from;
-        $recipientPhone=self::phone(self::firstString(array($fromPhone,is_array($innerFrom)?null:$innerFrom)));
+        // Inbound WhatsApp carries the sender under `body.from`; SMS carries it under
+        // `from.phone_number`. Prefer the WhatsApp body sender when both are present.
+        $recipientPhone=self::phone(self::firstString(array($bodyFromPhone,$fromPhone)));
         $reference=self::firstString(array($payload['id']??null,$inner['id']??null));
         $to=is_array($payload['to']??null)&&is_array($payload['to'][0]??null)?$payload['to'][0]:array();
         $status=strtolower(self::firstString(array($to['status']??null,$payload['status']??null,$inner['status']??null)));

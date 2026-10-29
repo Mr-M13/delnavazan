@@ -51,7 +51,7 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
  private function allowed(array $bindings,array $command,bool $fallback):array{
   if(!is_callable($this->channelPolicy))return $bindings;
   $eventKey=NotificationEventKey::fromTemplateVersion((int)($command['template_version_id']??0));
-  if($eventKey===null||$eventKey==='')return $bindings;
+  if($eventKey===null||$eventKey==='')return array();
   $out=array();
   foreach($bindings as $binding)if(($this->channelPolicy)($eventKey,(string)($binding['channel']??''),$fallback))$out[]=$binding;
   return $out;

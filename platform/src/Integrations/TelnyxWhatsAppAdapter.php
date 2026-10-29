@@ -7,6 +7,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepos
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 
 /**
@@ -36,6 +37,7 @@ final class TelnyxWhatsAppAdapter {
      * a notification/attempt correlation row. The caller must supply an authorised destination.
      */
     public function sendTest(string $to,string $name,string $language,array $parameters):array{
+        $to=PhoneNumberNormalizer::toE164($to);
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('state'=>'failed','code'=>'destination_invalid');
         $sender=(string)$this->settings->value('whatsapp','sender_id');
         $order=TelnyxTemplateRegistry::variableOrderForName($name);
@@ -53,7 +55,7 @@ final class TelnyxWhatsAppAdapter {
     }
 
     public function send(array $command):array{
-        $to=(string)($command['to']??'');
+        $to=PhoneNumberNormalizer::toE164((string)($command['to']??''));
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
         $sender=(string)$this->settings->value('whatsapp','sender_id');
         if($sender==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');

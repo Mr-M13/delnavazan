@@ -574,7 +574,7 @@ final class NotificationDispatchService {
         $subject=$this->subjects?->subject((string)$binding['aggregate'],$subjectId,$binding['instant']);
         $recipient=$this->recipient($notification,$subjectId,$binding);
         $bound=NotificationEligibility::boundEvidence($intent,$subjectId,(string)$notification->observed_at);
-        $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now);
+        $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now,NotificationRule::providerStopApplies($intent,(string)($recipient['route']??'')));
         $facts=array(
             'subject_exists'=>(bool)($subject['exists']??false),'bound_evidence'=>$bound,
             'recipient_resolvable'=>(bool)($recipient['resolvable']??false),

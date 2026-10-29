@@ -32,7 +32,7 @@ class NotificationSuppressionService {
     private function applySuppression(array $input,string $key,int $actor):array{
         $evidence=NotificationSupport::evidence($input);
         $subjectKind=trim((string)($input['subject_kind']??''));
-        if(!in_array($subjectKind,array('student','guardian','academy'),true))throw new \InvalidArgumentException('suppressed');
+        if(!in_array($subjectKind,array('student','teacher','guardian','academy'),true))throw new \InvalidArgumentException('suppressed');
         $subjectDigest=(string)($input['subject_digest']??'');
         if(!preg_match('/^[0-9a-f]{64}$/',$subjectDigest))throw new \InvalidArgumentException('suppressed');
         $purpose=substr(trim((string)($input['purpose']??'')),0,48);

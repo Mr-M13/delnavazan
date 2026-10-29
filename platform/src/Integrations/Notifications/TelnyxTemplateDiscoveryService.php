@@ -33,15 +33,18 @@ final class TelnyxTemplateDiscoveryService {
                 $name=(string)($template['name']??'');$language=(string)($template['language']??'');
                 if($name==='')continue;
                 $definition=TelnyxTemplateRegistry::definitionForName($name);
+                $available=$definition===null?array():NotificationCatalogue::variables((string)$definition['event_key']);
+                $missing=$definition===null?array():array_values(array_diff($definition['variable_order'],$available));
                 $components=(array)($template['components']??array());
                 $bodyText='';foreach($components as $component)if(is_array($component)&&($component['type']??'')==='BODY')$bodyText=(string)($component['text']??'');
                 $variableCount=(int)preg_match_all('/\{\{[0-9]+\}\}/',$bodyText);
+                $matches=$definition!==null&&$variableCount===count($definition['variable_order'])&&$missing===array();
                 $all[]=array(
                     'name'=>$name,'language'=>$language,'status'=>strtoupper((string)($template['status']??'UNKNOWN')),
                     'category'=>(string)($template['category']??''),'template_id'=>(string)($template['id']??''),
-                    'event_key'=>$definition['event_key']??null,'audience'=>$definition['audience']??null,
+                    'event_key'=>$matches?$definition['event_key']:null,'audience'=>$definition['audience']??null,
                     'variable_order'=>$definition['variable_order']??array(),'provider_variable_count'=>$variableCount,
-                    'variable_contract_matches'=>$definition===null?false:$variableCount===count($definition['variable_order']),
+                    'variable_contract_matches'=>$matches,'variable_contract_missing'=>$missing,
                     'rejection_reason'=>(string)($template['rejection_reason']??''),
                 );
             }
@@ -77,7 +80,10 @@ final class TelnyxTemplateDiscoveryService {
             if((string)$row->event_key!=='')$counts['mapped']++;else$counts['unmapped']++;
             $order=array_values(array_filter(array_map('trim',explode(',',(string)$row->variable_order))));
             $known=TelnyxTemplateRegistry::definitionForName((string)$row->template_name);
-            if($known!==null&&count($known['variable_order'])!==count($order))$counts['variable_mismatch']++;
+            if($known!==null){
+                $available=NotificationCatalogue::variables((string)$known['event_key']);
+                if(count($known['variable_order'])!==count($order)||array_diff($known['variable_order'],$available)!==array())$counts['variable_mismatch']++;
+            }
         }
         return array('counts'=>$counts,'templates'=>$rows);
     }

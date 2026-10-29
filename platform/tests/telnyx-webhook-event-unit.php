@@ -15,9 +15,10 @@ if(TelnyxWebhookEvent::normalise(dzn_telnyx_event($unconfirmed))['delivery_state
 $inbound=$base+array('event_type'=>'message.received','payload'=>array('direction'=>'inbound','type'=>'SMS','from'=>array('phone_number'=>'+15550001111'),'text'=>'  STOP. '));
 $e=TelnyxWebhookEvent::normalise(dzn_telnyx_event($inbound));
 if($e['channel']!=='sms'||!$e['stop']||$e['recipient_phone']!=='+15550001111'||$e['delivery_state']!==null)throw new RuntimeException('SMS inbound STOP normalisation failed');
-$wa=$base+array('event_type'=>'message.received','payload'=>array('direction'=>'inbound','type'=>'WHATSAPP','body'=>array('id'=>'wamid.1','from'=>'+989121234567','text'=>'لغو')));
+$wa=$base+array('event_type'=>'message.received','payload'=>array('direction'=>'inbound','type'=>'WHATSAPP','from'=>array('phone_number'=>'+15550000001'),'body'=>array('id'=>'wamid.1','from'=>'+989121234567','text'=>array('body'=>'لغو'))));
 $e=TelnyxWebhookEvent::normalise(dzn_telnyx_event($wa));
 if($e['channel']!=='whatsapp'||!$e['stop']||$e['recipient_phone']!=='+989121234567')throw new RuntimeException('WhatsApp inbound STOP normalisation failed');
+if($e['text']!=='لغو')throw new RuntimeException('WhatsApp nested body text was not read');
 foreach(array('STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','OPT OUT','توقف','انصراف') as $word)if(!TelnyxWebhookEvent::isStop($word))throw new RuntimeException('STOP word refused: '.$word);
 if(TelnyxWebhookEvent::isStop('Please stop by later'))throw new RuntimeException('ordinary text must not suppress');
 $invalid=false;try{TelnyxWebhookEvent::normalise('{broken');}catch(InvalidArgumentException $e){$invalid=$e->getMessage()==='webhook_payload_invalid';}

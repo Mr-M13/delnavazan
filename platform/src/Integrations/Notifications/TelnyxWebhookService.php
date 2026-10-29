@@ -45,12 +45,16 @@ final class TelnyxWebhookService {
         $verification=$this->signature->verify($rawBody,$headers,$now);
         if(!($verification['valid']??false))return array('http'=>$this->verificationStatus((string)$verification['code']),'outcome'=>(string)$verification['code'],'replayed'=>false);
         try{$event=TelnyxWebhookEvent::normalise($rawBody);}
-        catch(\InvalidArgumentException $error){return array('http'=>400,'outcome'=>$error->getMessage(),'replayed'=>false);}
+        catch(\InvalidArgumentException $error){
+            $code=$error->getMessage();
+            if($code==='webhook_event_unsupported')return array('http'=>200,'outcome'=>'ignored_event','replayed'=>false);
+            return array('http'=>400,'outcome'=>$code,'replayed'=>false);
+        }
         $eventDigest=$this->digest('event:'.$event['event_id']);
         $existing=$this->provider->event($eventDigest);
         $replayed=$existing!==null;
         if($existing){
-            $this->provider->incrementReplay((int)$existing->id,NotificationSupport::now());
+            $this->provider->incrementReplay((int)$existing->id);
             if($this->terminal((string)$existing->outcome_code))return array('http'=>200,'outcome'=>(string)$existing->outcome_code,'replayed'=>true);
             $eventId=(int)$existing->id;
         }else{
@@ -66,7 +70,7 @@ final class TelnyxWebhookService {
                 $winner=$this->provider->event($eventDigest);
                 if(!$winner)throw $error;
                 $eventId=(int)$winner->id;$replayed=true;
-                $this->provider->incrementReplay($eventId,NotificationSupport::now());
+                $this->provider->incrementReplay($eventId);
             }
         }
         try{$result=$this->process($event,$eventDigest);}
@@ -86,13 +90,18 @@ final class TelnyxWebhookService {
     private function process(array $event,string $eventDigest):array{
         if($event['event_type']==='message.received'){
             if(!($event['stop']??false))return $this->result('ignored_inbound');
-            $studentId=$event['recipient_phone']!==''?$this->contacts->studentIdForPhone($event['recipient_phone']):null;
-            if($studentId===null)return $this->result('suppression_unresolved');
-            $this->suppressions->suppressFromVerifiedProvider(array(
-                'subject_kind'=>'student','subject_digest'=>$this->contacts->recipientDigest($studentId),
-                'purpose'=>'*','reason_code'=>'provider_stop','effective_from'=>NotificationSupport::now(),
-                'evidence_channel'=>'provider_evidence','evidence_reference'=>'telnyx:'.$eventDigest,'evidence_at'=>$event['occurred_at'],
-            ),'telnyx-stop:'.$eventDigest);
+            $phone=$event['recipient_phone'];
+            $subjects=array();
+            if($phone!=='')foreach($this->contacts->studentIdsForPhone($phone) as $id)$subjects[]=array('student',$this->contacts->recipientDigest($id));
+            if($phone!=='')foreach($this->contacts->teacherIdsForPhone($phone) as $id)$subjects[]=array('teacher',$this->contacts->teacherRecipientDigest($id));
+            if($subjects===array())return $this->result('suppression_unresolved');
+            foreach($subjects as [$subjectKind,$subjectDigest]){
+                $this->suppressions->suppressFromVerifiedProvider(array(
+                    'subject_kind'=>$subjectKind,'subject_digest'=>$subjectDigest,
+                    'purpose'=>'*','reason_code'=>'provider_stop','effective_from'=>NotificationSupport::now(),
+                    'evidence_channel'=>'provider_evidence','evidence_reference'=>'telnyx:'.$eventDigest,'evidence_at'=>$event['occurred_at'],
+                ),'telnyx-stop:'.$subjectKind.':'.$subjectDigest);
+            }
             return $this->result('suppressed');
         }
         if($event['message_reference']==='')return $this->result('message_reference_missing');

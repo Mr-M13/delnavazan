@@ -56,7 +56,7 @@ final class IntegrationSettingsService {
                 $key=$v('webhook_public_key');
                 if($key===''&&defined('DZN_TELNYX_WEBHOOK_PUBLIC_KEY'))$key=(string)constant('DZN_TELNYX_WEBHOOK_PUBLIC_KEY');
                 if($key===''){$env=getenv('TELNYX_WEBHOOK_PUBLIC_KEY');if(is_string($env))$key=$env;}
-                $telnyx=$this->value('sms','api_key')!==''&&$v('sender_id')!==''&&$v('waba_id')!==''&&trim((string)$key)!=='';
+                $telnyx=$this->value('sms','api_key')!==''&&$v('sender_id')!==''&&($v('waba_id')!==''||$v('business_account_id')!=='')&&trim((string)$key)!=='';
                 return $meta||$telnyx;
             }
             if($provider==='sms')return $v('api_key')!==''&&($v('messaging_profile_id')!==''||$v('sender_id')!=='');

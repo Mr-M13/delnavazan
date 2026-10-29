@@ -5,6 +5,7 @@ use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
 use Delnavazan\Platform\Integrations\GoogleOAuthController;
 use Delnavazan\Platform\Integrations\Notifications\NotificationRuntimeFactory;
+use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
@@ -33,6 +34,8 @@ final class IntegrationControlPlaneReadService {
         try{$providerTemplates=(new TelnyxTemplateDiscoveryService($settings))->status();}catch(\Throwable){}
         $providerEvents=array();$providerRecent=array();$providerMessages=array();
         try{$providerEvents=$provider->eventOutcomeCounts('telnyx');$providerRecent=$provider->recentEvents('telnyx',10);$providerMessages=$provider->messageCounts('telnyx');}catch(\Throwable){}
+        $channelPolicies=(new NotificationTemplateLibrary())->channelPolicies();
+        $enabledCategories=function(string $channel)use($channelPolicies):array{$out=array();foreach($channelPolicies as $category=>$flags)if(!empty($flags[$channel]))$out[]=(string)$category;return $out;};
         $dispatchActor=(int)get_option(NotificationSystemActor::USER_OPTION,0);
         $dispatchActorValid=$dispatchActor>0&&($user=get_user_by('id',$dispatchActor)) instanceof \WP_User&&user_can($user,NotificationSystemActor::CAPABILITY);
         $googleConfigured=GoogleOAuthController::configured();
@@ -115,6 +118,9 @@ final class IntegrationControlPlaneReadService {
                     'student_route_filter'=>has_filter('dzn_notification_student_route')?'configured':'not_configured',
                     'student_consent_filter'=>has_filter('dzn_notification_student_opted_in')?'configured':'not_configured',
                     'student_guardian_filter'=>has_filter('dzn_notification_student_guardian_authority')?'configured':'not_configured',
+                    'whatsapp_enabled_categories'=>$enabledCategories('whatsapp'),
+                    'sms_enabled_categories'=>$enabledCategories('sms'),
+                    'sms_fallback_categories'=>$enabledCategories('sms_fallback'),
                 ),
             ),
             'generated_at'=>current_time('mysql',true),

@@ -37,6 +37,13 @@ $fail('SMS adapter uses Messages API v2',str_contains($sms,'https://api.telnyx.c
 $fail('WhatsApp adapter uses the WhatsApp endpoint',str_contains($whatsapp,'https://api.telnyx.com/v2/messages/whatsapp')&&str_contains($whatsapp,'whatsapp_message')&&str_contains($whatsapp,'templatePayload'));
 $fail('WhatsApp adapter never invents variables',str_contains($whatsapp,'variable_contract_mismatch')&&str_contains($whatsapp,'template_not_mapped'));
 $fail('WhatsApp locale maps to the approved fa language',str_contains($whatsapp,"str_starts_with(strtolower(\$locale),'fa')"));
+$fail('stored phone numbers are normalised to E.164',str_contains($sms,'PhoneNumberNormalizer')&&str_contains($whatsapp,'PhoneNumberNormalizer'));
+$fail('shared-number STOP suppresses every matching subject',str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'studentIdsForPhone')&&str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'teacherIdsForPhone')&&str_contains($service,'studentIdsForPhone')&&str_contains($service,'teacherIdsForPhone'));
+$fail('provider STOP is scoped to the mobile route',str_contains($read('platform/src/Core/Application/NotificationRule.php'),'providerStopApplies')&&str_contains($read('platform/src/Core/Application/NotificationDispatchService.php'),'providerStopApplies')&&str_contains($suppressionRepo,'allowWildcard'));
+$fail('unsupported Telnyx events are acknowledged without retry',str_contains($service,"ignored_event")&&str_contains($service,"webhook_event_unsupported"));
+$fail('WhatsApp inbound text uses the nested body shape',str_contains($normalizer,"\$innerText['body']"));
+$fail('WhatsApp body sender wins over the business profile sender',str_contains($normalizer,'$bodyFromPhone')&&str_contains($normalizer,'firstString(array($bodyFromPhone,$fromPhone))'));
+
 $fail('out-of-order facts never regress message state',str_contains($service,"if(!empty(\$result['applied']))\$this->provider->updateMessageState"));
 $fail('bindings require a verified webhook key',str_contains($configuration,'webhookPublicKey')&&str_contains($configuration,'webhookPublicKey()!==')&&str_contains($bindings,'smsReady()')&&str_contains($bindings,'whatsappReady()'));
 $fail('template registry maps approved names',str_contains($registry,'delnavazan_payment_due_fa')&&str_contains($registry,'delnavazan_class_access_fa')&&str_contains($registry,'variable_order'));

@@ -28,6 +28,7 @@ class NotificationProviderRepository {
     public function upsertTemplate(array $data):void{
         $existing=$this->templateByName((string)$data['provider'],(string)$data['template_name'],(string)$data['language']);
         if($existing){
+            unset($data['uid'],$data['created_at']);
             $this->update('telnyx_templates',$data,array('id'=>(int)$existing->id));
             return;
         }
@@ -58,9 +59,9 @@ class NotificationProviderRepository {
     }
     public function insertEvent(array $data):int{return $this->insert('telnyx_events',$data);}
     public function updateEvent(int $id,array $fields):void{$this->update('telnyx_events',$fields,array('id'=>$id));}
-    public function incrementReplay(int $id,string $now):void{
+    public function incrementReplay(int $id):void{
         global $wpdb;
-        $changed=$wpdb->query($wpdb->prepare("UPDATE {$this->p}telnyx_events SET replay_count=replay_count+1,received_at=%s WHERE id=%d",$now,$id));
+        $changed=$wpdb->query($wpdb->prepare("UPDATE {$this->p}telnyx_events SET replay_count=replay_count+1 WHERE id=%d",$id));
         if($changed===false)throw new \RuntimeException('Notification provider event replay persistence failed');
     }
     /** @return object[] */

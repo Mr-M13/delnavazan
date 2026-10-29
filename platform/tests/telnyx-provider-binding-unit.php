@@ -2,6 +2,7 @@
 $root=dirname(__DIR__);
 $GLOBALS['wpdb']=(object)array('prefix'=>'wp_');
 require_once $root.'/src/Core/Application/NotificationTransportPort.php';
+require_once $root.'/src/Core/Application/NotificationRule.php';
 require_once $root.'/src/Core/Infrastructure/Repository/NotificationRepository.php';
 require_once $root.'/src/Core/Infrastructure/Repository/NotificationAttemptRepository.php';
 require_once $root.'/src/Core/Infrastructure/Repository/NotificationTemplateRepository.php';
@@ -54,4 +55,7 @@ foreach($registry as $name=>$definition){
     if($definition['variable_order']===array()||count($definition['variable_order'])!==count(array_unique($definition['variable_order'])))throw new RuntimeException('registry variable order invalid: '.$name);
 }
 if(TelnyxTemplateRegistry::nameForEvent('lesson.access.student')!=='delnavazan_class_access_fa')throw new RuntimeException('registry reverse lookup failed');
+if(!\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('MANUAL_RENEWAL_PAYMENT_REQUIRED','mobile'))throw new RuntimeException('provider STOP must suppress a mobile payment intent');
+if(\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('MANUAL_RENEWAL_PAYMENT_REQUIRED','email'))throw new RuntimeException('provider STOP must not suppress the email route');
+if(\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('STUDENT_ACCOUNT_CLAIM_ISSUED','mobile'))throw new RuntimeException('provider STOP must not suppress a security account intent');
 echo "Telnyx provider binding unit passed\n";

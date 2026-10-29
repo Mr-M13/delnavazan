@@ -119,4 +119,3 @@ real-provider tests in the PR that implements it.
    deletion and retention journeys.
 7. An authorised release deploys schema and choices with both flags off, verifies production identity
    and settings flows, then enables only approved purpose/cohort flags.
-

@@ -26,6 +26,8 @@ final class Menu {
     public const FINANCE_WORKSPACE_CAP = 'dzn_access_finance_workspace';
     /** One visible entry for the existing canonical workflow command screen. */
     public const CORE_WORKFLOW_CAP = 'dzn_access_core_workflow';
+    /** One communications workspace; individual tabs still enforce their own narrow authority. */
+    public const NOTIFICATION_MANAGEMENT_CAP = 'dzn_access_notification_management';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
@@ -65,6 +67,12 @@ final class Menu {
             'dzn_manage_commercial_catalogue',
         ]);
         if ($cap === self::CORE_WORKFLOW_CAP) return self::mappedCoreWorkflowCaps($userId);
+        if ($cap === self::NOTIFICATION_MANAGEMENT_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_notification_templates',
+            'dzn_view_notification_authority',
+            'dzn_manage_notification_workflows',
+            'dzn_operate_notification_dispatch',
+        ]);
         if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         if ($cap === self::INTEGRATION_SETTINGS_CAP) return self::mappedIntegrationCaps($userId, 'dzn_manage_provider_integrations');
         if ($cap === self::SYSTEM_HEALTH_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
@@ -149,6 +157,7 @@ final class Menu {
             ['Attendance and post-intro', self::ATTENDANCE_WORKSPACE_CAP, 'dzn-attendance-workspace', [AttendanceWorkspaceController::class, 'screen'], null],
             ['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
 
+            ['اعلان‌ها و پیام‌رسانی', self::NOTIFICATION_MANAGEMENT_CAP, 'dzn-notifications', [NotificationManagementController::class, 'screen'], null],
             ['Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],

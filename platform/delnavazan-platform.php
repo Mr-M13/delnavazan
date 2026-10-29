@@ -54,6 +54,20 @@ add_action( 'plugins_loaded', static function () {
 	}
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
+	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();
+	Delnavazan\Platform\Portals\PortalNotificationController::register();
+	Delnavazan\Platform\Core\Application\PortalNotificationRecorder::register();
+	// The admin-editable copy store is the canonical copy source once a template version is published.
+	// Registering definitions never installs a transport binding, so delivery stays behind its own gate.
+	add_filter( 'dzn_notification_copy_definitions', static function ( $definitions ) {
+		$definitions = is_array( $definitions ) ? $definitions : array();
+		try {
+			$stored = ( new Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary() )->copyDefinitions();
+		} catch ( \Throwable $error ) {
+			$stored = array();
+		}
+		return array_merge( $definitions, $stored );
+	} );
 	Delnavazan\Platform\Admin\Controller\OperationalCashbookController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();

@@ -276,7 +276,20 @@ final class PostIntroActivationService {
         if ($teacher && trim((string) ($teacher->email ?? '')) !== '' && empty($preparation->teacher_notified_at)) {
             $subject = 'کلاس شما با هنرجوی جدید فعال شد';
             $message = "ثبت‌نام هنرجو پس از پرداخت تأیید شد و کلاس‌های آینده در پرتال مدرس نمایش داده می‌شوند.";
-            $sent = wp_mail((string) $teacher->email, $subject, $message);
+            $teacherId = (int) $preparation->teacher_id;
+            $teacherName = trim((string) ($teacher->display_name ?? $teacher->english_name ?? $teacher->persian_name ?? ''));
+            $portal = home_url('/teacher-portal/');
+            $variables = array('teacher' => $teacherName, 'teacher_portal_url' => $portal);
+            $copy = array('subject' => $subject, 'body' => $message);
+            $copyClass = '\Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver';
+            if (class_exists($copyClass)) {
+                $copy = $copyClass::email('post_intro.activated.teacher', \Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::PRIMARY_LOCALE, $variables, $copy);
+                if ($teacherId > 0) PortalNotificationRecorder::teacher($teacherId, 'post_intro.activated.teacher', 'post_intro_activation', (int) $preparation->id, $variables, $portal);
+            }
+            $renderer = '\\Delnavazan\\Platform\\Integrations\\Notifications\\DelnavazanEmailRenderer';
+            $sent = class_exists($renderer)
+                ? $renderer::send((string) $teacher->email, $copy['subject'], $copy['body'], array('locale' => 'fa-IR', 'cta' => array('url' => (string) ($copy['cta_url'] ?? $portal), 'label' => 'رفتن به پرتال مدرس')))
+                : wp_mail((string) $teacher->email, $copy['subject'], $copy['body']);
             if (!$sent) throw new \RuntimeException('teacher_notification_failed');
             $this->repository->updatePreparation((int) $preparation->id, array('teacher_notified_at' => $now, 'updated_at' => $now));
         }

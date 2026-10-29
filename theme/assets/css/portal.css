@@ -1424,3 +1424,18 @@
     scroll-behavior: auto;
   }
 }
+
+/* Website notifications: bell, unread badge and the persistent inbox. */
+.dzn-appbar__bell{position:relative;display:inline-flex;align-items:center;justify-content:center;min-inline-size:44px;min-block-size:44px;color:currentColor;text-decoration:none;border-radius:999px}
+.dzn-appbar__bell:hover,.dzn-appbar__bell:focus-visible{background:color-mix(in srgb, var(--dzn-color-action-primary) 10%, transparent)}
+.dzn-appbar__badge{position:absolute;inset-block-start:2px;inset-inline-end:0;min-inline-size:18px;padding:0 4px;border-radius:999px;background:var(--dzn-color-accent);color:var(--dzn-color-on-action);font-size:.68rem;font-weight:800;line-height:18px;text-align:center}
+.dzn-notifications__count{display:inline-block;margin-inline-start:.4rem;padding:.1rem .5rem;border-radius:999px;background:color-mix(in srgb, var(--dzn-color-accent) 12%, transparent);color:var(--dzn-color-accent);font-size:.72rem;font-weight:800;vertical-align:middle}
+.dzn-notifications__all{display:flex;justify-content:flex-end;margin-block-end:.5rem}
+.dzn-notifications__all form{margin:0}
+.dzn-notifications__item.is-unread{background:linear-gradient(90deg,color-mix(in srgb, var(--dzn-color-action-primary) 6%, transparent),transparent)}
+.dzn-notifications__dot{display:inline-block;inline-size:.5rem;block-size:.5rem;margin-inline-start:.45rem;border-radius:50%;background:var(--dzn-color-accent);vertical-align:middle}
+.dzn-notifications__actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block-start:.5rem}
+.dzn-notifications__actions form{margin:0}
+.dzn-notifications__actions button{background:none;border:0;padding:0;font:inherit;color:var(--dzn-color-action-primary);text-decoration:underline;cursor:pointer}
+.dzn-notifications__actions button:focus-visible,.dzn-notifications__actions a:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+@media (max-width:47.99rem){.dzn-notifications__actions .dzn-button,.dzn-notifications__all-button{min-block-size:44px}}

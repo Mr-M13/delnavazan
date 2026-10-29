@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Integrations\Notifications;
 
 use Delnavazan\Platform\Core\Application\LessonRescheduleStore;
+use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
 
 /**
@@ -27,7 +28,10 @@ final class LessonRescheduleNotificationService {
         ?callable $clock=null
     ){
         $this->store??=new LessonRescheduleRepository();
-        $this->transport=$transport??static fn(string $email,string $subject,string $body):bool=>wp_mail($email,$subject,$body);
+        $this->transport=$transport??static function(string $email,string $subject,string $body):bool{
+            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$subject,$body,array('locale'=>NotificationCatalogue::PRIMARY_LOCALE));
+            return (bool)wp_mail($email,$subject,$body);
+        };
         $this->recipient=$recipient??array(__CLASS__,'defaultRecipient');
         $this->clock=$clock??static fn():int=>time();
     }
@@ -44,6 +48,7 @@ final class LessonRescheduleNotificationService {
                 $recipient=($this->recipient)($proposal,(string)$locked->audience);
                 if(!$recipient||empty($recipient['email']))throw new \RuntimeException('reschedule_recipient_unresolved');
                 $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''));
+                $this->recordInbox($proposal,(string)$locked->event_type,(string)$locked->audience,$rendered['variables']);
                 $ok=(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body']);
                 $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
                 if($ok){
@@ -101,7 +106,31 @@ final class LessonRescheduleNotificationService {
             );
         }
         $body='سلام'.(''!==trim($name)?' '.trim($name):'')."،\n\n".($messages[$eventType]??$messages['failed'])."\n\nدلنوازان";
-        return array('subject'=>$subject,'body'=>$body);
+        $portal='admin'===$audience?'':(function_exists('home_url')?home_url('student'===$audience?'/student-portal/':'/teacher-portal/'):'');
+        $variables=array('name'=>trim($name),'teacher'=>trim($name),'student'=>trim($name),'when'=>$when,'timezone'=>$timezone,'portal_url'=>$portal,'teacher_portal_url'=>$portal);
+        $eventKey=$this->eventKey($proposal,$eventType,$audience);
+        $copy=array('subject'=>$subject,'body'=>$body,'source'=>'fallback');
+        if(class_exists(NotificationCopyResolver::class))$copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
+        return array('subject'=>$copy['subject'],'body'=>$copy['body'],'variables'=>$variables,'event_key'=>$eventKey,'source'=>$copy['source']);
+    }
+
+    /**
+     * The event key follows the same catalogue identity the dashboard edits. Recording the inbox entry
+     * here is idempotent per proposal state and never changes the email hand-off result.
+     */
+    private function recordInbox(object $proposal,string $eventType,string $audience,array $variables):void{
+        if(!in_array($audience,array('student','teacher'),true)||!class_exists(PortalNotificationRecorder::class))return;
+        $eventKey=$this->eventKey($proposal,$eventType,$audience);
+        $link=(string)($audience==='student'?($variables['portal_url']??''):($variables['teacher_portal_url']??''));
+        if('student'===$audience)PortalNotificationRecorder::student((int)$proposal->student_id,$eventKey,'lesson_reschedule',(int)$proposal->id,$variables,$link);
+        else PortalNotificationRecorder::teacher((int)$proposal->teacher_id,$eventKey,'lesson_reschedule',(int)$proposal->id,$variables,$link);
+    }
+
+    /** @return string Stable catalogue identity for one proposal, state and audience. */
+    private function eventKey(object $proposal,string $eventType,string $audience):string{
+        $kind='reschedule';
+        try{$kind=$this->store->proposalKind((int)($proposal->id??0));}catch(\Throwable){}
+        return 'reschedule.'.($kind==='replacement'?'replacement':'change').'.'.$eventType.'.'.$audience;
     }
 
     private function format(string $utc,string $timezone):string{

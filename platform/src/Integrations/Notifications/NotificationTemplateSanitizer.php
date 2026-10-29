@@ -28,17 +28,17 @@ final class NotificationTemplateSanitizer {
     public static function validate(string $eventKey,string $channel,string $subject,string $body):array{
         $event=NotificationCatalogue::get($eventKey);
         $errors=array();
-        if($event===null)return array('ok'=>false,'errors'=>array('رویداد اعلان ناشناخته است.'),'subject'=>'','body'=>'');
-        if(!in_array($channel,(array)$event['channels'],true))$errors[]='این رویداد در کانال انتخاب‌شده پشتیبانی نمی‌شود.';
+        if($event===null)return array('ok'=>false,'errors'=>array('Unknown notification event.'),'subject'=>'','body'=>'');
+        if(!in_array($channel,(array)$event['channels'],true))$errors[]='This event is not supported on the selected channel.';
         $subject=trim($subject);$body=trim($body);
         $maxSubject=self::MAX_SUBJECT;
         $maxBody=match($channel){'sms'=>self::MAX_SMS,'whatsapp'=>self::MAX_WHATSAPP,default=>self::MAX_BODY};
-        if($channel!=='website'&&$channel!=='sms'&&$channel!=='whatsapp'&&$subject==='')$errors[]='عنوان پیام الزامی است.';
-        if(mb_strlen($subject)>$maxSubject)$errors[]='عنوان بیش از حد مجاز طولانی است.';
-        if($body==='')$errors[]='متن پیام الزامی است.';
-        if(mb_strlen($body)>$maxBody)$errors[]='متن پیام بیش از حد مجاز طولانی است.';
+        if($channel!=='website'&&$channel!=='sms'&&$channel!=='whatsapp'&&$subject==='')$errors[]='A subject is required.';
+        if(mb_strlen($subject)>$maxSubject)$errors[]='The subject is too long.';
+        if($body==='')$errors[]='A message body is required.';
+        if(mb_strlen($body)>$maxBody)$errors[]='The message body is too long.';
         foreach(array($subject,$body) as $text){
-            if(self::containsExecutableContent($text))$errors[]='محتوای اجرایی (اسکریپت، PHP یا رویداد مرورگر) در پیام مجاز نیست.';
+            if(self::containsExecutableContent($text))$errors[]='Executable content (scripts, PHP or browser event handlers) is not allowed in a message.';
         }
         $allowed=NotificationCatalogue::variables($eventKey);
         $missing=array();$unknown=array();
@@ -51,11 +51,11 @@ final class NotificationTemplateSanitizer {
             }
             // A single brace or an unclosed placeholder is an authoring mistake, not literal text.
             $stripped=preg_replace('/\{\{[a-z][a-z0-9_]{0,63}\}\}/','',$text);
-            if(str_contains($stripped,'{{')||str_contains($stripped,'}}'))$errors[]='جای‌نگهدار ناقص یا ناشناخته در متن وجود دارد.';
+            if(str_contains($stripped,'{{')||str_contains($stripped,'}}'))$errors[]='The text contains an incomplete or unknown placeholder.';
         }
-        foreach(array_keys($unknown) as $code)$errors[]='جای‌نگهدار غیرمجاز: {{'.$code.'}}';
+        foreach(array_keys($unknown) as $code)$errors[]='Placeholder not allowed: {{'.$code.'}}';
         foreach(self::requiredVariables($eventKey,$channel) as $code)if(!str_contains($subject,'{{'.$code.'}}')&&!str_contains($body,'{{'.$code.'}}'))$missing[]=$code;
-        foreach($missing as $code)$errors[]='جای‌نگهدار الزامی در متن نیست: {{'.$code.'}}';
+        foreach($missing as $code)$errors[]='Required placeholder missing: {{'.$code.'}}';
         $cleanSubject=self::plain($subject);
         // Bodies are authored as plain text. The branded HTML shell supplies the only markup, so an
         // administrator can never introduce a tag, style or handler into a delivered message.

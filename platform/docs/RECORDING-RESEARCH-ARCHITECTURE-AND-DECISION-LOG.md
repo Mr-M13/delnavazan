@@ -75,7 +75,7 @@ set of participant authorisation evidence, never a single grant.
 
 Deletion and expiry create retryable operations with a claim token, lease, attempts, partial-failure
 state, provider acknowledgement, reconciliation and truthful counts.  An asset becomes `purged` only
-after the provider's applicable deletion acknowledgement is verified.  Backups, provider versions and
+after the Provider acknowledgement of the applicable deletion is verified.  Backups, provider versions and
 model-training limits are reported truthfully; no unlearning promise is made unless a reviewed process
 exists.
 

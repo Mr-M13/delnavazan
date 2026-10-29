@@ -5,6 +5,7 @@ $script = (string) file_get_contents($theme . '/assets/js/navigation.js') . "\n"
 $assets = (string) file_get_contents($theme . '/inc/assets.php');
 $home = (string) file_get_contents($theme . '/patterns/homepage-editorial.php');
 $booking = (string) file_get_contents($theme . '/inc/booking.php');
+$helpers = (string) file_get_contents($theme . '/inc/template-tags.php');
 $pricing = (string) file_get_contents($theme . '/assets/js/pricing-region.js');
 foreach (array(
     'automatic movement keeps a fractional position accumulator' => 'let autoScrollLeft = 0',
@@ -21,13 +22,19 @@ foreach (array(
     'booking link consumes the canonical tile enrol URL' => "card.getAttribute('data-enrol-url')",
     'canonical instrument lookup helper exists' => 'function dzn_theme_booking_enrol_url',
     'currency options use ISO codes' => 'item.currency || code',
-    'booking instrument order remains canonical' => "'سه‌تار', 'تار', 'پیانو', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار'",
+    'booking instrument order remains canonical' => "'تار', 'تمبک', 'سه‌تار', 'پیانو', 'سنتور', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار'",
 ) as $description => $needle) {
     $source = str_contains($description, 'booking instrument order') || str_contains($description, 'canonical instrument lookup') ? $booking : (str_contains($description, 'currency options') ? $pricing : $script);
     if (!str_contains($source, $needle)) throw new RuntimeException('Homepage instrument belt contract failed: ' . $description);
 }
 if (12 !== substr_count($home, 'data-enrol-url=')) {
     throw new RuntimeException('All twelve homepage instrument tiles must carry a canonical enrol URL.');
+}
+if (!str_contains($helpers, "function dzn_theme_instrument_image") || !str_contains($helpers, "'سهتار'") || !str_contains($helpers, "'تمبک'") || !str_contains($helpers, "'تنبک'")) {
+    throw new RuntimeException('Instrument artwork lookup must normalise Persian catalogue spellings.');
+}
+if (!str_contains($booking, 'dzn_theme_instrument_image( (string) $option[\'name_fa\'] )')) {
+    throw new RuntimeException('Booking instrument tiles must resolve artwork through the shared lookup.');
 }
 if (!str_contains($home, '<option value="AU">AUD</option>') || !str_contains($home, '<option value="NZ">NZD</option>')) {
     throw new RuntimeException('The pricing selector must expose ISO currency codes.');
@@ -44,7 +51,7 @@ $style = (string) file_get_contents($theme . '/assets/css/theme.css');
 if (!preg_match('/\.dzn-instrument-folio\.is-auto-scrolling\s*\{[^}]*scroll-snap-type:\s*none !important/s', $style)) {
     throw new RuntimeException('Automatic belt motion must disable CSS snapping while it advances.');
 }
-$slugs = array('setar','tar','piano','santur','tombak','kamancheh','daf','avaz','tanboor','ney','violin','guitar');
+$slugs = array('tar','tombak','setar','piano','santur','kamancheh','daf','avaz','tanboor','ney','violin','guitar');
 $positions = array_map(static fn($slug) => strpos($home, 'dzn-instrument-tile--' . $slug), $slugs);
 $ordered = !in_array(false, $positions, true) && count(array_unique($positions)) === count($positions);
 for ($i = 1; $ordered && $i < count($positions); $i++) $ordered = $positions[$i] > $positions[$i - 1];

@@ -145,6 +145,13 @@ jobs:
           php platform/tests/notification-worker-bootstrap-contract.php
           php platform/tests/teacher-invitation-worker-scheduling-unit.php
           php platform/tests/teacher-invitation-issuance-failure-unit.php
+          php platform/tests/telnyx-integration-contract.php
+          php platform/tests/telnyx-webhook-signature-unit.php
+          php platform/tests/telnyx-webhook-event-unit.php
+          php platform/tests/telnyx-webhook-intake-unit.php
+          php platform/tests/telnyx-provider-binding-unit.php
+          php platform/tests/telnyx-template-discovery-unit.php
+          php platform/tests/telnyx-configuration-unit.php
           php platform/tests/notification-delivery-evidence-contract.php
           php platform/tests/notification-delivery-state-contract.php
           php platform/tests/notification-handoff-reconciliation-contract.php

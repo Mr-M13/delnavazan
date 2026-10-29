@@ -11,7 +11,7 @@ define( 'DZN_PLATFORM_VERSION', '0.1.0' );
 define( 'DZN_PLATFORM_SCHEMA_VERSION', '55' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
-define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-missed-lesson-replacement-20261029.1' );
+define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-telnyx-sms-whatsapp-20261030.1' );
 // Temporary Phase 1F beta diagnostic. Define as false before loading the
 // plugin to disable it; remove after the nonce failure is understood.
 defined( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS' ) || define( 'DZN_PLATFORM_PHASE_1F_NONCE_DIAGNOSTICS', false );
@@ -68,6 +68,9 @@ add_action( 'plugins_loaded', static function () {
 		}
 		return array_merge( $definitions, $stored );
 	} );
+	// Telnyx SMS and WhatsApp are offered to the existing router only when their sender, API key and
+	// webhook verification key are configured. The binding itself performs no network request.
+	add_filter( 'dzn_notification_transport_bindings', array( 'Delnavazan\\Platform\\Integrations\\Notifications\\NotificationProviderBindings', 'filter' ) );
 	Delnavazan\Platform\Admin\Controller\OperationalCashbookController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();
 	Delnavazan\Platform\Integrations\WordPressMailSettings::register();
@@ -125,6 +128,7 @@ add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingOption
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingAvailabilityPreviewRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingDayAvailabilityRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Notifications\\TelnyxWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );
 
 add_action( 'dzn_teacher_activated', static function ( int $teacherId ): void {

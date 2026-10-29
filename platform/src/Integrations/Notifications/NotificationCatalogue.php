@@ -91,6 +91,7 @@ final class NotificationCatalogue {
             'timezone'=>'Asia/Tehran','join_url'=>'https://meet.example.invalid/abc-defg-hij','portal_url'=>'https://example.invalid/student-portal/',
             'teacher_portal_url'=>'https://example.invalid/teacher-portal/','claim_url'=>'https://example.invalid/claim/','claim_code'=>'[one-time code]',
             'invitation_code'=>'[one-time code]','payment_url'=>'https://example.invalid/pay/','amount'=>'۲٬۵۰۰٬۰۰۰ تومان','due_date'=>'۱۵ آبان ۱۴۰۵',
+            'paid_date'=>'۱۲ آبان ۱۴۰۵','previous_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰','new_when'=>'یکشنبه ۱۱ آبان ۱۴۰۵، ساعت ۱۸:۰۰','current_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
         );
         $out=array();
@@ -160,6 +161,42 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'Your enrolment is active','body'=>'Your {{course}} enrolment with {{teacher}} is active.'),
             ),
         ));
+        $out[]=self::event('booking.requested.student','Intro Lesson Request Received','booking','student','BookingRequestSubmissionService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','when','portal_url'),'booking.requested',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · درخواست کلاس آشنایی شما ثبت شد','body'=>"سلام {{name}}،\n\nدرخواست کلاس آشنایی «{{course}}» شما ثبت شد.\n\nزمان درخواستی: {{when}}\n\nپس از تأیید مدرس، اطلاعات نهایی کلاس برای شما ارسال می‌شود.\n\nجزئیات در پرتال هنرجو:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'درخواست کلاس آشنایی ثبت شد','body'=>'درخواست کلاس آشنایی «{{course}}» در {{when}} ثبت شد و در انتظار تأیید مدرس است.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، درخواست رزرو کلاس {{course}} شما در زمان {{when}} ثبت شد. پس از تأیید مدرس، اطلاعات نهایی برای شما ارسال می‌شود. پرتال: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: درخواست کلاس {{course}} در {{when}} ثبت شد. پرتال: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · your introductory lesson request was received','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson request was received.\n\nRequested time: {{when}}\n\nWe will send the final class details after the Teacher confirms.\n\nOpen your Student Portal:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson request received','body'=>'Your {{course}} lesson request for {{when}} is awaiting Teacher confirmation.'),
+            ),
+        ));
+        $out[]=self::event('lesson.reminder.student','Class Reminder','lesson','student','LessonReminderService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.reminder',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"سلام {{name}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به پرتال هنرجو بروید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.'),
+                'whatsapp'=>array('body'=>'سلام {{name}} عزیز، کلاس {{course}} شما با استاد {{teacher}} در {{when}} برگزار می‌شود. برای ورود به کلاس به پرتال هنرجو بروید: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: یادآوری کلاس {{course}} با {{teacher}} در {{when}}. پرتال: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('lesson.cancelled.student','Class Cancelled','lesson','student','LessonCancellationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.cancelled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس لغو شد','body'=>"سلام {{name}}،\n\nکلاس «{{course}}» شما با {{teacher}} در {{when}} لغو شد.\n\nاگر برای هماهنگی جلسهٔ جایگزین به کمک نیاز دارید، از پرتال هنرجو با ما در تماس باشید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس لغو شد','body'=>'کلاس «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، کلاس {{course}} شما با استاد {{teacher}} در زمان {{when}} لغو شد. برای هماهنگی جلسهٔ جایگزین به پرتال هنرجو مراجعه کنید: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: کلاس {{course}} با {{teacher}} در {{when}} لغو شد. پرتال: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('lesson.access.student','Class Access Ready','lesson','student','ClassAccessService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.access',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس شما آمادهٔ برگزاری است','body'=>"سلام {{name}}،\n\nکلاس «{{course}}» شما با {{teacher}} در {{when}} آمادهٔ برگزاری است.\n\nبرای ورود به کلاس به پرتال هنرجو بروید و پیوند جلسه را در اختیار دیگران قرار ندهید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس آمادهٔ برگزاری است','body'=>'کلاس «{{course}}» با {{teacher}} در {{when}} آمادهٔ برگزاری است.'),
+                'whatsapp'=>array('body'=>'سلام {{name}} عزیز، کلاس {{course}} شما با استاد {{teacher}} در {{when}} آمادهٔ برگزاری است. برای ورود به کلاس به پرتال هنرجو بروید: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: کلاس {{course}} با {{teacher}} در {{when}} آماده است. پرتال: {{portal_url}}'),
+            ),
+        ));
         self::appendRescheduleStudent($out);
         $out[]=self::event('account.claim_issued.student','Student Account Invitation','security','student','StudentAccountClaimNotificationService','canonical',array('email','whatsapp','sms'),'security',true,array('claim_code'),'account.claim_issued',array(
             self::PRIMARY_LOCALE=>array(
@@ -199,6 +236,14 @@ final class NotificationCatalogue {
         $out[]=self::event('teacher.invitation_issued.teacher','Teacher Invitation','security','teacher','TeacherInvitationDeliveryWorker','dedicated',array('email'),'security',true,array('invitation_code','claim_url'),'teacher.invitation',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>"سلام،\n\nبرای شما دعوت‌نامهٔ همکاری با آکادمی موسیقی دلنوازان صادر شده است.\n\nبرای شروع، پیوند زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n{{claim_url}}\n\nکد دعوت: {{invitation_code}}\n\nاین کد فقط یک‌بار قابل استفاده است و باید محرمانه بماند. اگر این دعوت را انتظار نداشتید، این پیام را نادیده بگیرید.\n\nبا احترام، دلنوازان"),
+            ),
+        ));
+        $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'booking.new.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · رزرو تازه برای کلاس شما','body'=>"سلام {{teacher}}،\n\nرزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} ثبت شد.\n\nزمان کلاس: {{when}}\n\nبرای بررسی جزئیات به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد.'),
+                'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. برای بررسی جزئیات به پرتال مدرس مراجعه کنید: {{teacher_portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
             ),
         ));
         self::appendRescheduleTeacher($out);

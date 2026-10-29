@@ -7,19 +7,25 @@ use Delnavazan\Platform\Core\Application\NotificationTransportRouter;
 /**
  * Transport-side composition. Domain handoff stays channel-neutral; contact and copy are resolved only
  * here and are never written back to notification/attempt persistence.
+ *
+ * An optional channel-policy callback is evaluated against the frozen template's event key. It is
+ * consulted before a channel is used and again before an SMS fallback, so a permanent WhatsApp
+ * refusal never becomes an SMS duplicate when the event/category policy forbids that fallback.
  */
 final class CompositeNotificationTransport implements NotificationTransportPort {
  public function __construct(
   private NotificationTransportRouter $router,
   private NotificationCopyPort $copy,
-  private $contactResolver
+  private $contactResolver,
+  private $channelPolicy=null
  ){}
  public function handoff(array $command):array{
   if(!is_callable($this->contactResolver))return array('acknowledged'=>false,'permanent_failure'=>'no_route');
   $contact=($this->contactResolver)($command);
   if(!is_array($contact))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
   $route=(string)($contact['route']??'mobile');
-  $bindings=$this->router->route($route,$contact);
+  $bindings=$this->allowed($this->router->route($route,$contact),$command,false);
+  if($bindings===array()&&$route==='mobile')$bindings=$this->allowed($this->router->fallbackAfter('whatsapp','send_refused',$contact),$command,true);
   if($bindings===array())return array('acknowledged'=>false,'permanent_failure'=>'no_route');
   return $this->tryBindings($bindings,$command,$contact);
  }
@@ -28,7 +34,7 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
    $channel=(string)$binding['channel'];
    $rendered=$this->copy->render((int)$command['template_version_id'],$channel,(string)($contact['locale']??''),(array)($command['parameters']??array()));
    if($rendered===null){
-    $fallback=$this->router->fallbackAfter($channel,'send_refused',$contact);
+    $fallback=$this->allowed($this->router->fallbackAfter($channel,'send_refused',$contact),$command,true);
     if($fallback!==array())return $this->tryBindings($fallback,$command,$contact);
     return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
    }
@@ -36,10 +42,18 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
    $result=$binding['port']->handoff($transportCommand);
    if(!empty($result['acknowledged']))return array('acknowledged'=>true,'permanent_failure'=>null);
    $failure=$result['permanent_failure']??null;
-   $fallback=$this->router->fallbackAfter($channel,$failure,$contact);
+   $fallback=$this->allowed($this->router->fallbackAfter($channel,$failure,$contact),$command,true);
    if($fallback!==array())return $this->tryBindings($fallback,$command,$contact);
    return array('acknowledged'=>false,'permanent_failure'=>$failure);
   }
   return array('acknowledged'=>false,'permanent_failure'=>'no_route');
+ }
+ private function allowed(array $bindings,array $command,bool $fallback):array{
+  if(!is_callable($this->channelPolicy))return $bindings;
+  $eventKey=NotificationEventKey::fromTemplateVersion((int)($command['template_version_id']??0));
+  if($eventKey===null||$eventKey==='')return $bindings;
+  $out=array();
+  foreach($bindings as $binding)if(($this->channelPolicy)($eventKey,(string)($binding['channel']??''),$fallback))$out[]=$binding;
+  return $out;
  }
 }

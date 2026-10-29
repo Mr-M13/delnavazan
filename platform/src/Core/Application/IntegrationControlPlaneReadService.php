@@ -2,8 +2,12 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
 use Delnavazan\Platform\Integrations\GoogleOAuthController;
 use Delnavazan\Platform\Integrations\Notifications\NotificationRuntimeFactory;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
 
 /** Secret-free, read-only status projection for the operator integrations control plane. */
 final class IntegrationControlPlaneReadService {
@@ -22,6 +26,15 @@ final class IntegrationControlPlaneReadService {
         }
         $copy=apply_filters('dzn_notification_copy_definitions',array());
         $notificationRuntime=NotificationRuntimeFactory::configured();
+        $settings=new IntegrationSettingsService();
+        $telnyx=new TelnyxConfiguration($settings);
+        $provider=new NotificationProviderRepository();
+        $providerTemplates=array('counts'=>array('approved'=>0,'pending'=>0,'rejected'=>0,'other'=>0,'mapped'=>0,'unmapped'=>0,'variable_mismatch'=>0),'templates'=>array());
+        try{$providerTemplates=(new TelnyxTemplateDiscoveryService($settings))->status();}catch(\Throwable){}
+        $providerEvents=array();$providerRecent=array();$providerMessages=array();
+        try{$providerEvents=$provider->eventOutcomeCounts('telnyx');$providerRecent=$provider->recentEvents('telnyx',10);$providerMessages=$provider->messageCounts('telnyx');}catch(\Throwable){}
+        $dispatchActor=(int)get_option(NotificationSystemActor::USER_OPTION,0);
+        $dispatchActorValid=$dispatchActor>0&&($user=get_user_by('id',$dispatchActor)) instanceof \WP_User&&user_can($user,NotificationSystemActor::CAPABILITY);
         $googleConfigured=GoogleOAuthController::configured();
         $googleRedirectUri=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
         if(!is_string($googleRedirectUri)||!str_starts_with($googleRedirectUri,'https://'))$googleRedirectUri='';
@@ -72,6 +85,37 @@ final class IntegrationControlPlaneReadService {
             'stripe'=>array(
                 'status'=>'see Payment Execution readiness',
                 'production_activation'=>'disabled by this control plane',
+            ),
+            'telnyx'=>array(
+                'sms'=>array(
+                    'binding'=>$telnyx->smsReady()?'configured':'not_configured',
+                    'api_key_present'=>$telnyx->apiKey()!=='',
+                    'sender_present'=>$telnyx->smsSender()!==''||$telnyx->smsProfile()!=='',
+                    'webhook_signature'=>$telnyx->webhookReady()?'configured':'not_configured',
+                    'message_states'=>$providerMessages,
+                ),
+                'whatsapp'=>array(
+                    'binding'=>$telnyx->whatsappReady()?'configured':'not_configured',
+                    'api_key_present'=>$telnyx->apiKey()!=='',
+                    'sender_present'=>$telnyx->whatsappSender()!=='',
+                    'waba_present'=>$telnyx->wabaId()!=='',
+                    'webhook_signature'=>$telnyx->webhookReady()?'configured':'not_configured',
+                    'templates'=>$providerTemplates['counts'],
+                    'template_inventory'=>$providerTemplates['templates'],
+                ),
+                'webhook'=>array(
+                    'url'=>TelnyxWebhookController::url(),
+                    'signature'=>$telnyx->webhookReady()?'configured':'not_configured',
+                    'receipts'=>$providerEvents,
+                    'recent_receipts'=>$providerRecent,
+                ),
+                'routing'=>array(
+                    'copy_definitions'=>is_array($copy)&&$copy!==array()?'configured':'not_configured',
+                    'dispatch_actor'=>$dispatchActorValid?'configured':'not_configured',
+                    'student_route_filter'=>has_filter('dzn_notification_student_route')?'configured':'not_configured',
+                    'student_consent_filter'=>has_filter('dzn_notification_student_opted_in')?'configured':'not_configured',
+                    'student_guardian_filter'=>has_filter('dzn_notification_student_guardian_authority')?'configured':'not_configured',
+                ),
             ),
             'generated_at'=>current_time('mysql',true),
         );

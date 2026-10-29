@@ -11,7 +11,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
  * Provider adapters verify signatures and derive keyed digests before crossing this boundary.
  * Raw provider identifiers and payloads are never accepted or persisted here.
  */
-final class NotificationDeliveryEvidenceService {
+class NotificationDeliveryEvidenceService {
     public function __construct(
         private ?NotificationDeliveryRepository $deliveries=null,
         private ?NotificationAttemptRepository $attempts=null,

@@ -16,9 +16,12 @@ final class NotificationSuppressionRepository {
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
 
     public function find(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notification_suppressions WHERE id=%d".($lock?' FOR UPDATE':''),$id);}
-    /** An active suppression matching one recipient digest and purpose; expiry bounds its reach. */
+    /**
+     * An active suppression matching one recipient digest and purpose; expiry bounds its reach.
+     * A provider STOP is recorded with purpose `*` because it applies to every non-security purpose.
+     */
     public function active(string $subjectDigest,string $purpose,string $now):?object{
-        return $this->one("SELECT * FROM {$this->p}notification_suppressions WHERE subject_digest=%s AND purpose=%s AND state='active' AND effective_from<=%s AND (expires_at IS NULL OR expires_at>%s) ORDER BY id DESC LIMIT 1",$subjectDigest,$purpose,$now,$now);
+        return $this->one("SELECT * FROM {$this->p}notification_suppressions WHERE subject_digest=%s AND (purpose=%s OR purpose='*') AND state='active' AND effective_from<=%s AND (expires_at IS NULL OR expires_at>%s) ORDER BY (purpose='*') DESC,id DESC LIMIT 1",$subjectDigest,$purpose,$now,$now);
     }
     public function insertSuppression(array $data):int{return $this->insert('notification_suppressions',$data,'Notification suppression persistence failed');}
     public function updateSuppression(int $id,int $expectedVersion,array $fields,string $now,int $actor):void{

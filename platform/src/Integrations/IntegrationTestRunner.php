@@ -2,6 +2,10 @@
 namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
+use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 
 /** Explicit, operator initiated provider checks. Results are deliberately reduced to safe codes. */
 final class IntegrationTestRunner {
@@ -191,7 +195,25 @@ final class IntegrationTestRunner {
         return 'mailer_rejected_unknown';
     }
     private function whatsapp(IntegrationSettingsService $s,array $input):array {
-        $to=preg_replace('/[^0-9]/','',(string)($input['destination']??''));
+        $raw=preg_replace('/[^0-9+]/','',(string)($input['destination']??''));
+        $e164=preg_match('/^\+[1-9][0-9]{7,14}$/',$raw)?$raw:'';
+        $telnyx=new TelnyxConfiguration($s);
+        if($telnyx->whatsappReady()){
+            if($e164==='')return array('state'=>'failed','code'=>'destination_invalid');
+            $template=preg_replace('/[^a-zA-Z0-9_]/','',(string)$s->value('whatsapp','test_template_name'));
+            $language=(string)($s->value('whatsapp','test_template_language')?:TelnyxTemplateRegistry::LANGUAGE);
+            $eventKey=TelnyxTemplateRegistry::eventKeyForName($template);
+            if($eventKey===null){
+                $status=(new TelnyxTemplateDiscoveryService($s))->status();
+                foreach((array)$status['templates'] as $row)if(strtoupper((string)$row->status)==='APPROVED'&&(string)$row->event_key!==''){
+                    $template=(string)$row->template_name;$language=(string)$row->language;$eventKey=(string)$row->event_key;break;
+                }
+            }
+            if($eventKey===null)return array('state'=>'failed','code'=>'test_template_not_configured');
+            $parameters=array_merge(TelnyxTemplateRegistry::sampleParameters(),NotificationCatalogue::previewVariables($eventKey));
+            return (new TelnyxWhatsAppAdapter($s))->sendTest($e164,$template,$language,$parameters);
+        }
+        $to=preg_replace('/[^0-9]/','',$raw);
         if(strlen($to)<8||strlen($to)>15)return array('state'=>'failed','code'=>'destination_invalid');
         $template=preg_replace('/[^a-zA-Z0-9_]/','',(string)$s->value('whatsapp','test_template_name'));
         if($template===''||stripos($template,'test')===false)return array('state'=>'failed','code'=>'test_template_not_configured');

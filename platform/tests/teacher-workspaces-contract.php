@@ -31,9 +31,10 @@ $contains($screen, array(
     "'teacher-approve-onboarding'",
     "'teacher-return-onboarding'",
     "'teacher-reject-onboarding'",
-    'Current rate report',
-    'Current statement report',
-    'Central reconciliation',
+    'Rate timeline',
+    'Statements &amp; reconciliation',
+    'Lesson payability',
+    'Teacher rate settings',
 ), 'The Teacher workspaces must expose focused profile, eligibility, availability, lifecycle, onboarding and finance follow-up actions.');
 $expect(!str_contains($screen, "self::formStart('update_teacher_profile')"), 'Teacher profile maintenance must use the shared action renderer.');
 $contains($screen, array("self::formStart('issue_teacher_invitation_by_email')"), 'Invitation creation remains a deliberate invitation action.');

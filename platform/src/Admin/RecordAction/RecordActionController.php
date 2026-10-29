@@ -19,61 +19,61 @@ final class RecordActionController {
         $key = self::postKey('action_key');
         $definition = RecordActionRegistry::definition($key);
         if (!$definition) self::abort(400, 'Unknown record action.');
-        if (!current_user_can((string) $definition['capability']) || !current_user_can((string) $definition['record_capability'])) {
-            self::abort(403, 'Access denied.');
-        }
         try {
-            check_admin_referer('dzn_record_action_' . $key);
-        } catch (\Throwable) {
-            self::abort(403, 'The action could not be verified. Reload the record and try again.');
-        }
-
-        $recordType = self::postKey('record_type');
-        $recordId = absint($_POST['record_id'] ?? 0);
-        $page = self::postKey('page');
-        $idempotencyKey = self::postText('idempotency_key');
-        $issuedAt = absint($_POST['issued_at'] ?? 0);
-        $contextToken = self::postText('context_token');
-        $userId = (int) get_current_user_id();
-        if ($recordType !== (string) $definition['record_type'] || $recordId < 1 || $page === '' || $userId < 1) {
-            self::abort(400, 'The record context is incomplete.');
-        }
-        if (strlen($idempotencyKey) < 24) {
-            self::redirect($page, $recordId, 'The action could not be verified. Reload the record and try again.', true);
-        }
-        $tokenContext = array(
-            'action_key' => $key,
-            'record_type' => $recordType,
-            'record_id' => $recordId,
-            'page' => $page,
-            'idempotency_key' => $idempotencyKey,
-            'issued_at' => $issuedAt,
-            'user_id' => $userId,
-        );
-        if (!RecordActionToken::verify($contextToken, $tokenContext, $userId)) {
-            self::redirect($page, $recordId, 'This action expired or was altered. Reload the record and try again.', true);
+            $request = RecordActionRequest::fromPost(
+                $key,
+                $definition,
+                $_POST,
+                (int) get_current_user_id(),
+                static fn(string $capability): bool => current_user_can($capability),
+                static fn(string $actionKey): bool => wp_verify_nonce(
+                    isset($_POST['_wpnonce']) && is_string($_POST['_wpnonce']) ? wp_unslash($_POST['_wpnonce']) : '',
+                    'dzn_record_action_' . $actionKey
+                ) !== false
+            );
+        } catch (RecordActionException $exception) {
+            self::requestFailure($exception);
         }
 
         try {
-            $record = (new RecordActionResolver())->resolve($recordType, $recordId);
+            $record = (new RecordActionResolver())->resolve($request['record_type'], $request['record_id']);
             $visible = $definition['visible'] ?? null;
             if (is_callable($visible) && !$visible($record)) throw new RecordActionException('record_action_unavailable');
             if (!empty($definition['require_confirmation']) && (string) ($_POST['confirm'] ?? '') !== '1') {
                 throw new RecordActionException('record_action_confirmation_required');
             }
             $input = array();
-            foreach ((array) ($definition['fields'] ?? array()) as $field) {
+            foreach (RecordActionRegistry::fieldsFor($key, $record) as $field) {
                 $name = sanitize_key((string) ($field['name'] ?? ''));
                 if ($name === '') continue;
                 $input[$name] = self::fieldValue($field);
             }
-            $context = new RecordActionContext($key, $recordType, $recordId, $page, $idempotencyKey, $record);
+            $context = new RecordActionContext(
+                $key,
+                $request['record_type'],
+                $request['record_id'],
+                $request['page'],
+                $request['idempotency_key'],
+                $record
+            );
             $result = RecordActionRegistry::handle($key, $context, $input);
-            self::redirect($page, $recordId, (string) ($result['message'] ?? 'Record action completed.'), false);
+            $target = self::redirectTarget($key, $request);
+            self::redirect($target['page'], $target['record_id'], (string) ($result['message'] ?? 'Record action completed.'), false, $target['extra']);
         } catch (\Throwable $exception) {
             error_log('[Delnavazan record action] ' . $key . ' ' . get_class($exception));
-            self::redirect($page, $recordId, self::safeMessage($exception), true);
+            $target = self::redirectTarget($key, $request);
+            self::redirect($target['page'], $target['record_id'], self::safeMessage($exception), true, $target['extra']);
         }
+    }
+
+    private static function requestFailure(RecordActionException $exception): never {
+        if (in_array($exception->getMessage(), array('capability_denied', 'authenticated_actor_required'), true)) {
+            self::abort(403, 'Access denied.');
+        }
+        if ($exception->getMessage() === 'nonce_failed') {
+            self::abort(403, 'The action could not be verified. Reload the record and try again.');
+        }
+        self::redirect('dzn-platform', 0, 'This action expired or was altered. Reload the record and try again.', true);
     }
 
     private static function fieldValue(array $field): string {
@@ -87,34 +87,44 @@ final class RecordActionController {
     }
 
     private static function safeMessage(\Throwable $exception): string {
-        return match ($exception->getMessage()) {
+        $message = $exception->getMessage();
+        if (str_starts_with($message, 'Archive conflict')) return 'This record cannot be archived while dependent records or schedules exist.';
+        return match ($message) {
             'record_not_found' => 'The record no longer exists.',
             'record_read_forbidden' => 'You no longer have permission to open this record.',
             'record_action_unavailable' => 'This action is no longer available for the record’s current state.',
             'record_action_confirmation_required' => 'Confirm the consequence before continuing.',
-            'Archive conflict' => 'This record cannot be archived while dependent records or schedules exist.',
+            'Teacher onboarding is incomplete' => 'Onboarding cannot be approved: profile, availability or Google connection evidence is incomplete.',
             'Record is not archived' => 'This record is not archived.',
+            'Record is not archivable' => 'This record can no longer be archived.',
+            'active_future_schedule_exists' => 'This Teacher has an active future schedule. Reschedule or release it before archiving.',
             default => 'The action could not be completed; no change was saved.',
         };
     }
 
-    private static function redirect(string $page, int $recordId, string $message, bool $error): never {
-        $url = add_query_arg(array(
+    /** @return array{page:string,record_id:int,extra:array<string,string>} */
+    private static function redirectTarget(string $key, array $request): array {
+        if (in_array($key, array('teacher-approve-onboarding', 'teacher-return-onboarding', 'teacher-reject-onboarding'), true)) {
+            return array('page' => 'dzn-teachers-menu', 'record_id' => 0, 'extra' => array('view' => 'onboarding'));
+        }
+        return array('page' => (string) $request['page'], 'record_id' => (int) $request['record_id'], 'extra' => array());
+    }
+
+    private static function redirect(string $page, int $recordId, string $message, bool $error, array $extra = array()): never {
+        $args = array_merge(array(
             'page' => $page,
-            'id' => $recordId,
             'dzn_record_action_notice' => $message,
             'dzn_record_action_error' => $error ? '1' : '0',
-        ), admin_url('admin.php'));
-        wp_safe_redirect($url);
-        exit;
+        ), $extra);
+        if ($recordId > 0) $args['id'] = $recordId;
+        $url = add_query_arg($args, admin_url('admin.php'));
+        nocache_headers();
+        if (wp_safe_redirect($url)) exit;
+        wp_die(esc_html($message), 'Delnavazan', array('response' => $error ? 400 : 200, 'back_link' => true));
     }
 
     private static function postKey(string $name): string {
         return isset($_POST[$name]) && is_string($_POST[$name]) ? sanitize_key(wp_unslash($_POST[$name])) : '';
-    }
-
-    private static function postText(string $name): string {
-        return isset($_POST[$name]) && is_string($_POST[$name]) ? sanitize_text_field(wp_unslash($_POST[$name])) : '';
     }
 
     private static function abort(int $status, string $message): never {

@@ -28,7 +28,7 @@
 .dzn-booking__progress button { display: grid; width: 100%; justify-items: center; gap: .35rem; border: 0; background: transparent; color: var(--dzn-color-text-muted); padding: 0; text-align: center; font: inherit; cursor: pointer; }
 .dzn-booking__progress button span { display: grid; width: 2.1rem; height: 2.1rem; place-items: center; border: 2px solid var(--dzn-color-border); border-radius: 50%; background: var(--dzn-color-surface-elevated); font-weight: 800; }
 .dzn-booking__progress li.is-current button span,
-.dzn-booking__progress li.is-done button span { border-color: var(--dzn-color-action-primary); background: var(--dzn-color-action-primary); color: #fff; }
+.dzn-booking__progress li.is-done button span { border-color: var(--dzn-color-action-primary); background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); }
 .dzn-booking__progress li.is-current button { color: var(--dzn-color-text-primary); font-weight: 800; }
 
 /* Shared form controls */
@@ -73,13 +73,13 @@
 .dzn-booking__instrument:hover,
 .dzn-booking__instrument.is-selected { transform: translateY(-2px); border-color: var(--dzn-color-action-primary); box-shadow: var(--dzn-shadow-soft); }
 .dzn-booking__instrument.is-selected { background: var(--dzn-color-surface); }
-.dzn-booking__instrument-mark { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 50%; background: var(--dzn-color-surface); color: var(--dzn-color-action-primary); font-size: 1.7rem; }
+.dzn-booking__instrument-mark { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 50%; background: var(--dzn-color-surface); color: var(--dzn-color-action-primary-hover); font-size: 1.7rem; }
 .dzn-booking__instrument.is-selected .dzn-booking__instrument-mark { background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); }
 .dzn-booking__instrument-image { width: 100%; height: 5rem; object-fit: contain; }
 .dzn-booking__instrument-name { font-size: 1.2rem; font-weight: 800; }
 .dzn-booking__instrument-action { color: var(--dzn-color-action-secondary); font-size: .9rem; }
 .dzn-booking__instrument.is-selected .dzn-booking__instrument-action { color: var(--dzn-color-success); }
-.dzn-booking__instrument-source { position: absolute; width: 1px !important; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+.dzn-booking__step .dzn-booking__instrument-source { position: absolute; box-sizing: border-box; inline-size: 1px; width: 1px; min-inline-size: 0; min-width: 0; max-inline-size: 1px; max-width: 1px; block-size: 1px; height: 1px; min-block-size: 0; min-height: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
 
 /* Availability */
 .dzn-booking__availability-key { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem 1.2rem; margin-block: 1rem; color: var(--dzn-color-text-muted); font-size: .9rem; }
@@ -87,7 +87,7 @@
 .dzn-booking__availability-key i { width: .7rem; height: .7rem; border-radius: 50%; background: var(--dzn-color-information); }
 .dzn-booking__availability-key i.is-strong { background: var(--dzn-color-success); }
 .dzn-booking__availability-key i.is-possible { background: var(--dzn-color-warning); }
-.dzn-booking__availability-key i.is-none { border: 1px solid var(--dzn-color-border); background: #fff; }
+.dzn-booking__availability-key i.is-none { border: 1px solid var(--dzn-color-border); background: var(--dzn-color-surface-elevated); }
 .dzn-booking__availability-key i.is-blocked { background: var(--dzn-color-text-muted); }
 .dzn-booking__availability-status { margin: .5rem 0; color: var(--dzn-color-text-muted); font-size: .9rem; }
 .dzn-booking__availability-status.is-error { color: var(--dzn-color-error); }
@@ -101,12 +101,12 @@
 .dzn-booking__calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; text-align: center; }
 .dzn-booking__calendar-grid[data-calendar-weekdays] { margin-bottom: .4rem; color: var(--dzn-color-text-muted); font-size: .85rem; font-weight: 700; }
 .dzn-booking__calendar-day { position: relative; display: grid; min-width: 0; min-height: clamp(2.4rem, 8vw, 3.5rem); place-items: center; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--dzn-color-text-primary); font: inherit; font-size: .95rem; cursor: pointer; }
-.dzn-booking__calendar-day:disabled { color: #aaa; opacity: .48; cursor: default; }
+.dzn-booking__calendar-day:disabled { color: var(--dzn-color-text-muted); opacity: .48; cursor: default; }
 .dzn-booking__calendar-day.has-blocked:not(.is-selected)::after { background: var(--dzn-color-text-muted); }
-.dzn-booking__calendar button { display: grid; inline-size: 2.65rem; block-size: 2.65rem; min-inline-size: 2.65rem; place-items: center; border-radius: 50%; padding: 0; transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; transform: none !important; }
+.dzn-booking__calendar button { display: grid; inline-size: 2.65rem; block-size: 2.65rem; min-inline-size: 2.65rem; place-items: center; border-radius: 50%; padding: 0; transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; transform: none; }
 .dzn-booking__calendar button:hover:not(:disabled):not(.is-selected),
-.dzn-booking__calendar button:focus-visible:not(:disabled):not(.is-selected) { border-color: #c89228; background: #fff3d6; color: var(--dzn-color-text-primary); box-shadow: 0 0 0 3px rgb(200 146 40 / .10); }
-.dzn-booking__calendar button.is-selected { border-color: var(--dzn-color-action-primary); background: var(--dzn-color-action-primary); color: #fff; box-shadow: 0 0 0 3px rgb(16 120 110 / .12); }
+.dzn-booking__calendar button:focus-visible:not(:disabled):not(.is-selected) { border-color: color-mix(in srgb, var(--dzn-color-highlight) 72%, var(--dzn-color-text-primary)); background: color-mix(in srgb, var(--dzn-color-highlight) 24%, var(--dzn-color-surface-elevated)); color: var(--dzn-color-text-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dzn-color-highlight) 22%, transparent); }
+.dzn-booking__calendar button.is-selected { border-color: var(--dzn-color-action-primary); background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dzn-color-action-primary) 22%, transparent); }
 
 .dzn-booking__day-times { max-width: 38rem; margin: 1.5rem auto; border-radius: var(--dzn-radius-md); background: var(--dzn-color-surface); padding: 1rem; }
 .dzn-booking__day-times h3,
@@ -116,14 +116,14 @@
 .dzn-booking__time-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(3.7rem, 1fr)); gap: .4rem; }
 .dzn-booking__time-option { min-width: 0; min-height: 2.35rem; border: 1px solid var(--dzn-color-border); border-radius: .7rem; background: var(--dzn-color-surface-elevated); color: var(--dzn-color-text-secondary); padding: .3rem .45rem; font: inherit; font-size: .84rem; font-weight: 700; cursor: pointer; }
 .dzn-booking__time-option:hover:not(:disabled),
-.dzn-booking__time-option:focus-visible:not(:disabled) { border-color: #c89228; background: #fff3d6; color: var(--dzn-color-text-primary); }
+.dzn-booking__time-option:focus-visible:not(:disabled) { border-color: color-mix(in srgb, var(--dzn-color-highlight) 72%, var(--dzn-color-text-primary)); background: color-mix(in srgb, var(--dzn-color-highlight) 24%, var(--dzn-color-surface-elevated)); color: var(--dzn-color-text-primary); }
 .dzn-booking__time-option:disabled { opacity: .45; cursor: default; }
 .dzn-booking__time-option.is-strong,
-.dzn-booking__time-option.is-strong:hover { border-color: var(--dzn-color-success); background: var(--dzn-color-success); color: #fff; box-shadow: 0 0 0 .12rem color-mix(in srgb, var(--dzn-color-success) 20%, transparent); }
+.dzn-booking__time-option.is-strong:hover { border-color: var(--dzn-color-success); background: var(--dzn-color-success); color: var(--dzn-color-on-action); box-shadow: 0 0 0 .12rem color-mix(in srgb, var(--dzn-color-success) 20%, transparent); }
 .dzn-booking__time-option.is-possible,
-.dzn-booking__time-option.is-possible:hover { border-color: var(--dzn-color-warning); background: var(--dzn-color-warning); color: var(--dzn-color-text-primary); }
+.dzn-booking__time-option.is-possible:hover { border-color: var(--dzn-color-warning); background: var(--dzn-color-warning); color: var(--dzn-color-on-action); }
 .dzn-booking__time-option.is-none,
-.dzn-booking__time-option.is-none:hover { border-color: var(--dzn-color-border); background: #fff; color: var(--dzn-color-text-primary); }
+.dzn-booking__time-option.is-none:hover { border-color: var(--dzn-color-border); background: var(--dzn-color-surface-elevated); color: var(--dzn-color-text-primary); }
 .dzn-booking__teacher-time { display: block; margin-block-start: .2rem; color: var(--dzn-color-text-muted); font-size: .78rem; font-weight: 500; line-height: 1.65; }
 .dzn-booking__preference-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 1.5rem; }
 .dzn-booking__preference-heading span { color: var(--dzn-color-text-muted); font-size: .9rem; }
@@ -146,7 +146,7 @@
 .dzn-booking__privacy input { width: 1.2rem; height: 1.2rem; vertical-align: middle; }
 .dzn-booking__whatsapp .dzn-booking__field-help { margin-inline-start: 1.75rem; }
 .dzn-booking__whatsapp-note { margin: .5rem 0 1.25rem; border-inline-start: .2rem solid var(--dzn-color-action-primary); color: var(--dzn-color-text-muted); padding: .5rem .75rem; font-size: .9rem; }
-.dzn-booking__privacy { display: flex !important; align-items: flex-start; gap: .6rem; margin-block: 1.5rem; }
+.dzn-booking__privacy { display: flex; align-items: flex-start; gap: .6rem; margin-block: 1.5rem; }
 
 /* Review, summary and result */
 .dzn-booking__inline-review { margin-top: 1.5rem; border-top: 1px solid var(--dzn-color-border); padding-top: 1.25rem; }
@@ -157,15 +157,15 @@
 .dzn-booking__review dt { color: var(--dzn-color-text-muted); }
 .dzn-booking__review dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .dzn-booking__review ol { margin-bottom: 0; }
-.dzn-booking__summary-note { position: relative; overflow: hidden; border: 1px solid rgb(201 155 66 / .34); border-radius: 1rem; background: linear-gradient(145deg, #fffdf8, #fbf5e8); padding: 1rem 1.15rem; box-shadow: 0 .7rem 1.8rem rgb(16 74 77 / .07); }
+.dzn-booking__summary-note { position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--dzn-color-highlight) 36%, var(--dzn-color-border)); border-radius: 1rem; background: linear-gradient(145deg, var(--dzn-color-surface-elevated), color-mix(in srgb, var(--dzn-color-highlight) 12%, var(--dzn-color-surface))); padding: 1rem 1.15rem; box-shadow: 0 .7rem 1.8rem rgb(var(--dzn-rgb-brand) / .07); }
 .dzn-booking__summary-note::before { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: .25rem; background: var(--dzn-color-accent); content: ""; }
 .dzn-booking__summary-note h4 { margin: 0; color: var(--dzn-color-text-secondary); }
 .dzn-booking__summary-note ul { display: grid; gap: .6rem; margin: .8rem 0 0; padding-inline-start: 1.25rem; }
 .dzn-booking__summary-note li::marker { color: var(--dzn-color-highlight); }
-.dzn-booking__notice { margin-block: 1.5rem; border: 1px solid var(--dzn-color-highlight); border-radius: var(--dzn-radius-md); background: #fbf3d8; padding: 1rem 1.25rem; }
+.dzn-booking__notice { margin-block: 1.5rem; border: 1px solid var(--dzn-color-warning-border); border-radius: var(--dzn-radius-md); background: var(--dzn-color-warning-surface); padding: 1rem 1.25rem; }
 .dzn-booking__notice h3 { margin-bottom: .4rem; }
 .dzn-booking__notice p { margin-bottom: 0; font-size: 1rem; }
-.dzn-booking__error { margin-block: 1rem; border-radius: var(--dzn-radius-sm); background: #fbeaea; color: var(--dzn-color-error); padding: .8rem 1rem; }
+.dzn-booking__error { margin-block: 1rem; border: 1px solid var(--dzn-color-error-border); border-radius: var(--dzn-radius-sm); background: var(--dzn-color-error-surface); color: var(--dzn-color-error); padding: .8rem 1rem; }
 .dzn-booking__reference { display: inline-block; border-radius: var(--dzn-radius-sm); background: var(--dzn-color-surface); padding: .75rem 1rem; font-size: 1.25rem; font-weight: 800; }
 .dzn-booking__success-times { margin-block: .5rem 1.25rem; padding-inline-start: 1.4rem; }
 
@@ -185,6 +185,41 @@
   .dzn-booking__calendar-grid { gap: .12rem; }
   .dzn-booking__calendar-day { min-height: 2.5rem; font-size: .88rem; }
   .dzn-booking__day-times { padding: .75rem; }
+}
+
+/* Long Persian/Latin names and narrow cards must never create hidden overflow. */
+.dzn-booking__card,
+.dzn-booking__step,
+.dzn-booking__fields > *,
+.dzn-booking__slot-picker > *,
+.dzn-booking__review dd,
+.dzn-booking__instrument,
+.dzn-booking__time,
+.dzn-booking__notice {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.dzn-booking__calendar button:focus-visible,
+.dzn-booking__time-option:focus-visible,
+.dzn-booking__instrument:focus-visible {
+  outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 23.4375rem) {
+  .dzn-booking__instrument-grid { grid-template-columns: minmax(0, 1fr); }
+  .dzn-booking__calendar-grid { gap: 0; }
+  .dzn-booking__calendar button { inline-size: 1.95rem; block-size: 2.2rem; min-inline-size: 1.95rem; }
+}
+
+@media (forced-colors: active) {
+  .dzn-booking__instrument.is-selected,
+  .dzn-booking__calendar button.is-selected,
+  .dzn-booking__time-option.is-strong,
+  .dzn-booking__time-option.is-possible {
+    border: 2px solid Highlight;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

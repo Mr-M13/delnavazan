@@ -78,6 +78,85 @@ foreach ( $submenu['dzn-platform'] as $item ) {
 }
 if ( $teacherAllowed ) throw new RuntimeException( 'Restricted operator can resolve an unauthorized teacher route.' );
 
+// Academy is one combined page with no second navigation row.
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_booking_requests' );
+$_GET['page'] = 'dzn-academy-dashboard';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$academyHtml = ob_get_clean();
+if ( ! str_contains( $academyHtml, 'page=dzn-academy-dashboard' )
+    || str_contains( $academyHtml, 'dzn-admin-shell__subtabs' )
+    || str_contains( $academyHtml, 'Today and upcoming lessons' )
+    || str_contains( $academyHtml, 'Attention needed' ) ) {
+    throw new RuntimeException( 'Academy must render one primary destination without replacement sub-tabs.' );
+}
+
+// A teacher-maintenance operator gets Overview only; an onboarding operator gets
+// the onboarding view directly; holding both reveals exactly two tabs.
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_manage_teachers' );
+$_GET['page'] = 'dzn-teachers-menu';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$teacherOverviewHtml = ob_get_clean();
+if ( ! str_contains( $teacherOverviewHtml, 'page=dzn-teachers-menu' )
+    || str_contains( $teacherOverviewHtml, 'view=onboarding' )
+    || str_contains( $teacherOverviewHtml, 'dzn-admin-shell__subtabs' ) ) {
+    throw new RuntimeException( 'Teacher overview must not expose onboarding or a redundant sub-tab row.' );
+}
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_teacher_onboarding' );
+$_GET['page'] = 'dzn-teachers-menu';
+$_GET['view'] = 'onboarding';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$teacherOnboardingHtml = ob_get_clean();
+if ( ! str_contains( $teacherOnboardingHtml, 'view=onboarding' )
+    || str_contains( $teacherOnboardingHtml, 'dzn-admin-shell__subtabs' ) ) {
+    throw new RuntimeException( 'Onboarding-only operators must land directly on the onboarding view.' );
+}
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_manage_teachers', 'dzn_access_teacher_onboarding' );
+$_GET['page'] = 'dzn-teachers-menu';
+unset( $_GET['view'] );
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$teacherBothHtml = ob_get_clean();
+if ( ! str_contains( $teacherBothHtml, 'dzn-admin-shell__subtabs' )
+    || ! str_contains( $teacherBothHtml, 'Overview' )
+    || ! str_contains( $teacherBothHtml, 'Onboarding & Invitations' ) ) {
+    throw new RuntimeException( 'Teachers must expose exactly Overview and Onboarding & Invitations when both authorities are held.' );
+}
+
+// Settings is one area with five work groups. The active group exposes only its
+// own member routes; every group remains reachable from the group row.
+$GLOBALS['dzn_shell_test_caps'] = array_values( array_unique( array_merge( ...array_values( $routeCaps ) ) ) );
+$_GET['page'] = 'dzn-integration-email';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$settingsHtml = ob_get_clean();
+if ( ! str_contains( $settingsHtml, 'Settings groups' )
+    || ! str_contains( $settingsHtml, 'General' )
+    || ! str_contains( $settingsHtml, 'Messaging' )
+    || ! str_contains( $settingsHtml, 'Integrations' )
+    || ! str_contains( $settingsHtml, 'Access' )
+    || ! str_contains( $settingsHtml, 'System' )
+    || ! str_contains( $settingsHtml, 'Email' )
+    || ! str_contains( $settingsHtml, 'Notification templates' )
+    || str_contains( $settingsHtml, 'Portal capabilities' ) ) {
+    throw new RuntimeException( 'Grouped Settings must show five groups and only the active group member routes.' );
+}
+
+// A notification-only operator lands in Messaging and cannot see access routes.
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_notification_authority' );
+$_GET['page'] = 'dzn-communications';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$restrictedSettings = ob_get_clean();
+if ( ! str_contains( $restrictedSettings, 'Messaging' )
+    || ! str_contains( $restrictedSettings, 'Communications health' )
+    || str_contains( $restrictedSettings, 'Staff access' )
+    || str_contains( $restrictedSettings, 'Portal capabilities' ) ) {
+    throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work group.' );
+}
+
 // Route registrations remain available to WordPress, but the legacy submenu must
 // not become a second Delnavazan navigation surface on unrelated admin screens.
 $_GET['page'] = 'plugins';

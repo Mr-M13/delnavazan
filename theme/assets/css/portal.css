@@ -4,10 +4,50 @@
 
 @layer components {
   .dzn-portal {
+    /* Role-specific aliases over the shared theme tokens. */
+    --dzn-portal-card-radius: 16px;
+    --dzn-portal-sheet-radius: 24px;
     min-block-size: 60vh;
     background: var(--dzn-color-background);
     color: var(--dzn-color-text-primary);
-    font-size: clamp(.9rem, .86rem + .18vw, 1rem);
+    font-size: 1rem;
+    line-height: var(--dzn-leading-ui);
+  }
+
+  .dzn-portal input,
+  .dzn-portal select,
+  .dzn-portal textarea,
+  .dzn-portal button {
+    font-size: 1rem;
+  }
+
+  .dzn-portal__content {
+    min-inline-size: 0;
+  }
+
+  .dzn-portal__content > * {
+    min-inline-size: 0;
+  }
+
+  .dzn-portal h1,
+  .dzn-portal h2,
+  .dzn-portal h3,
+  .dzn-portal h4,
+  .dzn-portal p,
+  .dzn-portal li,
+  .dzn-portal a {
+    overflow-wrap: anywhere;
+  }
+
+  .dzn-portal :focus-visible {
+    outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+    outline-offset: var(--dzn-focus-offset);
+  }
+
+  .dzn-portal-control,
+  .dzn-portal-control :where(input, select, textarea),
+  .dzn-checkout__promotion-code {
+    min-inline-size: 0;
   }
 
   .dzn-portal__masthead {
@@ -16,9 +56,12 @@
   }
 
   .dzn-portal__masthead-inner {
-    display: grid;
-    gap: var(--dzn-space-5);
-    padding-block: clamp(2rem, 5vw, 4rem) var(--dzn-space-5);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem 1.25rem;
+    padding-block: 1rem;
   }
 
   .dzn-portal__eyebrow,
@@ -31,9 +74,9 @@
   }
 
   .dzn-portal__title {
-    margin-block-end: var(--dzn-space-2);
+    margin: 0;
     color: var(--dzn-color-text-secondary);
-    font-size: var(--dzn-heading-page);
+    font-size: clamp(1.25rem, 2.2vw, 1.65rem);
   }
 
   .dzn-portal__lede {
@@ -177,8 +220,7 @@
   }
 
   .dzn-portal-section__heading h2,
-  .dzn-upcoming__heading h2,
-  .dzn-contact h2 {
+  .dzn-upcoming__heading h2 {
     margin: 0;
     color: var(--dzn-color-text-secondary);
     font-size: var(--dzn-heading-section);
@@ -432,8 +474,7 @@
     min-inline-size: 0;
   }
 
-  .dzn-portal-control label,
-  .dzn-rating legend {
+  .dzn-portal-control label {
     display: block;
     margin-block-end: var(--dzn-space-2);
     font-weight: 800;
@@ -477,7 +518,7 @@
 
   .dzn-term__markers {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--dzn-term-count, 12), minmax(0, 1fr));
     gap: var(--dzn-space-1);
     margin: var(--dzn-space-3) 0 var(--dzn-space-4);
     list-style: none;
@@ -565,90 +606,10 @@
   .dzn-status--error { color: var(--dzn-color-error); }
   .dzn-status--muted { color: var(--dzn-color-text-muted); }
 
-  .dzn-feedback__fields,
   .dzn-profile__fields {
     display: grid;
     gap: var(--dzn-space-5);
     max-inline-size: 48rem;
-  }
-
-  .dzn-rating {
-    min-inline-size: 0;
-    margin: 0;
-    border: 0;
-    padding: 0;
-  }
-
-  .dzn-rating__choices {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--dzn-space-2);
-  }
-
-  .dzn-rating__choices label {
-    display: inline-flex;
-    min-inline-size: var(--dzn-tap);
-    min-block-size: var(--dzn-tap);
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--dzn-color-border);
-    border-radius: 50%;
-    background: var(--dzn-color-surface-elevated);
-    cursor: pointer;
-  }
-
-  .dzn-rating__choices input {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  .dzn-rating__choices label:has(input:checked) {
-    border-color: var(--dzn-color-accent);
-    background: var(--dzn-color-accent);
-    color: var(--dzn-color-on-action);
-  }
-
-  .dzn-rating__choices label:has(input:focus-visible) {
-    outline: .1875rem solid var(--dzn-color-focus);
-    outline-offset: .1875rem;
-  }
-
-  .dzn-contact {
-    display: grid;
-    gap: var(--dzn-space-6);
-  }
-
-  .dzn-contact__links {
-    display: grid;
-    gap: var(--dzn-space-2);
-    margin: 0;
-    list-style: none;
-    padding: 0;
-  }
-
-  .dzn-contact__links a {
-    display: flex;
-    min-block-size: var(--dzn-tap);
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--dzn-space-3);
-    border-block-end: 1px solid var(--dzn-color-border);
-    color: var(--dzn-color-text-secondary);
-    padding-block: var(--dzn-space-3);
-    text-decoration: none;
-  }
-
-  .dzn-contact__links a:hover strong {
-    text-decoration: underline;
-    text-underline-offset: .2em;
-  }
-
-  .dzn-contact__links span {
-    color: var(--dzn-color-text-muted);
-    font-size: .8rem;
   }
 
   .dzn-profile__summary {
@@ -715,15 +676,118 @@
     gap: 0.75rem;
   }
 
+  .dzn-checkout__plan {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--dzn-color-border);
+    border-radius: 0.9rem;
+    background: var(--dzn-color-surface);
+  }
+
+  .dzn-checkout__plan-heading {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .dzn-checkout__plan-title {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  .dzn-checkout__plan-total {
+    font-weight: 700;
+  }
+
+  .dzn-checkout__plan-original {
+    color: var(--dzn-color-text-muted);
+    font-size: 0.85rem;
+    text-decoration: line-through;
+  }
+
+  .dzn-checkout__plan-saving {
+    color: var(--dzn-color-success);
+    font-size: 0.85rem;
+    font-weight: 750;
+  }
+
+  .dzn-checkout__promotion {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--dzn-color-border);
+    border-radius: 0.9rem;
+    background: var(--dzn-color-surface);
+  }
+
+  .dzn-checkout__promotion-label {
+    margin: 0;
+    color: var(--dzn-color-text-secondary);
+    font-size: 0.85rem;
+    font-weight: 800;
+  }
+
+  .dzn-checkout__promotion-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .dzn-checkout__promotion-code {
+    flex: 1 1 14rem;
+    min-block-size: var(--dzn-tap);
+    border: 1px solid var(--dzn-color-border);
+    border-radius: var(--dzn-radius-sm);
+    background: var(--dzn-color-surface-elevated);
+    color: var(--dzn-color-text-primary);
+    font: inherit;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .dzn-checkout__promotion-code:disabled {
+    background: color-mix(in srgb, var(--dzn-color-surface-elevated) 90%, transparent);
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .dzn-checkout__promotion-status {
+    margin: 0;
+    color: var(--dzn-color-text-muted);
+    font-size: 0.85rem;
+  }
+
+  .dzn-checkout__promotion-status:not(:empty) {
+    padding-block-start: var(--dzn-space-1);
+  }
+
+  .dzn-checkout__plan-meta,
+  .dzn-checkout__row-detail {
+    margin: 0;
+    color: var(--dzn-color-text-muted);
+    font-size: 0.9rem;
+  }
+
+  .dzn-checkout__next-term {
+    margin: 0;
+    border-block-start: 1px solid var(--dzn-color-border);
+    padding-block-start: 0.75rem;
+    color: var(--dzn-color-text-primary);
+    font-size: 0.9rem;
+  }
+
   .dzn-checkout__row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.5rem 1rem;
     align-items: center;
     padding: 1rem;
-    border: 1px solid var(--dzn-border, #d8d6d1);
+    border: 1px solid var(--dzn-color-border);
     border-radius: 0.75rem;
-    background: var(--dzn-surface, #fff);
+    background: var(--dzn-color-surface-elevated);
   }
 
   .dzn-checkout__row-status {
@@ -738,8 +802,8 @@
     padding: 0.5rem 1rem;
     border: 0;
     border-radius: 0.5rem;
-    color: #fff;
-    background: var(--dzn-accent, #315f57);
+    color: var(--dzn-color-on-action);
+    background: var(--dzn-color-accent);
     cursor: pointer;
   }
 
@@ -839,20 +903,12 @@
       align-items: start;
     }
 
-    .dzn-profile__fields,
-    .dzn-feedback__fields {
+    .dzn-profile__fields {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .dzn-profile__fields > :last-child,
-    .dzn-feedback__message,
-    .dzn-feedback__fields > :last-child {
+    .dzn-profile__fields > :last-child {
       grid-column: 1 / -1;
-    }
-
-    .dzn-contact {
-      grid-template-columns: minmax(0, .8fr) minmax(18rem, 1.2fr);
-      align-items: start;
     }
 
     .dzn-notifications__list li {
@@ -867,10 +923,6 @@
   }
 
   @media (min-width: 64rem) {
-    .dzn-portal__content {
-      max-inline-size: 68rem;
-    }
-
     .dzn-upcoming {
       margin-inline: calc(var(--dzn-space-5) * -1);
     }
@@ -895,10 +947,6 @@
       flex-direction: column;
     }
 
-    .dzn-contact__links a {
-      align-items: start;
-      flex-direction: column;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -908,3 +956,499 @@
     }
   }
 }
+
+.dzn-portal__provisioning {
+  background: var(--dzn-color-surface);
+  border: 1px solid var(--dzn-color-border);
+  border-radius: 1rem;
+  margin-block-end: 1.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.dzn-portal__provisioning strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-block-end: 0.35rem;
+}
+
+.dzn-portal__provisioning p {
+  margin: 0;
+}
+
+.dzn-portal__provisioning-course {
+  font-size: 0.85rem;
+  margin-block-start: 0.45rem;
+  opacity: 0.8;
+}
+
+/* Post-intro payment plan: full term is primary; instalments are an explicit opt-in. */
+.dzn-post-intro__plans {
+  display: grid;
+  gap: 0.75rem;
+  margin-block-start: 0.75rem;
+}
+
+.dzn-post-intro__plan {
+  border: 1px solid var(--dzn-color-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.dzn-post-intro__plan--full {
+  background: var(--dzn-color-surface-elevated);
+}
+
+.dzn-post-intro__plan h4 {
+  margin: 0 0 0.35rem;
+}
+
+.dzn-post-intro__amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.dzn-post-intro__plan--instalments {
+  background: var(--dzn-color-surface);
+}
+
+.dzn-post-intro__plan--instalments summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.dzn-post-intro__instalment-list {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+}
+
+.dzn-post-intro__instalment-list li {
+  display: grid;
+  gap: 0.15rem;
+  padding-block: 0.5rem;
+  border-block-start: 1px solid var(--dzn-color-border);
+}
+
+.dzn-post-intro__instalment-list small {
+  color: var(--dzn-color-text-muted);
+}
+
+.dzn-post-intro__selected {
+  margin-block: 0.75rem;
+}
+
+/* =========================================================
+   RESPONSIVE SHELL
+   One canonical main region; the desktop masthead and the
+   mobile app bar/tab bar are alternative navigations over the
+   same navigation map, never a second screen or form.
+   ========================================================= */
+
+.dzn-appbar,
+.dzn-portal-tabs {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .dzn-portal__masthead {
+    display: none;
+  }
+
+  .dzn-appbar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 20;
+    display: block;
+    border-block-end: 1px solid var(--dzn-color-border);
+    background: var(--dzn-color-surface-elevated);
+    padding-block-start: env(safe-area-inset-top);
+  }
+
+  .dzn-appbar__inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--dzn-space-3);
+    min-block-size: 56px;
+    padding-inline: 16px;
+  }
+
+  .dzn-appbar__brand,
+  .dzn-appbar__action {
+    display: inline-flex;
+    min-block-size: 44px;
+    align-items: center;
+    color: var(--dzn-color-text-secondary);
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  .dzn-appbar__title {
+    margin: 0;
+    overflow: hidden;
+    font-weight: 800;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dzn-portal__content {
+    padding-block: var(--dzn-space-4) calc(64px + env(safe-area-inset-bottom) + var(--dzn-space-6));
+    padding-inline: 16px;
+  }
+
+  .dzn-portal-tabs {
+    position: fixed;
+    inset-inline: .7rem;
+    inset-block-end: calc(.7rem + env(safe-area-inset-bottom));
+    z-index: var(--dzn-z-tabs);
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--dzn-color-border);
+    border-radius: 1.1rem;
+    background: var(--dzn-color-surface-elevated);
+    box-shadow: 0 10px 30px rgb(var(--dzn-rgb-ink) / .18);
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+
+  .dzn-portal-tabs ul {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: .25rem;
+    list-style: none;
+  }
+
+  .dzn-portal-tabs__link {
+    display: flex;
+    min-inline-size: 0;
+    min-block-size: 54px;
+    align-items: center;
+    justify-content: center;
+    border-radius: .8rem;
+    padding: .4rem .2rem;
+    color: var(--dzn-color-text-primary);
+    font-size: .82rem;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .dzn-portal-tabs__link.is-current {
+    background: var(--dzn-color-action-primary);
+    color: var(--dzn-color-on-action);
+    box-shadow: none;
+  }
+
+  .dzn-portal-tabs__link.is-current .dzn-portal-tabs__label {
+    color: var(--dzn-color-on-action);
+  }
+
+  /* The fixed tab bar overlays the document footer; reserve its height so the
+     footer's final links and legal text can scroll clear of it. */
+  .dzn-portal ~ .site-footer {
+    padding-block-end: calc(86px + env(safe-area-inset-bottom) + var(--dzn-space-5));
+  }
+}
+
+@media (min-width: 48rem) {
+  .dzn-appbar,
+  .dzn-portal-tabs {
+    display: none;
+  }
+}
+
+@media (max-width: 35rem) {
+  .dzn-schedule-row__actions {
+    inline-size: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dzn-schedule-row__actions form,
+  .dzn-schedule-row__actions .dzn-button,
+  .dzn-schedule-row__actions .dzn-portal-text-action {
+    inline-size: 100%;
+    justify-content: center;
+  }
+
+  .dzn-schedule-row__absence summary {
+    justify-content: space-between;
+  }
+}
+
+/* =========================================================
+   STUDENT HOME / ACCOUNT HIERARCHY
+   ========================================================= */
+
+.dzn-portal {
+  --dzn-portal-card-radius: 16px;
+  --dzn-portal-sheet-radius: 24px;
+}
+
+.dzn-upcoming {
+  border-radius: var(--dzn-portal-card-radius);
+}
+
+.dzn-portal-section {
+  margin-block: 0;
+}
+
+.dzn-portal-section + .dzn-portal-section {
+  margin-block-start: 0;
+}
+
+@media (max-width: 47.99rem) {
+  .dzn-upcoming {
+    border: 1px solid var(--dzn-color-border);
+    background: var(--dzn-color-surface-elevated);
+    padding: var(--dzn-space-5);
+  }
+
+  .dzn-upcoming__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dzn-upcoming__actions form,
+  .dzn-upcoming__actions .dzn-button {
+    inline-size: 100%;
+  }
+
+  .dzn-upcoming__actions .dzn-button {
+    min-block-size: 48px;
+  }
+
+  .dzn-portal-section {
+    padding-block: var(--dzn-space-5);
+  }
+
+  .dzn-portal-section__heading {
+    gap: var(--dzn-space-2);
+  }
+}
+
+@media (min-width: 64rem) {
+  .dzn-portal__content {
+    max-inline-size: 73.75rem;
+  }
+}
+
+/* =========================================================
+   STUDENT SCHEDULE
+   ========================================================= */
+
+.dzn-schedule-day {
+  margin-block-start: var(--dzn-space-5);
+}
+
+.dzn-schedule-day > h3 {
+  margin: 0 0 var(--dzn-space-3);
+  color: var(--dzn-color-text-secondary);
+  font-size: 1.05rem;
+}
+
+.dzn-schedule-list {
+  display: grid;
+  gap: var(--dzn-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-schedule-row {
+  display: grid;
+  gap: var(--dzn-space-3);
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius, 16px);
+  background: var(--dzn-color-surface-elevated);
+  padding: var(--dzn-space-4);
+}
+
+.dzn-schedule-row.is-in_progress {
+  border-color: var(--dzn-color-action-primary);
+}
+
+.dzn-schedule-row__time {
+  color: var(--dzn-color-text-secondary);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.dzn-schedule-row__main h4 {
+  margin: 0 0 var(--dzn-space-1);
+  overflow-wrap: anywhere;
+}
+
+.dzn-schedule-row__main p {
+  margin: 0 0 var(--dzn-space-2);
+}
+
+.dzn-schedule-row__teacher {
+  color: var(--dzn-color-text-muted);
+  font-size: .9rem;
+}
+
+.dzn-schedule-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--dzn-space-2);
+}
+
+.dzn-schedule-row__actions form {
+  margin: 0;
+}
+
+.dzn-schedule-row__absence summary {
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--dzn-color-accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+@media (min-width: 48rem) {
+  .dzn-schedule-row {
+    grid-template-columns: 7rem minmax(0, 1fr) auto;
+    align-items: start;
+  }
+}
+
+/* Pending teacher-initiated reschedule proposals. */
+.dzn-reschedule-list{display:grid;gap:.75rem;list-style:none;margin:0;padding:0}
+.dzn-reschedule-card{display:grid;gap:1rem;border:1px solid var(--dzn-color-border);border-inline-start:5px solid var(--dzn-color-warning);border-radius:1rem;padding:1rem}
+.dzn-reschedule-card__facts h3{margin:0 0 .25rem}
+.dzn-reschedule-card__facts p{margin:.15rem 0}
+.dzn-reschedule-card__actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.dzn-reschedule-card__actions form{display:contents}
+@media (min-width:48rem){.dzn-reschedule-card{grid-template-columns:minmax(0,1fr) auto;align-items:center}}
+@media (max-width:35rem){.dzn-reschedule-card__actions form{display:block;inline-size:100%}.dzn-reschedule-card__actions .dzn-button{inline-size:100%}}
+
+/* Compact Student shell and account-first hierarchy (2026-10-29 UX pass). */
+.dzn-portal__masthead{padding:1rem 0}
+.dzn-portal__account{margin:0}
+.dzn-portal__account a{font-size:.88rem;font-weight:700;text-decoration:none}
+.dzn-appbar__inner{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.dzn-appbar__title{flex:1;text-align:start}
+.dzn-schedule-period{margin-block-start:1.1rem}
+.dzn-schedule-period>h3{font-size:1rem;margin:0 0 .55rem;color:var(--dzn-color-text-secondary)}
+.dzn-schedule-period--today{border-inline-start:3px solid var(--dzn-color-action-primary);padding-inline-start:.8rem}
+.dzn-schedule-period--future{border-block-start:1px solid var(--dzn-color-border);padding-block-start:1rem}
+.dzn-schedule-day>h4{font-size:.9rem;margin:.8rem 0 .35rem;color:var(--dzn-color-text-secondary)}
+.dzn-account-status{border-inline-start:5px solid var(--dzn-color-success)}
+.dzn-account-status__summary{margin:.2rem 0;font-weight:700}
+.dzn-account-status__course{margin:.2rem 0;color:var(--dzn-color-text-secondary)}
+.dzn-account-status__actions{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin-block-start:.7rem}
+.dzn-account-status__actions .dzn-portal-help{margin:0;flex:1;min-inline-size:14rem}
+@media (max-width:47.99rem){
+  .dzn-portal~.site-footer{padding-block-end:calc(86px + env(safe-area-inset-bottom) + var(--dzn-space-5))}
+}
+@media (forced-colors:active){.dzn-account-status{border:2px solid CanvasText}}
+
+/* Read-only identity fields stay visibly inactive. */
+.dzn-profile__fields input[readonly],
+.dzn-profile__fields input.is-readonly,
+.dzn-portal-control input[readonly] {
+  background: var(--dzn-color-surface-muted);
+  color: var(--dzn-color-text-muted);
+  border-color: var(--dzn-color-border);
+  cursor: not-allowed;
+}
+
+/* Term replacement allowance and labelled replacement classes. */
+.dzn-term__replacements {
+  margin-block-start: var(--dzn-space-4);
+  padding: var(--dzn-space-4);
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius, 16px);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-term__replacements h3 {
+  margin: 0 0 var(--dzn-space-2);
+  font-size: 1rem;
+}
+.dzn-term__replacements ul {
+  display: grid;
+  gap: var(--dzn-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dzn-term__replacements li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dzn-space-2);
+  overflow-wrap: anywhere;
+}
+.dzn-term__replacements .dzn-status {
+  font-size: .8rem;
+}
+
+.dzn-account-status__replacement {
+  margin-block: var(--dzn-space-2) 0;
+  font-weight: 700;
+  color: var(--dzn-color-text-primary);
+}
+
+.dzn-support {
+  border-block-start: 1px solid var(--dzn-color-border);
+  margin-block-start: var(--dzn-space-5);
+  padding-block-start: var(--dzn-space-4);
+}
+.dzn-support .dzn-button {
+  text-decoration: none;
+}
+
+@media (forced-colors: active) {
+  .dzn-upcoming,
+  .dzn-schedule-row,
+  .dzn-portal-dialog,
+  .dzn-reschedule-card,
+  .dzn-schedule-row__absence summary,
+  .dzn-portal-tabs__link.is-current {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dzn-portal *,
+  .dzn-portal-dialog {
+    scroll-behavior: auto;
+  }
+}
+
+/* Website notifications: bell, unread badge and the persistent inbox. */
+.dzn-appbar__bell{position:relative;display:inline-flex;align-items:center;justify-content:center;min-inline-size:44px;min-block-size:44px;color:currentColor;text-decoration:none;border-radius:999px}
+.dzn-appbar__bell:hover,.dzn-appbar__bell:focus-visible{background:color-mix(in srgb, var(--dzn-color-action-primary) 10%, transparent)}
+.dzn-appbar__badge{position:absolute;inset-block-start:2px;inset-inline-end:0;min-inline-size:18px;padding:0 4px;border-radius:999px;background:var(--dzn-color-accent);color:var(--dzn-color-on-action);font-size:.68rem;font-weight:800;line-height:18px;text-align:center}
+.dzn-notifications__count{display:inline-block;margin-inline-start:.4rem;padding:.1rem .5rem;border-radius:999px;background:color-mix(in srgb, var(--dzn-color-accent) 12%, transparent);color:var(--dzn-color-accent);font-size:.72rem;font-weight:800;vertical-align:middle}
+.dzn-notifications__all{display:flex;justify-content:flex-end;margin-block-end:.5rem}
+.dzn-notifications__all form{margin:0}
+.dzn-notifications__item.is-unread{background:linear-gradient(90deg,color-mix(in srgb, var(--dzn-color-action-primary) 6%, transparent),transparent)}
+.dzn-notifications__dot{display:inline-block;inline-size:.5rem;block-size:.5rem;margin-inline-start:.45rem;border-radius:50%;background:var(--dzn-color-accent);vertical-align:middle}
+.dzn-notifications__actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block-start:.5rem}
+.dzn-notifications__actions form{margin:0}
+.dzn-notifications__actions button{background:none;border:0;padding:0;font:inherit;color:var(--dzn-color-action-primary);text-decoration:underline;cursor:pointer}
+.dzn-notifications__actions button:focus-visible,.dzn-notifications__actions a:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+@media (max-width:47.99rem){.dzn-notifications__actions .dzn-button,.dzn-notifications__all-button{min-block-size:44px}}
+
+/* Recording and research choices: visible only through the authority service. */
+.dzn-recording-choices__current{display:grid;gap:.35rem;padding:1rem;border:1px solid var(--dzn-color-border);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
+.dzn-recording-choices__current p{margin:0}
+.dzn-recording-choices__notice{margin-block:1rem;padding:1rem;border-inline-start:4px solid var(--dzn-color-action-primary);background:var(--dzn-color-surface-elevated)}
+.dzn-recording-choices__notice p:last-child{margin-block-end:0}
+.dzn-recording-choices__form{display:grid;gap:.75rem;margin-block:1rem}
+.dzn-recording-choices__form fieldset{display:grid;gap:.6rem;border:1px solid var(--dzn-color-border);border-radius:var(--dzn-portal-card-radius);padding:1rem}
+.dzn-recording-choices__form legend{font-weight:700;padding-inline:.35rem}
+.dzn-recording-choices__form label{display:flex;gap:.5rem;align-items:flex-start;min-block-size:44px}
+.dzn-recording-choices__form input[type="radio"]{margin-block-start:.3rem}
+.dzn-recording-choices__draft{margin-block:1rem;padding:1rem;border:1px dashed var(--dzn-color-warning);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
+.dzn-recording-choices hr{margin-block:2rem;border:0;border-block-start:1px solid var(--dzn-color-border)}

@@ -1,12 +1,14 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Application\Finance\Intro\IntroPaymentService;
+use Delnavazan\Platform\Core\Application\Finance\Pricing\IntroPricingService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Teacher-owned Accept/Decline authority for one delivered introductory booking request. */
 final class BookingTeacherResponseService {
-    public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null){$this->repository??=new BookingTeacherResponseRepository();}
+    public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null){$this->repository??=new BookingTeacherResponseRepository();}
 
     public function respond(string $deliveryUid,string $decision,string $commandKey):array{
         $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
@@ -35,11 +37,13 @@ final class BookingTeacherResponseService {
             if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
             $connection=$this->repository->activeConnection((int)$teacher->id,true);if(!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
             $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));
+            $pricing=$this->introPricing!==null?($this->introPricing)((int)$delivery->booking_request_id):(new IntroPricingService())->forBooking((int)$delivery->booking_request_id);
+            $paid=$pricing['mode']==='paid';
             $prior=$this->repository->confirmationForDelivery($deliveryId,true);
             if($prior){
                 if((string)$prior->state!=='failed')throw new \InvalidArgumentException('Booking confirmation is not restartable');
                 $confirmationId=(int)$prior->id;
-                $resume=$prior->provider_event_digest===null?'pending_projection':'awaiting_conference';
+                $resume=$paid?'awaiting_payment':($prior->provider_event_digest===null?'pending_projection':'awaiting_conference');
                 $this->repository->updateConfirmation($confirmationId,(int)$prior->version,array(
                     'connection_id'=>(int)$connection->id,'state'=>$resume,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,
                     'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
@@ -49,17 +53,29 @@ final class BookingTeacherResponseService {
             }else{
                 $confirmationId=$this->repository->insertConfirmation(array(
                     'uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'booking_request_id'=>(int)$delivery->booking_request_id,'requested_time_id'=>(int)$delivery->requested_time_id,
-                    'teacher_id'=>(int)$teacher->id,'connection_id'=>(int)$connection->id,'state'=>'pending_projection','version'=>1,
+                    'teacher_id'=>(int)$teacher->id,'connection_id'=>(int)$connection->id,'state'=>$paid?'awaiting_payment':'pending_projection','version'=>1,
                     'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
                     'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
                     'provider_code'=>'google_calendar','provider_event_digest'=>null,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,'confirmed_at'=>null,
                     'created_at'=>$now,'created_by'=>$actor,'updated_at'=>$now,'updated_by'=>$actor,
                 ));
             }
+            $introUid=null;
+            if($paid){
+                if((int)$delivery->student_id<1)throw new \InvalidArgumentException('intro_payment_student_required');
+                $obligation=($this->introPayments!==null?$this->introPayments:static fn(array $ctx,string $key,bool $within):array=>(new IntroPaymentService())->ensureObligation($ctx,$key,$within))(array(
+                    'booking_request_id'=>(int)$delivery->booking_request_id,'confirmation_id'=>$confirmationId,
+                    'student_id'=>(int)$delivery->student_id,'teacher_id'=>(int)$teacher->id,
+                    'course_id'=>(int)$delivery->selected_intro_course_id,'region_code'=>(string)$pricing['region_code'],
+                    'currency'=>(string)$pricing['currency'],'amount_minor'=>(int)$pricing['amount_minor'],
+                ),'intro-payment-obligation:'.$confirmationId,true);
+                $introUid=(string)$obligation['uid'];
+            }
             $this->repository->transitionDelivery($deliveryId,'pending_request','accepting',$now);
-            $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'accept','result_state'=>'accepting','result_confirmation_id'=>$confirmationId,'created_at'=>$now,'created_by'=>$actor));
+            $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'accept','result_state'=>$paid?'awaiting_payment':'accepting','result_confirmation_id'=>$confirmationId,'created_at'=>$now,'created_by'=>$actor));
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        if($paid)return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
         if($this->projector!==null)return $this->projector->dispatch((int)$confirmationId);
         return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'accepting','idempotent'=>false);
     }

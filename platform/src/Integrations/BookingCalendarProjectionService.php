@@ -19,6 +19,7 @@ final class BookingCalendarProjectionService {
     public function dispatch(int $confirmationId):array{
         $confirmation=$this->repository->confirmation($confirmationId);if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
         if((string)$confirmation->state==='confirmed')return array('confirmation_id'=>$confirmationId,'state'=>'confirmed','idempotent'=>true);
+        if((string)$confirmation->state==='awaiting_payment')throw new \InvalidArgumentException('intro_payment_required');
         if(!in_array((string)$confirmation->state,array('pending_projection','awaiting_conference','retryable'),true))throw new \InvalidArgumentException('Booking confirmation is not projectable');
         try{
             $credential=$this->repository->credential((int)$confirmation->connection_id);if(!$credential)throw new \RuntimeException('provider_credential_required');

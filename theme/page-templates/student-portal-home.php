@@ -6,6 +6,8 @@
  * @package DelnavazanTheme
  */
 
+nocache_headers();
+dzn_theme_send_protected_response_headers();
 get_header();
 
 while ( have_posts() ) {

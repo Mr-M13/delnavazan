@@ -39,6 +39,7 @@ $fiTeacherOwned = array(
     'dzn_accept_own_teacher_assignments',
     'dzn_submit_own_delivery_claim',
     'dzn_submit_own_continuation_match_exception',
+    'dzn_accept_own_recording_terms',
 );
 $fiTeacherReserved = array(
     'dzn_ingest_canonical_attendance_evidence',

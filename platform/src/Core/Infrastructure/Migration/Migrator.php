@@ -287,6 +287,200 @@ final class Migrator {
 			$invalidCommands=$wpdb->get_var("SELECT count(*) FROM {$p}finance_cash_commands command_row LEFT JOIN {$p}finance_cash_transactions tx ON command_row.result_type='transaction' AND tx.id=command_row.result_id LEFT JOIN {$p}finance_cash_transfers transfer ON command_row.result_type='transfer' AND transfer.id=command_row.result_id LEFT JOIN {$p}finance_cash_reconciliations reconciliation ON command_row.result_type='reconciliation' AND reconciliation.id=command_row.result_id WHERE command_row.command_domain<>'academy_cashbook_v1' OR (command_row.result_type='transaction' AND tx.id IS NULL) OR (command_row.result_type='transfer' AND transfer.id IS NULL) OR (command_row.result_type='reconciliation' AND reconciliation.id IS NULL) OR command_row.result_type NOT IN ('transaction','transfer','reconciliation')");if((int)$invalidCommands!==0)throw new \RuntimeException('Migration verification failed: invalid cashbook command result');
 	}
 
+	/**
+	 * Schema 049: the single regional student-price authority and consolidated finance settings.
+	 *
+	 * Additive only. It creates no offer, purchase, payment, lesson, statement or ledger row. On a
+	 * live installation it seeds one regional row only where every active standard Course already
+	 * agrees on exactly one currency and one amount; a conflicting region is left unset and is
+	 * reported for explicit administrator resolution in Finance → Settings.
+	 */
+	private static function install_finance_administration():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}finance_regional_prices (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,region_code varchar(8) NOT NULL,currency char(3) NOT NULL,standard_amount_minor bigint unsigned NOT NULL,introductory_mode varchar(8) NOT NULL,introductory_amount_minor bigint unsigned NULL,status varchar(16) NOT NULL,active_slot tinyint unsigned NULL,effective_from datetime NOT NULL,effective_until datetime NULL,reason_code varchar(64) NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY region_active(region_code,active_slot),KEY currency(currency),KEY status(status)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}finance_settings (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,setting_key varchar(64) NOT NULL,setting_type varchar(32) NOT NULL,setting_value mediumtext NOT NULL,setting_version int unsigned NOT NULL,status varchar(16) NOT NULL,active_slot tinyint unsigned NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY setting_active(setting_key,active_slot),KEY key_version(setting_key,setting_version)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Finance administration migration failed: '.$wpdb->last_error);}
+		// Seed only where the existing commercial catalogue is unambiguous. The query intentionally
+		// excludes introductory and archived Courses: they are not part of the standard price rule.
+		$regions=$wpdb->get_results(
+			"SELECT price.region_code,MIN(price.currency) currency,MIN(price.amount_minor) amount_minor,COUNT(DISTINCT price.currency) currencies,COUNT(DISTINCT price.amount_minor) amounts
+			 FROM {$p}commercial_prices price
+			 INNER JOIN {$p}commercial_products product ON product.id=price.product_id AND product.archived_at IS NULL AND product.status='active'
+			 INNER JOIN {$p}courses course ON course.id=product.course_id AND course.archived_at IS NULL AND course.status='active' AND course.course_type='standard'
+			 WHERE price.active_slot=1 AND price.status='active' AND price.archived_at IS NULL
+			 GROUP BY price.region_code"
+		) ?: array();
+		$now=gmdate('Y-m-d H:i:s');
+		foreach($regions as $region){
+			if((int)$region->currencies!==1||(int)$region->amounts!==1||(int)$region->amount_minor<1)continue;
+			$code=strtoupper((string)$region->region_code);
+			if($wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}finance_regional_prices WHERE region_code=%s AND active_slot=1",$code))!==null)continue;
+			$wpdb->insert($p.'finance_regional_prices',array(
+				'uid'=>\Delnavazan\Platform\Core\Support\Identifier::uid(),'region_code'=>$code,'currency'=>strtoupper((string)$region->currency),
+				'standard_amount_minor'=>(int)$region->amount_minor,'introductory_mode'=>'free','introductory_amount_minor'=>null,
+				'status'=>'active','active_slot'=>1,'effective_from'=>$now,'effective_until'=>null,'reason_code'=>'phase_finance_administration_seed',
+				'created_at'=>$now,'created_by'=>0,'updated_at'=>$now,'updated_by'=>0,
+			));
+			if($wpdb->last_error!=='')throw new \RuntimeException('Finance administration seed failed: '.$wpdb->last_error);
+		}
+	}
+	private static function verify_finance_administration_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		foreach(array('finance_regional_prices','finance_settings') as $short){
+			$table=$p.$short;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing '.$short);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$short.' must use InnoDB');
+			if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'")===null)throw new \RuntimeException('Migration verification failed: '.$short.' audit timestamp');
+		}
+		foreach(array('region_code','currency','standard_amount_minor','introductory_mode','introductory_amount_minor','active_slot','effective_from','effective_until') as $column)
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_regional_prices LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: regional price field '.$column);
+		foreach(array('setting_key','setting_type','setting_value','setting_version','active_slot') as $column)
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_settings LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: finance setting field '.$column);
+		if(!self::has_index($p.'finance_regional_prices','region_active',true))throw new \RuntimeException('Migration verification failed: one active regional price per region');
+		if(!self::has_index($p.'finance_settings','setting_active',true))throw new \RuntimeException('Migration verification failed: one active setting version per key');
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_regional_prices WHERE standard_amount_minor<1 OR introductory_mode NOT IN ('free','paid') OR (introductory_mode='paid' AND (introductory_amount_minor IS NULL OR introductory_amount_minor<1)) OR (introductory_mode='free' AND introductory_amount_minor IS NOT NULL)");
+		if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid regional introductory pricing');
+	}
+
+	/**
+	 * Schema 050: authorised pre-introductory payment obligation and checkout storage.
+	 *
+	 * Additive only. A row exists only for a paid introductory booking after Teacher acceptance.
+	 * Free introductions create no row and never call Stripe. The obligation is separate from the
+	 * post-intro commercial obligation authority; provider events reuse the existing verified
+	 * Stripe webhook intake.
+	 */
+	private static function install_intro_payment_authority():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}intro_payment_obligations (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,reference_code varchar(64) NOT NULL,reference_digest char(64) NOT NULL,booking_request_id bigint unsigned NOT NULL,confirmation_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,course_id bigint unsigned NOT NULL,region_code varchar(8) NOT NULL,currency char(3) NOT NULL,amount_minor bigint unsigned NOT NULL,state varchar(16) NOT NULL,provider_key varchar(24) NOT NULL,paid_at datetime NULL,failed_at datetime NULL,refunded_at datetime NULL,failure_reason_code varchar(64) NULL,version int unsigned NOT NULL DEFAULT 1,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY reference_code(reference_code),UNIQUE KEY reference_digest(reference_digest),UNIQUE KEY booking_request_id(booking_request_id),UNIQUE KEY confirmation_id(confirmation_id),KEY student_state(student_id,state),KEY state(state)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}intro_checkout_sessions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,intro_obligation_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,amount_minor bigint unsigned NOT NULL,currency char(3) NOT NULL,state varchar(16) NOT NULL,active_slot tinyint unsigned NULL,request_key_digest char(64) NOT NULL,provider_key varchar(24) NOT NULL,provider_reference_digest char(64) NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,expires_at datetime NULL,closed_at datetime NULL,close_reason varchar(32) NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY request_key_digest(request_key_digest),UNIQUE KEY obligation_active(intro_obligation_id,active_slot),KEY student_state(student_id,state),KEY provider_reference(provider_key,provider_reference_digest)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}intro_payment_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,intro_obligation_id bigint unsigned NOT NULL,provider_key varchar(24) NOT NULL,provider_event_reference_digest char(64) NOT NULL,event_kind varchar(24) NOT NULL,amount_minor bigint unsigned NULL,currency char(3) NULL,provider_occurred_at datetime NULL,result_state varchar(16) NOT NULL,reason_code varchar(64) NULL,recorded_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY provider_event(provider_key,provider_event_reference_digest),KEY obligation_time(intro_obligation_id,recorded_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}intro_payment_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,command_domain varchar(32) NOT NULL,operation varchar(32) NOT NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,intro_obligation_id bigint unsigned NOT NULL,result_state varchar(24) NOT NULL,result_id bigint unsigned NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest),KEY obligation_operation(intro_obligation_id,operation)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Intro payment migration failed: '.$wpdb->last_error);}
+	}
+	private static function verify_intro_payment_authority_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$spec=array(
+			'intro_payment_obligations'=>array('uid','reference_code','reference_digest','booking_request_id','confirmation_id','student_id','teacher_id','course_id','region_code','currency','amount_minor','state','provider_key','paid_at','failed_at','refunded_at','failure_reason_code','version','created_at','created_by','updated_at','updated_by'),
+			'intro_checkout_sessions'=>array('uid','intro_obligation_id','student_id','amount_minor','currency','state','active_slot','request_key_digest','provider_key','provider_reference_digest','created_at','created_by','expires_at','closed_at','close_reason'),
+			'intro_payment_events'=>array('uid','intro_obligation_id','provider_key','provider_event_reference_digest','event_kind','amount_minor','currency','provider_occurred_at','result_state','reason_code','recorded_at','created_at'),
+			'intro_payment_commands'=>array('uid','command_domain','operation','command_key_digest','command_payload_digest','intro_obligation_id','result_state','result_id','created_at','created_by'),
+		);
+		foreach($spec as $short=>$columns){
+			$table=$p.$short;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing '.$short);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$short.' must use InnoDB');
+			foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$short.'.'.$column);
+			foreach(array('stripe_secret','api_key','card','iban','client_secret','checkout_url','provider_payload') as $forbidden)if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '%{$forbidden}%'"))throw new \RuntimeException('Migration verification failed: raw provider secret/reference column '.$short.'.'.$forbidden);
+			if($wpdb->get_row("SHOW COLUMNS FROM {$table} WHERE Field='provider_reference'"))throw new \RuntimeException('Migration verification failed: raw provider reference column '.$short);
+			if(in_array($short,array('intro_payment_events','intro_payment_commands'),true)&&$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'"))throw new \RuntimeException('Migration verification failed: intro payment evidence must be append-only');
+		}
+		foreach(array(
+			array('intro_payment_obligations','reference_digest',true),array('intro_payment_obligations','booking_request_id',true),array('intro_payment_obligations','confirmation_id',true),
+			array('intro_checkout_sessions','request_key_digest',true),array('intro_checkout_sessions','obligation_active',true),
+			array('intro_payment_events','provider_event',true),array('intro_payment_commands','command_key_digest',true),
+		) as $index)if(!self::has_index($p.$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: intro payment index '.$index[1]);
+		foreach(array(
+			array('intro_payment_obligations','reference_digest'),array('intro_checkout_sessions','request_key_digest'),
+			array('intro_payment_events','provider_event_reference_digest'),array('intro_payment_commands','command_key_digest'),
+			array('intro_payment_commands','command_payload_digest'),
+		) as $digest){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$digest[0]} LIKE '{$digest[1]}'");if(!$row||strtolower((string)$row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: intro payment digest width '.$digest[0].'.'.$digest[1]);}
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}intro_payment_obligations WHERE amount_minor<1 OR state NOT IN ('pending','paid','failed','expired','refunded','cancelled') OR currency NOT REGEXP '^[A-Z]{3}$'");if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid intro payment obligation');
+	}
+
+	/**
+	 * Schema 052: the Student's pre-offer plan choice and convergent activation targets.
+	 *
+	 * Additive only. No existing offer, obligation, settlement, Term, Lesson, schedule or
+	 * activation job is rewritten. The activation columns let a later verified settlement raise
+	 * the materialisation target without losing it when a worker completes an earlier target.
+	 */
+	private static function install_payment_plan_choice():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$table=$p.'post_intro_plan_choices';
+		dbDelta(self::dbdelta_sql("CREATE TABLE {$table} (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,preparation_id bigint unsigned NOT NULL,active_slot tinyint unsigned NULL,student_id bigint unsigned NOT NULL,plan_kind varchar(24) NOT NULL,quote_digest char(64) NOT NULL,quoted_amount_due_minor bigint unsigned NOT NULL,currency char(3) NOT NULL,instalment_due_at datetime NULL,policy_version int unsigned NULL,offer_id bigint unsigned NULL,chosen_at datetime NOT NULL,chosen_by bigint unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY preparation_active(preparation_id,active_slot),UNIQUE KEY offer_id(offer_id),KEY student_id(student_id)) ENGINE=InnoDB $c"));
+		if($wpdb->last_error!=='')throw new \RuntimeException('Payment plan choice migration failed: '.$wpdb->last_error);
+		$jobs=$p.'post_intro_activation_jobs';
+		foreach(array('funding_target'=>'smallint unsigned NOT NULL DEFAULT 0','funding_materialised'=>'smallint unsigned NOT NULL DEFAULT 0') as $column=>$definition){
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$jobs} LIKE '{$column}'")){
+				if($wpdb->query("ALTER TABLE {$jobs} ADD COLUMN {$column} {$definition} AFTER checkpoint")===false)throw new \RuntimeException('Payment plan activation migration failed: '.$column);
+			}
+		}
+	}
+	private static function verify_payment_plan_choice_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$table=$p.'post_intro_plan_choices';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing post_intro_plan_choices');
+		if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: post_intro_plan_choices must use InnoDB');
+		foreach(array('uid','preparation_id','active_slot','student_id','plan_kind','quote_digest','quoted_amount_due_minor','currency','instalment_due_at','policy_version','offer_id','chosen_at','chosen_by','created_at') as $column)
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: plan choice field '.$column);
+		foreach(array(array('uid',true,array('uid')),array('preparation_active',true,array('preparation_id','active_slot')),array('offer_id',true,array('offer_id'))) as $index)
+			if(!self::has_index_columns($table,$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: plan choice index '.$index[0]);
+		foreach(array('uid'=>'char(26)','quote_digest'=>'char(64)','currency'=>'char(3)','plan_kind'=>'varchar(24)') as $column=>$type){
+			$field=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'");
+			if(!$field||strtolower((string)$field->Type)!==$type||$field->Null!=='NO')throw new \RuntimeException('Migration verification failed: plan choice field type '.$column);
+		}
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE plan_kind NOT IN ('full','two_instalments') OR (quoted_amount_due_minor<1) OR currency NOT REGEXP '^[A-Z]{3}$'");
+		if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid plan choice');
+		$jobs=$p.'post_intro_activation_jobs';
+		foreach(array('funding_target','funding_materialised') as $column){
+			$row=$wpdb->get_row("SHOW COLUMNS FROM {$jobs} LIKE '{$column}'");
+			if(!$row||preg_match('/^smallint(?:\(\d+\))? unsigned$/',strtolower(trim((string)$row->Type)))!==1)throw new \RuntimeException('Migration verification failed: activation funding field '.$column);
+		}
+	}
+
+	/**
+	 * Schema 051: reliable provenance for effective-dated teacher rates.
+	 *
+	 * `rate_origin` distinguishes a global-inherited rate from an explicit teacher or
+	 * teacher/course rate. Existing rows are classified only where their recorded evidence
+	 * digest proves the historical inherited reference; unknown historical rates stay NULL and
+	 * are treated as explicit/unknown rather than silently reinterpreted.
+	 */
+	private static function install_teacher_rate_origin():void{
+		global $wpdb; $table=$wpdb->prefix.'dzn_finance_teacher_rates';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Teacher rate origin migration requires finance_teacher_rates');
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'rate_origin'")){
+			if($wpdb->query("ALTER TABLE {$table} ADD COLUMN rate_origin varchar(24) NULL AFTER status")===false)throw new \RuntimeException('Teacher rate origin migration failed');
+		}
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'origin_setting_version'")){
+			if($wpdb->query("ALTER TABLE {$table} ADD COLUMN origin_setting_version int unsigned NULL AFTER rate_origin")===false)throw new \RuntimeException('Teacher rate origin version migration failed');
+		}
+		$rows=$wpdb->get_results("SELECT id,teacher_id,effective_from,evidence_reference_digest FROM {$table} WHERE rate_origin IS NULL AND evidence_reference_digest IS NOT NULL")?:array();
+		foreach($rows as $row){
+			$candidates=array(
+				'global_inherited'=>array(
+					'finance-settings:inherit-global-rate:'.(int)$row->teacher_id,
+					'finance-settings:global-teacher-rate:'.(string)$row->effective_from,
+					'finance-settings:resume-global-rate:'.(int)$row->teacher_id,
+				),
+				'explicit'=>array('finance-settings:teacher-rate:'.(int)$row->teacher_id),
+			);
+			$classified=null;
+			foreach($candidates as $origin=>$references){
+				foreach($references as $reference){
+					try{$digest=\Delnavazan\Platform\Core\Application\Finance\FinanceIdempotency::evidence($reference);}catch(\Throwable){$digest='';}
+					if($digest!==''&&hash_equals((string)$row->evidence_reference_digest,$digest)){$classified=$origin;break 2;}
+				}
+			}
+			if($classified!==null&&$wpdb->update($table,array('rate_origin'=>$classified),array('id'=>(int)$row->id))===false)throw new \RuntimeException('Teacher rate origin classification failed');
+		}
+	}
+	private static function verify_teacher_rate_origin_schema():void{
+		global $wpdb; $table=$wpdb->prefix.'dzn_finance_teacher_rates';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing finance_teacher_rates');
+		$origin=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'rate_origin'");
+		if(!$origin||strtolower((string)$origin->Type)!=='varchar(24)'||$origin->Null!=='YES')throw new \RuntimeException('Migration verification failed: teacher rate origin column');
+		$version=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'origin_setting_version'");
+		if(!$version||preg_match('/^(?:int|bigint)(?:\(\d+\))? unsigned$/',strtolower(trim((string)$version->Type)))!==1||$version->Null!=='YES')throw new \RuntimeException('Migration verification failed: teacher rate origin setting version');
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE rate_origin IS NOT NULL AND rate_origin NOT IN ('global_inherited','explicit')");
+		if($invalid!==0)throw new \RuntimeException('Migration verification failed: invalid teacher rate origin');
+	}
+
 	private const OPTION = 'dzn_platform_schema_version'; private const LOCK = 'dzn_platform_migration_lock'; private const COMPLETED = 'dzn_platform_completed_migrations';
 	private const CAPABILITY_OPTION = 'dzn_platform_capability_version'; private const CAPABILITY_VERSION = '2a2n';
 	private const CAPABILITY_OPTION_O = 'dzn_platform_capability_version_2a2o'; private const CAPABILITY_VERSION_O = '2a2o';
@@ -324,7 +518,8 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -375,9 +570,65 @@ final class Migrator {
 				self::install_post_intro_enrolment_automation();self::verify_post_intro_enrolment_automation_schema();
 				$done[]='048_post_intro_enrolment_automation';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_post_intro_enrolment_automation_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('049_finance_administration',$done,true)){
+				self::install_finance_administration();self::verify_finance_administration_schema();
+				$done[]='049_finance_administration';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('050_intro_payment_authority',$done,true)){
+				self::install_intro_payment_authority();self::verify_intro_payment_authority_schema();
+				$done[]='050_intro_payment_authority';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('051_teacher_rate_origin',$done,true)){
+				self::install_teacher_rate_origin();self::verify_teacher_rate_origin_schema();self::verify_finance_payability_rate_statement_schema();
+				$done[]='051_teacher_rate_origin';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('052_payment_plan_choice',$done,true)){
+				self::install_payment_plan_choice();self::verify_payment_plan_choice_schema();
+				$done[]='052_payment_plan_choice';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('054_lesson_reschedule_authority',$done,true)){
+				self::install_lesson_reschedule_authority();self::verify_lesson_reschedule_authority_schema();
+				$done[]='054_lesson_reschedule_authority';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('055_recording_decision_authority',$done,true)){
+				self::install_recording_decision_authority();self::verify_recording_decision_authority_schema();
+				$done[]='055_recording_decision_authority';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('056_notification_management',$done,true)){
+				self::install_notification_management();self::verify_notification_management_schema();
+				$done[]='056_notification_management';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
+	/**
+	 * Notification management (Schema 056): the persistent website inbox and its read state.
+	 *
+	 * Additive only. It creates one table, performs no backfill, writes no notification, stores no contact
+	 * value, no one-time secret and no provider identifier, and leaves the canonical delivery aggregate
+	 * untouched. A message is addressed to one WordPress user and deduplicated by a keyed event digest.
+	 */
+	private static function install_notification_management():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$sql="CREATE TABLE {$p}portal_notifications (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,event_key varchar(64) NOT NULL,category varchar(24) NOT NULL,audience varchar(16) NOT NULL,recipient_id bigint unsigned NOT NULL,wp_user_id bigint unsigned NOT NULL,title varchar(191) NOT NULL,body text NOT NULL,link_url varchar(255) NULL,source_kind varchar(32) NOT NULL,source_id bigint unsigned NOT NULL,dedupe_key char(64) NOT NULL,read_at datetime NULL,created_at datetime NOT NULL,expires_at datetime NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY dedupe_key(dedupe_key),KEY user_unread(wp_user_id,read_at,created_at),KEY recipient(audience,recipient_id,created_at),KEY created_at(created_at)) ENGINE=InnoDB $c";
+		dbDelta($sql);
+		if($wpdb->last_error!=='')throw new \RuntimeException('Migration operation failed: portal_notifications');
+	}
+	/** Fail closed unless the website inbox is exactly the additive, contact-free store it declares. */
+	private static function verify_notification_management_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_'; $table=$p.'portal_notifications';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing portal_notifications');
+		if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: portal_notifications must use InnoDB');
+		foreach(array('uid','event_key','category','audience','recipient_id','wp_user_id','title','body','link_url','source_kind','source_id','dedupe_key','read_at','created_at','expires_at') as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing portal_notifications.'.$column);
+		foreach(array('email','phone','whatsapp','secret','token','payload','provider','envelope','contact') as $forbidden)if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '%{$forbidden}%'"))throw new \RuntimeException('Migration verification failed: website inbox must stay contact-free and provider-neutral: '.$forbidden);
+		if(!self::has_index($table,'dedupe_key',true))throw new \RuntimeException('Migration verification failed: portal notification dedupe key');
+		if(!self::has_index($table,'user_unread',false))throw new \RuntimeException('Migration verification failed: portal notification unread index');
+		$dedupe=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'dedupe_key'");
+		if(!$dedupe||strtolower((string)$dedupe->Type)!=='char(64)'||$dedupe->Null!=='NO')throw new \RuntimeException('Migration verification failed: portal notification dedupe structure');
+		$foreign=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND CONSTRAINT_TYPE IN ('FOREIGN KEY','CHECK')",$table));
+		if($foreign>0)throw new \RuntimeException('Migration verification failed: portal notifications must not use foreign keys or CHECK constraints');
+	}
+
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
 	private static function install_notification_cipher_version_width():void{
 		global $wpdb; $p=$wpdb->prefix.'dzn_';
@@ -545,9 +796,16 @@ final class Migrator {
 		$required[] = '046_google_oauth_openid_subject';
 		$required[] = '047_stripe_canonical_account_reference';
 		$required[] = '048_post_intro_enrolment_automation';
+		$required[] = '049_finance_administration';
+		$required[] = '050_intro_payment_authority';
+		$required[] = '051_teacher_rate_origin';
+		$required[] = '052_payment_plan_choice';
+		$required[] = '054_lesson_reschedule_authority';
+		$required[] = '055_recording_decision_authority';
+		$required[] = '056_notification_management';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -779,6 +1037,38 @@ final class Migrator {
 		foreach($tables as $table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: post-intro table must use InnoDB: '.$table);foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);}
 		foreach(array(array('booking_request_intro_outcomes','uid',true,array('uid')),array('booking_request_intro_outcomes','booking_request_id',true,array('booking_request_id')),array('booking_request_intro_outcomes','confirmation_id',true,array('confirmation_id')),array('post_intro_preparations','uid',true,array('uid')),array('post_intro_preparations','booking_request_id',true,array('booking_request_id')),array('post_intro_preparations','outcome_id',true,array('outcome_id')),array('post_intro_preparations','state',false,array('state')),array('post_intro_activation_jobs','uid',true,array('uid')),array('post_intro_activation_jobs','purchase_id',true,array('purchase_id')),array('post_intro_activation_jobs','dispatch_state',false,array('state','next_attempt_at')))as$index)if(!self::has_index_columns($p.$index[0],$index[1],$index[2],$index[3]))throw new \RuntimeException('Migration verification failed: post-intro index '.$index[0].'.'.$index[1]);
 	}
+	/**
+	 * Teacher-initiated rescheduling proposals, their append-only decision history, and the
+	 * recoverable notification/calendar dispatch jobs. No proposal row changes canonical Lesson
+	 * schedule authority; only student acceptance may invoke the canonical scheduling service.
+	 */
+	private static function install_lesson_reschedule_authority():void{
+		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}student_schedule_roots (id bigint unsigned NOT NULL AUTO_INCREMENT,student_id bigint unsigned NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY student_id(student_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}lesson_reschedule_proposals (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,lesson_id bigint unsigned NOT NULL,schedule_version_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,enrolment_id bigint unsigned NOT NULL,term_id bigint unsigned NOT NULL,teacher_assignment_id bigint unsigned NOT NULL,proposed_starts_at_utc datetime NOT NULL,proposed_ends_at_utc datetime NOT NULL,proposed_occupied_ends_at_utc datetime NOT NULL,duration_minutes smallint unsigned NOT NULL,buffer_minutes smallint unsigned NOT NULL,schedule_timezone varchar(64) NOT NULL,local_wall_date date NOT NULL,local_wall_time time NOT NULL,state varchar(24) NOT NULL,pending_slot tinyint unsigned NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,decision_key_digest char(64) NULL,decided_at datetime NULL,decided_by bigint unsigned NULL,failure_code varchar(64) NULL,result_schedule_version_id bigint unsigned NULL,expires_at datetime NULL,version bigint unsigned NOT NULL DEFAULT 1,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest),UNIQUE KEY decision_key_digest(decision_key_digest),UNIQUE KEY lesson_pending(lesson_id,pending_slot),KEY lesson_state(lesson_id,state),KEY student_state(student_id,state),KEY teacher_state(teacher_id,state),KEY schedule_version_id(schedule_version_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}lesson_reschedule_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,proposal_id bigint unsigned NOT NULL,proposal_uid char(26) NOT NULL,student_id bigint unsigned NOT NULL,authenticated_user_id bigint unsigned NULL,event_sequence int unsigned NOT NULL,event_type varchar(32) NOT NULL,from_state varchar(24) NULL,to_state varchar(24) NOT NULL,expected_schedule_version_id bigint unsigned NULL,result_schedule_version_id bigint unsigned NULL,proposed_starts_at_utc datetime NULL,proposed_ends_at_utc datetime NULL,schedule_timezone varchar(64) NULL,command_key_digest char(64) NOT NULL,reason_code varchar(64) NOT NULL,evidence_channel varchar(32) NOT NULL,evidence_reference_digest char(64) NOT NULL,recorded_at datetime NOT NULL,recorded_by bigint unsigned NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY proposal_sequence(proposal_id,event_sequence),KEY proposal_event(proposal_id,event_type),KEY decision_actor(authenticated_user_id,recorded_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}lesson_reschedule_notifications (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,proposal_id bigint unsigned NOT NULL,event_type varchar(32) NOT NULL,audience varchar(16) NOT NULL,channel varchar(16) NOT NULL,state varchar(16) NOT NULL,idempotency_key char(64) NOT NULL,attempt_count int unsigned NOT NULL DEFAULT 0,next_attempt_at datetime NULL,sent_at datetime NULL,last_error_code varchar(64) NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY idempotency_key(idempotency_key),KEY dispatch_state(state,next_attempt_at),KEY proposal_id(proposal_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}lesson_reschedule_calendar_jobs (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,proposal_id bigint unsigned NOT NULL,lesson_id bigint unsigned NOT NULL,from_schedule_version_id bigint unsigned NOT NULL,to_schedule_version_id bigint unsigned NOT NULL,state varchar(16) NOT NULL,idempotency_key char(64) NOT NULL,attempt_count int unsigned NOT NULL DEFAULT 0,next_attempt_at datetime NULL,lease_token_digest char(64) NULL,lease_expires_at datetime NULL,last_error_code varchar(64) NULL,completed_at datetime NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY idempotency_key(idempotency_key),UNIQUE KEY proposal_id(proposal_id),KEY dispatch_state(state,next_attempt_at)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as$sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Migration operation failed: '.$wpdb->last_error);}
+	}
+
+	private static function verify_lesson_reschedule_authority_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		$tables=array(
+			'student_schedule_roots'=>array('student_id','created_at','created_by'),
+			'lesson_reschedule_proposals'=>array('uid','lesson_id','schedule_version_id','teacher_id','student_id','enrolment_id','term_id','teacher_assignment_id','proposed_starts_at_utc','proposed_ends_at_utc','proposed_occupied_ends_at_utc','duration_minutes','buffer_minutes','schedule_timezone','local_wall_date','local_wall_time','state','pending_slot','command_key_digest','command_payload_digest','decision_key_digest','decided_at','decided_by','failure_code','result_schedule_version_id','version','created_at','created_by','updated_at','updated_by'),
+			'lesson_reschedule_events'=>array('uid','proposal_id','proposal_uid','student_id','authenticated_user_id','event_sequence','event_type','from_state','to_state','expected_schedule_version_id','result_schedule_version_id','proposed_starts_at_utc','proposed_ends_at_utc','schedule_timezone','command_key_digest','reason_code','evidence_channel','evidence_reference_digest','recorded_at','recorded_by','created_at','created_by'),
+			'lesson_reschedule_notifications'=>array('uid','proposal_id','event_type','audience','channel','state','idempotency_key','attempt_count','next_attempt_at','sent_at','last_error_code','created_at','updated_at'),
+			'lesson_reschedule_calendar_jobs'=>array('uid','proposal_id','lesson_id','from_schedule_version_id','to_schedule_version_id','state','idempotency_key','attempt_count','next_attempt_at','lease_token_digest','lease_expires_at','last_error_code','completed_at','created_at','updated_at'),
+		);
+		foreach($tables as$table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);$engine=$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical));if(!is_string($engine)||strcasecmp($engine,'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: reschedule table must use InnoDB: '.$table);foreach($columns as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);}
+		foreach(array(array('student_schedule_roots','student_id',true,array('student_id')),array('lesson_reschedule_proposals','uid',true,array('uid')),array('lesson_reschedule_proposals','command_key_digest',true,array('command_key_digest')),array('lesson_reschedule_proposals','decision_key_digest',true,array('decision_key_digest')),array('lesson_reschedule_proposals','lesson_pending',true,array('lesson_id','pending_slot')),array('lesson_reschedule_proposals','lesson_state',false,array('lesson_id','state')),array('lesson_reschedule_events','proposal_sequence',true,array('proposal_id','event_sequence')),array('lesson_reschedule_notifications','idempotency_key',true,array('idempotency_key')),array('lesson_reschedule_calendar_jobs','idempotency_key',true,array('idempotency_key')))as$index)if(!self::has_index_columns($p.$index[0],$index[1],$index[2],$index[3]))throw new \RuntimeException('Migration verification failed: reschedule index '.$index[0].'.'.$index[1]);
+		foreach(array(array('lesson_reschedule_proposals','command_key_digest'),array('lesson_reschedule_proposals','command_payload_digest'),array('lesson_reschedule_events','evidence_reference_digest'),array('lesson_reschedule_events','command_key_digest'),array('lesson_reschedule_notifications','idempotency_key'),array('lesson_reschedule_calendar_jobs','idempotency_key'))as$shape){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");if(!$row||strtolower((string)$row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('Migration verification failed: reschedule digest '.$shape[0].'.'.$shape[1]);}
+		if($wpdb->get_row("SHOW COLUMNS FROM {$p}lesson_reschedule_events LIKE 'updated_at'"))throw new \RuntimeException('Migration verification failed: reschedule events must be append-only');
+	}
+
 	private static function dbdelta_sql(string $sql):string{
 		$open=strpos($sql,'(');$engine=strripos($sql,') ENGINE=');if($open===false||$engine===false||$engine<=$open)return $sql;
 		$head=substr($sql,0,$open+1);$body=substr($sql,$open+1,$engine-$open-1);$tail=substr($sql,$engine);$parts=array();$buf='';$depth=0;$len=strlen($body);
@@ -927,6 +1217,10 @@ final class Migrator {
 		foreach($phaseSGrants as$capability)if(!$role->has_cap($capability))throw new \RuntimeException('Notification authority capability installation failed: '.$capability);
 		if((string)get_option(self::CAPABILITY_OPTION_S)!==self::CAPABILITY_VERSION_S)throw new \RuntimeException('Notification authority capability installation failed: version marker');
 		if(!$role->has_cap('dzn_manage_post_intro_automation'))$role->add_cap('dzn_manage_post_intro_automation');
+		// Recording/research self-service is a Teacher-owned action only. It grants no capture,
+		// provider, export or administrative authority, and fails closed until a notice is published.
+		if($teacher&&!$teacher->has_cap('dzn_accept_own_recording_terms'))$teacher->add_cap('dzn_accept_own_recording_terms');
+		if(!$teacher||!$teacher->has_cap('dzn_accept_own_recording_terms'))throw new \RuntimeException('Recording decision capability installation failed: Teacher grant');
 		$markerCurrent=(string)get_option(self::CAPABILITY_OPTION)===self::CAPABILITY_VERSION;
 		if($markerCurrent&&$role->has_cap('dzn_issue_student_account_claims')&&$teacher&&$teacher->has_cap('dzn_record_own_availability_assent')&&$teacher->has_cap('dzn_accept_own_teacher_assignments')&&$role->has_cap('dzn_manage_terms')&&$role->has_cap('dzn_manage_canonical_terms')&&$role->has_cap('dzn_manage_canonical_enrolment_lifecycle')&&$role->has_cap('dzn_manage_canonical_lessons')&&$role->has_cap('dzn_manage_canonical_lesson_schedules')&&$role->has_cap('dzn_override_canonical_lesson_schedule_availability')&&$role->has_cap('dzn_prepare_booking_request_matches')&&$role->has_cap('dzn_manage_booking_request_coordination')&&$role->has_cap('dzn_manage_teacher_availability_assent')&&$role->has_cap('dzn_issue_booking_request_proposals')&&$role->has_cap('dzn_record_booking_request_provisional_acceptance')&&$role->has_cap('dzn_resolve_booking_request_student_identity')&&$role->has_cap('dzn_manage_student_acceptance_authority')&&$role->has_cap('dzn_view_student_acceptance_eligibility')&&$role->has_cap('dzn_finalize_service_arrangements')&&$role->has_cap('dzn_convert_service_arrangements_to_enrolments')&&$role->has_cap('dzn_manage_teacher_assignments'))return;
 		foreach(array('dzn_manage_platform','dzn_issue_student_account_claims','dzn_manage_students','dzn_manage_teachers','dzn_manage_courses','dzn_manage_enrolments','dzn_manage_terms','dzn_manage_lessons','dzn_manage_exceptions','dzn_view_diagnostics','dzn_manage_onboarding','dzn_issue_teacher_invitations','dzn_revoke_teacher_invitations','dzn_view_onboarding_audit','dzn_relink_teacher_principal','dzn_manage_teaching_eligibility','dzn_manage_teacher_availability','dzn_view_booking_requests','dzn_review_booking_request_duplicates','dzn_erase_booking_request_pii','dzn_prepare_booking_request_matches','dzn_manage_booking_request_coordination','dzn_manage_teacher_availability_assent','dzn_issue_booking_request_proposals','dzn_record_booking_request_provisional_acceptance','dzn_resolve_booking_request_student_identity','dzn_manage_student_acceptance_authority','dzn_view_student_acceptance_eligibility','dzn_finalize_service_arrangements','dzn_convert_service_arrangements_to_enrolments','dzn_manage_teacher_assignments','dzn_manage_canonical_terms','dzn_manage_canonical_enrolment_lifecycle','dzn_manage_canonical_lessons','dzn_manage_canonical_lesson_schedules','dzn_override_canonical_lesson_schedule_availability')as$cap)$role->add_cap($cap);
@@ -2252,6 +2546,9 @@ final class Migrator {
 			'finance_reconciliation_commands' => array('command_domain','operation','command_key_digest','command_payload_digest','teacher_id','run_id','exception_id','result_state','result_run_id','result_exception_id','reason_code','created_at','created_by'),
 			'finance_exceptions' => array('uid','reference_code','reason_code','severity','state','fingerprint','summary','safe_detail','teacher_id','lesson_id','statement_id','snapshot_id','detected_at','last_seen_at','occurrence_count','resolved_at','resolved_by','resolution_note','created_at','created_by','updated_at','updated_by'),
 		);
+		$originDone=in_array('051_teacher_rate_origin',(array)get_option(self::COMPLETED,array()),true);
+		if($originDone||$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_teacher_rates LIKE 'rate_origin'"))$spec['finance_teacher_rates'][]='rate_origin';
+		if($originDone||$wpdb->get_row("SHOW COLUMNS FROM {$p}finance_teacher_rates LIKE 'origin_setting_version'"))$spec['finance_teacher_rates'][]='origin_setting_version';
 		$handleTables = array('finance_teacher_rates','finance_lesson_snapshots','finance_statements','finance_reconciliation_runs','finance_exceptions');
 		$appendOnly = array('finance_policy_commands','finance_teacher_rate_events','finance_teacher_rate_commands','finance_lesson_snapshots','finance_snapshot_corrections','finance_snapshot_commands','finance_payability_evaluations','finance_payability_overrides','finance_payability_commands','finance_statement_lines','finance_statement_events','finance_statement_commands','finance_reconciliation_runs','finance_reconciliation_findings','finance_reconciliation_commands');
 		$mutable = array(
@@ -2383,7 +2680,7 @@ final class Migrator {
 		}
 		// Rule 10: Phase 2A.2-U owns only its declared finance tables. Later migrations may add
 		// separately verified finance namespaces; do not make the older verifier reject them.
-		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations');
+		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations','finance_regional_prices','finance_settings');
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $p . 'finance_%' ) ) as $table ) {
 			$short = substr( (string) $table, strlen( $p ) );
 			if ( ! isset( $spec[ $short ] ) && ! in_array( $short, $laterFinanceTables, true ) ) throw new \RuntimeException('Migration verification failed: table outside the declared Phase 2A.2-U set: '.$short);
@@ -2504,6 +2801,41 @@ final class Migrator {
 	private static function finance_reason_code(string $key,string $code):bool{
 		if ( in_array( $code, array('phase_u_declared_default','operator_recorded_error','operator_decision','operator_evidence_correction'), true ) ) return true;
 		return self::finance_exception_reason( $code );
+	}
+
+	/** Schema 55: prospective recording/research decisions only; no provider, asset or capture table. */
+	private static function install_recording_decision_authority():void{global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();foreach(array(
+"CREATE TABLE {$p}recording_notice_versions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,audience_code varchar(64) NOT NULL,language_code char(2) NOT NULL,version_number int unsigned NOT NULL,publication_state varchar(16) NOT NULL,body_text longtext NOT NULL,text_digest char(64) NOT NULL,published_at datetime NULL,expires_at datetime NULL,withdrawn_at datetime NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY audience_language_version(audience_code,language_code,version_number),KEY publication(audience_code,language_code,publication_state),KEY current_notice(audience_code,language_code,publication_state,expires_at,withdrawn_at)) ENGINE=InnoDB $c",
+"CREATE TABLE {$p}recording_decisions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,subject_type varchar(16) NOT NULL,subject_id bigint unsigned NOT NULL,guardian_actor_user_id bigint unsigned NULL,purpose_code varchar(32) NOT NULL,decision_code varchar(16) NOT NULL,notice_version_id bigint unsigned NOT NULL,notice_uid char(26) NOT NULL,notice_audience_code varchar(64) NOT NULL,notice_language_code char(2) NOT NULL,notice_version_number int unsigned NOT NULL,notice_text_digest char(64) NOT NULL,evidence_key_version varchar(64) NOT NULL,evidence_digest char(64) NOT NULL,decided_at datetime NOT NULL,decided_by_user_id bigint unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),KEY subject_purpose(subject_type,subject_id,purpose_code,decided_at),KEY guardian_actor(guardian_actor_user_id)) ENGINE=InnoDB $c",
+"CREATE TABLE {$p}recording_decision_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,domain varchar(48) NOT NULL,operation varchar(24) NOT NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,result_decision_id bigint unsigned NOT NULL,result_state varchar(16) NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest)) ENGINE=InnoDB $c"
+)as$sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Recording decision migration failed: '.$wpdb->last_error);}}
+	/** Fail closed unless the append-only decision authority is exactly the declared shape. */
+	private static function verify_recording_decision_authority_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		$spec=array(
+			'recording_notice_versions'=>array('required'=>array('uid','audience_code','language_code','version_number','publication_state','body_text','text_digest','created_at','created_by'),'optional'=>array('published_at','expires_at','withdrawn_at')),
+			'recording_decisions'=>array('required'=>array('uid','subject_type','subject_id','purpose_code','decision_code','notice_version_id','notice_uid','notice_audience_code','notice_language_code','notice_version_number','notice_text_digest','evidence_key_version','evidence_digest','decided_at','decided_by_user_id','created_at'),'optional'=>array('guardian_actor_user_id')),
+			'recording_decision_commands'=>array('required'=>array('uid','domain','operation','command_key_digest','command_payload_digest','result_decision_id','result_state','created_at','created_by'),'optional'=>array()),
+		);
+		foreach($spec as$table=>$shape){
+			$physical=$p.$table;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$table.' must use InnoDB');
+			foreach($shape['required']as$column){$row=$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'");if(!$row)throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);if($row->Null!=='NO')throw new \RuntimeException('Migration verification failed: required recording decision column nullable '.$table.'.'.$column);}
+			foreach($shape['optional']as$column){$row=$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'");if(!$row)throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);if($row->Null!=='YES')throw new \RuntimeException('Migration verification failed: optional recording decision column must be nullable '.$table.'.'.$column);}
+			foreach(array('updated_at','deleted_at')as$forbidden)if($wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$forbidden}'"))throw new \RuntimeException('Migration verification failed: recording decision evidence must be append-only '.$table.'.'.$forbidden);
+		}
+		foreach(array(
+			array('recording_notice_versions','uid',true,array('uid')),
+			array('recording_notice_versions','audience_language_version',true,array('audience_code','language_code','version_number')),
+			array('recording_notice_versions','publication',false,array('audience_code','language_code','publication_state')),
+			array('recording_notice_versions','current_notice',false,array('audience_code','language_code','publication_state','expires_at','withdrawn_at')),
+			array('recording_decisions','uid',true,array('uid')),
+			array('recording_decisions','subject_purpose',false,array('subject_type','subject_id','purpose_code','decided_at')),
+			array('recording_decisions','guardian_actor',false,array('guardian_actor_user_id')),
+			array('recording_decision_commands','uid',true,array('uid')),
+			array('recording_decision_commands','command_key_digest',true,array('command_key_digest')),
+		)as$x)if(!self::has_index_columns($p.$x[0],$x[1],$x[2],$x[3]))throw new \RuntimeException('Migration verification failed: recording decision index '.$x[0].'.'.$x[1]);
 	}
 
 }

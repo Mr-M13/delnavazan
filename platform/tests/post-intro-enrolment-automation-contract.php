@@ -46,7 +46,7 @@ $notificationWorker = $read('platform/src/Integrations/BookingStudentNotificatio
 $executionRule = $read('platform/src/Core/Application/PaymentExecution/PaymentExecutionRule.php');
 
 // 1. Additive migration and existing-data compatibility.
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '48'"), 'Schema 48 must be published');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '55'"), 'Schema 55 must be published');
 $contains($migrator, array(
     '048_post_intro_enrolment_automation',
     "'adult_self_attested'",
@@ -178,7 +178,7 @@ $contains($activation, array(
 ), 'activation must be replay-safe and canonical');
 $assert(str_contains($activation, "if ((string) \$mapping->projection_state !== 'pending') return;"), 'a verified projection must not be dispatched twice');
 $assert(str_contains($activation, 'stableEvidenceAt') && str_contains($activation, "evidence_at' => \$evidenceAt"), 'activation retries must reuse a stable evidence timestamp');
-$assert(str_contains($activation, 'paymentOccurredAt') && str_contains($repository, 'commercial_payment_facts'), 'activation must use the verified payment occurrence instant');
+$assert(str_contains($activation, 'accepted_at') && str_contains($repository, 'commercial_purchases'), 'activation must use the immutable purchase acceptance instant');
 $assert(str_contains($worker, 'attempt_count=attempt_count+1') || str_contains($repository, 'attempt_count=attempt_count+1'), 'a reclaimed lease must count as an attempt');
 $assert(str_contains($activation, 'patternForSlotAuthority') && str_contains($activation, 'commercial_pattern_conflict'), 'activation must resolve the exact slot-authority pattern');
 $assert(!str_contains($activation, 'meet.google.com') && !str_contains($activation, 'join_uri_reference' . ' = '), 'activation must never fabricate a Meet URL');
@@ -257,9 +257,12 @@ $contains($studentRead, array(
     'action_url',
     'wp_create_nonce',
     'ادامهٔ کلاس با همین مدرس',
+    'plan_options',
+    'quote_token',
+    'selected_plan_kind',
 ), 'the Student card must be read-only and actionable');
 $assert(!str_contains($studentRead, 'exception_detail'), 'the Student projection must not expose raw exception detail');
-$contains($studentCard, array('dzn_post_intro_continue', 'preparation_uid', 'adult_attested', 'تکمیل پرداخت'), 'the Student card must render the payment action');
+$contains($studentCard, array('dzn_post_intro_continue', 'preparation_uid', 'adult_attested', 'پرداخت کامل ترم', 'two_instalments', 'instalments_opt_in'), 'the Student card must render the full-term default and explicit instalment opt-in');
 $contains($studentShell, array("dzn_theme_portal_component( 'post-intro'"), 'the Student shell must include the continuation card');
 $contains($studentController, array('check_admin_referer', 'wp_redirect', 'safeStatus'), 'the Student action must verify the nonce and redirect safely');
 $assert(str_contains($studentController, "checkout_temporarily_unavailable") && str_contains($studentController, "\$result['message']"), 'explicit checkout unavailability must reach the portal message');
@@ -283,7 +286,8 @@ $contains($admin, array(
 $assert(str_contains($migrator, "add_cap('dzn_manage_post_intro_automation')"), 'the admin exception capability must be installed');
 $assert(str_contains($plugin, 'PostIntroAdminController::register()'), 'the admin exception surface must be registered');
 $adminShell = $read('platform/src/Admin/Controller/AdminShellController.php');
-$assert(str_contains($adminShell, "'dzn-post-intro'") && str_contains($adminShell, "'dzn_manage_post_intro_automation'"), 'the admin exception surface must be discoverable');
+$attendanceWorkspace = $read('platform/src/Admin/Controller/AttendanceWorkspaceController.php');
+$assert(str_contains($adminShell, "'dzn-post-intro'") && str_contains($attendanceWorkspace, "'dzn-post-intro'") && str_contains($attendanceWorkspace, "'dzn_manage_post_intro_automation'"), 'the admin exception surface must remain discoverable through the consolidated Attendance & Post-intro workspace');
 
 // 11. Notification delivery reuses the durable hand-off table and adds explicit kinds.
 $contains($notificationWorker, array(

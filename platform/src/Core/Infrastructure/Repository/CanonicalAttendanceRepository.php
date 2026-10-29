@@ -22,6 +22,11 @@ final class CanonicalAttendanceRepository {
     public function caseById(int $caseId,bool $lock=false):?object{
         return $this->one("SELECT * FROM {$this->p}canonical_attendance_cases WHERE id=%d".($lock?' FOR UPDATE':''),$caseId);
     }
+    /** @return array<int,object> every durable conflict receipt recorded for one Lesson */
+    public function conflictsForLesson(int $lessonId,bool $lock=false):array{
+        global $wpdb;$suffix=$lock?' FOR UPDATE':'';
+        return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_attendance_conflicts WHERE lesson_id=%d ORDER BY id{$suffix}",$lessonId))?:array();
+    }
     public function casesForLesson(int $lessonId,bool $lock=false):array{
         global $wpdb;$suffix=$lock?' FOR UPDATE':'';
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_attendance_cases WHERE lesson_id=%d ORDER BY id{$suffix}",$lessonId))?:array();

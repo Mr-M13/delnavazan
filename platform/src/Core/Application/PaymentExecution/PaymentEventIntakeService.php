@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\PaymentExecution;
 
 use Delnavazan\Platform\Core\Application\{CollectionIntentService,CommercialExceptionService,CommercialIdempotency,CommercialPaymentService,RefundReviewService,RenewalCycleService};
+use Delnavazan\Platform\Core\Application\Finance\Intro\IntroPaymentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CheckoutSessionRepository,PaymentExecutionRepository,PaymentProviderRepository,PaymentSecretRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
 
@@ -735,6 +736,15 @@ final class PaymentEventIntakeService {
         if(!PaymentExecutionRule::member($eventType,PaymentExecutionRule::EVENT_TYPES))return $this->refusal('unrecognised_provider_event');
         if($eventType==='provider_recurring_semantics_unresolved')return $this->refusal('provider_recurring_semantics_unresolved');
         if($eventType==='unrecognised_provider_event')return $this->refusal('unrecognised_provider_event');
+        // Pre-introductory payment obligations are a separate, explicitly scoped authority. They use
+        // the same verified Stripe webhook, account binding and event idempotency but never enter R1.
+        $introReference=$envelope->obligationReference();
+        if($introReference!==null&&$this->introReference((string)$introReference)){
+            if($envelope->providerAccountReference()!==null&&!hash_equals($this->accountDigest((int)$event->payment_provider_account_id),PaymentExecutionIdempotency::reference((string)$envelope->providerAccountReference())))return $this->refusal('unmapped_provider_account');
+            if(PaymentExecutionSupport::workerPrincipalId()<1)return $this->refusal('payment_worker_principal_required');
+            try{return $this->worker->run(fn():array=>$this->translateIntro($event,$envelope,(string)$introReference));}
+            catch(\RuntimeException $e){if($e->getMessage()==='payment_worker_principal_required')return $this->refusal('payment_worker_principal_required');throw $e;}
+        }
         // §9.6: the provider occurrence instant is authority, never the receive order.
         $obligationId=$envelope->obligationReference()===null?null:$this->obligationFor((string)$envelope->obligationReference());
         if($envelope->obligationReference()!==null&&$obligationId===null)return $this->refusal('ambiguous_obligation_attribution');
@@ -764,13 +774,14 @@ final class PaymentEventIntakeService {
     private function translate(object $event,ProviderEventEnvelope $envelope,?int $obligationId):array{
         $evidenceKind=$this->evidenceKind((string)$envelope->eventType());
         $occurredAt=$envelope->providerOccurredAt()??(string)$event->received_at;
+        $canonicalObligationReference=$this->canonicalObligationReference($obligationId);
         $input=array(
             'provider_key'=>(string)$envelope->providerKey(),
             'provider_reference'=>(string)$envelope->eventReference(),
             'evidence_kind'=>$evidenceKind,
             'amount_minor'=>$envelope->amountMinor(),'currency'=>$envelope->currency(),
             'provider_occurred_at'=>$occurredAt,
-            'obligation_reference'=>$envelope->obligationReference(),
+            'obligation_reference'=>$canonicalObligationReference??$envelope->obligationReference(),
             'provider_account_reference'=>$envelope->providerAccountReference(),
             'evidence_channel'=>'provider_evidence','evidence_at'=>$occurredAt,
             'evidence_reference'=>'dzn_phase_2a2t_event:'.(string)$event->uid,
@@ -797,6 +808,31 @@ final class PaymentEventIntakeService {
             'offer_id'=>$offerId,'obligation_id'=>$recordedObligation,'purchase_id'=>$purchaseId,'commercial_evidence_id'=>$evidenceId,
             'execution_command_id'=>null,'recorded_by'=>$this->recordedBy(),
         ),$consequence);
+    }
+
+    private function introReference(string $reference):bool{
+        return preg_match('/^DZN-INTRO-[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',trim($reference))===1;
+    }
+
+    private function translateIntro(object $event,ProviderEventEnvelope $envelope,string $reference):array{
+        try{
+            $result=(new IntroPaymentService())->recordProviderEvent(array(
+                'reference'=>$reference,'provider_key'=>(string)$envelope->providerKey(),
+                'event_reference'=>(string)$envelope->eventReference(),'event_kind'=>(string)$envelope->eventType(),
+                'amount_minor'=>$envelope->amountMinor(),'currency'=>$envelope->currency(),
+                'provider_occurred_at'=>$envelope->providerOccurredAt(),
+            ));
+        }catch(\InvalidArgumentException){
+            return $this->refusal('provider_event_not_authoritative');
+        }
+        if(empty($result['accepted']))return $this->refusal('provider_event_not_authoritative');
+        return array(
+            'decision_state'=>'translated','reason_code'=>empty($result['idempotent'])?'evidence_submitted':'duplicate_provider_event',
+            'evidence_kind'=>$this->evidenceKind((string)$envelope->eventType()),'offer_id'=>null,'obligation_id'=>null,'purchase_id'=>null,
+            'commercial_evidence_id'=>null,'collection_intent_id'=>null,'renewal_cycle_id'=>null,'renewal_cycle_state'=>null,
+            'collection_intent_state'=>null,'r2_consequence_state'=>'not_applicable','r2_reason_code'=>null,'execution_command_id'=>null,
+            'recorded_by'=>$this->recordedBy(),
+        );
     }
 
     private function refusedSubmission(string $evidenceKind,?int $obligationId,?int $offerId,?int $purchaseId,?int $evidenceId=null):array{
@@ -921,7 +957,24 @@ final class PaymentEventIntakeService {
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $digest=CommercialIdempotency::obligationReference($obligationReference);
         $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_offer_obligations WHERE obligation_reference_digest=%s",$digest));
+        // Older Checkout sessions carried the already-keyed obligation digest in Stripe metadata.
+        // Accept that exact immutable value without re-hashing it; new sessions carry the raw
+        // offer:sequence reference and resolve through the normal branch above.
+        if($id<1&&preg_match('/^[a-f0-9]{64}$/D',$obligationReference)===1){
+            $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}commercial_offer_obligations WHERE obligation_reference_digest=%s",$obligationReference));
+        }
         return $id>0?$id:null;
+    }
+
+    /** The canonical raw offer:sequence reference for one obligation, used as R1 input. */
+    private function canonicalObligationReference(?int $obligationId):?string{
+        if($obligationId===null||$obligationId<1)return null;
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $row=$wpdb->get_row($wpdb->prepare(
+            "SELECT offer.uid, obligation.obligation_sequence FROM {$p}commercial_offer_obligations obligation INNER JOIN {$p}commercial_offers offer ON offer.id=obligation.offer_id WHERE obligation.id=%d",
+            $obligationId
+        ));
+        return $row?((string)$row->uid.':'.(int)$row->obligation_sequence):null;
     }
     private function accountDigest(int $accountId):string{
         global $wpdb;$p=$wpdb->prefix.'dzn_';

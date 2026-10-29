@@ -12,9 +12,10 @@ use Delnavazan\Platform\Core\Support\Identifier;
  * never introduces a "scheduled" Lesson lifecycle state, and Lesson completion/cancellation
  * never implicitly releases a schedule.
  *
- * Lock order (compatible with F–M authority): Student–Course identity root → Enrolment → Term
- * → canonical Lesson → Lesson lifecycle evidence → schedule versions → schedule events →
- * recorded Assignment → Teacher share lock → Teacher scheduling root (innermost).
+ * Lock order (compatible with F–M authority): reschedule proposal row (application workflow) →
+ * Student scheduling root → Student–Course identity root → Enrolment → Term → canonical Lesson →
+ * Lesson lifecycle evidence → schedule versions → schedule events → recorded Assignment →
+ * Teacher share lock → Teacher scheduling root (innermost).
  *
  * NO current or future phase may acquire a Teacher scheduling root and then attempt to acquire
  * an earlier Enrolment identity-root chain.
@@ -36,15 +37,27 @@ final class CanonicalLessonScheduleService {
         $this->occupancy??=new CanonicalTeacherOccupancyReadService($this->repository,$this->lessons);
     }
     public function schedule(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_initial',$lessonId,$expectedAssignmentId,$input,$key);}
+    /** Initial schedule inside a caller-owned transaction (used when issuing a replacement Lesson). */
+    public function scheduleWithinTransaction(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_initial',$lessonId,$expectedAssignmentId,$input,$key,false);}
     public function revise(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_revise',$lessonId,$expectedAssignmentId,$input,$key);}
     public function release(int $lessonId,array $input,string $key):array{return $this->apply('schedule_release',$lessonId,0,$input,$key);}
 
-    private function apply(string $operation,int $lessonId,int $expectedAssignmentId,array $input,string $rawKey):array{
+    /**
+     * Apply one revision inside a caller-owned transaction.
+     *
+     * Only an application service that already holds the Student scheduling root and the
+     * reschedule proposal lock may call this method. It uses exactly the same supersession,
+     * policy, occupancy, capacity, idempotency and version-creation implementation as revise();
+     * it never starts, commits or rolls back a transaction of its own.
+     */
+    public function reviseWithinTransaction(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_revise',$lessonId,$expectedAssignmentId,$input,$key,false);}
+
+    private function apply(string $operation,int $lessonId,int $expectedAssignmentId,array $input,string $rawKey,bool $ownTransaction=true):array{
         $this->capability();
         $actor=$this->actor();
         if($lessonId<1)throw new \InvalidArgumentException('Canonical Lesson identity required');
         $intent=$this->intent($operation,$input);
-        return $this->execute($operation,$lessonId,$intent,$rawKey,function(string $digest,?array &$facts,?string &$payload)use($operation,$lessonId,$expectedAssignmentId,$intent,$actor):array{
+        return $this->execute($operation,$lessonId,$intent,$rawKey,$ownTransaction,function(string $digest,?array &$facts,?string &$payload)use($operation,$lessonId,$expectedAssignmentId,$intent,$actor):array{
             [$lesson,$enrolment,$term,$versions]=$this->lockAggregate($lessonId,$operation);
             $facts=$this->facts($operation,$lesson,$expectedAssignmentId,$intent);
             $payload=CanonicalLessonScheduleIdempotency::payload($facts);
@@ -67,14 +80,23 @@ final class CanonicalLessonScheduleService {
             // The exact commercial interval identity travels with the schedule: only the same
             // Teacher, bounds, buffered occupied end, timezone and wall clock may authorise it.
             $schedule=array('teacher_id'=>(int)$lesson->teacher_id,'local_wall_date'=>$intent['local_wall_date'],'local_wall_time'=>$intent['local_wall_time'])+$resolved;
-            $this->assertCapacity((int)$lesson->teacher_id,$resolved['starts_at_utc'],$resolved['occupied_ends_at_utc'],$lessonId,$lesson,$schedule);
+            $moveIntervalId=0;
+            if($operation==='schedule_revise'&&$applicable){
+                $ownInterval=CommercialCapacityAuthority::authorisingInterval($lesson);
+                if($ownInterval
+                    &&(string)$ownInterval->state==='satisfied'
+                    &&(int)($ownInterval->satisfied_lesson_id??0)===(int)$lesson->id
+                    &&(int)($ownInterval->satisfied_schedule_version_id??0)===(int)$applicable->id)$moveIntervalId=(int)$ownInterval->id;
+            }
+            $this->assertCapacity((int)$lesson->teacher_id,$resolved['starts_at_utc'],$resolved['occupied_ends_at_utc'],$lessonId,$lesson,$schedule,$moveIntervalId);
             $basis=$this->availabilityBasis($intent,(int)$lesson->teacher_id,$resolved['starts_at_utc'],$resolved['ends_at_utc']);
 
             if($applicable)$this->repository->supersede((int)$applicable->id,$now,null);
             do_action('dzn_phase_2a2n_after_version_supersede',$operation,$lessonId);
             $versionId=$this->insertVersion($lesson,$facts,$resolved,$basis,$assignment,$now,$actor);
             // The protected interval and the concrete occupancy change together: never a gap.
-            CommercialCapacityAuthority::satisfyForLesson($lesson,(int)$versionId,$schedule??array(),$actor,$now);
+            if($moveIntervalId>0)CommercialCapacityAuthority::reviseForReschedule($lesson,(int)$applicable->id,(int)$versionId,$schedule??array(),$actor,$now);
+            else CommercialCapacityAuthority::satisfyForLesson($lesson,(int)$versionId,$schedule??array(),$actor,$now);
             if($applicable)$this->repository->setSuccessor((int)$applicable->id,$versionId);
             do_action('dzn_phase_2a2n_after_version_insert',$operation,$lessonId);
             $eventId=$this->insertEvent($lesson,$facts,$applicable?'rescheduled':'scheduled',$applicable?(int)$applicable->id:null,$versionId,$now,$actor);
@@ -102,9 +124,14 @@ final class CanonicalLessonScheduleService {
         return array('lesson_id'=>(int)$lesson->id,'schedule_version_id'=>(int)$applicable->id,'released'=>true,'created'=>true,'operation'=>'schedule_release');
     }
 
-    private function execute(string $operation,int $lessonId,array $intent,string $rawKey,callable $work):array{
+    private function execute(string $operation,int $lessonId,array $intent,string $rawKey,bool $ownTransaction,callable $work):array{
         $digest=CanonicalLessonScheduleIdempotency::key($rawKey);
         $facts=null;$payload=null;
+        if(!$ownTransaction){
+            // The caller owns commit/rollback. Any refusal propagates and must roll back the
+            // entire caller transaction, including its proposal and outbox rows.
+            return $work($digest,$facts,$payload);
+        }
         $this->repository->begin();
         try{
             $result=$work($digest,$facts,$payload);
@@ -231,6 +258,10 @@ final class CanonicalLessonScheduleService {
         if(!$hint||(string)($hint->record_model??'')!=='canonical_term_lesson_v1')throw new \InvalidArgumentException('canonical_lesson_required');
         $enrolmentHint=$this->lessons->enrolment((int)$hint->enrolment_id);
         if(!$enrolmentHint)throw new \InvalidArgumentException('canonical_enrolment_required');
+        // Student scheduling root precedes the Student–Course identity root and the Teacher root.
+        // Acceptance code acquires this same root before validating Student conflicts, so the
+        // upsert below is a re-entrant lock of the already-held row in that flow.
+        $this->repository->ensureAndLockStudentRoot((int)$hint->student_id,gmdate('Y-m-d H:i:s'),$this->actor());
         $this->lessons->lockRoot($enrolmentHint);
         $enrolment=$this->lessons->enrolment((int)$hint->enrolment_id,true);
         $term=$this->lessons->term((int)$hint->term_id,true);
@@ -267,14 +298,14 @@ final class CanonicalLessonScheduleService {
         return $assignment;
     }
 
-    private function assertCapacity(int $teacherId,string $startsAt,string $occupiedEnd,int $lessonId,?object $lesson=null,?array $schedule=null):void{
+    private function assertCapacity(int $teacherId,string $startsAt,string $occupiedEnd,int $lessonId,?object $lesson=null,?array $schedule=null,int $allowMoveIntervalId=0):void{
         if($this->occupancy->overlapping($teacherId,$startsAt,$occupiedEnd,$lessonId))throw new \InvalidArgumentException('teacher_slot_conflict');
         // Phase 2A.2-Q: an active pre-payment continuation hold is real Teacher capacity. The hold is
         // never a Lesson schedule, but the same capacity gate must consider both authorities.
         CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId,$startsAt,$occupiedEnd);
         // Phase 2A.2-R1: an active protected claim interval is real Teacher capacity too, and the
         // interval that authorises THIS Lesson is excluded so its own successor never blocks it.
-        if($lesson!==null)CommercialCapacityAuthority::assertScheduleAllowed($lesson,$schedule??array());
+        if($lesson!==null)CommercialCapacityAuthority::assertScheduleAllowed($lesson,$schedule??array(),null,$allowMoveIntervalId);
     }
 
     /** Availability is an upstream constraint, never scheduling authority. */

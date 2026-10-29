@@ -108,8 +108,9 @@ final class TeacherOnboardingService {
             // Availability changes can demote an active Teacher back to setup.
             // Never let an internal progress refresh revive an offboarded principal.
             $state = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( $state === 'offboarded' ) throw new \InvalidArgumentException( 'Teacher onboarding is not editable' );
-            $this->refreshProgress( $teacher, $state, $now, $actor ); $this->repo->commit();
+            $to = $this->refreshProgress( $teacher, $state, $now, $actor ); $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        if ( $to === 'active' && $state !== 'active' ) do_action( 'dzn_teacher_activated', (int) $teacher->id, $actor );
     }
 
     public function submitOwn(): void {
@@ -126,6 +127,12 @@ final class TeacherOnboardingService {
             ), $now, $actor );
             $this->repo->appendEvent( (int) $teacher->id, $from, 'pending_review', 'teacher_submitted_for_review', $actor, $now ); $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+
+    /** Read-only progress for an already-loaded Teacher row in the onboarding workspace. */
+    public function progressForAdministrator(object $teacher): array {
+        if (!current_user_can('dzn_manage_onboarding')) throw new \RuntimeException('Unauthorized');
+        return $this->progress($teacher);
     }
 
     public function reviewRows(): array { if ( ! current_user_can( 'dzn_manage_onboarding' ) ) throw new \RuntimeException( 'Unauthorized' ); return $this->repo->reviewRows(); }
@@ -152,9 +159,10 @@ final class TeacherOnboardingService {
             $this->repo->appendEvent( (int) $teacher->id, 'pending_review', $to, $decision === 'approve' ? 'administrator_approved' : $reason, $actor, $now );
             $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        if ( $decision === 'approve' ) do_action( 'dzn_teacher_activated', (int) $teacher->id, $actor );
     }
 
-    private function refreshProgress(object $teacher, string $from, string $now, int $actor): void {
+    private function refreshProgress(object $teacher, string $from, string $now, int $actor): string {
         $progress = $this->progress( $teacher );
         $staysActive = $from === 'active' && $progress['ready_for_activation'];
         $to = $staysActive ? 'active' : ( in_array($from,array('linked_pending','returned','active'),true) ? 'in_progress' : $from );
@@ -165,6 +173,7 @@ final class TeacherOnboardingService {
             'activated_at' => $staysActive ? ( $teacher->activated_at ?? $now ) : null,
         ), $now, $actor );
         if ( $to !== $from ) $this->repo->appendEvent( (int) $teacher->id, $from, $to, $progress['ready_for_activation'] ? 'onboarding_requirements_complete' : 'onboarding_requirements_incomplete', $actor, $now );
+        return $to;
     }
 
     private function progress(object $teacher): array {

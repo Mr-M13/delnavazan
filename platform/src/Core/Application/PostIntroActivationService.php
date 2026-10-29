@@ -19,11 +19,11 @@ final class PostIntroActivationService {
         $this->repository = $repository ?? new PostIntroRepository();
     }
 
-    /** @return array{state:string,term_id:int,assignment_id:int,lessons:int} */
+    /** @return array{state:string,term_id:int,assignment_id:int,lessons:int,effective_sessions:int,new_lessons:int} */
     public function activate(int $jobId): array {
         $job = $this->repository->job($jobId);
         if (!$job) throw new \InvalidArgumentException('post_intro_job_not_found');
-        if ((string) $job->state === 'completed') return array('state' => 'completed', 'term_id' => 0, 'assignment_id' => 0, 'lessons' => 0);
+        if ((string) $job->state === 'completed') return array('state' => 'completed', 'term_id' => 0, 'assignment_id' => 0, 'lessons' => 0, 'effective_sessions' => 0, 'new_lessons' => 0);
         $preparation = $this->repository->preparation((int) $job->preparation_id);
         if (!$preparation) throw new \RuntimeException('post_intro_preparation_missing');
         $purchase = $this->repository->purchase((int) $job->purchase_id);
@@ -31,12 +31,17 @@ final class PostIntroActivationService {
         if ((int) $purchase->offer_id !== (int) $preparation->offer_id) throw new \RuntimeException('post_intro_purchase_mismatch');
         $entitlement = $this->repository->entitlementForPurchase((int) $purchase->id);
         if (!$entitlement) throw new \RuntimeException('commercial_entitlement_required');
+        $effectiveSessions = (new CommercialTermFundingService())->effectiveSessions((int) $purchase->offer_id);
+        if ($effectiveSessions < 1) throw new \RuntimeException('commercial_funding_not_effective');
 
-        return PostIntroSystemActor::run(function () use ($job, $preparation, $purchase, $entitlement): array {
+        return PostIntroSystemActor::run(function () use ($job, $preparation, $purchase, $entitlement, $effectiveSessions): array {
             $repository = $this->repository;
             $now = gmdate('Y-m-d H:i:s');
             $uid = (string) $preparation->uid;
-            $evidenceAt = $this->stableEvidenceAt($job, $repository->paymentOccurredAt((int) $purchase->id));
+            // The purchase's immutable acceptance instant is the first verified settlement for
+            // this commitment. It never moves when a later (or out-of-sequence) instalment
+            // settles, so every convergence run reconstructs the same canonical command payload.
+            $evidenceAt = $this->stableEvidenceAt($job, (string) ($purchase->accepted_at ?? ''));
             $evidence = array(
                 'evidence_channel' => 'authenticated_platform',
                 'evidence_reference' => 'post-intro:' . $uid,
@@ -62,11 +67,60 @@ final class PostIntroActivationService {
                 'post-intro-handoff-' . $uid
             );
 
-            $bound = (new CommercialTermFundingService())->bindEntitlementToTerm(
-                (int) $entitlement->id,
-                $evidence,
-                'post-intro-term-bind-' . $uid
-            );
+            // A Term may already have been created by an authorised operator action while the
+            // payment was unverified. Identify that exact applicable Term and fund it rather than
+            // creating a second Term. If it is already funded by this purchase, reuse it.
+            $termInspection = (new TermApplicabilityAssessment())->inspectForAuthority((int) $enrolment->id);
+            $existingTerm = null;
+            $expectedLatestTermId = null;
+            $expectedLatestState = null;
+            if ((string) ($termInspection['classification'] ?? '') === TermApplicabilityAssessment::CANONICAL_APPLICABLE) {
+                foreach ((array) ($termInspection['terms'] ?? array()) as $candidate) {
+                    if ((int) ($candidate->applicable_slot ?? 0) === 1) {
+                        $existingTerm = $candidate;
+                        break;
+                    }
+                }
+                if (!$existingTerm) throw new \RuntimeException('canonical_term_integrity_conflict');
+            } elseif ((string) ($termInspection['classification'] ?? '') === TermApplicabilityAssessment::DATA_INTEGRITY_CONFLICT) {
+                throw new \RuntimeException('canonical_term_integrity_conflict');
+            } elseif ((string) ($termInspection['classification'] ?? '') === TermApplicabilityAssessment::CANONICAL_TERMINAL_HISTORY) {
+                $terms = (array) ($termInspection['terms'] ?? array());
+                $latest = $terms ? end($terms) : null;
+                if (!$latest || !in_array((string) $latest->lifecycle_state, array('closed', 'cancelled'), true)) {
+                    throw new \RuntimeException('canonical_term_integrity_conflict');
+                }
+                $expectedLatestTermId = (int) $latest->id;
+                $expectedLatestState = (string) $latest->lifecycle_state;
+            }
+
+            if ($existingTerm !== null) {
+                $funding = (new CommercialTermFundingService())->fundingPlanForTerm((int) $existingTerm->id);
+                if ($funding !== null) {
+                    if ((int) ($funding['purchase_id'] ?? 0) !== (int) $purchase->id || (int) ($funding['entitlement_id'] ?? 0) !== (int) $entitlement->id) {
+                        throw new \RuntimeException('term_funding_conflict');
+                    }
+                    $bound = $funding;
+                } else {
+                    $bound = (new CommercialTermFundingService())->bindEntitlementToExistingTerm(
+                        (int) $entitlement->id,
+                        (int) $existingTerm->id,
+                        $evidence,
+                        'post-intro-term-bind-' . $uid
+                    );
+                }
+            } else {
+                $bindInput = $evidence;
+                if ($expectedLatestTermId !== null) {
+                    $bindInput['expected_latest_term_id'] = $expectedLatestTermId;
+                    $bindInput['expected_latest_state'] = $expectedLatestState;
+                }
+                $bound = (new CommercialTermFundingService())->bindEntitlementToTerm(
+                    (int) $entitlement->id,
+                    $bindInput,
+                    'post-intro-term-bind-' . $uid
+                );
+            }
             $termId = (int) $bound['term_id'];
             $term = $repository->term($termId);
             if (!$term) throw new \RuntimeException('canonical_term_required');
@@ -98,11 +152,12 @@ final class PostIntroActivationService {
                 throw new \RuntimeException('commercial_pattern_conflict');
             }
             if ((int) $pattern->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
-            $count = min(52, max(1, (int) ($bound['effective_sessions'] ?? 0)));
+            $count = min(52, $effectiveSessions);
             $intervals = (new CommercialPatternService())->intervalsFor($pattern, $count);
 
             $lessonIds = array();
             $projections = array();
+            $newLessons = 0;
             foreach ($intervals as $index => $interval) {
                 $sequence = $index + 1;
                 $lesson = (new CanonicalLessonAuthorityService())->createStandard(
@@ -112,6 +167,7 @@ final class PostIntroActivationService {
                     'post-intro-lesson-' . $uid . '-' . $sequence
                 );
                 $lessonId = (int) $lesson['lesson_id'];
+                if (!empty($lesson['created'])) $newLessons++;
                 $lessonIds[] = $lessonId;
                 $scheduled = (new CanonicalLessonScheduleService())->schedule(
                     $lessonId,
@@ -139,11 +195,15 @@ final class PostIntroActivationService {
                 ));
             }
 
+            // notify() is idempotent (teacher_notified_at + insertNotificationIfMissing). It must
+            // run on every activation retry because the preparation is already 'activated' while a
+            // failed delivery is being retried.
             $this->notify($preparation, $now);
 
             // Provider projection is a projection only. All canonical Lessons and schedules are
             // already durable before this loop, so a missing Google connection or transient Google
-            // failure is retryable without hiding or duplicating academic truth.
+            // failure is retryable without hiding or duplicating academic truth. The deterministic
+            // projection reference makes a later convergence run replay, not duplicate, an event.
             foreach ($projections as $projection) {
                 $this->projectCalendar(
                     (int) $projection['lesson_id'],
@@ -154,7 +214,7 @@ final class PostIntroActivationService {
                 );
             }
 
-            return array('state' => 'activated', 'term_id' => $termId, 'assignment_id' => $assignmentId, 'lessons' => count($lessonIds));
+            return array('state' => 'activated', 'term_id' => $termId, 'assignment_id' => $assignmentId, 'lessons' => count($lessonIds), 'effective_sessions' => $effectiveSessions, 'new_lessons' => $newLessons);
         });
     }
 
@@ -171,15 +231,15 @@ final class PostIntroActivationService {
      * evidence before the Enrolment's own conversion event and fail the lifecycle history's
      * non-decreasing-time invariant.
      */
-    private function stableEvidenceAt(object $job, ?string $paymentOccurredAt = null): string {
+    private function stableEvidenceAt(object $job, ?string $purchaseAcceptedAt = null): string {
         $candidates = array();
-        foreach (array((string) ($paymentOccurredAt ?? ''), (string) ($job->created_at ?? '')) as $candidate) {
+        foreach (array((string) ($purchaseAcceptedAt ?? ''), (string) ($job->created_at ?? '')) as $candidate) {
             if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $candidate) === 1) $candidates[] = $candidate;
         }
         if (!$candidates) throw new \RuntimeException('post_intro_activation_evidence_time_unavailable');
-        // Choose one durable instant once and forever: the earliest of the verified payment
-        // occurrence and the settlement job creation. A provider timestamp that is briefly in
-        // the future cannot make a later retry switch to a different payload.
+        // Choose one durable instant once and forever: the earlier of the purchase acceptance
+        // instant and the settlement job creation. Neither changes when a later instalment settles,
+        // so a retry cannot switch to a different idempotency payload.
         sort($candidates, SORT_STRING);
         return $candidates[0];
     }
@@ -216,7 +276,20 @@ final class PostIntroActivationService {
         if ($teacher && trim((string) ($teacher->email ?? '')) !== '' && empty($preparation->teacher_notified_at)) {
             $subject = 'کلاس شما با هنرجوی جدید فعال شد';
             $message = "ثبت‌نام هنرجو پس از پرداخت تأیید شد و کلاس‌های آینده در پرتال مدرس نمایش داده می‌شوند.";
-            $sent = wp_mail((string) $teacher->email, $subject, $message);
+            $teacherId = (int) $preparation->teacher_id;
+            $teacherName = trim((string) ($teacher->display_name ?? $teacher->english_name ?? $teacher->persian_name ?? ''));
+            $portal = home_url('/teacher-portal/');
+            $variables = array('teacher' => $teacherName, 'teacher_portal_url' => $portal);
+            $copy = array('subject' => $subject, 'body' => $message);
+            $copyClass = '\Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver';
+            if (class_exists($copyClass)) {
+                $copy = $copyClass::email('post_intro.activated.teacher', \Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::PRIMARY_LOCALE, $variables, $copy);
+                if ($teacherId > 0) PortalNotificationRecorder::teacher($teacherId, 'post_intro.activated.teacher', 'post_intro_activation', (int) $preparation->id, $variables, $portal);
+            }
+            $renderer = '\\Delnavazan\\Platform\\Integrations\\Notifications\\DelnavazanEmailRenderer';
+            $sent = class_exists($renderer)
+                ? $renderer::send((string) $teacher->email, $copy['subject'], $copy['body'], array('locale' => 'fa-IR', 'cta' => array('url' => (string) ($copy['cta_url'] ?? $portal), 'label' => 'رفتن به پرتال مدرس')))
+                : wp_mail((string) $teacher->email, $copy['subject'], $copy['body']);
             if (!$sent) throw new \RuntimeException('teacher_notification_failed');
             $this->repository->updatePreparation((int) $preparation->id, array('teacher_notified_at' => $now, 'updated_at' => $now));
         }

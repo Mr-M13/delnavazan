@@ -98,6 +98,14 @@ final class CommercialCapacityRepository {
         ),array('id'=>$intervalId,'interval_version'=>$expectedVersion,'state'=>'protected'));
         if($changed!==1)throw new \RuntimeException('Stale protected capacity interval');
     }
+    /** Move an already-satisfied protected interval to the revised canonical schedule. */
+    public function reviseInterval(int $intervalId,int $expectedVersion,array $fields,string $now,int $actor):void{
+        global $wpdb;
+        $fields=array_merge($fields,array('interval_version'=>$expectedVersion+1,'updated_at'=>$now,'updated_by'=>$actor));
+        $changed=$wpdb->update($this->p.'commercial_capacity_claim_intervals',$fields,array('id'=>$intervalId,'interval_version'=>$expectedVersion,'state'=>'satisfied'));
+        if($changed!==1)throw new \RuntimeException('Stale protected capacity interval');
+    }
+
     public function reopenInterval(int $intervalId,int $expectedVersion,string $now,int $actor):void{
         global $wpdb;
         $changed=$wpdb->update($this->p.'commercial_capacity_claim_intervals',array(
@@ -120,6 +128,7 @@ final class CommercialCapacityRepository {
         return $this->one("SELECT * FROM {$this->p}commercial_exceptions WHERE fingerprint=%s AND state='open'".($lock?' FOR UPDATE':''),$fingerprint);
     }
     public function exception(int $exceptionId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_exceptions WHERE id=%d".($lock?' FOR UPDATE':''),$exceptionId);}
+    public function openExceptionForEvidence(int $evidenceId):?object{return $this->one("SELECT * FROM {$this->p}commercial_exceptions WHERE evidence_id=%d AND state='open' ORDER BY id DESC LIMIT 1 FOR UPDATE",$evidenceId);}
     public function exceptions(string $state='open'):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_exceptions WHERE state=%s ORDER BY id",$state))?:array();

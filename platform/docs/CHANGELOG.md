@@ -3,6 +3,73 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Unified notification management — 2026-10-29
+
+Branch `feature/unified-notification-management` (base `b67f510`). One notification definition
+catalogue, an editable immutable-copy library, the «اعلان‌ها و پیام‌رسانی» admin workspace, a branded
+RTL email shell and a persistent student/teacher website inbox (Schema 056). The five operational
+senders keep their delivery authority and idempotency; only wording becomes editable. No transport
+binding, Meta template, Telnyx policy or financial copy is activated by this change. See
+`RELEASE-2026-10-29-UNIFIED-NOTIFICATIONS.md`, `UNIFIED-NOTIFICATION-AUDIT.md`,
+`NOTIFICATION-EDITORIAL-STANDARD.md` and `evidence/`.
+
+## Home-menu and currency-selector follow-up — deployed 2026-10-27
+
+Release `9d568c69bd604d2e57fa551e3c2173a3287402d9` (build `main-9d568c69bd60`, schema 52) merged
+#381 and deployed in run `40500551506`. The primary menu is خانه / ورود / مقالات; homepage instrument
+tiles preselect the same instrument on `/enrol/`; the pricing disclaimers are removed; and the compact
+currency selector lists AUD, NZD, USD, CAD, EUR and GBP. See
+`RELEASE-2026-10-27-HOME-POLISH.md` for verification and the backup path.
+
+Follow-up `386225bce57724779be8dffc50b85297e92bdc0a` (build `main-386225bce577`) merged #383 and
+deployed in run `40502315523`; the header login CTA now uses the original enrolment button styling.
+
+Follow-up `f9517eb159920c1aa078a5920aee232d7d252435` (build `main-f9517eb15992`) merged #385 and
+deployed in run `40616439515`; the menu order is خانه / مقالات / ورود and the currency selector is
+centred under the pricing copy with the pricing block palette.
+
+## Presentation, portals and protected release gate — deployed 2026-10-27
+
+Release `508a8224e76943f25c5e56bd5996f41f08cb12aa` (build `main-508a8224e769`, schema 52) merged
+#376, #377 and #378; packages #371–#375 carry the same commits as #376. Production deployment run
+`40494901611` passed the source gate, smoke, schema/identity check and the read-only diagnostic.
+Stripe remains in test mode. See `RELEASE-2026-10-27-PRESENTATION.md` for evidence and follow-ups.
+
+- Responsive Student/Teacher portal shells with a fixed mobile tab bar that reserves footer space.
+- Gated Student schedule and payments screens; payments stay behind the default-off
+  `DZN_THEME_STUDENT_PAYMENTS` presentation flag.
+- Teacher Today/Classes/Finance and server-stepped onboarding; canonical statement states.
+- Protected response headers on auth/protected redirects and portal page templates.
+- Bounded portal lesson reads select the newest window; join availability follows the backend
+  `start − 1h … end + 2h` window.
+- Legacy `/booking/` now preserves the allowlisted instrument on a temporary `302`; the production
+  smoke contract was corrected accordingly in #377.
+- The homepage instrument belt keeps a fractional scroll accumulator instead of being rounded back
+  to a static position each frame (#378).
+
+## Integrated payment-plan, attendance and Calendar release — deployed 2026-10-26
+
+Release `b1acd1d47b6f18756283fc0a3f3326ab595f993d` (build `main-b1acd1d47b6f`, schema 52) merged
+#354, #357, #361, #358, #360, #356 and #359. Production deployment run `40305480295` passed the
+source gate, schema `51` → `52` identity check, read-only smoke and Google OAuth diagnostic. Stripe
+remains in test mode. See `RELEASE-2026-10-26-INTEGRATION.md` for merge SHAs, evidence and follow-ups.
+
+- B1 exposes truthful instalment schedules and Student payment-plan truth; lapsed issued offers are
+  excluded from actionable receivables while accepted commitments remain collectable.
+- B2a adds full-term default, explicit two-instalment opt-in before offer issuance, quote-token
+  validation, immutable plans, tranche-prerequisite Checkout, incremental 6 → 12 Lesson fulfilment,
+  out-of-sequence settlement handling and re-arming of completed activation jobs.
+- B2b adds the configurable 168-hour-before-Lesson-7 deadline. `INSTALMENT_DUE_DATE_POLICY` remains
+  **unset in production**; unsupported values fail closed and existing offers are never rewritten.
+- Interim attendance adds silence-based presumed completion without verified attendance or automatic
+  payability, provider-neutral Teacher/Student reports, append-only administrator corrections, and
+  `pending / presumed_completion_review` Finance treatment.
+- Calendar reliability adds automatic retry for transient transport failures and a disposable
+  regression covering pending mappings, operator requeue, twelve deterministic acknowledgements,
+  callback replay and completed-job replay.
+- `make lifecycle-regression` adds the bounded paid-lifecycle operator bundle, including attendance
+  and presumed completion.
+
 ## Operational-readiness integration — correction round 3 — candidate, unmerged — 2026-09-27
 
 - Closes both blocking findings of the host review of `ba47412e9b05dff53e83fa1b88f99c1dc015966e` / tree

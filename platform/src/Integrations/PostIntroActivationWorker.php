@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\CommercialTermFundingService;
 use Delnavazan\Platform\Core\Application\PostIntroActivationService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 
@@ -54,6 +55,54 @@ final class PostIntroActivationWorker {
         }
     }
 
+    /**
+     * Claim and execute exactly one job for a narrow operator recovery.
+     *
+     * @return array{state:string,attempt_count:int,last_error_code:?string}
+     */
+    public static function runJob(int $jobId): array {
+        $repository = new PostIntroRepository();
+        $job = $repository->job($jobId);
+        if (!$job) throw new \InvalidArgumentException('post_intro_job_not_found');
+        if ((string) $job->state === 'completed') {
+            return array('state' => 'completed', 'attempt_count' => (int) $job->attempt_count, 'last_error_code' => null);
+        }
+        $token = bin2hex(random_bytes(16));
+        $now = gmdate('Y-m-d H:i:s');
+        $leaseDigest = hash('sha256', $token);
+        if (!$repository->claimJob($jobId, $leaseDigest, $now, gmdate('Y-m-d H:i:s', time() + self::LEASE_SECONDS))) {
+            $fresh = $repository->job($jobId);
+            if (!$fresh) throw new \RuntimeException('post_intro_job_not_found');
+            throw new \RuntimeException((string) $fresh->state === 'running' ? 'post_intro_job_in_progress' : 'post_intro_job_not_due');
+        }
+        $claimed = $repository->job($jobId);
+        if (!$claimed) throw new \RuntimeException('post_intro_job_not_found');
+        if ((int) $claimed->attempt_count > self::MAX_ATTEMPTS) {
+            $preparation = $repository->preparation((int) $claimed->preparation_id);
+            if ($preparation && (string) $preparation->state !== 'activated') {
+                $repository->updatePreparation((int) $preparation->id, array(
+                    'state' => 'exception',
+                    'exception_code' => 'post_intro_attempt_limit_reached',
+                    'exception_detail' => 'post_intro_attempt_limit_reached',
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
+                ));
+            }
+            $repository->releaseJob($jobId, 'failed', array(
+                'next_attempt_at' => null,
+                'last_error_code' => 'post_intro_attempt_limit_reached',
+                'last_error_detail' => 'post_intro_attempt_limit_reached',
+            ), $leaseDigest);
+            throw new \RuntimeException('post_intro_attempt_limit_reached');
+        }
+        self::execute($repository, $claimed, $now, $leaseDigest);
+        $fresh = $repository->job($jobId);
+        return array(
+            'state' => (string) ($fresh->state ?? 'unknown'),
+            'attempt_count' => (int) ($fresh->attempt_count ?? 0),
+            'last_error_code' => $fresh->last_error_code === null ? null : (string) $fresh->last_error_code,
+        );
+    }
+
     /** Explicit retry used by the admin exception surface. */
     public static function requeue(int $jobId): void {
         $repository = new PostIntroRepository();
@@ -64,15 +113,50 @@ final class PostIntroActivationWorker {
 
     private static function execute(PostIntroRepository $repository, object $job, string $now, string $leaseDigest): void {
         try {
-            (new PostIntroActivationService($repository))->activate((int) $job->id);
-            $repository->releaseJob((int) $job->id, 'completed', array(
-                'attempt_count' => (int) $job->attempt_count,
-                'checkpoint' => 'activated',
-                'completed_at' => gmdate('Y-m-d H:i:s'),
-                'next_attempt_at' => null,
-                'last_error_code' => null,
-                'last_error_detail' => null,
-            ), $leaseDigest);
+            $result = (new PostIntroActivationService($repository))->activate((int) $job->id);
+            // Completion and the settlement hook both write funding_target. Lock the job row so a
+            // later settlement that raised the target while this worker was running cannot be
+            // overwritten by this worker's earlier view of the target.
+            $repository->begin();
+            try {
+                $fresh = $repository->job((int) $job->id, true);
+                if (!$fresh || !hash_equals((string) ($fresh->lease_token_digest ?? ''), $leaseDigest)) {
+                    $repository->rollback();
+                    return;
+                }
+                $materialised = max((int) ($fresh->funding_materialised ?? 0), (int) ($result['lessons'] ?? 0));
+                $effective = (new CommercialTermFundingService())->effectiveSessions((int) $fresh->offer_id);
+                $target = max((int) ($fresh->funding_target ?? 0), $effective);
+                if ($target > $materialised) {
+                    // A later settlement raised the target while this worker was running. Preserve
+                    // the completed lessons and converge again; never mark the earlier target final.
+                    $repository->releaseJob((int) $job->id, 'retryable', array(
+                        'attempt_count' => (int) $fresh->attempt_count,
+                        'funding_target' => $target,
+                        'funding_materialised' => $materialised,
+                        'checkpoint' => 'additional_funding',
+                        'completed_at' => null,
+                        'next_attempt_at' => gmdate('Y-m-d H:i:s'),
+                        'last_error_code' => 'additional_funding_pending',
+                        'last_error_detail' => 'additional_funding_pending',
+                    ), $leaseDigest);
+                } else {
+                    $repository->releaseJob((int) $job->id, 'completed', array(
+                        'attempt_count' => (int) $fresh->attempt_count,
+                        'funding_target' => $target,
+                        'funding_materialised' => $materialised,
+                        'checkpoint' => 'activated',
+                        'completed_at' => gmdate('Y-m-d H:i:s'),
+                        'next_attempt_at' => null,
+                        'last_error_code' => null,
+                        'last_error_detail' => null,
+                    ), $leaseDigest);
+                }
+                $repository->commit();
+            } catch (\Throwable $convergenceError) {
+                $repository->rollback();
+                throw $convergenceError;
+            }
         } catch (\Throwable $error) {
             if ($error->getMessage() === 'post_intro_job_lease_lost') return;
             $attempt = (int) $job->attempt_count;
@@ -104,6 +188,14 @@ final class PostIntroActivationWorker {
     private static function retryable(\Throwable $error): bool {
         $message = trim($error->getMessage());
         if (str_starts_with($message, 'provider_')) return true;
+        // Calendar transport/inspection failures are provider-side and transient, but the
+        // integration layer deliberately uses precise non-`provider_` codes for them. Classify
+        // those exact codes as retryable so the existing bounded exponential backoff and the
+        // deterministic provider event id (idempotent replay) apply instead of stranding the job.
+        if (in_array($message, array(
+            'google_calendar_transport_failed',
+            'google_calendar_projection_inspection_failed',
+        ), true)) return true;
         if (str_contains($message, 'Deadlock') || str_contains($message, 'Lock wait timeout')) return true;
         return in_array($message, array(
             'commercial_entitlement_required',

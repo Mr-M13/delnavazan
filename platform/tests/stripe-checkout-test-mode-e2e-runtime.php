@@ -16,8 +16,9 @@ if (getenv('DZN_STRIPE_CHECKOUT_E2E_TEST') !== 'authority' || !defined('WP_CLI')
 
 require __DIR__ . '/phase-2a2r1-fixture.php';
 
-use Delnavazan\Platform\Core\Application\Checkout\{CheckoutRequest, StudentCheckoutReturnReadService};
+use Delnavazan\Platform\Core\Application\Checkout\{CheckoutRequest, StudentCheckoutReturnReadService, StudentCommercialCheckoutReadService};
 use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentEventIntakeService, PaymentExecutionIdempotency, PaymentExecutionRule, PaymentExecutionSupport, PaymentProviderAccountService, PaymentProviderRegistry, PaymentSecretVault, StripeTestConfigurationService, StripeTestModeReadinessService};
+use Delnavazan\Platform\Core\Application\Finance\Intro\{IntroCheckoutInitiationService,IntroPaymentService};
 use Delnavazan\Platform\Core\Infrastructure\Migration\Migrator;
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Integrations\Payment\Stripe\{StripeCheckoutAdapter, StripeVaultCheckoutCredentialSource};
@@ -169,6 +170,15 @@ dzn_checkout_e2e_assert($beforeActivation['checks']['checkout_enabled']['state']
 
 // An authenticated operator without payment-provider authority cannot configure or inspect Stripe.
 wp_set_current_user($studentPrincipal);
+$planRead = (new StudentCommercialCheckoutReadService())->read();
+$planRows = array_values(array_filter($planRead['obligations'], static fn(array $row): bool => (string) ($row['offer_uid'] ?? '') === (string) $offer['offer_uid']));
+dzn_checkout_e2e_assert(count($planRows) === 2, 'The Student plan projection must expose both ordered obligations');
+dzn_checkout_e2e_assert($planRows[0]['plan_kind'] === 'two_instalments', 'The Student plan must preserve the canonical plan kind');
+dzn_checkout_e2e_assert((int) $planRows[0]['committed_sessions'] === 12, 'The Student plan must expose the twelve-session commitment');
+dzn_checkout_e2e_assert((int) $planRows[0]['offer_amount_due_minor'] === (int) $offer['amount_due_minor'], 'The plan total must be the stored offer total');
+dzn_checkout_e2e_assert((int) $planRows[0]['sessions_from'] === 1 && (int) $planRows[0]['sessions_to'] === 6 && (int) $planRows[1]['sessions_from'] === 7 && (int) $planRows[1]['sessions_to'] === 12, 'Each instalment must expose its exact Lesson range');
+dzn_checkout_e2e_assert($planRows[0]['payment_state'] === 'paid' && $planRows[1]['payment_state'] === 'required', 'The Student plan must reflect settled and outstanding tranches truthfully');
+dzn_checkout_e2e_assert(!array_key_exists('id', $planRows[0]) && !array_key_exists('offer_id', $planRows[0]), 'The Student plan projection must not expose internal row identifiers');
 foreach (array(static fn() => $configuration->save(array()), static fn() => (new StripeTestModeReadinessService())->read()) as $unauthorised) {
     try { $unauthorised(); throw new RuntimeException('Unauthorised Stripe access was not refused'); }
     catch (RuntimeException $error) { dzn_checkout_e2e_assert($error->getMessage() === 'Unauthorized', 'Unauthorised Stripe access must fail closed'); }
@@ -317,5 +327,61 @@ $studentRead = (new StudentCheckoutReturnReadService())->read(array('attempt_uid
 wp_set_current_user($priorUser);
 dzn_checkout_e2e_assert(($studentRead['payment_state'] ?? null) === 'paid' && ($studentRead['checkout_state'] ?? null) === 'completed', 'Student return read must report only the canonical settled payment state');
 dzn_checkout_e2e_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements WHERE obligation_id=%d", $obligationId)) === $settlementsAfter, 'Student payment read must not mutate canonical settlement');
+
+/* -------------------------------------------------------------------------------------------------
+ * Paid introductory payment: the same verified Stripe webhook, account binding, signature and
+ * event idempotency route a DZN-INTRO obligation without entering the post-intro R1 authority.
+ * ------------------------------------------------------------------------------------------------- */
+$offersBeforeIntro = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}commercial_offers");
+$introSuffix = bin2hex(random_bytes(5));
+$introCourseId = (int) ($scenario['course_id'] ?? 0);
+dzn_checkout_e2e_assert($introCourseId > 0, 'Intro webhook proof requires a Course');
+$introNow = gmdate('Y-m-d H:i:s');
+$wpdb->insert($p . 'booking_requests', array('uid' => Identifier::uid(), 'reference_code' => null, 'student_id' => $studentId, 'requested_instrument_id' => (int) $wpdb->get_var($wpdb->prepare("SELECT instrument_id FROM {$p}courses WHERE id=%d", $introCourseId)), 'selected_intro_course_id' => $introCourseId, 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => gmdate('Y-m-d H:i:s', time() + 86400), 'version' => 1, 'created_at' => $introNow, 'updated_at' => $introNow, 'created_by' => 1, 'updated_by' => 1));
+$introRequestId = (int) $wpdb->insert_id;
+$wpdb->insert($p . 'booking_request_contact_snapshots', array('booking_request_id' => $introRequestId, 'snapshot_sequence' => 1, 'full_name' => 'Stripe intro student', 'email' => 'stripe-intro-' . $introSuffix . '@example.invalid', 'mobile' => '+61400000000', 'country' => 'AU', 'city' => 'Sydney', 'timezone' => 'Australia/Sydney', 'communication_language' => 'en', 'whatsapp_same_as_mobile' => 1, 'whatsapp_number' => '+61400000000', 'privacy_notice_version' => '1', 'privacy_notice_accepted' => 1, 'privacy_notice_accepted_at' => $introNow, 'submission_source' => 'runtime', 'created_at' => $introNow));
+$wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => Identifier::uid(), 'booking_request_id' => $introRequestId, 'requested_time_id' => 0, 'teacher_id' => (int) ($fixture['teachers'][0] ?? 1), 'state' => 'accepting', 'match_strength' => 'strong', 'created_at' => $introNow, 'updated_at' => $introNow));
+$introDeliveryId = (int) $wpdb->insert_id;
+$wpdb->insert($p . 'booking_request_confirmations', array('uid' => Identifier::uid(), 'delivery_id' => $introDeliveryId, 'booking_request_id' => $introRequestId, 'requested_time_id' => 0, 'teacher_id' => (int) ($fixture['teachers'][0] ?? 1), 'connection_id' => 0, 'state' => 'awaiting_payment', 'version' => 1, 'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 86400), 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 88200), 'schedule_timezone' => 'Australia/Sydney', 'local_wall_date' => gmdate('Y-m-d', time() + 86400), 'local_wall_time' => '10:00:00', 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => $introNow, 'confirmed_at' => null, 'created_at' => $introNow, 'created_by' => 1, 'updated_at' => $introNow, 'updated_by' => 1));
+$introConfirmationId = (int) $wpdb->insert_id;
+$introObligation = (new IntroPaymentService())->ensureObligation(array('booking_request_id' => $introRequestId, 'confirmation_id' => $introConfirmationId, 'student_id' => $studentId, 'teacher_id' => (int) ($fixture['teachers'][0] ?? 1), 'course_id' => $introCourseId, 'region_code' => 'AU', 'currency' => 'AUD', 'amount_minor' => 1000), 'stripe-intro-webhook-' . $introSuffix);
+$introAttempt = '';
+$introSessionReference = '';
+$introHttp = static function (string $url, array $options) use (&$introAttempt, &$introSessionReference, $introObligation, $accountReference): array {
+    $metadata = array();
+    foreach ((array) ($options['body'] ?? array()) as $key => $value) {
+        if (str_starts_with((string) $key, 'metadata[')) $metadata[substr((string) $key, 9, -1)] = (string) $value;
+    }
+    $introAttempt = (string) ($metadata['checkout_attempt_uid'] ?? '');
+    $introSessionReference = 'cs_test_' . $introAttempt;
+    return array('headers' => array(), 'body' => wp_json_encode(array(
+        'id' => $introSessionReference, 'object' => 'checkout.session', 'mode' => 'payment', 'status' => 'open', 'livemode' => false,
+        'url' => 'https://checkout.stripe.com/c/pay/' . $introSessionReference, 'expires_at' => time() + 1800,
+        'amount_total' => 1000, 'currency' => 'aud', 'metadata' => $metadata,
+    )), 'response' => array('code' => 200, 'message' => 'OK'), 'cookies' => array(), 'filename' => null);
+};
+$introAdapter = new StripeCheckoutAdapter(null, $introHttp);
+$introCheckout = new IntroCheckoutInitiationService(null, $introAdapter);
+wp_set_current_user($studentPrincipal);
+$introOpen = $introCheckout->initiate(array('intro_obligation_uid' => (string) $introObligation['uid']));
+wp_set_current_user(1);
+dzn_checkout_e2e_assert(($introOpen['checkout_state'] ?? null) === 'open' && $introAttempt !== '' && $introSessionReference !== '', 'The real Stripe adapter must create a paid intro Checkout attempt');
+$introBody = (string) wp_json_encode(array(
+    'id' => 'evt_IntroWebhook' . bin2hex(random_bytes(6)), 'type' => 'checkout.session.completed', 'created' => time(),
+    'data' => array('object' => array(
+        'object' => 'checkout.session', 'id' => $introSessionReference, 'livemode' => false, 'status' => 'complete', 'mode' => 'payment', 'payment_status' => 'paid',
+        'amount_total' => 1000, 'currency' => 'aud',
+        'metadata' => array('obligation_reference' => (string) $introObligation['reference'], 'checkout_attempt_uid' => $introAttempt, 'provider_account_reference' => $accountReference),
+    )),
+));
+$introVerified = $intake->receive('stripe', $selector, $introBody, $headersFor($introBody));
+dzn_checkout_e2e_assert(($introVerified['verification_state'] ?? null) === 'verified', 'Signed intro webhook must verify');
+$introPaid = $wpdb->get_row($wpdb->prepare("SELECT state,paid_at FROM {$p}intro_payment_obligations WHERE id=%d", (int) $introObligation['obligation_id']));
+dzn_checkout_e2e_assert($introPaid && (string) $introPaid->state === 'paid' && $introPaid->paid_at !== null, 'Signed intro webhook must settle only the intro obligation');
+$introEvents = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}intro_payment_events WHERE intro_obligation_id=%d", (int) $introObligation['obligation_id']));
+$introReplay = $intake->receive('stripe', $selector, $introBody, $headersFor($introBody));
+dzn_checkout_e2e_assert(($introReplay['verification_state'] ?? null) === 'verified', 'Duplicate intro webhook must be acknowledged');
+dzn_checkout_e2e_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}intro_payment_events WHERE intro_obligation_id=%d", (int) $introObligation['obligation_id'])) === $introEvents && $introEvents === 1, 'Duplicate intro webhook must not create duplicate payment evidence');
+dzn_checkout_e2e_assert((int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}commercial_offers") === $offersBeforeIntro, 'Intro webhook must not create a commercial offer');
 
 echo "stripe-checkout-test-mode-e2e-runtime: OK\n";

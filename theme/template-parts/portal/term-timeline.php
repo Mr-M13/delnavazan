@@ -28,22 +28,33 @@ $completed = min( $completed, $total );
 		<p class="dzn-portal-empty"><?php esc_html_e( 'ثبت‌نام شما فعال است، اما برنامهٔ جلسه‌ها هنوز از سوی دلنوازان اعلام نشده است. به‌محض نهایی‌شدن زمان‌ها، همین‌جا نمایش داده می‌شود.', 'delnavazan-theme' ); ?></p>
 	<?php else : ?>
 	<progress class="dzn-term__progress" value="<?php echo esc_attr( $completed ); ?>" max="<?php echo esc_attr( $total ); ?>"><?php echo esc_html( sprintf( '%1$d از %2$d', $completed, $total ) ); ?></progress>
-	<ol class="dzn-term__markers" aria-label="<?php esc_attr_e( 'جلسه‌های ترم', 'delnavazan-theme' ); ?>">
+	<ol class="dzn-term__markers" style="--dzn-term-count: <?php echo (int) $recorded; ?>" aria-label="<?php esc_attr_e( 'جلسه‌های ترم', 'delnavazan-theme' ); ?>">
 		<?php for ( $session = 1; $session <= $total; $session++ ) : ?>
 			<?php $marker = $session <= $completed ? 'complete' : ( $session === $completed + 1 ? 'current' : 'remaining' ); ?>
 			<li class="is-<?php echo esc_attr( $marker ); ?>"><span class="screen-reader-text"><?php echo esc_html( sprintf( 'جلسهٔ %d — %s', $session, 'complete' === $marker ? 'برگزار شده' : ( 'current' === $marker ? 'پیش رو' : 'باقی‌مانده' ) ) ); ?></span></li>
 		<?php endfor; ?>
 	</ol>
 	<?php if ( ! empty( $term['next_label'] ) ) : ?><p class="dzn-term__next"><?php echo esc_html( $term['next_label'] ); ?></p><?php endif; ?>
+	<?php $replacement = trim( (string) ( $term['normal_replacement'] ?? '' ) ); $remedial = trim( (string) ( $term['academy_owed_remedial'] ?? '' ) ); ?>
+	<?php if ( '' !== $replacement || '' !== $remedial ) : ?>
 	<div class="dzn-term__status-grid">
-		<div class="dzn-status-row">
-			<p class="dzn-status-row__label"><?php esc_html_e( 'جلسهٔ جایگزین معمول', 'delnavazan-theme' ); ?></p>
-			<p><?php echo esc_html( $term['normal_replacement'] ?? 'اطلاعاتی ثبت نشده است' ); ?></p>
-		</div>
-		<div class="dzn-status-row dzn-status-row--<?php echo esc_attr( sanitize_key( $term['academy_owed_tone'] ?? 'muted' ) ); ?>">
-			<p class="dzn-status-row__label"><?php esc_html_e( 'جلسهٔ جبرانیِ بدهکار آموزشگاه', 'delnavazan-theme' ); ?></p>
-			<p><?php echo esc_html( $term['academy_owed_remedial'] ?? 'اطلاعاتی ثبت نشده است' ); ?></p>
-		</div>
+		<?php if ( '' !== $replacement ) : ?><div class="dzn-status-row"><p class="dzn-status-row__label"><?php esc_html_e( 'جایگزین‌های ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $replacement ); ?></p></div><?php endif; ?>
+		<?php if ( '' !== $remedial ) : ?><div class="dzn-status-row dzn-status-row--<?php echo esc_attr( sanitize_key( $term['academy_owed_tone'] ?? 'muted' ) ); ?>"><p class="dzn-status-row__label"><?php esc_html_e( 'جلسهٔ جبرانیِ بدهکار آموزشگاه', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $remedial ); ?></p></div><?php endif; ?>
 	</div>
+	<?php endif; ?>
+	<?php $replacement_items = is_array( $term['replacement_items'] ?? null ) ? $term['replacement_items'] : array(); ?>
+	<?php if ( $replacement_items ) : ?>
+		<section class="dzn-term__replacements" aria-labelledby="dzn-term-replacements-title">
+			<h3 id="dzn-term-replacements-title"><?php esc_html_e( 'جلسه‌های جایگزین', 'delnavazan-theme' ); ?></h3>
+			<ul>
+				<?php foreach ( $replacement_items as $replacement_item ) : ?>
+					<li>
+						<?php if ( ! empty( $replacement_item['when'] ) ) : ?><strong><?php echo esc_html( (string) $replacement_item['when'] ); ?></strong> · <?php endif; ?>
+						<span class="dzn-status dzn-status--<?php echo ! empty( $replacement_item['confirmed'] ) ? 'success' : 'warning'; ?>"><?php echo esc_html( (string) ( $replacement_item['status'] ?? '' ) ); ?></span>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</section>
+	<?php endif; ?>
 	<?php endif; ?>
 </section>

@@ -47,7 +47,8 @@ namespace {
     };
     $class = static function (array $o = array()): array {
         return array_merge(array(
-            'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'date' => 'Saturday 3 October', 'starts_at_utc' => '2026-10-03 06:30:00', 'timezone' => 'Asia/Tehran',
+            'ref' => 'LSN-1', 'state' => 'upcoming', 'time' => '10:00', 'date' => 'Saturday 3 October', 'starts_at_utc' => '2026-10-03 06:30:00', 'starts_at_iso' => '2026-10-03T06:30:00Z', 'timezone' => 'Asia/Tehran',
+            'is_today' => true, 'student_whatsapp' => '+98 912 000 0000', 'term_total' => 12, 'term_completed' => 4, 'term_remaining' => 8,
             'student' => 'Student One', 'course' => 'Setar',
             'progress' => 'Term 1 · 2/12', 'status' => 'پیش رو', 'student_summary' => 'Summary', 'previous_private_note' => 'No private note here',
             'schedule_summary' => 'Saturday 3 October، 10:00 · Asia/Tehran', 'start_available' => false, 'details_available' => true,
@@ -67,41 +68,59 @@ namespace {
     $nav = array(
         array('screen' => 'home', 'label' => 'حساب کاربری', 'url' => 'https://example.invalid/teacher-portal/', 'current' => true),
         array('screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=finance', 'current' => false),
+        array('screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=classes', 'current' => false),
         array('screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=settings', 'current' => false),
     );
     $model = static function (array $o = array()) use ($nav): array {
         return array_merge(array(
             'available' => true, 'screen' => 'home', 'teacher' => array('first_name' => 'Sara', 'full_name' => 'Sara Example'), 'teacher_timezone' => 'Asia/Tehran', 'navigation' => $nav,
-            'announcement' => array('state' => 'none'), 'attention' => array(), 'classes' => array(), 'calendar' => array(),
+            'announcement' => array('state' => 'none'), 'attention' => array(), 'classes' => array(), 'today_classes' => array(), 'upcoming_classes' => array(), 'calendar' => array(),
         ), $o);
     };
 
     // 1. Upcoming lesson cards: honest heading, visible date + timezone, status text, semantic list, labelled cards.
     $booking = $class(array('ref' => 'BK-1', 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'start_available' => false, 'join_message' => 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.', 'lesson_uid' => '', 'schedule_version_uid' => '', 'date' => 'Sunday 4 October', 'starts_at_utc' => '2026-10-04 08:30:00', 'schedule_summary' => 'Sunday 4 October، 18:30 · Australia/Brisbane', 'status' => 'کلاس آشنایی تأیید شده', 'progress' => 'کلاس آشنایی'));
     $lesson  = $class(array('start_available' => true, 'state' => 'starting_soon', 'status' => 'به‌زودی شروع می‌شود'));
-    $home = $model(array('classes' => array($booking, $lesson), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
-    $check('fixture satisfies the unchanged display contract', dzn_theme_teacher_portal_validate_model($home, 'home'));
-    $html = $render('home', $home);
-    $check('heading is not "today" while the list holds the next lessons', str_contains($html, 'کلاس‌های پیش رو') && !str_contains($html, 'کلاس‌های امروز'));
-    $check('card count is announced', str_contains($html, '2 کلاس · به ترتیب زمان'));
-    $check('classes render as an ordered list of labelled articles', substr_count($html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($html, 'id="tp-class-title-0"') && str_contains($html, 'id="tp-class-title-1"'));
-    $check('date and timezone are visible on a booking class that has no details panel', str_contains($html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($html, 'id="tp-details-0"'));
-    $check('lesson date badge and machine-readable start are rendered', str_contains($html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($html, 'datetime="2026-10-03 06:30:00"'));
-    $check('the teacher timezone is labelled on the lessons and calendar sections', substr_count($html, 'class="dzn-timezone-label"') === 2 && str_contains($html, 'منطقهٔ زمانی: Asia/Tehran'));
+    $homeModel = $model(array('classes' => array($booking, $lesson), 'today_classes' => array($lesson), 'upcoming_classes' => array($booking), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
+    $check('fixture satisfies the unchanged display contract', dzn_theme_teacher_portal_validate_model($homeModel, 'home'));
+    $html = $render('home', $homeModel);
+    $classes_html = $render('classes', $homeModel);
+    $check('today shows only the current local day', str_contains($html, 'کلاس‌های امروز') && !str_contains($html, 'کلاس‌های آینده') && substr_count($html, 'aria-labelledby="tp-class-title-') === 1);
+    $check('the classes tab keeps today and upcoming sections', str_contains($classes_html, 'کلاس‌های امروز') && str_contains($classes_html, 'کلاس‌های آینده'));
+    $check('home uses the simple welcome header without a Delnavazan brand link', str_contains($html, 'درود بر شما') && !str_contains($html, 'dzn-tp-appbar__brand') && !str_contains($html, 'صفحهٔ اصلی'));
+    $check('classes render as an ordered list of labelled articles', substr_count($classes_html, '<ol class="dzn-tp-class-list">') === 2 && substr_count($classes_html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($classes_html, 'id="tp-class-title-0"') && str_contains($classes_html, 'id="tp-class-title-1"'));
+    $check('date and timezone are visible on a booking class that has no details panel', str_contains($classes_html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($classes_html, 'id="tp-details-1"'));
+    $check('lesson date badge and machine-readable start are rendered', str_contains($classes_html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($classes_html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($classes_html, 'datetime="2026-10-03T06:30:00Z"'));
+    $check('the teacher timezone is labelled on the lessons and calendar sections', substr_count($classes_html, 'class="dzn-timezone-label"') === 2 && str_contains($classes_html, 'منطقهٔ زمانی: Asia/Tehran'));
     $withStats = $render('home', $model(array('statistics' => array('active_students' => '8', 'upcoming' => '2', 'lessons_month' => '10', 'hours_month' => '5'))));
-    $check('the home summary labels the teacher timezone', str_contains($withStats, 'class="dzn-timezone-label"') && str_contains($withStats, 'منطقهٔ زمانی: Asia/Tehran'));
-    $check('status is exposed as text for assistive technology', str_contains($html, 'وضعیت: </span>کلاس آشنایی تأیید شده'));
-    $check('details are collapsed by default and the toggle is wired with aria-controls', str_contains($html, 'id="tp-details-1" class="dzn-tp-class-details" hidden') && str_contains($html, 'aria-expanded="false" aria-controls="tp-details-1"'));
+    $check('home and classes label the teacher timezone', str_contains($withStats, 'class="dzn-timezone-label"') && str_contains($withStats, 'Asia/Tehran'));
+    $check('status is exposed as text for assistive technology', str_contains($classes_html, 'وضعیت: </span>کلاس آشنایی تأیید شده'));
+    $check('details are collapsed by default and the toggle is wired with aria-controls', str_contains($classes_html, 'id="tp-details-0" class="dzn-tp-class-details" hidden') && str_contains($classes_html, 'aria-expanded="false" aria-controls="tp-details-0"'));
+
+    // 1b. Optional display fields and per-row resilience.
+    $optionalNote = $class(array('previous_private_note' => ''));
+    $check('an absent optional private note is accepted', dzn_theme_teacher_portal_class_valid($optionalNote));
+    $check('optional private note does not weaken the home model', dzn_theme_teacher_portal_validate_model($model(array('classes' => array($optionalNote), 'today_classes' => array($optionalNote), 'calendar' => array())), 'home'));
+    $malformedClass = $class(array('ref' => ''));
+    $mixed = $model(array('classes' => array($malformedClass, $lesson), 'today_classes' => array($malformedClass, $lesson), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
+    $check('one malformed class does not disable the whole teacher home', dzn_theme_teacher_portal_validate_model($mixed, 'home'));
+    $mixedHtml = $render('home', $mixed);
+    $check('a malformed class is reported safely while healthy classes still render', str_contains($mixedHtml, 'اطلاعات این کلاس کامل یا معتبر نیست') && str_contains($mixedHtml, 'Student One') && substr_count($mixedHtml, 'aria-labelledby="tp-class-title-') === 2);
+    $malformedCalendar = $mixed;
+    $malformedCalendar['calendar'] = array(array('day' => '', 'time' => '', 'label' => '', 'state' => 'regular'));
+    $check('one malformed calendar row does not disable the whole teacher home', dzn_theme_teacher_portal_validate_model($malformedCalendar, 'home'));
+    $check('a malformed calendar row is reported safely', str_contains($render('classes', $malformedCalendar), 'اطلاعات این رویداد معتبر نیست'));
 
     // 2. Google Meet join security and ownership: backend-issued URL, nonce and identifiers only, field-for-field.
-    $check('lesson join form posts backend URL, nonce, lesson and schedule identifiers', (bool) preg_match('#<form method="post" target="_blank" rel="noopener noreferrer" action="https://example.invalid/wp-admin/admin-post.php\?action=dzn_teacher_join_class"[^>]*><input type="hidden" name="_wpnonce" value="nonce-join"><input type="hidden" name="lesson_uid" value="LESSON-UID"><input type="hidden" name="schedule_version_uid" value="SCHEDULE-UID">#', $html) && !str_contains($html, 'name="confirmation_uid" value=""'));
-    $joined = $render('home', $model(array('classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))))));
+    $check('lesson join form posts backend URL, nonce, lesson and schedule identifiers', (bool) preg_match('#<form method="post" target="_blank" rel="noopener noreferrer" action="https://example.invalid/wp-admin/admin-post.php\?action=dzn_teacher_join_class"[^>]*><input type="hidden" name="_wpnonce" value="nonce-join"><input type="hidden" name="lesson_uid" value="LESSON-UID"><input type="hidden" name="schedule_version_uid" value="SCHEDULE-UID">#', $classes_html) && !str_contains($classes_html, 'name="confirmation_uid" value=""'));
+    $joined = $render('classes', $model(array('classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))), 'today_classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))))));
     $check('booking join form posts only the confirmation identifier', str_contains($joined, 'name="confirmation_uid" value="CONF-UID"') && !str_contains($joined, 'name="lesson_uid"') && str_contains($joined, 'value="nonce-booking-join"'));
-    $check('join is never offered when the backend has not authorised it', substr_count($html, 'name="_wpnonce" value="nonce-join"') === 1 && !str_contains(substr($html, 0, strpos($html, 'id="tp-class-title-1"')), 'name="_wpnonce" value="nonce-join"'));
-    $check('unavailable start is a disabled button explained by visible text', str_contains($html, 'disabled aria-describedby="tp-join-0"') && str_contains($html, 'id="tp-join-0" class="dzn-tp-help dzn-tp-class__help">ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'));
-    $generic = $render('home', $model(array('classes' => array($class()))));
-    $check('a lesson that cannot start still explains why', str_contains($generic, 'disabled aria-describedby="tp-join-0"') && str_contains($generic, 'id="tp-join-0"') && str_contains($generic, 'سامانه ورود امن را تأیید کرده'));
-    $check('delivery issue report keeps its nonce and identifiers', str_contains($html, 'name="_wpnonce" value="nonce-issue"') && str_contains($html, 'name="lesson_uid" value="LESSON-UID"') && str_contains($html, 'name="schedule_version_uid" value="SCHEDULE-UID"'));
+    $check('join is never offered when the backend has not authorised it', substr_count($classes_html, 'name="_wpnonce" value="nonce-join"') >= 1 && !str_contains(substr($classes_html, (int) strpos($classes_html, 'id="tp-class-title-1"')), 'name="_wpnonce" value="nonce-join"'));
+    $check('unavailable start is a disabled button with a contextual accessible reason', str_contains($classes_html, 'disabled title="ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود." aria-describedby="tp-join-1"') && str_contains($classes_html, 'id="tp-join-1" class="dzn-tp-sr">ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'));
+    $generic = $render('home', $model(array('classes' => array($class()), 'today_classes' => array($class()))));
+    $check('a lesson that cannot start still explains why', str_contains($generic, 'disabled title="زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است."') && str_contains($generic, 'id="tp-join-0" class="dzn-tp-sr">'));
+    $check('the disruptive delivery-issue action is removed', ! str_contains($classes_html, 'nonce-issue') && ! str_contains($classes_html, 'گزارش مشکل در برگزاری کلاس'));
+    $check('expanded today class includes attendance, contact and term progress', str_contains($html, 'تأیید برگزاری و حضور') && str_contains($html, 'واتس‌اپ:') && str_contains($html, 'تکمیل‌شده: 4 از 12') && str_contains($html, 'ورود با Google Meet'));
     $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 2 && str_contains($html, 'data-dzn-tp-busy-label="در حال باز کردن کلاس…"'));
 
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
@@ -115,9 +134,34 @@ namespace {
     $informed = $section($inform, 'tp-attention');
     $check('a non-authoritative item offers no action and says so', str_contains($informed, 'dzn-tp-attention-card') && !str_contains($informed, '<dialog') && !str_contains($informed, 'data-dzn-tp-open') && !str_contains($informed, 'name="decision"') && str_contains($informed, 'فقط برای اطلاع نمایش داده می‌شود'));
 
+    $absence = array(
+        'ref' => 'ABS-1', 'action_available' => true, 'state' => 'student_absence',
+        'title' => 'اطلاع غیبت هنرجو', 'context' => 'Student One · Setar',
+        'message' => 'با هنرجو هماهنگ کنید و زمان جایگزین را ثبت کنید.', 'due' => 'هماهنگی برای زمان جایگزین', 'primary' => 'تغییر زمان کلاس',
+        'lesson_uid' => 'LESSON-ABS', 'schedule_version_uid' => 'SCH-ABS', 'reschedule_available' => true,
+        'reschedule_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule',
+        'reschedule_nonce' => 'nonce-reschedule', 'reschedule_timezone' => 'Asia/Tehran',
+        'reschedule_calendar' => 'gregorian', 'reschedule_current' => 'Saturday 3 October، 10:00',
+    );
+    $absenceHtml = $render('home', $model(array('attention' => array($absence))));
+    $check('absence pending task opens the reschedule form for the exact lesson', str_contains($absenceHtml, 'dzn-tp-reschedule') && str_contains($absenceHtml, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"') && str_contains($absenceHtml, 'name="lesson_uid" value="LESSON-ABS"') && str_contains($absenceHtml, 'name="schedule_version_uid" value="SCH-ABS"'));
+
+    $declined = array(
+        'ref' => 'DEC-1', 'action_available' => true, 'state' => 'reschedule_declined',
+        'title' => 'زمان پیشنهادی رد شد', 'context' => 'Student One · Setar',
+        'message' => 'با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.', 'due' => 'نیازمند زمان تازه', 'primary' => 'ارسال زمان تازه',
+        'lesson_uid' => 'LESSON-DEC', 'schedule_version_uid' => 'SCH-DEC', 'reschedule_available' => true,
+        'reschedule_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule',
+        'reschedule_nonce' => 'nonce-declined', 'reschedule_timezone' => 'Asia/Tehran',
+        'reschedule_calendar' => 'gregorian', 'reschedule_current' => 'Saturday 3 October، 10:00',
+    );
+    $declinedHtml = $render('home', $model(array('attention' => array($declined))));
+    $check('rejected reschedule task opens a fresh-time form', str_contains($declinedHtml, 'زمان پیشنهادی رد شد'));
+    $check('rejected reschedule task posts the exact lesson and schedule', str_contains($declinedHtml, 'name="lesson_uid" value="LESSON-DEC"') && str_contains($declinedHtml, 'name="schedule_version_uid" value="SCH-DEC"'));
+
     // 4. No fake actions or demo data in production, even if a model claims to be a demo.
-    $demoModel = $model(array('is_demo' => true, 'attention' => array($request(array('authoritative_request' => false, 'state' => 'student_absence'))), 'classes' => array($class(array('start_available' => true))), 'calendar' => array(array('day' => 'Mon', 'time' => '09:00', 'label' => 'x', 'state' => 'regular'))));
-    foreach (array('real model' => $home, 'model flagged demo in production' => $demoModel) as $label => $m) {
+    $demoModel = $model(array('is_demo' => true, 'attention' => array($request(array('authoritative_request' => false, 'state' => 'student_absence'))), 'classes' => array($class(array('start_available' => true))), 'today_classes' => array($class(array('start_available' => true))), 'calendar' => array(array('day' => 'Mon', 'time' => '09:00', 'label' => 'x', 'state' => 'regular'))));
+    foreach (array('real model' => $homeModel, 'model flagged demo in production' => $demoModel) as $label => $m) {
         $out = $render('home', $m);
         $check("production render ($label) has no presentation-only controls", !str_contains($out, 'data-dzn-tp-presentation') && !str_contains($out, '<textarea') && !str_contains($out, 'این کنترل فقط پیش‌نمایش') && !str_contains($out, 'روز قبل') && !str_contains($out, 'هفتهٔ بعد') && !str_contains($out, 'درخواست بررسی زمان') && !str_contains($out, 'در آینده اینجا'));
     }
@@ -129,8 +173,10 @@ namespace {
 
     // 5. Actionable empty states.
     $empty = $render('home', $model());
-    $check('empty classes, attention and calendar each explain themselves', str_contains($empty, 'کلاسی در برنامهٔ پیش رو ندارید') && str_contains($empty, 'اکنون کار فوری‌ای ندارید') && str_contains($empty, 'رویدادی در تقویم پیش رو نیست') && 3 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
-    $check('empty classes links to real availability settings', str_contains($empty, 'href="https://example.invalid/teacher-portal/?teacher-view=settings">بررسی زمان‌های در دسترس'));
+    $empty_classes = $render('classes', $model());
+    $check('empty today explains itself while empty attention is hidden', str_contains($empty, 'کلاسی برای امروز ثبت نشده است') && ! str_contains($empty, 'کلاس‌های آینده') && ! str_contains($empty, 'id="tp-attention"') && ! str_contains($empty, 'اکنون کار فوری‌ای ندارید') && 1 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty));
+    $check('empty classes and calendar explain themselves', str_contains($empty_classes, 'کلاسی برای امروز ثبت نشده است') && str_contains($empty_classes, 'کلاسی برای روزهای آینده ثبت نشده است') && str_contains($empty_classes, 'رویدادی در تقویم پیش رو نیست') && 3 === preg_match_all('/class="dzn-tp-empty-state(?:"| )/', $empty_classes));
+    $check('empty classes links to real availability settings', str_contains($empty_classes, 'href="https://example.invalid/teacher-portal/?teacher-view=settings">بررسی زمان‌های در دسترس'));
 
     // 6. Outcome and error states reach the teacher; arbitrary query text never does.
     $_GET = array('dzn_notice' => dzn_theme_teacher_portal_response_notice_allowlist()[3], 'dzn_error' => '0');
@@ -153,7 +199,7 @@ namespace {
     $_GET = array();
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
-    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 6 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 7 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
 
     // 7. Unavailable and error states give a real next step.
     $signedOut = $render('home', array('available' => false, 'state' => 'signed_out', 'screen' => 'home'));
@@ -171,11 +217,17 @@ namespace {
     $joined_src = implode("\n", $parts) . (string) file_get_contents($theme . '/inc/teacher-portal.php');
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
     $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
-    $check('view model supplies date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_zoned_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' =>") && str_contains($bridge, "(string) ( \$onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' )"));
+    $check('view model supplies locale-aware date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_calendar_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' => \$teacher_timezone") && str_contains($bridge, "dzn_theme_platform_teacher_day_window"));
+    $check('canonical term lessons fall back from empty display reference to lesson UID', str_contains($bridge, 'reference_code') && str_contains($bridge, 'lesson_uid') && str_contains($bridge, "if ( '' === \$reference )"));
     $check('shell never echoes an arbitrary dzn_notice query value', !str_contains($parts['shell'], "\$_GET['dzn_notice']") && str_contains($parts['shell'], 'dzn_theme_teacher_portal_notices'));
     $js = (string) file_get_contents($theme . '/assets/js/teacher-portal.js');
     $check('script disables the whole scope after submit, restores on bfcache return, and keeps the server as authority', str_contains($js, 'form[data-dzn-tp-submit]') && str_contains($js, "'pageshow'") && str_contains($js, 'setTimeout(() => scopeButtons(form)') && str_contains($js, 'event.persisted') && !str_contains($js, 'fetch(') && !str_contains($js, 'XMLHttpRequest'));
     $check('toggle swaps its label and keeps aria-expanded in sync', str_contains($js, 'dznTpLabelOpen') && str_contains($js, "setAttribute('aria-expanded'"));
+    $accountSource = (string) file_get_contents($theme . '/template-parts/teacher-portal/account.php');
+    $check('settings uses instrument thumbnails with selected colour state', str_contains($accountSource, 'dzn-tp-instrument-grid') && str_contains($accountSource, 'is-selected') && str_contains($accountSource, 'dzn_theme_instrument_image((string)$first->instrument,\'teacher\')'));
+    $check('settings explains timezone, availability types and holidays', str_contains($accountSource, 'ما زمان کلاس‌ها را با زمان هنرجو هماهنگ می‌کنیم') && str_contains($accountSource, 'ترجیحی: زمان‌های اصلی') && str_contains($accountSource, 'مثلاً تولد، سفر یا مناسبت خانوادگی'));
+    $check('the accepting-students section is removed', ! str_contains($accountSource, 'tp-accepting') && ! str_contains($accountSource, 'پذیرش هنرجو'));
+    $check('empty attention is not rendered', str_contains($parts['attention'], 'if ( ! $items ) { return; }'));
     $css = (string) file_get_contents($theme . '/assets/css/teacher-portal.css');
     $check('stylesheet covers mobile, forced colours, reduced motion and screen-reader text', str_contains($css, 'max-width:35rem') && str_contains($css, 'forced-colors:active') && str_contains($css, 'prefers-reduced-motion') && str_contains($css, '.dzn-tp-sr{'));
     if (trim((string) shell_exec('command -v node 2>/dev/null')) !== '') {

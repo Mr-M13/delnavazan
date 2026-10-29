@@ -25,6 +25,9 @@ foreach (array('eligibleTeachers($courseId', 'effective($teacherId', 'overlappin
 }
 $assert(str_contains($repo, 'WHERE d.teacher_id=%d') && str_contains($repo, "d.state='pending_request'"), 'Teacher inbox reads must be scoped to the signed-in Teacher and pending state.');
 $assert(str_contains($repo, "r.resolution_state='unresolved'") && str_contains($repo, 'r.privacy_erased_at IS NULL'), 'Resolved or erased requests must not remain in the Teacher inbox.');
+$assert(str_contains($repo, 'function requestedTimes') && str_contains($repo, 'ORDER BY sequence_number ASC LIMIT 3'), 'Teacher inbox must retain all three ranked requested times.');
+$assert(str_contains($repo, 'r.id booking_request_id') && str_contains($service, '(int) $delivery->booking_request_id'), 'Teacher preference projection must carry the owning booking request identifier.');
+$assert(str_contains($service, 'requested_times = $this->deliveries->requestedTimes') && str_contains($bridge, "' اولویت‌های هنرجو: '"), 'Teacher presentation must show all ranked preferences without changing the authoritative selected-time action.');
 $assert(!str_contains($service, 'new CanonicalLesson') && !str_contains($service, 'new Google') && !str_contains($service, '->project('), 'Intake delivery must not create lessons or provider projections.');
 $assert(str_contains($bridge, 'ownPending()') && str_contains($bridge, "'authoritative_request'=>true"), 'Teacher portal must use the teacher-scoped delivery read model.');
 $assert(str_contains($attention, 'درخواست در انتظار بررسی') && str_contains($attention, 'فقط پس از موفقیت هر دو'), 'Teacher portal must distinguish a request from a confirmed class.');

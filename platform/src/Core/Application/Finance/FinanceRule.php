@@ -15,7 +15,7 @@ final class FinanceRule {
     public const DOMAIN='finance_v1';
 
     /** The derivation version that binds the §5.3 payability table. */
-    public const PAYABILITY_DERIVATION_VERSION='finance_payability_v1';
+    public const PAYABILITY_DERIVATION_VERSION='finance_payability_v2';
     /** The rule version recorded on every immutable per-Lesson snapshot. */
     public const SNAPSHOT_RULE_VERSION='finance_snapshot_v1';
     /** The rule version recorded on every statement. */
@@ -151,7 +151,7 @@ final class FinanceRule {
     /** §5.2 payability disposition. */
     public const DISPOSITIONS=array('payable','non_payable','pending');
     /** §5.2 payability basis. */
-    public const BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override');
+    public const BASIS_CODES=array('delivered_occurrence','student_no_show','interruption','teacher_non_delivery','academy_obligation','delivery_review_required','presumed_completion_review','occurrence_not_attempted','lesson_not_finalised','introductory_policy_non_payable','administrator_override');
     /** §5.2 teacher rate scope. */
     public const RATE_SCOPE_KINDS=array('teacher','teacher_course');
     /** §5.2 teacher rate status. */
@@ -264,12 +264,13 @@ final class FinanceRule {
         array('row'=>3,'fact'=>'outcome_review_required','disposition'=>'pending','basis_code'=>'delivery_review_required','blocks_issue'=>true,'policy_key'=>null),
         array('row'=>4,'fact'=>'outcome_teacher_non_delivery','disposition'=>'non_payable','basis_code'=>'teacher_non_delivery','blocks_issue'=>false,'policy_key'=>null),
         array('row'=>5,'fact'=>'introductory_non_payable','disposition'=>'non_payable','basis_code'=>'introductory_policy_non_payable','blocks_issue'=>false,'policy_key'=>'INTRO_PAYABILITY_POLICY'),
-        array('row'=>6,'fact'=>'completed_without_outcome','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
-        array('row'=>7,'fact'=>'outcome_delivered','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
-        array('row'=>8,'fact'=>'outcome_student_no_show','disposition'=>'policy','basis_code'=>'student_no_show','blocks_issue'=>false,'policy_key'=>'STUDENT_NO_SHOW_COMPENSATION_POLICY'),
-        array('row'=>9,'fact'=>'outcome_interruption','disposition'=>'policy','basis_code'=>'interruption','blocks_issue'=>false,'policy_key'=>'INTERRUPTION_COMPENSATION_POLICY'),
-        array('row'=>10,'fact'=>'cancelled_before_occurrence','disposition'=>'non_payable','basis_code'=>'occurrence_not_attempted','blocks_issue'=>false,'policy_key'=>null),
-        array('row'=>11,'fact'=>'administrator_override','disposition'=>'override','basis_code'=>'administrator_override','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>6,'fact'=>'presumed_completion','disposition'=>'pending','basis_code'=>'presumed_completion_review','blocks_issue'=>true,'policy_key'=>null),
+        array('row'=>7,'fact'=>'completed_without_outcome','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>8,'fact'=>'outcome_delivered','disposition'=>'payable','basis_code'=>'delivered_occurrence','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>9,'fact'=>'outcome_student_no_show','disposition'=>'policy','basis_code'=>'student_no_show','blocks_issue'=>false,'policy_key'=>'STUDENT_NO_SHOW_COMPENSATION_POLICY'),
+        array('row'=>10,'fact'=>'outcome_interruption','disposition'=>'policy','basis_code'=>'interruption','blocks_issue'=>false,'policy_key'=>'INTERRUPTION_COMPENSATION_POLICY'),
+        array('row'=>11,'fact'=>'cancelled_before_occurrence','disposition'=>'non_payable','basis_code'=>'occurrence_not_attempted','blocks_issue'=>false,'policy_key'=>null),
+        array('row'=>12,'fact'=>'administrator_override','disposition'=>'override','basis_code'=>'administrator_override','blocks_issue'=>false,'policy_key'=>null),
     );
 
     /** The two policy-governed compensation keys and the recorded value each accepts. */

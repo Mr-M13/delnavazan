@@ -22,7 +22,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         global $wpdb;
         $limit = max(1, min(50, $limit));
         $sql = "SELECT d.uid delivery_uid,d.state delivery_state,d.match_strength,d.created_at,
-                       r.reference_code request_reference,s.full_name,
+                       r.id booking_request_id,r.reference_code request_reference,s.full_name,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
                        COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,
                        rt.local_date,rt.local_start_time,rt.timezone student_timezone,
@@ -43,6 +43,20 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         return is_array($rows) ? $rows : array();
     }
 
+    /** All ranked student preferences remain visible to the selected Teacher. */
+    public function requestedTimes(int $requestId): array {
+        global $wpdb;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT sequence_number,local_date,local_start_time,timezone,starts_at_utc
+             FROM {$this->prefix}booking_request_requested_times
+             WHERE booking_request_id=%d
+             ORDER BY sequence_number ASC LIMIT 3",
+            $requestId
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher booking preference read unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
     /**
      * Provider-complete introductory classes for one Teacher's upcoming schedule.
      *
@@ -50,15 +64,24 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
      * The full confirmation/delivery/request chain and its active vaulted provider
      * reference must agree before this read projection exposes the booking.
      */
-    public function confirmedUpcomingForTeacher(int $teacherId, int $limit = 50): array {
+    public function confirmedUpcomingForTeacher(int $teacherId, int $limit = 50, ?string $fromUtc = null, ?string $toUtc = null): array {
         global $wpdb;
         $limit = max(1, min(80, $limit));
+        $window = null !== $fromUtc && null !== $toUtc;
+        $bounds = $window ? ' AND c.starts_at_utc>=%s AND c.starts_at_utc<%s' : '';
+        // A bounded local-day read must include earlier completed classes from today. Only the
+        // unbounded compatibility read needs the short late-join history window.
+        $historyWindow = $window ? '' : ' AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR';
+        $args = array($teacherId);
+        if ($window) { $args[] = $fromUtc; $args[] = $toUtc; }
+        $args[] = $limit;
         $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
                        c.provider_event_digest,c.confirmed_at,
                        d.teacher_id delivery_teacher_id,d.state delivery_state,
                        r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
-                       s.full_name student_display_reference,
+                       s.full_name student_name,s.full_name student_display_reference,
+                       COALESCE(NULLIF(i.name_fa,''),i.name_en,NULLIF(course.name_fa,''),course.name_en) instrument_name,
                        COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
                        secret.id projection_secret_id,secret.state projection_secret_state,
                        secret.key_version projection_secret_key_version,secret.cipher_version projection_secret_cipher_version,
@@ -87,10 +110,9 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                   AND r.privacy_erased_at IS NULL
                   AND c.provider_code='google_calendar'
                   AND c.provider_event_digest IS NOT NULL
-                  AND c.confirmed_at IS NOT NULL
-                  AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR
+                  AND c.confirmed_at IS NOT NULL{$historyWindow}{$bounds}
                 ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $limit));
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$args));
         if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher confirmed booking schedule unavailable');
         return is_array($rows) ? $rows : array();
     }
@@ -105,6 +127,8 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                        d.teacher_id delivery_teacher_id,d.state delivery_state,
                        r.student_id,r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
                        COALESCE(NULLIF(t.display_name,''),t.reference_code) teacher_display_reference,
+                       COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),NULLIF(t.persian_name,''),t.reference_code) teacher_name,
+                       COALESCE(NULLIF(i.name_fa,''),i.name_en,NULLIF(course.name_fa,''),course.name_en) instrument_name,
                        COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
                        secret.id projection_secret_id,secret.state projection_secret_state,
                        secret.key_version projection_secret_key_version,secret.cipher_version projection_secret_cipher_version,

@@ -142,23 +142,24 @@ function dzn_theme_primary_menu_link_attributes( $attributes, $item, $args ) {
 add_filter( 'nav_menu_link_attributes', 'dzn_theme_primary_menu_link_attributes', 10, 3 );
 
 /**
- * Retire separate legacy Teacher and Student sign-in links at render time.
- * Stored menu data remains untouched; the branded CTA below is the only
- * authentication entry rendered in the primary navigation.
+ * Retire separate legacy Teacher/Student sign-in links and duplicate enrolment
+ * actions at render time. Stored menu data remains untouched; the branded login
+ * CTA below is the only authentication entry rendered in the primary navigation,
+ * and the homepage hero already owns the enrolment action.
  */
 function dzn_theme_remove_primary_auth_menu_items( $items, $args ) {
 	if ( empty( $args->theme_location ) || 'primary' !== $args->theme_location ) { return $items; }
-	$auth_paths = array( '/login/', '/wp-login.php/', '/student-portal/', '/teacher-portal/', '/honarjo/', '/ostad/' );
-	return array_values( array_filter( $items, static function ( $item ) use ( $auth_paths ) {
+	$excluded_paths = array( '/login/', '/wp-login.php/', '/student-portal/', '/teacher-portal/', '/honarjo/', '/ostad/', '/enrol/', '/booking/' );
+	return array_values( array_filter( $items, static function ( $item ) use ( $excluded_paths ) {
 		$path = '/' . trim( (string) wp_parse_url( $item->url ?? '', PHP_URL_PATH ), '/' ) . '/';
-		return ! in_array( $path, $auth_paths, true );
+		return ! in_array( $path, $excluded_paths, true );
 	} ) );
 }
 add_filter( 'wp_nav_menu_objects', 'dzn_theme_remove_primary_auth_menu_items', 10, 2 );
 
 function dzn_theme_append_primary_login_cta( $items, $args ) {
 	if ( empty( $args->theme_location ) || 'primary' !== $args->theme_location ) { return $items; }
-	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal" href="' . esc_url( home_url( '/login/' ) ) . '">ورود به حساب کاربری</a></li>';
+	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal dzn-nav-action" href="' . esc_url( home_url( '/login/' ) ) . '">ورود</a></li>';
 }
 add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
 
@@ -166,15 +167,15 @@ add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
  * Render the recovered final primary navigation when a migrated environment
  * does not yet have the original WordPress menu assignment.
  *
- * The labels/order match the captured NIU 0.4.6 menu. Portal destinations use
- * the canonical routes on the rebuilt platform.
+ * The homepage hero owns the enrolment action, so the header carries only the
+ * site sections and one login CTA. The login CTA keeps the original enrolment
+ * button styling through `dzn-nav-action`.
  */
 function dzn_theme_primary_menu_fallback() {
 	$items = array(
 		array( 'خانه', home_url( '/' ), '' ),
-		array( 'ورود به حساب کاربری', home_url( '/login/' ), 'dzn-nav-portal' ),
 		array( 'مقالات', home_url( '/articles/' ), '' ),
-		array( 'ثبت نام', home_url( '/enrol/' ), 'dzn-nav-action' ),
+		array( 'ورود', home_url( '/login/' ), 'dzn-nav-portal dzn-nav-action' ),
 	);
 
 	echo '<ul class="primary-navigation__list">';

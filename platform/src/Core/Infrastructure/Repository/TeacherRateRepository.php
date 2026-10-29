@@ -32,17 +32,21 @@ final class TeacherRateRepository extends FinanceRepository {
         return $this->many("SELECT * FROM {$this->p}finance_teacher_rate_events WHERE rate_id=%d ORDER BY event_sequence,id".($lock?' FOR UPDATE':''),$rateId);
     }
     public function eventCount(int $rateId):int{return (int)$this->value("SELECT COUNT(*) FROM {$this->p}finance_teacher_rate_events WHERE rate_id=%d",$rateId);}
-    /** §7.2 rule 1: `effective_until` is written at most once, from `NULL` to the declared instant. */
+    /**
+     * §7.2 rule 1: `effective_until` is written at most once, from `NULL` to the declared instant.
+     * The actor is recorded on the sibling rate event; this Phase-U table deliberately has no
+     * `updated_by` column, so the closure updates only `effective_until` and the audit timestamp.
+     */
     public function closeInterval(int $rateId,string $effectiveUntil,string $now,int $actor):int{
         global $wpdb;$table=$this->declared('finance_teacher_rates');
-        $changed=$wpdb->query($wpdb->prepare("UPDATE {$table} SET effective_until=%s,updated_at=%s,updated_by=%d WHERE id=%d AND effective_until IS NULL",$effectiveUntil,$now,$actor,$rateId));
+        $changed=$wpdb->query($wpdb->prepare("UPDATE {$table} SET effective_until=%s,updated_at=%s WHERE id=%d AND effective_until IS NULL",$effectiveUntil,$now,$rateId));
         if($changed===false)throw new \RuntimeException('Teacher rate interval closure failed: '.$wpdb->last_error);
         return (int)$changed;
     }
     /** §7.2 rule 2: one conditional status move that clears the live slot in the same statement. */
     public function moveStatus(int $rateId,string $fromStatus,string $toStatus,string $now,int $actor):int{
         global $wpdb;$table=$this->declared('finance_teacher_rates');
-        $changed=$wpdb->query($wpdb->prepare("UPDATE {$table} SET status=%s,active_slot=NULL,updated_at=%s,updated_by=%d WHERE id=%d AND status=%s",$toStatus,$now,$actor,$rateId,$fromStatus));
+        $changed=$wpdb->query($wpdb->prepare("UPDATE {$table} SET status=%s,active_slot=NULL,updated_at=%s WHERE id=%d AND status=%s",$toStatus,$now,$rateId,$fromStatus));
         if($changed===false)throw new \RuntimeException('Teacher rate status move failed: '.$wpdb->last_error);
         return (int)$changed;
     }

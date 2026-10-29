@@ -5,9 +5,54 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function dzn_theme_booking_options(): array {
+    static $options = null;
+    if ( is_array( $options ) ) { return $options; }
     $class = '\Delnavazan\Platform\Core\Application\PublicBookingOptionsReadService';
-    if ( ! class_exists( $class ) ) { return array(); }
-    try { return ( new $class() )->introductoryInstruments(); } catch ( Throwable $e ) { return array(); }
+    if ( ! class_exists( $class ) ) { return $options = array(); }
+    try { return $options = ( new $class() )->introductoryInstruments(); } catch ( Throwable $e ) { return $options = array(); }
+}
+
+/** Normalise Persian instrument labels for matching across the static belt and the canonical catalogue. */
+function dzn_theme_booking_normalize_instrument_name( string $name ): string {
+    $name = str_replace( array( "\xE2\x80\x8C", 'ي', 'ك' ), array( ' ', 'ی', 'ک' ), $name );
+    $normalised = preg_replace( '/\s+/u', ' ', trim( $name ) );
+    $normalised = is_string( $normalised ) ? $normalised : '';
+    return 'تنبک' === $normalised ? 'تمبک' : $normalised;
+}
+
+/**
+ * Build the canonical enrolment URL for one homepage instrument tile.
+ *
+ * The Platform catalogue slug is authoritative; the static tile label is only a
+ * lookup key. Returning the catalogue slug here means the enrolment page selects
+ * the same instrument even when the Persian display labels differ (for example
+ * «سه‌تار» vs «سه تار» or «تنبک» vs «تمبک»).
+ */
+function dzn_theme_booking_enrol_url( string $name, string $fallback_slug = '' ): string {
+    $url = home_url( '/enrol/' );
+    $target = dzn_theme_booking_normalize_instrument_name( $name );
+    $aliases = array( 'تنبک' => 'تمبک' );
+    if ( isset( $aliases[ $target ] ) ) { $target = $aliases[ $target ]; }
+    foreach ( dzn_theme_booking_options() as $option ) {
+        if ( ! is_array( $option ) ) { continue; }
+        $slug = (string) ( $option['slug'] ?? '' );
+        $name_fa = (string) ( $option['name_fa'] ?? '' );
+        $name_en = (string) ( $option['name_en'] ?? '' );
+        $matches_name = '' !== $target && ( $target === dzn_theme_booking_normalize_instrument_name( $name_fa ) || $target === dzn_theme_booking_normalize_instrument_name( $name_en ) );
+        $matches_slug = '' !== $fallback_slug && $fallback_slug === $slug;
+        if ( '' !== $slug && ( $matches_name || $matches_slug ) ) {
+            // Match by the catalogue's exact Persian name. This avoids
+            // double-encoding the URL-encoded Persian slug while still letting
+            // the enrolment page select the authoritative instrument option.
+            return add_query_arg(
+                array( 'instrument_name' => '' !== $name_fa ? $name_fa : $name ),
+                $url
+            );
+        }
+    }
+    return '' !== $fallback_slug
+        ? add_query_arg( array( 'instrument' => $fallback_slug, 'instrument_name' => $name ), $url )
+        : $url;
 }
 
 function dzn_theme_render_booking_route(): void {
@@ -17,10 +62,15 @@ function dzn_theme_render_booking_route(): void {
     nocache_headers();
     $booking_csrf = dzn_theme_booking_csrf_token();
     $options = dzn_theme_booking_options();
-    $belt_order = array( 'سه‌تار', 'تار', 'پیانو', 'سنتور', 'تنبک', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
-    $belt_rank = array_flip( $belt_order );
+    $belt_order = array( 'تار', 'تمبک', 'سه‌تار', 'پیانو', 'سنتور', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
+    $belt_rank = array();
+    foreach ( $belt_order as $rank => $label ) {
+        $belt_rank[ dzn_theme_booking_normalize_instrument_name( $label ) ] = $rank;
+    }
     usort( $options, static function ( $a, $b ) use ( $belt_rank ) {
-        return ( $belt_rank[ $a['name_fa'] ] ?? PHP_INT_MAX ) <=> ( $belt_rank[ $b['name_fa'] ] ?? PHP_INT_MAX );
+        $a_rank = $belt_rank[ dzn_theme_booking_normalize_instrument_name( (string) ( $a['name_fa'] ?? '' ) ) ] ?? PHP_INT_MAX;
+        $b_rank = $belt_rank[ dzn_theme_booking_normalize_instrument_name( (string) ( $b['name_fa'] ?? '' ) ) ] ?? PHP_INT_MAX;
+        return $a_rank <=> $b_rank;
     } );
     $default_timezone = wp_timezone_string();
     if ( ! $default_timezone || ! in_array( $default_timezone, timezone_identifiers_list(), true ) ) { $default_timezone = 'UTC'; }
@@ -28,13 +78,21 @@ function dzn_theme_render_booking_route(): void {
     $requested_name = isset( $_GET['instrument_name'] ) && is_string( $_GET['instrument_name'] ) ? sanitize_text_field( wp_unslash( $_GET['instrument_name'] ) ) : '';
     $selected = null;
     $booking_user = is_user_logged_in() ? wp_get_current_user() : null;
-    $booking_name = $booking_user ? trim( (string) $booking_user->display_name ) : '';
-    $booking_email = $booking_user ? trim( (string) $booking_user->user_email ) : '';
+    $booking_profile = array();
+    if ( $booking_user && function_exists( 'dzn_theme_platform_student_read' ) ) {
+        $student_read = dzn_theme_platform_student_read();
+        if ( 'ok' === ( $student_read['state'] ?? '' ) && is_array( $student_read['data']['profile'] ?? null ) ) { $booking_profile = $student_read['data']['profile']; }
+    }
+    $booking_name = trim( (string) ( $booking_profile['full_name'] ?? ( $booking_user ? $booking_user->display_name : '' ) ) );
+    $booking_email = trim( (string) ( $booking_profile['email'] ?? ( $booking_user ? $booking_user->user_email : '' ) ) );
+    $booking_country = strtoupper( (string) ( $booking_profile['country_code'] ?? '' ) );
+    $booking_city = (string) ( $booking_profile['city'] ?? '' );
+    $booking_mobile = (string) ( $booking_profile['mobile'] ?? '' );
+    $booking_timezone = (string) ( $booking_profile['timezone'] ?? '' );
+    if ( ! in_array( $booking_timezone, timezone_identifiers_list(), true ) ) { $booking_timezone = ''; }
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
-    $instrument_images = array( 'avaz' => 'C-Avaz.webp', 'vocal' => 'C-Avaz.webp', 'piano' => 'C-Piano.webp', 'tar' => 'C-Tar.webp', 'setar' => 'C-Setar.webp', 'santur' => 'C-santour.webp', 'tombak' => 'C-Tombak.webp', 'kamancheh' => 'C-Kamancheh.webp', 'daf' => 'C-Daf.webp', 'tanboor' => 'C-Tanboor.webp', 'tanbur' => 'C-Tanboor.webp', 'ney' => 'C-Ney.webp', 'violin' => 'C-Violin.webp', 'guitar' => 'C-Guitar.webp' );
-    $instrument_images_fa = array( 'آواز' => 'C-Avaz.webp', 'پیانو' => 'C-Piano.webp', 'تار' => 'C-Tar.webp', 'سه‌تار' => 'C-Setar.webp', 'سنتور' => 'C-santour.webp', 'تنبک' => 'C-Tombak.webp', 'کمانچه' => 'C-Kamancheh.webp', 'دف' => 'C-Daf.webp', 'تنبور' => 'C-Tanboor.webp', 'نی' => 'C-Ney.webp', 'ویولن' => 'C-Violin.webp', 'گیتار' => 'C-Guitar.webp' );
     ?>
     <main id="main-content" class="site-main dzn-booking" tabindex="-1">
         <div class="dzn-container dzn-booking__container">
@@ -65,7 +123,7 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__instrument-grid" role="group" aria-label="انتخاب ساز">
                             <?php foreach ( $options as $option ) : ?>
                                 <button class="dzn-booking__instrument<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? ' is-selected' : ''; ?>" type="button" data-instrument-choice="<?php echo esc_attr( (string) $option['id'] ); ?>" aria-pressed="<?php echo $selected && (int) $selected['id'] === (int) $option['id'] ? 'true' : 'false'; ?>">
-                                    <?php $instrument_image = $instrument_images[ $option['slug'] ] ?? $instrument_images_fa[ $option['name_fa'] ] ?? null; if ( $instrument_image ) : ?><img class="dzn-booking__instrument-image" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/' . $instrument_image ) ); ?>" alt=""><?php else : ?><span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span><?php endif; ?>
+                                    <?php $instrument_image = dzn_theme_instrument_image( (string) $option['name_fa'] ); if ( '' === $instrument_image ) { $instrument_image = dzn_theme_instrument_image( (string) $option['name_en'] ); } if ( '' === $instrument_image ) { $instrument_image = dzn_theme_instrument_image( (string) $option['slug'] ); } if ( '' !== $instrument_image ) : ?><img class="dzn-booking__instrument-image" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/' . $instrument_image ) ); ?>" alt=""><?php else : ?><span class="dzn-booking__instrument-mark" aria-hidden="true">♫</span><?php endif; ?>
                                     <span class="dzn-booking__instrument-name"><?php echo esc_html( $option['name_fa'] ?: $option['name_en'] ); ?></span>
                                     <span class="dzn-booking__instrument-action">انتخاب دوره</span>
                                 </button>
@@ -79,7 +137,7 @@ function dzn_theme_render_booking_route(): void {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <p class="dzn-booking__help">جلسهٔ معارفه رایگان است؛ انتخاب ساز هنوز زمان کلاس را رزرو نمی‌کند.</p>
+                        <p class="dzn-booking__help"><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?>؛ انتخاب ساز هنوز زمان کلاس را رزرو نمی‌کند.</p>
                         <div class="dzn-booking__actions">
                             <a class="dzn-booking__back" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                             <button class="dzn-booking__button" type="button" data-next="availability">انتخاب زمان</button>
@@ -97,7 +155,7 @@ function dzn_theme_render_booking_route(): void {
                             <div class="dzn-booking__calendar-grid" data-calendar-weekdays aria-hidden="true"></div>
                             <div class="dzn-booking__calendar-grid" data-calendar role="group" aria-label="انتخاب روز" tabindex="-1"></div>
                         </div>
-                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفهٔ رایگان انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. در این مرحله هیچ پرداختی انجام نمی‌دهید.</p>
+                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفه انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. هیچ پرداختی در این مرحله انجام نمی‌شود.</p>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
                                                         <div class="dzn-booking__time-options" data-time-options></div>
@@ -128,16 +186,16 @@ function dzn_theme_render_booking_route(): void {
                             <?php endif; ?>
                             <div><label for="dzn-booking-country">کشور محل زندگی</label><select id="dzn-booking-country" data-contact="country" autocomplete="country" required>
                                 <option value="">انتخاب کشور</option>
-                                <option value="AU">استرالیا</option><option value="BR">برزیل</option><option value="CA">کانادا</option><option value="FR">فرانسه</option><option value="DE">آلمان</option><option value="IR">ایران</option><option value="NZ">نیوزیلند</option><option value="SE">سوئد</option><option value="TR">ترکیه</option><option value="AE">امارات متحدهٔ عربی</option><option value="GB">بریتانیا</option><option value="US">ایالات متحده</option>
+                                <option value="AU" <?php selected( $booking_country, 'AU' ); ?>>استرالیا</option><option value="BR" <?php selected( $booking_country, 'BR' ); ?>>برزیل</option><option value="CA" <?php selected( $booking_country, 'CA' ); ?>>کانادا</option><option value="FR" <?php selected( $booking_country, 'FR' ); ?>>فرانسه</option><option value="DE" <?php selected( $booking_country, 'DE' ); ?>>آلمان</option><option value="IR" <?php selected( $booking_country, 'IR' ); ?>>ایران</option><option value="NZ" <?php selected( $booking_country, 'NZ' ); ?>>نیوزیلند</option><option value="SE" <?php selected( $booking_country, 'SE' ); ?>>سوئد</option><option value="TR" <?php selected( $booking_country, 'TR' ); ?>>ترکیه</option><option value="AE" <?php selected( $booking_country, 'AE' ); ?>>امارات متحدهٔ عربی</option><option value="GB" <?php selected( $booking_country, 'GB' ); ?>>بریتانیا</option><option value="US" <?php selected( $booking_country, 'US' ); ?>>ایالات متحده</option>
                             </select></div>
-                            <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" list="dzn-booking-city-list" maxlength="191" required><datalist id="dzn-booking-city-list" data-city-list></datalist></div>
-                            <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" required><p class="dzn-booking__field-help">کد کشور را هم وارد کنید؛ نمونه برای استرالیا ‎+61.</p></div>
+                            <div><label for="dzn-booking-city">شهر محل زندگی</label><input id="dzn-booking-city" data-contact="city" autocomplete="address-level2" list="dzn-booking-city-list" maxlength="191" value="<?php echo esc_attr( $booking_city ); ?>" required><datalist id="dzn-booking-city-list" data-city-list></datalist></div>
+                            <div class="dzn-booking__field--wide"><label for="dzn-booking-mobile">شمارهٔ موبایل</label><input id="dzn-booking-mobile" data-contact="mobile" type="tel" autocomplete="tel" placeholder="+61 ..." maxlength="32" value="<?php echo esc_attr( $booking_mobile ); ?>" required><p class="dzn-booking__field-help" data-phone-hint>پیش‌شمارهٔ بین‌المللی از کشور شما پیشنهاد می‌شود و قابل ویرایش است.</p></div>
                         <div class="dzn-booking__timezone dzn-booking__field--wide" data-timezone-note>
                             <strong>منطقهٔ زمانی انتخاب‌شده</strong><span class="dzn-booking__timezone-copy">همهٔ تاریخ‌ها و ساعت‌های درخواست بر اساس این منطقهٔ زمانی نمایش داده می‌شوند.</span>
                             <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
-                            <select id="dzn-booking-timezone" data-timezone required>
+                            <select id="dzn-booking-timezone" data-timezone<?php echo $booking_timezone ? ' data-prefilled="1"' : ''; ?> required>
                                 <optgroup label="مناطق پرکاربرد دلنوازان">
-                                    <option value="Australia/Brisbane">استرالیا — بریزبن</option>
+                                    <option value="Australia/Brisbane" <?php selected( $booking_timezone, 'Australia/Brisbane' ); ?>>استرالیا — بریزبن</option>
                                     <option value="Australia/Sydney">استرالیا — سیدنی / ملبورن</option>
                                     <option value="Pacific/Auckland">نیوزیلند — اوکلند</option>
                                     <option value="America/Los_Angeles">آمریکا / کانادا — غرب</option>
@@ -148,7 +206,7 @@ function dzn_theme_render_booking_route(): void {
                                     <option value="Asia/Tehran">ایران — تهران</option>
                                 </optgroup>
                                 <optgroup label="همهٔ مناطق زمانی">
-                                <?php echo wp_timezone_choice( $default_timezone, get_user_locale() ); ?>
+                                <?php echo wp_timezone_choice( $booking_timezone ?: $default_timezone, get_user_locale() ); ?>
                                 </optgroup>
                             </select>
                             <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
@@ -169,13 +227,19 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
                             <aside class="dzn-booking__notice dzn-booking__summary-note">
-                                <h4>جلسهٔ معارفه رایگان است</h4>
+                                <h4><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?></h4>
                                 <ul>
-                                    <li>در این مرحله هیچ پرداختی ندارید.</li>
+                                    <li>در این مرحله پرداختی انجام نمی‌شود؛ جزئیات پرداخت پس از تأیید استاد اعلام می‌شود.</li>
                                     <li>زمان‌های انتخابی اولویت شما هستند و پس از بررسی استاد تأیید می‌شوند.</li>
                                     <li>نتیجهٔ هماهنگی از طریق اطلاعات تماسی که وارد کرده‌اید با شما در میان گذاشته می‌شود.</li>
                                     <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از جلسهٔ معارفه هماهنگ می‌شود.</li>
                                 </ul>
+                            </aside>
+                            <aside class="dzn-booking__notice" role="note">
+                                <h4>Recording and research · ضبط و پژوهش</h4>
+                                <p lang="en" dir="ltr">Recording and research export are currently disabled. Read the public information page to understand the planned capability and how choices work after an adult student account is linked.</p>
+                                <p lang="fa" dir="rtl">ضبط و خروجی پژوهش در حال حاضر غیرفعال است. برای آشنایی با قابلیت برنامه‌ریزی‌شده و نحوهٔ انتخاب‌ها پس از اتصال حساب هنرجوی بزرگسال، صفحهٔ اطلاعات عمومی را بخوانید.</p>
+                                <p><a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
                             </aside>
                         </div>
                         <div class="dzn-booking__actions">

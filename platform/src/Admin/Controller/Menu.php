@@ -16,8 +16,18 @@ final class Menu {
     public const ROOT_SLUG = 'dzn-platform';
     /** One consolidated Teachers route; individual controls still check their own authority. */
     public const TEACHER_OPERATIONS_CAP = 'dzn_access_teacher_operations';
+    /** Onboarding-only access to the Teachers onboarding tab without widening Teacher maintenance. */
+    public const TEACHER_ONBOARDING_CAP = 'dzn_access_teacher_onboarding';
+    /** Composite entry capabilities for the consolidated Enrolment workspaces. */
+    public const ENROLMENT_WORKSPACE_CAP = 'dzn_access_enrolment_workspace';
+    public const CATALOGUE_WORKSPACE_CAP = 'dzn_access_catalogue_workspace';
+    public const ATTENDANCE_WORKSPACE_CAP = 'dzn_access_attendance_workspace';
+    /** One Finance page with four tabs; individual tabs still enforce narrow capabilities. */
+    public const FINANCE_WORKSPACE_CAP = 'dzn_access_finance_workspace';
     /** One visible entry for the existing canonical workflow command screen. */
     public const CORE_WORKFLOW_CAP = 'dzn_access_core_workflow';
+    /** One communications workspace; individual tabs still enforce their own narrow authority. */
+    public const NOTIFICATION_MANAGEMENT_CAP = 'dzn_access_notification_management';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
@@ -30,11 +40,54 @@ final class Menu {
 
     public static function mapMetaCap(array $caps, string $cap, int $userId, array $args): array {
         if ($cap === self::TEACHER_OPERATIONS_CAP) return self::mappedTeacherOperationsCaps($userId);
+        if ($cap === self::TEACHER_ONBOARDING_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_onboarding',
+            'dzn_issue_teacher_invitations',
+            'dzn_revoke_teacher_invitations',
+        ]);
+        if ($cap === self::ENROLMENT_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_view_booking_requests',
+            'dzn_manage_booking_request_coordination',
+            'dzn_manage_enrolments',
+            'dzn_manage_terms',
+        ]);
+        if ($cap === self::CATALOGUE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_courses',
+            'dzn_manage_commercial_catalogue',
+            'dzn_manage_exceptions',
+        ]);
+        if ($cap === self::ATTENDANCE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_canonical_attendance_review',
+            'dzn_manage_post_intro_automation',
+        ]);
+        if ($cap === self::FINANCE_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_view_finance_authority',
+            'dzn_view_payment_execution_authority',
+            'dzn_view_cash_ledger',
+            'dzn_manage_commercial_catalogue',
+        ]);
         if ($cap === self::CORE_WORKFLOW_CAP) return self::mappedCoreWorkflowCaps($userId);
+        if ($cap === self::NOTIFICATION_MANAGEMENT_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_notification_templates',
+            'dzn_view_notification_authority',
+            'dzn_manage_notification_workflows',
+            'dzn_operate_notification_dispatch',
+        ]);
         if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         if ($cap === self::INTEGRATION_SETTINGS_CAP) return self::mappedIntegrationCaps($userId, 'dzn_manage_provider_integrations');
         if ($cap === self::SYSTEM_HEALTH_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         return $caps;
+    }
+
+    /** Map a navigation-only capability to one of the actor's existing narrow capabilities. */
+    private static function mappedAnyCaps(int $userId, array $delegatedCaps): array {
+        $user = get_userdata($userId);
+        if (!$user) return ['do_not_allow'];
+        if ($user->has_cap('manage_options')) return ['manage_options'];
+        foreach ($delegatedCaps as $delegatedCap) {
+            if ($user->has_cap($delegatedCap)) return [$delegatedCap];
+        }
+        return ['do_not_allow'];
     }
 
     private static function mappedTeacherOperationsCaps(int $userId): array {
@@ -84,6 +137,7 @@ final class Menu {
 
         $pages = [
             ['Academy', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
+            ['Finance', self::FINANCE_WORKSPACE_CAP, 'dzn-finance', [FinanceAdminController::class, 'screen'], null],
             ['Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
             ['Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
 
@@ -98,8 +152,12 @@ final class Menu {
             ['Terms', 'dzn_manage_terms', 'dzn-term', static fn() => ScreenController::screen('term'), static fn() => ScreenController::handlePost('term')],
             ['Instruments', 'dzn_manage_courses', 'dzn-instrument', static fn() => ScreenController::screen('instrument'), static fn() => ScreenController::handlePost('instrument')],
             ['Classes', 'dzn_manage_lessons', 'dzn-lesson', static fn() => ScreenController::screen('lesson'), static fn() => ScreenController::handlePost('lesson')],
+            ['Bookings and enrolments', self::ENROLMENT_WORKSPACE_CAP, 'dzn-enrolment-workspace', [EnrolmentWorkspaceController::class, 'screen'], null],
+            ['Courses and instruments', self::CATALOGUE_WORKSPACE_CAP, 'dzn-catalogue-workspace', [CatalogueWorkspaceController::class, 'screen'], null],
+            ['Attendance and post-intro', self::ATTENDANCE_WORKSPACE_CAP, 'dzn-attendance-workspace', [AttendanceWorkspaceController::class, 'screen'], null],
             ['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
 
+            ['Notifications & Messaging', self::NOTIFICATION_MANAGEMENT_CAP, 'dzn-notifications', [NotificationManagementController::class, 'screen'], null],
             ['Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],

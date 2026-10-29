@@ -6,27 +6,6 @@ $announcement = $model['announcement'] ?? array();
 $announcement_states = array( 'general', 'technical', 'reminder', 'none' );
 $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_states, true );
 ?>
-<?php if ( ! empty( $model['statistics'] ) ) : ?>
-<section class="dzn-tp-section" aria-label="خلاصهٔ تدریس">
-	<div class="dzn-tp-heading">
-		<div>
-			<p class="dzn-tp-kicker">وضعیت کلی</p>
-			<h2>خلاصهٔ تدریس</h2>
-		</div>
-		<?php if ( $teacher_tz ) : ?>
-			<span class="dzn-timezone-label"><span aria-hidden="true">◷</span> منطقهٔ زمانی: <?php echo esc_html( $teacher_tz ); ?></span>
-		<?php endif; ?>
-	</div>
-	<div class="dzn-tp-stats">
-		<?php foreach ( array( 'active_students' => 'هنرجویان', 'upcoming' => 'کلاس‌های پیش رو', 'lessons_month' => 'کلاس این ماه', 'hours_month' => 'ساعت این ماه' ) as $key => $label ) : ?>
-			<div class="dzn-tp-stat-card">
-				<strong><?php echo esc_html( $model['statistics'][ $key ] ?? '—' ); ?></strong>
-				<span><?php echo esc_html( $label ); ?></span>
-			</div>
-		<?php endforeach; ?>
-	</div>
-</section>
-<?php endif; ?>
 <?php if ( ! $announcement_valid ) : ?>
 	<aside class="dzn-tp-banner is-error" role="alert">
 		<strong>اعلان در دسترس نیست</strong>
@@ -43,6 +22,20 @@ $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_
 <?php endif; ?>
 <?php dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array() ) ); ?>
-<?php dzn_theme_teacher_portal_component( 'classes', array( 'items' => $model['classes'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
-<?php dzn_theme_teacher_portal_component( 'calendar', array( 'items' => $model['calendar'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
-<?php dzn_theme_teacher_portal_component( 'help' ); ?>
+<?php dzn_theme_teacher_portal_component( 'notifications', array( 'items' => $model['notifications'] ?? array(), 'available' => ! empty( $model['notifications_available'] ), 'unread' => (int) ( $model['notification_unread_count'] ?? 0 ), 'actions' => $model['notification_actions'] ?? array() ) ); ?>
+<?php
+// Today is the operational screen: pending work first, then the current local day only.
+// The full list, including future days and the 30-day calendar, belongs to the Classes tab.
+dzn_theme_teacher_portal_component(
+	'classes',
+	array(
+		'items'          => array(),
+		'today_items'    => $model['today_classes'] ?? array(),
+		'upcoming_items' => array(),
+		'show_upcoming'  => false,
+		'model'          => $model,
+		'timezone'       => $teacher_tz,
+	)
+);
+?>
+<?php dzn_theme_teacher_portal_component( 'support', array() ); ?>

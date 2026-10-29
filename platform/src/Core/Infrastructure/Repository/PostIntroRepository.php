@@ -104,6 +104,23 @@ final class PostIntroRepository {
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}post_intro_preparations WHERE arrangement_id=%d" . ($lock ? ' FOR UPDATE' : ''), $arrangementId));
     }
 
+    public function preparationByEnrolment(int $enrolmentId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}post_intro_preparations WHERE enrolment_id=%d ORDER BY id DESC LIMIT 1", $enrolmentId));
+    }
+
+    /** @return list<object> */
+    public function recentPreparations(int $limit = 25): array {
+        global $wpdb;
+        $limit = max(1, min(100, $limit));
+        return $wpdb->get_results("SELECT * FROM {$this->p}post_intro_preparations ORDER BY id DESC LIMIT {$limit}") ?: array();
+    }
+
+    public function purchaseForOffer(int $offerId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}commercial_purchases WHERE offer_id=%d ORDER BY id DESC LIMIT 1", $offerId));
+    }
+
     public function insertPreparation(array $data): int {
         global $wpdb;
         if ($wpdb->insert($this->p . 'post_intro_preparations', $data) === false) throw new \RuntimeException('post_intro_preparation_persistence_failed');
@@ -113,6 +130,42 @@ final class PostIntroRepository {
     public function updatePreparation(int $id, array $changes): void {
         global $wpdb;
         if ($wpdb->update($this->p . 'post_intro_preparations', $changes, array('id' => $id)) === false) throw new \RuntimeException('post_intro_preparation_update_failed');
+    }
+
+    public function activePlanChoice(int $preparationId, bool $lock = false): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}post_intro_plan_choices WHERE preparation_id=%d AND active_slot=1" . ($lock ? ' FOR UPDATE' : ''),
+            $preparationId
+        ));
+    }
+
+    public function planChoiceByOffer(int $offerId, bool $lock = false): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}post_intro_plan_choices WHERE offer_id=%d" . ($lock ? ' FOR UPDATE' : ''),
+            $offerId
+        ));
+    }
+
+    public function insertPlanChoice(array $data): int {
+        global $wpdb;
+        if ($wpdb->insert($this->p . 'post_intro_plan_choices', $data) === false) throw new \RuntimeException('post_intro_plan_choice_persistence_failed');
+        return (int) $wpdb->insert_id;
+    }
+
+    public function supersedeActivePlanChoice(int $preparationId): void {
+        global $wpdb;
+        if ($wpdb->query($wpdb->prepare("UPDATE {$this->p}post_intro_plan_choices SET active_slot=NULL WHERE preparation_id=%d AND active_slot=1", $preparationId)) === false) {
+            throw new \RuntimeException('post_intro_plan_choice_supersede_failed');
+        }
+    }
+
+    public function updatePlanChoice(int $id, array $changes): void {
+        global $wpdb;
+        if ($wpdb->update($this->p . 'post_intro_plan_choices', $changes, array('id' => $id)) === false) {
+            throw new \RuntimeException('post_intro_plan_choice_update_failed');
+        }
     }
 
     /** Persist the Student's first action instant once and return that immutable value. */
@@ -260,6 +313,31 @@ final class PostIntroRepository {
     public function obligationsForOffer(int $offerId): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d ORDER BY obligation_sequence,id", $offerId)) ?: array();
+    }
+
+    /**
+     * The recorded second-instalment deadline and the exact policy version that produced it.
+     *
+     * @return array{due_at:?string,policy_version:?int}
+     */
+    public function instalmentDeadlineForOffer(int $offerId): array {
+        global $wpdb;
+        $due = $wpdb->get_var($wpdb->prepare(
+            "SELECT due_at FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d AND obligation_sequence=2 LIMIT 1",
+            $offerId
+        ));
+        if ($due === null || (string) $due === '') {
+            return array('due_at' => null, 'policy_version' => null);
+        }
+        $version = $wpdb->get_var($wpdb->prepare(
+            "SELECT policy_version FROM {$this->p}commercial_offer_policies WHERE offer_id=%d AND policy_key=%s LIMIT 1",
+            $offerId,
+            'INSTALMENT_DUE_DATE_POLICY'
+        ));
+        return array(
+            'due_at' => (string) $due,
+            'policy_version' => $version === null ? null : (int) $version,
+        );
     }
 
     public function arrangement(int $id): ?object {

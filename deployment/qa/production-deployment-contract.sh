@@ -4,6 +4,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 deploy="$ROOT/deployment/production-deploy.sh"
 workflow="$ROOT/.github/workflows/deploy-production.yml"
 smoke="$ROOT/deployment/qa/production-smoke.sh"
+smoke_lib="$ROOT/deployment/qa/production-smoke-lib.sh"
+smoke_decision="$ROOT/deployment/qa/production-smoke-decision.sh"
+smoke_decision_unit="$ROOT/deployment/qa/production-smoke-decision-unit.sh"
+smoke_retry_unit="$ROOT/deployment/qa/production-smoke-retry-unit.sh"
 static_diagnostic="$ROOT/deployment/qa/production-static-serving-diagnostic.sh"
 static_diagnostic_contract="$ROOT/deployment/qa/production-static-serving-diagnostic-contract.sh"
 theme_assets="$ROOT/theme/assets/css"
@@ -64,6 +68,31 @@ need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/style.css'
 need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/navigation.js'"
 need "$smoke" "check_theme_asset '/wp-content/themes/delnavazan-theme/assets/js/booking.js'"
 need "$smoke" 'noindex'
+need "$smoke" '/booking/?instrument=setar'
+need "$smoke" 'expected 302 to /enrol/?instrument=setar'
+need "$smoke" 'production-smoke-lib.sh'
+need "$smoke" 'SMOKE_MAX_ATTEMPTS'
+need "$smoke" 'SMOKE_RETRY_DELAYS_STRING'
+need "$smoke" '--confirm'
+need "$smoke_lib" 'cf-mitigated'
+need "$smoke_lib" 'transient_cloudflare_'
+need "$smoke_lib" 'permanent_http_403'
+need "$smoke_lib" 'transient_curl_'
+need "$smoke_decision" 'confirmation'
+need "$workflow" 'id: smoke'
+need "$workflow" 'continue-on-error: true'
+need "$workflow" 'id: confirmation'
+need "$workflow" 'production-smoke-decision.sh'
+need "$workflow" 'Activate maintenance after confirmed failure'
+need "$workflow" 'Fail closed when the smoke decision is unavailable'
+if grep -Fq "if: failure() && steps.smoke.outcome == 'failure'" "$workflow"; then
+  echo 'FAIL production workflow must confirm a smoke failure before enabling maintenance' >&2
+  exit 1
+fi
+if grep -Fq 'expected 301 to /enrol/' "$smoke"; then
+  echo 'FAIL production smoke still expects the retired permanent booking redirect' >&2
+  exit 1
+fi
 for asset in theme.css booking.css; do
   [[ -s "$theme_assets/$asset" ]] || { echo "FAIL required theme CSS source missing: theme/assets/css/$asset" >&2; exit 1; }
 done
@@ -74,6 +103,9 @@ need "$theme_enqueue" "get_theme_file_uri( 'assets/css/theme.css' )"
 need "$booking_enqueue" "get_theme_file_uri( 'assets/css/booking.css' )"
 bash -n "$static_diagnostic"
 bash "$static_diagnostic_contract"
+bash -n "$smoke_lib" "$smoke_decision" "$smoke_retry_unit" "$smoke_decision_unit"
+bash "$smoke_retry_unit"
+bash "$smoke_decision_unit"
 if grep -Fq 'staging.delnavazan.com' "$deploy" "$workflow" "$smoke"; then
   echo 'FAIL staging host referenced in production deployment tooling' >&2
   exit 1

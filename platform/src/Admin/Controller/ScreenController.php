@@ -6,6 +6,11 @@ use Delnavazan\Platform\Core\Application\{
     ArchiveService,
     CanonicalEnrolmentLifecycleService,
     CanonicalLessonAuthorityService,
+    CanonicalLessonCompletionPolicy,
+    CanonicalLessonDeliveryReadService,
+    CanonicalLessonDeliveryService,
+    CanonicalLessonScheduleReadService,
+    CanonicalLessonScheduleService,
     CanonicalTermAuthorityService,
     CatalogueService,
     CoreReadService,
@@ -84,9 +89,13 @@ final class ScreenController {
         $action = sanitize_key($post['dzn_action'] ?? '');
         $capability = $screen === 'teacher'
             ? self::teacherActionCapability($action)
+            : ($screen === 'lesson' && in_array($action,array('complete_canonical_lesson'),true)
+            ? 'dzn_manage_canonical_lessons'
+            : ($screen === 'lesson' && in_array($action,array('record_canonical_delivery','correct_canonical_delivery','reconcile_canonical_delivery','dispute_canonical_delivery'),true)
+            ? 'dzn_manage_canonical_lesson_delivery'
             : ($screen === 'exception'
             ? 'dzn_manage_exceptions'
-            : (self::ENTITIES[$screen][1] ?? ''));
+            : (self::ENTITIES[$screen][1] ?? ''))));
         if ($capability === '' || !current_user_can($capability)) {
             wp_die('Access denied.', 'Delnavazan', ['response' => 403]);
         }
@@ -152,6 +161,11 @@ final class ScreenController {
                 'cancel_canonical_term' => self::canonicalTermTransition($post, 'cancel'),
                 'create_lesson' => (new LessonService())->create(self::createPayload('lesson', $post)),
                 'create_canonical_lesson' => self::canonicalLessonCreate($post),
+                'complete_canonical_lesson' => self::completeCanonicalLesson($post),
+                'record_canonical_delivery' => self::recordCanonicalDelivery($post),
+                'correct_canonical_delivery' => self::correctCanonicalDelivery($post),
+                'reconcile_canonical_delivery' => self::reconcileCanonicalDelivery($post),
+                'dispute_canonical_delivery' => self::disputeCanonicalDelivery($post),
                 'record_intro_outcome' => self::recordIntroOutcome($post),
                 'schedule_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_initial'),
                 'revise_canonical_lesson' => self::canonicalScheduleAction($post, 'schedule_revise'),
@@ -167,7 +181,8 @@ final class ScreenController {
             NonceLifecycleDiagnostic::logStage('mutation_complete');
             $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule'];
             $teacherLifecycleAction=in_array($action,['archive','restore'],true)&&sanitize_key($post['entity']??'')==='teacher';
-            self::redirectNotice('Saved' . ($id ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : ($teacherLifecycleAction?['id'=>absint($post['id']??0)]:[]));
+            $currentPage=sanitize_key(wp_unslash($_GET['page']??''));
+            self::redirectNotice('Saved' . ($id && $currentPage !== 'dzn-teachers-menu' ? ' #' . (int) $id : ''), false, in_array($action,$teacherActions,true) ? ['id' => absint($post['teacher_id'] ?? 0)] : ($teacherLifecycleAction?['id'=>absint($post['id']??0)]:[]));
         } catch (\Throwable $e) {
             if ($action === 'issue_teacher_invitation_by_email' && $e->getMessage() !== 'invitation_dispatch_failed') {
                 $category = \Delnavazan\Platform\Core\Application\TeacherInvitationIssuanceFailure::category($e);
@@ -208,8 +223,8 @@ final class ScreenController {
         error_log('[Delnavazan Platform Phase 1F nonce] ' . wp_json_encode($diagnostic));
     }
 
-    private static function archive(array $post): int { $id=absint($post['id']??0);(new ArchiveService())->archive(self::entityFromPost($post),$id);return $id; }
-    private static function restore(array $post): int { $id=absint($post['id']??0);(new ArchiveService())->restore(self::entityFromPost($post),$id);return $id; }
+    private static function archive(array $post): int { $entity=self::entityFromPost($post);if($entity==='teacher')throw new \InvalidArgumentException('Use the authorised Teacher record action');$id=absint($post['id']??0);(new ArchiveService())->archive($entity,$id);return $id; }
+    private static function restore(array $post): int { $entity=self::entityFromPost($post);if($entity==='teacher')throw new \InvalidArgumentException('Use the authorised Teacher record action');$id=absint($post['id']??0);(new ArchiveService())->restore($entity,$id);return $id; }
     private static function schedule(array $post, bool $initial): int { $id = absint($post['lesson_id'] ?? 0); return $initial ? (new LessonScheduleService())->initial($id, $post) : (new LessonScheduleService())->reschedule($id, $post); }
     private static function transition(array $post, string $to): int { (new ExceptionService())->transition(absint($post['id'] ?? 0), $to, $post['resolution_note'] ?? null); return 0; }
     private static function retry(array $post): int { (new ExceptionService())->incrementRetry(absint($post['id'] ?? 0)); return 0; }
@@ -235,7 +250,26 @@ final class ScreenController {
             }
             echo '</tbody></table>';return;
         }
-        if ($entity === 'teacher') { self::teacherInvitationPanel(); if (current_user_can('dzn_manage_teachers')) self::teacherDirectory(); self::teacherCoverage(); return; }
+        if ($entity === 'teacher') {
+            $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
+            // Generic onboarding links (Academy, dashboard widgets and the operations portal)
+            // predate the two-tab Teachers shell. Land onboarding-only staff on their own view.
+            if ($view === '' && !current_user_can('dzn_manage_teachers') && current_user_can(Menu::TEACHER_ONBOARDING_CAP)) {
+                $view = 'onboarding';
+            }
+            if ($view === 'onboarding') {
+                if (!current_user_can(Menu::TEACHER_ONBOARDING_CAP)) { self::forbidden(); return; }
+                self::teacherInvitationPanel();
+                return;
+            }
+            if (!current_user_can('dzn_manage_teachers')) {
+                echo '<p>Teacher overview requires teacher maintenance access. Use <strong>Onboarding &amp; Invitations</strong> for your permitted work.</p>';
+                return;
+            }
+            self::teacherDirectory();
+            self::teacherCoverage();
+            return;
+        }
         try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
         catch (\InvalidArgumentException $exception) {
             if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
@@ -274,7 +308,7 @@ final class ScreenController {
             $arrow = $sort === $key ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
             echo '<th scope="col"'.$state.'><a href="'.esc_url($url).'">'.esc_html($label.$arrow).'</a></th>';
         }
-        echo '<th>Profile details</th></tr></thead><tbody>';
+        echo '<th>Profile details</th><th>Actions</th></tr></thead><tbody>';
         foreach ($result['rows'] as $row) {
             $url=add_query_arg(array('page'=>'dzn-teachers-menu','id'=>(int)$row->id),admin_url('admin.php'));
             $name=(string)($row->display_name?:$row->english_name?:$row->persian_name?:'Teacher');
@@ -284,7 +318,12 @@ final class ScreenController {
             echo '<td>'.esc_html(self::acceptingLabel((string)$row->accepting_state)).'</td><td>'.esc_html((string)$row->instrument_names!==''?(string)$row->instrument_names:'None recorded').'</td>';
             $availability=(int)$row->availability_rule_count>0?number_format_i18n((int)$row->availability_rule_count).' time windows':((string)$row->availability_status==='not_set'?'Not set':'No active time windows');
             echo '<td>'.esc_html($availability).'</td><td>'.esc_html(number_format_i18n((int)$row->current_class_count)).'</td>';
-            echo '<td><details><summary>Expand</summary><p><strong>Instruments:</strong> '.esc_html((string)$row->instrument_names!==''?(string)$row->instrument_names:'None recorded').'</p><p><strong>Weekly availability ('.esc_html((string)($row->timezone?:'timezone not set')).'):</strong> '.esc_html((string)$row->availability_summary!==''?(string)$row->availability_summary:'No active weekly windows').'</p><p><a href="'.esc_url($url).'">Open teacher profile and controls</a></p></details></td></tr>';
+            echo '<td><details><summary>Expand</summary><p><strong>Instruments:</strong> '.esc_html((string)$row->instrument_names!==''?(string)$row->instrument_names:'None recorded').'</p><p><strong>Weekly availability ('.esc_html((string)($row->timezone?:'timezone not set')).'):</strong> '.esc_html((string)$row->availability_summary!==''?(string)$row->availability_summary:'No active weekly windows').'</p><p><a href="'.esc_url($url).'">Open teacher profile and controls</a></p></details></td>';
+            $actionsUrl = $url . '#teacher-actions';
+            $onboardingAnchor = in_array((string) ($row->directory_status ?? ''), array('not_invited', 'archived'), true) ? '' : '#' . self::teacherAnchor($row);
+            $onboardingUrl = add_query_arg(array('page' => 'dzn-teachers-menu', 'view' => 'onboarding'), admin_url('admin.php')) . $onboardingAnchor;
+            $onboardingButton = current_user_can(Menu::TEACHER_ONBOARDING_CAP) ? ' <a class="button" href="' . esc_url($onboardingUrl) . '">Onboarding</a>' : '';
+            echo '<td><a class="button" href="' . esc_url($actionsUrl) . '">Manage</a>' . $onboardingButton . '</td></tr>';
         }
         echo '</tbody></table>';
         $pages=(int)ceil($result['total']/$result['per_page']);
@@ -335,12 +374,14 @@ final class ScreenController {
         if ( $entity === 'teacher' && current_user_can( 'dzn_manage_teachers' ) && $record->archived_at === null && $record->status !== 'archived' ) {
             $teacherId=(int)$record->id;
             echo '<h2>Teaching, account and availability</h2><table class="widefat striped"><tbody><tr><th>Google Calendar</th><td>'.esc_html(self::teacherIntegrationStatus((string)($record->google_calendar_state ?? ''))).'</td></tr><tr><th>Account and onboarding</th><td>'.esc_html(self::teacherOnboardingSummary($record)).'</td></tr><tr><th>Instruments</th><td>'.esc_html((string)($record->instrument_names?:'Not recorded')).'</td></tr><tr><th>Weekly availability</th><td>'.esc_html((string)($record->availability_summary?:'No active weekly windows')).'</td></tr><tr><th>Linked students</th><td>'.esc_html((string)($record->linked_student_names?:'None recorded')).'</td></tr><tr><th>Current teaching</th><td>'.esc_html((string)($record->linked_student_count??0).' linked students · '.(string)($record->class_count??0).' applicable classes').'</td></tr></tbody></table>';
+            echo '<section id="teacher-actions"><h2>Teacher actions</h2><p>Use the focused actions below to maintain this teacher. Each action checks your permission and the current lifecycle state.</p>';
             self::teacherReviewControls($record); self::teacherInlineControls($record); echo '<details><summary>Profile details and lifecycle actions</summary>';
             self::teacherMaintenanceForm( $record );
-            self::teacherArchiveActions($record);
-            echo '</details>';
+            \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderSelected('teacher', $record, 'dzn-teachers-menu', array('teacher-archive', 'teacher-restore'));
+            echo '</details></section>';
+            self::teacherFinanceLinks($record);
         }
-        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) { echo '<p class="notice notice-info">This Teacher is archived. Teaching and audit history is retained; invitations and Teacher access are revoked. Restore makes the profile eligible for a new invitation but does not restore access automatically.</p>'; self::teacherArchiveActions($record); }
+        if ($entity === 'teacher' && ($record->archived_at !== null || $record->status === 'archived')) { echo '<p class="notice notice-info">This Teacher is archived. Teaching and audit history is retained; invitations and Teacher access are revoked. Restore makes the profile eligible for a new invitation but does not restore access automatically.</p>'; \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::render('teacher', $record, 'dzn-teachers-menu'); }
         if (!$canonicalTerm && ($entity !== 'enrolment' || ($record->record_model ?? 'legacy_phase1') === 'legacy_phase1') && $entity !== 'teacher') self::archiveActions($entity, $id, (string) $record->status);
         if ($entity === 'enrolment') {
             echo '<h2>Canonical lifecycle history</h2>';
@@ -354,7 +395,7 @@ final class ScreenController {
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
-        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
+        if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){self::canonicalLessonCompletionForm($record);self::canonicalLessonDeliverySection($record);if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
     }
 
     private static function updateTeacherProfile(array $post): int {
@@ -366,8 +407,10 @@ final class ScreenController {
 
     /** Invitation is the authorization decision. A mail failure is surfaced as a failure, never as "sent". */
     private static function issueTeacherInvitation(array $post): int {
+        $formId=sanitize_text_field($post['invitation_form_id']??'');
+        if(!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i',$formId))throw new \InvalidArgumentException('invitation_form_expired');
         $service=new \Delnavazan\Platform\Core\Application\PrincipalInvitationService();
-        $result=$service->issueForEmail(sanitize_email($post['recipient']??''),604800,sanitize_text_field($post['command_key']??'')?:wp_generate_uuid4());
+        $result=$service->issueForEmail(sanitize_email($post['recipient']??''),604800,hash('sha256','dzn_teacher_invitation_form:'.$formId));
         $generation=(int)($result['generation_id']??0);
         if($generation>0&&\Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker::dispatchNow($generation)==='failed')throw new \RuntimeException('invitation_dispatch_failed');
         return (int)($result['teacher_id']??0);
@@ -379,19 +422,19 @@ final class ScreenController {
 
     private static function teacherInvitationPanel(): void {
         echo '<section id="teacher-invitation"><h2>Teacher onboarding &amp; invitations <a class="page-title-action" href="#teacher-invitation">Add New</a></h2><p>Issuing creates a delivery intent; it does not mean an email was sent or received. Email is enough to authorise account registration. Teaching access remains unavailable until the Teacher submits complete profile and availability details and staff approve them. “Accepted by transport” means WordPress accepted the message, not that the recipient received it. Raw invitation secrets are never rendered, retained, logged, or placed in URLs.</p>';
-        if(current_user_can('dzn_issue_teacher_invitations')) { self::formStart('issue_teacher_invitation_by_email'); echo '<input type="hidden" name="command_key" value="'.esc_attr(wp_generate_uuid4()).'"><p><label>Email <input required type="email" name="recipient"></label> '; submit_button('Send Invitation','primary','submit',false); echo '</p></form>'; }
+        if(current_user_can('dzn_issue_teacher_invitations')) { self::formStart('issue_teacher_invitation_by_email'); echo '<input type="hidden" name="invitation_form_id" value="'.esc_attr(wp_generate_uuid4()).'"><p><label>Email <input required type="email" name="recipient"></label> '; submit_button('Send Invitation','primary','submit',false); echo '</p></form>'; }
         $canReadInvitationStatus=current_user_can('dzn_manage_onboarding')||current_user_can('dzn_issue_teacher_invitations')||current_user_can('dzn_revoke_teacher_invitations');
         if(!$canReadInvitationStatus) { echo '<p>Invitation status requires invitation or onboarding access.</p></section>'; return; }
         $page=max(1,absint($_GET['invitation_page']??1));$read=new \Delnavazan\Platform\Core\Application\PrincipalInvitationReadService();$rows=$read->rows($page,5);$total=$read->count();
-        echo '<h3>Recent invitations</h3><table class="widefat striped"><thead><tr><th>Teacher</th><th>Invitation</th><th>Delivery status</th><th>Safe actions</th></tr></thead><tbody>';
-        if(!$rows)echo '<tr><td colspan="4">No invitations yet.</td></tr>';
+        echo '<h3>Recent invitations</h3><table class="widefat striped"><thead><tr><th>Teacher</th><th>Invitation</th><th>Expiry</th><th>Delivery status</th><th>Safe actions</th></tr></thead><tbody>';
+        if(!$rows)echo '<tr><td colspan="5">No invitations yet.</td></tr>';
         foreach($rows as $row){$delivery=(string)($row->delivery_status??'');$state=$delivery==='delivered'?'Accepted by WordPress mail transport; recipient delivery is not confirmed':($delivery==='failed'?'Failed: '.(string)($row->delivery_failure_reason?:'transport_failed'):($delivery==='pending'?'Queued for dispatch':($delivery==='prepared'?'Interrupted; resend creates a replacement':'No delivery recorded')));$teacherId=(int)$row->teacher_id;$teacherName=esc_html((string)$row->display_name);if(current_user_can('dzn_manage_teachers')){$profile=add_query_arg(['page'=>'dzn-teachers-menu','id'=>$teacherId],admin_url('admin.php'));$teacherName='<a href="'.esc_url($profile).'">'.$teacherName.'</a>';}
-            echo '<tr><td>'.$teacherName.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html(self::teacherInvitationStatus((string)($row->lifecycle_status??'unavailable'))).'</td><td>'.esc_html($state).'</td><td>';
+            echo '<tr><td>'.$teacherName.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html(self::teacherInvitationStatus((string)($row->lifecycle_status??'unavailable'))).'</td><td>'.esc_html((string)($row->generation_expires_at?:'—')).'</td><td>'.esc_html($state).'</td><td>';
             if(in_array((string)($row->lifecycle_status??''),['queued_for_delivery','claim_available'],true)&&current_user_can('dzn_revoke_teacher_invitations')){self::formStart('revoke_teacher_invitation');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacherId).'">';submit_button('Revoke','secondary','submit',false);echo '</form> ';}
-            if((in_array($delivery,['failed','prepared'],true)||in_array((string)($row->lifecycle_status??''),['expired','revoked'],true))&&current_user_can('dzn_issue_teacher_invitations')){self::formStart('issue_teacher_invitation_by_email');echo '<input type="hidden" name="recipient" value="'.esc_attr((string)$row->email).'"><input type="hidden" name="command_key" value="'.esc_attr(wp_generate_uuid4()).'">';submit_button('Resend as replacement','secondary','submit',false);echo '</form>';}
+            if((in_array($delivery,['failed','prepared'],true)||in_array((string)($row->lifecycle_status??''),['expired','revoked'],true))&&current_user_can('dzn_issue_teacher_invitations')){self::formStart('issue_teacher_invitation_by_email');echo '<input type="hidden" name="recipient" value="'.esc_attr((string)$row->email).'"><input type="hidden" name="invitation_form_id" value="'.esc_attr(wp_generate_uuid4()).'">';submit_button('Resend as replacement','secondary','submit',false);echo '</form>';}
             echo '</td></tr>';
         }
-        echo '</tbody></table>';$pages=(int)ceil($total/5);if($pages>1){$base=add_query_arg(['page'=>'dzn-teachers-menu','invitation_page'=>'%#%'],admin_url('admin.php'));echo '<p class="tablenav">'.wp_kses_post(paginate_links(['base'=>$base,'format'=>'','current'=>$page,'total'=>$pages])).'</p>';}
+        echo '</tbody></table>';$pages=(int)ceil($total/5);if($pages>1){$base=add_query_arg(['page'=>'dzn-teachers-menu','view'=>'onboarding','invitation_page'=>'%#%'],admin_url('admin.php'));echo '<p class="tablenav">'.wp_kses_post(paginate_links(['base'=>$base,'format'=>'','current'=>$page,'total'=>$pages])).'</p>';}
         self::teacherReadinessPanel();
         self::teacherPrincipalLinkPanel();
         echo '</section>';
@@ -400,12 +443,66 @@ final class ScreenController {
     private static function teacherInvitationStatus(string $status):string{return match($status){'queued_for_delivery'=>'Queued for dispatch','claim_available'=>'Claim code created; account not yet linked','account_linked','claimed'=>'Claimed and account linked','expired'=>'Expired; issue a replacement if still needed','revoked'=>'Revoked','superseded'=>'Replaced by a newer invitation','teacher_archived'=>'Teacher archived; invitation revoked','unavailable'=>'No claimable invitation',default=>ucfirst(str_replace('_',' ',$status))};}
 
     private static function teacherReadinessPanel(): void {
-        if (!current_user_can('dzn_manage_onboarding')) return;
-        $rows=(new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->reviewRows();
-        echo '<h3>Onboarding readiness</h3><p>Teachers complete their profile and weekly availability, then submit them for an explicit staff decision.</p><table class="widefat striped"><thead><tr><th>Teacher</th><th>Profile</th><th>Availability</th><th>Onboarding</th><th>Readiness</th><th>Review</th></tr></thead><tbody>';
-        if(!$rows) echo '<tr><td colspan="6">No teachers have started onboarding.</td></tr>';
-        foreach($rows as $row){$name=esc_html((string)$row->display_name);if(current_user_can('dzn_manage_teachers')){$profile=add_query_arg(['page'=>'dzn-teachers-menu','id'=>(int)$row->teacher_id],admin_url('admin.php'));$name='<a href="'.esc_url($profile).'">'.$name.'</a>';}echo '<tr><td>'.$name.'<br><small>'.esc_html((string)$row->email).'</small></td><td>'.esc_html((string)$row->profile_state).'</td><td>'.esc_html((string)$row->availability_state).'</td><td>'.esc_html((string)$row->state).'</td><td>'.esc_html((string)$row->readiness_state).'</td><td>';if((string)$row->state==='pending_review'){self::formStart('approve_teacher_onboarding');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$row->teacher_id).'">';submit_button('Approve and activate','primary','submit',false);echo '</form>';foreach(['return_teacher_onboarding'=>'Return for changes','reject_teacher_onboarding'=>'Reject'] as$action=>$label){self::formStart($action);echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$row->teacher_id).'"><label>Reason code <input required name="reason_code" maxlength="64" pattern="[a-z0-9_-]+"></label> ';submit_button($label,'secondary','submit',false);echo '</form>';}}else echo 'No decision available';echo '</td></tr>';}
+        if (!current_user_can('dzn_manage_onboarding')) {
+            echo '<p>Onboarding progress requires onboarding access. Invitation status remains available above.</p>';
+            return;
+        }
+        $rows = (new \Delnavazan\Platform\Core\Application\TeacherOnboardingWorkspaceReadService())->rows(50);
+        echo '<h3>Onboarding readiness</h3><p>Teachers complete their profile and weekly availability, then submit them for an explicit staff decision. Blockers and the next required action are shown for each Teacher.</p>';
+        echo '<p class="description">A connected Google account is not proof that Google Meet works. Calendar and Meet columns report verified projection evidence only; “no evidence” means readiness is unproven, not failed.</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Teacher</th><th>Account</th><th>Profile</th><th>Availability</th><th>Google account</th><th>Calendar</th><th>Meet</th><th>Blockers / next action</th><th>Review</th></tr></thead><tbody>';
+        if (!$rows) echo '<tr><td colspan="9">No teachers are available for onboarding review.</td></tr>';
+        foreach ($rows as $item) {
+            $teacher = $item['teacher'];
+            $progress = $item['progress'];
+            $name = esc_html((string) $teacher->display_name);
+            if (current_user_can('dzn_manage_teachers')) {
+                $profile = add_query_arg(array('page' => 'dzn-teachers-menu', 'id' => (int) $teacher->id), admin_url('admin.php'));
+                $name = '<a href="' . esc_url($profile) . '">' . $name . '</a>';
+            }
+            $account = (string) ($teacher->principal_status ?? '') === 'active' ? 'Linked' : 'Not linked';
+            echo '<tr id="' . esc_attr(self::teacherAnchor($teacher)) . '"><td>' . $name . '<br><small>' . esc_html((string) $teacher->email) . '</small></td>';
+            echo '<td>' . esc_html($account) . '</td>';
+            echo '<td>' . esc_html(self::readinessLabel((string) $progress['profile_state'])) . '</td>';
+            echo '<td>' . esc_html(self::readinessLabel((string) $progress['availability_state'])) . '</td>';
+            echo '<td>' . esc_html((string) $item['google']['label']) . '<br><small>' . esc_html((string) $item['google']['meet_caveat']) . '</small></td>';
+            echo '<td>' . esc_html((string) $item['calendar']['label']) . '</td>';
+            echo '<td>' . esc_html((string) $item['meeting']['label']) . '</td>';
+            echo '<td>';
+            if ($item['blockers']) {
+                echo '<ul class="dzn-teacher-blockers">';
+                foreach ($item['blockers'] as $blocker) echo '<li>' . esc_html((string) $blocker) . '</li>';
+                echo '</ul>';
+            } else {
+                echo '<p>No blocking onboarding step.</p>';
+            }
+            echo '<small>' . esc_html((string) $item['next_action']) . '</small></td>';
+            echo '<td>';
+            if ((string) ($teacher->state ?? '') === 'pending_review' && current_user_can('dzn_manage_onboarding')) {
+                \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderSelected('teacher', $teacher, 'dzn-teachers-menu', array('teacher-approve-onboarding', 'teacher-return-onboarding', 'teacher-reject-onboarding'));
+            } else {
+                echo '<span>No decision available</span>';
+            }
+            echo '</td></tr>';
+        }
         echo '</tbody></table>';
+    }
+
+    private static function teacherAnchor(object $teacher): string {
+        $label = (string) ($teacher->reference_code ?: $teacher->email ?: $teacher->display_name ?: 'teacher');
+        return 'dzn-teacher-onboarding-' . sanitize_title($label);
+    }
+
+    private static function readinessLabel(string $state): string {
+        return match ($state) {
+            'complete' => 'Complete',
+            'incomplete' => 'Incomplete',
+            'connected' => 'Connected',
+            'not_connected' => 'Not connected',
+            'not_ready' => 'Not ready',
+            'ready' => 'Ready',
+            default => ucfirst(str_replace('_', ' ', $state)),
+        };
     }
 
     private static function teacherPrincipalLinkPanel(): void {
@@ -424,40 +521,36 @@ final class ScreenController {
     }
 
     private static function teacherMaintenanceForm(object $teacher): void {
-        echo '<h2>Maintain teacher details</h2><p>Teacher ID, account link, lifecycle status, timezone provenance and audit fields are controlled by their lifecycle operations.</p>';
-        self::formStart('update_teacher_profile'); echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'">';
-        foreach ( ['persian_name'=>'Persian name','english_name'=>'English name','display_name'=>'Display name','email'=>'Email','phone'=>'Phone','whatsapp_phone'=>'WhatsApp','country_code'=>'Country code','city'=>'City','timezone'=>'Timezone','locale'=>'Locale'] as $field=>$label ) self::input($field,$label,$field==='display_name',$field==='email'?'email':'text',(string)($teacher->$field??''));
-        self::select('calendar_preference','Calendar',['auto','gregorian','persian'],(string)($teacher->calendar_preference??'auto'));
-        submit_button('Save teacher details'); echo '</form>';
+        echo '<h2>Profile actions</h2><p>Edit contact, location, timezone and calendar preferences. Teacher ID, account link, lifecycle status and audit fields remain controlled by their lifecycle operations.</p>';
+        \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderSelected('teacher', $teacher, 'dzn-teachers-menu', array('teacher-profile'));
     }
 
     private static function teacherInlineControls(object $teacher): void {
-        $id=(int)$teacher->id;
-        echo '<h3>Eligibility and availability</h3>';
-        if(current_user_can('dzn_manage_teaching_eligibility')){
-            self::formStart('set_teacher_accepting_state');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'"><label>Student intake <select name="state"><option value="accepting">Accepting</option><option value="limited">Limited</option><option value="paused">Paused</option></select></label> ';submit_button('Save intake','secondary','submit',false);echo '</form>';
-            $courses=(new CoreReadService())->courseOptionsForTeachingEligibility();self::formStart('set_teacher_course_eligibility');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'"><label>Course <select required name="course_id"><option value="">Choose a course</option>';foreach($courses as$c)echo '<option value="'.esc_attr((string)$c->id).'">'.esc_html((string)($c->name_en?:$c->name_fa)).'</option>';echo '</select></label><input type="hidden" name="status" value="active"><input type="hidden" name="reason_code" value="teacher_admin"> ';submit_button('Add eligibility','secondary','submit',false);echo '</form>';
-        }
-        if(current_user_can('dzn_manage_teacher_availability')){
-            self::formStart('set_availability_profile');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'"><input type="hidden" name="status" value="active"><input type="hidden" name="reason_code" value="teacher_admin"><label>Availability timezone <input required name="timezone" value="'.esc_attr((string)$teacher->timezone).'"></label> ';submit_button('Save availability timezone','secondary','submit',false);echo '</form>';
-            self::formStart('set_availability_rule');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'"><input type="hidden" name="status" value="active"><input type="hidden" name="reason_code" value="teacher_admin"><label>Day <select name="weekday">';foreach(['1'=>'Mon','2'=>'Tue','3'=>'Wed','4'=>'Thu','5'=>'Fri','6'=>'Sat','7'=>'Sun'] as $d=>$label)echo '<option value="'.$d.'">'.$label.'</option>';echo '</select></label> <label>From <input required name="local_start_time" placeholder="09:00"></label> <label>To <input required name="local_end_time" placeholder="17:00"></label> <label>State <select name="state"><option value="requestable">Available on request</option><option value="preferred">Preferred</option><option value="blocked">Unavailable</option></select></label><input type="hidden" name="timezone" value="'.esc_attr((string)$teacher->timezone).'"> ';submit_button('Add weekly availability','secondary','submit',false);echo '</form>';
-        }
-        if(current_user_can('dzn_relink_teacher_principal')&&($teacher->wordpress_user_id??null)){self::formStart('offboard_teacher_principal');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$id).'">';submit_button('Deactivate linked account','secondary','submit',false);echo '</form>';}
+        echo '<h3>Instruments, eligibility and availability</h3><p>These actions use the existing teaching-eligibility and availability authorities. Actions are shown only when you hold the matching permission.</p>';
+        \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderSelected('teacher', $teacher, 'dzn-teachers-menu', array(
+            'teacher-accepting-state',
+            'teacher-eligibility',
+            'teacher-availability-profile',
+            'teacher-availability-rule',
+            'teacher-offboard',
+        ));
     }
 
     private static function teacherReviewControls(object $teacher):void{
         if(!current_user_can('dzn_manage_onboarding')||(string)($teacher->onboarding_state??'')!=='pending_review')return;
-        echo '<h3>Onboarding review</h3><p>This Teacher submitted a complete profile and availability declaration. Approve to grant portal readiness, return for editable corrections, or reject the submission.</p>';
-        self::formStart('approve_teacher_onboarding');echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'">';submit_button('Approve and activate','primary','submit',false);echo '</form>';
-        foreach(['return_teacher_onboarding'=>'Return for changes','reject_teacher_onboarding'=>'Reject'] as$action=>$label){self::formStart($action);echo '<input type="hidden" name="teacher_id" value="'.esc_attr((string)$teacher->id).'"><label>Reason code <input required name="reason_code" maxlength="64" pattern="[a-z0-9_-]+"></label> ';submit_button($label,'secondary','submit',false);echo '</form>';}
+        echo '<h3>Onboarding review</h3><p>This Teacher submitted a profile and availability declaration. Review the evidence and blockers in Onboarding &amp; Invitations before deciding. Use <strong>Approve and activate</strong> only when the profile, availability and connection evidence are complete.</p>';
+        \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderSelected('teacher', $teacher, 'dzn-teachers-menu', array('teacher-approve-onboarding', 'teacher-return-onboarding', 'teacher-reject-onboarding'));
     }
 
-    private static function teacherArchiveActions(object $teacher):void{
-        $archived=$teacher->archived_at!==null||$teacher->status==='archived';
-        self::formStart($archived?'restore':'archive');
-        echo '<input type="hidden" name="entity" value="teacher"><input type="hidden" name="id" value="'.esc_attr((string)$teacher->id).'">';
-        if(!$archived)echo '<p class="description">Archiving preserves history, revokes open invitations and Teacher-only access, and leaves other WordPress roles unchanged. Current teaching assignments must be ended first.</p>';
-        submit_button($archived?'Restore for safe re-invitation':'Archive and revoke Teacher access','secondary','submit',false);echo '</form> ';
+    private static function teacherFinanceLinks(object $teacher): void {
+        if (!current_user_can('dzn_view_finance_authority')) return;
+        $id = (int) $teacher->id;
+        echo '<section id="teacher-finance"><h2>Finance</h2><p>Review this Teacher’s effective-dated rate, compensation statements and lesson payability. Central reconciliation remains read-only and never repairs a record.</p><div class="dzn-quick">';
+        echo '<a href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-rates', 'teacher_id' => $id), admin_url('admin.php'))) . '">Rate timeline</a>';
+        echo '<a href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-statements', 'teacher_id' => $id), admin_url('admin.php'))) . '">Statements &amp; reconciliation</a>';
+        echo '<a href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-payability', 'teacher_id' => $id), admin_url('admin.php'))) . '">Lesson payability</a>';
+        echo '<a href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings')) . '">Teacher rate settings</a>';
+        echo '</div></section>';
     }
 
     /**
@@ -561,7 +654,7 @@ final class ScreenController {
             echo '<p>Communication history is not available on this profile.</p>';
         } else {
             echo '<h3>Administration</h3><p>Archiving removes this student from active operational lists. Existing records remain available.</p>';
-            \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::render('student', $student, 'dzn-student');
+            self::archiveActions('student',$id,(string)$student->status);
         }
     }
 
@@ -606,6 +699,173 @@ final class ScreenController {
         }
         $result = $service->createStandard($termId, $assignmentId, $evidence, $key);
         return (int) $result['lesson_id'];
+    }
+
+    /** Completion remains canonical, evidence-backed and unavailable before the scheduled end. */
+    private static function completeCanonicalLesson(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lessons')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['lesson_id'] ?? 0);
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
+        if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
+        if ((string) $lesson->lifecycle_state !== 'authorised') throw new \InvalidArgumentException('stale_lesson_state');
+        $state = (new CanonicalLessonScheduleReadService())->forLessonCompletion($lessonId);
+        $active = $state['active_version'] ?? null;
+        if (!$active) throw new \InvalidArgumentException('confirmed_occurrence_required');
+        if ((string) $active->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('class_not_finished');
+        $result = (new CanonicalLessonAuthorityService())->complete(
+            $lessonId,
+            'authorised',
+            self::canonicalEvidence($post),
+            (string) ($post['idempotency_key'] ?? '')
+        );
+        return (int) $result['lesson_id'];
+    }
+
+    /**
+     * Canonical delivery/attendance outcome recording. The same append-only authority is used for a
+     * first record, a late correction of a presumed completion, and an explicit non-delivery
+     * reconciliation. Every command records the acting administrator, UTC instant, reason, prior
+     * outcome and resulting outcome; no historical row is rewritten.
+     */
+    private static function recordCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['lesson_id'] ?? 0);
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
+        if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
+        $state = (string) $lesson->lifecycle_state;
+        if (!in_array($state, array('authorised', 'completed'), true)) throw new \InvalidArgumentException('lesson_not_delivery_recordable');
+        $outcome = sanitize_key((string) ($post['outcome_code'] ?? ''));
+        if (!in_array($outcome, array('delivered', 'student_no_show', 'interruption', 'teacher_non_delivery', 'review_required'), true)) throw new \InvalidArgumentException('Controlled delivery outcome code required');
+        if ($state === 'completed' && in_array($outcome, array('teacher_non_delivery', 'review_required'), true)) throw new \InvalidArgumentException('lesson_completed_reconciliation_required');
+        $result = (new CanonicalLessonDeliveryService())->record($lessonId, $state, self::deliveryInput($post, $outcome), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function correctCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $lessonId = absint($post['lesson_id'] ?? 0);
+        $outcomeId = absint($post['expected_outcome_id'] ?? 0);
+        $outcome = sanitize_key((string) ($post['outcome_code'] ?? ''));
+        if (!in_array($outcome, array('delivered', 'student_no_show', 'interruption', 'review_required'), true)) throw new \InvalidArgumentException('Controlled delivery outcome code required');
+        $lesson = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->lesson($lessonId);
+        if (!$lesson || (string) ($lesson->record_model ?? '') !== 'canonical_term_lesson_v1') throw new \InvalidArgumentException('canonical_lesson_required');
+        $state = (string) $lesson->lifecycle_state;
+        if ($state === 'completed' && $outcome === 'review_required') throw new \InvalidArgumentException('use_explicit_dispute_command');
+        $result = (new CanonicalLessonDeliveryService())->correct($lessonId, $outcomeId, self::deliveryInput($post, $outcome), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function reconcileCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $result = (new CanonicalLessonDeliveryService())->reconcile(absint($post['lesson_id'] ?? 0), self::deliveryInput($post, 'teacher_non_delivery'), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function disputeCanonicalDelivery(array $post): int {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) throw new \RuntimeException('Unauthorized');
+        $result = (new CanonicalLessonDeliveryService())->dispute(absint($post['lesson_id'] ?? 0), self::deliveryInput($post, 'review_required'), (string) ($post['idempotency_key'] ?? ''));
+        return (int) $result['lesson_id'];
+    }
+
+    private static function deliveryInput(array $post, string $outcome): array {
+        return array(
+            'outcome_code' => $outcome,
+            'reason_code' => sanitize_key((string) ($post['reason_code'] ?? 'administrative_delivery_outcome')),
+        ) + self::canonicalEvidence($post);
+    }
+
+    private static function canonicalLessonDeliverySection(object $lesson): void {
+        if (!current_user_can('dzn_manage_canonical_lesson_delivery')) return;
+        $read = new CanonicalLessonDeliveryReadService();
+        $history = $read->forLesson((int) $lesson->id);
+        $lifecycle = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalLessonAuthorityRepository())->events((int) $lesson->id);
+        $basis = CanonicalLessonCompletionPolicy::completionBasis($lifecycle);
+        echo '<h2>Delivery &amp; attendance</h2>';
+        echo '<p><strong>Completion basis:</strong> ' . ($basis === 'presumed' ? 'Presumed completed from elapsed scheduled time; attendance is not independently verified.' : ($basis === 'verified' ? 'Completed with explicit operator evidence.' : 'Not completed.')) . '</p>';
+        echo '<p>Human Teacher/Student reports are evidence only. Apply a canonical outcome here after reviewing the exact Lesson record and any attendance review case.</p>';
+        if ($history['outcomes']) {
+            $rows = array();
+            foreach ($history['outcomes'] as $outcome) {
+                $rows[] = array(
+                    'outcome_sequence' => (int) $outcome->outcome_sequence,
+                    'outcome_code' => (string) $outcome->outcome_code,
+                    'delivery_state' => (string) $outcome->delivery_state,
+                    'attendance_state' => (string) $outcome->attendance_state,
+                    'remedy_class' => (string) $outcome->remedy_class,
+                    'applicable' => (int) ($outcome->applicable_slot ?? 0) === 1 ? 'current' : 'superseded',
+                    'reason_code' => (string) $outcome->reason_code,
+                    'recorded_at' => (string) $outcome->recorded_at,
+                    'recorded_by' => (int) $outcome->recorded_by,
+                    'superseded_by_outcome_id' => $outcome->superseded_by_outcome_id === null ? '' : (int) $outcome->superseded_by_outcome_id,
+                );
+            }
+            self::objectTable(array_map(static fn(array $row): object => (object) $row, $rows), null, array('outcome_sequence','outcome_code','delivery_state','attendance_state','remedy_class','applicable','reason_code','recorded_at','recorded_by','superseded_by_outcome_id'));
+        } else {
+            echo '<p>No exceptional delivery outcome is recorded. Ordinary delivery is represented by absence of an outcome; a presumed completion remains unverified.</p>';
+        }
+        $effective = $history['effective'];
+        if ((string) $lesson->lifecycle_state === 'completed') {
+            if ($effective && (string) $effective->outcome_code !== 'teacher_non_delivery') {
+                self::formStart('correct_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '"><input type="hidden" name="expected_outcome_id" value="' . esc_attr((string) $effective->id) . '">';
+                echo '<p><label>Correct effective outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_correction');
+                self::canonicalEvidenceFields();
+                submit_button('Append corrected outcome', 'secondary');
+                echo '</form>';
+            } elseif ($effective) {
+                echo '<p class="notice notice-info">A reconciled academy non-delivery is protected from conversion into verified delivery by the append-only O-D8 rule.</p>';
+            } else {
+                self::formStart('record_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                echo '<p><label>Record verified outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_verified_outcome');
+                self::canonicalEvidenceFields();
+                submit_button('Record verified outcome', 'secondary');
+                echo '</form>';
+            }
+            if (!$effective || (string) $effective->outcome_code !== 'teacher_non_delivery') {
+                self::formStart('reconcile_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_non_delivery');
+                self::canonicalEvidenceFields();
+                submit_button('Reconcile completion as not delivered', 'secondary');
+                echo '</form>';
+            }
+            if (!$effective || !in_array((string) $effective->outcome_code, array('review_required', 'teacher_non_delivery'), true)) {
+                self::formStart('dispute_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                self::input('reason_code', 'Reason code', true, 'text', 'late_report_dispute');
+                self::canonicalEvidenceFields();
+                submit_button('Mark completion disputed', 'secondary');
+                echo '</form>';
+            }
+        } elseif ($effective) {
+            self::formStart('correct_canonical_delivery');
+            echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '"><input type="hidden" name="expected_outcome_id" value="' . esc_attr((string) $effective->id) . '">';
+            echo '<p><label>Correct effective outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option></select></label></p>';
+            self::input('reason_code', 'Reason code', true, 'text', 'administrator_correction');
+            self::canonicalEvidenceFields();
+            submit_button('Append corrected outcome', 'secondary');
+            echo '</form>';
+        } elseif ((string) $lesson->lifecycle_state === 'authorised' && !$effective) {
+            try { $schedule = (new CanonicalLessonScheduleReadService())->forLessonDelivery((int) $lesson->id); }
+            catch (\InvalidArgumentException $exception) {
+                if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
+                echo '<p class="notice notice-error">Delivery recording is unavailable because the schedule failed integrity validation.</p>';
+                return;
+            }
+            $current = $schedule['active_version'] ?? null;
+            if ($current && (string) $current->ends_at_utc <= gmdate('Y-m-d H:i:s')) {
+                self::formStart('record_canonical_delivery');
+                echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+                echo '<p><label>Record occurrence outcome<br><select name="outcome_code"><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="interruption">Interrupted</option><option value="teacher_non_delivery">Teacher/academy non-delivery</option><option value="review_required">Review required</option></select></label></p>';
+                self::input('reason_code', 'Reason code', true, 'text', 'administrator_occurrence_outcome');
+                self::canonicalEvidenceFields();
+                submit_button('Record outcome', 'secondary');
+                echo '</form>';
+            }
+        }
     }
 
     /**
@@ -796,7 +1056,7 @@ final class ScreenController {
         self::input('first_name', 'First name'); self::input('last_name', 'Last name'); self::input('display_name', 'Display name', true); self::input('email', 'Email', false, 'email'); self::input('phone', 'Phone'); self::input('whatsapp_phone', 'WhatsApp'); self::input('country_code', 'Country code', false, 'text', 'AU'); self::input('city', 'City'); self::input('timezone', 'Timezone', false, 'text', 'Australia/Brisbane'); self::select('timezone_source', 'Timezone source', ['admin_selected', 'student_selected', 'imported', 'system_suggested'], 'admin_selected'); self::input('locale', 'Locale', false, 'text', 'en_AU'); self::select('calendar_preference', 'Calendar', ['gregorian', 'persian', 'auto'], 'gregorian'); self::select('status', 'Status', ['active', 'inactive'], 'active');
     }
 
-    private static function instrumentFields(): void { self::input('name', 'Instrument name', true); self::input('standard_duration_minutes', 'Standard lesson duration (minutes)', true, 'number', '30'); echo '<p><strong>Introductory lesson:</strong> Free<input type="hidden" name="introductory_lesson_billing" value="free"></p><p class="description">Paid introductions are unavailable because no pre-introduction checkout authority exists.</p>'; self::input('gap_between_lessons_minutes', 'Gap between lessons (minutes)', true, 'number', '15'); echo '<p class="description">The introductory Course uses this same duration and gap. New Courses are named “کلاس معارفه [نام ساز]” and “کلاس [نام ساز]”. This creates or safely reconciles the introductory and standard Courses, the standard commercial product, and the public introductory default. Set regional prices separately in Commercial Catalogue.</p>'; }
+    private static function instrumentFields(): void { self::input('name', 'Instrument name', true); self::input('standard_duration_minutes', 'Standard lesson duration (minutes)', true, 'number', '30'); echo '<input type="hidden" name="introductory_lesson_billing" value="free"><p class="description"><strong>Introductory lesson availability</strong> is created here. Its free or paid price is configured by currency region in <a href="'.esc_url(FinanceAdminController::tabUrl(FinanceAdminController::TAB_SETTINGS)).'#regional-pricing">Finance → Settings</a>; no instrument-specific price is configured.</p>'; self::input('gap_between_lessons_minutes', 'Gap between lessons (minutes)', true, 'number', '15'); echo '<p class="description">The introductory Course uses this same duration and gap. New Courses are named “کلاس معارفه [نام ساز]” and “کلاس [نام ساز]”. This creates or safely reconciles the introductory and standard Courses, the standard commercial product, and the public introductory default. The shared regional price is applied automatically.</p>'; }
     private static function courseFields(): void { self::instrumentSelector(); self::input('name_fa', 'Persian name', true); self::input('name_en', 'English name', true); self::select('course_type', 'Course type', ['standard', 'introductory'], 'standard'); self::select('status', 'Status', ['active', 'inactive'], 'active'); self::input('default_duration_minutes', 'Duration minutes', true, 'number', '30'); self::input('default_buffer_minutes', 'Buffer minutes', true, 'number', '15'); }
     private static function instrumentSelector(): void {
         $instruments = (new CoreReadService())->instrumentOptionsForCourse();
@@ -866,7 +1126,10 @@ final class ScreenController {
     private static function operatorValue(string $field,mixed $value):string { if(in_array($field,['status','lifecycle_state','from_state','to_state'],true))return match((string)$value){'active'=>'Active','inactive'=>'Inactive','archived'=>'Archived','authorised'=>'Authorised','current'=>'Current','paused'=>'Paused','closed'=>'Closed','cancelled'=>'Cancelled',default=>self::displayValue($value)}; if($field==='course_type')return match((string)$value){'introductory'=>'Introductory Course','standard'=>'Standard Course',default=>self::displayValue($value)}; if($field==='lesson_type')return match((string)$value){'introductory'=>'Introductory class','standard'=>'Regular class','replacement'=>'Replacement class',default=>self::displayValue($value)}; return self::displayValue($value); }
     private static function displayValue(mixed $value): string { return ($value === null || $value === '' || !is_scalar($value)) ? '—' : (string) $value; }
     private static function redirectNotice(string $notice, bool $error = false, array $extra = []): never {
-        $url = add_query_arg(array_merge(['page' => sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform')), 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $extra), admin_url('admin.php'));
+        $page = sanitize_key(wp_unslash($_GET['page'] ?? 'dzn-platform'));
+        $view = sanitize_key(wp_unslash($_GET['view'] ?? ''));
+        $viewArgs = $page === 'dzn-teachers-menu' && $view === 'onboarding' ? ['view' => 'onboarding'] : [];
+        $url = add_query_arg(array_merge(['page' => $page, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0'], $viewArgs, $extra), admin_url('admin.php'));
         NonceLifecycleDiagnostic::logStage('redirect_enter');
         nocache_headers();
         if (wp_safe_redirect($url)) exit;
@@ -949,6 +1212,26 @@ final class ScreenController {
         self::input('reason_code', 'Reason code', true);
         self::canonicalEvidenceFields();
         submit_button('Release canonical schedule');
+        echo '</form>';
+    }
+
+    /** Contextual manual completion is independent of schedule-edit access. */
+    private static function canonicalLessonCompletionForm(object $lesson): void {
+        if (!current_user_can('dzn_manage_canonical_lessons') || (string) $lesson->lifecycle_state !== 'authorised') return;
+        try { $state = (new CanonicalLessonScheduleReadService())->forLessonCompletion((int) $lesson->id); }
+        catch (\InvalidArgumentException $exception) {
+            if ($exception->getMessage() !== 'canonical_schedule_integrity_conflict') throw $exception;
+            echo '<p class="notice notice-error">Class completion is unavailable because the schedule failed integrity validation.</p>';
+            return;
+        }
+        $active = $state['active_version'] ?? null;
+        if (!$active) { echo '<p class="notice notice-info">Mark as completed becomes available after a canonical schedule is confirmed.</p>'; return; }
+        if ((string) $active->ends_at_utc > gmdate('Y-m-d H:i:s')) { echo '<p class="notice notice-info">Mark as completed becomes available after the scheduled class ends.</p>'; return; }
+        echo '<h2>Class completion</h2><p>Record the completed class with an operator evidence reference. This final action remains subject to the canonical delivery integrity checks.</p>';
+        self::formStart('complete_canonical_lesson');
+        echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $lesson->id) . '">';
+        self::canonicalEvidenceFields();
+        submit_button('Mark class as completed', 'primary');
         echo '</form>';
     }
 }

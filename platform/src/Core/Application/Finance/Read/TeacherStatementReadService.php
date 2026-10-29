@@ -63,7 +63,35 @@ final class TeacherStatementReadService {
             $expected=(string)$evaluation->disposition==='payable'?$effective['amount_minor']:0;
             if($expected!==(int)$line->line_amount_minor)$differences[]=array('lesson_id'=>(int)$line->lesson_id,'expected_amount_minor'=>$expected,'observed_amount_minor'=>(int)$line->line_amount_minor);
         }
-        return array('statement_id'=>$statementId,'recorded_totals'=>$recomputed,'derived_differences'=>$differences,'reconciled'=>$differences===array());
+        $labels=$this->lessonLabels(array_column($differences,'lesson_id'));
+        foreach($differences as &$difference){
+            $label=$labels[(int)$difference['lesson_id']]??null;
+            $difference['lesson_label']=(string)($label['label']??'Class record');
+            $difference['lesson_reference']=(string)($label['reference']??'');
+            $difference['student_name']=(string)($label['student']??'');
+            $difference['course_name']=(string)($label['course']??'');
+        }
+        unset($difference);
+        return array('statement_id'=>$statementId,'currency'=>(string)$statement->currency,'recorded_totals'=>$recomputed,'derived_differences'=>$differences,'reconciled'=>$differences===array());
+    }
+
+    /** @param list<int> $lessonIds @return array<int,array{label:string,reference:string,student:string,course:string}> */
+    private function lessonLabels(array $lessonIds):array{
+        $lessonIds=array_values(array_unique(array_filter(array_map('intval',$lessonIds),static fn(int $id):bool=>$id>0)));
+        if($lessonIds===array())return array();
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $marks=implode(',',$lessonIds);
+        $rows=$wpdb->get_results("SELECT lesson.id,lesson.reference_code,COALESCE(NULLIF(student.display_name,''),'') AS student_name,COALESCE(NULLIF(course.name_en,''),NULLIF(course.name_fa,''),'') AS course_name FROM {$p}lessons lesson LEFT JOIN {$p}students student ON student.id=lesson.student_id LEFT JOIN {$p}courses course ON course.id=lesson.course_id WHERE lesson.id IN ({$marks})")?:array();
+        $labels=array();
+        foreach($rows as $row){
+            $student=trim((string)$row->student_name);
+            $course=trim((string)$row->course_name);
+            $reference=trim((string)($row->reference_code??''));
+            $parts=array_values(array_filter(array($student,$course),static fn(string $part):bool=>$part!==''));
+            $label=$reference!==''?$reference:($parts!==array()?implode(' · ',$parts):'Class record');
+            $labels[(int)$row->id]=array('label'=>$label,'reference'=>$reference,'student'=>$student,'course'=>$course);
+        }
+        return $labels;
     }
     private function shape(object $statement):array{
         return array('statement_id'=>(int)$statement->id,'teacher_id'=>(int)$statement->teacher_id,'period_start_utc'=>(string)$statement->period_start_utc,'period_end_utc'=>(string)$statement->period_end_utc,'period_timezone'=>$statement->period_timezone===null?null:(string)$statement->period_timezone,'period_label'=>$statement->period_label===null?null:(string)$statement->period_label,'currency'=>(string)$statement->currency,'state'=>(string)$statement->state,'statement_version'=>(int)$statement->statement_version,'timezone_policy_version'=>$statement->timezone_policy_version===null?null:(int)$statement->timezone_policy_version,'total_line_count'=>(int)$statement->total_line_count,'payable_line_count'=>(int)$statement->payable_line_count,'payable_amount_minor'=>(int)$statement->payable_amount_minor,'non_payable_line_count'=>(int)$statement->non_payable_line_count,'pending_line_count'=>(int)$statement->pending_line_count,'excluded_archived_count'=>(int)$statement->excluded_archived_count,'issued_at'=>$statement->issued_at===null?null:(string)$statement->issued_at,'issued_by'=>$statement->issued_by===null?null:(int)$statement->issued_by,'superseded_by_statement_id'=>$statement->superseded_by_statement_id===null?null:(int)$statement->superseded_by_statement_id);

@@ -29,13 +29,51 @@ final class FinancePayabilityController {
         echo '<p>Derived payability only. A pending disposition blocks statement issuance.</p>';
         self::teacherSelector($teacherId,$options);
         if($teacherId<1){echo '<p>No Teacher is available for payability review.</p></div>';return;}
-        $rows=(array)$wpdb->get_results($wpdb->prepare("SELECT evaluation.lesson_id,evaluation.disposition,evaluation.basis_code,evaluation.policy_key,evaluation.policy_version,evaluation.override_id,evaluation.applicable_slot FROM {$p}finance_payability_evaluations evaluation INNER JOIN {$p}lessons lesson ON lesson.id=evaluation.lesson_id WHERE lesson.teacher_id=%d ORDER BY evaluation.lesson_id,evaluation.evaluation_sequence",$teacherId));
+        $rows=(array)$wpdb->get_results($wpdb->prepare("SELECT evaluation.lesson_id,evaluation.disposition,evaluation.basis_code,evaluation.policy_key,evaluation.policy_version,evaluation.override_id,evaluation.applicable_slot,lesson.reference_code lesson_ref,COALESCE(NULLIF(student.display_name,''),NULLIF(student.reference_code,''),'Student') student_name,COALESCE(NULLIF(course.name_en,''),NULLIF(course.name_fa,''),'Course') course_name FROM {$p}finance_payability_evaluations evaluation INNER JOIN {$p}lessons lesson ON lesson.id=evaluation.lesson_id LEFT JOIN {$p}students student ON student.id=lesson.student_id LEFT JOIN {$p}courses course ON course.id=lesson.course_id WHERE lesson.teacher_id=%d ORDER BY evaluation.lesson_id,evaluation.evaluation_sequence",$teacherId));
         if($wpdb->last_error!=='')throw new \RuntimeException('Payability read unavailable');
-        echo '<table class="widefat"><thead><tr><th>Lesson</th><th>Disposition</th><th>Basis</th><th>Policy</th><th>Override</th><th>Applicable</th></tr></thead><tbody>';
-        foreach($rows as $row)echo '<tr><td>'.esc_html((string)$row->lesson_id).'</td><td>'.esc_html((string)$row->disposition).'</td><td>'.esc_html((string)$row->basis_code).'</td><td>'.esc_html((string)($row->policy_key??'')).'</td><td>'.esc_html((string)($row->override_id??'')).'</td><td>'.esc_html($row->applicable_slot===null?'history':'effective').'</td></tr>';
-        if(!$rows)echo '<tr><td colspan="6">No payability evaluations for this Teacher.</td></tr>';
+        echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Student / course</th><th>Disposition</th><th>Basis</th><th>Policy</th><th>Override</th><th>Applicability</th></tr></thead><tbody>';
+        foreach($rows as $row){
+            $url=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->lesson_id),admin_url('admin.php'));
+            $classLabel=esc_html((string)($row->lesson_ref?:'Class'));
+            if(current_user_can('dzn_manage_lessons'))$classLabel='<a href="'.esc_url($url).'">'.$classLabel.'</a>';
+            $disposition=self::disposition((string)$row->disposition);
+            $basis=self::basis((string)$row->basis_code);
+            $policy=(string)($row->policy_key??'');
+            if($policy!=='')$policy.=(int)($row->policy_version??0)>0?' v'.(int)$row->policy_version:'';
+            echo '<tr><td>'.$classLabel.'</td><td>'.esc_html((string)$row->student_name).'<br><small>'.esc_html((string)$row->course_name).'</small></td><td><span class="dzn-badge '.esc_attr($disposition[1]).'">'.esc_html($disposition[0]).'</span></td><td>'.esc_html($basis).'</td><td>'.esc_html($policy!==''?$policy:'—').'</td><td>'.($row->override_id===null?'—':'<span class="dzn-badge dzn-badge--blue">Override applied</span>').'</td><td>'.esc_html($row->applicable_slot===null?'History':'Current').'</td></tr>';
+        }
+        if(!$rows)echo '<tr><td colspan="7">No payability evaluations for this Teacher.</td></tr>';
         echo '</tbody></table></div>';
     }
+    /** @return array{0:string,1:string} label and badge class */
+    private static function disposition(string $value): array {
+        return match ($value) {
+            'payable' => array('Payable', 'dzn-badge--teal'),
+            'non_payable' => array('Not payable', 'dzn-badge--red'),
+            'pending' => array('Pending review', 'dzn-badge--gold'),
+            'override' => array('Administrator override', 'dzn-badge--blue'),
+            'policy' => array('Policy decision', 'dzn-badge--gold'),
+            default => array(ucfirst(str_replace('_', ' ', $value)), ''),
+        };
+    }
+
+    private static function basis(string $value): string {
+        return match ($value) {
+            'delivered_occurrence' => 'Delivered class',
+            'lesson_not_finalised' => 'Class not finalised',
+            'delivery_review_required' => 'Delivery review required',
+            'presumed_completion_review' => 'Presumed completion needs review',
+            'teacher_non_delivery' => 'Teacher did not deliver',
+            'academy_obligation' => 'Academy obligation',
+            'student_no_show' => 'Student did not attend',
+            'interruption' => 'Class interrupted',
+            'occurrence_not_attempted' => 'Class did not occur',
+            'introductory_non_payable' => 'Introductory policy',
+            'administrator_override' => 'Administrator override',
+            default => ucfirst(str_replace('_', ' ', $value)),
+        };
+    }
+
     private static function teacherSelector(int $selected,array $options):void{
         echo '<form method="get"><input type="hidden" name="page" value="'.esc_attr(self::MENU_SLUG).'"><label>Teacher <select name="teacher_id">';
         foreach($options as $option)echo '<option value="'.(int)$option->id.'"'.selected($selected,(int)$option->id,false).'>'.esc_html((string)$option->label).'</option>';

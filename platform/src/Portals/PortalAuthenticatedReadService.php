@@ -24,13 +24,120 @@ final class PortalAuthenticatedReadService {
             do_action('dzn_post_intro_student_read_failed', get_class($error));
             $postIntro = array();
         }
+        try {
+            $rescheduleProposals = $this->studentRescheduleProposals((int) $principal['id']);
+        } catch (\Throwable $error) {
+            // An additive workflow surface must never take down the whole Student Portal.
+            do_action('dzn_lesson_reschedule_student_read_failed', get_class($error));
+            $rescheduleProposals = array();
+        }
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
+            // The Theme must not substitute the site timezone (or the WordPress
+            // display name) for this student's canonical profile facts.
+            'profile' => $this->studentProfile((int) $principal['id']),
             'lessons' => $lessons,
             'enrolments' => $enrolments,
             'booking_requests' => $bookingRequests,
             'booking_classes' => $bookingClasses,
             'post_intro' => $postIntro,
+            'reschedule_proposals' => $rescheduleProposals,
+        );
+    }
+
+    /** Bounded current-Term progress for the Teacher's visible canonical Lessons. */
+    private function attachTeacherTermProgress(array $lessons): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $cache = array();
+        foreach ( $lessons as &$lesson ) {
+            $termId = (int) ( $lesson['term_id'] ?? 0 );
+            if ( $termId < 1 ) { continue; }
+            if ( ! isset( $cache[ $termId ] ) ) {
+                $row = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT COUNT(*) total,SUM(lifecycle_state='completed') completed,SUM(lifecycle_state='cancelled') cancelled
+                     FROM {$p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND archived_at IS NULL",
+                    $termId
+                ) );
+                if ( $wpdb->last_error !== '' ) throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+                $total = (int) ( $row->total ?? 0 );
+                $completed = (int) ( $row->completed ?? 0 );
+                $cancelled = (int) ( $row->cancelled ?? 0 );
+                $cache[ $termId ] = array( 'total' => $total, 'completed' => $completed, 'cancelled' => $cancelled, 'remaining' => max( 0, $total - $completed - $cancelled ) );
+            }
+            $lesson['term_lesson_total'] = $cache[ $termId ]['total'];
+            $lesson['term_lesson_completed'] = $cache[ $termId ]['completed'];
+            $lesson['term_lesson_cancelled'] = $cache[ $termId ]['cancelled'];
+            $lesson['term_lesson_remaining'] = $cache[ $termId ]['remaining'];
+        }
+        unset( $lesson );
+        return $lessons;
+    }
+
+    /** Pending teacher-initiated reschedule proposals owned by this Student. */
+    private function studentRescheduleProposals(int $studentId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT r.uid proposal_uid,r.proposed_starts_at_utc,r.proposed_ends_at_utc,r.schedule_timezone,r.state,
+                    l.uid lesson_uid,l.reference_code lesson_reference,l.course_id,l.lesson_type,
+                    v.uid original_schedule_version_uid,v.starts_at_utc original_starts_at_utc,v.ends_at_utc original_ends_at_utc,
+                    (SELECT e.reason_code FROM {$p}lesson_reschedule_events e WHERE e.proposal_id=r.id AND e.event_type='proposed' ORDER BY e.id ASC LIMIT 1) proposal_reason,
+                    COALESCE(NULLIF(i.name_fa,''),i.name_en,c.name_fa,c.name_en) instrument_name,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name
+             FROM {$p}lesson_reschedule_proposals r
+             INNER JOIN {$p}lessons l ON l.id=r.lesson_id AND l.archived_at IS NULL
+             INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=r.schedule_version_id AND v.lesson_id=l.id
+             LEFT JOIN {$p}courses c ON c.id=l.course_id
+             LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
+             LEFT JOIN {$p}teachers t ON t.id=r.teacher_id AND t.archived_at IS NULL
+             WHERE r.student_id=%d AND r.state='pending'
+             ORDER BY r.proposed_starts_at_utc,r.id LIMIT 20",
+            $studentId
+        ) );
+        if ( $wpdb->last_error !== '' ) throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        $result = array();
+        foreach ( (array) $rows as $row ) {
+            $result[] = array(
+                'version' => 'student_reschedule_proposal_v1',
+                'proposal_uid' => (string) $row->proposal_uid,
+                'lesson_uid' => (string) $row->lesson_uid,
+                'lesson_reference' => (string) $row->lesson_reference,
+                'instrument_name' => (string) $row->instrument_name,
+                'teacher_name' => (string) $row->teacher_name,
+                'kind' => (string) ($row->proposal_reason ?? '') === 'teacher_replacement_proposed' ? 'replacement' : 'reschedule',
+                'original_starts_at_utc' => (string) $row->original_starts_at_utc,
+                'original_ends_at_utc' => (string) $row->original_ends_at_utc,
+                'starts_at_utc' => (string) $row->proposed_starts_at_utc,
+                'ends_at_utc' => (string) $row->proposed_ends_at_utc,
+                'schedule_timezone' => (string) $row->schedule_timezone,
+                'state' => (string) $row->state,
+            );
+        }
+        return $result;
+    }
+
+    /** A deliberately small, self-owned profile projection for portal presentation. */
+    private function studentProfile(int $studentId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT display_name,email,phone,whatsapp_phone,country_code,city,timezone,locale,calendar_preference
+             FROM {$p}students
+             WHERE id=%d AND status='active' AND archived_at IS NULL",
+            $studentId
+        ), ARRAY_A);
+        if (!is_array($row) || $wpdb->last_error !== '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        return array(
+            'full_name' => (string) ($row['display_name'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+            'mobile' => (string) ($row['phone'] ?? ''),
+            'whatsapp_phone' => (string) ($row['whatsapp_phone'] ?? ''),
+            'country_code' => (string) ($row['country_code'] ?? ''),
+            'city' => (string) ($row['city'] ?? ''),
+            'timezone' => (string) ($row['timezone'] ?? ''),
+            'locale' => (string) ($row['locale'] ?? ''),
+            'calendar_preference' => (string) ($row['calendar_preference'] ?? ''),
         );
     }
 
@@ -39,11 +146,14 @@ final class PortalAuthenticatedReadService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $requests = (array) $wpdb->get_results( $wpdb->prepare(
-            "SELECT r.id,r.uid,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,i.name_fa instrument_name_fa,i.name_en instrument_name_en,c.name_fa course_name_fa,c.name_en course_name_en
+            "SELECT r.id,r.uid,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,i.name_fa instrument_name_fa,i.name_en instrument_name_en,c.name_fa course_name_fa,c.name_en course_name_en,
+                    conf.state confirmation_state,intro.uid intro_uid,intro.reference_code intro_reference,intro.state intro_state,intro.amount_minor intro_amount_minor,intro.currency intro_currency,intro.failure_reason_code intro_failure_reason_code
              FROM {$p}booking_requests r
              INNER JOIN {$p}booking_request_identity_resolution_events e ON e.id=r.current_identity_resolution_id AND e.booking_request_id=r.id AND e.student_id=r.student_id AND e.outcome='resolved'
              INNER JOIN {$p}instruments i ON i.id=r.requested_instrument_id
              LEFT JOIN {$p}courses c ON c.id=r.selected_intro_course_id
+             LEFT JOIN {$p}booking_request_confirmations conf ON conf.id=(SELECT MAX(recent_confirmation.id) FROM {$p}booking_request_confirmations recent_confirmation WHERE recent_confirmation.booking_request_id=r.id)
+             LEFT JOIN {$p}intro_payment_obligations intro ON intro.booking_request_id=r.id
              WHERE r.student_id=%d AND r.lifecycle_status='submitted' AND r.privacy_erased_at IS NULL
              ORDER BY r.id DESC LIMIT %d",
             $studentId,
@@ -55,12 +165,26 @@ final class PortalAuthenticatedReadService {
                 "SELECT local_date,local_start_time,timezone FROM {$p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number ASC LIMIT 3",
                 (int) $request->id
             ), ARRAY_A );
+            $introPayment = null;
+            if ( (string) ( $request->intro_uid ?? '' ) !== '' ) {
+                $introPayment = array(
+                    'obligation_uid' => (string) $request->intro_uid,
+                    'reference' => (string) $request->intro_reference,
+                    'state' => (string) $request->intro_state,
+                    'amount_minor' => (int) $request->intro_amount_minor,
+                    'currency' => (string) $request->intro_currency,
+                    'failure_reason_code' => $request->intro_failure_reason_code === null ? null : (string) $request->intro_failure_reason_code,
+                    'payment_required' => (string) $request->confirmation_state === 'awaiting_payment' && (string) $request->intro_state === 'pending',
+                );
+            }
             $result[] = array(
                 'version' => 'student_booking_request_v1',
                 'uid' => (string) $request->uid,
                 'reference' => (string) $request->reference_code,
                 'lifecycle_status' => (string) $request->lifecycle_status,
                 'resolution_state' => (string) $request->resolution_state,
+                'confirmation_state' => $request->confirmation_state === null ? null : (string) $request->confirmation_state,
+                'intro_payment' => $introPayment,
                 'instrument' => (string) ( $request->instrument_name_fa ?: $request->instrument_name_en ),
                 'course' => (string) ( $request->course_name_fa ?: $request->course_name_en ),
                 'requested_times' => array_map( static fn( array $time ): array => array( 'local_date' => (string) $time['local_date'], 'local_start_time' => substr( (string) $time['local_start_time'], 0, 5 ), 'timezone' => (string) $time['timezone'] ), $times ),
@@ -70,12 +194,13 @@ final class PortalAuthenticatedReadService {
         return $result;
     }
 
-    public function teacher(): array {
+    public function teacher(?string $fromUtc = null, ?string $toUtc = null): array {
         $principal = (new PortalPrincipalResolver())->resolve('teacher');
         if ( ! ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository() )->hasActiveTeacherAuthority( (int) get_current_user_id(), (int) $principal['id'] ) ) throw new \InvalidArgumentException( 'teacher_onboarding_required' );
-        $lessons = $this->lessonsFor('teacher', (int) $principal['id'], $principal);
+        $lessons = $this->lessonsFor('teacher', (int) $principal['id'], $principal, $fromUtc, $toUtc);
+        $lessons = $this->attachTeacherTermProgress($lessons);
         $assignments = $this->teacherAssignments((int) $principal['id'], $principal);
-        $bookingClasses = (new TeacherUpcomingBookingReadService())->forTeacher((int) $principal['id']);
+        $bookingClasses = (new TeacherUpcomingBookingReadService())->forTeacher((int) $principal['id'], $fromUtc, $toUtc);
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
             'lessons' => $lessons,
@@ -84,20 +209,27 @@ final class PortalAuthenticatedReadService {
         );
     }
 
-    private function lessonsFor(string $kind, int $principalId, array $principal): array {
+    private function lessonsFor(string $kind, int $principalId, array $principal, ?string $fromUtc = null, ?string $toUtc = null): array {
         global $wpdb;
         $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
         $table = $wpdb->prefix . 'dzn_lessons';
         $schedules = $wpdb->prefix . 'dzn_canonical_lesson_schedule_versions';
+        $legacySchedules = $wpdb->prefix . 'dzn_lesson_schedule_versions';
         // A canonical Lesson becomes portal-visible when its occurrence is scheduled. An
         // authorised but unscheduled Lesson has no date/time to present and must not make the
         // whole portal read fail closed; the canonical schedule read still validates every row
-        // that is selected.
+        // that is selected. A supplied local-day window is applied in SQL so the portal only
+        // materialises bounded current occurrences, not a lifetime history.
+        $window = null !== $fromUtc && null !== $toUtc;
+        $direction = $window ? 'ASC' : 'DESC';
+        $where = $window ? ' AND v.starts_at_utc>=%s AND v.starts_at_utc<%s' : '';
+        $canonicalArgs = array($principalId);
+        if ($window) { $canonicalArgs[] = $fromUtc; $canonicalArgs[] = $toUtc; }
+        $canonicalArgs[] = self::LIMIT;
         $ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1' ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT %d",
-                $principalId,
-                self::LIMIT
+                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1'{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction} LIMIT %d",
+                ...$canonicalArgs
             )
         );
         $rows = array();
@@ -109,8 +241,60 @@ final class PortalAuthenticatedReadService {
                 $principal
             );
         }
+        // Older staff-entered classes are a separate, read-only compatibility projection. They
+        // must have the exact current legacy schedule pointer and never acquire canonical portal
+        // capabilities (join/absence) merely by becoming visible.
+        $legacyArgs = array($principalId);
+        if ($window) { $legacyArgs[] = $fromUtc; $legacyArgs[] = $toUtc; }
+        $legacyArgs[] = self::LIMIT;
+        $legacyIds = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT l.id FROM {$table} l INNER JOIN {$legacySchedules} v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction} LIMIT %d",
+                ...$legacyArgs
+            )
+        );
+        foreach ((array) $legacyIds as $id) $rows[] = $this->legacyLessonFor($kind, (int) $id, $principalId);
         usort($rows, static fn(array $a, array $b): int => strcmp((string) $a['starts_at_utc'], (string) $b['starts_at_utc']));
         return $rows;
+    }
+
+    /** A legacy class is visible only to its exact canonical portal principal and is read-only. */
+    private function legacyLessonFor(string $kind, int $lessonId, int $principalId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,v.id schedule_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,c.reference_code course_reference,c.name_fa course_name_fa,c.name_en course_name_en,s.reference_code student_reference FROM {$p}lessons l INNER JOIN {$p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}students s ON s.id=l.student_id WHERE l.id=%d AND l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL",
+            $lessonId,
+            $principalId
+        ));
+        if (!$row || $wpdb->last_error !== '') throw new \InvalidArgumentException('portal_object_not_portal_visible');
+        if ((int) $row->id < 1 || (int) $row->schedule_id < 1 || trim((string) $row->starts_at_utc) === '' || trim((string) $row->ends_at_utc) === '' || trim((string) $row->schedule_timezone) === '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        return array(
+            'version' => 'portal_lesson_v1',
+            'lesson_uid' => trim((string) $row->uid) ?: 'legacy-' . (int) $row->id,
+            'reference_code' => trim((string) $row->reference_code) ?: 'Class #' . (int) $row->id,
+            'lesson_kind' => (string) $row->lesson_type,
+            // Do not present a legacy class as canonical-authorised: no absence or public
+            // capability action may be created from this compatibility projection.
+            'lifecycle_state' => (string) $row->status === 'completed' ? 'completed' : 'scheduled',
+            'enrolment_uid' => '',
+            'course_reference' => trim((string) $row->course_reference) ?: 'Course',
+            'course_name' => trim((string) ($row->course_name_fa ?: $row->course_name_en)) ?: (trim((string) $row->course_reference) ?: 'Course'),
+            'term_reference' => '',
+            'starts_at_utc' => (string) $row->starts_at_utc,
+            'ends_at_utc' => (string) $row->ends_at_utc,
+            'schedule_timezone' => (string) $row->schedule_timezone,
+            'schedule_version_uid' => 'legacy-schedule-' . (int) $row->schedule_id,
+            'delivery_state_summary' => (string) $row->status === 'completed' ? 'completed' : 'not_recorded',
+            'attendance_state_summary' => 'not_recorded',
+            'join_available' => false,
+            'join_refusal_reason' => 'legacy_class_read_only',
+            'absence_available' => false,
+            'absence_refusal_reason' => 'legacy_class_read_only',
+            'assignment_state' => $kind === 'teacher' ? 'legacy_read_only' : null,
+            'student_display_reference' => $kind === 'teacher' ? (trim((string) $row->student_reference) ?: 'Student') : null,
+        );
     }
 
     private function studentEnrolments(int $studentId, array $principal): array {

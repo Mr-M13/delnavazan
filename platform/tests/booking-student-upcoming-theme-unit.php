@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Portals {
         public function student(): array {
             return array(
                 'lessons' => array(), 'enrolments' => array(), 'booking_requests' => array(),
+                'profile' => array('timezone' => 'America/New_York'),
                 'booking_classes' => array(array(
                     'version' => 'student_booking_class_v1',
                     'confirmation_uid' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -42,7 +43,7 @@ namespace {
     $lesson = $model['upcoming_lesson'] ?? array();
     if (($lesson['entitlement_state'] ?? '') !== 'free_introductory' || ($lesson['teacher'] ?? '') !== 'Teacher Example') throw new \RuntimeException('Confirmed intro presentation is incomplete.');
     if (empty($lesson['join_available']) || ($lesson['confirmation_uid'] ?? '') !== '01ARZ3NDEKTSV4RRFFQ69G5FAV') throw new \RuntimeException('Confirmed intro inside the late window did not receive its secure join action.');
-    if (($lesson['timezone_label'] ?? '') !== 'Australia/Brisbane') throw new \RuntimeException('Student intro timezone was not preserved.');
+    if (($lesson['timezone_label'] ?? '') !== 'نیویورک · America/New_York') throw new \RuntimeException('Canonical Student timezone did not override the booking schedule timezone with a human label and exact identifier.');
     if (!empty($model['term'])) throw new \RuntimeException('A free intro fabricated a paid enrolment term.');
     echo "Booking student upcoming theme unit passed\n";
 }

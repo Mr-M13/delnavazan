@@ -2,6 +2,8 @@
 /** Teacher Portal presentation boundary. @package DelnavazanTheme */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+require_once __DIR__ . '/nonce.php';
+
 function dzn_theme_teacher_portal_templates() {
 	return array( 'page-templates/teacher-portal-home.php', 'page-templates/teacher-portal-account.php', 'page-templates/teacher-portal-onboarding.php', 'page-templates/teacher-portal-preview.php' );
 }
@@ -22,7 +24,7 @@ function dzn_theme_enqueue_teacher_portal_assets() {
 add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 );
 
 function dzn_theme_teacher_portal_view_model( $screen ) {
-	$allowed = array( 'home', 'finance', 'settings', 'onboarding' );
+	$allowed = array( 'home', 'classes', 'finance', 'settings', 'onboarding' );
 	$screen = in_array( $screen, $allowed, true ) ? $screen : 'home';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
 	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
@@ -35,12 +37,13 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 	if ( ! is_array( $model ) || true !== ( $model['available'] ?? false ) || $screen !== ( $model['screen'] ?? null ) ) { return false; }
 	if ( ! dzn_theme_teacher_portal_teacher_valid( $model['teacher'] ?? null ) || ! dzn_theme_teacher_portal_navigation_valid( $model['navigation'] ?? null, $screen ) ) { return false; }
 	if ( 'home' === $screen ) {
-		return is_array( $model['attention'] ?? null ) && is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null )
-			&& ! array_filter( $model['attention'], static fn( $item ) => ! dzn_theme_teacher_portal_attention_valid( $item ) )
-			&& ! array_filter( $model['classes'], static fn( $item ) => ! dzn_theme_teacher_portal_class_valid( $item ) )
-			&& ! array_filter( $model['calendar'], static fn( $item ) => ! dzn_theme_teacher_portal_calendar_valid( $item ) );
+		// A malformed optional class or calendar row must not disable the whole home screen.
+		// The templates render such rows as an explicit, action-less failure while healthy rows
+		// remain usable. Core teacher identity and navigation above stay mandatory.
+		return is_array( $model['attention'] ?? null ) && is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null );
 	}
 	if ( 'finance' === $screen ) { return in_array( $model['finance_state'] ?? null, array( 'available', 'empty', 'unavailable' ), true ) && is_array( $model['statements'] ?? null ); }
+	if ( 'classes' === $screen ) { return is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null ); }
 	if ( 'settings' === $screen ) {
 		return dzn_theme_teacher_portal_profile_valid( $model['profile'] ?? null )
 			&& ( false === ( $model['availability_available'] ?? true ) || dzn_theme_teacher_portal_availability_valid( $model['availability'] ?? null, $model['exceptions'] ?? null ) )
@@ -64,17 +67,17 @@ function dzn_theme_teacher_portal_teacher_valid( $teacher ) {
 	return is_array( $teacher ) && dzn_theme_teacher_portal_text( $teacher['first_name'] ?? null ) && dzn_theme_teacher_portal_text( $teacher['full_name'] ?? null );
 }
 function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
-	if ( ! is_array( $navigation ) || count( $navigation ) !== 3 ) { return false; }
+	if ( ! is_array( $navigation ) || count( $navigation ) !== 4 ) { return false; }
 	$current = 0;
 	$seen = array();
 	foreach ( $navigation as $item ) {
 		if ( ! is_array( $item ) ) { return false; }
 		$item_screen = $item['screen'] ?? null;
-		if ( ! in_array( $item_screen, array( 'home', 'finance', 'settings' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
+		if ( ! in_array( $item_screen, array( 'home', 'classes', 'finance', 'settings' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
 		$seen[ $item_screen ] = true;
 		if ( $item['current'] ) { ++$current; if ( $item_screen !== $screen ) { return false; } }
 	}
-	return 0 === $current || ( 1 === $current && count( $seen ) === 3 );
+	return 0 === $current || ( 1 === $current && count( $seen ) === 4 );
 }
 function dzn_theme_teacher_portal_profile_valid( $profile ) {
 	if ( ! is_array( $profile ) ) { return false; }
@@ -97,7 +100,7 @@ function dzn_theme_teacher_portal_statistics_valid( $statistics ) {
 	return true;
 }
 function dzn_theme_teacher_portal_attention_valid( $item ) {
-	$states = array( 'intro_request', 'student_absence', 'teacher_disruption', 'replacement', 'paid_term_review', 'flexible_term_dates', 'google_problem', 'availability_conflict', 'admin_request' );
+	$states = array( 'intro_request', 'student_absence', 'reschedule_declined', 'reschedule_pending', 'teacher_disruption', 'replacement', 'paid_term_review', 'flexible_term_dates', 'google_problem', 'availability_conflict', 'admin_request' );
 	if ( ! is_array( $item ) || ! in_array( $item['state'] ?? null, $states, true ) ) { return false; }
 	foreach ( array( 'ref', 'title', 'context', 'message', 'due', 'primary' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
 	if ( true !== ( $item['action_available'] ?? false ) ) { return false; }
@@ -105,9 +108,11 @@ function dzn_theme_teacher_portal_attention_valid( $item ) {
 	return ! isset( $markers[ $item['state'] ] ) || true === ( $item[ $markers[ $item['state'] ] ] ?? false );
 }
 function dzn_theme_teacher_portal_class_valid( $item ) {
-	$states = array( 'upcoming', 'starting_soon', 'student_absence', 'replacement', 'intro', 'flexible' );
+	$states = array( 'upcoming', 'starting_soon', 'in_progress', 'student_absence', 'replacement', 'intro', 'flexible', 'ended' );
 	if ( ! is_array( $item ) || ! in_array( $item['state'] ?? null, $states, true ) ) { return false; }
-	foreach ( array( 'ref', 'time', 'student', 'course', 'progress', 'status', 'student_summary', 'schedule_summary', 'previous_private_note' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
+	foreach ( array( 'ref', 'time', 'student', 'course', 'progress', 'status', 'student_summary', 'schedule_summary' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $item[ $field ] ?? null ) ) { return false; } }
+	// Private notes are an optional display field: canonical lessons do not expose one.
+	if ( isset( $item['previous_private_note'] ) && ! is_string( $item['previous_private_note'] ) ) { return false; }
 	return is_bool( $item['start_available'] ?? null ) && is_bool( $item['details_available'] ?? null );
 }
 function dzn_theme_teacher_portal_calendar_valid( $item ) {
@@ -119,7 +124,8 @@ function dzn_theme_teacher_portal_preview_allowed() {
 }
 function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'حساب کاربری', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
+		array( 'screen' => 'home', 'label' => 'امروز', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
+		array( 'screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => add_query_arg( 'teacher-view', 'classes', $url ), 'current' => 'classes' === $screen ),
 		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $url ), 'current' => 'finance' === $screen ),
 		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $url ), 'current' => 'settings' === $screen ),
 	);
@@ -190,16 +196,27 @@ function dzn_theme_teacher_portal_response_notice_allowlist() {
 		'درخواست رد شد و اطلاع‌رسانی هنرجو در صف قرار گرفت.',
 		'ساخت تقویم کامل نشد؛ درخواست دوباره برای تلاش پس از بررسی اتصال Google باز شد.',
 		'پذیرش ثبت شد؛ کلاس تا ساخته‌شدن تقویم و پیوند Meet تأیید نمی‌شود.',
+		'پذیرش ثبت شد. این جلسهٔ معارفه پرداختی است؛ رویداد تقویم و پیوند Meet پس از پرداخت موفق هنرجو ساخته می‌شود.',
 		'برای پذیرش کلاس، ابتدا اتصال Google Calendar را کامل کنید.',
 		'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.',
+		'درخواست تغییر زمان ثبت شد و برای پذیرش هنرجو ارسال می‌شود.',
+		'زمان انتخاب‌شده با کلاس دیگری از شما تداخل دارد.',
+		'زمان انتخاب‌شده با کلاس دیگری از هنرجو تداخل دارد.',
+		'برای تغییر زمان، دست‌کم یک ساعت پیش از شروع کلاس اقدام کنید.',
+		'این کلاس دیگر قابل تغییر زمان نیست.',
+		'زمان کلاس هم‌زمان تغییر کرده است. صفحه را تازه کنید و دوباره تلاش کنید.',
+		'تغییر زمان برای این نوع کلاس از پرتال فعال نیست.',
+		'برای این کلاس یک درخواست تغییر زمان در انتظار پاسخ هنرجو است.',
+		'درخواست تغییر زمان ثبت نشد. زمان و سیاست‌های کلاس را بررسی کنید.',
 	);
 }
 /** Outcome notices for the home screen: array of array( 'success'|'error', message ). Only allowlisted, server-issued text is rendered. */
 function dzn_theme_teacher_portal_notices( $screen ) {
 	$notices = array();
-	if ( 'home' !== $screen ) { return $notices; }
+	if ( ! in_array( $screen, array( 'home', 'classes' ), true ) ) { return $notices; }
 	$status = isset( $_GET['class_status'] ) ? sanitize_key( (string) wp_unslash( $_GET['class_status'] ) ) : '';
 	$class_messages = array(
+		'delivery_recorded'          => array( 'success', 'گزارش برگزاری کلاس ثبت شد و برای بررسی مدیر در دسترس است.' ),
 		'delivery_issue_recorded'    => array( 'success', 'گزارش مشکل برگزاری کلاس ثبت شد.' ),
 		'delivery_issue_unavailable' => array( 'error', 'ثبت گزارش برای این کلاس در حال حاضر امکان‌پذیر نیست.' ),
 		'join_unavailable'           => array( 'error', 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.' ),

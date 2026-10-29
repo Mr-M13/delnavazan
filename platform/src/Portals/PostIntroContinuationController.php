@@ -15,9 +15,12 @@ final class PostIntroContinuationController {
         check_admin_referer(self::ACTION);
         $uid = sanitize_text_field((string) ($_POST['preparation_uid'] ?? ''));
         $attested = (string) ($_POST['adult_attested'] ?? '') === '1';
+        $planKind = sanitize_key((string) ($_POST['plan_kind'] ?? ''));
+        $quoteToken = strtolower(sanitize_text_field((string) ($_POST['quote_token'] ?? '')));
+        $instalmentsOptIn = (string) ($_POST['instalments_opt_in'] ?? '') === '1';
         try {
             if (!preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D', $uid)) throw new \InvalidArgumentException('post_intro_invitation_not_found');
-            $result = (new PostIntroContinuationService())->continue($uid, $attested);
+            $result = (new PostIntroContinuationService())->continue($uid, $attested, $planKind, $quoteToken, $instalmentsOptIn);
             if (!empty($result['redirect_url'])) {
                 wp_redirect((string) $result['redirect_url'], 303);
                 exit;
@@ -35,7 +38,9 @@ final class PostIntroContinuationController {
         return match ($message) {
             'adult_attestation_required', 'guardian_required', 'post_intro_invitation_expired',
             'post_intro_invitation_not_found', 'post_intro_invitation_not_ready', 'checkout_temporarily_unavailable',
-            'checkout_pending', 'payment_received', 'activated' => $message,
+            'checkout_pending', 'payment_received', 'activated', 'plan_choice_conflict', 'plan_quote_stale',
+            'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress',
+            'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable' => $message,
             default => 'post_intro_unavailable',
         };
     }

@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/nonce.php';
+
 /**
  * Portal templates owned by this presentation increment.
  *
@@ -54,6 +56,7 @@ function dzn_theme_enqueue_portal_assets() {
 	$style_path = get_theme_file_path( 'assets/css/portal.css' );
 	$script_path = get_theme_file_path( 'assets/js/portal.js' );
 	$checkout_script_path = get_theme_file_path( 'assets/js/checkout.js' );
+	$intro_checkout_script_path = get_theme_file_path( 'assets/js/intro-checkout.js' );
 	$version = wp_get_theme()->get( 'Version' );
 
 	wp_enqueue_style(
@@ -79,8 +82,23 @@ function dzn_theme_enqueue_portal_assets() {
 			file_exists( $checkout_script_path ) ? (string) filemtime( $checkout_script_path ) : $version,
 			array( 'strategy' => 'defer', 'in_footer' => true )
 		);
+		wp_enqueue_script(
+			'delnavazan-intro-checkout',
+			get_theme_file_uri( 'assets/js/intro-checkout.js' ),
+			array(),
+			file_exists( $intro_checkout_script_path ) ? (string) filemtime( $intro_checkout_script_path ) : $version,
+			array( 'strategy' => 'defer', 'in_footer' => true )
+		);
 		wp_localize_script(
 			'delnavazan-student-checkout',
+			'dznStudentCheckout',
+			array(
+				'apiRoot' => esc_url_raw( rest_url( 'delnavazan-platform/v1/' ) ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
+			)
+		);
+		wp_localize_script(
+			'delnavazan-intro-checkout',
 			'dznStudentCheckout',
 			array(
 				'apiRoot' => esc_url_raw( rest_url( 'delnavazan-platform/v1/' ) ),
@@ -101,7 +119,7 @@ add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_portal_assets', 20 );
  * @return array
  */
 function dzn_theme_student_portal_view_model( $screen ) {
-	$screen = in_array( $screen, array( 'home', 'account' ), true ) ? $screen : 'home';
+	$screen = in_array( $screen, array( 'home', 'account', 'schedule', 'payments' ), true ) ? $screen : 'home';
 	$model  = apply_filters(
 		'dzn_theme_student_portal_view_model',
 		null,
@@ -246,10 +264,13 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				),
 				'history' => $history,
 				'payments' => array(
-					'status'       => 'نمایش وضعیت اشتراک پس از اتصال امن',
-					'renewal_date' => 'تاریخ تمدید هنوز از منبع معتبر دریافت نشده است.',
-					'items'        => array(),
+					'state'      => 'unavailable',
+					'status'     => 'نمایش وضعیت پرداخت ترم پس از اتصال امن',
+					'next_term'  => '',
+					'items'      => array(),
+					'checkout_enabled' => false,
 				),
+				'notifications_available' => true,
 				'notifications' => array(
 					array( 'date' => '۲۴ شهریور', 'title' => 'یادآوری کلاس فردا', 'message' => 'زمان کلاس بر پایهٔ منطقهٔ زمانی انتخابی شما نمایش داده می‌شود.' ),
 					array( 'date' => '۲۰ شهریور', 'title' => 'برنامهٔ ماه مهر', 'message' => 'تقویم آموزشی ماه آینده به‌زودی اعلام می‌شود.' ),
@@ -295,11 +316,6 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				'academy_owed_tone'       => 'success',
 			),
 			'history' => $history,
-			'contact' => array(
-				'whatsapp_url' => 'https://contact.example.invalid/whatsapp',
-				'email_url'    => 'mailto:student-portal@example.invalid',
-				'instagram_url'=> 'https://social.example.invalid/instagram',
-			),
 		)
 	);
 }

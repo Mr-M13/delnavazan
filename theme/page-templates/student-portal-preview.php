@@ -9,6 +9,8 @@
  * @package DelnavazanTheme
  */
 
+nocache_headers();
+dzn_theme_send_protected_response_headers();
 get_header();
 
 while ( have_posts() ) {
@@ -41,7 +43,9 @@ while ( have_posts() ) {
 		$lesson_state_examples = array(
 			'upcoming' => array( 'کلاس شما برای زمان اعلام‌شده برنامه‌ریزی شده است.', '' ),
 			'starting_soon' => array( 'کلاس تا کمتر از یک ساعت دیگر آغاز می‌شود.', '' ),
-			'absence_notified' => array( 'اطلاع غیبت شما دریافت شده است؛ این پیام دربارهٔ تحویل یا حق جلسه داوری نمی‌کند.', '' ),
+			'in_progress' => array( 'این کلاس همین حالا در جریان است.', '' ),
+			'ended' => array( 'این کلاس به پایان رسیده است.', '' ),
+			'unknown' => array( 'زمان پایان این کلاس روشن نیست؛ برای هماهنگی با پشتیبانی تماس بگیرید.', '' ),
 			'time_changed' => array( 'زمان تازه را با منطقهٔ زمانی انتخابی خود بررسی کنید.', '' ),
 			'academy_cancelled' => array( 'این کلاس از سوی مدرس یا آموزشگاه برگزار نمی‌شود.', 'یک جلسه برای برنامه‌ریزی دوباره باقی می‌ماند.' ),
 			'awaiting_reschedule' => array( 'زمان جایگزین هنوز اعلام نشده است.', '' ),

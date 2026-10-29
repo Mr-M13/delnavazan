@@ -29,7 +29,10 @@
     panel.hidden = !panel.hidden;
     button.setAttribute('aria-expanded', String(!panel.hidden));
     const label = panel.hidden ? button.dataset.dznTpLabelClosed : button.dataset.dznTpLabelOpen;
-    if (label) button.textContent = label;
+    // Icon-only disclosure controls expose their state through aria-label; text controls keep
+    // their visible label. Neither path ever changes the submitted form fields.
+    if (label && button.querySelector('.dzn-tp-chevron__icon')) button.setAttribute('aria-label', label);
+    else if (label) button.textContent = label;
   }));
   // Real backend-authorised forms: show progress and block double submission. The server remains the only authority;
   // this changes presentation only and never alters the submitted fields.
@@ -73,6 +76,12 @@
       else { tour.dataset.dznTpFallback = 'disclosure'; tour.setAttribute('open', ''); }
     }
   }
+  document.querySelectorAll('.dzn-tp-instrument input[type="checkbox"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const card = input.closest('.dzn-tp-instrument');
+      if (card) card.classList.toggle('is-selected', input.checked);
+    });
+  });
   document.querySelectorAll('[data-dzn-tp-presentation]').forEach((button) => button.addEventListener('click', () => {
     const scope = button.closest('section, dialog') || document;
     const status = scope.querySelector('.dzn-tp-action-status');

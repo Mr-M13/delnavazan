@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepository,CourseRepository};
+use Delnavazan\Platform\Core\Application\Finance\Pricing\RegionalPricingService;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /**
@@ -39,6 +40,9 @@ final class CommercialCatalogueService {
                 'status'=>$status,'created_at'=>$now,'updated_at'=>$now,'created_by'=>$actor,'updated_by'=>$actor,
                 'archived_at'=>null,'archived_by'=>null,
             ));
+            // The regional student-price authority is the only source of a standard price. A new
+            // product receives the current price for every configured region without inventing one.
+            (new RegionalPricingService(null,$this->repository))->ensureProductPrice($id,$courseId,true);
             $this->repository->insertCommand(array(
                 'uid'=>Identifier::uid(),'command_domain'=>CommercialRule::DOMAIN,'operation'=>'create_product',
                 'command_key_digest'=>$digest,'command_payload_digest'=>$payload,'result_state'=>'active','result_id'=>$id,
@@ -68,6 +72,7 @@ final class CommercialCatalogueService {
         if($amount<1)throw new \InvalidArgumentException('Exact minor-unit price required');
         $currency=(string)($input['currency']??$region['currency']);
         if(CommercialRule::currency($currency)!==$region['currency'])throw new \InvalidArgumentException('Price currency must match the authorised region');
+        (new RegionalPricingService(null,$this->repository))->assertProductPriceAllowed($region['region_code'],$currency,$amount);
         $effectiveFrom=($input['effective_from']??null)===null||$input['effective_from']===''?null:CommercialSupport::utc($input['effective_from'],'Valid UTC effective time required');
         $evidence=CommercialSupport::evidence($input);
         $digest=CommercialSupport::keyString($key);
@@ -126,6 +131,7 @@ final class CommercialCatalogueService {
         $price=$this->repository->priceForRegion($productId,$region['region_code'],$lock);
         if(!$price||(int)$price->amount_minor<1)throw new \InvalidArgumentException('commercial_price_required');
         if((string)$price->currency!==$region['currency'])throw new \InvalidArgumentException('commercial_price_currency_conflict');
+        (new RegionalPricingService(null,$this->repository))->assertProductPriceAllowed($region['region_code'],(string)$price->currency,(int)$price->amount_minor);
         if(!CommercialValidator::utc((string)$price->created_at))throw new \InvalidArgumentException('commercial_price_integrity_conflict');
         return $price;
     }

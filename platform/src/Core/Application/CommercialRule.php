@@ -32,7 +32,12 @@ final class CommercialRule {
     public const TRANCHE_TWO_FROM=7;
     public const TRANCHE_TWO_TO=12;
 
-    public const OFFER_STATES=array('issued','accepted','expired','withdrawn');
+    /**
+     * `superseded` is a terminal state for an unpaid issued offer that has been replaced by a
+     * revised immutable offer (for example when a Student applies a promotion). The superseded
+     * snapshot is never edited, never payable and never accepted; its successor is the live offer.
+     */
+    public const OFFER_STATES=array('issued','accepted','expired','withdrawn','superseded');
     public const PURCHASE_STATES=array('accepted');
     public const RECONCILIATION_STATES=array('none','capacity_pending','capacity_lost');
     public const ENTITLEMENT_STATES=array('issued','term_bound');
@@ -43,6 +48,11 @@ final class CommercialRule {
     public const CLAIM_SOURCE_KINDS=array('q_succession','regular_pattern');
     public const CLAIM_RELEASE_REASONS=array('payment_opportunity_lapsed','commercial_resolution','commitment_cancelled');
     public const EVIDENCE_KINDS=array('attempt','success','failure','refund','mandate');
+    /**
+     * Internal evidence produced by the Platform itself, never accepted from a provider or a
+     * browser. `promotion` is the zero-value settlement of a fully discounted offer.
+     */
+    public const INTERNAL_EVIDENCE_KINDS=array('promotion');
     public const EVIDENCE_STATES=array('accepted','rejected','unmatched');
     public const PATTERN_STATES=array('active','superseded','retired');
     public const PATTERN_SOURCE_KINDS=array('continuation_slot_authority');

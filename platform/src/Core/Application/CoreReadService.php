@@ -52,6 +52,12 @@ final class CoreReadService {
         return (new TeacherRepository())->adminProfile($teacherId);
     }
 
+    /** Narrow read gate for onboarding staff; it exposes the same curated Teacher profile, not credentials or student data. */
+    public function teacherOnboardingProfile(int $teacherId): ?object {
+        if(!current_user_can('dzn_manage_onboarding'))throw new \RuntimeException('Unauthorized');
+        return (new TeacherRepository())->adminProfile($teacherId);
+    }
+
     /** Human-labelled instrument options for Course administration. */
     public function instrumentOptionsForCourse(): array {
         $repository = $this->repository('instrument');

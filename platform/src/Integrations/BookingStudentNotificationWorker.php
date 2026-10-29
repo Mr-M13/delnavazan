@@ -1,7 +1,11 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
+use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
+use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
+use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
 
 /** Durable, leased, at-least-once mail hand-off for confirmed or declined introductory requests. */
@@ -25,7 +29,20 @@ final class BookingStudentNotificationWorker {
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
             $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
         }catch(\Throwable $error){$repository->rollback();throw $error;}
-        try{[$subject,$body]=self::message($row,$repository);$accepted=wp_mail((string)$row->email,$subject,$body,self::headers($row));}catch(\Throwable){$accepted=false;}
+        try{
+            [$subject,$body,$variables]=self::message($row,$repository);
+            $eventKey='booking.'.(string)$row->notification_kind.'.student';
+            if((string)$row->notification_kind==='post_intro_invitation')$eventKey='post_intro.invitation.student';
+            if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
+            $copy=array('subject'=>$subject,'body'=>$body);
+            if(class_exists(NotificationCopyResolver::class)){
+                $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
+                self::recordInbox($row,$eventKey,$variables);
+            }
+            $accepted=class_exists(DelnavazanEmailRenderer::class)
+                ?DelnavazanEmailRenderer::send((string)$row->email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>'رفتن به پرتال هنرجو')),self::headers($row))
+                :wp_mail((string)$row->email,$copy['subject'],$copy['body'],self::headers($row));
+        }catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{
             $locked=$repository->notificationPayload($notificationId,true);if(!$locked||(string)$locked->state!=='sending'||!hash_equals($leaseDigest,(string)$locked->lease_token_digest))throw new \RuntimeException('Booking notification lease changed concurrently');$now=gmdate('Y-m-d H:i:s');
@@ -37,6 +54,13 @@ final class BookingStudentNotificationWorker {
         }catch(\Throwable $error){$repository->rollback();throw $error;}
     }
 
+    /** The student inbox is recorded even when the mail transport refuses the hand-off. */
+    private static function recordInbox(object $row,string $eventKey,array $variables):void{
+        $studentId=(int)($row->student_id??0);
+        if($studentId<1||!class_exists(PortalNotificationRecorder::class))return;
+        PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+    }
+
     private static function headers(object $row):array{
         $host=strtolower((string)wp_parse_url(home_url('/'),PHP_URL_HOST));
         if(!preg_match('/^[a-z0-9.-]+$/D',$host))$host='delnavazan.invalid';
@@ -46,12 +70,14 @@ final class BookingStudentNotificationWorker {
 
     private static function message(object $row,BookingTeacherResponseRepository $repository):array{
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
-        if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your Student Portal: ".home_url('/student-portal/')."\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan");
-        if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal: ".home_url('/student-portal/')."\n\nDelnavazan");
-        if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no Calendar event or Meet link was created.\n\nDelnavazan");
+        $portal=home_url('/student-portal/');
+        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal);
+        if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your Student Portal: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal: {$portal}\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no Calendar event or Meet link was created.\n\nDelnavazan",$base);
         if((string)$row->notification_kind!=='confirmed'||(int)$row->confirmation_record_id<1)throw new \RuntimeException('Booking confirmation notification incomplete');
         $secret=$repository->projectionSecret((int)$row->confirmation_record_id);if(!$secret)throw new \RuntimeException('provider_reference_required');$refs=(new ProviderReferenceVault())->open('booking_calendar',(int)$row->confirmation_record_id,$secret);$join=trim((string)($refs['join_uri_reference']??''));if($join==='')throw new \RuntimeException('provider_reference_required');
         $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;$zone=new \DateTimeZone($timezone);$start=(new \DateTimeImmutable((string)$row->starts_at_utc,new \DateTimeZone('UTC')))->setTimezone($zone);$end=(new \DateTimeImmutable((string)$row->ends_at_utc,new \DateTimeZone('UTC')))->setTimezone($zone);$when=$start->format('l j F Y, H:i').'–'.$end->format('H:i').' '.$timezone;
-        return array('Your Delnavazan lesson is confirmed',"Hello {$name},\n\nYour introductory {$course} lesson with {$teacher} is confirmed.\n\nTime: {$when}\nGoogle Meet: {$join}\n\nThe Calendar event and Meet link were created before this confirmation was issued.\n\nDelnavazan");
+        return array('Your Delnavazan lesson is confirmed',"Hello {$name},\n\nYour introductory {$course} lesson with {$teacher} is confirmed.\n\nTime: {$when}\nGoogle Meet: {$join}\n\nThe Calendar event and Meet link were created before this confirmation was issued.\n\nDelnavazan",$base+array('when'=>$when,'join_url'=>$join));
     }
 }

@@ -74,7 +74,14 @@ final class CanonicalAttendanceSettlementService {
                 'evidence_at'=>gmdate('Y-m-d H:i:s'),
             ),'attendance-settlement-outcome-'.$uid);
         }elseif((string)$effective->outcome_code!=='delivered'){
-            throw new \InvalidArgumentException('canonical_truth_conflict');
+            if((string)$effective->outcome_code!=='review_required')throw new \InvalidArgumentException('canonical_truth_conflict');
+            // A late report may have disputed an already completed occurrence. Resolve it to
+            // verified delivery append-only instead of dead-ending the review queue.
+            $this->delivery->correct($lessonId,(int)$effective->id,array(
+                'outcome_code'=>'delivered','reason_code'=>$reason,
+                'evidence_channel'=>'authenticated_platform','evidence_reference'=>$evidenceReference,
+                'evidence_at'=>gmdate('Y-m-d H:i:s'),
+            ),'attendance-settlement-correct-'.$uid);
         }
         do_action('dzn_phase_2a2p_after_delivery_truth',$caseId,$lessonId);
 

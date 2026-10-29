@@ -13,20 +13,23 @@ $settings = (string) ( $context['settings_url'] ?? '' );
 $timezone = (string) ( $args['timezone'] ?? ( $model['teacher_timezone'] ?? $model['profile']['timezone'] ?? '' ) );
 $today_items    = isset( $args['today_items'] ) && is_array( $args['today_items'] ) ? $args['today_items'] : ( isset( $model['today_classes'] ) && is_array( $model['today_classes'] ) ? $model['today_classes'] : array() );
 $upcoming_items = isset( $args['upcoming_items'] ) && is_array( $args['upcoming_items'] ) ? $args['upcoming_items'] : ( isset( $model['upcoming_classes'] ) && is_array( $model['upcoming_classes'] ) ? $model['upcoming_classes'] : array() );
+$show_upcoming  = ! isset( $args['show_upcoming'] ) || ! empty( $args['show_upcoming'] );
 if ( ! $today_items && ! $upcoming_items && is_array( $args['items'] ?? null ) && $args['items'] ) {
 	// Backwards-compatible presentation-only fallback for callers that still pass one list.
 	$upcoming_items = $args['items'];
 }
 $sections = array(
 	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => true, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
-	array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' ),
 );
-$jalali_months = array( 1 => 'فروردین', 2 => 'اردیبهشت', 3 => 'خرداد', 4 => 'تیر', 5 => 'مرداد', 6 => 'شهریور', 7 => 'مهر', 8 => 'آبان', 9 => 'آذر', 10 => 'دی', 11 => 'بهمن', 12 => 'اسفند' );
+if ( $show_upcoming ) {
+	$sections[] = array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' );
+}
+$section_heading = $show_upcoming ? 'برنامهٔ کلاس‌ها' : 'کلاس‌های امروز';
 $card_index = 0;
 ?>
 <section class="dzn-tp-section dzn-tp-classes" aria-labelledby="tp-classes">
 	<div class="dzn-tp-heading">
-		<h2 id="tp-classes">برنامهٔ کلاس‌ها امروز به ترتیب</h2>
+		<h2 id="tp-classes"><?php echo esc_html( $section_heading ); ?></h2>
 		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
 <?php foreach ( $sections as $section ) : ?>
@@ -98,38 +101,12 @@ $card_index = 0;
 						<form method="post" action="<?php echo esc_url( (string) ( $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">تأیید برگزاری و حضور</button></form>
 						<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
 				</div>
-				<?php if ( true === ( $item['reschedule_available'] ?? false ) ) :
-					$reschedule_timezone = (string) ( $item['reschedule_timezone'] ?? $timezone );
-					$reschedule_calendar = (string) ( $item['reschedule_calendar'] ?? 'gregorian' );
-					$now_parts = dzn_theme_platform_jalali_parts( gmdate( 'Y-m-d H:i:s' ), $reschedule_timezone );
-					$current_year = (int) ( $now_parts['year'] ?? 0 );
-					$current_month = (int) ( $now_parts['month'] ?? 1 );
-					$current_day = (int) ( $now_parts['day'] ?? 1 );
-					?>
-				<section class="dzn-tp-reschedule" aria-labelledby="tp-reschedule-<?php echo esc_attr( $index ); ?>">
-					<h4 id="tp-reschedule-<?php echo esc_attr( $index ); ?>">تغییر زمان کلاس</h4>
-					<p class="dzn-tp-detail-help">زمان فعلی: <strong><?php echo esc_html( (string) ( $item['reschedule_current'] ?? $item['schedule_summary'] ) ); ?></strong>. زمان جدید پس از پذیرش هنرجو قطعی می‌شود و مدت کلاس حفظ می‌شود.</p>
-					<form method="post" action="<?php echo esc_url( (string) $item['reschedule_action_url'] ); ?>" data-dzn-tp-submit>
-						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) $item['reschedule_nonce'] ); ?>">
-						<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) $item['lesson_uid'] ); ?>">
-						<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) $item['schedule_version_uid'] ); ?>">
-						<input type="hidden" name="timezone" value="<?php echo esc_attr( $reschedule_timezone ); ?>">
-						<input type="hidden" name="calendar" value="<?php echo esc_attr( $reschedule_calendar ); ?>">
-						<input type="hidden" name="request_key" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>">
-						<?php if ( 'persian' === $reschedule_calendar ) : ?>
-							<div class="dzn-tp-form-grid dzn-tp-reschedule__date">
-								<label>سال<input type="number" required min="<?php echo esc_attr( (string) max( 1, $current_year ) ); ?>" max="<?php echo esc_attr( (string) ( $current_year + 2 ) ); ?>" name="jalali_year" value="<?php echo esc_attr( (string) $current_year ); ?>"></label>
-								<label>ماه<select name="jalali_month" required><?php foreach ( $jalali_months as $month_number => $month_label ) : ?><option value="<?php echo esc_attr( (string) $month_number ); ?>"<?php selected( $current_month, $month_number ); ?>><?php echo esc_html( $month_label ); ?></option><?php endforeach; ?></select></label>
-								<label>روز<select name="jalali_day" required><?php for ( $day = 1; $day <= 31; $day++ ) : ?><option value="<?php echo esc_attr( (string) $day ); ?>"<?php selected( $current_day, $day ); ?>><?php echo esc_html( (string) $day ); ?></option><?php endfor; ?></select></label>
-							</div>
-						<?php else : ?>
-							<label>تاریخ جدید<input type="date" name="local_date" required min="<?php echo esc_attr( dzn_theme_platform_local_date_key( gmdate( 'Y-m-d H:i:s' ), $reschedule_timezone ) ); ?>"></label>
-						<?php endif; ?>
-						<label>ساعت شروع<input type="time" name="local_time" required></label>
-						<button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال ارسال درخواست…">ارسال درخواست تغییر زمان</button>
-					</form>
-				</section>
-				<?php endif; ?>
+				<?php if ( true === ( $item['reschedule_available'] ?? false ) ) {
+					dzn_theme_teacher_portal_component(
+						'reschedule-form',
+						array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo )
+					);
+				} ?>
 				<?php if ( $demo ) : ?>
 				<section class="dzn-tp-private-note"><h4>یادداشت خصوصی مدرس</h4><p>فقط برای مدرس و تیم مجاز؛ برای هنرجو نمایش داده نمی‌شود.</p><textarea rows="3" aria-label="یادداشت خصوصی مدرس"></textarea></section>
 				<section class="dzn-tp-practice"><h4>تمرین و تکلیف برای هنرجو</h4><p>پس از اتصال امن، این متن برای هنرجو قابل مشاهده خواهد بود.</p><textarea rows="3" aria-label="تمرین و تکلیف قابل مشاهده برای هنرجو"></textarea></section>
@@ -137,6 +114,12 @@ $card_index = 0;
 				<p class="dzn-tp-action-status" role="status" aria-live="polite"></p>
 				<?php endif; ?>
 			</div>
+			<?php endif; ?>
+			<?php if ( ! $is_today && true === ( $item['reschedule_available'] ?? false ) ) : ?>
+			<details class="dzn-tp-class__reschedule">
+				<summary>تغییر زمان کلاس</summary>
+				<?php dzn_theme_teacher_portal_component( 'reschedule-form', array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo ) ); ?>
+			</details>
 			<?php endif; ?>
 			<?php endif; ?>
 		</article></li>

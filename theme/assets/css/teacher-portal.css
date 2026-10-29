@@ -352,3 +352,17 @@
   .dzn-tp-tabs__link{color:var(--dzn-color-text-primary);font-size:.92rem;font-weight:800;letter-spacing:0}
   .dzn-tp-tabs__link.is-current{background:var(--dzn-color-action-primary);color:#fff;box-shadow:none}
 }
+
+/* Finance snapshot and always-available rescheduling. */
+.dzn-tp-stats--finance div{gap:.15rem}
+.dzn-tp-stats--finance span{font-size:.85rem;color:var(--dzn-color-text-secondary)}
+.dzn-tp-stats--finance small{font-size:.75rem;color:var(--dzn-color-text-secondary)}
+.dzn-tp-finance-next,.dzn-tp-finance-terms{border:1px solid var(--dzn-color-border);border-radius:.85rem;margin-block-start:1rem;padding:1rem;background:var(--dzn-color-surface-elevated,#fafafa)}
+.dzn-tp-finance-next h3,.dzn-tp-finance-terms h3{margin-block:0 .4rem;font-size:1rem}
+.dzn-tp-finance-next p{margin:.2rem 0}
+.dzn-tp-finance-terms__list li{padding-block:.55rem}
+.dzn-tp-class__reschedule{grid-column:1/-1;border-block-start:1px dashed var(--dzn-color-border);padding-block-start:.75rem}
+.dzn-tp-class__reschedule>summary{cursor:pointer;font-weight:700;padding-block:.35rem}
+.dzn-tp-class__reschedule[open]>summary{margin-block-end:.5rem}
+.dzn-tp-class__reschedule .dzn-tp-reschedule{margin-block-start:0}
+@media(min-width:60rem){.dzn-tp-stats--finance{grid-template-columns:repeat(5,minmax(0,1fr))}}

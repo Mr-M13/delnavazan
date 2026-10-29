@@ -6,6 +6,7 @@
  */
 
 $items = isset( $args['items'] ) && is_array( $args['items'] ) ? $args['items'] : array();
+$recording = isset( $args['recording'] ) && is_array( $args['recording'] ) ? $args['recording'] : array();
 $status = sanitize_key( (string) ( $_GET['post_intro_status'] ?? '' ) );
 $messages = array(
 	'adult_attestation_required' => 'برای ادامهٔ ثبت‌نام، تأیید سن هنرجو لازم است.',
@@ -42,6 +43,9 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 	</div>
 	<?php if ( isset( $messages[ $status ] ) ) : ?>
 		<p class="dzn-portal-action-status" aria-live="polite"><?php echo esc_html( $messages[ $status ] ); ?></p>
+	<?php endif; ?>
+	<?php if ( $recording ) : ?>
+		<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $recording ) ); ?>
 	<?php endif; ?>
 	<?php foreach ( $items as $item ) : ?>
 		<article class="dzn-post-intro__card">

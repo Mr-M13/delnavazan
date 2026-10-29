@@ -235,6 +235,12 @@ function dzn_theme_render_booking_route(): void {
                                     <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از جلسهٔ معارفه هماهنگ می‌شود.</li>
                                 </ul>
                             </aside>
+                            <aside class="dzn-booking__notice" role="note">
+                                <h4>Recording and research · ضبط و پژوهش</h4>
+                                <p lang="en" dir="ltr">Recording and research export are currently disabled. Read the public information page to understand the planned capability and how choices work after an adult student account is linked.</p>
+                                <p lang="fa" dir="rtl">ضبط و خروجی پژوهش در حال حاضر غیرفعال است. برای آشنایی با قابلیت برنامه‌ریزی‌شده و نحوهٔ انتخاب‌ها پس از اتصال حساب هنرجوی بزرگسال، صفحهٔ اطلاعات عمومی را بخوانید.</p>
+                                <p><a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
+                            </aside>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-edit-details>ویرایش اطلاعات</button>

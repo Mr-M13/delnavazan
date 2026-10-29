@@ -939,6 +939,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			'replacement_remaining' => max( 0, (int) ( $current_enrolment['replacement_remaining'] ?? 0 ) ),
 			'replacement_pending' => count( array_filter( $replacement_lessons, static fn( $row ) => is_array( $row ) && empty( $row['scheduled'] ) ) ),
 		);
+		$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' );
 		$model['payments'] = $payments_model;
 		return $model;
 	}
@@ -1017,11 +1018,29 @@ function dzn_theme_platform_student_model( $screen ) {
 	$model['history'] = array_map( static fn( array $lesson ) => dzn_theme_platform_history_item( $lesson, $student_calendar, $student_locale ), array_slice( $past, 0, 5 ) );
 	$model['post_intro'] = $post_intro;
 	$model['reschedule_proposals'] = dzn_theme_platform_student_reschedule_proposals( $reschedule_proposals, $student_timezone, $student_calendar, $student_locale );
+	$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' === $screen ? 'account' : 'enrolment' );
 	return $model;
 }
 add_filter( 'dzn_theme_student_portal_view_model', function( $model, $screen ) {
 	return $model ?? dzn_theme_platform_student_model( $screen );
 }, 10, 2 );
+
+/** Display-ready recording/research self-service state for an authenticated Student. */
+function dzn_theme_platform_recording_choices( string $context = 'account' ): array {
+	$class = '\\Delnavazan\\Platform\\Portals\\RecordingDecisionUiReadService';
+	if ( ! class_exists( $class ) ) { return array( 'available' => false, 'reason' => 'platform_unavailable', 'context' => $context, 'recording' => array(), 'research' => array(), 'forms' => array(), 'information_url' => home_url( '/recording-and-research/' ), 'status' => '' ); }
+	$locale = function_exists( 'get_user_locale' ) ? (string) get_user_locale() : 'en';
+	try { return ( new $class() )->student( $context, str_starts_with( $locale, 'fa' ) ? 'fa' : 'en' ); }
+	catch ( Throwable ) { return array( 'available' => false, 'reason' => 'recording_ui_unavailable', 'context' => $context, 'recording' => array(), 'research' => array(), 'forms' => array(), 'information_url' => home_url( '/recording-and-research/' ), 'status' => '' ); }
+}
+
+/** Display-ready Teacher recording-terms state. */
+function dzn_theme_platform_teacher_recording_terms( string $context = 'onboarding' ): array {
+	$class = '\\Delnavazan\\Platform\\Portals\\RecordingDecisionUiReadService';
+	if ( ! class_exists( $class ) ) { return array( 'available' => false, 'linked' => false, 'reason' => 'platform_unavailable', 'accepted' => false, 'notices' => array(), 'information_url' => home_url( '/recording-and-research/' ), 'status' => '' ); }
+	try { return ( new $class() )->teacher( $context ); }
+	catch ( Throwable ) { return array( 'available' => false, 'linked' => false, 'reason' => 'recording_ui_unavailable', 'accepted' => false, 'notices' => array(), 'information_url' => home_url( '/recording-and-research/' ), 'status' => '' ); }
+}
 
 function dzn_theme_platform_teacher_state_model( $screen, $state ) {
 	return array(
@@ -1155,6 +1174,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			),
 			'instruments' => dzn_theme_platform_teacher_catalogue(),
 			'day_offs' => dzn_theme_platform_teacher_day_offs(),
+			'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' ),
 		);
 	}
 	if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
@@ -1535,6 +1555,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'teacher_timezone' => $teacher_timezone,
 		'teacher_calendar' => $teacher_calendar,
 		'teacher_locale' => $teacher_locale,
+		'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' ),
 	);
 }
 

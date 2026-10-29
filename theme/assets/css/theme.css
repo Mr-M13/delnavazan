@@ -7262,3 +7262,14 @@ a.dzn-nav-action:focus-visible {
  * a carousel. There is deliberately no document-wide `overflow-x` guard: it
  * would hide genuine layout regressions at narrow widths.
  */
+
+/* Public recording and research information page. */
+.dzn-recording-info{padding-block:clamp(2rem,6vw,5rem)}
+.dzn-recording-info__heading{max-inline-size:70ch;margin-block-end:2rem}
+.dzn-recording-info__grid{display:grid;gap:2rem}
+.dzn-recording-info__grid > section{padding:1.25rem;border:1px solid var(--dzn-color-border);border-radius:16px;background:var(--dzn-color-surface-elevated)}
+.dzn-recording-info__grid h3{margin-block-start:1.5rem}
+.dzn-recording-info__notices{margin-block-start:2rem}
+.dzn-recording-info__placeholder{display:inline-block;padding:.35rem .6rem;border:1px dashed var(--dzn-color-border);border-radius:8px;color:var(--dzn-color-text-muted)}
+.dzn-recording-info__actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-block-start:2rem}
+@media (min-width:60rem){.dzn-recording-info__grid{grid-template-columns:1fr 1fr}}

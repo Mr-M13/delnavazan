@@ -120,6 +120,7 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 		<?php elseif ( 'account' === $screen ) : ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 			<?php if ( ! in_array( (string) ( $model['payments']['state'] ?? '' ), array( 'disabled', 'unavailable' ), true ) ) : ?>
 				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
 			<?php endif; ?>
@@ -141,7 +142,7 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
 			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array(), 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'support', array() ); ?>
 		<?php endif; ?>

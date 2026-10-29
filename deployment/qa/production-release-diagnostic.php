@@ -50,6 +50,8 @@ foreach ($lessonRows as $row) $canonicalLessons[(string) $row['label']] = (int) 
 $failedJobs = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}post_intro_activation_jobs WHERE state='failed' GROUP BY last_error_code ORDER BY total DESC", ARRAY_A) ?: array();
 $latestJobs = $wpdb->get_results("SELECT id,state,attempt_count,last_error_code,checkpoint,created_at,updated_at,completed_at FROM {$p}post_intro_activation_jobs ORDER BY updated_at DESC,id DESC LIMIT 5", ARRAY_A) ?: array();
 $failedCalendarJobs = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}lesson_reschedule_calendar_jobs WHERE state='failed' GROUP BY last_error_code ORDER BY total DESC", ARRAY_A) ?: array();
+$proposalKindRows = $wpdb->get_results("SELECT COALESCE((SELECT e.reason_code FROM {$p}lesson_reschedule_events e WHERE e.proposal_id=r.id AND e.event_type='proposed' ORDER BY e.id ASC LIMIT 1),'unknown') proposal_reason,r.state,COUNT(*) total FROM {$p}lesson_reschedule_proposals r GROUP BY proposal_reason,r.state ORDER BY proposal_reason,r.state", ARRAY_A) ?: array();
+$failedCalendarDetail = $wpdb->get_results("SELECT j.id,j.proposal_id,j.lesson_id,j.from_schedule_version_id,j.to_schedule_version_id,j.attempt_count,j.last_error_code,j.updated_at,p.state proposal_state,l.lesson_type,l.lifecycle_state,v.applicable_slot to_applicable,v.superseded_at to_superseded FROM {$p}lesson_reschedule_calendar_jobs j INNER JOIN {$p}lesson_reschedule_proposals p ON p.id=j.proposal_id INNER JOIN {$p}lessons l ON l.id=j.lesson_id LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.id=j.to_schedule_version_id WHERE j.state='failed' ORDER BY j.updated_at DESC LIMIT 10", ARRAY_A) ?: array();
 $staleCalendarJobs = $wpdb->get_results("SELECT id,state,attempt_count,next_attempt_at,last_error_code,created_at,updated_at FROM {$p}lesson_reschedule_calendar_jobs WHERE state IN ('queued','retry') AND (next_attempt_at IS NULL OR next_attempt_at<DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)) ORDER BY updated_at ASC,id ASC LIMIT 5", ARRAY_A) ?: array();
 $screenClass = 'Delnavazan\\Platform\\Admin\\Controller\\ScreenController';
 $scheduleClass = 'Delnavazan\\Platform\\Core\\Application\\CanonicalLessonScheduleReadService';
@@ -101,6 +103,13 @@ $out = array(
         'failed_calendar_jobs' => $failedCalendarJobs,
         'stale_calendar_jobs' => $staleCalendarJobs,
         'notifications' => $group('lesson_reschedule_notifications', 'state'),
+        'proposals_by_kind_state' => $proposalKindRows,
+        'failed_calendar_detail' => array_map(static function (array $row): array {
+            $row['to_applicable'] = (int) ($row['to_applicable'] ?? 0) === 1;
+            $row['recoverable'] = (string) ($row['proposal_state'] ?? '') === 'accepted' && $row['to_applicable'] && $row['to_superseded'] === null;
+            unset($row['to_superseded']);
+            return $row;
+        }, $failedCalendarDetail),
     ),
     'completed_052' => in_array('052_payment_plan_choice', (array) get_option('dzn_platform_completed_migrations', array()), true),
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,

@@ -39,6 +39,79 @@ function dzn_theme_component( $component, array $args = array() ) {
 }
 
 /**
+ * Resolve the bundled artwork for an instrument label.
+ *
+ * Platform catalogue labels reach the Theme in either Persian or English and
+ * use different spellings across surfaces (for example «سه‌تار» / «سه تار»
+ * and «تنبک» / «تمبک»). Matching is normalised and alias-aware so every
+ * instrument keeps its image wherever it is rendered.
+ *
+ * @param string $name    Instrument label or slug from Platform.
+ * @param string $surface Either "public" or "teacher".
+ * @return string Image filename relative to assets/images, or an empty string.
+ */
+function dzn_theme_instrument_image( $name, $surface = 'public' ) {
+	$name = rawurldecode( (string) $name );
+
+	if ( '' === $name ) {
+		return '';
+	}
+
+	if ( function_exists( 'remove_accents' ) ) {
+		$name = remove_accents( $name );
+	}
+
+	$name = str_replace( array( "\xE2\x80\x8C", 'ي', 'ك' ), array( '', 'ی', 'ک' ), $name );
+	$key  = preg_replace( '/[^\p{L}\p{N}]+/u', '', $name );
+	$key  = is_string( $key ) ? strtolower( $key ) : '';
+
+	$images = array(
+		'avaz'       => array( 'C-Avaz.webp', 'C-Avaz-400.webp' ),
+		'vocal'      => array( 'C-Avaz.webp', 'C-Avaz-400.webp' ),
+		'آواز'       => array( 'C-Avaz.webp', 'C-Avaz-400.webp' ),
+		'piano'      => array( 'C-Piano.webp', 'instrument-piano.webp' ),
+		'پیانو'      => array( 'C-Piano.webp', 'instrument-piano.webp' ),
+		'tar'        => array( 'C-Tar.webp', 'instrument-tar.webp' ),
+		'تار'        => array( 'C-Tar.webp', 'instrument-tar.webp' ),
+		'setar'      => array( 'C-Setar.webp', 'instrument-setar.webp' ),
+		'sehtar'     => array( 'C-Setar.webp', 'instrument-setar.webp' ),
+		'سهتار'      => array( 'C-Setar.webp', 'instrument-setar.webp' ),
+		'santur'     => array( 'C-santour.webp', 'instrument-santur.webp' ),
+		'santour'    => array( 'C-santour.webp', 'instrument-santur.webp' ),
+		'santoor'    => array( 'C-santour.webp', 'instrument-santur.webp' ),
+		'سنتور'      => array( 'C-santour.webp', 'instrument-santur.webp' ),
+		'tombak'     => array( 'C-Tombak.webp', 'instrument-tombak.webp' ),
+		'tonbak'     => array( 'C-Tombak.webp', 'instrument-tombak.webp' ),
+		'tombac'     => array( 'C-Tombak.webp', 'instrument-tombak.webp' ),
+		'تمبک'       => array( 'C-Tombak.webp', 'instrument-tombak.webp' ),
+		'تنبک'       => array( 'C-Tombak.webp', 'instrument-tombak.webp' ),
+		'kamancheh'  => array( 'C-Kamancheh.webp', 'instrument-kamancheh.webp' ),
+		'kamanche'   => array( 'C-Kamancheh.webp', 'instrument-kamancheh.webp' ),
+		'کمانچه'     => array( 'C-Kamancheh.webp', 'instrument-kamancheh.webp' ),
+		'daf'        => array( 'C-Daf.webp', 'instrument-daf.webp' ),
+		'دف'         => array( 'C-Daf.webp', 'instrument-daf.webp' ),
+		'tanboor'    => array( 'C-Tanboor.webp', 'C-Tanboor-400.webp' ),
+		'tanbur'     => array( 'C-Tanboor.webp', 'C-Tanboor-400.webp' ),
+		'tanbour'    => array( 'C-Tanboor.webp', 'C-Tanboor-400.webp' ),
+		'تنبور'      => array( 'C-Tanboor.webp', 'C-Tanboor-400.webp' ),
+		'ney'        => array( 'C-Ney.webp', 'C-Ney-400.webp' ),
+		'nay'        => array( 'C-Ney.webp', 'C-Ney-400.webp' ),
+		'نی'         => array( 'C-Ney.webp', 'C-Ney-400.webp' ),
+		'violin'     => array( 'C-Violin.webp', 'C-Violin-400.webp' ),
+		'ویولن'      => array( 'C-Violin.webp', 'C-Violin-400.webp' ),
+		'ویولون'     => array( 'C-Violin.webp', 'C-Violin-400.webp' ),
+		'guitar'     => array( 'C-Guitar.webp', 'C-Guitar-400.webp' ),
+		'گیتار'      => array( 'C-Guitar.webp', 'C-Guitar-400.webp' ),
+	);
+
+	if ( ! isset( $images[ $key ] ) ) {
+		return '';
+	}
+
+	return 'teacher' === $surface ? $images[ $key ][1] : $images[ $key ][0];
+}
+
+/**
  * Determine whether authored page content already supplies its own H1.
  *
  * This avoids adding a duplicate title around preserved Gutenberg content while

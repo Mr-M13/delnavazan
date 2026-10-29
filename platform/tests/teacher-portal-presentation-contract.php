@@ -224,7 +224,7 @@ namespace {
     $check('script disables the whole scope after submit, restores on bfcache return, and keeps the server as authority', str_contains($js, 'form[data-dzn-tp-submit]') && str_contains($js, "'pageshow'") && str_contains($js, 'setTimeout(() => scopeButtons(form)') && str_contains($js, 'event.persisted') && !str_contains($js, 'fetch(') && !str_contains($js, 'XMLHttpRequest'));
     $check('toggle swaps its label and keeps aria-expanded in sync', str_contains($js, 'dznTpLabelOpen') && str_contains($js, "setAttribute('aria-expanded'"));
     $accountSource = (string) file_get_contents($theme . '/template-parts/teacher-portal/account.php');
-    $check('settings uses instrument thumbnails with selected colour state', str_contains($accountSource, 'dzn-tp-instrument-grid') && str_contains($accountSource, 'is-selected') && str_contains($accountSource, 'instrument_images'));
+    $check('settings uses instrument thumbnails with selected colour state', str_contains($accountSource, 'dzn-tp-instrument-grid') && str_contains($accountSource, 'is-selected') && str_contains($accountSource, 'dzn_theme_instrument_image((string)$first->instrument,\'teacher\')'));
     $check('settings explains timezone, availability types and holidays', str_contains($accountSource, 'ما زمان کلاس‌ها را با زمان هنرجو هماهنگ می‌کنیم') && str_contains($accountSource, 'ترجیحی: زمان‌های اصلی') && str_contains($accountSource, 'مثلاً تولد، سفر یا مناسبت خانوادگی'));
     $check('the accepting-students section is removed', ! str_contains($accountSource, 'tp-accepting') && ! str_contains($accountSource, 'پذیرش هنرجو'));
     $check('empty attention is not rendered', str_contains($parts['attention'], 'if ( ! $items ) { return; }'));

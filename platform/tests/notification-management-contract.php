@@ -37,7 +37,7 @@ $fail('the safe inbox test uses a catalogue event', str_contains($controller, "s
 
 /* 2. Publishing keeps the immutable canonical model and never rewrites a stored version body. */
 $fail('publish uses the canonical service', str_contains($library, 'NotificationTemplateService') && str_contains($library, 'registerVersion(') && str_contains($library, 'activateVersion('));
-$fail('version body is immutable', str_contains($library, 'نسخهٔ قالب تغییرناپذیر است') && str_contains($library, 'if(isset($bodies[$versionId]))return;'));
+$fail('version body is immutable', str_contains($library, 'A template version is immutable') && str_contains($library, 'if(isset($bodies[$versionId]))return;'));
 $fail('copy is keyed by version id', str_contains($library, 'template_version_id') && str_contains($library, 'OPTION_COPY_VERSIONS'));
 $fail('no provider credential is stored', !str_contains($library, 'api_key') && !str_contains($library, 'access_token') && !str_contains($library, 'client_secret'));
 

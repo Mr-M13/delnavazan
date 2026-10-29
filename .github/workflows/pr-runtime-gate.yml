@@ -54,6 +54,9 @@ jobs:
           contracts=(
             platform/tests/integration-control-plane-contract.php
             platform/tests/recording-research-architecture-contract.php
+            platform/tests/recording-decision-authority-contract.php
+            platform/tests/recording-choices-ui-contract.php
+            platform/tests/fresh-install-capability-bootstrap.php
             platform/tests/integration-settings-runtime.php
             platform/tests/google-integration-test-runtime.php
             platform/tests/integration-mail-diagnostics-runtime.php
@@ -294,6 +297,66 @@ jobs:
           bash deployment/qa/production-calendar-job-recovery-contract.sh
           bash deployment/qa/provision-production-projection-worker-contract.sh
           bash deployment/qa/production-calendar-projection-dispatch-contract.sh
+
+  recording-decision-migration-runtime:
+    name: Recording decision migration runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - run: platform/runtime/bin/run-recording-decision-migration-runtime.sh
+      - name: Dispose recording decision migration runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-decision-migration
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-decision-migration
+          export DZN_WP_PORT=18082
+          platform/runtime/bin/destroy.sh YES
+
+  recording-decision-behavior-runtime:
+    name: Recording decision behavior runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - run: platform/runtime/bin/run-recording-decision-behavior-runtime.sh
+      - name: Dispose recording decision behavior runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-decision-behavior
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-decision-behavior
+          export DZN_WP_PORT=18081
+          platform/runtime/bin/destroy.sh YES
+
+  recording-choices-ui-runtime:
+    name: Recording choices UI runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - run: platform/runtime/bin/run-recording-choices-ui-runtime.sh
+      - name: Dispose recording choices UI runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-choices-ui
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-choices-ui
+          export DZN_WP_PORT=18083
+          platform/runtime/bin/destroy.sh YES
 
   stripe-runtime-e2e:
     name: Stripe runtime E2E

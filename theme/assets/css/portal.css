@@ -1439,3 +1439,16 @@
 .dzn-notifications__actions button{background:none;border:0;padding:0;font:inherit;color:var(--dzn-color-action-primary);text-decoration:underline;cursor:pointer}
 .dzn-notifications__actions button:focus-visible,.dzn-notifications__actions a:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 @media (max-width:47.99rem){.dzn-notifications__actions .dzn-button,.dzn-notifications__all-button{min-block-size:44px}}
+
+/* Recording and research choices: visible only through the authority service. */
+.dzn-recording-choices__current{display:grid;gap:.35rem;padding:1rem;border:1px solid var(--dzn-color-border);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
+.dzn-recording-choices__current p{margin:0}
+.dzn-recording-choices__notice{margin-block:1rem;padding:1rem;border-inline-start:4px solid var(--dzn-color-action-primary);background:var(--dzn-color-surface-elevated)}
+.dzn-recording-choices__notice p:last-child{margin-block-end:0}
+.dzn-recording-choices__form{display:grid;gap:.75rem;margin-block:1rem}
+.dzn-recording-choices__form fieldset{display:grid;gap:.6rem;border:1px solid var(--dzn-color-border);border-radius:var(--dzn-portal-card-radius);padding:1rem}
+.dzn-recording-choices__form legend{font-weight:700;padding-inline:.35rem}
+.dzn-recording-choices__form label{display:flex;gap:.5rem;align-items:flex-start;min-block-size:44px}
+.dzn-recording-choices__form input[type="radio"]{margin-block-start:.3rem}
+.dzn-recording-choices__draft{margin-block:1rem;padding:1rem;border:1px dashed var(--dzn-color-warning);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
+.dzn-recording-choices hr{margin-block:2rem;border:0;border-block-start:1px solid var(--dzn-color-border)}

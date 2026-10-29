@@ -31,7 +31,7 @@ labelled as reported from action eligibility alone). Neither is repaired by this
 `dzn_theme_route()` normalises `/enrol/` to the internal `booking` renderer and accepts exactly:
 
 `booking`, `login`, `dashboard`, `student-portal`, `teacher-portal`, `teacher-invitation`,
-`student-account-claim`, `admin-operations`.
+`student-account-claim`, `admin-operations`, `recording-and-research`.
 
 | Entry | Internal route | Screen keys accepted today | Shell | Notes |
 | --- | --- | --- | --- | --- |
@@ -45,6 +45,7 @@ labelled as reported from action eligibility alone). Neither is repaired by this
 | `/teacher-invitation/` | `teacher-invitation` | n/a | Auth | Token claim |
 | `/student-account-claim/` | `student-account-claim` | n/a | Auth | Token claim |
 | `/admin-operations/` | `admin-operations` | existing operations | Operations | Out of redesign scope |
+| `/recording-and-research/` | `recording-and-research` | n/a | Public editorial | Bilingual recording/research information; a published page with the same slug takes over editor-managed content |
 
 There is **no** `/app/`, `/app/student/`, or `/app/teacher/` route. Package 9 may revisit that
 only as a measured decision.

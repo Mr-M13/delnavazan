@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '54' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '55' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-missed-lesson-replacement-20261029.1' );
@@ -89,6 +89,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
 	Delnavazan\Platform\Admin\Controller\RescheduleReviewController::register();
 	Delnavazan\Platform\Portals\StudentProfileController::register();
+	Delnavazan\Platform\Portals\RecordingDecisionController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
 	Delnavazan\Platform\Portals\TeacherAvailabilitySelfServiceController::register();
 	Delnavazan\Platform\Portals\TeacherInvitationController::register();

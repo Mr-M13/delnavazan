@@ -10,9 +10,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 function dzn_theme_route() {
 	$path = wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH );
 	$path = trim( (string) $path, '/' );
+	// A published WordPress page with the canonical slug keeps editor-managed content.
+	if ( 'recording-and-research' === $path ) {
+		$page = get_page_by_path( 'recording-and-research' );
+		if ( $page instanceof WP_Post && 'publish' === get_post_status( $page ) ) { return ''; }
+	}
 	// Preserve the recovered public enrolment URL while the booking experience uses one canonical renderer.
 	if ( 'enrol' === $path ) { $path = 'booking'; }
-	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' );
+	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'recording-and-research' );
 	return in_array( $path, $routes, true ) ? $path : '';
 }
 
@@ -40,6 +45,7 @@ add_filter( 'pre_handle_404', 'dzn_theme_prevent_virtual_route_404', 10, 2 );
  * WordPress request throughout its in-page steps.
  */
 function dzn_theme_virtual_route_document_title( $title ) {
+	if ( 'recording-and-research' === dzn_theme_route() ) { return 'Recording and research information – Delnavazan'; }
 	return 'booking' === dzn_theme_route() ? 'درخواست جلسهٔ معارفه – Delnavazan' : $title;
 }
 add_filter( 'pre_get_document_title', 'dzn_theme_virtual_route_document_title' );
@@ -443,6 +449,11 @@ function dzn_theme_render_admin_route() {
 	dzn_theme_render_operations_portal();
 }
 
+/** Public recording/research information route for the canonical link structure. */
+function dzn_theme_render_recording_information_route() {
+	get_template_part( 'template-parts/recording/research-information' );
+}
+
 /**
  * Legacy `/booking/` links remain temporary entry points.
  *
@@ -517,6 +528,7 @@ function dzn_theme_render_virtual_route() {
 		case 'student-account-claim': dzn_theme_render_student_account_claim_route(); break;
 		case 'student-portal': dzn_theme_render_portal_route( 'student' ); break;
 		case 'admin-operations': dzn_theme_render_admin_route(); break;
+		case 'recording-and-research': dzn_theme_render_recording_information_route(); break;
 	}
 	get_footer();
 	exit;

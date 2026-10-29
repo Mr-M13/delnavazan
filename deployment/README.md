@@ -96,6 +96,23 @@ prints safe job/mapping state booleans. It never edits canonical lessons, attend
 enrolments, proposals or notifications. A provider failure leaves the job visible as `retry`/`failed`;
 the committed canonical schedule is never reversed.
 
+## Pending Google Calendar/Meet projections
+
+When the diagnostic reports pending calendar projections, run the existing projection worker
+through the audited one-shot workflow:
+
+```sh
+gh workflow run dispatch-production-calendar-projections.yml --ref main   -f commit_sha=<current-main-sha> -f confirm=DISPATCH
+```
+
+The payload verifies the projection-worker principal and Google OAuth configuration, runs the
+existing `GoogleCalendarProjectionWorker`, and reports pending-before/after, verified count and
+verified join-reference count. It never edits canonical lessons, schedules, attendance, payments,
+enrolments, proposals or notifications. The Google projection service refreshes an expired active
+credential through the existing encrypted refresh token before projecting; a failed refresh leaves
+the mapping pending/fail-closed and visible. The diagnostic reports `join_reference_present` and
+`portal_join_ready` without printing the Meet URL.
+
 ## Staging acceptance and production diagnostics
 
 The disposable attendance runtime is the staging acceptance path:

@@ -1344,7 +1344,49 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$absenceAttention = array();
 		}
 	}
-	$bookingAttention = array_merge( $absenceAttention, $bookingAttention );
+	$rescheduleAttention = array();
+	$reschedule_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherRescheduleAttentionReadService';
+	if ( class_exists( $reschedule_read_class ) ) {
+		try {
+			foreach ( ( new $reschedule_read_class() )->own() as $declined ) {
+				if ( ! is_array( $declined ) ) { continue; }
+				$rejections = max( 1, (int) ( $declined['rejection_count'] ?? 1 ) );
+				$escalated = $rejections >= 3;
+				$can_reschedule = ! $escalated
+					&& 'authorised' === (string) ( $declined['lifecycle_state'] ?? '' )
+					&& empty( $declined['has_outcome'] )
+					&& '' !== (string) ( $declined['lesson_uid'] ?? '' )
+					&& '' !== (string) ( $declined['schedule_version_uid'] ?? '' );
+				$proposed_when = dzn_theme_platform_calendar_time( (string) ( $declined['proposed_starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+				$message = $escalated
+					? 'هنرجو سه بار زمان پیشنهادی را رد کرده است. این مورد به مدیر ارجاع شده تا زمان کلاس را بررسی و در صورت نیاز دستی اصلاح کند. تا هماهنگی مدیر زمان تازه نفرستید.'
+					: 'هنرجو زمان پیشنهادی ' . $proposed_when . ' را رد کرد. با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.';
+				$rescheduleAttention[] = array(
+					'ref' => 'declined-' . (int) ( $declined['proposal_id'] ?? 0 ),
+					'action_available' => true,
+					'authoritative_request' => false,
+					'state' => 'reschedule_declined',
+					'title' => 'زمان پیشنهادی رد شد',
+					'context' => trim( (string) ( $declined['student'] ?? '' ) . ( '' !== (string) ( $declined['course'] ?? '' ) ? ' · ' . (string) $declined['course'] : '' ) ),
+					'message' => $message,
+					'due' => $escalated ? 'ارجاع به مدیر' : 'نیازمند زمان تازه',
+					'primary' => $escalated ? 'در انتظار اقدام مدیر' : 'ارسال زمان تازه',
+					'lesson_uid' => (string) ( $declined['lesson_uid'] ?? '' ),
+					'schedule_version_uid' => (string) ( $declined['schedule_version_uid'] ?? '' ),
+					'reschedule_available' => $can_reschedule,
+					'reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_propose_reschedule' ),
+					'reschedule_nonce' => wp_create_nonce( 'dzn_teacher_propose_reschedule' ),
+					'reschedule_timezone' => $teacher_timezone,
+					'reschedule_calendar' => $teacher_calendar,
+					'reschedule_locale' => $teacher_locale,
+					'reschedule_current' => dzn_theme_platform_calendar_time( (string) ( $declined['current_start_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+				);
+			}
+		} catch ( Throwable $e ) {
+			$rescheduleAttention = array();
+		}
+	}
+	$bookingAttention = array_merge( $rescheduleAttention, $absenceAttention, $bookingAttention );
 	$upcoming_count = count( array_filter( $upcoming_rows, static function( $row ) use ( $now ) {
 		$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
 		return $start && $start >= $now;

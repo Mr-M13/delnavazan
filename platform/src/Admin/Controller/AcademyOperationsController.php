@@ -20,6 +20,7 @@ final class AcademyOperationsController {
         $result=(new AcademyJourneyReadService())->search($query,$stage,$page);$rows=$result['rows'];
         echo '<div class="wrap"><h1>Academy</h1><p>Today’s work is collected here. Review the next action for each learner journey, then open the existing operational screen to complete it. The authorised path is booking → coordination and reviewed identity → accepted Service Arrangement → Enrolment → Teacher Assignment → Term and Lessons.</p>';
         self::pendingActions();
+        self::rescheduleQueue();
         echo '<form method="get"><input type="hidden" name="page" value="dzn-academy-dashboard"><label>Search name, email, booking reference, instrument or course <input type="search" name="q" value="'.esc_attr($query).'"></label> <label>Needs action <select name="stage"><option value="needs_action"'.selected($stage,'needs_action',false).'>Action queue</option><option value="">All records</option>';
         foreach(array('needs_coordination'=>'Coordination','needs_identity'=>'Student identity review','needs_acceptance'=>'Acceptance','needs_enrolment'=>'Enrolment conversion','needs_assignment'=>'Teacher assignment','complete'=>'Assignment complete')as$value=>$label)echo '<option value="'.esc_attr($value).'"'.selected($stage,$value,false).'>'.esc_html($label).'</option>';
         echo '</select></label> <button class="button">Search</button></form><p><strong>'.(int)$result['total'].'</strong> matching learner journeys · showing up to '.(int)$result['per_page'].' per page.</p>';
@@ -56,13 +57,90 @@ final class AcademyOperationsController {
         }
         if(current_user_can('dzn_manage_lessons')){
             $count=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending'");
-            $items[]=['Class time changes awaiting student response',$count,'dzn-lesson','Open classes',[]];
+            $items[]=['Class time changes awaiting student response',$count,'dzn-academy-dashboard','Review time changes',[]];
+            $escalated=(int)$wpdb->get_var("SELECT COUNT(*) FROM (SELECT lesson_id FROM {$p}lesson_reschedule_proposals WHERE state='rejected' GROUP BY lesson_id HAVING COUNT(*)>=3) escalated");
+            $items[]=['Reschedule negotiations needing admin intervention',$escalated,'dzn-academy-dashboard','Open reschedule queue',[]];
         }
         if(!$items)return;
         echo '<section class="notice notice-warning dzn-academy-pending-actions"><h2>Pending actions</h2><ul>';
         foreach($items as[$label,$count,$page,$action,$args])echo '<li><strong>'.(int)$count.'</strong> '.esc_html($label).' · <a class="button" href="'.esc_url(add_query_arg(array_merge(['page'=>$page],$args),admin_url('admin.php'))).'">'.esc_html($action).'</a></li>';
         echo '</ul></section>';
     }
+    /** Pending Teacher proposals with administrator confirm/cancel and a direct manual-change link. */
+    private static function rescheduleQueue():void{
+        if(!current_user_can('dzn_manage_lessons')&&!current_user_can('dzn_manage_canonical_lesson_schedules'))return;
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $status=sanitize_key((string)($_GET['reschedule_status']??''));
+        $rows=$wpdb->get_results(
+            "SELECT r.uid proposal_uid,r.lesson_id,r.proposed_starts_at_utc,r.proposed_ends_at_utc,r.schedule_timezone,
+                    v.starts_at_utc current_start_utc,v.ends_at_utc current_end_utc,
+                    COALESCE(NULLIF(s.display_name,''),NULLIF(s.reference_code,''),'Student') student_name,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
+                    COALESCE(NULLIF(i.name_fa,''),NULLIF(c.name_fa,''),NULLIF(c.name_en,''),'Course') course_name,
+                    (SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals x WHERE x.lesson_id=r.lesson_id AND x.state='rejected') rejection_count
+             FROM {$p}lesson_reschedule_proposals r
+             INNER JOIN {$p}lessons l ON l.id=r.lesson_id AND l.archived_at IS NULL
+             INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
+             INNER JOIN {$p}students s ON s.id=r.student_id
+             INNER JOIN {$p}teachers t ON t.id=r.teacher_id
+             LEFT JOIN {$p}courses c ON c.id=l.course_id
+             LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
+             WHERE r.state='pending'
+             ORDER BY r.proposed_starts_at_utc,r.id LIMIT 50"
+        );
+        $escalated=$wpdb->get_results(
+            "SELECT r.lesson_id,COUNT(*) rejections,MAX(r.decided_at) last_rejected_at,
+                    COALESCE(NULLIF(s.display_name,''),NULLIF(s.reference_code,''),'Student') student_name,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
+                    v.starts_at_utc current_start_utc
+             FROM {$p}lesson_reschedule_proposals r
+             INNER JOIN {$p}lessons l ON l.id=r.lesson_id AND l.archived_at IS NULL
+             INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
+             INNER JOIN {$p}students s ON s.id=r.student_id
+             INNER JOIN {$p}teachers t ON t.id=r.teacher_id
+             WHERE r.state='rejected'
+             GROUP BY r.lesson_id,s.display_name,s.reference_code,t.display_name,t.english_name,t.persian_name,v.starts_at_utc
+             HAVING COUNT(*)>=3
+             ORDER BY last_rejected_at DESC LIMIT 20"
+        );
+        if(!$rows&&!$escalated&&''===$status)return;
+        echo '<section class="dzn-academy-reschedules" id="dzn-academy-reschedules"><h2>Class time changes</h2>';
+        if('saved'===$status)echo '<div class="notice notice-success"><p>Class time change decision recorded.</p></div>';
+        elseif('error'===$status)echo '<div class="notice notice-error"><p>The class time change could not be recorded. Refresh and review the current class schedule before retrying.</p></div>';
+        echo '<p>Confirm the negotiated proposal, or cancel it and open the class to change the time manually. Confirmation uses the same canonical schedule and audit path as Student acceptance.</p>';
+        if($rows){
+            echo '<table class="widefat striped"><thead><tr><th>Student / Teacher</th><th>Class</th><th>Current time</th><th>Proposed time</th><th>Rejections</th><th>Action</th></tr></thead><tbody>';
+            foreach($rows as $row){
+                $tz=(string)$row->schedule_timezone;
+                try{$zone=new \DateTimeZone($tz);}catch(\Throwable){$zone=wp_timezone();}
+                $current=wp_date('Y-m-d H:i',(int)strtotime((string)$row->current_start_utc.' UTC'),$zone);
+                $proposed=wp_date('Y-m-d H:i',(int)strtotime((string)$row->proposed_starts_at_utc.' UTC'),$zone);
+                $classUrl=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->lesson_id),admin_url('admin.php'));
+                echo '<tr><td><strong>'.esc_html((string)$row->student_name).'</strong><br><small>'.esc_html((string)$row->teacher_name).'</small></td><td>'.esc_html((string)$row->course_name).'</td><td>'.esc_html($current.' · '.$tz).'</td><td>'.esc_html($proposed.' · '.$tz).'</td><td>'.(int)$row->rejection_count.'</td><td>';
+                $nonceKey=wp_generate_uuid4();
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="display:inline-block;margin:0 4px 4px 0">';
+                wp_nonce_field('dzn_admin_reschedule_confirm');
+                echo '<input type="hidden" name="action" value="dzn_admin_reschedule_confirm"><input type="hidden" name="proposal_uid" value="'.esc_attr((string)$row->proposal_uid).'"><input type="hidden" name="decision_key" value="'.esc_attr($nonceKey).'"><button class="button button-primary">Confirm proposed time</button></form>';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="display:inline-block;margin:0 4px 4px 0">';
+                wp_nonce_field('dzn_admin_reschedule_cancel');
+                echo '<input type="hidden" name="action" value="dzn_admin_reschedule_cancel"><input type="hidden" name="proposal_uid" value="'.esc_attr((string)$row->proposal_uid).'"><input type="hidden" name="decision_key" value="'.esc_attr(wp_generate_uuid4()).'"><button class="button">Cancel proposal</button></form>';
+                echo '<a class="button" href="'.esc_url($classUrl).'">Open class to change manually</a></td></tr>';
+            }
+            echo '</tbody></table>';
+        }else{
+            echo '<p>No pending class time changes.</p>';
+        }
+        if($escalated){
+            echo '<h3>Escalated after three rejections</h3><ul>';
+            foreach($escalated as $row){
+                $classUrl=add_query_arg(array('page'=>'dzn-lesson','id'=>(int)$row->lesson_id),admin_url('admin.php'));
+                echo '<li><strong>'.esc_html((string)$row->student_name).'</strong> · '.esc_html((string)$row->teacher_name).' · '.(int)$row->rejections.' rejections · <a class="button" href="'.esc_url($classUrl).'">Open class and fix manually</a></li>';
+            }
+            echo '</ul>';
+        }
+        echo '</section>';
+    }
+
     private static function journeyDetail(object $r):void{
         echo '<section class="notice notice-info"><h2>Journey detail: '.esc_html((string)$r->request_ref).'</h2><p>'.esc_html((string)($r->student_name?:$r->contact_name?:'Identity unresolved')).($r->contact_email?' · '.esc_html((string)$r->contact_email):'').' · '.esc_html((string)($r->instrument_fa?:$r->instrument_en?:'Instrument unavailable')).($r->course_fa||$r->course_en?' · '.esc_html((string)($r->course_fa?:$r->course_en)):'').'</p><ol>';
         foreach(array('Booking submitted'=>true,'Coordination opened'=>(bool)$r->case_id,'Student identity resolved'=>(bool)$r->student_id,'Service Arrangement accepted'=>(bool)$r->arrangement_id,'Enrolment converted'=>(bool)$r->enrolment_id,'Teacher Assignment current'=>(bool)$r->assignment_id,'Student account connected'=>$r->claim_state==='claimed','Term created'=>(bool)$r->term_id)as$label=>$done)echo '<li>'.esc_html($label).': <strong>'.($done?'Complete':'Pending').'</strong></li>';

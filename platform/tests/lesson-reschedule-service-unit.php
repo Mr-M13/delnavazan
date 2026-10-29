@@ -4,6 +4,7 @@ namespace {
     define('ABSPATH', dirname(__DIR__, 2) . '/');
     function wp_json_encode($value): string { return json_encode($value, JSON_UNESCAPED_UNICODE); }
     function get_current_user_id(): int { return 11; }
+    function current_user_can($capability): bool { return true; }
     function wp_timezone_string(): string { return 'Asia/Tehran'; }
     function get_option($key, $default = false) { return $default; }
     function get_user_by($field, $id) { return null; }
@@ -85,7 +86,7 @@ namespace {
     $store = new FakeRescheduleStore(); $store->context = $context();
     $commits = array();
     $commit = static function (array $payload) use (&$commits): array { $commits[] = $payload; return array('schedule_version_id' => 99, 'created' => true); };
-    $service = new LessonRescheduleService($store, static fn() => array(), $commit, static fn() => time());
+    $service = new LessonRescheduleService($store, static fn() => array(), $commit, static fn() => time(), static fn() => true);
 
     $proposal = $service->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0001');
     $fail('a teacher proposal is pending and changes no schedule', $proposal['state'] === 'pending' && $commits === array());
@@ -96,8 +97,27 @@ namespace {
     $threw = false; try { $service->proposeForTeacher(6, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0002'); } catch (Throwable $e) { $threw = $e->getMessage() === 'portal_object_not_owned'; }
     $fail('another teacher cannot propose a change', $threw);
 
+    $adminStore = new FakeRescheduleStore(); $adminStore->context = $context();
+    $adminCommit = static fn(array $p): array => array('schedule_version_id' => 200);
+    $adminService = new LessonRescheduleService($adminStore, static fn() => array(), $adminCommit, static fn() => time(), static fn() => true);
+    $adminProposal = $adminService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-admin-0001');
+    $adminConfirmed = $adminService->confirmAsAdministrator((string) $adminProposal['proposal_uid'], 'admin-confirm-key-0001');
+    $fail('administrator can confirm a negotiated proposal', $adminConfirmed['state'] === 'accepted' && (string) $adminStore->proposals[0]->state === 'accepted');
+    $adminStore2 = new FakeRescheduleStore(); $adminStore2->context = $context();
+    $adminService2 = new LessonRescheduleService($adminStore2, static fn() => array(), $adminCommit, static fn() => time(), static fn() => true);
+    $adminProposal2 = $adminService2->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-admin-0002');
+    $adminCancelled = $adminService2->cancelAsAdministrator((string) $adminProposal2['proposal_uid'], 'admin-cancel-key-0001');
+    $fail('administrator can cancel a pending proposal before a manual change', $adminCancelled['state'] === 'cancelled' && (string) $adminStore2->proposals[0]->state === 'cancelled' && count($adminStore2->notifications) === 5);
+
+    $failStore = new FakeRescheduleStore(); $failStore->context = $context();
+    $failCommit = static function (array $p): array { throw new InvalidArgumentException('teacher_unavailable'); };
+    $failService = new LessonRescheduleService($failStore, static fn() => array(), $failCommit, static fn() => time(), static fn() => true);
+    $failProposal = $failService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-admin-0003');
+    $threw = false; try { $failService->decideForStudent(9, (string) $failProposal['proposal_uid'], 'accept', 'decision-key-fail-0001'); } catch (Throwable $e) { $threw = $e->getMessage() === 'teacher_unavailable'; }
+    $fail('a permanent acceptance refusal closes the pending request', $threw && (string) $failStore->proposals[0]->state === 'failed' && (string) $failStore->proposals[0]->failure_code === 'teacher_unavailable');
+
     $store->studentConflicts = array(array('lesson_id' => 12));
-    $conflictService = new LessonRescheduleService($store, static fn() => array(), $commit, static fn() => time());
+    $conflictService = new LessonRescheduleService($store, static fn() => array(), $commit, static fn() => time(), static fn() => true);
     $threw = false; try { $conflictService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0003'); } catch (Throwable $e) { $threw = $e->getMessage() === 'student_slot_conflict'; }
     $fail('student conflict is refused before any proposal is written', $threw);
     $store->studentConflicts = array(array('lesson_id' => 12));
@@ -125,20 +145,20 @@ namespace {
     $fail('a second concurrent decision cannot move an accepted proposal', $threw);
 
     $store2 = new FakeRescheduleStore(); $store2->context = $context(); $commits2 = array();
-    $service2 = new LessonRescheduleService($store2, static fn() => array(), static function (array $payload) use (&$commits2): array { $commits2[] = $payload; return array('schedule_version_id' => 100); }, static fn() => time());
+    $service2 = new LessonRescheduleService($store2, static fn() => array(), static function (array $payload) use (&$commits2): array { $commits2[] = $payload; return array('schedule_version_id' => 100); }, static fn() => time(), static fn() => true);
     $p2 = $service2->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0010');
     $rejected = $service2->decideForStudent(9, (string) $store2->proposals[0]->uid, 'reject', 'decision-key-0010');
     $fail('rejection never commits schedule authority', $rejected['state'] === 'rejected' && $commits2 === array());
 
     $store3 = new FakeRescheduleStore(); $store3->context = $context(); $stale = $context(); $stale->schedule_version_id = 72;
-    $service3 = new LessonRescheduleService($store3, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 101), static fn() => time());
+    $service3 = new LessonRescheduleService($store3, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 101), static fn() => time(), static fn() => true);
     $service3->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0020');
     $store3->context = $stale;
     $threw = false; try { $service3->decideForStudent(9, (string) $store3->proposals[0]->uid, 'accept', 'decision-key-0020'); } catch (Throwable $e) { $threw = $e->getMessage() === 'stale_schedule_version'; }
     $fail('acceptance revalidates the current schedule version without changing the proposal', $threw && $store3->proposals[0]->state === 'pending');
 
     $store4 = new FakeRescheduleStore(); $store4->context = $context();
-    $service4 = new LessonRescheduleService($store4, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 102), static fn() => time());
+    $service4 = new LessonRescheduleService($store4, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 102), static fn() => time(), static fn() => true);
     $service4->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0030');
     $store4->proposals[0]->state = 'accepted';
     $store4->proposals[0]->decision_key_digest = hash('sha256', 'another-decision-key');
@@ -146,31 +166,33 @@ namespace {
     $fail('a competing decision cannot move a terminal proposal', $threw);
 
     $atomicStore = new FakeRescheduleStore(); $atomicStore->context = $context(); $atomicStore->atomic = true; $atomicStore->failAcceptedNotification = true;
-    $atomicService = new LessonRescheduleService($atomicStore, static fn() => array(), static function (array $p) use ($atomicStore): array { $atomicStore->canonicalRevision = 1; return array('schedule_version_id' => 103); }, static fn() => time());
+    $atomicService = new LessonRescheduleService($atomicStore, static fn() => array(), static function (array $p) use ($atomicStore): array { $atomicStore->canonicalRevision = 1; return array('schedule_version_id' => 103); }, static fn() => time(), static fn() => true);
     $atomicService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0040');
     $threw = false; try { $atomicService->decideForStudent(9, (string) $atomicStore->proposals[0]->uid, 'accept', 'decision-key-0040'); } catch (Throwable $e) { $threw = $e->getMessage() === 'outbox_write_failed'; }
     $fail('a failure after canonical revision rolls back proposal, event and outbox state', $threw && $atomicStore->lastTransaction === 'rollback' && $atomicStore->canonicalRevision === 0 && $atomicStore->proposals[0]->state === 'pending' && count($atomicStore->events) === 1 && count($atomicStore->notifications) === 2 && $atomicStore->calendarJobs === array());
 
     $store6 = new FakeRescheduleStore(); $store6->context = $context();
-    $replaceService = new LessonRescheduleService($store6, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 105), static fn() => time());
+    $replaceService = new LessonRescheduleService($store6, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 105), static fn() => time(), static fn() => true);
     $replaceService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0060');
     $input2 = $input; $input2['local_time'] = '19:30';
     $replaceService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input2, 'request-key-0061');
     $fail('a teacher can replace their own pending proposal without allowing duplicate pendings', $store6->proposals[0]->state === 'cancelled' && $store6->proposals[1]->state === 'pending' && $store6->proposals[1]->pending_slot === 1);
 
     $store5 = new FakeRescheduleStore(); $store5->context = $context(); $teacherCommits = array();
-    $createService = new LessonRescheduleService($store5, static fn() => array(), static function (array $p) use (&$teacherCommits): array { $teacherCommits[] = $p; return array('schedule_version_id' => 104); }, static fn() => time());
+    $createService = new LessonRescheduleService($store5, static fn() => array(), static function (array $p) use (&$teacherCommits): array { $teacherCommits[] = $p; return array('schedule_version_id' => 104); }, static fn() => time(), static fn() => true);
     $createService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-0050');
-    $conflictAcceptance = new LessonRescheduleService($store5, static fn() => array(array('lesson_id' => 77)), static function (array $p) use (&$teacherCommits): array { $teacherCommits[] = $p; return array('schedule_version_id' => 104); }, static fn() => time());
+    $conflictAcceptance = new LessonRescheduleService($store5, static fn() => array(array('lesson_id' => 77)), static function (array $p) use (&$teacherCommits): array { $teacherCommits[] = $p; return array('schedule_version_id' => 104); }, static fn() => time(), static fn() => true);
     $threw = false; try { $conflictAcceptance->decideForStudent(9, (string) $store5->proposals[0]->uid, 'accept', 'decision-key-0050'); } catch (Throwable $e) { $threw = $e->getMessage() === 'teacher_slot_conflict'; }
     $fail('teacher occupancy conflict refuses without canonical change or proposal transition', $threw && $teacherCommits === array() && $store5->proposals[0]->state === 'pending' && $store5->calendarJobs === array());
 
-    $providerOutage = new \Delnavazan\Platform\Integrations\LessonRescheduleCalendarService($store, static function (array $job): array { throw new RuntimeException('provider_outage'); }, static fn() => time());
+    $providerOutage = new \Delnavazan\Platform\Integrations\LessonRescheduleCalendarService($store, static function (array $job): array { throw new RuntimeException('provider_outage'); }, static fn() => time(), static fn() => true);
     $providerOutage->dispatchPending(5);
     $fail('provider outage does not revoke an accepted reschedule', (string) $store->proposals[0]->state === 'accepted' && count($commits) === 1 && (string) $store->calendarJobs[0]->state === 'retry');
-    $providerRecovered = new \Delnavazan\Platform\Integrations\LessonRescheduleCalendarService($store, static fn(array $job): array => array('state' => 'handed_off'), static fn() => time());
+    $providerRecovered = new \Delnavazan\Platform\Integrations\LessonRescheduleCalendarService($store, static fn(array $job): array => array('state' => 'handed_off'), static fn() => time(), static fn() => true);
     $providerRecovered->dispatchPending(5);
     $fail('provider recovery completes the same job without a second schedule revision', (string) $store->calendarJobs[0]->state === 'completed' && count($commits) === 1);
+
+    $fail('accepted reschedule moves its protected commercial interval', str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Core/Application/CommercialCapacityAuthority.php'), 'reviseForReschedule') && str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Core/Application/CanonicalLessonScheduleService.php'), 'reviseForReschedule'));
 
     echo "Lesson reschedule service unit passed\n";
 }

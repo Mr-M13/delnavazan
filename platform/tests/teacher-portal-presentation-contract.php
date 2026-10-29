@@ -146,6 +146,19 @@ namespace {
     $absenceHtml = $render('home', $model(array('attention' => array($absence))));
     $check('absence pending task opens the reschedule form for the exact lesson', str_contains($absenceHtml, 'dzn-tp-reschedule') && str_contains($absenceHtml, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"') && str_contains($absenceHtml, 'name="lesson_uid" value="LESSON-ABS"') && str_contains($absenceHtml, 'name="schedule_version_uid" value="SCH-ABS"'));
 
+    $declined = array(
+        'ref' => 'DEC-1', 'action_available' => true, 'state' => 'reschedule_declined',
+        'title' => 'زمان پیشنهادی رد شد', 'context' => 'Student One · Setar',
+        'message' => 'با هنرجو صحبت کنید و زمان تازه‌ای پیشنهاد دهید.', 'due' => 'نیازمند زمان تازه', 'primary' => 'ارسال زمان تازه',
+        'lesson_uid' => 'LESSON-DEC', 'schedule_version_uid' => 'SCH-DEC', 'reschedule_available' => true,
+        'reschedule_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule',
+        'reschedule_nonce' => 'nonce-declined', 'reschedule_timezone' => 'Asia/Tehran',
+        'reschedule_calendar' => 'gregorian', 'reschedule_current' => 'Saturday 3 October، 10:00',
+    );
+    $declinedHtml = $render('home', $model(array('attention' => array($declined))));
+    $check('rejected reschedule task opens a fresh-time form', str_contains($declinedHtml, 'زمان پیشنهادی رد شد'));
+    $check('rejected reschedule task posts the exact lesson and schedule', str_contains($declinedHtml, 'name="lesson_uid" value="LESSON-DEC"') && str_contains($declinedHtml, 'name="schedule_version_uid" value="SCH-DEC"'));
+
     // 4. No fake actions or demo data in production, even if a model claims to be a demo.
     $demoModel = $model(array('is_demo' => true, 'attention' => array($request(array('authoritative_request' => false, 'state' => 'student_absence'))), 'classes' => array($class(array('start_available' => true))), 'today_classes' => array($class(array('start_available' => true))), 'calendar' => array(array('day' => 'Mon', 'time' => '09:00', 'label' => 'x', 'state' => 'regular'))));
     foreach (array('real model' => $homeModel, 'model flagged demo in production' => $demoModel) as $label => $m) {

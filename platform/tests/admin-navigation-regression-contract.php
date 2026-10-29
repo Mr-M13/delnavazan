@@ -108,8 +108,14 @@ if ( str_contains( $menu, 'dzn-academy-operations' )
 }
 if ( ! str_contains( $operations, 'Student absence reports awaiting review' )
     || ! str_contains( $operations, 'Class time changes awaiting student response' )
-    || ! str_contains( $operations, "'dzn-attendance-review','Review attendance'" ) ) {
+    || ! str_contains( $operations, "'dzn-attendance-review','Review attendance'" )
+    || ! str_contains( $operations, 'Reschedule negotiations needing admin intervention' )
+    || ! str_contains( $operations, 'Confirm proposed time' )
+    || ! str_contains( $operations, 'Open class to change manually' ) ) {
     throw new RuntimeException( 'Academy pending actions must surface Student absences and pending class-time changes.' );
+}
+if ( ! str_contains( (string) file_get_contents( $root . '/delnavazan-platform.php' ), 'RescheduleReviewController::register()' ) ) {
+    throw new RuntimeException( 'Administrator reschedule confirm/cancel actions must be registered.' );
 }
 if ( str_contains( file_get_contents( $root . '/delnavazan-platform.php' ), 'AdminDashboardController::register()' ) ) {
     throw new RuntimeException( 'The generic WordPress dashboard must not duplicate the Academy console.' );

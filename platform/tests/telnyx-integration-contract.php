@@ -56,4 +56,10 @@ $fail('no webhook code sends a live message',strpos($service,'wp_remote_post')==
 $fail('no provider secret is rendered by admin',strpos($admin,'api_key')===false||strpos($admin,'value(\'sms\',\'api_key\')')===false);
 $providerSection=substr($migration,(int)strpos($migration,'install_telnyx_provider_events'),(int)strpos($migration,'verify_telnyx_provider_events_schema')-(int)strpos($migration,'install_telnyx_provider_events'));
 $fail('no raw provider payload is stored',strpos($providerSection,'payload text')===false&&strpos($providerSection,'phone varchar')===false);
+require_once $root.'/src/Integrations/Notifications/NotificationCatalogue.php';
+require_once $root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+foreach(\Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry::definitions() as $name=>$definition){
+    $event=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::get($definition['event_key']);
+    if($event===null||!in_array('whatsapp',(array)$event['channels'],true))throw new RuntimeException('Telnyx integration contract failed: mapped event does not permit WhatsApp: '.$name);
+}
 echo "Telnyx SMS and WhatsApp integration contract passed\n";

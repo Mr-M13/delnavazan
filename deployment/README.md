@@ -182,6 +182,25 @@ partial recovery), and the interim attendance/presumed-completion runtime. It is
 command; CI still runs the individual jobs. A release is not ready if this command does not end with
 `Student lifecycle regression bundle: PASS`.
 
+## Release 2026-10-29 (CSS and authenticated portal accessibility follow-up)
+
+The CSS consolidation from #402 and the portal accessibility follow-up from
+#407 are deployed at `3939feed0ec977f056eaf3ed262d4d2dbfbce167`
+(build `main-3939feed0ec9`, schema 54). The successful production run is
+`40826085963`; the deployment artifact records `status: deployed` and the
+previous build `main-25857feb8b22`. The read-only production smoke gate passed.
+
+The follow-up fixes long teacher status labels wrapping at 200% text and gives
+rendered nonce fields request-unique DOM ids via `dzn_theme_nonce_field()`;
+field names, actions and server-side verification are unchanged. No attendance,
+enrolment, payment, scheduling or replacement rule changed, and there is no
+schema change. A code-only rollback to `9ba61e639b1a` is safe.
+
+Authenticated Student/Teacher verification was run in the isolated acceptance
+runtime with the deployed theme/CSS and the Phase-J/post-intro synthetic
+lessons. Authenticated production accounts remain unavailable; see
+`platform/docs/CSS-AUTH-VERIFICATION-2026-10-29.md`.
+
 ## Release 2026-10-27
 
 The latest follow-up is `f9517eb159920c1aa078a5920aee232d7d252435`

@@ -52,6 +52,9 @@ $latestJobs = $wpdb->get_results("SELECT id,state,attempt_count,last_error_code,
 $failedCalendarJobs = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}lesson_reschedule_calendar_jobs WHERE state='failed' GROUP BY last_error_code ORDER BY total DESC", ARRAY_A) ?: array();
 $proposalKindRows = $wpdb->get_results("SELECT COALESCE((SELECT e.reason_code FROM {$p}lesson_reschedule_events e WHERE e.proposal_id=r.id AND e.event_type='proposed' ORDER BY e.id ASC LIMIT 1),'unknown') proposal_reason,r.state,COUNT(*) total FROM {$p}lesson_reschedule_proposals r GROUP BY proposal_reason,r.state ORDER BY proposal_reason,r.state", ARRAY_A) ?: array();
 $failedCalendarDetail = $wpdb->get_results("SELECT j.id,j.proposal_id,j.lesson_id,j.from_schedule_version_id,j.to_schedule_version_id,j.attempt_count,j.last_error_code,j.updated_at,p.state proposal_state,l.lesson_type,l.lifecycle_state,v.applicable_slot to_applicable,v.superseded_at to_superseded FROM {$p}lesson_reschedule_calendar_jobs j INNER JOIN {$p}lesson_reschedule_proposals p ON p.id=j.proposal_id INNER JOIN {$p}lessons l ON l.id=j.lesson_id LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.id=j.to_schedule_version_id WHERE j.state='failed' ORDER BY j.updated_at DESC LIMIT 10", ARRAY_A) ?: array();
+$recentCalendarProjections = $wpdb->get_results("SELECT lesson_id,schedule_version_id,projection_state,event_digest,provider_occurred_at_utc,updated_at FROM {$p}provider_calendar_event_mappings ORDER BY id DESC LIMIT 10", ARRAY_A) ?: array();
+$recentMeetingProjections = $wpdb->get_results("SELECT lesson_id,schedule_version_id,projection_state,conference_digest,join_uri_digest,provider_occurred_at_utc,updated_at FROM {$p}provider_meeting_mappings ORDER BY id DESC LIMIT 10", ARRAY_A) ?: array();
+$recentCalendarJobs = $wpdb->get_results("SELECT id,lesson_id,proposal_id,state,attempt_count,last_error_code,completed_at,updated_at FROM {$p}lesson_reschedule_calendar_jobs ORDER BY id DESC LIMIT 10", ARRAY_A) ?: array();
 $staleCalendarJobs = $wpdb->get_results("SELECT id,state,attempt_count,next_attempt_at,last_error_code,created_at,updated_at FROM {$p}lesson_reschedule_calendar_jobs WHERE state IN ('queued','retry') AND (next_attempt_at IS NULL OR next_attempt_at<DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)) ORDER BY updated_at ASC,id ASC LIMIT 5", ARRAY_A) ?: array();
 $screenClass = 'Delnavazan\\Platform\\Admin\\Controller\\ScreenController';
 $scheduleClass = 'Delnavazan\\Platform\\Core\\Application\\CanonicalLessonScheduleReadService';
@@ -110,6 +113,18 @@ $out = array(
         'stale_calendar_jobs' => $staleCalendarJobs,
         'notifications' => $group('lesson_reschedule_notifications', 'state'),
         'proposals_by_kind_state' => $proposalKindRows,
+        'recent_calendar_projections' => array_map(static function (array $row): array {
+            $row['event_reference_present'] = trim((string) ($row['event_digest'] ?? '')) !== '';
+            unset($row['event_digest']);
+            return $row;
+        }, $recentCalendarProjections),
+        'recent_meeting_projections' => array_map(static function (array $row): array {
+            $row['conference_reference_present'] = trim((string) ($row['conference_digest'] ?? '')) !== '';
+            $row['join_reference_present'] = trim((string) ($row['join_uri_digest'] ?? '')) !== '';
+            unset($row['conference_digest'], $row['join_uri_digest']);
+            return $row;
+        }, $recentMeetingProjections),
+        'recent_calendar_jobs' => $recentCalendarJobs,
         'failed_calendar_detail' => array_map(static function (array $row) use ($wpdb, $p): array {
             $lessonId = (int) ($row['lesson_id'] ?? 0);
             $fromVersion = (int) ($row['from_schedule_version_id'] ?? 0);

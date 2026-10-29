@@ -75,13 +75,15 @@ $pipelineSql = implode("\n", $GLOBALS['wpdb']->queries);
 $expect(substr_count($pipelineSql, 'COUNT(DISTINCT CASE WHEN') === 6, 'Pipeline must count distinct bookings for every stage');
 $expect(!str_contains($pipelineSql, 'SUM('), 'Pipeline must not use row-summing aggregates across joins');
 $expect(str_contains($pipelineSql, 'COUNT(DISTINCT CASE WHEN ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NULL THEN br.id END)'), 'Pipeline must use the shared identity predicate');
+$eligibleScope = "(br.lifecycle_status='submitted' OR (br.lifecycle_status='closed' AND br.resolution_state='teacher_confirmed'))";
+$expect(str_contains($pipelineSql, $eligibleScope), 'Pipeline must include closed teacher-confirmed bookings that remain eligible for coordination and acceptance');
 
 $GLOBALS['wpdb']->queries = array();
-$service->search('', 'needs_identity', 1);
+$service->search('', 'needs_acceptance', 1);
 $queueSql = implode("\n", $GLOBALS['wpdb']->queries);
 $expect(str_contains($queueSql, 'COUNT(DISTINCT br.id)'), 'Queue must count distinct bookings');
-$expect(str_contains($queueSql, "br.lifecycle_status='submitted'"), 'Stage queues must share the pipeline submitted-booking scope');
-$expect(str_contains($queueSql, 'cc.id IS NOT NULL AND br.student_id IS NULL'), 'Queue must use the same identity predicate as the pipeline');
+$expect(str_contains($queueSql, $eligibleScope), 'Stage queues must include the same closed teacher-confirmed eligibility state as the pipeline');
+$expect(str_contains($queueSql, 'cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NULL'), 'Acceptance queue must use the shared acceptance predicate');
 $expect(!str_contains($queueSql, 'br.student_id IS NULL AND asa.id IS NULL'), 'Queue must not retain the old overlapping predicates');
 
 echo "Academy pipeline stage unit passed\n";

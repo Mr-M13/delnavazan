@@ -38,5 +38,13 @@ final class PortalNotificationRecorder {
             if(!is_string($eventKey)||!is_string($audience)||!is_string($sourceKind))return;
             self::record($eventKey,$audience,(int)$recipientId,$sourceKind,(int)$sourceId,is_array($variables)?$variables:array(),is_string($linkUrl)?$linkUrl:null);
         },10,7);
+        // Retention is enforced by the row expiry and a bounded daily sweep; neither touches the
+        // authoritative class, booking, attendance or payment history.
+        add_action('dzn_portal_notification_retention',static function():void{
+            try{(new PortalNotificationInbox())->prune();}catch(\Throwable $error){do_action('dzn_portal_notification_retention_failed',$error->getMessage());}
+        });
+        add_action('init',static function():void{
+            if(function_exists('wp_next_scheduled')&&!wp_next_scheduled('dzn_portal_notification_retention'))wp_schedule_event(time()+3600,'daily','dzn_portal_notification_retention');
+        });
     }
 }

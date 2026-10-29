@@ -518,7 +518,7 @@ final class Migrator {
 		if ( in_array( '040_notification_cipher_version_width', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_notification_cipher_version_width(); }
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -589,11 +589,15 @@ final class Migrator {
 				self::install_lesson_reschedule_authority();self::verify_lesson_reschedule_authority_schema();
 				$done[]='054_lesson_reschedule_authority';update_option(self::COMPLETED,$done,false);
 			}
+			if(!in_array('055_recording_decision_authority',$done,true)){
+				self::install_recording_decision_authority();self::verify_recording_decision_authority_schema();
+				$done[]='055_recording_decision_authority';update_option(self::COMPLETED,$done,false);
+			}
 			if(!in_array('056_notification_management',$done,true)){
 				self::install_notification_management();self::verify_notification_management_schema();
 				$done[]='056_notification_management';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_notification_management_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -796,6 +800,7 @@ final class Migrator {
 		$required[] = '051_teacher_rate_origin';
 		$required[] = '052_payment_plan_choice';
 		$required[] = '054_lesson_reschedule_authority';
+		$required[] = '055_recording_decision_authority';
 		$required[] = '056_notification_management';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
@@ -2792,5 +2797,13 @@ final class Migrator {
 		if ( in_array( $code, array('phase_u_declared_default','operator_recorded_error','operator_decision','operator_evidence_correction'), true ) ) return true;
 		return self::finance_exception_reason( $code );
 	}
+
+	/** Schema 55: prospective recording/research decisions only; no provider, asset or capture table. */
+	private static function install_recording_decision_authority():void{global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();foreach(array(
+"CREATE TABLE {$p}recording_notice_versions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,audience_code varchar(64) NOT NULL,language_code char(2) NOT NULL,version_number int unsigned NOT NULL,publication_state varchar(16) NOT NULL,body_text longtext NOT NULL,text_digest char(64) NOT NULL,published_at datetime NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY audience_language_version(audience_code,language_code,version_number),KEY publication(audience_code,language_code,publication_state)) ENGINE=InnoDB $c",
+"CREATE TABLE {$p}recording_decisions (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,subject_type varchar(16) NOT NULL,subject_id bigint unsigned NOT NULL,guardian_actor_user_id bigint unsigned NULL,purpose_code varchar(32) NOT NULL,decision_code varchar(16) NOT NULL,notice_version_id bigint unsigned NOT NULL,notice_text_digest char(64) NOT NULL,evidence_key_version varchar(64) NOT NULL,evidence_digest char(64) NOT NULL,decided_at datetime NOT NULL,decided_by_user_id bigint unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),KEY subject_purpose(subject_type,subject_id,purpose_code,decided_at),KEY guardian_actor(guardian_actor_user_id)) ENGINE=InnoDB $c",
+"CREATE TABLE {$p}recording_decision_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,domain varchar(48) NOT NULL,operation varchar(24) NOT NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,result_decision_id bigint unsigned NOT NULL,result_state varchar(16) NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest)) ENGINE=InnoDB $c"
+)as$sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Recording decision migration failed: '.$wpdb->last_error);}}
+	private static function verify_recording_decision_authority_schema():void{global $wpdb;$p=$wpdb->prefix.'dzn_';foreach(array('recording_notice_versions'=>array('uid','audience_code','language_code','version_number','publication_state','body_text','text_digest'),'recording_decisions'=>array('uid','subject_type','subject_id','purpose_code','decision_code','notice_version_id','evidence_key_version','evidence_digest'),'recording_decision_commands'=>array('uid','command_key_digest','command_payload_digest','result_decision_id'))as$table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);foreach($columns as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);}}
 
 }

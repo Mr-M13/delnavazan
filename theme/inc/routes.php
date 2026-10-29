@@ -45,10 +45,8 @@ add_filter( 'pre_handle_404', 'dzn_theme_prevent_virtual_route_404', 10, 2 );
  * WordPress request throughout its in-page steps.
  */
 function dzn_theme_virtual_route_document_title( $title ) {
-	$route = dzn_theme_route();
-	if ( 'booking' === $route ) { return 'درخواست جلسهٔ معارفه – Delnavazan'; }
-	if ( 'recording-and-research' === $route ) { return 'Recording and research information – Delnavazan'; }
-	return $title;
+	if ( 'recording-and-research' === dzn_theme_route() ) { return 'Recording and research information – Delnavazan'; }
+	return 'booking' === dzn_theme_route() ? 'درخواست جلسهٔ معارفه – Delnavazan' : $title;
 }
 add_filter( 'pre_get_document_title', 'dzn_theme_virtual_route_document_title' );
 

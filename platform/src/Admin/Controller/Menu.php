@@ -157,7 +157,7 @@ final class Menu {
             ['Attendance and post-intro', self::ATTENDANCE_WORKSPACE_CAP, 'dzn-attendance-workspace', [AttendanceWorkspaceController::class, 'screen'], null],
             ['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
 
-            ['Notifications & Messaging', self::NOTIFICATION_MANAGEMENT_CAP, 'dzn-notifications', [NotificationManagementController::class, 'screen'], null],
+            ['Notifications', self::NOTIFICATION_MANAGEMENT_CAP, 'dzn-notifications', [NotificationManagementController::class, 'screen'], null],
             ['Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],

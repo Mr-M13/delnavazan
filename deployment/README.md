@@ -76,6 +76,23 @@ same event; retries therefore never intentionally create a second event. Determi
 refusals are terminal; transport/outage failures use bounded backoff. A provider failure never
 rolls back the committed canonical replacement.
 
+## One-job calendar recovery
+
+When the read-only release diagnostic reports a failed calendar job with
+`"recoverable": true`, recover exactly that job:
+
+```sh
+gh workflow run recover-production-calendar-job.yml --ref main   -f commit_sha=<current-main-sha> -f job_id=<job-id> -f confirm=RECOVER
+```
+
+The workflow verifies the exact main SHA and the literal `RECOVER` confirmation, then the payload
+re-proves that the job is `failed`, its proposal is `accepted`, the Lesson is active and the target
+schedule version is still the applicable, non-superseded version. It requeues only that job,
+dispatches it under the existing calendar actor, optionally runs the Google projection worker, and
+prints safe job/mapping state booleans. It never edits canonical lessons, attendance, payments,
+enrolments, proposals or notifications. A provider failure leaves the job visible as `retry`/`failed`;
+the committed canonical schedule is never reversed.
+
 ## Staging acceptance and production diagnostics
 
 The disposable attendance runtime is the staging acceptance path:

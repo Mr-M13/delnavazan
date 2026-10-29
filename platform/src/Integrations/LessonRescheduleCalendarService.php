@@ -33,36 +33,60 @@ final class LessonRescheduleCalendarService {
     }
 
     public function dispatchPending(int $limit=10):array{
-        $completed=0;$failed=0;
+        $completed=0;$failed=0;$skipped=0;
         foreach($this->store->pendingCalendarJobs($limit) as $row){
-            $this->store->begin();
             try{
-                $locked=$this->store->calendarJob((int)$row->id,true);
-                if(!$locked||!in_array((string)$locked->state,array('queued','retry'),true)){$this->store->commit();continue;}
-                $result=($this->dispatch)((array)$locked);
-                $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
-                $this->store->updateCalendarJob((int)$locked->id,array('state'=>'completed','attempt_count'=>(int)$locked->attempt_count+1,'completed_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'updated_at'=>$now));
-                $this->store->commit();$completed++;
+                $state=$this->dispatchJob((int)$row->id);
+                if($state==='completed')$completed++;else $skipped++;
             }catch(\Throwable $e){
-                $this->store->rollback();
-                try{
-                    $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
-                    $code=self::safeErrorCode((string)$e->getMessage());
-                    $actorUnavailable=in_array($code,array('reschedule_calendar_actor_unconfigured','reschedule_calendar_actor_invalid'),true);
-                    $permanent=in_array($code,self::PERMANENT_ERRORS,true);
-                    $attempt=(int)($row->attempt_count??0)+($actorUnavailable?0:1);
-                    // Missing or underprivileged actors keep the job queued and retryable; an
-                    // already accepted canonical reschedule is never rolled back for this.
-                    // A deterministic provider refusal is terminal, while transport/outage
-                    // failures use bounded exponential backoff.
-                    $state=$actorUnavailable?'queued':(($permanent||$attempt>=self::MAX_ATTEMPTS)?'failed':'retry');
-                    $next=$permanent?null:gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt)))));
-                    $this->store->updateCalendarJob((int)$row->id,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>$next,'last_error_code'=>$code,'updated_at'=>$now));
-                }catch(\Throwable){}
                 $failed++;
             }
         }
-        return array('completed'=>$completed,'failed'=>$failed);
+        return array('completed'=>$completed,'failed'=>$failed,'skipped'=>$skipped);
+    }
+
+    /**
+     * Dispatch one exact job. Used by the worker and by an authorised recovery action.
+     * The row is re-read under a lock; a completed job is never dispatched twice even when a
+     * worker's queue snapshot is stale.
+     */
+    public function dispatchJob(int $jobId):string{
+        $this->store->begin();
+        try{
+            $locked=$this->store->calendarJob($jobId,true);
+            if(!$locked||!in_array((string)$locked->state,array('queued','retry'),true)){
+                $this->store->commit();
+                return 'skipped';
+            }
+            $result=($this->dispatch)((array)$locked);
+            $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
+            $this->store->updateCalendarJob((int)$locked->id,array('state'=>'completed','attempt_count'=>(int)$locked->attempt_count+1,'completed_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'updated_at'=>$now));
+            $this->store->commit();
+            return 'completed';
+        }catch(\Throwable $e){
+            $this->store->rollback();
+            $this->recordFailure($jobId,$e);
+            throw $e;
+        }
+    }
+
+    private function recordFailure(int $jobId,\Throwable $e):void{
+        try{
+            $job=$this->store->calendarJob($jobId);
+            if(!$job)return;
+            $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
+            $code=self::safeErrorCode((string)$e->getMessage());
+            $actorUnavailable=in_array($code,array('reschedule_calendar_actor_unconfigured','reschedule_calendar_actor_invalid'),true);
+            $permanent=in_array($code,self::PERMANENT_ERRORS,true);
+            $attempt=(int)($job->attempt_count??0)+($actorUnavailable?0:1);
+            // Missing or underprivileged actors keep the job queued and retryable; an
+            // already accepted canonical reschedule is never rolled back for this.
+            // A deterministic provider refusal is terminal, while transport/outage
+            // failures use bounded exponential backoff.
+            $state=$actorUnavailable?'queued':(($permanent||$attempt>=self::MAX_ATTEMPTS)?'failed':'retry');
+            $next=$permanent?null:gmdate('Y-m-d H:i:s',(int)($this->clock)()+($actorUnavailable?300:min(3600,60*(2**min(5,$attempt)))));
+            $this->store->updateCalendarJob($jobId,array('state'=>$state,'attempt_count'=>$attempt,'next_attempt_at'=>$next,'last_error_code'=>$code,'updated_at'=>$now));
+        }catch(\Throwable){}
     }
 
     /** Store only controlled codes; never persist raw provider references, tokens or payload text. */

@@ -109,5 +109,22 @@ namespace {
     $staleResult = $staleService->dispatchPending(5);
     $fail('a stale queue snapshot cannot dispatch a completed job', $staleDispatches === 0 && $staleResult['completed'] === 0 && $staleResult['failed'] === 0);
 
+
+    // Direct recovery dispatch: only a queued/retry job may be dispatched, exactly once.
+    $directStore = new CalendarStore();
+    $directStore->jobs[] = (object) array('id' => 1, 'uid' => 'JOB-DIRECT', 'proposal_id' => 8, 'lesson_id' => 46, 'from_schedule_version_id' => 76, 'to_schedule_version_id' => 104, 'state' => 'retry', 'attempt_count' => 2);
+    $directDispatches = 0;
+    $directService = new LessonRescheduleCalendarService($directStore, static function (array $job) use (&$directDispatches): array { $directDispatches++; return array('state' => 'handed_off'); }, static fn(): int => time());
+    $fail('direct recovery dispatch completes a retry job', $directService->dispatchJob(1) === 'completed' && $directStore->jobs[0]->state === 'completed' && $directDispatches === 1);
+    $fail('direct recovery dispatch never repeats a completed job', $directService->dispatchJob(1) === 'skipped' && $directDispatches === 1);
+    $directStore->jobs[0]->state = 'failed';
+    $fail('direct recovery refuses a failed job until it is explicitly requeued', $directService->dispatchJob(1) === 'skipped' && $directDispatches === 1);
+
+    $directFailureStore = new CalendarStore();
+    $directFailureStore->jobs[] = (object) array('id' => 1, 'uid' => 'JOB-DIRECT-FAIL', 'proposal_id' => 9, 'lesson_id' => 47, 'from_schedule_version_id' => 77, 'to_schedule_version_id' => 105, 'state' => 'retry', 'attempt_count' => 0);
+    $directFailureService = new LessonRescheduleCalendarService($directFailureStore, static function (array $job): array { throw new RuntimeException('provider_unavailable'); }, static fn(): int => time());
+    $threw = false; try { $directFailureService->dispatchJob(1); } catch (Throwable $e) { $threw = $e->getMessage() === 'provider_unavailable'; }
+    $fail('direct recovery failure remains retryable', $threw && $directFailureStore->jobs[0]->state === 'retry' && $directFailureStore->jobs[0]->attempt_count === 1);
+
     echo "Lesson reschedule calendar unit passed\n";
 }

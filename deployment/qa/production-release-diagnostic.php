@@ -77,6 +77,10 @@ $actorInfo = static function (int $actorId): array {
         'provider_integrations' => user_can($user, 'dzn_manage_provider_integrations'),
     );
 };
+$projectionWorkerClass = 'Delnavazan\\Platform\\Integrations\\ProviderProjectionWorkerContext';
+$googleOAuthClass = 'Delnavazan\\Platform\\Integrations\\GoogleOAuthController';
+$projectionWorkerReady = class_exists($projectionWorkerClass) && $projectionWorkerClass::principalId() > 0;
+$googleOAuthConfigured = class_exists($googleOAuthClass) && $googleOAuthClass::configured();
 $replacementActorId = (int) get_option('dzn_replacement_system_user_id', 0);
 $rescheduleActorId = (int) get_option('dzn_reschedule_system_user_id', 0);
 $calendarActorId = (int) get_option('dzn_reschedule_calendar_system_user_id', 0);
@@ -96,6 +100,8 @@ $out = array(
     'replacement_actor' => $actorInfo($replacementActorId),
     'reschedule_actor' => $actorInfo($rescheduleActorId),
     'calendar_actor' => $actorInfo($calendarActorId),
+    'projection_worker_ready' => $projectionWorkerReady,
+    'google_oauth_configured' => $googleOAuthConfigured,
     'replacement_workflow' => array(
         'proposals' => $group('lesson_reschedule_proposals', 'state'),
         'replacement_lessons' => $count('lessons', "record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL"),

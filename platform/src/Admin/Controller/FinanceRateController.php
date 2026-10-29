@@ -30,10 +30,14 @@ final class FinanceRateController {
         self::teacherSelector($teacherId,$options);
         if($teacherId<1){echo '<p>No Teacher is available for rate review.</p></div>';return;}
         $timeline=(new TeacherRateReadService())->timeline($teacherId);
-        echo '<table class="widefat striped"><thead><tr><th>Version</th><th>Scope</th><th>Effective from</th><th>Effective until</th><th>Status</th><th>Amount</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>Version</th><th>Scope / course</th><th>Effective from</th><th>Effective until</th><th>Status</th><th>Amount</th></tr></thead><tbody>';
         if(empty($timeline['rates']))echo '<tr><td colspan="6">No effective-dated rate is recorded for this Teacher.</td></tr>';
         foreach((array)$timeline['rates'] as $rate){
-            $scope=(string)$rate['scope_kind']==='teacher_course'?'One course':((string)$rate['scope_kind']==='teacher'?'All courses':ucfirst(str_replace('_',' ',(string)$rate['scope_kind'])));
+            $scope=(string)$rate['scope_kind']==='teacher'?'All courses':((string)$rate['scope_kind']==='teacher_course'?'One course':ucfirst(str_replace('_',' ',(string)$rate['scope_kind'])));
+            if((string)$rate['scope_kind']==='teacher_course'){
+                $courseName=trim((string)($rate['course_name']??''));
+                $scope.=' · '.($courseName!==''?$courseName:'Course unavailable');
+            }
             $amount=PricingMoney::format((int)$rate['amount_minor'],(string)$rate['currency']);
             echo '<tr><td>'.esc_html('v'.(string)$rate['rate_version']).'</td><td>'.esc_html($scope).'</td><td>'.esc_html(self::instant((string)$rate['effective_from'])).'</td><td>'.esc_html(self::instant((string)($rate['effective_until']??''))).'</td><td><span class="dzn-badge' . ((string)$rate['status']==='active'?' dzn-badge--teal':'') . '">'.esc_html(ucfirst((string)$rate['status'])).'</span></td><td>'.esc_html($amount).'</td></tr>';
         }

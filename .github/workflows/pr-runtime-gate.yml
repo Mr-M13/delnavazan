@@ -216,6 +216,8 @@ jobs:
           php platform/tests/admin-navigation-target-contract.php
           php platform/tests/admin-dashboard-ux-contract.php
           php platform/tests/admin-dashboard-screen-unit.php
+          php platform/tests/admin-dashboard-review-fixes-contract.php
+          php platform/tests/academy-pipeline-stage-unit.php
           php platform/tests/admin-navigation-composite-cap-unit.php
           php platform/tests/admin-shell-route-capability-runtime.php
           php platform/tests/admin-read-capability-authority.php

@@ -52,8 +52,18 @@ final class FinanceStatementController {
                 echo '<h2>Teacher reconciliation</h2>';
                 echo '<p><strong>'.($reconciliation['reconciled']?'Reconciled':'Differences found').'</strong> · recorded payable '.esc_html(PricingMoney::format((int)$reconciliation['recorded_totals']['payable_amount_minor'],$currency)).'</p>';
                 if($reconciliation['derived_differences']){
-                    echo '<table class="widefat"><thead><tr><th>Lesson</th><th>Expected</th><th>Observed</th></tr></thead><tbody>';
-                    foreach($reconciliation['derived_differences'] as $difference)echo '<tr><td>'.esc_html((string)$difference['lesson_id']).'</td><td>'.esc_html((string)$difference['expected_amount_minor']).'</td><td>'.esc_html((string)$difference['observed_amount_minor']).'</td></tr>';
+                    $formatDifference=static fn(int $minor):string=>$currency!==''?PricingMoney::format($minor,$currency):number_format_i18n($minor);
+                    echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Expected</th><th>Observed</th></tr></thead><tbody>';
+                    foreach($reconciliation['derived_differences'] as $difference){
+                        $label=(string)($difference['lesson_label']??'Class record');
+                        $lessonId=(int)($difference['lesson_id']??0);
+                        $cell=esc_html($label);
+                        if(current_user_can('dzn_manage_lessons')&&$lessonId>0){
+                            $lessonUrl=add_query_arg(array('page'=>'dzn-lesson','id'=>$lessonId),admin_url('admin.php'));
+                            $cell='<a href="'.esc_url($lessonUrl).'">'.$cell.'</a>';
+                        }
+                        echo '<tr><td>'.$cell.'</td><td>'.esc_html($formatDifference((int)$difference['expected_amount_minor'])).'</td><td>'.esc_html($formatDifference((int)$difference['observed_amount_minor'])).'</td></tr>';
+                    }
                     echo '</tbody></table>';
                 }
             }catch(\Throwable){

@@ -12,15 +12,6 @@ use Delnavazan\Platform\Core\Application\Finance\Read\FinanceAdminReadService;
  * view renders an explicit restricted state instead of an invented zero.
  */
 final class AcademyDashboardReadService {
-    private const PIPELINE_STAGES = array(
-        'needs_coordination' => 'Coordination needed',
-        'needs_identity' => 'Identity unresolved',
-        'needs_acceptance' => 'Acceptance pending',
-        'needs_enrolment' => 'Enrolment conversion',
-        'needs_assignment' => 'Teacher assignment',
-        'complete' => 'Assignment complete',
-    );
-
     /**
      * @return array{
      *   counts: array<string, int|null>,
@@ -34,7 +25,7 @@ final class AcademyDashboardReadService {
     public function summary(int $days = 14): array {
         if (!current_user_can('dzn_view_booking_requests')) throw new \RuntimeException('Unauthorized');
         $days = max(7, min(30, $days));
-        $pipeline = $this->pipeline();
+        $pipeline = (new AcademyJourneyReadService())->stageCounts();
         return array(
             'counts' => $this->counts(),
             'pipeline' => $pipeline,
@@ -96,32 +87,6 @@ final class AcademyDashboardReadService {
             $counts['reschedules'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending'");
         }
         return $counts;
-    }
-
-    /** @return array<string, int> */
-    private function pipeline(): array {
-        global $wpdb;
-        $p = $wpdb->prefix . 'dzn_';
-        $row = $wpdb->get_row(
-            "SELECT
-                SUM(cc.id IS NULL) AS needs_coordination,
-                SUM(cc.id IS NOT NULL AND br.student_id IS NULL) AS needs_identity,
-                SUM(cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NULL) AS needs_acceptance,
-                SUM(asa.id IS NOT NULL AND e.id IS NULL) AS needs_enrolment,
-                SUM(e.id IS NOT NULL AND ta.id IS NULL) AS needs_assignment,
-                SUM(ta.id IS NOT NULL) AS complete
-             FROM {$p}booking_requests br
-             LEFT JOIN {$p}coordination_cases cc ON cc.booking_request_id=br.id
-             LEFT JOIN {$p}accepted_service_arrangements asa ON asa.booking_request_id=br.id
-             LEFT JOIN {$p}enrolments e ON e.accepted_service_arrangement_id=asa.id AND e.archived_at IS NULL
-             LEFT JOIN {$p}teacher_assignments ta ON ta.enrolment_id=e.id AND ta.applicable_slot=1
-             WHERE br.privacy_erased_at IS NULL AND br.lifecycle_status='submitted'"
-        );
-        $pipeline = array();
-        foreach (self::PIPELINE_STAGES as $key => $label) {
-            $pipeline[$key] = (int) ($row->{$key} ?? 0);
-        }
-        return $pipeline;
     }
 
     /** @return list<array{date:string,label:string,bookings:int,lessons:int}> */

@@ -498,6 +498,19 @@ body.dzn-admin-page .nav-tab-active:hover {
 .dzn-kpi--attention::before { background: linear-gradient(90deg, var(--dzn-accent), var(--dzn-gold)); }
 .dzn-kpi--finance::before { background: linear-gradient(90deg, var(--dzn-gold), var(--dzn-teal)); }
 
+.dzn-kpi--restricted {
+  background: var(--dzn-surface-soft);
+  box-shadow: none;
+}
+
+.dzn-kpi--restricted::before {
+  background: var(--dzn-border-strong);
+}
+
+.dzn-kpi--restricted .dzn-kpi__value {
+  color: var(--dzn-muted);
+}
+
 .dzn-panel {
   margin-block-start: 18px;
   padding: 18px;

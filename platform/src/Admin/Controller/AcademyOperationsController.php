@@ -15,15 +15,6 @@ final class AcademyOperationsController {
     private const CAP = 'dzn_view_booking_requests';
     private const PAGE = 'dzn-academy-dashboard';
 
-    private const PIPELINE_LABELS = array(
-        'needs_coordination' => 'Coordination needed',
-        'needs_identity' => 'Identity unresolved',
-        'needs_acceptance' => 'Acceptance pending',
-        'needs_enrolment' => 'Enrolment conversion',
-        'needs_assignment' => 'Teacher assignment',
-        'complete' => 'Assignment complete',
-    );
-
     /** @var array<string,mixed>|null */
     private static ?array $classCache = null;
 
@@ -98,10 +89,11 @@ final class AcademyOperationsController {
         );
         echo '<div class="dzn-kpi-grid">';
         foreach ($cards as [$label, $value, $hint, $target]) {
-            $isLink = str_starts_with($target, '#') === false;
+            $isLink = $value !== null && !str_starts_with($target, '#');
             $tag = $isLink ? 'a' : 'div';
             $href = $isLink ? ' href="' . esc_url(admin_url('admin.php?page=' . rawurlencode($target))) . '"' : '';
-            echo '<' . $tag . ' class="dzn-kpi' . ($label === 'Open action items' && $actionCount > 0 ? ' dzn-kpi--attention' : '') . '"' . $href . '>';
+            $classes = 'dzn-kpi' . ($value === null ? ' dzn-kpi--restricted' : '') . ($label === 'Open action items' && $actionCount > 0 ? ' dzn-kpi--attention' : '');
+            echo '<' . $tag . ' class="' . esc_attr($classes) . '"' . $href . '>';
             echo '<span class="dzn-kpi__label">' . esc_html($label) . '</span>';
             echo '<span class="dzn-kpi__value">' . ($value === null ? '—' : esc_html(number_format_i18n((int) $value))) . '</span>';
             echo '<span class="dzn-kpi__hint">' . ($value === null ? 'No access for this account' : esc_html($hint)) . '</span>';
@@ -119,7 +111,7 @@ final class AcademyOperationsController {
             return;
         }
         echo '<div class="dzn-pipeline">';
-        foreach (self::PIPELINE_LABELS as $key => $label) {
+        foreach (AcademyJourneyReadService::PIPELINE_STAGES as $key => $label) {
             $count = (int) ($pipeline[$key] ?? 0);
             $width = max(0, min(100, (int) round(($count / $total) * 100)));
             $url = add_query_arg(array('page' => self::PAGE, 'stage' => $key), admin_url('admin.php'));
@@ -308,7 +300,7 @@ final class AcademyOperationsController {
         $rows = $result['rows'];
         echo '<section class="dzn-panel" id="dzn-journey-queue"><div class="dzn-panel__head"><div><h2>Learner journeys</h2><p>Search and follow a learner from booking to assignment. Only unresolved work is shown in the action queue.</p></div></div>';
         echo '<form method="get" class="dzn-filter-bar"><input type="hidden" name="page" value="' . esc_attr(self::PAGE) . '"><label>Search name, email, booking reference, instrument or course<input type="search" name="q" value="' . esc_attr($query) . '"></label><label>Stage<select name="stage"><option value="needs_action"' . selected($stage, 'needs_action', false) . '>Action queue</option><option value=""' . selected($stage, '', false) . '>All records</option>';
-        foreach (self::PIPELINE_LABELS as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($stage, $value, false) . '>' . esc_html($label) . '</option>';
+        foreach (AcademyJourneyReadService::PIPELINE_STAGES as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($stage, $value, false) . '>' . esc_html($label) . '</option>';
         echo '</select></label><button class="button">Search</button></form>';
         echo '<p class="dzn-list__meta"><strong>' . esc_html(number_format_i18n((int) $result['total'])) . '</strong> matching learner journey' . ((int) $result['total'] === 1 ? '' : 's') . ' · showing up to ' . esc_html(number_format_i18n((int) $result['per_page'])) . ' per page.</p>';
         if (in_array($view, array('upcoming', 'attention'), true)) {

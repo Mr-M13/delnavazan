@@ -41,7 +41,21 @@ namespace {
     if (!function_exists('wp_kses')) {
         function wp_kses($text, $allowed) { return strip_tags($text); }
     }
+    if (!function_exists('wp_mail')) {
+        function wp_mail($to, $subject, $body, $headers = array()) {
+            $GLOBALS['dzn_test_mail'][] = compact('to', 'subject', 'body', 'headers');
+            return true;
+        }
+    }
+    if (!function_exists('add_action')) {
+        function add_action($hook, $callback, $priority = 10) { $GLOBALS['dzn_test_hooks'][$hook][] = $callback; return true; }
+    }
+    if (!function_exists('remove_action')) {
+        function remove_action($hook, $callback, $priority = 10) { return true; }
+    }
     $GLOBALS['dzn_test_options'] = array();
+    $GLOBALS['dzn_test_mail'] = array();
+    $GLOBALS['dzn_test_hooks'] = array();
 }
 
 namespace Delnavazan\Platform\Tests {
@@ -301,6 +315,12 @@ namespace {
     $fail('unsafe CTA is dropped', !str_contains($unsafe['html'], 'javascript:'));
     $english = DelnavazanEmailRenderer::render('Subject', 'Body', array('locale' => 'en'));
     $fail('English shell is LTR', str_contains($english['html'], 'dir="ltr"'));
+
+    $sent = DelnavazanEmailRenderer::send('student@example.invalid', 'عنوان', "خط اول\n\nخط دوم", array('locale' => 'fa-IR', 'cta' => array('label' => 'رفتن', 'url' => 'https://delnavazan.com/student-portal/')));
+    $fail('branded mail is sent as HTML', $sent && str_contains((string) $GLOBALS['dzn_test_mail'][0]['body'], '#FBF7EE') && str_contains(implode("\n", (array) $GLOBALS['dzn_test_mail'][0]['headers']), 'text/html'));
+    $mailer = (object) array('AltBody' => '');
+    foreach ((array) ($GLOBALS['dzn_test_hooks']['phpmailer_init'] ?? array()) as $callback) $callback($mailer);
+    $fail('branded mail carries a plain-text alternative', $mailer->AltBody === "خط اول\n\nخط دوم");
 
     /* 4. Immutable publishing, draft isolation, rollback and provider mapping. */
     $library = new NotificationTemplateLibrary();

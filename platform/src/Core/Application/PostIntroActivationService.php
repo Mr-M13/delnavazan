@@ -286,7 +286,10 @@ final class PostIntroActivationService {
                 $copy = $copyClass::email('post_intro.activated.teacher', \Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::PRIMARY_LOCALE, $variables, $copy);
                 if ($teacherId > 0) PortalNotificationRecorder::teacher($teacherId, 'post_intro.activated.teacher', 'post_intro_activation', (int) $preparation->id, $variables, $portal);
             }
-            $sent = wp_mail((string) $teacher->email, $copy['subject'], $copy['body']);
+            $renderer = '\\Delnavazan\\Platform\\Integrations\\Notifications\\DelnavazanEmailRenderer';
+            $sent = class_exists($renderer)
+                ? $renderer::send((string) $teacher->email, $copy['subject'], $copy['body'], array('locale' => 'fa-IR', 'cta' => array('url' => (string) ($copy['cta_url'] ?? $portal), 'label' => 'رفتن به پرتال مدرس')))
+                : wp_mail((string) $teacher->email, $copy['subject'], $copy['body']);
             if (!$sent) throw new \RuntimeException('teacher_notification_failed');
             $this->repository->updatePreparation((int) $preparation->id, array('teacher_notified_at' => $now, 'updated_at' => $now));
         }

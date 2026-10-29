@@ -68,6 +68,30 @@ final class DelnavazanEmailRenderer {
         return array('subject'=>$subject,'html'=>$html,'text'=>$text);
     }
 
+    /**
+     * Send one branded message through WordPress mail with a plain-text alternative.
+     *
+     * The HTML shell is the message body; `phpmailer_init` supplies the same authored text as AltBody,
+     * so a client that cannot render HTML still receives the complete message. No provider credential,
+     * external stylesheet, script or tracking pixel is involved.
+     *
+     * @param array{locale?:string,cta?:array{label?:string,url?:string},logo_url?:string,footer_note?:string} $options
+     * @param string[] $headers
+     */
+    public static function send(string $to,string $subject,string $body,array $options=array(),array $headers=array()):bool{
+        if(!function_exists('wp_mail'))return false;
+        $rendered=self::render($subject,$body,$options);
+        $headers=array_values(array_filter($headers,static fn(string $header):bool=>stripos($header,'Content-Type:')!==0));
+        $headers[]='Content-Type: text/html; charset=UTF-8';
+        $alternative=$rendered['text'];
+        $hook=static function($mailer)use($alternative):void{
+            if(is_object($mailer)&&property_exists($mailer,'AltBody'))$mailer->AltBody=$alternative;
+        };
+        if(function_exists('add_action'))add_action('phpmailer_init',$hook,99);
+        try{return (bool)wp_mail($to,$rendered['subject'],$rendered['html'],$headers);}
+        finally{if(function_exists('remove_action'))remove_action('phpmailer_init',$hook,99);}
+    }
+
     /** The plain-text alternative: the authored body, normalised and without any markup. */
     public static function text(string $body):string{
         $body=str_replace(array("\r\n","\r"),"\n",$body);

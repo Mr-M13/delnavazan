@@ -16,6 +16,8 @@ Base: `origin/main` `b67f510`
   قالب پیام‌ها، قوانین ارسال، وضعیت ارسال، تنظیمات کانال‌ها، اعلان‌های پرتال.
 - **Branded email shell** (`DelnavazanEmailRenderer`): RTL, ivory page, turquoise primary action,
   pomegranate accent, logo, table layout, inline styles, no JavaScript/web font, plain-text alternative.
+  The operational senders deliver this HTML body and set the authored text as `AltBody`; a host without
+  the renderer or `wp_mail` keeps the previous plain-text path.
 - **Website inbox** (`PortalNotificationInbox`, Schema 056): student/teacher bell, unread count, list,
   read/unread, mark-all-read and retention. Admin rows are separate; one-time secrets never enter it.
 - **Copy read-through** for the five operational queues. Their delivery authority, idempotency and retry

@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
+use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
@@ -38,7 +39,9 @@ final class BookingStudentNotificationWorker {
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
                 self::recordInbox($row,$eventKey,$variables);
             }
-            $accepted=wp_mail((string)$row->email,$copy['subject'],$copy['body'],self::headers($row));
+            $accepted=class_exists(DelnavazanEmailRenderer::class)
+                ?DelnavazanEmailRenderer::send((string)$row->email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>'رفتن به پرتال هنرجو')),self::headers($row))
+                :wp_mail((string)$row->email,$copy['subject'],$copy['body'],self::headers($row));
         }catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{

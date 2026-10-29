@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
 
@@ -53,6 +54,9 @@ final class CanonicalAttendanceNotificationService {
             $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
             if($teacherId>0&&class_exists(PortalNotificationRecorder::class))PortalNotificationRecorder::teacher($teacherId,$eventKey,'attendance_notification',$lessonId,$variables,$portal);
         }
-        try{return (bool)wp_mail($email,$copy['subject'],$copy['body']);}catch(\Throwable){return false;}
+        try{
+            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??$portal),'label'=>'رفتن به پرتال مدرس')));
+            return (bool)wp_mail($email,$copy['subject'],$copy['body']);
+        }catch(\Throwable){return false;}
     }
 }

@@ -28,7 +28,10 @@ final class LessonRescheduleNotificationService {
         ?callable $clock=null
     ){
         $this->store??=new LessonRescheduleRepository();
-        $this->transport=$transport??static fn(string $email,string $subject,string $body):bool=>wp_mail($email,$subject,$body);
+        $this->transport=$transport??static function(string $email,string $subject,string $body):bool{
+            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$subject,$body,array('locale'=>NotificationCatalogue::PRIMARY_LOCALE));
+            return (bool)wp_mail($email,$subject,$body);
+        };
         $this->recipient=$recipient??array(__CLASS__,'defaultRecipient');
         $this->clock=$clock??static fn():int=>time();
     }

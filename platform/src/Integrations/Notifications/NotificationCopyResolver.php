@@ -46,7 +46,8 @@ final class NotificationCopyResolver {
             $renderedSubject=$channel==='sms'?'':$replace($subject);
             $renderedBody=$replace($body);
             if(trim($renderedBody)==='')return self::fallback($fallback);
-            return array('subject'=>$renderedSubject,'body'=>$renderedBody,'source'=>(string)($copy['source']??'default'));
+            $cta=trim((string)($variables['portal_url']??($variables['teacher_portal_url']??($variables['payment_url']??''))));
+            return array('subject'=>$renderedSubject,'body'=>$renderedBody,'source'=>(string)($copy['source']??'default'),'cta_url'=>$cta);
         }catch(\Throwable $error){
             if(function_exists('do_action'))do_action('dzn_notification_copy_resolution_failed',$eventKey,$channel,$error->getMessage());
             return self::fallback($fallback);

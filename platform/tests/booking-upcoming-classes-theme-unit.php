@@ -2,6 +2,12 @@
 namespace Delnavazan\Platform\Portals {
     final class PortalAuthenticatedReadService {
         public function teacher(): array {
+            // Keep the in-progress fixture inside the Teacher's local day even when
+            // the test runs across Brisbane midnight. A relative 30-minute window
+            // was filtered out for ~30 minutes after local midnight.
+            $teacher_zone = new \DateTimeZone('Australia/Brisbane');
+            $utc = new \DateTimeZone('UTC');
+            $today = (new \DateTimeImmutable('now', $teacher_zone))->setTime(0, 0, 0);
             return array(
                 'lessons' => array(),
                 'assignments' => array(),
@@ -13,8 +19,8 @@ namespace Delnavazan\Platform\Portals {
                     'confirmation_state' => 'confirmed',
                     'student_display_reference' => 'Owned Student',
                     'course_reference' => 'Introductory Setar',
-                    'starts_at_utc' => gmdate('Y-m-d H:i:s', time() - 1800),
-                    'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 900),
+                    'starts_at_utc' => $today->setTimezone($utc)->format('Y-m-d H:i:s'),
+                    'ends_at_utc' => $today->modify('+1 day')->modify('-1 second')->setTimezone($utc)->format('Y-m-d H:i:s'),
                     'schedule_timezone' => 'Australia/Brisbane',
                     'join_available' => true,
                     'join_issue' => null,

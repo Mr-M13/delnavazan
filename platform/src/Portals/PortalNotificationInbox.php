@@ -69,6 +69,17 @@ final class PortalNotificationInbox {
         return (int)$wpdb->insert_id;
     }
 
+    /**
+     * The authenticated user's own inbox and unread count.
+     *
+     * The theme calls this seam instead of resolving a WordPress principal itself, so portal
+     * presentation keeps the platform's principal boundary.
+     */
+    public function forCurrentUser(int $limit=20):array{
+        $userId=(int)get_current_user_id();
+        return array('items'=>$this->forUser($userId,$limit),'unread'=>$this->unreadCount($userId),'user_id'=>$userId);
+    }
+
     /** @return array<int,array> Own notifications only, newest first. */
     public function forUser(int $userId,int $limit=20,bool $unreadOnly=false):array{
         if($userId<1)return array();

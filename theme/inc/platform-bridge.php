@@ -789,12 +789,14 @@ function dzn_theme_platform_student_payments_model( array $read, $timezone, $ena
  * query-string id. When the inbox source is unavailable the model says so instead of claiming
  * "no notifications".
  */
-function dzn_theme_platform_notification_model( $user_id, $timezone, $calendar, $locale, $role = 'student' ) {
+function dzn_theme_platform_notification_model( $timezone, $calendar, $locale, $role = 'student' ) {
 	$empty = array( 'items' => array(), 'available' => false, 'unread' => 0, 'archive_url' => '', 'actions' => array() );
-	if ( (int) $user_id < 1 || ! class_exists( '\Delnavazan\Platform\Portals\PortalNotificationInbox' ) ) { return $empty; }
+	if ( ! class_exists( '\Delnavazan\Platform\Portals\PortalNotificationInbox' ) ) { return $empty; }
 	try {
 		$inbox = new \Delnavazan\Platform\Portals\PortalNotificationInbox();
-		$rows  = $inbox->forUser( (int) $user_id, 20 );
+		$own   = $inbox->forCurrentUser( 20 );
+		if ( empty( $own['user_id'] ) ) { return $empty; }
+		$rows  = $own['items'];
 		$items = array();
 		foreach ( $rows as $row ) {
 			$when = function_exists( 'dzn_theme_platform_calendar_time' )
@@ -815,7 +817,7 @@ function dzn_theme_platform_notification_model( $user_id, $timezone, $calendar, 
 		return array(
 			'items'       => $items,
 			'available'   => true,
-			'unread'      => (int) $inbox->unreadCount( (int) $user_id ),
+			'unread'      => (int) $own['unread'],
 			'archive_url' => '',
 			'actions'     => array(
 				'read_url'      => admin_url( 'admin-post.php?action=dzn_portal_notification_read' ),
@@ -886,7 +888,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'navigation' => $navigation,
 		'provisioning' => $provisioning,
 	);
-	$student_inbox = dzn_theme_platform_notification_model( (int) ( $data['principal']['principal_id'] ?? 0 ), $student_timezone, $student_calendar, $student_locale, 'student' );
+	$student_inbox = dzn_theme_platform_notification_model( $student_timezone, $student_calendar, $student_locale, 'student' );
 	$model['notifications']            = $student_inbox['items'];
 	$model['notifications_available']  = $student_inbox['available'];
 	$model['notification_archive_url'] = $student_inbox['archive_url'];
@@ -1509,8 +1511,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	} catch ( \Throwable $e ) {
 		$post_intro_outcomes = array();
 	}
-	$teacher_wp_user = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
-	$teacher_inbox = dzn_theme_platform_notification_model( $teacher_wp_user, $teacher_timezone, $teacher_calendar, $teacher_locale, 'teacher' );
+	$teacher_inbox = dzn_theme_platform_notification_model( $teacher_timezone, $teacher_calendar, $teacher_locale, 'teacher' );
 	return array(
 		'available' => true,
 		'screen' => $screen,

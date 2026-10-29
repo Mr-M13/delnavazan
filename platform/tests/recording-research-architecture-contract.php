@@ -18,6 +18,9 @@ $need = array(
     'not an affirmative consent grant',
     'document and migration guard only',
     'feature flags, participant authorisation, provider capture',
+    '## Implementation gates',
+    '## Activation gates',
+    'not prerequisites for building this disabled authority code',
 );
 foreach ($need as $text) if (!str_contains($document, $text)) $failures[] = 'missing architecture decision: ' . $text;
 if (str_contains($migrator, '053_recording_consent_retention_deletion_authority')) $failures[] = 'main must not adopt rejected PR #380 migration 053';

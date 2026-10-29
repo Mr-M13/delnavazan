@@ -107,15 +107,27 @@ not prove that feature flags, participant authorisation, provider capture, resea
 retention or deletion work. Each safeguard requires behavioural, migration, runtime, security and
 real-provider tests in the PR that implements it.
 
-## Delivery sequence
+## Implementation gates
 
-1. Architecture, legal decisions, notices, provider and retention schedule are approved.
-2. A dedicated migration and identity-bound decision authority are independently reviewed and tested.
+1. This architecture and decision log are approved before the next migration and identity-bound
+   decision-authority PR begins.
+2. The dedicated migration and identity-bound authority are independently reviewed and tested with
+   capture and research export disabled. Final legal bases, notices, provider agreement and retention
+   periods are not prerequisites for building this disabled authority code; unresolved values remain
+   explicitly unconfigured and fail closed.
 3. Capture gate and provider adapter are reviewed with capture disabled.
 4. Research gate and asset/deletion workers are reviewed with export disabled.
 5. English/Persian onboarding, enrolment, Account Settings and project page are reviewed against the
-   archived notice versions.
-6. A real-provider test tenant completes capture, skip, research inclusion/exclusion, withdrawal,
-   deletion and retention journeys.
-7. An authorised release deploys schema and choices with both flags off, verifies production identity
+   archived notice versions before any related choice is shown to users.
+
+## Activation gates
+
+1. Owner and legal approve the final jurisdiction-specific legal bases, English/Persian notices and
+   teacher terms, child/guardian rules, retention schedule, research/model-use terms and any approved
+   default-on cohort.
+2. Security, operations and the owner approve the production provider agreement, regions, capability
+   set, deletion and backup/version behaviour, and monitoring/rollback plan.
+3. A real-provider test tenant completes capture, skip, research inclusion/exclusion, withdrawal,
+   deletion and retention journeys. CI and read-only smoke checks alone do not satisfy this gate.
+4. An authorised release deploys schema and choices with both flags off, verifies production identity
    and settings flows, then enables only approved purpose/cohort flags.

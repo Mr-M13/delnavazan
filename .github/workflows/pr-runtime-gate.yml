@@ -285,6 +285,7 @@ jobs:
           bash deployment/qa/provision-production-replacement-actor-contract.sh
           bash deployment/qa/production-calendar-job-recovery-contract.sh
           bash deployment/qa/provision-production-projection-worker-contract.sh
+          bash deployment/qa/production-calendar-projection-dispatch-contract.sh
 
   stripe-runtime-e2e:
     name: Stripe runtime E2E

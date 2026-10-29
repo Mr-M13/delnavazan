@@ -47,7 +47,7 @@ final class LessonRescheduleNotificationService {
                 if(!$proposal)throw new \RuntimeException('reschedule_proposal_not_found');
                 $recipient=($this->recipient)($proposal,(string)$locked->audience);
                 if(!$recipient||empty($recipient['email']))throw new \RuntimeException('reschedule_recipient_unresolved');
-                $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''));
+                $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''),$recipient);
                 $this->recordInbox($proposal,(string)$locked->event_type,(string)$locked->audience,$rendered['variables']);
                 $ok=(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body']);
                 $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
@@ -69,9 +69,13 @@ final class LessonRescheduleNotificationService {
         return array('sent'=>$sent,'failed'=>$failed,'skipped'=>$skipped);
     }
 
-    private function render(object $proposal,string $eventType,string $audience,string $name):array{
-        $timezone=(string)$proposal->schedule_timezone;
-        $when=$this->format((string)$proposal->proposed_starts_at_utc,$timezone);
+    private function render(object $proposal,string $eventType,string $audience,string $name,array $recipient=array()):array{
+        // The recipient's canonical profile timezone/calendar wins; the teacher's schedule
+        // timezone is only the fallback for an administrative recipient or a malformed profile.
+        $timezone=(string)($recipient['timezone']??'');
+        if(!in_array($timezone,timezone_identifiers_list(),true))$timezone=(string)$proposal->schedule_timezone;
+        $calendar=in_array((string)($recipient['calendar']??''),array('gregorian','persian'),true)?(string)$recipient['calendar']:'persian';
+        $when=$this->format((string)$proposal->proposed_starts_at_utc,$timezone,$calendar);
         $kind='reschedule';
         try{$kind=$this->store->proposalKind((int)($proposal->id??0));}catch(\Throwable){}
         $replacement=$kind==='replacement';
@@ -133,9 +137,10 @@ final class LessonRescheduleNotificationService {
         return 'reschedule.'.($kind==='replacement'?'replacement':'change').'.'.$eventType.'.'.$audience;
     }
 
-    private function format(string $utc,string $timezone):string{
+    private function format(string $utc,string $timezone,string $calendar='persian'):string{
         $timestamp=strtotime($utc.' UTC');
         if(!$timestamp)return $utc;
+        if($calendar==='gregorian')return wp_date('Y-m-d H:i',$timestamp,new \DateTimeZone($timezone));
         if(class_exists('IntlCalendar')){
             try{
                 $zone=new \DateTimeZone($timezone);
@@ -160,11 +165,11 @@ final class LessonRescheduleNotificationService {
             return array('email'=>$email,'name'=>'مدیر دلنوازان');
         }
         if('student'===$audience){
-            $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
+            $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name,timezone,calendar_preference FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
         }else{
-            $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
+            $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name,timezone,calendar_preference FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
         }
         if(!$row||trim((string)($row->email??''))==='')return null;
-        return array('email'=>(string)$row->email,'name'=>(string)($row->name??''));
+        return array('email'=>(string)$row->email,'name'=>(string)($row->name??''),'timezone'=>(string)($row->timezone??''),'calendar'=>(string)($row->calendar_preference??''));
     }
 }

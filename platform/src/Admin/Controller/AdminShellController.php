@@ -30,6 +30,7 @@ final class AdminShellController {
             ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
             ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
             ['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
+            ['اعلان‌ها و پیام‌رسانی', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
             ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
@@ -55,7 +56,7 @@ final class AdminShellController {
         'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
         'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
-        'dzn-integration-sms' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
+        'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
         'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
     ];

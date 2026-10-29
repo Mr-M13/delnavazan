@@ -66,6 +66,9 @@ Accepted missed-lesson replacements use the existing canonical authority:
 - `dzn_reschedule_system_user_id` — scheduling capability only.
 - `dzn_reschedule_calendar_system_user_id` — provider-integration capability only; no canonical
   schedule or administrator capability.
+- `dzn_platform_provider_projection_worker_principal` — subscriber service user with only
+  `dzn_dispatch_provider_integrations`; no canonical schedule, management, revoke, ingest, connect
+  or administrator capability.
 
 Student acceptance creates the replacement Lesson and its first schedule version in one
 transaction, then queues one idempotent notification set and one `lesson_reschedule_calendar_jobs`

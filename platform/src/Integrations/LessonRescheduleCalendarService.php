@@ -101,7 +101,12 @@ final class LessonRescheduleCalendarService {
             $lessonId=(int)$job['lesson_id'];$from=(int)$job['from_schedule_version_id'];$to=(int)$job['to_schedule_version_id'];
             if($lessonId<1||$from<1||$to<1)throw new \InvalidArgumentException('reschedule_calendar_binding_invalid');
             $repository=new ProviderIntegrationRepository();
-            $authority=new ProviderIntegrationService();
+            // The provider authority requires its adapter ports; constructing it without them
+            // always fails before any canonical/projection work. Use the same translation-only
+            // Google seam as the projection service; the real HTTP write still belongs to the
+            // authorised projection worker.
+            $adapter=new GoogleCalendarMeetAdapter();
+            $authority=new ProviderIntegrationService(null,null,new GoogleOAuthTransport(),$adapter,$adapter);
             $now=gmdate('Y-m-d H:i:s');
             $evidence=array('reason_code'=>'reschedule_accepted','evidence_channel'=>'authenticated_platform','evidence_reference'=>'reschedule-calendar:'.(string)$job['uid'],'evidence_at'=>$now);
             if($old=$repository->activeCalendarMapping($lessonId,$from))$authority->retractCalendarProjection((int)$old->id,$evidence,'reschedule-retract-calendar:'.$job['uid']);

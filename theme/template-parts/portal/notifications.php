@@ -29,7 +29,7 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 		<?php if ( $unread > 0 && $read_url !== '' && $nonce !== '' ) : ?>
 			<form class="dzn-notifications__all" method="post" action="<?php echo esc_url( $read_url ); ?>">
 				<input type="hidden" name="action" value="dzn_portal_notification_read_all">
-				<?php wp_nonce_field( 'dzn_portal_notification_read_all' ); ?>
+				<?php dzn_theme_nonce_field( 'dzn_portal_notification_read_all' ); ?>
 				<button class="dzn-button dzn-button--secondary dzn-notifications__all-button" type="submit"><?php esc_html_e( 'همه را خوانده‌شده کن', 'delnavazan-theme' ); ?></button>
 			</form>
 		<?php endif; ?>
@@ -50,7 +50,7 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 									<form method="post" action="<?php echo esc_url( $read_url ); ?>">
 										<input type="hidden" name="action" value="dzn_portal_notification_read">
 										<input type="hidden" name="notification" value="<?php echo esc_attr( (string) (int) ( $item['id'] ?? 0 ) ); ?>">
-										<?php wp_nonce_field( 'dzn_portal_notification_read' ); ?>
+										<?php dzn_theme_nonce_field( 'dzn_portal_notification_read' ); ?>
 										<button class="dzn-portal-text-action" type="submit"><?php esc_html_e( 'خوانده شد', 'delnavazan-theme' ); ?></button>
 									</form>
 								<?php endif; ?>

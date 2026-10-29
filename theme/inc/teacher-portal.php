@@ -2,6 +2,8 @@
 /** Teacher Portal presentation boundary. @package DelnavazanTheme */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+require_once __DIR__ . '/nonce.php';
+
 function dzn_theme_teacher_portal_templates() {
 	return array( 'page-templates/teacher-portal-home.php', 'page-templates/teacher-portal-account.php', 'page-templates/teacher-portal-onboarding.php', 'page-templates/teacher-portal-preview.php' );
 }

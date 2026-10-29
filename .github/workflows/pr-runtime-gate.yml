@@ -260,6 +260,9 @@ jobs:
       - name: Run CSS architecture and overflow contract
         run: php platform/tests/css-architecture-contract.php
 
+      - name: Run portal nonce-id and text-resize contract
+        run: php platform/tests/portal-nonce-id-contract.php
+
       - name: Check reusable site smoke runner syntax
         run: bash -n deployment/qa/site-smoke.sh
 

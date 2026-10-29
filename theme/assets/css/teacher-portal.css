@@ -627,6 +627,7 @@
   display: inline-flex;
   align-items: center;
   gap: .3rem;
+  max-inline-size: 100%;
   border: 1px solid var(--dzn-color-border);
   border-radius: var(--dzn-radius-pill);
   background: var(--dzn-tp-state-neutral-bg);
@@ -635,7 +636,8 @@
   font-size: .72rem;
   font-weight: 800;
   line-height: 1.5;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .dzn-tp-state__bullet {
@@ -909,8 +911,11 @@
 .dzn-tp-reschedule select {
   box-sizing: border-box;
   inline-size: 100%;
+  width: 100%;
   min-inline-size: 0;
+  min-width: 0;
   max-inline-size:100%;
+  max-width: 100%;
   min-block-size: 2.8rem;
   border: 1px solid var(--dzn-color-border);
   border-radius: var(--dzn-radius-sm);
@@ -918,6 +923,12 @@
   color: var(--dzn-color-text-primary);
   padding: .5rem .65rem;
   font: inherit;
+}
+
+.dzn-tp-reschedule form > *,
+.dzn-tp-reschedule__date > * {
+  min-inline-size: 0;
+  min-width: 0;
 }
 
 .dzn-tp-form input[type="checkbox"],

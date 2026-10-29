@@ -166,6 +166,25 @@ no transport channel or new recipient category is activated. Back up the databas
 before any rollback; dropping `portal_notifications` is safe only after code rollback. See
 `platform/docs/RELEASE-2026-10-29-UNIFIED-NOTIFICATIONS.md`.
 
+## Release 2026-10-29 (footer and homepage pricing surface)
+
+PR #425 restored the footer and homepage price-finale turquoise backgrounds.
+The cause was four self-referential design tokens, not a selector or block-style
+override: `--dzn-color-text-secondary`, `--dzn-color-on-action`,
+`--dzn-color-on-dark` and `--dzn-color-surface-elevated` resolved to
+transparent. The original token values were restored in `theme.css`; the
+active selectors are `.site-footer` and `.dzn-story__finale` (the transparent
+`.dzn-price-ledger` sits inside the finale). No schema, attendance, enrolment,
+payment, scheduling or replacement rule changed.
+
+The fix merge is `45dbd2d0630795a5586c40234db61e1f4cfa60fd`. It was first
+deployed in `e07b98cdaa37fc6e981dc54991bcaccc9a55e4df` (run `40837789338`) and
+is included in the current production build
+`ab5a4ac2a1ff878e6b666e66d2c369a2a5405b90` (build `main-ab5a4ac2a1ff`, schema
+54, run `40838148666`, smoke passed). A stale-SHA dispatch at `45dbd2d` was
+correctly refused by the exact-current-main gate. See
+`platform/docs/RELEASE-2026-10-29-FOOTER-PRICING.md`.
+
 ## Payment plan selection and interim attendance (Schema 52)
 
 Release `payment-plan-selection-b2a-20261026` adds Schema 52 (`052_payment_plan_choice`). It is
@@ -224,11 +243,10 @@ command; CI still runs the individual jobs. A release is not ready if this comma
 The CSS consolidation from #402 and the portal accessibility follow-up from
 #407 are deployed. #407 was deployed at
 `3939feed0ec977f056eaf3ed262d4d2dbfbce167` (build `main-3939feed0ec9`, run
-`40826085963`). The current production build is
-`370a65ebebf895b60a1f559e63893fc646ded1e0` (build `main-370a65ebebf8`, schema
-54, run `40826395133`), which includes #407 together with the bounded smoke
-retry/verification changes from #405. Both deployment artifacts record
-`status: deployed`; the read-only production smoke gate passed.
+`40826085963`) and is included in the current production build
+`ab5a4ac2a1ff878e6b666e66d2c369a2a5405b90` (see the footer/pricing release
+above). Both deployment artifacts record `status: deployed`; the read-only
+production smoke gate passed.
 
 The follow-up fixes long teacher status labels wrapping at 200% text and gives
 rendered nonce fields request-unique DOM ids via `dzn_theme_nonce_field()`;

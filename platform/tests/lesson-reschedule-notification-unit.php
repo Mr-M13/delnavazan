@@ -88,5 +88,26 @@ namespace {
     $fail('admin receives the pending proposal notice', $adminResult['sent'] === 1 && str_contains($adminSent[0][2], 'از سوی مدرس'));
     $fail('admin reschedule recipient is resolved from the site administrator address', str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/LessonRescheduleNotificationService.php'), "get_option('admin_email')"));
 
+
+    // Replacement wording is distinct from a reschedule and remains idempotent.
+    $replacementStore = new NotificationStore();
+    $replacementStore->proposal = (object) array('uid' => 'PROPOSAL-R', 'id' => 9, 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'Asia/Tehran', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $replacementStore->proposalKinds[9] = 'replacement';
+    $replacementStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 9, 'event_type' => 'proposed', 'audience' => 'student', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $replacementSent = array();
+    $replacementService = new LessonRescheduleNotificationService(
+        $replacementStore,
+        static function (string $email, string $subject, string $body) use (&$replacementSent): bool { $replacementSent[] = array($email, $subject, $body); return true; },
+        static fn(object $proposal, string $audience): array => array('email' => 'student@example.invalid', 'name' => 'Student'),
+        static fn(): int => time()
+    );
+    $replacementResult = $replacementService->dispatchPending(10);
+    $fail('replacement proposal notification is sent once', $replacementResult['sent'] === 1 && count($replacementSent) === 1);
+    $fail('replacement notification names the replacement lifecycle', str_contains($replacementSent[0][1], 'جلسهٔ جبرانی') && str_contains($replacementSent[0][2], 'جلسهٔ جبرانی') && !str_contains($replacementSent[0][2], 'تغییر زمان کلاس'));
+    $replacementService->dispatchPending(10);
+    $fail('replacement notification is never emitted twice', count($replacementSent) === 1);
+
     echo "Lesson reschedule notification unit passed\n";
 }

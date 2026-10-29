@@ -23,6 +23,89 @@ Use this path for every release:
 
 The workflow does not edit DNS, WordPress URLs, mail records, SSL settings, or catalogue data. Those are controlled production configuration and data operations. Production currently serves `https://delnavazan.com`; `www` redirects to the apex.
 
+## Production smoke reliability and maintenance recovery
+
+The deploy workflow runs `deployment/qa/production-smoke.sh` after the atomic deployment and
+identity check. Smoke requests send browser-like `User-Agent`, `Accept` and `Accept-Language`
+headers and use a bounded retry policy (`deployment/qa/production-smoke-lib.sh`):
+
+- immediate success is one request;
+- transports timeouts/connection failures (`curl` 6/7/28/35/52/56), HTTP `429`, `503`, `504` and
+  Cloudflare origin `52x` are retried up to three attempts with short delays and a 50-second
+  per-probe budget;
+- HTTP `403` is retried **only** when Cloudflare explicitly marks a challenge
+  (`cf-mitigated: challenge|managed_challenge`) and the body is a Cloudflare challenge page;
+- plain `403`, `401`, `404`, `500`, `502` and application failures are terminal on the first
+  response;
+- every attempt logs its label, status, classification and elapsed time. Non-success responses
+  also log safe edge headers (`server`, `cf-ray`, `cf-mitigated`, `retry-after`, etc.) and a body
+  marker; no credentials, cookies or tokens are sent or logged.
+
+If the primary smoke fails, the workflow runs an independent `--confirm` probe. Maintenance mode
+is enabled only when both the primary and confirmation probes fail, or when the decision step
+itself is unavailable. A passing confirmation leaves production live and records a warning in the
+run plus `production-verification.json`. This preserves fail-closed protection while avoiding an
+unnecessary maintenance window for a temporary edge request failure.
+
+Recovery when maintenance is active:
+
+1. Inspect the failed run's `PROBE` lines and `production-verification.json`.
+2. If both probes failed for an application reason, fix and redeploy current `main`. Do not
+   manually disable maintenance without a healthy confirmation.
+3. The deployment script detects an existing maintenance window, preserves it during the atomic
+   replacement, and deactivates it only after migration/identity verification and a successful
+   smoke/confirmation path.
+
+## Replacement and calendar operations
+
+Accepted missed-lesson replacements use the existing canonical authority:
+
+- `dzn_replacement_system_user_id` — active service user with only
+  `dzn_manage_canonical_lessons` and `dzn_manage_canonical_lesson_schedules`; no
+  `manage_options` and no provider-integration capability.
+- `dzn_reschedule_system_user_id` — scheduling capability only.
+- `dzn_reschedule_calendar_system_user_id` — provider-integration capability only; no canonical
+  schedule or administrator capability.
+
+Student acceptance creates the replacement Lesson and its first schedule version in one
+transaction, then queues one idempotent notification set and one `lesson_reschedule_calendar_jobs`
+row. The job targets the replacement Lesson; a later reschedule of that replacement uses the same
+Lesson and queues a new job from the old schedule version to the new one. The real Google worker
+uses deterministic provider command keys and the transport converges on HTTP `409` by reading the
+same event; retries therefore never intentionally create a second event. Deterministic provider
+refusals are terminal; transport/outage failures use bounded backoff. A provider failure never
+rolls back the committed canonical replacement.
+
+## Staging acceptance and production diagnostics
+
+The disposable attendance runtime is the staging acceptance path:
+
+```sh
+DZN_RUNTIME_STATE_DIR=/tmp/dzn-attendance-runtime DZN_COMPOSE_PROJECT=dzn-attendance-runtime DZN_WP_PORT=18086 platform/runtime/bin/run-attendance-runtime.sh
+```
+
+It creates synthetic WordPress principals, Teacher/Student links, an Enrolment, Term, Teacher
+Assignment and Lessons; reports a missed class; presumes completion; proposes and accepts a
+replacement; reads both portal projections; verifies the linked replacement, preserved original,
+allowance consumption, notification rows, calendar job and replacement reschedule. It does not
+contact a live Google account.
+
+Read-only production diagnostics:
+
+```sh
+gh workflow run diagnose-production-release.yml --ref main -f commit_sha=<current-main-sha>
+gh workflow run diagnose-production-google-oauth.yml --ref main -f commit_sha=<current-main-sha>
+```
+
+The release diagnostic reports schema/build, maintenance state, replacement/reschedule/calendar
+actor capabilities, replacement proposal and Lesson counts, calendar-job states, stale jobs,
+notification states and worker cron hooks. It never prints secrets or mutates production.
+
+Known limitation: a live Google Calendar/Meet event for a real replacement is not created by the
+staging fixture. Verification of the final provider write requires a staging Google account and
+calendar specifically authorised for testing. Do not create synthetic lesson changes in production
+to satisfy that test.
+
 ## Pre-launch acceptance data
 
 The live staging environment is being retired separately after its hosting account, database, and storage boundaries are positively verified. The staging deployment workflow is removed from the source tree. Production acceptance data must remain blocked until authenticated inspection confirms there is no genuine academy data and the synthetic fixture has an exact, complete manifest and verified teardown for every created record.

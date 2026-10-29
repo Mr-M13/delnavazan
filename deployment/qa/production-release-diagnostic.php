@@ -21,7 +21,7 @@ $cron = _get_cron_array();
 $hooks = array();
 foreach ((array) $cron as $timestamp => $events) {
     foreach ((array) $events as $hook => $unused) {
-        if (in_array((string) $hook, array('dzn_post_intro_activation_dispatch', 'dzn_lesson_completion_automation_dispatch'), true)) {
+        if (in_array((string) $hook, array('dzn_post_intro_activation_dispatch', 'dzn_lesson_completion_automation_dispatch', 'dzn_lesson_reschedule_dispatch', 'dzn_google_calendar_projection_dispatch'), true)) {
             $hooks[(string) $hook] = gmdate('Y-m-d H:i:s', (int) $timestamp);
         }
     }
@@ -49,6 +49,8 @@ $canonicalLessons = array();
 foreach ($lessonRows as $row) $canonicalLessons[(string) $row['label']] = (int) $row['total'];
 $failedJobs = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}post_intro_activation_jobs WHERE state='failed' GROUP BY last_error_code ORDER BY total DESC", ARRAY_A) ?: array();
 $latestJobs = $wpdb->get_results("SELECT id,state,attempt_count,last_error_code,checkpoint,created_at,updated_at,completed_at FROM {$p}post_intro_activation_jobs ORDER BY updated_at DESC,id DESC LIMIT 5", ARRAY_A) ?: array();
+$failedCalendarJobs = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}lesson_reschedule_calendar_jobs WHERE state='failed' GROUP BY last_error_code ORDER BY total DESC", ARRAY_A) ?: array();
+$staleCalendarJobs = $wpdb->get_results("SELECT id,state,attempt_count,next_attempt_at,last_error_code,created_at,updated_at FROM {$p}lesson_reschedule_calendar_jobs WHERE state IN ('queued','retry') AND (next_attempt_at IS NULL OR next_attempt_at<DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)) ORDER BY updated_at ASC,id ASC LIMIT 5", ARRAY_A) ?: array();
 $screenClass = 'Delnavazan\\Platform\\Admin\\Controller\\ScreenController';
 $scheduleClass = 'Delnavazan\\Platform\\Core\\Application\\CanonicalLessonScheduleReadService';
 $adminLessonScreen = array(
@@ -92,6 +94,14 @@ $out = array(
     'replacement_actor' => $actorInfo($replacementActorId),
     'reschedule_actor' => $actorInfo($rescheduleActorId),
     'calendar_actor' => $actorInfo($calendarActorId),
+    'replacement_workflow' => array(
+        'proposals' => $group('lesson_reschedule_proposals', 'state'),
+        'replacement_lessons' => $count('lessons', "record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL"),
+        'calendar_jobs' => $group('lesson_reschedule_calendar_jobs', 'state'),
+        'failed_calendar_jobs' => $failedCalendarJobs,
+        'stale_calendar_jobs' => $staleCalendarJobs,
+        'notifications' => $group('lesson_reschedule_notifications', 'state'),
+    ),
     'completed_052' => in_array('052_payment_plan_choice', (array) get_option('dzn_platform_completed_migrations', array()), true),
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,
     'cron_hooks' => $hooks,

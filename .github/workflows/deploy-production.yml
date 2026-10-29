@@ -100,17 +100,69 @@ jobs:
 
       - name: Run read-only production smoke checks
         id: smoke
+        continue-on-error: true
         run: bash deployment/qa/production-smoke.sh https://delnavazan.com
 
-      - name: Keep production in maintenance after failed smoke
-        if: failure() && steps.smoke.outcome == 'failure'
+      - name: Confirm smoke failure with an independent probe
+        id: confirmation
+        if: steps.smoke.outcome == 'failure'
+        continue-on-error: true
+        run: bash deployment/qa/production-smoke.sh --confirm https://delnavazan.com
+
+      - name: Decide maintenance and release status
+        id: decision
+        if: always() && steps.smoke.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          primary="${{ steps.smoke.outcome }}"
+          confirmation="${{ steps.confirmation.outcome }}"
+          [[ -n "$confirmation" ]] || confirmation="skipped"
+          rc=0
+          bash deployment/qa/production-smoke-decision.sh "$primary" "$confirmation" || rc=$?
+          if [[ "$rc" == 0 ]]; then
+            maintenance="yes"; release_status="failed"
+            echo "Maintenance required: primary=$primary confirmation=$confirmation" >&2
+          elif [[ "$rc" == 1 ]]; then
+            maintenance="no"; release_status="passed"
+            [[ "$primary" == "success" ]] || echo "::warning::Primary smoke failed transiently; independent confirmation passed. Maintenance was not enabled."
+          else
+            maintenance="yes"; release_status="failed"
+            echo "Smoke decision failed closed (exit $rc); maintenance required." >&2
+          fi
+          echo "maintenance=$maintenance" >> "$GITHUB_OUTPUT"
+          echo "release_status=$release_status" >> "$GITHUB_OUTPUT"
+          if [[ "$maintenance" == "yes" ]]; then maintenance_state="required"; else maintenance_state="not_required"; fi
+          printf '%s\n' "{\"status\":\"$release_status\",\"primary_smoke\":\"$primary\",\"confirmation_smoke\":\"$confirmation\",\"maintenance_mode\":\"$maintenance_state\"}" > "$GITHUB_WORKSPACE/production-verification.json"
+
+      - name: Activate maintenance after confirmed failure
+        if: steps.decision.outputs.maintenance == 'yes'
         shell: bash
         env:
           PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
         run: |
           set -Eeuo pipefail
           ssh -T "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" 'wp --path="$HOME/domains/delnavazan.com/public_html" maintenance-mode activate'
-          printf '%s\n' '{"status":"smoke_failed","maintenance_mode":"enabled"}' > "$GITHUB_WORKSPACE/production-verification.json"
+          printf '%s\n' '{"status":"smoke_failed","primary_smoke":"${{ steps.smoke.outcome }}","confirmation_smoke":"${{ steps.confirmation.outcome }}","maintenance_mode":"enabled"}' > "$GITHUB_WORKSPACE/production-verification.json"
+
+      - name: Fail release after confirmed smoke failure
+        if: steps.decision.outputs.maintenance == 'yes'
+        shell: bash
+        run: |
+          echo 'The primary and independent confirmation probes both failed. Production remains in maintenance mode.' >&2
+          exit 1
+
+      - name: Fail closed when the smoke decision is unavailable
+        if: always() && steps.smoke.outcome == 'failure' && steps.decision.outcome != 'success'
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          ssh -T "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" 'wp --path="$HOME/domains/delnavazan.com/public_html" maintenance-mode activate'
+          printf '%s\n' '{"status":"smoke_decision_unavailable","maintenance_mode":"enabled"}' > "$GITHUB_WORKSPACE/production-verification.json"
+          echo 'Smoke decision was unavailable; maintenance mode enabled and release failed.' >&2
+          exit 1
 
       - name: Preserve machine-readable deployment record
         if: always() && hashFiles('production-deployment.json') != ''

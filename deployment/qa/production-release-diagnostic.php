@@ -60,6 +60,21 @@ $adminLessonScreen = array(
 foreach (array('forLesson', 'forLessonCompletion', 'forLessonDelivery') as $method) {
     $adminLessonScreen['schedule_methods'][$method] = class_exists($scheduleClass) && method_exists($scheduleClass, $method);
 }
+$actorInfo = static function (int $actorId): array {
+    if ($actorId < 1) return array('configured' => false, 'active' => false, 'canonical_lessons' => false, 'canonical_schedules' => false, 'manage_options' => false, 'provider_integrations' => false);
+    $user = get_user_by('id', $actorId);
+    if (!$user instanceof WP_User) return array('configured' => true, 'active' => false, 'canonical_lessons' => false, 'canonical_schedules' => false, 'manage_options' => false, 'provider_integrations' => false);
+    return array(
+        'configured' => true,
+        'active' => (int) ($user->user_status ?? 0) === 0,
+        'canonical_lessons' => user_can($user, 'dzn_manage_canonical_lessons'),
+        'canonical_schedules' => user_can($user, 'dzn_manage_canonical_lesson_schedules'),
+        'manage_options' => user_can($user, 'manage_options'),
+        'provider_integrations' => user_can($user, 'dzn_manage_provider_integrations'),
+    );
+};
+$replacementActorId = (int) get_option('dzn_replacement_system_user_id', 0);
+$rescheduleActorId = (int) get_option('dzn_reschedule_system_user_id', 0);
 $out = array(
     'schema' => (string) get_option('dzn_platform_schema_version'),
     'build' => defined('DZN_PLATFORM_BUILD_ID') ? (string) DZN_PLATFORM_BUILD_ID : null,
@@ -73,6 +88,8 @@ $out = array(
         return wp_is_maintenance_mode() ? 'active' : 'inactive';
     })(),
     'admin_lesson_screen' => $adminLessonScreen,
+    'replacement_actor' => $actorInfo($replacementActorId),
+    'reschedule_actor' => $actorInfo($rescheduleActorId),
     'completed_052' => in_array('052_payment_plan_choice', (array) get_option('dzn_platform_completed_migrations', array()), true),
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,
     'cron_hooks' => $hooks,

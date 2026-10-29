@@ -19,6 +19,11 @@ $notices = isset( $recording['notices'] ) && is_array( $recording['notices'] ) ?
 $information_url = (string) ( $recording['information_url'] ?? home_url( '/recording-and-research/' ) );
 $status = sanitize_key( (string) ( $recording['status'] ?? '' ) );
 $language_label = static function ( string $language ): string { return 'fa' === $language ? 'فارسی' : 'English'; };
+$format_date = static function ( string $value ): string {
+	if ( '' === $value ) { return ''; }
+	$timestamp = strtotime( $value . ' UTC' );
+	return $timestamp ? wp_date( 'Y-m-d H:i', $timestamp ) : $value;
+};
 ?>
 <section class="dzn-tp-section dzn-teacher-recording-terms" id="dzn-teacher-recording-terms" aria-labelledby="tp-recording-terms">
 	<div class="dzn-tp-heading">
@@ -32,7 +37,7 @@ $language_label = static function ( string $language ): string { return 'fa' ===
 		<p class="dzn-tp-help" role="status"><strong>Acceptance is unavailable.</strong> No approved teacher-recording terms publication is currently available, so no record can be created. · پذیرش شرایط در دسترس نیست؛ هیچ سابقه‌ای ساخته نمی‌شود.</p>
 	<?php else : ?>
 		<?php if ( $accepted && ! empty( $recording['accepted_at'] ) ) : ?>
-			<p class="dzn-tp-notice is-success">Recorded: <time datetime="<?php echo esc_attr( (string) $recording['accepted_at'] ); ?>"><?php echo esc_html( (string) $recording['accepted_at'] ); ?></time> · version <?php echo esc_html( (string) ( $recording['notice_version'] ?? '' ) ); ?> · <?php echo esc_html( $language_label( (string) ( $recording['language'] ?? 'en' ) ) ); ?></p>
+			<p class="dzn-tp-notice is-success">Recorded: <time datetime="<?php echo esc_attr( (string) $recording['accepted_at'] ); ?>"><?php echo esc_html( $format_date( (string) $recording['accepted_at'] ) ); ?></time> · version <?php echo esc_html( (string) ( $recording['notice_version'] ?? '' ) ); ?> · <?php echo esc_html( $language_label( (string) ( $recording['language'] ?? 'en' ) ) ); ?></p>
 		<?php else : ?>
 			<p class="dzn-tp-help">Read the approved publication below and accept it explicitly. Accepting one language version records that version; it does not backfill any historic Teacher record.</p>
 		<?php endif; ?>
@@ -49,7 +54,7 @@ $language_label = static function ( string $language ): string { return 'fa' ===
 						<input type="hidden" name="notice_uid" value="<?php echo esc_attr( (string) ( $notice['notice_uid'] ?? '' ) ); ?>">
 						<input type="hidden" name="language" value="<?php echo esc_attr( (string) ( $notice['language'] ?? '' ) ); ?>">
 						<input type="hidden" name="idempotency_key" value="<?php echo esc_attr( (string) ( $notice['idempotency_key'] ?? '' ) ); ?>">
-						<input type="hidden" name="return_to" value="onboarding">
+						<input type="hidden" name="return_to" value="<?php echo esc_attr( (string) ( $notice['return_to'] ?? 'onboarding' ) ); ?>">
 						<button class="dzn-button" type="submit">Accept these teacher recording terms · پذیرش این شرایط</button>
 					</form>
 				<?php endif; ?>

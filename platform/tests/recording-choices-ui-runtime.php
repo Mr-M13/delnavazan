@@ -89,5 +89,34 @@ $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publicatio
 wp_set_current_user($adultUser);$noRecording=$ui->student('enrolment','en');$noRecordingHtml=dzn_rda_ui_render_student($noRecording);
 dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'A current approved recording notice is not published'),'missing recording publication must not render a recording form');
 dzn_rda_ui_assert(!str_contains($noRecordingHtml,'name="purpose" value="lesson_recording"'),'missing recording publication must not write a decision');
+$wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
+
+// The presentation bridge must supply the same Account Settings and onboarding models.
+wp_set_current_user($adultUser);
+$bridgeChoices=dzn_theme_platform_recording_choices('account');
+dzn_rda_ui_assert($bridgeChoices['available']===true&&isset($bridgeChoices['forms']['recording']),'the Account Settings bridge must supply recording choices');
+wp_set_current_user($teacherUser);
+$bridgeTerms=dzn_theme_platform_teacher_recording_terms('onboarding');
+dzn_rda_ui_assert($bridgeTerms['available']===true&&count($bridgeTerms['notices'])===2,'the Teacher onboarding bridge must supply both language versions');
+dzn_rda_ui_assert($bridgeTerms['notices'][0]['return_to']==='onboarding','the Teacher onboarding form must return to onboarding');
+$settingsTerms=dzn_theme_platform_teacher_recording_terms('settings');
+dzn_rda_ui_assert($settingsTerms['notices'][0]['return_to']==='settings','the Teacher settings form must return to settings');
+
+// Confirmation feedback is a one-shot server-side status, not a spoofable query parameter.
+wp_set_current_user($adultUser);
+set_transient('dzn_recording_status_student_'.$adultUser,'recording_saved',120);
+$statusModel=$ui->student('account','en');
+dzn_rda_ui_assert($statusModel['status']==='recording_saved','the server-side confirmation status must be visible once');
+$statusModel=$ui->student('account','en');
+dzn_rda_ui_assert($statusModel['status']==='','the confirmation status must be consumed after one read');
+
+// The canonical information route resolves without an operator-created page and renders the bilingual body.
+$_SERVER['REQUEST_URI']='/recording-and-research/';
+dzn_rda_ui_assert(dzn_theme_route()==='recording-and-research','the canonical information URL must resolve as a public route');
+ob_start();dzn_theme_render_recording_information_route();$infoHtml=(string)ob_get_clean();
+foreach(array('Recording and research information','Mbox local processing','currently disabled','link pending approval','lang="fa"','lang="en"')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+$pageId=wp_insert_post(array('post_type'=>'page','post_name'=>'recording-and-research','post_status'=>'publish','post_title'=>'Recording and research information'));
+dzn_rda_ui_assert(!is_wp_error($pageId)&&$pageId>0,'fixture information page failed');
+dzn_rda_ui_assert(dzn_theme_route()==='','a published editor-managed page must take over the canonical slug');
 
 echo "Recording choices UI runtime: PASS\n";

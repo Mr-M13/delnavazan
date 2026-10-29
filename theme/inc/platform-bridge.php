@@ -939,6 +939,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			'replacement_remaining' => max( 0, (int) ( $current_enrolment['replacement_remaining'] ?? 0 ) ),
 			'replacement_pending' => count( array_filter( $replacement_lessons, static fn( $row ) => is_array( $row ) && empty( $row['scheduled'] ) ) ),
 		);
+		$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' );
 		$model['payments'] = $payments_model;
 		return $model;
 	}
@@ -1034,10 +1035,10 @@ function dzn_theme_platform_recording_choices( string $context = 'account' ): ar
 }
 
 /** Display-ready Teacher recording-terms state. */
-function dzn_theme_platform_teacher_recording_terms(): array {
+function dzn_theme_platform_teacher_recording_terms( string $context = 'onboarding' ): array {
 	$class = '\\Delnavazan\\Platform\\Portals\\RecordingDecisionUiReadService';
 	if ( ! class_exists( $class ) ) { return array( 'available' => false, 'linked' => false, 'reason' => 'platform_unavailable', 'accepted' => false, 'notices' => array(), 'information_url' => home_url( '/recording-and-research/' ), 'status' => '' ); }
-	try { return ( new $class() )->teacher(); }
+	try { return ( new $class() )->teacher( $context ); }
 	catch ( Throwable ) { return array( 'available' => false, 'linked' => false, 'reason' => 'recording_ui_unavailable', 'accepted' => false, 'notices' => array(), 'information_url' => home_url( '/recording-and-research/' ), 'status' => '' ); }
 }
 
@@ -1173,6 +1174,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			),
 			'instruments' => dzn_theme_platform_teacher_catalogue(),
 			'day_offs' => dzn_theme_platform_teacher_day_offs(),
+			'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' ),
 		);
 	}
 	if ( ! $onboarding ) { return dzn_theme_platform_teacher_state_model( $screen, 'not_linked' ); }
@@ -1553,7 +1555,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'teacher_timezone' => $teacher_timezone,
 		'teacher_calendar' => $teacher_calendar,
 		'teacher_locale' => $teacher_locale,
-		'recording_terms' => dzn_theme_platform_teacher_recording_terms(),
+		'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' ),
 	);
 }
 

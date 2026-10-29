@@ -19,6 +19,7 @@ final class RecordingDecisionController {
     }
 
     public static function studentChoice():never{
+        self::requirePost();
         self::studentGuard();
         $returnTo=self::returnTo($_POST['return_to']??'account');
         $purpose=sanitize_key((string)wp_unslash($_POST['purpose']??''));
@@ -35,13 +36,16 @@ final class RecordingDecisionController {
                 sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''))
             );
             $status=$purpose==='lesson_recording'?($choice==='allow'?'recording_saved':'recording_declined'):($choice==='opt_in'?'research_saved':'research_withdrawn');
-            self::redirectStudent($returnTo,$status);
+            self::rememberStatus('student',$status);
+            self::redirectStudent($returnTo);
         }catch(\Throwable){
-            self::redirectStudent($returnTo,'recording_unavailable');
+            self::rememberStatus('student','recording_unavailable');
+            self::redirectStudent($returnTo);
         }
     }
 
     public static function teacherTerms():never{
+        self::requirePost();
         if(!is_user_logged_in())auth_redirect();
         if(!current_user_can('dzn_accept_own_recording_terms'))wp_die('Access denied.','Delnavazan',array('response'=>403));
         check_admin_referer(self::TEACHER_ACTION);
@@ -52,9 +56,11 @@ final class RecordingDecisionController {
                 sanitize_key((string)wp_unslash($_POST['language']??'')),
                 sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''))
             );
-            self::redirectTeacher($returnTo,'terms_saved');
+            self::rememberStatus('teacher','terms_saved');
+            self::redirectTeacher($returnTo);
         }catch(\Throwable){
-            self::redirectTeacher($returnTo,'terms_unavailable');
+            self::rememberStatus('teacher','terms_unavailable');
+            self::redirectTeacher($returnTo);
         }
     }
 
@@ -64,19 +70,25 @@ final class RecordingDecisionController {
         check_admin_referer(self::STUDENT_ACTION);
     }
 
+    private static function requirePost():void{
+        if('POST'!==strtoupper((string)($_SERVER['REQUEST_METHOD']??'')))wp_die('Method not allowed.','Delnavazan',array('response'=>405));
+    }
+    private static function rememberStatus(string $scope,string $status):void{
+        set_transient('dzn_recording_status_'.$scope.'_'.get_current_user_id(),sanitize_key($status),120);
+    }
     private static function returnTo(mixed $value):string{
         $value=sanitize_key((string)wp_unslash($value));
         return in_array($value,array('account','home','settings','onboarding'),true)?$value:'account';
     }
 
-    private static function redirectStudent(string $returnTo,string $status):never{
+    private static function redirectStudent(string $returnTo):never{
         $view=$returnTo==='home'?'home':'account';
-        self::redirect(add_query_arg(array('portal-view'=>$view,'recording_status'=>$status),home_url('/student-portal/')));
+        self::redirect(add_query_arg(array('portal-view'=>$view),home_url('/student-portal/')));
     }
 
-    private static function redirectTeacher(string $returnTo,string $status):never{
+    private static function redirectTeacher(string $returnTo):never{
         $view=$returnTo==='settings'?'settings':'onboarding';
-        self::redirect(add_query_arg(array('teacher-view'=>$view,'recording_status'=>$status),home_url('/teacher-portal/')));
+        self::redirect(add_query_arg(array('teacher-view'=>$view),home_url('/teacher-portal/')));
     }
 
     private static function redirect(string $url):never{

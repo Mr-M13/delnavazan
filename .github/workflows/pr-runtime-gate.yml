@@ -56,6 +56,7 @@ jobs:
             platform/tests/recording-research-architecture-contract.php
             platform/tests/recording-decision-authority-contract.php
             platform/tests/recording-choices-ui-contract.php
+            platform/tests/fresh-install-capability-bootstrap.php
             platform/tests/integration-settings-runtime.php
             platform/tests/google-integration-test-runtime.php
             platform/tests/integration-mail-diagnostics-runtime.php

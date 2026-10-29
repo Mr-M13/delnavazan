@@ -41,6 +41,11 @@ $decision_label = static function ( string $purpose, string $decision ): string 
 	return 'opt_in' === $decision ? 'Research participation: opted in' : ( 'withdraw' === $decision ? 'Research participation: withdrawn' : 'No research decision recorded' );
 };
 $language_label = static function ( string $language ): string { return 'fa' === $language ? 'فارسی' : 'English'; };
+$format_date = static function ( string $value ): string {
+	if ( '' === $value ) { return ''; }
+	$timestamp = strtotime( $value . ' UTC' );
+	return $timestamp ? wp_date( 'Y-m-d H:i', $timestamp ) : $value;
+};
 ?>
 <section class="dzn-portal-section dzn-recording-choices" id="dzn-recording-choices" aria-labelledby="dzn-recording-choices-title">
 	<div class="dzn-portal-section__heading">
@@ -56,24 +61,17 @@ $language_label = static function ( string $language ): string { return 'fa' ===
 	<?php endif; ?>
 	<?php if ( ! $available ) : ?>
 		<p class="dzn-portal-help" role="status"><span lang="en" dir="ltr">Self-service recording and research choices are not available for this account. No recording decision has been saved.</span> <span lang="fa" dir="rtl">انتخاب ضبط و پژوهش برای این حساب در دسترس نیست. هیچ تصمیمی دربارهٔ ضبط ثبت نشده است.</span></p>
-		<?php if ( 'enrolment' === $context ) : ?>
-			<div class="dzn-recording-choices__draft" role="note">
-				<p><strong>Draft product copy — not legally approved yet; choices are unavailable.</strong></p>
-				<p lang="en" dir="ltr"><?php echo esc_html( $provisional_recording ); ?></p>
-				<p lang="fa" dir="rtl">دلنوازان ممکن است درس‌های آنلاین و تمرین‌های آینده را برای بهبود آموزش و یادگیری ضبط کند. شما می‌توانید انتخاب کنید که درس‌هایتان ضبط شود یا نه و این انتخاب را بعداً در تنظیمات حساب تغییر دهید.</p>
-			</div>
-		<?php endif; ?>
 		<p><a href="<?php echo esc_url( $information_url ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
 		<?php return; ?>
 	<?php endif; ?>
 
 	<div class="dzn-recording-choices__current">
 		<p><strong><?php echo esc_html( $decision_label( 'lesson_recording', $current_recording ) ); ?></strong>
-			<?php if ( ! empty( $recording_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( (string) $recording_state['decided_at'] ); ?>"><?php echo esc_html( (string) $recording_state['decided_at'] ); ?></time><?php endif; ?>
+			<?php if ( ! empty( $recording_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( (string) $recording_state['decided_at'] ); ?>"><?php echo esc_html( $format_date( (string) $recording_state['decided_at'] ) ); ?></time><?php endif; ?>
 			<?php if ( ! empty( $recording_state['notice_version'] ) ) : ?>· <?php echo esc_html( $language_label( (string) ( $recording_state['language'] ?? 'en' ) ) ); ?> v<?php echo esc_html( (string) $recording_state['notice_version'] ); ?><?php endif; ?>
 		</p>
 		<p><strong><?php echo esc_html( $decision_label( 'research_model_training', $current_research ) ); ?></strong>
-			<?php if ( ! empty( $research_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( (string) $research_state['decided_at'] ); ?>"><?php echo esc_html( (string) $research_state['decided_at'] ); ?></time><?php endif; ?>
+			<?php if ( ! empty( $research_state['decided_at'] ) ) : ?>· <time datetime="<?php echo esc_attr( (string) $research_state['decided_at'] ); ?>"><?php echo esc_html( $format_date( (string) $research_state['decided_at'] ) ); ?></time><?php endif; ?>
 			<?php if ( ! empty( $research_state['notice_version'] ) ) : ?>· <?php echo esc_html( $language_label( (string) ( $research_state['language'] ?? 'en' ) ) ); ?> v<?php echo esc_html( (string) $research_state['notice_version'] ); ?><?php endif; ?>
 		</p>
 	</div>
@@ -100,7 +98,14 @@ $language_label = static function ( string $language ): string { return 'fa' ===
 			<button class="dzn-button" type="submit">Save recording choice · ذخیرهٔ انتخاب ضبط</button>
 		</form>
 	<?php else : ?>
-		<p class="dzn-portal-help" role="status">A current approved recording notice is not published. Recording choices cannot be saved. · اطلاعیهٔ Approved ضبط در دسترس نیست؛ انتخاب ضبط ذخیره نمی‌شود.</p>
+		<p class="dzn-portal-help" role="status">A current approved recording notice is not published. Recording choices cannot be saved. · اطلاعیهٔ تأییدشدهٔ ضبط در دسترس نیست؛ انتخاب ضبط ذخیره نمی‌شود.</p>
+		<?php if ( 'enrolment' === $context ) : ?>
+			<div class="dzn-recording-choices__draft" role="note">
+				<p><strong>Draft product copy — not legally approved yet; choices are unavailable.</strong></p>
+				<p lang="en" dir="ltr"><?php echo esc_html( $provisional_recording ); ?></p>
+				<p lang="fa" dir="rtl">دلنوازان ممکن است درس‌های آنلاین و تمرین‌های آینده را برای بهبود آموزش و یادگیری ضبط کند. شما می‌توانید انتخاب کنید که درس‌هایتان ضبط شود یا نه و این انتخاب را بعداً در تنظیمات حساب تغییر دهید.</p>
+			</div>
+		<?php endif; ?>
 	<?php endif; ?>
 
 	<hr>
@@ -140,7 +145,7 @@ $language_label = static function ( string $language ): string { return 'fa' ===
 			</form>
 		<?php endif; ?>
 	<?php else : ?>
-		<p class="dzn-portal-help" role="status">A current approved research notice is not published. Research participation cannot be changed here. · اطلاعیهٔ Approved پژوهش در دسترس نیست.</p>
+		<p class="dzn-portal-help" role="status">A current approved research notice is not published. Research participation cannot be changed here. · اطلاعیهٔ تأییدشدهٔ پژوهش در دسترس نیست.</p>
 		<?php if ( 'enrolment' === $context ) : ?>
 			<div class="dzn-recording-choices__draft" role="note"><p><strong>Draft product copy — not legally approved yet.</strong></p><p lang="en" dir="ltr"><?php echo esc_html( $provisional_research ); ?></p></div>
 		<?php endif; ?>

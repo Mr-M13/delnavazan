@@ -11,6 +11,9 @@ $bridge=$read('../theme/inc/platform-bridge.php');
 $student=$read('../theme/template-parts/portal/recording-choices.php');
 $teacher=$read('../theme/template-parts/teacher-portal/recording-terms.php');
 $info=$read('../theme/page-templates/recording-research-information.php');
+$infoBody=$read('../theme/template-parts/recording/research-information.php');
+$routes=$read('../theme/inc/routes.php');
+$booking=$read('../theme/inc/booking.php');
 $shell=$read('../theme/template-parts/portal/shell.php');
 $postIntro=$read('../theme/template-parts/portal/post-intro.php');
 $onboarding=$read('../theme/template-parts/teacher-portal/onboarding.php');
@@ -26,6 +29,9 @@ $need(str_contains($controller,'check_admin_referer(self::TEACHER_ACTION)'),'tea
 $need(str_contains($controller,"current_user_can('dzn_accept_own_recording_terms')"),'teacher acceptance must require its own capability');
 $need(str_contains($controller,'recordOwnStudentChoice('),'student choices must use the authority service');
 $need(str_contains($controller,'acceptTeacherTerms('),'teacher terms must use the authority service');
+$need(str_contains($controller,'requirePost()'),'both write endpoints must reject non-POST requests');
+$need(str_contains($controller,'set_transient(')&&str_contains($readService,'get_transient('),'confirmation feedback must use a server-side status, not a spoofable query parameter');
+$need(!str_contains($controller,"'recording_status'"),'the write endpoints must not accept or emit a client-supplied confirmation status');
 foreach(array("_POST['student_id']","_POST['teacher_id']","_POST['guardian","_POST['subject","_POST['wordpress_user_id']")as$forbidden)$need(!str_contains($controller,$forbidden),'the controller must not accept browser-supplied identity '.$forbidden);
 foreach(array('purpose','choice','notice_uid','language','idempotency_key','return_to')as$field)$need(str_contains($controller,$field),'the controller must read only the action field '.$field);
 
@@ -63,14 +69,22 @@ $need(str_contains($shell,"'recording-choices'"),'Account Settings must render t
 $need(str_contains($shell,"'recording' => \$model['recording_choices']"),'online enrolment must pass the choices to the post-intro section');
 $need(str_contains($postIntro,"dzn_theme_portal_component( 'recording-choices'"),'the enrolment point must render the notice');
 $need(str_contains($bridge,'RecordingDecisionUiReadService'),'the theme must use the platform read projection');
+$need(str_contains($bridge,"\$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' )"),'the Account Settings model must actually supply the choices');
+$need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' )"),'the Teacher onboarding model must actually supply the terms');
+$need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' )"),'Teacher Settings must supply the current terms state');
+$need(str_contains($booking,'Recording during future lessons'),'online enrolment must show a recording notice');
+$need(str_contains($booking,'No recording choice is collected on this form'),'the public enrolment notice must not collect an unlinked decision');
 
-foreach(array('What future lesson recording may involve','Why Delnavazan collects data','Separate optional research','How choices can be changed','Mbox local processing','currently disabled','Project information page')as$text)$need(str_contains($info,$text),'the public information page must explain '.$text);
-$need(str_contains($info,'lang="fa"')&&str_contains($info,'lang="en"'),'the information page must be bilingual');
-$need(str_contains($info,'link pending approval'),'the information page must include a project-link placeholder');
-$need(!str_contains($info,'legal basis is'),'the information page must not hard-code an unapproved legal basis');
-$need(!str_contains($info,'retention period of'),'the information page must not hard-code an unapproved retention period');
-$need(!str_contains($info,'provider guarantee'),'the information page must not hard-code an unapproved provider guarantee');
-$need(!str_contains($info,'consent'),'the disabled default-on path must not be described as consent');
+foreach(array('What future lesson recording may involve','Why Delnavazan collects data','Separate optional research','How choices can be changed','Mbox local processing','currently disabled','Project information page')as$text)$need(str_contains($infoBody,$text),'the public information page must explain '.$text);
+$need(str_contains($infoBody,'lang="fa"')&&str_contains($infoBody,'lang="en"'),'the information page must be bilingual');
+$need(str_contains($infoBody,'link pending approval'),'the information page must include a project-link placeholder');
+$need(!str_contains($infoBody,'legal basis is'),'the information page must not hard-code an unapproved legal basis');
+$need(!str_contains($infoBody,'retention period of'),'the information page must not hard-code an unapproved retention period');
+$need(!str_contains($infoBody,'provider guarantee'),'the information page must not hard-code an unapproved provider guarantee');
+$need(!str_contains($infoBody,'consent'),'the disabled default-on path must not be described as consent');
+$need(str_contains($info,"get_template_part( 'template-parts/recording/research-information' )"),'the Page Template must use the shared information body');
+$need(str_contains($routes,"'recording-and-research'"),'the canonical information URL must resolve without manual page creation');
+$need(str_contains($routes,'dzn_theme_render_recording_information_route'),'the virtual information route must render the shared body');
 
 $need(str_contains($migrator,"'dzn_accept_own_recording_terms'"),'the Teacher self-service capability must be installed');
 $need(str_contains($authority,'CAPTURE_ENABLED=false')&&str_contains($authority,'RESEARCH_EXPORT_ENABLED=false'),'capture and research export must remain disabled');

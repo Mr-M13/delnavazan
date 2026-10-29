@@ -235,6 +235,13 @@ function dzn_theme_render_booking_route(): void {
                                     <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از جلسهٔ معارفه هماهنگ می‌شود.</li>
                                 </ul>
                             </aside>
+                            <aside class="dzn-booking__notice" role="note">
+                                <h4>Recording during future lessons · ضبط در درس‌های آینده</h4>
+                                <p><strong>Draft product copy — not legally approved yet. No recording choice is collected on this form.</strong></p>
+                                <p lang="en" dir="ltr">Delnavazan may record future online lessons and practice activities to improve teaching and learning. You can choose whether your lessons may be recorded, and you can change this choice later in Account Settings.</p>
+                                <p lang="fa" dir="rtl">دلنوازان ممکن است درس‌های آنلاین و تمرین‌های آینده را برای بهبود آموزش و یادگیری ضبط کند. شما می‌توانید انتخاب کنید که درس‌هایتان ضبط شود یا نه و این انتخاب را بعداً در تنظیمات حساب تغییر دهید.</p>
+                                <p><a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
+                            </aside>
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-edit-details>ویرایش اطلاعات</button>

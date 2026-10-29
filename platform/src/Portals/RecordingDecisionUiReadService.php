@@ -42,17 +42,18 @@ final class RecordingDecisionUiReadService {
             'default_recording_choice'=>null,
             'default_research_choice'=>null,
             'information_url'=>$this->informationUrl(),
-            'status'=>isset($_GET['recording_status'])?sanitize_key((string)wp_unslash($_GET['recording_status'])):'',
+            'status'=>$this->status('student'),
         );
     }
 
     /** Teacher onboarding and settings projection. */
-    public function teacher():array {
+    public function teacher(string $context='onboarding'):array {
+        $context=$context==='settings'?'settings':'onboarding';
         $state=$this->authority->teacherTermsState();
         $notices=array();
         foreach(array('en','fa')as$language){
             $notice=$this->notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,$language);
-            if($notice!==null)$notices[]=$this->form('teacher_terms',$notice,'dzn_recording_teacher_terms','onboarding');
+            if($notice!==null)$notices[]=$this->form('teacher_terms',$notice,'dzn_recording_teacher_terms',$context);
         }
         return array(
             'available'=>!empty($state['available'])&&$notices!==array(),
@@ -65,7 +66,7 @@ final class RecordingDecisionUiReadService {
             'language'=>$state['language']??null,
             'notices'=>$notices,
             'information_url'=>$this->informationUrl(),
-            'status'=>isset($_GET['recording_status'])?sanitize_key((string)wp_unslash($_GET['recording_status'])):'',
+            'status'=>$this->status('teacher'),
         );
     }
 
@@ -88,10 +89,16 @@ final class RecordingDecisionUiReadService {
             'language'=>$notice['language'],
             'notice_version'=>$notice['version'],
             'body'=>(string)($notice['body']??''),
-            'return_to'=>$context==='enrolment'?'home':'account',
+            'return_to'=>in_array($context,array('onboarding','settings'),true)?$context:($context==='enrolment'?'home':'account'),
         );
     }
 
     private function language(string $language):string { return $language==='fa'?'fa':'en'; }
     private function informationUrl():string { return home_url('/recording-and-research/'); }
+    private function status(string $scope):string {
+        $key='dzn_recording_status_'.$scope.'_'.get_current_user_id();
+        $status=sanitize_key((string)get_transient($key));
+        if($status!=='')delete_transient($key);
+        return $status;
+    }
 }

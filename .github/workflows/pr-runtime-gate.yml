@@ -303,6 +303,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
       - run: platform/runtime/bin/run-recording-decision-migration-runtime.sh
 
   stripe-runtime-e2e:

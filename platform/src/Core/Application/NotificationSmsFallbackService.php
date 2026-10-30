@@ -26,6 +26,10 @@ final class NotificationSmsFallbackService {
     public const COMMAND_BLOCKED='sms_fallback_blocked';
     public const COMMAND_PROVIDER_FAILURE='whatsapp_terminal_failure';
     public const COMMAND_SOURCE='sms_fallback_source';
+    private const CACHED_BLOCK_REASONS=array(
+        'whatsapp_delivered','sms_consent_absent','sms_suppressed','sms_policy_blocked',
+        'sms_recipient_ineligible','fallback_source_invalid','fallback_already_used','failure_unverified',
+    );
 
     public function __construct(
         private ?NotificationRepository $notifications=null,
@@ -108,8 +112,8 @@ final class NotificationSmsFallbackService {
     }
 
     /** Reconcile a delivery failure that arrived while the WhatsApp hand-off was still being acknowledged. */
-    public function authoriseExistingFailure(int $sourceNotificationId,bool $withinTransaction=false):?array{
-        $failure=$this->deliveries->latestAppliedFailure($sourceNotificationId);
+    public function authoriseExistingFailure(int $sourceNotificationId,int $sourceAttemptId,bool $withinTransaction=false):?array{
+        $failure=$this->deliveries->appliedFailureForAttempt($sourceNotificationId,$sourceAttemptId);
         if(!$failure)return null;
         return $this->authoriseFromVerifiedFailure(
             $sourceNotificationId,(int)$failure->attempt_id,(string)$failure->provider_fact_digest,
@@ -120,6 +124,34 @@ final class NotificationSmsFallbackService {
             ),
             $withinTransaction
         );
+    }
+
+    /**
+     * Persist a verified synchronous provider rejection, then authorise the fallback in a separate
+     * transaction.  The source closure has already committed, so fallback persistence can never undo it.
+     */
+    public function authoriseFromProviderRejection(int $sourceNotificationId,int $sourceAttemptId,string $failureDigest,array $evidence):array{
+        $this->notifications->begin();
+        try{
+            $source=$this->notifications->find($sourceNotificationId,true);
+            $attempt=$this->attempts->find($sourceAttemptId,true);
+            if(!$source||!$attempt)throw new \RuntimeException('notification_not_found');
+            $this->recordProviderFailure($source,$attempt,$failureDigest,$evidence);
+            $this->notifications->commit();
+        }catch(\Throwable $error){
+            $this->notifications->rollback();
+            throw $error;
+        }
+        try{
+            return $this->authoriseFromVerifiedFailure($sourceNotificationId,$sourceAttemptId,$failureDigest,$evidence,false);
+        }catch(\Throwable $error){
+            try{
+                $this->notifications->begin();
+                $this->recordBlocked($sourceNotificationId,$sourceAttemptId,'fallback_creation_failed',$failureDigest,NotificationSupport::now(),NotificationSupport::actor());
+                $this->notifications->commit();
+            }catch(\Throwable){$this->notifications->rollback();}
+            return array('authorised'=>false,'reason'=>'fallback_creation_failed','fallback_notification_id'=>null,'replayed'=>false);
+        }
     }
 
     /** Record the verified provider rejection that lets the dispatch path use the same authority. */
@@ -138,34 +170,46 @@ final class NotificationSmsFallbackService {
     }
 
     /** Cancel a queued or dispatching fallback when the source WhatsApp notification is delivered. */
-    public function cancelForDeliveredSource(int $sourceNotificationId,string $now,int $actor):int{
+    public function cancelForDeliveredSource(int $sourceNotificationId,string $now,int $actor,?string $deliveredDigest=null):int{
         $fallback=$this->authorisedFallbackForSource($sourceNotificationId);
         if(!$fallback)return 0;
-        $notification=$this->notifications->find((int)$fallback->id,true);
-        if(!$notification||!in_array((string)$notification->state,array('pending','scheduled','queued','dispatching'),true))return 0;
-        $row=$this->outbox->forNotification((int)$notification->id,true);
-        if((string)$notification->state==='dispatching'){
-            $attempt=$this->attempts->openForNotification((int)$notification->id,true);
-            if($attempt){
-                $source=(string)$attempt->state;
-                $this->attempts->closeAttempt((int)$attempt->id,array('state'=>'abandoned','finished_at'=>$now,'outcome_code'=>'cancelled','failure_class'=>NotificationRule::LEASE_CANCELLED_CLASS,'updated_at'=>$now,'updated_by'=>$actor));
-                $this->attempts->insertEvent(array(
-                    'uid'=>NotificationSupport::uid(),'attempt_id'=>(int)$attempt->id,'event_sequence'=>$this->attempts->nextSequence((int)$attempt->id),
-                    'event_type'=>'abandoned','from_state'=>$source,'to_state'=>'abandoned','reason_code'=>'cancelled',
-                    'occurred_at'=>$now,'recorded_at'=>$now,'recorded_by'=>$actor,'created_at'=>$now,'created_by'=>$actor,
-                ));
+        $this->notifications->begin();
+        try{
+            $notification=$this->notifications->find((int)$fallback->id,true);
+            if(!$notification||!in_array((string)$notification->state,array('pending','scheduled','queued','dispatching'),true)){
+                $this->notifications->commit();
+                return 0;
             }
+            $row=$this->outbox->forNotification((int)$notification->id,true);
+            if((string)$notification->state==='dispatching'){
+                $attempt=$this->attempts->openForNotification((int)$notification->id,true);
+                if($attempt){
+                    $source=(string)$attempt->state;
+                    $this->attempts->closeAttempt((int)$attempt->id,array('state'=>'abandoned','finished_at'=>$now,'outcome_code'=>'cancelled','failure_class'=>NotificationRule::LEASE_CANCELLED_CLASS,'updated_at'=>$now,'updated_by'=>$actor));
+                    $this->attempts->insertEvent(array(
+                        'uid'=>NotificationSupport::uid(),'attempt_id'=>(int)$attempt->id,'event_sequence'=>$this->attempts->nextSequence((int)$attempt->id),
+                        'event_type'=>'abandoned','from_state'=>$source,'to_state'=>'abandoned','reason_code'=>'cancelled',
+                        'occurred_at'=>$now,'recorded_at'=>$now,'recorded_by'=>$actor,'created_at'=>$now,'created_by'=>$actor,
+                    ));
+                }
+            }
+            $previous=(string)$notification->state;
+            $this->notifications->transition((int)$notification->id,$previous,array('state'=>'cancelled','failure_reason_code'=>'whatsapp_delivered','updated_at'=>$now,'updated_by'=>$actor));
+            $digest=$deliveredDigest!==null&&preg_match('/^[a-f0-9]{64}$/',$deliveredDigest)===1
+                ?$deliveredDigest:hash_hmac('sha256','sms-fallback-cancel:'.$sourceNotificationId,NotificationSupport::salt());
+            $this->notifications->insertEvent(array(
+                'uid'=>NotificationSupport::uid(),'notification_id'=>(int)$notification->id,'event_sequence'=>$this->notifications->nextSequence((int)$notification->id),
+                'event_type'=>'cancelled','from_state'=>$previous,'to_state'=>'cancelled','reason_code'=>'whatsapp_delivered',
+                'evidence_channel'=>'provider_evidence','evidence_reference_digest'=>$digest,
+                'evidence_at'=>$now,'occurred_at'=>$now,'recorded_at'=>$now,'recorded_by'=>$actor,'created_at'=>$now,'created_by'=>$actor,
+            ));
+            if($row)$this->outbox->closeAny((int)$row->id,'cancelled','whatsapp_delivered');
+            $this->notifications->commit();
+            return 1;
+        }catch(\Throwable $error){
+            $this->notifications->rollback();
+            throw $error;
         }
-        $previous=(string)$notification->state;
-        $this->notifications->transition((int)$notification->id,$previous,array('state'=>'cancelled','failure_reason_code'=>'whatsapp_delivered','updated_at'=>$now,'updated_by'=>$actor));
-        $this->notifications->insertEvent(array(
-            'uid'=>NotificationSupport::uid(),'notification_id'=>(int)$notification->id,'event_sequence'=>$this->notifications->nextSequence((int)$notification->id),
-            'event_type'=>'cancelled','from_state'=>$previous,'to_state'=>'cancelled','reason_code'=>'whatsapp_delivered',
-            'evidence_channel'=>'provider_evidence','evidence_reference_digest'=>hash_hmac('sha256','sms-fallback-cancel:'.$sourceNotificationId,NotificationSupport::salt()),
-            'evidence_at'=>$now,'occurred_at'=>$now,'recorded_at'=>$now,'recorded_by'=>$actor,'created_at'=>$now,'created_by'=>$actor,
-        ));
-        if($row)$this->outbox->closeAny((int)$row->id,'cancelled','whatsapp_delivered');
-        return 1;
     }
 
     /**
@@ -180,11 +224,15 @@ final class NotificationSmsFallbackService {
         if((string)$source->state==='delivered'||$this->deliveries->hasAppliedDelivered($sourceId))return false;
         $command=$this->authorisedCommandForSource($sourceId);
         if(!$command||(int)$command->result_id!==(int)$fallback->id||(string)$command->result_state!=='queued')return false;
-        if($this->deliveries->latestAppliedFailure($sourceId)!==null)return true;
-        foreach($this->notifications->commandsForNotification($sourceId,self::COMMAND_PROVIDER_FAILURE) as $failure){
-            if((string)$failure->result_state==='failed')return true;
-        }
-        return false;
+        $attemptId=$this->sourceAttemptForFallback((int)$fallback->id);
+        if($attemptId<1)return false;
+        // Consent, suppression, category policy, phone validity and the current SMS template are
+        // re-proved at hand-off time, not only when the fallback was first authorised.
+        $context=$this->smsContext($source,NotificationSupport::now());
+        if(($context['allowed']??false)!==true)return false;
+        if($this->deliveries->appliedFailureForAttempt($sourceId,$attemptId)!==null)return true;
+        $failure=$this->notifications->command(NotificationSupport::keyDigest('whatsapp-terminal-failure:'.$sourceId.':'.$attemptId));
+        return $failure!==null&&(string)$failure->operation===self::COMMAND_PROVIDER_FAILURE&&(string)$failure->result_state==='failed';
     }
 
     public function authorisedFallbackForSource(int $sourceNotificationId):?object{
@@ -202,7 +250,9 @@ final class NotificationSmsFallbackService {
         $command=$this->notifications->command(NotificationSupport::keyDigest(self::COMMAND_AUTHORISED.':'.$sourceId.':'.$attemptId));
         if($command)return array('authorised'=>true,'reason'=>'authorised','fallback_notification_id'=>(int)$command->result_id,'replayed'=>true);
         $blocked=$this->notifications->command(NotificationSupport::keyDigest(self::COMMAND_BLOCKED.':'.$sourceId.':'.$attemptId));
-        if($blocked)return array('authorised'=>false,'reason'=>(string)$blocked->result_state,'fallback_notification_id'=>null,'replayed'=>true);
+        if($blocked&&in_array((string)$blocked->result_state,self::CACHED_BLOCK_REASONS,true)){
+            return array('authorised'=>false,'reason'=>(string)$blocked->result_state,'fallback_notification_id'=>null,'replayed'=>true);
+        }
         return null;
     }
 
@@ -233,14 +283,14 @@ final class NotificationSmsFallbackService {
         if(count($parts)<3)return array('allowed'=>false,'reason'=>'fallback_source_invalid');
         $locale=array_pop($parts);$channel=array_pop($parts);$eventKey=implode('.',$parts);
         if($channel!=='whatsapp')return array('allowed'=>false,'reason'=>'fallback_source_invalid');
-        $policyAllowed=!is_callable($this->smsPolicy)||($this->smsPolicy)($eventKey,'sms');
+        $policyAllowed=is_callable($this->smsPolicy)&&(bool)($this->smsPolicy)($eventKey,'sms');
         $binding=NotificationRule::requiredBinding((string)$source->intent_key);
         if($this->recipients instanceof NotificationBoundRecipientReadPort){
             $recipient=$this->recipients->recipientForBinding((string)$source->audience,(string)$source->recipient_kind,(int)$source->subject_aggregate_id,$binding);
         }else{
             $recipient=$this->recipients?->recipient((string)$source->audience,(string)$source->recipient_kind,(int)$source->subject_aggregate_id);
         }
-        $consent=is_array($recipient)&&!empty($recipient['resolvable'])&&!empty($recipient['opted_in'])&&!empty($recipient['guardian_authority_present'])
+        $consent=is_array($recipient)&&!empty($recipient['resolvable'])&&!empty($recipient['sms_opted_in']??$recipient['opted_in']??false)&&!empty($recipient['guardian_authority_present'])
             &&(string)($recipient['recipient_digest']??'')===(string)$source->recipient_digest;
         $phone=(string)($recipient['sms']??'');
         $phoneValid=$this->validPhone($phone);
@@ -323,13 +373,15 @@ final class NotificationSmsFallbackService {
             'timezone_basis'=>$context['snapshot']->timezone_basis,'rendered_at'=>$now,'rendered_by'=>$actor,'created_at'=>$now,
         ));
         $this->notifications->attachRenderedSnapshot($fallbackId,$snapshotId);
-        $this->notifications->insertEvent(array(
-            'uid'=>NotificationSupport::uid(),'notification_id'=>$fallbackId,'event_sequence'=>1,'event_type'=>'queued',
-            'from_state'=>'pending','to_state'=>'queued','reason_code'=>'whatsapp_terminal_failure',
+        $eventBase=array(
+            'uid'=>NotificationSupport::uid(),'notification_id'=>$fallbackId,
             'evidence_channel'=>(string)($evidence['evidence_channel']??'provider_evidence'),
             'evidence_reference_digest'=>$failureDigest,'evidence_at'=>(string)($evidence['evidence_at']??$now),
             'occurred_at'=>$now,'recorded_at'=>$now,'recorded_by'=>$actor,'created_at'=>$now,'created_by'=>$actor,
-        ));
+        );
+        $this->notifications->insertEvent($eventBase+array('event_sequence'=>1,'event_type'=>'observed','from_state'=>null,'to_state'=>'pending','reason_code'=>'whatsapp_terminal_failure'));
+        $this->notifications->insertEvent($eventBase+array('event_sequence'=>2,'event_type'=>'scheduled','from_state'=>'pending','to_state'=>'scheduled','reason_code'=>'whatsapp_terminal_failure'));
+        $this->notifications->insertEvent($eventBase+array('event_sequence'=>3,'event_type'=>'queued','from_state'=>'scheduled','to_state'=>'queued','reason_code'=>'whatsapp_terminal_failure'));
         $this->recordAuthorised($source,$attempt,$fallbackId,$failureDigest,$evidence,$now,$actor);
         return $fallbackId;
     }
@@ -371,6 +423,10 @@ final class NotificationSmsFallbackService {
     private function authorisedCommandForSource(int $sourceId):?object{
         $rows=$this->notifications->commandsForNotification($sourceId,self::COMMAND_AUTHORISED);
         return $rows[0]??null;
+    }
+    private function sourceAttemptForFallback(int $fallbackId):int{
+        $rows=$this->notifications->commandsForNotification($fallbackId,self::COMMAND_SOURCE);
+        return $rows===array()?0:(int)$rows[0]->result_id;
     }
     private function validPhone(string $phone):bool{
         $digits=preg_replace('/[^0-9]/','',$phone)??'';

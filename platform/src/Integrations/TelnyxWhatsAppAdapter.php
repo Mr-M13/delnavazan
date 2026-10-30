@@ -102,12 +102,15 @@ final class TelnyxWhatsAppAdapter {
         ));
         if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);
         $status=(int)wp_remote_retrieve_response_code($response);
+        $body=json_decode((string)wp_remote_retrieve_body($response),true);
         if($status<200||$status>=300){
             $permanent=self::permanentFailure($status);
+            $error=self::providerError(is_array($body)?$body:null);
             $result=array('acknowledged'=>false,'permanent_failure'=>$permanent,'http'=>$status,'provider_attempted'=>true,'ambiguous'=>$permanent===null);
-            // Only an actual provider attempt can carry terminal rejection evidence. Local validation,
-            // template mapping and transport errors above deliberately carry none.
-            if($permanent!==null){
+            // Only a recipient/message-specific rejection can authorise SMS. Authentication, routing,
+            // configuration, payload/template and provider-capacity failures close or retry WhatsApp
+            // without fanning out an SMS to every recipient.
+            if($permanent!==null&&self::recipientRejection($status,$error)){
                 $at=NotificationSupport::now();
                 $result['provider_evidence_digest']=hash_hmac('sha256','telnyx:whatsapp:rejected:'.(string)($command['notification_key_digest']??'').':'.(int)($command['attempt_sequence']??0).':'.$status.':'.$at,NotificationSupport::salt());
                 $result['provider_evidence_at']=$at;
@@ -141,6 +144,22 @@ final class TelnyxWhatsAppAdapter {
     public static function permanentFailure(int $status):?string{
         if(in_array($status,array(408,425,429),true)||$status>=500)return null;
         return 'send_refused';
+    }
+    /**
+     * A provider rejection may authorise a fallback only when it names the recipient/message, not when it
+     * describes the platform's credentials, endpoint, account, template or provider capacity.  This keeps
+     * a rotated key or a broken template from fanning one failure out to SMS for every recipient.
+     */
+    public static function recipientRejection(int $status,array $error):bool{
+        if(in_array($status,array(401,403,404,405,409,413,429),true))return false;
+        $code=(string)($error['provider_code']??'');
+        if(in_array($code,array('40310','40311','40312'),true))return true;
+        $text=strtolower(trim((string)($error['provider_title']??'').' '.(string)($error['provider_detail']??'')));
+        if($text==='')return false;
+        foreach(array('invalid to','invalid recipient','invalid number','invalid destination','unreachable','not a valid whatsapp','not on whatsapp') as $needle){
+            if(str_contains($text,$needle))return true;
+        }
+        return false;
     }
 
     /** @return array{name:string,language:string,variable_order:string[]}|null */

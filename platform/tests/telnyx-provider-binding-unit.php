@@ -49,6 +49,9 @@ if(array_column($params,'text')!==array('باران','تار','ندا','شنبه
 if(TelnyxSmsAdapter::permanentFailure(429)!==null||TelnyxSmsAdapter::permanentFailure(500)!==null)throw new RuntimeException('SMS transient status must remain retryable');
 if(TelnyxSmsAdapter::permanentFailure(400)!=='contact_unusable')throw new RuntimeException('SMS invalid destination must be permanent');
 if(TelnyxWhatsAppAdapter::permanentFailure(400)!=='send_refused')throw new RuntimeException('WhatsApp template refusal must be permanent');
+if(TelnyxWhatsAppAdapter::recipientRejection(401,array())||TelnyxWhatsAppAdapter::recipientRejection(403,array())||TelnyxWhatsAppAdapter::recipientRejection(404,array()))throw new RuntimeException('Provider auth/config failures must never authorise SMS');
+if(!TelnyxWhatsAppAdapter::recipientRejection(400,array('provider_code'=>'40310','provider_title'=>'Invalid to','provider_detail'=>'The destination is invalid')))throw new RuntimeException('Recipient-specific provider rejection must be fallback-eligible');
+if(TelnyxWhatsAppAdapter::recipientRejection(400,array('provider_code'=>'40300','provider_title'=>'Template not found','provider_detail'=>'The template does not exist')))throw new RuntimeException('Template/provider configuration rejection must not authorise SMS');
 $registry=TelnyxTemplateRegistry::definitions();
 if(count($registry)!==14)throw new RuntimeException('approved template registry must contain fourteen templates');
 foreach($registry as $name=>$definition){

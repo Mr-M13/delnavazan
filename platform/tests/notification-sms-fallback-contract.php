@@ -23,7 +23,16 @@ $fail('the fallback uses existing notification/outbox/attempt tables',str_contai
 $fail('no duplicate queue or delivery table is introduced',!str_contains($fallback,'CREATE TABLE')&&!str_contains($fallback,'notification_sms_fallbacks'));
 $fail('late delivery cancels a queued fallback',str_contains($fallback,'cancelForDeliveredSource')&&str_contains($fallback,'->closeAny('));
 $fail('dispatch revalidates fallback authority',str_contains($fallback,'authorisedForNotification')&&str_contains($state,'cancelForDeliveredSource'));
-$fail('provider rejection evidence is recorded only after an attempt',str_contains($dispatch,'provider_attempted')&&str_contains($dispatch,'recordProviderFailure')&&str_contains($dispatch,'authoriseFromVerifiedFailure'));
+$fail('provider rejection evidence is recorded only after an attempt',str_contains($dispatch,'provider_attempted')&&str_contains($dispatch,'authoriseFromProviderRejection')&&str_contains($fallback,'recordProviderFailure'));
+$fail('source closure commits before fallback persistence',str_contains($dispatch,'fallback_reconciliation_pending')&&str_contains($fallback,'authoriseFromProviderRejection')&&str_contains($fallback,'authoriseFromVerifiedFailure($sourceNotificationId,$sourceAttemptId,$failureDigest,$evidence,false)'));
+$fail('existing failure reconciliation is bound to the acknowledged attempt',str_contains($fallback,'authoriseExistingFailure(int $sourceNotificationId,int $sourceAttemptId')&&str_contains($fallback,'appliedFailureForAttempt($sourceNotificationId,$sourceAttemptId)'));
+$fail('fallback authority is revalidated at hand-off',str_contains($fallback,'$context=$this->smsContext($source,NotificationSupport::now())')&&str_contains($fallback,'sourceAttemptForFallback'));
+$fail('missing policy fails closed',str_contains($fallback,'$policyAllowed=is_callable($this->smsPolicy)&&'));
+$fail('transient block reasons are re-evaluated',str_contains($fallback,'CACHED_BLOCK_REASONS')&&str_contains($fallback,'in_array((string)$blocked->result_state,self::CACHED_BLOCK_REASONS,true)'));
+$fail('fallback claim uses the mobile STOP scope',str_contains($dispatch,"str_starts_with((string)(\$notification->reference_code??''),'SMSF')")&&str_contains($dispatch,"\$route='mobile'"));
+$fail('SMS consent is channel-specific where available',str_contains($read('src/Core/Infrastructure/ReadModel/StudentNotificationRecipientReadModel.php'),'dzn_notification_student_sms_opted_in')&&str_contains($fallback,"'sms_opted_in'"));
+$fail('late delivery cancellation cites the delivered fact',str_contains($fallback,'cancelForDeliveredSource(int $sourceNotificationId,string $now,int $actor,?string $deliveredDigest=null)')&&str_contains($state,'$delivered->provider_fact_digest'));
+$fail('replayed delivery webhooks re-run aggregate reconciliation',str_contains($read('src/Integrations/Notifications/TelnyxWebhookService.php'),'str_starts_with((string)$existing->outcome_code,\'delivery_\')'));
 $fail('ambiguous SMS is never retried',str_contains($dispatch,"'ambiguous'")&&str_contains($dispatch,'$smsFallback'));
 $fail('router never selects SMS as a capability fallback',str_contains($router,'authorisedSmsFallback')&&str_contains($router,'sms_fallback_authorised')&&!str_contains($router,"if(\$wa&&\$wa['configured']"));
 $fail('composite performs no automatic channel fallback',str_contains($composite,'no channel fallback')&&!str_contains($composite,'fallbackAfter('));

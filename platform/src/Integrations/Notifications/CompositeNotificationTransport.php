@@ -25,7 +25,7 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
   $contact=($this->contactResolver)($command);
   if(!is_array($contact))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
   $route=(string)($contact['route']??'mobile');
-  $bindings=$this->allowed($this->router->route($route,$contact),$command,false);
+  $bindings=$this->allowed($this->router->route($route,$contact),$command,$route==='mobile'&&!empty($contact['sms_fallback_authorised']));
   if($bindings===array())return array('acknowledged'=>false,'permanent_failure'=>'no_route');
   $binding=$bindings[0];
   $channel=(string)$binding['channel'];

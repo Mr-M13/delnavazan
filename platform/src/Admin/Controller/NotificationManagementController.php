@@ -265,6 +265,7 @@ final class NotificationManagementController {
         ),'dzn-integration-email','Open Email settings');
         self::renderChannelCard('sms','SMS',array(
             'SMS is a constrained fallback only; it is never a primary channel.',
+            'Automatic SMS requires a verified terminal WhatsApp delivery failure for the same notification, plus valid SMS consent, suppression and policy eligibility.',
             'Provider readiness: '.self::providerReadyLabel('sms'),
         ),'dzn-integration-sms','Open SMS settings');
         echo '</div>';

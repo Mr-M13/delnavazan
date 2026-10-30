@@ -80,6 +80,7 @@ final class NotificationSmsFallbackReadService {
         if($operation===NotificationSmsFallbackService::COMMAND_BLOCKED)return 'SMS fallback blocked: '.$reason;
         if($smsState==='delivered'||$fallbackState==='delivered')return 'SMS delivered';
         if($fallbackState==='dispatched'||$smsState==='sent')return 'SMS fallback sent';
+        if(in_array((string)$smsState,array('failed','undelivered','expired'),true))return 'SMS fallback blocked: sms_delivery_failed';
         if($fallbackState==='cancelled'&&$fallbackReason==='whatsapp_delivered')return 'SMS fallback cancelled: WhatsApp delivered';
         if(in_array($fallbackState,array('failed','suppressed','expired','cancelled'),true))return 'SMS fallback blocked: '.($fallbackReason!==''?$fallbackReason:$fallbackState);
         return 'SMS fallback eligible';

@@ -47,6 +47,7 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 	<?php if ( $recording ) : ?>
 		<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $recording ) ); ?>
 	<?php endif; ?>
+	<p class="dzn-portal-help dzn-post-intro__policies">پیش از پرداخت یا پذیرش ثبت‌نام، <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط و ضوابط استفاده</a>، <a href="<?php echo esc_url( home_url( '/cancellation-and-refunds/' ) ); ?>">سیاست لغو و بازپرداخت</a> و <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">سیاست حفظ حریم خصوصی</a> را بخوانید. شرایط ضبط و پژوهش اختیاری جداگانه است.</p>
 	<?php foreach ( $items as $item ) : ?>
 		<article class="dzn-post-intro__card">
 			<h3><?php echo esc_html( (string) ( $item['title'] ?? '' ) ); ?></h3>

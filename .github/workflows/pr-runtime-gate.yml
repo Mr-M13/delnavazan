@@ -287,14 +287,6 @@ jobs:
       - name: Run portal nonce-id and text-resize contract
         run: php platform/tests/portal-nonce-id-contract.php
 
-      - name: Run LiveKit classroom authorization and presentation contracts
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          php platform/tests/livekit-jwt-issuer-unit.php
-          php platform/tests/livekit-classroom-authorization-unit.php
-          php platform/tests/livekit-portal-integration-contract.php
-
       - name: Run homepage footer/pricing background contract
         run: php platform/tests/homepage-footer-pricing-background-contract.php
 

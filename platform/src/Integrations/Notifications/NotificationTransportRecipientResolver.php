@@ -29,6 +29,10 @@ final class NotificationTransportRecipientResolver {
   if(!is_array($contact))return null;
   $sourceId=$this->fallbacks?->sourceId($n)??0;
   if($sourceId>0){
+   // A fallback aggregate is always the SMS/mobile route, whatever the recipient's current
+   // preferred route is.  It can never be re-targeted to email or WhatsApp.
+   $contact['route']='mobile';
+   $contact['whatsapp_eligible']=false;
    if($this->fallbacks!==null&&$this->fallbacks->authorisedForNotification($n)){
     $contact['sms_fallback_authorised']=true;
     $contact['whatsapp_terminal_failure_digest']=NotificationSupport::payloadDigest(array('operation'=>NotificationSmsFallbackService::COMMAND_AUTHORISED,'source'=>$sourceId,'fallback'=>(int)$n->id));

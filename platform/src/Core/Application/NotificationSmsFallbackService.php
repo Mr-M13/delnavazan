@@ -73,11 +73,12 @@ final class NotificationSmsFallbackService {
             };
 
             if((string)$source->state==='delivered'||$this->deliveries->hasAppliedDelivered($sourceNotificationId))return $blocked('whatsapp_delivered');
-            if(!in_array((string)$source->state,array('dispatching','dispatched','failed'),true))return $blocked('fallback_source_invalid');
-            if($source->expires_at===null||(string)$source->expires_at<=$now)return $blocked('sms_window_closed');
 
             $existing=$this->existingDecision($sourceNotificationId,$sourceAttemptId);
             if($existing!==null){if(!$withinTransaction)$this->notifications->commit();return $existing;}
+
+            if(!in_array((string)$source->state,array('dispatching','dispatched','failed'),true))return $blocked('fallback_source_invalid');
+            if($source->expires_at===null||(string)$source->expires_at<=$now)return $blocked('sms_window_closed');
 
             $attempt=$this->attempts->find($sourceAttemptId,true);
             if(!$attempt||(int)$attempt->notification_id!==$sourceNotificationId)return $blocked('fallback_source_invalid');
@@ -292,7 +293,9 @@ final class NotificationSmsFallbackService {
         }
         $consent=is_array($recipient)&&!empty($recipient['resolvable'])&&!empty($recipient['sms_opted_in']??$recipient['opted_in']??false)&&!empty($recipient['guardian_authority_present'])
             &&(string)($recipient['recipient_digest']??'')===(string)$source->recipient_digest;
-        $phone=(string)($recipient['sms']??'');
+        $contact=NotificationSupport::decryptEnvelope($recipient['contact_envelope']??null,$recipient['contact_cipher_version']??null);
+        if(!is_array($contact))return array('allowed'=>false,'reason'=>'sms_recipient_ineligible');
+        $phone=(string)($contact['sms']??'');
         $phoneValid=$this->validPhone($phone);
         $suppression=$this->suppressions->active((string)$source->recipient_digest,(string)$source->intent_key,$now,NotificationRule::providerStopApplies((string)$source->intent_key,'mobile'));
         $decision=NotificationSmsFallbackPolicy::decide(array(

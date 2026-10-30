@@ -52,6 +52,10 @@ if(TelnyxWhatsAppAdapter::permanentFailure(400)!=='send_refused')throw new Runti
 if(TelnyxWhatsAppAdapter::recipientRejection(401,array())||TelnyxWhatsAppAdapter::recipientRejection(403,array())||TelnyxWhatsAppAdapter::recipientRejection(404,array()))throw new RuntimeException('Provider auth/config failures must never authorise SMS');
 if(!TelnyxWhatsAppAdapter::recipientRejection(400,array('provider_code'=>'40310','provider_title'=>'Invalid to','provider_detail'=>'The destination is invalid')))throw new RuntimeException('Recipient-specific provider rejection must be fallback-eligible');
 if(TelnyxWhatsAppAdapter::recipientRejection(400,array('provider_code'=>'40300','provider_title'=>'Template not found','provider_detail'=>'The template does not exist')))throw new RuntimeException('Template/provider configuration rejection must not authorise SMS');
+$ambiguous=(new SmsTransport(static fn(array $c):array=>array('acknowledged'=>false,'permanent_failure'=>null,'ambiguous'=>true)))->handoff(array());
+if(empty($ambiguous['ambiguous']))throw new RuntimeException('SMS wrapper must preserve ambiguous transport evidence');
+$rejection=(new WhatsAppTransport(static fn(array $c):array=>array('acknowledged'=>false,'permanent_failure'=>'send_refused','provider_attempted'=>true,'provider_evidence_digest'=>str_repeat('a',64),'provider_evidence_at'=>'2026-10-31 00:00:00','provider_outcome'=>'rejected')))->handoff(array());
+if(empty($rejection['provider_attempted'])||($rejection['provider_evidence_digest']??'')!==str_repeat('a',64)||($rejection['provider_outcome']??'')!=='rejected')throw new RuntimeException('WhatsApp wrapper must preserve keyed rejection evidence');
 $registry=TelnyxTemplateRegistry::definitions();
 if(count($registry)!==14)throw new RuntimeException('approved template registry must contain fourteen templates');
 foreach($registry as $name=>$definition){

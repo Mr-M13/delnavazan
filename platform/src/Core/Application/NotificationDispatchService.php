@@ -206,6 +206,14 @@ final class NotificationDispatchService {
         // off twice and a replay of the same key never reaches the port again.
         $reservation=$this->reserveHandOff($attemptId,$digest,$actor,$notification,$command,$authorisedCommand,$key);
         if(($reservation['reserved']??false)!==true)return $reservation;
+        // Late WhatsApp delivery may have cancelled this fallback between the reservation and the port
+        // call.  Re-read the durable state so a cancelled/abandoned attempt never reaches the SMS adapter.
+        $liveAttempt=$this->attempts->find($attemptId);
+        $liveNotification=$liveAttempt?$this->repository->find((int)$liveAttempt->notification_id):null;
+        if(!$liveAttempt||$liveAttempt->finished_at!==null||(string)$liveAttempt->state!=='handed_off'
+            ||!$liveNotification||(string)$liveNotification->state!=='dispatching'){
+            return array('attempt_id'=>$attemptId,'state'=>$liveNotification?(string)$liveNotification->state:'failed','handed_off'=>false,'acknowledged'=>false,'permanent_failure'=>null,'outcome'=>'dispatch_cancelled');
+        }
         // The attempt stays open until the outcome is recorded: `handed_off → acknowledged | failed`.
         $response=$this->transport->handoff($command);
         $result=array('attempt_id'=>$attemptId,'state'=>'handed_off','handed_off'=>true,'acknowledged'=>(bool)($response['acknowledged']??false),'permanent_failure'=>$response['permanent_failure']??null);

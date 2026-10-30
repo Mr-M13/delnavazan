@@ -31,6 +31,7 @@ $fail('missing policy fails closed',str_contains($fallback,'$policyAllowed=is_ca
 $fail('transient block reasons are re-evaluated',str_contains($fallback,'CACHED_BLOCK_REASONS')&&str_contains($fallback,'in_array((string)$blocked->result_state,self::CACHED_BLOCK_REASONS,true)'));
 $fail('fallback claim uses the mobile STOP scope',str_contains($dispatch,"str_starts_with((string)(\$notification->reference_code??''),'SMSF')")&&str_contains($dispatch,"\$route='mobile'"));
 $fail('SMS consent is channel-specific where available',str_contains($read('src/Core/Infrastructure/ReadModel/StudentNotificationRecipientReadModel.php'),'dzn_notification_student_sms_opted_in')&&str_contains($fallback,"'sms_opted_in'"));
+$fail('recipient phone is read from the encrypted contact envelope',str_contains($fallback,'NotificationSupport::decryptEnvelope($recipient[\'contact_envelope\']')&&str_contains($fallback,"\$phone=(string)(\$contact['sms']??'')"));
 $fail('late delivery cancellation cites the delivered fact',str_contains($fallback,'cancelForDeliveredSource(int $sourceNotificationId,string $now,int $actor,?string $deliveredDigest=null)')&&str_contains($state,'$delivered->provider_fact_digest'));
 $fail('replayed delivery webhooks re-run aggregate reconciliation',str_contains($read('src/Integrations/Notifications/TelnyxWebhookService.php'),'str_starts_with((string)$existing->outcome_code,\'delivery_\')'));
 $fail('ambiguous SMS is never retried',str_contains($dispatch,"'ambiguous'")&&str_contains($dispatch,'$smsFallback'));

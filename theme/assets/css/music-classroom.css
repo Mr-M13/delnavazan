@@ -1,0 +1,375 @@
+/* Delnavazan LiveKit classroom. Additive to the theme design system. */
+.dzn-classroom {
+  --dzn-classroom-ink: #fffdf8;
+  --dzn-classroom-night: #101b18;
+  --dzn-classroom-panel: rgb(16 27 24 / 88%);
+  max-width: 1180px;
+  margin: 1.5rem auto 3rem;
+  padding: 0 1rem;
+  color: var(--dzn-color-text-primary);
+}
+
+.dzn-classroom__header,
+.dzn-classroom__brand,
+.dzn-classroom__status-stack,
+.dzn-classroom__meta,
+.dzn-classroom__meta-main,
+.dzn-classroom__meta-side,
+.dzn-classroom__control-group,
+.dzn-classroom__switch,
+.dzn-classroom__devices label {
+  display: flex;
+  align-items: center;
+}
+
+.dzn-classroom__header {
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0 1rem;
+}
+
+.dzn-classroom__brand { gap: 0.9rem; }
+.dzn-classroom__logo-frame {
+  display: grid;
+  place-items: center;
+  min-width: 8.5rem;
+  min-height: 3.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-md);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-classroom__logo-frame img { width: 7.8rem; height: auto; }
+.dzn-classroom__eyebrow {
+  margin: 0 0 0.15rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: var(--dzn-text-small);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.dzn-classroom h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  line-height: 1.3;
+}
+
+.dzn-classroom__status-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.dzn-classroom__connection,
+.dzn-classroom__lesson-status,
+.dzn-classroom__participants,
+.dzn-classroom__role {
+  margin: 0;
+  border-radius: var(--dzn-radius-pill);
+  font-size: var(--dzn-text-small);
+  font-weight: 700;
+}
+.dzn-classroom__connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  background: var(--dzn-color-surface);
+  color: var(--dzn-color-text-secondary);
+}
+.dzn-classroom__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--dzn-color-warning);
+  box-shadow: 0 0 0 0.2rem rgb(148 91 22 / 14%);
+}
+.dzn-classroom__connection[data-state="connected"] .dzn-classroom__dot { background: var(--dzn-color-success); box-shadow: 0 0 0 0.2rem rgb(47 107 79 / 16%); }
+.dzn-classroom__connection[data-state="reconnecting"] .dzn-classroom__dot { background: var(--dzn-color-warning); animation: dzn-classroom-pulse 1.6s ease-in-out infinite; }
+.dzn-classroom__connection[data-state="error"] .dzn-classroom__dot { background: var(--dzn-color-error); }
+.dzn-classroom__connection[data-state="ended"] .dzn-classroom__dot { background: var(--dzn-color-text-muted); }
+.dzn-classroom__lesson-status,
+.dzn-classroom__participants {
+  padding: 0.35rem 0.7rem;
+  background: var(--dzn-color-information-surface);
+  color: var(--dzn-color-information);
+}
+.dzn-classroom__role {
+  padding: 0.35rem 0.7rem;
+  background: rgb(30 123 112 / 12%);
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-classroom__meta {
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-md);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-classroom__meta-main { flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+.dzn-classroom__course { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.dzn-classroom__people { margin: 0; color: var(--dzn-color-text-muted); font-size: var(--dzn-text-small); }
+.dzn-classroom__meta-side { gap: 0.45rem; flex-wrap: wrap; }
+
+.dzn-classroom__alert {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-inline-start: 4px solid var(--dzn-color-error);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-error-surface);
+  color: var(--dzn-color-error);
+  font-weight: 650;
+}
+
+.dzn-classroom__stage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+.dzn-classroom__tile {
+  position: relative;
+  min-height: clamp(16rem, 38vw, 27rem);
+  overflow: hidden;
+  border-radius: var(--dzn-radius-lg);
+  background: var(--dzn-classroom-night);
+  isolation: isolate;
+}
+.dzn-classroom__tile video {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  object-fit: cover;
+  display: block;
+  background: var(--dzn-classroom-night);
+}
+.dzn-classroom__tile--local video { transform: scaleX(-1); }
+[dir="rtl"] .dzn-classroom__tile--local video { transform: scaleX(1); }
+.dzn-classroom__tile-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to top, rgb(8 16 14 / 62%) 0%, rgb(8 16 14 / 8%) 38%, rgb(8 16 14 / 0%) 60%);
+}
+.dzn-classroom__tile-shade::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 0%, rgb(255 253 248 / 7%), transparent 42%);
+}
+.dzn-classroom__tile-label {
+  position: absolute;
+  z-index: 3;
+  inset-block-end: 0.75rem;
+  inset-inline-start: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--dzn-radius-pill);
+  background: rgb(8 16 14 / 72%);
+  color: var(--dzn-classroom-ink);
+  font-size: var(--dzn-text-small);
+  font-weight: 700;
+  max-width: calc(100% - 7rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dzn-classroom__tile-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--dzn-color-highlight); flex: none; }
+.dzn-classroom__tile-placeholder {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 1rem;
+  color: rgb(255 253 248 / 78%);
+  font-weight: 650;
+  text-align: center;
+}
+.dzn-classroom__remote-media,
+.dzn-classroom__remote-audio { position: absolute; inset: 0; }
+.dzn-classroom__remote-media video { width: 100%; height: 100%; object-fit: cover; }
+.dzn-classroom__remote-audio { display: none; }
+
+/* Watermark: a small branded corner chip, never a face or control overlay. */
+.dzn-classroom-watermark {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: 0.7rem;
+  inset-inline-end: 0.8rem;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid rgb(255 253 248 / 24%);
+  border-radius: var(--dzn-radius-sm);
+  background: rgb(255 253 248 / 84%);
+  box-shadow: 0 0.25rem 0.9rem rgb(0 0 0 / 24%);
+  pointer-events: none;
+  opacity: 0.86;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.dzn-classroom-watermark img {
+  display: block;
+  width: clamp(3.6rem, 7vw, 5.4rem);
+  height: auto;
+  filter: drop-shadow(0 1px 0 rgb(255 255 255 / 55%));
+}
+.dzn-classroom__tile--local .dzn-classroom-watermark { inset-inline-end: auto; inset-inline-start: 0.8rem; }
+
+.dzn-classroom__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-md);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-classroom__control-group { gap: 0.5rem; flex-wrap: wrap; }
+.dzn-classroom__control-group--end { margin-inline-start: auto; }
+.dzn-classroom__control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid rgb(16 74 77 / 18%);
+  border-radius: var(--dzn-radius-sm);
+  background: rgb(30 123 112 / 10%);
+  color: var(--dzn-color-text-secondary);
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.dzn-classroom__control:hover:not(:disabled) { background: rgb(30 123 112 / 18%); }
+.dzn-classroom__control:active:not(:disabled) { transform: translateY(1px); }
+.dzn-classroom__control:disabled { cursor: not-allowed; opacity: 0.48; }
+.dzn-classroom__control.is-off {
+  background: var(--dzn-color-error-surface);
+  border-color: var(--dzn-color-error-border);
+  color: var(--dzn-color-error);
+}
+.dzn-classroom__control--leave {
+  background: var(--dzn-color-error);
+  border-color: var(--dzn-color-error);
+  color: #fff;
+}
+.dzn-classroom__control--backup { background: var(--dzn-color-information-surface); border-color: var(--dzn-color-information-border); color: var(--dzn-color-information); }
+
+.dzn-classroom__switch {
+  gap: 0.6rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-surface);
+  cursor: pointer;
+}
+.dzn-classroom__switch input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.dzn-classroom__switch-track {
+  position: relative;
+  flex: none;
+  width: 2.65rem;
+  height: 1.45rem;
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-color-border-strong);
+  transition: background 160ms ease;
+}
+.dzn-classroom__switch-track::after {
+  content: "";
+  position: absolute;
+  top: 0.18rem;
+  inset-inline-start: 0.18rem;
+  width: 1.09rem;
+  height: 1.09rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 24%);
+  transition: inset-inline-start 160ms ease;
+}
+.dzn-classroom__switch input:checked + .dzn-classroom__switch-track { background: var(--dzn-color-action-primary); }
+.dzn-classroom__switch input:checked + .dzn-classroom__switch-track::after { inset-inline-start: 1.38rem; }
+.dzn-classroom__switch input:focus-visible + .dzn-classroom__switch-track { outline: var(--dzn-focus-width) solid var(--dzn-color-focus); outline-offset: var(--dzn-focus-offset); }
+.dzn-classroom__switch-copy { display: grid; gap: 0.05rem; }
+.dzn-classroom__switch-copy strong { font-size: var(--dzn-text-small); }
+.dzn-classroom__switch-copy small { color: var(--dzn-color-text-muted); font-size: var(--dzn-text-xs); max-width: 18rem; }
+
+.dzn-classroom__devices { gap: 0.5rem; }
+.dzn-classroom__devices label { gap: 0.35rem; color: var(--dzn-color-text-muted); font-size: var(--dzn-text-xs); font-weight: 700; }
+.dzn-classroom__devices select {
+  max-width: 11rem;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-xs);
+  background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
+  font: inherit;
+  font-size: var(--dzn-text-xs);
+}
+
+.dzn-classroom__notice {
+  margin: 0.9rem 0 0;
+  color: var(--dzn-color-text-muted);
+  font-size: var(--dzn-text-small);
+  line-height: 1.9;
+}
+
+.dzn-classroom :focus-visible { outline: var(--dzn-focus-width) solid var(--dzn-color-focus); outline-offset: var(--dzn-focus-offset); }
+
+@keyframes dzn-classroom-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dzn-classroom__connection[data-state="reconnecting"] .dzn-classroom__dot { animation: none; }
+  .dzn-classroom__control,
+  .dzn-classroom__switch-track,
+  .dzn-classroom__switch-track::after { transition: none; }
+}
+
+@media (max-width: 900px) {
+  .dzn-classroom__stage { grid-template-columns: 1fr; }
+  .dzn-classroom__tile { min-height: clamp(15rem, 58vw, 24rem); }
+  .dzn-classroom__control-group--end { margin-inline-start: 0; }
+}
+
+@media (max-width: 640px) {
+  .dzn-classroom { margin-top: 0.5rem; padding: 0 0.7rem; }
+  .dzn-classroom__header { align-items: flex-start; }
+  .dzn-classroom__brand { gap: 0.6rem; }
+  .dzn-classroom__logo-frame { min-width: 6.8rem; min-height: 2.9rem; }
+  .dzn-classroom__logo-frame img { width: 6.1rem; }
+  .dzn-classroom__meta { padding: 0.7rem 0.75rem; }
+  .dzn-classroom__controls { padding: 0.7rem; }
+  .dzn-classroom__control { flex: 1 1 auto; }
+  .dzn-classroom__control-group { flex: 1 1 100%; }
+  .dzn-classroom__devices { display: grid; grid-template-columns: 1fr 1fr; }
+  .dzn-classroom__devices select { max-width: 100%; width: 100%; }
+  .dzn-classroom__tile-label { max-width: calc(100% - 5.8rem); }
+  .dzn-classroom-watermark { padding: 0.2rem 0.35rem; }
+  .dzn-classroom-watermark img { width: 3.4rem; }
+}
+
+/* iPad and other touch tablets: keep controls large and avoid hover-only affordances. */
+@media (hover: none) and (pointer: coarse) {
+  .dzn-classroom__control { min-height: 3rem; }
+  .dzn-classroom__devices select { min-height: 2.8rem; }
+}
+
+@media (prefers-contrast: more) {
+  .dzn-classroom-watermark { background: #fffdf8; opacity: 1; }
+  .dzn-classroom__tile-label { background: #000; }
+}

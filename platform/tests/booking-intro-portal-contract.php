@@ -6,6 +6,7 @@ $join = (string) file_get_contents($root . '/src/Integrations/BookingClassJoinSe
 $bridge = (string) file_get_contents(dirname($root) . '/theme/inc/platform-bridge.php');
 $studentTemplate = (string) file_get_contents(dirname($root) . '/theme/template-parts/portal/upcoming-lesson.php');
 $teacherTemplate = (string) file_get_contents(dirname($root) . '/theme/template-parts/teacher-portal/classes.php');
+$classroomActions = (string) file_get_contents(dirname($root) . '/theme/template-parts/components/classroom-actions.php');
 $assert = static function(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
 foreach (array(
     "r.student_id=%d", 'identity.id=r.current_identity_resolution_id', "identity.outcome='resolved'",
@@ -19,6 +20,6 @@ $assert(!str_contains((string) file_get_contents($root . '/src/Portals/BookingUp
 $assert(str_contains($repository, 'c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR'), 'Started classes must remain visible throughout the late join window.');
 $assert(str_contains($repository, 'd.requested_time_id=c.requested_time_id'), 'Booking join ownership must retain the accepted requested-time binding.');
 $assert(str_contains($bridge, "'teacher_booking_class_v1' === ( \$row['version'] ?? '' )") && str_contains($bridge, '$end + ( 2 * HOUR_IN_SECONDS ) >= $now'), 'Teacher presentation must retain started booking classes throughout the late join window.');
-$assert(str_contains($studentTemplate, 'confirmation_uid') && str_contains($teacherTemplate, 'confirmation_uid'), 'Both participant UIs must submit the booking confirmation identity.');
+$assert(str_contains($classroomActions, 'confirmation_uid') && str_contains($studentTemplate, 'classroom-actions') && str_contains($teacherTemplate, 'classroom-actions'), 'Both participant UIs must submit the booking confirmation identity.');
 $assert(!str_contains($bridge, "'join_url' => 'https://meet.google.com"), 'The Theme must never fabricate a Meet URL.');
 echo "Booking intro portal contract passed\n";

@@ -220,6 +220,8 @@ function dzn_theme_teacher_portal_notices( $screen ) {
 		'delivery_issue_recorded'    => array( 'success', 'گزارش مشکل برگزاری کلاس ثبت شد.' ),
 		'delivery_issue_unavailable' => array( 'error', 'ثبت گزارش برای این کلاس در حال حاضر امکان‌پذیر نیست.' ),
 		'join_unavailable'           => array( 'error', 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.' ),
+		'livekit_unavailable'        => array( 'error', 'کلاس زندهٔ دلنوازان در این لحظه در دسترس نیست. زمان ورود یا وضعیت کلاس را بررسی کنید؛ گزینهٔ پشتیبان گوگل میت نیز در کارت کلاس نمایش داده می‌شود.' ),
+		'meet_unavailable'           => array( 'error', 'گزینهٔ پشتیبان گوگل میت برای این جلسه در دسترس نیست. لطفاً زمان ورود را بررسی کنید یا با پشتیبانی دلنوازان تماس بگیرید.' ),
 	);
 	if ( isset( $class_messages[ $status ] ) ) { $notices[] = $class_messages[ $status ]; }
 	if ( isset( $_GET['dzn_notice'] ) ) {

@@ -150,11 +150,12 @@ $check( 'the home card carries a machine-readable start instant', str_contains( 
 /* 4. Templates keep a no-JS fallback and no disabled primary. */
 $payments = (string) file_get_contents( $theme . '/template-parts/portal/payments.php' );
 $schedule = (string) file_get_contents( $theme . '/template-parts/portal/schedule.php' );
+$classroomActions = (string) file_get_contents( $theme . '/template-parts/components/classroom-actions.php' );
 $check( 'payments uses the existing checkout root', str_contains( $payments, 'data-dzn-student-checkout' ) );
 $check( 'payments keeps server-rendered rows for no-JS', str_contains( $payments, '<noscript>' ) );
 $check( 'schedule has no disabled join button', ! str_contains( $schedule, 'disabled' ) );
 $check( 'schedule does not claim a persisted absence report', ! str_contains( $schedule, 'absence_reported' ) );
-$check( 'schedule renders the backend join explanation', str_contains( $schedule, "\$item['join_message']" ) );
+$check( 'schedule renders the backend join explanation', str_contains( $schedule, "'item' => \$item" ) && str_contains( $classroomActions, "\$item['join_message']" ) );
 $check( 'payments template distinguishes a disabled release', str_contains( $payments, "'disabled' === (string)" ) );
 $check( 'schedule renders machine-readable start instants', str_contains( $schedule, '<time datetime=' ) );
 $absenceController = (string) file_get_contents( dirname( __DIR__, 2 ) . '/platform/src/Portals/StudentAbsenceController.php' );

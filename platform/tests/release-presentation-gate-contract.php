@@ -32,10 +32,10 @@ $check( 'the helper is called before dashboard redirects', strpos( $routes, 'dzn
 $check( 'the helper is called before signed-out portal redirects', strpos( $routes, 'dzn_theme_send_protected_response_headers();' ) < strpos( $routes, "if ( 'student-portal' === \$route )" ) );
 $check( 'the runtime redirect assertion script exists', is_file( $root . '/acceptance/bin/check-protected-redirect-headers.sh' ) );
 $check( 'the runtime redirect assertion has a make target', str_contains( $makefile, 'protected-headers:' ) && str_contains( $makefile, 'check-protected-redirect-headers.sh' ) );
-foreach ( array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ) as $route ) {
+foreach ( array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'music-classroom' ) as $route ) {
 	$check( 'protected header list includes ' . $route, str_contains( $routes, "'" . $route . "'" ) );
 }
-$check( 'the protected header list excludes the public booking flow', str_contains( $routes, "array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' )" ) );
+$check( 'the protected header list excludes the public booking flow', str_contains( $routes, "array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'music-classroom' )" ) );
 $login_start = strpos( $routes, 'function dzn_theme_handle_frontend_login()' );
 $login_end = strpos( $routes, "add_action( 'template_redirect', 'dzn_theme_handle_frontend_login', 0 );", $login_start );
 $login_block = substr( $routes, (int) $login_start, (int) $login_end - (int) $login_start );

@@ -111,6 +111,9 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
 	Delnavazan\Platform\Integrations\StudentClassJoinController::register();
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitLaunchController::register();
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackController::register();
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomRevocationListener::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
@@ -130,6 +133,8 @@ add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingDayAva
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Notifications\\TelnyxWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitTokenRestController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitWebhookController', 'register' ) );
 
 add_action( 'dzn_teacher_activated', static function ( int $teacherId ): void {
 	try {

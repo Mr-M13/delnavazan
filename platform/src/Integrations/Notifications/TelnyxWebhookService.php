@@ -109,6 +109,10 @@ final class TelnyxWebhookService {
         $message=$this->provider->messageForReference($referenceDigest);
         if(!$message)return $this->result('unmapped_message',null,null,$event['delivery_state']);
         $state=$event['delivery_state'];
+        if((int)$message->notification_id<1||(int)$message->attempt_id<1){
+            if($state!==null)$this->provider->updateMessageState($referenceDigest,$state,NotificationSupport::now());
+            return $this->result('test_delivery',null,null,$state);
+        }
         if($state===null)return $this->result('ignored_status',(int)$message->notification_id,(int)$message->attempt_id);
         $result=$this->evidence->submit(array(
             'notification_id'=>(int)$message->notification_id,'attempt_id'=>(int)$message->attempt_id,

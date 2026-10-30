@@ -55,6 +55,8 @@ foreach($registry as $name=>$definition){
     if($definition['variable_order']===array()||count($definition['variable_order'])!==count(array_unique($definition['variable_order'])))throw new RuntimeException('registry variable order invalid: '.$name);
 }
 if(TelnyxTemplateRegistry::nameForEvent('lesson.access.student')!=='delnavazan_class_access_fa')throw new RuntimeException('registry reverse lookup failed');
+$error=TelnyxWhatsAppAdapter::providerError(array('errors'=>array(array('code'=>'40310','title'=>'Invalid to','detail'=>'The number +15550001111 or student@example.com is invalid'))));
+if(($error['provider_code']??'')!=='40310'||!str_contains((string)$error['provider_title'],'Invalid')||!str_contains((string)$error['provider_detail'],'[number]')||!str_contains((string)$error['provider_detail'],'[email]')||str_contains((string)$error['provider_detail'],'+15550001111')||str_contains((string)$error['provider_detail'],'student@example.com'))throw new RuntimeException('provider error detail must be parsed and redacted');
 if(!\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('MANUAL_RENEWAL_PAYMENT_REQUIRED','mobile'))throw new RuntimeException('provider STOP must suppress a mobile payment intent');
 if(\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('MANUAL_RENEWAL_PAYMENT_REQUIRED','email'))throw new RuntimeException('provider STOP must not suppress the email route');
 if(\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('STUDENT_ACCOUNT_CLAIM_ISSUED','mobile'))throw new RuntimeException('provider STOP must not suppress a security account intent');

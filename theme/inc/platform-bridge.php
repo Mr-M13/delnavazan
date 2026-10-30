@@ -512,6 +512,45 @@ function dzn_theme_platform_calendar_export_url( $role, array $row ) {
 	} catch ( Throwable ) { return ''; }
 }
 
+/** LiveKit is the primary classroom; it does not depend on a Google Meet mapping existing. */
+function dzn_theme_platform_livekit_available( $role, array $row, $is_booking, $within_join ) {
+	if ( ! $within_join ) { return false; }
+	if ( $is_booking ) {
+		return in_array( (string) ( $row['version'] ?? '' ), array( 'student_booking_class_v1', 'teacher_booking_class_v1' ), true )
+			&& 'confirmed' === (string) ( $row['confirmation_state'] ?? 'confirmed' )
+			&& '' !== trim( (string) ( $row['confirmation_uid'] ?? '' ) );
+	}
+	// A cancelled, completed or legacy occurrence is never joinable merely because an old
+	// provider reference exists.
+	return 'authorised' === (string) ( $row['lifecycle_state'] ?? '' )
+		&& '' !== trim( (string) ( $row['lesson_uid'] ?? '' ) )
+		&& '' !== trim( (string) ( $row['schedule_version_uid'] ?? '' ) )
+		&& ! str_starts_with( (string) ( $row['schedule_version_uid'] ?? '' ), 'legacy-' );
+}
+
+/** The Meet link remains an explicit, server-opened fallback with its own provider check. */
+function dzn_theme_platform_meet_available( array $row, $is_booking, $within_join ) {
+	if ( ! $within_join || empty( $row['join_available'] ) ) { return false; }
+	return $is_booking || 'authorised' === (string) ( $row['lifecycle_state'] ?? '' );
+}
+
+function dzn_theme_platform_livekit_action_url( $role ) {
+	return admin_url( 'admin-post.php?action=' . ( 'teacher' === $role ? 'dzn_teacher_livekit_class' : 'dzn_student_livekit_class' ) );
+}
+
+function dzn_theme_platform_livekit_nonce( $role ) {
+	return wp_create_nonce( ( 'teacher' === $role ? 'dzn_teacher' : 'dzn_student' ) . '_livekit_class' );
+}
+
+function dzn_theme_platform_livekit_message( array $row, $is_booking, $within_join, $livekit_available, $meet_available ) {
+	if ( 'cancelled' === (string) ( $row['lifecycle_state'] ?? '' ) ) { return 'این کلاس لغو شده است و ورود به آن امکان‌پذیر نیست.'; }
+	if ( 'completed' === (string) ( $row['lifecycle_state'] ?? '' ) ) { return 'این کلاس به پایان رسیده است.'; }
+	if ( ! $within_join ) { return 'ورود به کلاس از یک ساعت پیش از شروع تا دو ساعت پس از پایان فعال است.'; }
+	if ( $livekit_available ) { return ''; }
+	if ( $meet_available ) { return 'کلاس زندهٔ دلنوازان برای این جلسه در دسترس نیست؛ گزینهٔ پشتیبان گوگل میت فعال است.'; }
+	return 'دسترسی ورود برای این جلسه تأیید نشده است. صفحه را تازه کنید یا با پشتیبانی دلنوازان تماس بگیرید.';
+}
+
 /**
  * A truthful provisioning notice for an Enrolment whose Term/Lessons are not ready yet.
  *
@@ -597,7 +636,9 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	$state = $is_booking
 		? ( 'unknown' === $temporal ? 'unknown' : ( 'ended' === $temporal ? 'ended' : ( 'in_progress' === $temporal ? 'in_progress' : ( $within_join ? 'starting_soon' : 'upcoming' ) ) ) )
 		: dzn_theme_platform_lesson_state( $row, $now );
-	$join_available = ! empty( $row['join_available'] ) && $within_join;
+	$join_available = dzn_theme_platform_meet_available( $row, $is_booking, $within_join );
+	$livekit_available = dzn_theme_platform_livekit_available( 'student', $row, $is_booking, $within_join );
+	$livekit_message = dzn_theme_platform_livekit_message( $row, $is_booking, $within_join, $livekit_available, $join_available );
 	// A Student may report an absence before the class or after a missed occurrence. The
 	// Platform remains the authority on term state, cutover policy and finality; the Theme must
 	// not hide the action only because the occurrence is no longer in the future.
@@ -629,12 +670,18 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'timezone_label' => dzn_theme_platform_timezone_label( $timezone ),
 		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $row ),
 		'join_available' => $join_available,
+		'meet_available' => $join_available,
 		'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_student_join_booking_class' : 'dzn_student_join_class' ) ),
 		'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_student_join_booking_class' : 'dzn_student_join_class' ),
+		'livekit_available' => $livekit_available,
+		'livekit_action_url' => dzn_theme_platform_livekit_action_url( 'student' ),
+		'livekit_nonce' => dzn_theme_platform_livekit_nonce( 'student' ),
+		'livekit_kind' => $is_booking ? 'booking' : 'lesson',
+		'livekit_message' => $livekit_message,
 		'confirmation_uid' => $is_booking ? (string) ( $row['confirmation_uid'] ?? '' ) : '',
 		'join_message' => $is_booking
 			? dzn_theme_platform_booking_join_message( $row, $within_join )
-			: ( ! empty( $row['join_available'] ) ? ( $within_join ? 'ورود به کلاس در همین لحظه فعال است.' : 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.' ) : 'لینک امن Google Meet برای این کلاس هنوز آماده نیست.' ),
+			: ( $livekit_available ? ( 'کلاس زندهٔ دلنوازان آماده است.' ) : ( $join_available ? 'کلاس زندهٔ دلنوازان در دسترس نیست؛ گزینهٔ پشتیبان گوگل میت فعال است.' : ( $livekit_message ?: 'ورود به کلاس در این لحظه فعال نیست.' ) ) ),
 		'absence_available' => $absence_available,
 		'absence_message' => '',
 		'absence_action_url' => admin_url( 'admin-post.php?action=dzn_student_report_absence' ),
@@ -970,6 +1017,9 @@ function dzn_theme_platform_student_model( $screen ) {
 	$display_timezone = $student_timezone;
 	$model['announcement'] = array();
 	$model['booking_requests'] = array_values( array_filter( $booking_requests, static fn( $row ) => is_array( $row ) && 'student_booking_request_v1' === ( $row['version'] ?? '' ) ) );
+	$upcoming_join_available = $next ? dzn_theme_platform_meet_available( $next, $is_booking, $within_join_window ) : false;
+	$upcoming_livekit_available = $next ? dzn_theme_platform_livekit_available( 'student', $next, $is_booking, $within_join_window ) : false;
+	$upcoming_livekit_message = $next ? dzn_theme_platform_livekit_message( $next, $is_booking, $within_join_window, $upcoming_livekit_available, $upcoming_join_available ) : '';
 	$model['upcoming_lesson'] = $next ? array(
 		'presentation_state' => $is_booking
 			? ( 'ended' === $booking_temporal( $next ) ? 'ended' : ( 'in_progress' === $booking_temporal( $next ) ? 'in_progress' : ( $within_join_window ? 'starting_soon' : 'upcoming' ) ) )
@@ -985,13 +1035,19 @@ function dzn_theme_platform_student_model( $screen ) {
 		'timezone_label' => dzn_theme_platform_timezone_label( $display_timezone ),
 		'starts_at_utc' => (string) ( $next['starts_at_utc'] ?? '' ),
 		'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $next['starts_at_utc'] ?? '' ) ),
-		'join_available' => ! empty( $next['join_available'] ) && $within_join_window,
+		'join_available' => $upcoming_join_available,
+		'meet_available' => $upcoming_join_available,
 		'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_student_join_booking_class' : 'dzn_student_join_class' ) ),
 		'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_student_join_booking_class' : 'dzn_student_join_class' ),
+		'livekit_available' => $upcoming_livekit_available,
+		'livekit_action_url' => dzn_theme_platform_livekit_action_url( 'student' ),
+		'livekit_nonce' => dzn_theme_platform_livekit_nonce( 'student' ),
+		'livekit_kind' => $is_booking ? 'booking' : 'lesson',
+		'livekit_message' => $upcoming_livekit_message,
 		'confirmation_uid' => $is_booking ? (string) ( $next['confirmation_uid'] ?? '' ) : '',
 		'join_message' => $is_booking
 			? dzn_theme_platform_booking_join_message( $next, $within_join_window )
-			: ( ! empty( $next['join_available'] ) ? ( $within_join_window ? 'ورود به کلاس در همین لحظه فعال است.' : 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.' ) : 'لینک امن Google Meet برای این کلاس هنوز آماده نیست.' ),
+			: ( $upcoming_livekit_available ? 'کلاس زندهٔ دلنوازان آماده است.' : ( $upcoming_join_available ? 'کلاس زندهٔ دلنوازان در دسترس نیست؛ گزینهٔ پشتیبان گوگل میت فعال است.' : ( $upcoming_livekit_message ?: 'ورود به کلاس در این لحظه فعال نیست.' ) ) ),
 		// Action eligibility is not evidence that an absence was reported. The
 		// label follows an explicit Platform fact only.
 		'absence_available' => ! $is_booking && in_array( (string) ( $next['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true ) && 'settled' !== (string) ( $next['attendance_state_summary'] ?? '' ) && empty( $next['absence_final'] ),
@@ -1001,7 +1057,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'lesson_uid' => (string) ( $next['lesson_uid'] ?? '' ),
 		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
 		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $next ),
-		'notice' => $is_booking ? 'جلسهٔ معارفهٔ رایگان شما تأیید شده است.' : ( 'in_progress' === dzn_theme_platform_lesson_temporal_state( $next, $now ) ? 'این کلاس همین حالا در جریان است.' : ( ! empty( $next['join_available'] ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ) ),
+		'notice' => $is_booking ? 'جلسهٔ معارفهٔ رایگان شما تأیید شده است.' : ( 'in_progress' === dzn_theme_platform_lesson_temporal_state( $next, $now ) ? 'این کلاس همین حالا در جریان است.' : ( ( $upcoming_livekit_available || $upcoming_join_available ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ) ),
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
 	$term_progress = $is_booking ? array() : dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
@@ -1316,7 +1372,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$soon = $start && $start - $now <= HOUR_IN_SECONDS;
 		$ended = 'ended' === $temporal;
 		$within_join = $start && $end && $start - HOUR_IN_SECONDS <= $now && $end + ( 2 * HOUR_IN_SECONDS ) >= $now;
-		$join_ready = $is_booking && ! empty( $lesson['join_available'] ) && $within_join;
+		$join_ready = dzn_theme_platform_meet_available( $lesson, $is_booking, $within_join );
+		$livekit_ready = dzn_theme_platform_livekit_available( 'teacher', $lesson, $is_booking, $within_join );
+		$classroom_message = dzn_theme_platform_livekit_message( $lesson, $is_booking, $within_join, $livekit_ready, $join_ready );
 		$class_timezone = (string) ( $teacher_timezone ?: ( $lesson['schedule_timezone'] ?? 'UTC' ) );
 		$state = 'in_progress' === $temporal ? 'in_progress' : ( $ended ? 'ended' : ( $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) ) ) );
 		$reference = trim( (string) ( $is_booking ? ( $lesson['confirmation_uid'] ?? '' ) : ( $lesson['reference_code'] ?? '' ) ) );
@@ -1337,11 +1395,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' );
 		$class = array(
 			'ref' => $reference,
-			'start_available' => $is_booking ? $join_ready : ( ! empty( $lesson['join_available'] ) && $within_join ),
+			'start_available' => $livekit_ready || $join_ready,
+			'livekit_available' => $livekit_ready,
+			'livekit_action_url' => dzn_theme_platform_livekit_action_url( 'teacher' ),
+			'livekit_nonce' => dzn_theme_platform_livekit_nonce( 'teacher' ),
+			'livekit_kind' => $is_booking ? 'booking' : 'lesson',
+			'livekit_message' => $classroom_message,
+			'meet_available' => $join_ready,
 			'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ) ),
 			'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ),
 			'confirmation_uid' => $is_booking ? (string) ( $lesson['confirmation_uid'] ?? '' ) : '',
-			'join_message' => $is_booking ? dzn_theme_platform_booking_join_message( $lesson, $soon ) : '',
+			'join_message' => $classroom_message,
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
 			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
 			'is_today' => ! $is_booking && $is_today_row,

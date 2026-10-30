@@ -21,7 +21,7 @@ function dzn_theme_route() {
 	}
 	// Preserve the recovered public enrolment URL while the booking experience uses one canonical renderer.
 	if ( 'enrol' === $path ) { $path = 'booking'; }
-	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'recording-and-research' );
+	$routes = array( 'booking', 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'recording-and-research', 'music-classroom' );
 	return in_array( $path, $routes, true ) ? $path : '';
 }
 
@@ -463,6 +463,8 @@ function dzn_theme_render_recording_information_route() {
 	get_template_part( 'template-parts/recording/research-information' );
 }
 
+function dzn_theme_render_music_classroom_route() { get_template_part( 'template-parts/classroom/music' ); }
+
 /**
  * Legacy `/booking/` links remain temporary entry points.
  *
@@ -507,7 +509,7 @@ function dzn_theme_render_virtual_route() {
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
 	$is_legal_pending = str_starts_with( $route, 'legal:' );
-	$protected = ! $is_legal_pending && in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true );
+	$protected = ! $is_legal_pending && in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'music-classroom' ), true );
 	// Protected redirects must carry the same no-store/noindex contract as the
 	// rendered screen. Send headers before any dashboard or signed-out redirect.
 	if ( $protected ) {
@@ -520,6 +522,7 @@ function dzn_theme_render_virtual_route() {
 	}
 	if ( 'student-portal' === $route ) { dzn_theme_redirect_signed_out_portal( 'student' ); }
 	if ( 'teacher-portal' === $route ) { dzn_theme_redirect_signed_out_portal( 'teacher' ); }
+	if ( 'music-classroom' === $route && ! is_user_logged_in() ) { wp_safe_redirect( add_query_arg( 'redirect_to', home_url( '/music-classroom/' ), home_url( '/login/' ) ) ); exit; }
 	global $wp_query;
 	if ( $wp_query ) { $wp_query->is_404 = false; }
 	status_header( 200 );
@@ -546,6 +549,7 @@ function dzn_theme_render_virtual_route() {
 		case 'student-portal': dzn_theme_render_portal_route( 'student' ); break;
 		case 'admin-operations': dzn_theme_render_admin_route(); break;
 		case 'recording-and-research': dzn_theme_render_recording_information_route(); break;
+		case 'music-classroom': dzn_theme_render_music_classroom_route(); break;
 	}
 	get_footer();
 	exit;
@@ -556,5 +560,25 @@ function dzn_theme_route_assets() {
 	if ( dzn_theme_is_route( 'booking' ) ) { dzn_theme_enqueue_booking_assets(); }
 	if ( dzn_theme_is_route( 'student-portal' ) || dzn_theme_is_route( 'dashboard' ) ) { dzn_theme_enqueue_portal_assets(); }
 	if ( dzn_theme_is_route( 'teacher-portal' ) ) { dzn_theme_enqueue_teacher_portal_assets(); }
+	if ( dzn_theme_is_route( 'music-classroom' ) ) {
+		$css = get_theme_file_path( 'assets/css/music-classroom.css' );
+		$js = get_theme_file_path( 'assets/js/music-classroom.js' );
+		$sdk = get_theme_file_path( 'assets/js/vendor/livekit-client.umd.min.js' );
+		$version = file_exists( $css ) ? (string) filemtime( $css ) : wp_get_theme()->get( 'Version' );
+		wp_enqueue_style( 'delnavazan-music-classroom', get_theme_file_uri( 'assets/css/music-classroom.css' ), array( 'delnavazan-theme' ), $version );
+		wp_enqueue_script( 'delnavazan-livekit-client', get_theme_file_uri( 'assets/js/vendor/livekit-client.umd.min.js' ), array(), file_exists( $sdk ) ? (string) filemtime( $sdk ) : wp_get_theme()->get( 'Version' ), array( 'in_footer' => true ) );
+		wp_enqueue_script( 'delnavazan-music-classroom', get_theme_file_uri( 'assets/js/music-classroom.js' ), array( 'delnavazan-livekit-client' ), file_exists( $js ) ? (string) filemtime( $js ) : wp_get_theme()->get( 'Version' ), array( 'in_footer' => true ) );
+		wp_localize_script(
+			'delnavazan-music-classroom',
+			'dznMusicClassroom',
+			array(
+				'sessionUrl' => esc_url_raw( rest_url( 'delnavazan-platform/v1/livekit/session' ) ),
+				'nonce' => wp_create_nonce( 'wp_rest' ),
+				'logoUrl' => get_theme_file_uri( 'assets/images/delnavazan-logo.png' ),
+				'meetActionUrl' => admin_url( 'admin-post.php?action=dzn_livekit_meet_fallback' ),
+				'meetNonce' => wp_create_nonce( 'dzn_livekit_meet_fallback' ),
+			)
+		);
+	}
 }
 add_action( 'wp_enqueue_scripts', 'dzn_theme_route_assets', 21 );

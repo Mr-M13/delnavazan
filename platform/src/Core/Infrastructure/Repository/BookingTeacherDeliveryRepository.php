@@ -225,6 +225,46 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         return is_array($rows) ? $rows : array();
     }
 
+    /**
+     * Display-safe context for an authenticated classroom participant.
+     *
+     * This is the same canonical confirmation chain as confirmedForParticipant(), with the names
+     * and course title needed to label a room. It never opens the vaulted Meet reference.
+     */
+    public function confirmedParticipantContext(string $confirmationUid, string $role, int $participantId): ?object {
+        global $wpdb;
+        if (!in_array($role, array('teacher','student'), true) || $participantId < 1) return null;
+        $owner = $role === 'teacher' ? 'c.teacher_id' : 'r.student_id';
+        $identity = $role === 'student'
+            ? " INNER JOIN {$this->prefix}booking_request_identity_resolution_events identity ON identity.id=r.current_identity_resolution_id AND identity.booking_request_id=r.id AND identity.student_id=r.student_id AND identity.outcome='resolved'"
+            : '';
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.version confirmation_version,c.teacher_id,
+                       c.starts_at_utc,c.ends_at_utc,c.provider_code,c.provider_event_digest,c.confirmed_at,
+                       d.teacher_id delivery_teacher_id,d.state delivery_state,
+                       r.student_id,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       COALESCE(NULLIF(s.display_name,''),NULLIF(snap.full_name,''),s.reference_code,'هنرجو') student_name,
+                       COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),NULLIF(t.persian_name,''),t.reference_code,'مدرس') teacher_name,
+                       COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en,'کلاس موسیقی') course_name,
+                       secret.id projection_secret_id,secret.state projection_secret_state
+                FROM {$this->prefix}booking_request_confirmations c
+                INNER JOIN {$this->prefix}booking_request_teacher_deliveries d ON d.id=c.delivery_id AND d.booking_request_id=c.booking_request_id AND d.requested_time_id=c.requested_time_id AND d.teacher_id=c.teacher_id
+                INNER JOIN {$this->prefix}booking_requests r ON r.id=c.booking_request_id
+                {$identity}
+                INNER JOIN {$this->prefix}booking_request_contact_snapshots snap ON snap.booking_request_id=r.id AND snap.snapshot_sequence=1
+                INNER JOIN {$this->prefix}teachers t ON t.id=c.teacher_id
+                LEFT JOIN {$this->prefix}students s ON s.id=r.student_id
+                INNER JOIN {$this->prefix}instruments i ON i.id=r.requested_instrument_id
+                LEFT JOIN {$this->prefix}courses course ON course.id=r.selected_intro_course_id
+                LEFT JOIN {$this->prefix}provider_projection_secrets secret ON secret.mapping_kind='booking_calendar' AND secret.mapping_id=c.id AND secret.state='active' AND secret.active_slot=1
+                WHERE c.uid=%s AND {$owner}=%d AND c.state='confirmed' AND d.state='confirmed'
+                  AND r.lifecycle_status='closed' AND r.resolution_state='teacher_confirmed' AND r.privacy_erased_at IS NULL
+                  AND c.provider_code='google_calendar' AND c.provider_event_digest IS NOT NULL AND c.confirmed_at IS NOT NULL
+                LIMIT 1";
+        $row = $wpdb->get_row($wpdb->prepare($sql, $confirmationUid, $participantId));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Confirmed booking classroom context unavailable');
+        return $row ?: null;
+    }
+
     /** One confirmed booking row for an authenticated join action. */
     public function confirmedForParticipant(string $confirmationUid, string $role, int $participantId): ?object {
         global $wpdb;

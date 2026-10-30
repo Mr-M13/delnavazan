@@ -29,20 +29,28 @@ final class AdminShellController {
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
+            ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
+            ['WhatsApp', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
             ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
-            ['Meta WhatsApp Cloud API', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
-            ['SMS fallback', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
-            ['Notifications & Messaging', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
-            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
-            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
+            ['SMS', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
             ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings'],
             ['Staff access', 'dzn-staff-access', 'manage_options'],
             ['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
             ['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities'],
             ['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP],
+            // Protected legacy routes. They stay registered and keep working from bookmarks, but the
+            // visible Settings navigation is the Notifications workspace and its channel settings.
+            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
+            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
         ]],
     ];
+
+    /**
+     * Protected routes that remain resolvable but are no longer separate visible Settings entries.
+     * They stay in group membership so an old bookmark still highlights the correct area.
+     */
+    private const HIDDEN_SETTINGS_ROUTES = ['dzn-communications', 'dzn-communications-templates'];
 
     /**
      * Settings is a single area with five work groups. The individual protected
@@ -52,7 +60,7 @@ final class AdminShellController {
      */
     private const SETTINGS_GROUPS = [
         'general' => ['General', ['dzn-general']],
-        'messaging' => ['Messaging', ['dzn-notifications', 'dzn-integration-email', 'dzn-integration-whatsapp', 'dzn-integration-sms', 'dzn-communications', 'dzn-communications-templates']],
+        'messaging' => ['Messaging', ['dzn-notifications', 'dzn-integration-whatsapp', 'dzn-integration-email', 'dzn-integration-sms', 'dzn-communications', 'dzn-communications-templates']],
         'integrations' => ['Integrations', ['dzn-integrations', 'dzn-integration-google']],
         'access' => ['Access', ['dzn-staff-access', 'dzn-portal-capabilities']],
         'system' => ['System', ['dzn-system-health', 'dzn-core-dataset-readiness']],
@@ -205,6 +213,7 @@ final class AdminShellController {
         echo '<nav class="dzn-admin-shell__subtabs dzn-admin-shell__subtabs--pages" aria-label="' . esc_attr($visibleGroups[$activeGroup][0]) . ' pages">';
         foreach ($visibleGroups[$activeGroup][1] as $destination) {
             [$label, $slug, $capabilities] = $destination;
+            if (in_array($slug, self::HIDDEN_SETTINGS_ROUTES, true) && $slug !== $page) continue;
             $args = isset($destination[3]) && is_array($destination[3]) ? $destination[3] : [];
             $url = admin_url('admin.php?' . http_build_query(array_merge(array('page' => $slug), $args)));
             $current = $slug === $page;

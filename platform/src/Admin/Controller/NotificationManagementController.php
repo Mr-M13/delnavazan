@@ -2,6 +2,8 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\IntegrationControlPlaneReadService;
+use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
+use Delnavazan\Platform\Core\Application\NotificationDeliveryStatusReadService;
 use Delnavazan\Platform\Core\Application\NotificationDiagnosticsReadService;
 use Delnavazan\Platform\Core\Application\NotificationRule;
 use Delnavazan\Platform\Core\Application\NotificationDispatchService;
@@ -14,18 +16,22 @@ use Delnavazan\Platform\Portals\PortalNotificationInbox;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 
 /**
- * Notifications & Messaging — one capability-checked, nonce-protected communications workspace.
+ * Notifications — one capability-checked, nonce-protected communications workspace.
  *
- * Sections: message templates, delivery rules, delivery monitoring, channel settings and website
- * notifications. Every mutation is a POST/redirect/GET with server-side validation; every read is
- * escaped. The page can never change a recipient, authorise a payment, modify a lesson or bypass the
- * business authority that produced a notification.
+ * Templates are the working surface. Channel settings (WhatsApp, Email, SMS) and the moved delivery
+ * diagnostics live in two secondary views; the old tab URLs remain resolvable so bookmarks keep
+ * working. Every mutation is a POST/redirect/GET with server-side validation and every read is escaped.
+ * The page can never change a recipient, authorise a payment, modify a lesson or bypass the business
+ * authority that produced a notification.
  */
 final class NotificationManagementController {
     public const PAGE='dzn-notifications';
     public const CAP_EDIT='dzn_manage_notification_templates';
     public const CAP_VIEW=NotificationRule::READ_CAPABILITY;
     private const FLASH='dzn_notification_flash_';
+
+    /** Old bookmarked tab names map to their new home instead of becoming dead URLs. */
+    private const LEGACY_TABS=array('rules'=>'settings','channels'=>'settings','monitoring'=>'diagnostics','website'=>'diagnostics');
 
     public static function register():void{
         add_action('admin_post_dzn_notification_copy_save_draft',array(__CLASS__,'saveDraft'));
@@ -42,20 +48,23 @@ final class NotificationManagementController {
 
     public static function screen():void{
         self::authorizeView();
-        $tab=isset($_GET['tab'])&&is_scalar($_GET['tab'])?sanitize_key(wp_unslash((string)$_GET['tab'])):'templates';
-        if(!in_array($tab,array('templates','rules','monitoring','channels','website'),true))$tab='templates';
-        echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:72ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}</style><h1>Notifications &amp; Messaging</h1>';
-        echo '<p class="dzn-notif-lede">Manage email, WhatsApp, SMS and portal notification templates in one place. Editing copy never changes a recipient, authorises a payment, alters a lesson or bypasses the business authority that produced the notification.</p>';
+        $requested=isset($_GET['tab'])&&is_scalar($_GET['tab'])?sanitize_key(wp_unslash((string)$_GET['tab'])):'templates';
+        $tab=self::LEGACY_TABS[$requested]??$requested;
+        if(!in_array($tab,array('templates','settings','diagnostics'),true))$tab='templates';
+        echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:78ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-table details{margin-block:4px}.dzn-notif-table details pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;line-height:1.9;margin:6px 0;max-height:180px;overflow:auto}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}.dzn-notif-record-status{border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin-block:18px}.dzn-notif-record-status h2{margin-block-start:0}</style><h1>Notifications</h1>';
+        echo '<p class="dzn-notif-lede">Templates are the working surface: review each notification’s copy and its applicable delivery choices together. Editing copy never changes a recipient, authorises a payment, alters a lesson or bypasses the business authority that produced the notification.</p>';
         self::renderFlash();
-        $tabs=array('templates'=>'Templates','rules'=>'Delivery Rules','monitoring'=>'Delivery Monitoring','channels'=>'Channels','website'=>'Portal Notifications');
+        if($requested!==$tab){
+            $legacy=array('rules'=>'Delivery Rules','channels'=>'Channels','monitoring'=>'Delivery Monitoring','website'=>'Portal Notifications');
+            echo '<div class="notice notice-info inline"><p>'.esc_html((string)($legacy[$requested]??'That view')).' has moved into '.esc_html($tab==='settings'?'Channel settings':'Diagnostics').'. The old URL still works.</p></div>';
+        }
+        $tabs=array('templates'=>'Templates','settings'=>'Channel settings','diagnostics'=>'Diagnostics');
         echo '<nav class="nav-tab-wrapper">';
         foreach($tabs as $slug=>$label)echo '<a class="nav-tab'.($tab===$slug?' nav-tab-active':'').'" href="'.esc_url(self::url(array('tab'=>$slug))).'">'.esc_html($label).'</a>';
         echo '</nav><div class="dzn-notif-panel">';
         match($tab){
-            'rules'=>self::renderRules(),
-            'monitoring'=>self::renderMonitoring(),
-            'channels'=>self::renderChannels(),
-            'website'=>self::renderWebsite(),
+            'settings'=>self::renderSettings(),
+            'diagnostics'=>self::renderDiagnostics(),
             default=>self::renderTemplates(),
         };
         echo '</div></div>';
@@ -75,6 +84,7 @@ final class NotificationManagementController {
         }
         $channel=isset($_GET['channel'])&&is_scalar($_GET['channel'])?sanitize_key(wp_unslash((string)$_GET['channel'])):'';
         $locale=isset($_GET['locale'])&&is_scalar($_GET['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_GET['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
+        echo '<h2>Templates</h2><p>Each event is shown once with its copy and only the delivery choices that its category, event and provider state permit. Email and Portal are the defaults for events that support both.</p>';
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="templates">';
         echo '<label>Channel <select name="channel"><option value="">All</option>';
         foreach(array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($channel===$value?' selected':'').'>'.esc_html($label).'</option>';
@@ -82,22 +92,53 @@ final class NotificationManagementController {
         $rows=$library->catalogueRows($channel===''?null:$channel,$locale);
         $groups=array();
         foreach($rows as $row)$groups[(string)$row['event_key']][]=$row;
-        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' templates across '.esc_html((string)count($groups)).' events. Default copy is always recoverable and published versions are immutable.</p>';
-        echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Event</th><th>Category</th><th>Channel</th><th>Version Status</th><th>Provider</th><th>Warnings</th><th></th></tr></thead><tbody>';
-        foreach($groups as $eventRows){
-            $first=true;
+        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' applicable templates across '.esc_html((string)count($groups)).' events. Default copy is always recoverable and published versions are immutable.</p>';
+        if(!self::canEdit())echo '<p class="dzn-notif-note">You have read-only access. Editing and publishing require the <code>dzn_manage_notification_templates</code> capability.</p>';
+        if($groups===array()){echo '<p>No template matches this channel and language filter.</p>';return;}
+        echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Notification</th><th>Category</th><th>Copy</th><th>Delivery choices</th><th>Readiness</th><th>Actions</th></tr></thead><tbody>';
+        foreach($groups as $eventKey=>$eventRows){
+            $event=NotificationCatalogue::get($eventKey)??array();
+            echo '<tr><td><strong>'.esc_html((string)($event['label']??$eventKey)).'</strong><br><code dir="ltr">'.esc_html($eventKey).'</code></td>';
+            echo '<td>'.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]['label']??($event['category']??''))).'</td><td>';
+            $issues=array();
             foreach($eventRows as $row){
-                echo '<tr>';
-                if($first){echo '<td rowspan="'.esc_attr((string)count($eventRows)).'"><strong>'.esc_html((string)$row['label']).'</strong><br><code dir="ltr">'.esc_html((string)$row['event_key']).'</code></td>';echo '<td rowspan="'.esc_attr((string)count($eventRows)).'">'.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)$row['category']]['label']??$row['category'])).'</td>';$first=false;}
-                echo '<td>'.esc_html(self::channelLabel((string)$row['channel'])).' · '.esc_html((string)$row['locale']).'</td>';
-                echo '<td>'.esc_html(self::versionStateLabel((string)$row['active_state'],(bool)$row['published'],$row['draft'])).'</td>';
-                echo '<td>'.esc_html(self::providerStateLabel((string)$row['provider_state'])).'</td>';
-                echo '<td>'.($row['issues']?'<span class="dzn-badge is-warn">'.esc_html((string)count($row['issues'])).' issue(s)</span>':'<span class="dzn-badge is-ok">Ready</span>').'</td>';
-                echo '<td><a class="button button-small" href="'.esc_url(self::url(array('tab'=>'templates','template'=>(string)$row['event_key'],'channel'=>(string)$row['channel'],'locale'=>(string)$row['locale']))).'">'.(self::canEdit()?'Edit':'View').'</a></td></tr>';
+                $working=$library->workingCopy($eventKey,(string)$row['channel'],(string)$row['locale']);
+                $subject=trim((string)($working['editable']['subject']??''));
+                $body=trim((string)($working['editable']['body']??''));
+                echo '<details><summary><strong>'.esc_html(self::channelLabel((string)$row['channel'])).'</strong> · '.esc_html($subject!==''?$subject:self::excerpt($body,80)).'</summary>';
+                if($subject!=='')echo '<p><strong>'.esc_html((string)$row['channel']==='website'?'Title':'Subject').':</strong> '.esc_html($subject).'</p>';
+                echo '<pre dir="rtl" lang="fa">'.esc_html($body).'</pre></details>';
+                foreach((array)$row['issues'] as $issue)$issues[]=(string)$issue;
             }
+            echo '</td><td>';
+            foreach($eventRows as $row){
+                $channel=(string)$row['channel'];
+                $default=in_array($channel,array('email','website'),true);
+                $provider=self::providerReady($channel);
+                $state=(string)$row['provider_state'];
+                $label=self::channelLabel($channel).($default?' · default':'');
+                if($provider!==null)$label.=' · '.($provider?'Configured (unverified)':'Provider not configured');
+                elseif($state==='not_mapped')$label.=' · Not mapped';
+                elseif($state==='approval_required')$label.=' · Re-approval required';
+                elseif($state==='mapped')$label.=' · Mapped';
+                elseif($state==='restricted_fallback')$label.=' · Fallback only';
+                $class=$state==='not_mapped'||$state==='approval_required'||$provider===false?'is-warn':'is-ok';
+                echo '<div><span class="dzn-badge '.esc_attr($class).'">'.esc_html($label).'</span></div>';
+                if($channel==='whatsapp'&&$provider===false)$issues[]='The WhatsApp provider is not configured; business-initiated sending will not start.';
+                if($channel==='sms'&&$provider===false)$issues[]='The SMS provider is not configured; SMS remains unavailable.';
+            }
+            echo '</td><td>';
+            if($issues)echo '<span class="dzn-badge is-warn">'.esc_html((string)count(array_unique($issues))).' issue(s)</span><ul class="dzn-notif-list">';
+            else echo '<span class="dzn-badge is-ok">Ready</span><ul class="dzn-notif-list">';
+            foreach(array_unique($issues) as $issue)echo '<li>'.esc_html($issue).'</li>';
+            echo '</ul></td><td>';
+            foreach($eventRows as $row){
+                echo '<div><a class="button button-small" href="'.esc_url(self::url(array('tab'=>'templates','template'=>$eventKey,'channel'=>(string)$row['channel'],'locale'=>(string)$row['locale']))).'">'.(self::canEdit()?'Edit':'View').' '.esc_html(self::channelLabel((string)$row['channel'])).'</a></div>';
+            }
+            echo '</td></tr>';
         }
         echo '</tbody></table>';
-        if(!self::canEdit())echo '<p class="dzn-notif-note">You have read-only access. Editing and publishing require the <code>dzn_manage_notification_templates</code> capability.</p>';
+        self::renderDedicatedAuthorityLink();
     }
 
     private static function renderEditor(NotificationTemplateLibrary $library,string $eventKey,string $channel,string $locale):void{
@@ -105,23 +146,26 @@ final class NotificationManagementController {
         if($event===null)return;
         $status=$library->status($eventKey,$channel,$locale);
         $working=$library->workingCopy($eventKey,$channel,$locale);
-        $editable=self::canEdit()&&(string)$event['authority']!=='dedicated';
+        $permitted=$library->channelPermitted($eventKey,$channel);
         $isDedicated=(string)$event['authority']==='dedicated';
+        $editable=self::canEdit()&&!$isDedicated&&$permitted;
         echo '<p><a href="'.esc_url(self::url(array('tab'=>'templates'))).'">‹ Back to templates</a></p>';
         echo '<h2>'.esc_html((string)$event['label']).'</h2><p class="dzn-notif-meta"><code dir="ltr">'.esc_html($eventKey).'</code> · '.esc_html(self::channelLabel($channel)).' · '.esc_html($locale).' · Category: '.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)$event['category']]['label']??'')).'</p>';
+        if(!$permitted)echo '<div class="notice notice-warning inline"><p>This channel is not offered for this event. The '.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)$event['category']]['label']??'category')).' policy disables it, so it cannot be edited, mapped or sent from here. Its reserved copy remains visible below.</p></div>';
         echo '<div class="dzn-notif-grid">';
         echo '<section class="dzn-notif-card"><h3>Variable Contract</h3><p>Allowed placeholders:</p><p>';
         foreach(NotificationCatalogue::variables($eventKey) as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
         echo '</p><p>Required placeholders for this channel:</p><p>';
         foreach(NotificationTemplateSanitizer::requiredVariables($eventKey,$channel) as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
-        echo '</p><p class="dzn-notif-note">Copy is stored as plain text. The system supplies the HTML structure and brand presentation. Scripts, PHP, HTML tags and browser event handlers are rejected.</p></section>';
+        echo '</p><p class="dzn-notif-note">Copy is stored as plain text. The system supplies the HTML structure and brand presentation. Scripts, PHP, HTML tags and browser event handlers are rejected. Previews use synthetic values and never reveal a one-time secret.</p></section>';
         echo '<section class="dzn-notif-card"><h3>Status</h3><ul class="dzn-notif-list">';
+        echo '<li>Delivery choice: '.esc_html($permitted?'Offered':'Not offered').'</li>';
         echo '<li>Active version: '.esc_html($status['active_version_number']!==null?('#'.$status['active_version_number']):'—').'</li>';
         echo '<li>Stored active copy: '.esc_html($status['published']?'Yes':'No').'</li>';
         echo '<li>Draft: '.esc_html($status['draft']!==null?'Present':'None').'</li>';
         echo '<li>Provider status: '.esc_html(self::providerStateLabel((string)$status['provider_state'])).'</li></ul>';
         if($status['issues']){echo '<div class="notice notice-warning inline"><ul>';foreach($status['issues'] as $issue)echo '<li>'.esc_html((string)$issue).'</li>';echo '</ul></div>';}
-        if($isDedicated){echo '<div class="notice notice-info inline"><p>This message belongs to a dedicated secure delivery authority. Edit its copy on the <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Teacher invitation template page</a> so the one-time code stays out of general notifications.</p></div>';}
+        if($isDedicated&&self::canEditTeacherInvitation()){echo '<div class="notice notice-info inline"><p>This message belongs to a dedicated secure delivery authority. Edit its copy on the <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Teacher invitation template page</a> so the one-time code stays out of general notifications.</p></div>';}
         echo '</section></div>';
 
         if($isDedicated){
@@ -131,7 +175,7 @@ final class NotificationManagementController {
 
         echo '<h3>Preview</h3>';
         $preview=$library->preview($eventKey,$channel,(string)($working['editable']['subject']??''),(string)($working['editable']['body']??''),$locale);
-        echo '<p class="dzn-notif-note">Preview uses synthetic data — no message is sent.</p>';
+        echo '<p class="dzn-notif-note">Preview uses synthetic data — no message is sent and no one-time secret is shown.</p>';
         if($channel==='email'){
             echo '<div class="dzn-notif-preview"><iframe title="Email preview" sandbox="" srcdoc="'.esc_attr((string)$preview['html']).'" style="width:100%;min-height:560px;border:1px solid #dccfc0;border-radius:8px;background:#fff;"></iframe></div>';
         }else{
@@ -139,6 +183,7 @@ final class NotificationManagementController {
             if(is_array($preview['segments']??null))echo '<p class="dzn-notif-meta">'.esc_html('Length: '.$preview['segments']['length'].' · Segments: '.$preview['segments']['segments'].' · Encoding: '.$preview['segments']['encoding']).'</p>';
             echo '</div>';
         }
+        if($channel==='whatsapp')self::renderProviderMapping($library,$eventKey,$channel,$locale,$status);
         echo '<h3>Edit Message</h3>';
         $subject=(string)($working['editable']['subject']??'');
         $body=(string)($working['editable']['body']??'');
@@ -165,6 +210,25 @@ final class NotificationManagementController {
         self::renderHistory($library,$eventKey,$channel,$locale,$status);
     }
 
+    /** Provider mapping belongs with the WhatsApp copy it describes, not in a separate channels tab. */
+    private static function renderProviderMapping(NotificationTemplateLibrary $library,string $eventKey,string $channel,string $locale,array $status):void{
+        if($channel!=='whatsapp')return;
+        $mapping=$library->providerMapping((string)$status['template_key']);
+        $ready=self::providerReady('whatsapp');
+        echo '<h3>WhatsApp provider template</h3><p>Meta must approve the provider template separately. Recording a mapping never sends a message and never changes a published version.</p>';
+        echo '<p>Mapping status: <strong>'.esc_html(self::providerStateLabel((string)$status['provider_state'])).'</strong>';
+        if($mapping['name']!=='')echo ' · <code dir="ltr">'.esc_html($mapping['name'].' · '.$mapping['language']).'</code>';
+        echo '</p>';
+        if(!self::canEdit())return;
+        if(!$ready){
+            echo '<div class="notice notice-warning inline"><p>The WhatsApp provider is not configured. <a href="'.esc_url(admin_url('admin.php?page=dzn-integration-whatsapp')).'">Configure Telnyx WhatsApp and Meta WABA settings</a> before recording a provider mapping. No send is enabled by this page.</p></div>';
+            return;
+        }
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_provider_mapping"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="whatsapp"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
+        wp_nonce_field('dzn_notification_provider_mapping');
+        echo '<input name="provider_name" placeholder="template_name" value="'.esc_attr($mapping['name']).'" maxlength="191" dir="ltr"><input name="provider_language" placeholder="fa" value="'.esc_attr($mapping['language']).'" maxlength="10" dir="ltr" size="6"><button class="button button-small">Record Mapping</button></form>';
+    }
+
     private static function renderHistory(NotificationTemplateLibrary $library,string $eventKey,string $channel,string $locale,array $status):void{
         $history=$library->history($eventKey,$channel,$locale);
         echo '<h3>Version History</h3>';
@@ -183,11 +247,40 @@ final class NotificationManagementController {
         echo '</tbody></table><p class="dzn-notif-note">Restoring never modifies the old version; the same copy is published as a new immutable version. Notifications that already froze a version keep it.</p>';
     }
 
-    // ------------------------------------------------------------------ rules
+    // ------------------------------------------------------------------ channel settings
 
-    private static function renderRules():void{
+    private static function renderSettings():void{
         $library=new NotificationTemplateLibrary();
-        echo '<h2>Delivery Rules</h2><p>Each category has a channel policy. Security, account and financial messages cannot be disabled, and marketing consent never substitutes for operational-message authority.</p>';
+        echo '<h2>Channel settings</h2><p>WhatsApp, Email and SMS settings are listed in that order. Readiness here is local configuration only; it is not provider verification and it never starts a send.</p>';
+        echo '<div class="dzn-notif-grid">';
+        self::renderChannelCard('whatsapp','WhatsApp',array(
+            'Telnyx WhatsApp and Meta WABA configuration (existing saved values are preserved).',
+            'Provider template mapping is recorded in the WhatsApp template editor.',
+            'Provider readiness: '.self::providerReadyLabel('whatsapp'),
+        ),'dzn-integration-whatsapp','Open WhatsApp settings',array('tab'=>'templates','channel'=>'whatsapp'),'Open WhatsApp templates');
+        self::renderChannelCard('email','Email',array(
+            'Sender, SMTP and host-mail settings for account, security and operational email.',
+            'Provider readiness: '.self::providerReadyLabel('email'),
+        ),'dzn-integration-email','Open Email settings');
+        self::renderChannelCard('sms','SMS',array(
+            'SMS is a constrained fallback only; it is never a primary channel.',
+            'Provider readiness: '.self::providerReadyLabel('sms'),
+        ),'dzn-integration-sms','Open SMS settings');
+        echo '</div>';
+        echo '<section class="dzn-notif-card"><h3>Twilio WhatsApp</h3><div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio credentials are stored or read here, and no Twilio WhatsApp send can be enabled from this screen. The existing Telnyx WhatsApp and Meta WABA settings are preserved.</p></div></section>';
+        self::renderChannelRules($library);
+    }
+
+    private static function renderChannelCard(string $channel,string $label,array $lines,string $route,string $routeLabel,?array $templateArgs=null,string $templateLabel=''):void{
+        echo '<section class="dzn-notif-card"><h3>'.esc_html($label).'</h3><ul class="dzn-notif-list">';
+        foreach($lines as $line)echo '<li>'.esc_html($line).'</li>';
+        echo '</ul><p><a class="button button-small" href="'.esc_url(admin_url('admin.php?page='.$route)).'">'.esc_html($routeLabel).'</a>';
+        if($templateArgs!==null&&$templateLabel!=='')echo ' <a class="button button-small" href="'.esc_url(self::url(array_merge(array('tab'=>'templates'),$templateArgs))).'">'.esc_html($templateLabel).'</a>';
+        echo '</p></section>';
+    }
+
+    private static function renderChannelRules(NotificationTemplateLibrary $library):void{
+        echo '<h2>Delivery rules</h2><p>Email and Portal are the default channels for events that offer both. WhatsApp and SMS remain off unless this category policy, the event, recipient consent and provider readiness all permit them. Security, account and financial messages stay mandatory and cannot be disabled.</p>';
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_channel_policy">';
         wp_nonce_field('dzn_notification_channel_policy');
         echo '<table class="widefat striped"><thead><tr><th>Category</th><th>Email</th><th>Portal</th><th>WhatsApp</th><th>SMS</th><th>SMS instead of WhatsApp</th><th>Mandatory</th></tr></thead><tbody>';
@@ -195,29 +288,35 @@ final class NotificationManagementController {
             $locked=!empty($policy['mandatory']);
             echo '<tr><td><input type="hidden" name="policy['.esc_attr($category).'][present]" value="1"><strong>'.esc_html((string)(NotificationCatalogue::CATEGORIES[$category]['label']??$category)).'</strong><br><span class="dzn-notif-meta">'.esc_html((string)(NotificationCatalogue::CATEGORIES[$category]['description']??'')).'</span></td>';
             foreach(array('email','website','whatsapp','sms','sms_fallback') as $flag){
-                echo '<td><input type="checkbox" name="policy['.esc_attr($category).']['.esc_attr($flag).']" value="1"'.(!empty($policy[$flag])?' checked':'').(($locked&&in_array($flag,array('email','website'),true))?' disabled':'').'>';
+                $mandatoryDisabled=$locked&&in_array($flag,array('email','website'),true);
+                $securityDisabled=($category==='security')&&in_array($flag,array('whatsapp','sms','sms_fallback'),true);
+                echo '<td><input type="checkbox" name="policy['.esc_attr($category).']['.esc_attr($flag).']" value="1"'.(!empty($policy[$flag])?' checked':'').(($mandatoryDisabled||$securityDisabled)?' disabled':'').'></td>';
             }
             echo '<td>'.($locked?'<span class="dzn-badge is-locked">Locked</span>':'<span class="dzn-badge">Optional</span>').'</td></tr>';
         }
         echo '</tbody></table>';
         if(self::canEdit())echo '<p><button class="button button-primary">Save Channel Rules</button></p>';
         echo '</form>';
-        echo '<h3>Event → Channel Map</h3><table class="widefat striped"><thead><tr><th>Event</th><th>Category</th><th>Channels</th><th>Delivery Authority</th><th>Consent Basis</th></tr></thead><tbody>';
+        echo '<details><summary><strong>Event → applicable channel map</strong></summary><table class="widefat striped"><thead><tr><th>Event</th><th>Category</th><th>Applicable channels</th><th>Delivery Authority</th><th>Consent Basis</th></tr></thead><tbody>';
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
-            echo '<tr><td>'.esc_html((string)$event['label']).'<br><code dir="ltr">'.esc_html($eventKey).'</code></td><td>'.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)$event['category']]['label']??'')).'</td><td>'.esc_html(implode(', ',array_map(array(__CLASS__,'channelLabel'),(array)$event['channels']))).'</td><td>'.esc_html((string)(NotificationCatalogue::AUTHORITIES[(string)$event['authority']]??$event['authority'])).'</td><td>'.esc_html(self::consentLabel((string)$event['consent'])).'</td></tr>';
+            $channels=$library->permittedChannels($eventKey);
+            echo '<tr><td>'.esc_html((string)$event['label']).'<br><code dir="ltr">'.esc_html($eventKey).'</code></td><td>'.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)$event['category']]['label']??'')).'</td><td>'.esc_html(implode(', ',array_map(array(__CLASS__,'channelLabel'),$channels))).'</td><td>'.esc_html((string)(NotificationCatalogue::AUTHORITIES[(string)$event['authority']]??$event['authority'])).'</td><td>'.esc_html(self::consentLabel((string)$event['consent'])).'</td></tr>';
         }
-        echo '</tbody></table>';
+        echo '</tbody></table></details>';
     }
 
-    // ------------------------------------------------------------------ monitoring
+    // ------------------------------------------------------------------ diagnostics
 
-    private static function renderMonitoring():void{
-        echo '<h2>Delivery Monitoring</h2><p class="dzn-notif-note">“Handed off to provider” only means the email or messaging service accepted the request. “Delivery confirmed” is shown only when a verified provider receipt exists.</p>';
+    private static function renderDiagnostics():void{
+        echo '<h2>Diagnostics</h2><p class="dzn-notif-note">“Handed off to provider” only means the email or messaging service accepted the request. “Delivery confirmed” is shown only when a verified provider receipt exists.</p>';
         $states=array();
         $report=null;
         if(current_user_can(self::CAP_VIEW)||current_user_can('manage_options')){
             try{$report=(new NotificationDiagnosticsReadService())->report();$states=(array)($report['counts']??array());}catch(\Throwable $error){echo '<div class="notice notice-error inline"><p>Notification service diagnostics could not be read.</p></div>';}
         }else{echo '<div class="notice notice-warning inline"><p>Viewing notification service diagnostics requires the <code>dzn_view_notification_authority</code> capability.</p></div>';}
+        $subject=isset($_GET['subject'])&&is_scalar($_GET['subject'])?sanitize_key(wp_unslash((string)$_GET['subject'])):'';
+        $subjectId=isset($_GET['subject_id'])?absint($_GET['subject_id']):0;
+        if($subject!==''&&$subjectId>0)self::renderSubjectDetails($subject,$subjectId);
         $labels=array(
             'pending'=>'Pending schedule','scheduled'=>'Scheduled','queued'=>'Queued','dispatching'=>'Processing',
             'dispatched'=>'Handed off to provider','delivered'=>'Delivery confirmed','closed'=>'Closed',
@@ -251,12 +350,27 @@ final class NotificationManagementController {
         try{
             $inbox=new PortalNotificationInbox();
             $summary=$inbox->adminSummary();
+            $recent=$inbox->recent(50);
             echo '<h3>Portal Notifications</h3><table class="widefat striped"><thead><tr><th>Audience</th><th>Total</th><th>Unread</th></tr></thead><tbody>';
             foreach(array('student'=>'Student','teacher'=>'Teacher','admin'=>'Admin') as $audience=>$label)echo '<tr><td>'.esc_html($label).'</td><td>'.esc_html((string)(int)($summary[$audience]['total']??0)).'</td><td>'.esc_html((string)(int)($summary[$audience]['unread']??0)).'</td></tr>';
             echo '</tbody></table>';
+            echo '<h4>Recent portal notifications</h4>';
+            if($recent===array())echo '<p>No portal notification has been recorded yet.</p>';
+            else{
+                echo '<table class="widefat striped"><thead><tr><th>Created</th><th>Audience</th><th>Event</th><th>Title</th><th>Status</th></tr></thead><tbody>';
+                foreach($recent as $row)echo '<tr><td><code dir="ltr">'.esc_html((string)$row['created_at']).'</code></td><td>'.esc_html(self::audienceLabel((string)$row['audience'])).' #'.esc_html((string)$row['recipient_id']).'</td><td><code dir="ltr">'.esc_html((string)$row['event_key']).'</code></td><td>'.esc_html((string)$row['title']).'</td><td>'.esc_html($row['read']?'Read':'Unread').'</td></tr>';
+                echo '</tbody></table>';
+            }
+            echo '<p class="dzn-notif-note">Portal notifications are removed after '.esc_html((string)PortalNotificationInbox::RETENTION_DAYS).' days. Cleanup deletes only portal-notification rows and never changes class, payment or education history.</p>';
+            if(self::canEdit()){
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_inbox_prune">'.wp_nonce_field('dzn_notification_inbox_prune','_wpnonce',true,false).'<button class="button">Prune Expired Notifications</button></form> ';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_inbox_test">'.wp_nonce_field('dzn_notification_inbox_test','_wpnonce',true,false).'<button class="button">Record Admin Test Notification</button></form>';
+                echo '<p class="dzn-notif-meta">The test notification is recorded for the admin list only; no email, WhatsApp or SMS message is sent.</p>';
+            }
         }catch(\Throwable $error){echo '<div class="notice notice-warning inline"><p>The portal notification table is not ready. Check the database migration.</p></div>';}
         $issues=0;foreach((new NotificationTemplateLibrary())->catalogueRows(null,NotificationCatalogue::PRIMARY_LOCALE) as $row){if($row['issues'])$issues++;}
-        echo '<h3>Template Configuration</h3><p>'.esc_html($issues===0?'All primary-language templates have copy and an active version.':($issues.' templates have configuration warnings.')).' <a href="'.esc_url(self::url(array('tab'=>'templates'))).'">Review templates</a></p>';
+        echo '<h3>Template Configuration</h3><p>'.esc_html($issues===0?'All applicable primary-language templates have copy and an active version.':($issues.' applicable templates have configuration warnings.')).' <a href="'.esc_url(self::url(array('tab'=>'templates'))).'">Review templates</a></p>';
+        if(current_user_can(NotificationRule::READ_CAPABILITY)||current_user_can('manage_options'))echo '<p><a class="button button-small" href="'.esc_url(admin_url('admin.php?page=dzn-communications')).'">Open the legacy communications health view</a></p>';
         if(current_user_can('dzn_operate_notification_dispatch')){
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_recover_leases">';
             wp_nonce_field('dzn_notification_recover_leases');
@@ -264,65 +378,39 @@ final class NotificationManagementController {
         }
     }
 
-    // ------------------------------------------------------------------ channels
-
-    private static function renderChannels():void{
-        echo '<h2>Channels</h2><p>This page shows readiness and mapping only; provider keys and secrets are never displayed.</p>';
-        try{
-            $report=(new IntegrationControlPlaneReadService())->report();
-        }catch(\Throwable $error){$report=null;}
-        echo '<div class="dzn-notif-grid">';
-        $channels=array(
-            'email'=>array('Email','Email settings','dzn-integration-email'),
-            'whatsapp'=>array('WhatsApp (Telnyx / Meta WABA)','WhatsApp settings','dzn-integration-whatsapp'),
-            'sms'=>array('SMS (Telnyx)','SMS settings','dzn-integration-sms'),
-        );
-        foreach($channels as $channel=>[$label,$link,$slug]){
-            $state=(string)($report['notifications']['channels'][$channel]??'not_configured');
-            echo '<section class="dzn-notif-card"><h3>'.esc_html($label).'</h3><p>Connection status: <strong>'.esc_html($state==='configured'?'Configured (unverified)':'Not configured').'</strong></p><p class="dzn-notif-note">Configured does not mean delivery verified.</p><p><a class="button button-small" href="'.esc_url(admin_url('admin.php?page='.$slug)).'">'.esc_html($link).'</a></p></section>';
+    /** Compact delivery status for a booking request or class record, with a protected details link. */
+    public static function renderRecordStatus(string $subject,int $subjectId):void{
+        $subject=in_array($subject,array('booking_request','lesson'),true)?$subject:'';
+        if($subject===''||$subjectId<1)return;
+        $service=new NotificationDeliveryStatusReadService();
+        $status=$subject==='booking_request'?$service->forBookingRequest($subjectId):$service->forLesson($subjectId);
+        echo '<section class="dzn-notif-record-status"><h2>Notifications</h2>';
+        echo '<p class="dzn-notif-meta">Shows notification records linked to this booking or class. Queued means the message is waiting for a worker. Handed off means the provider accepted the request; it is not proof of delivery. Delivery confirmed requires a verified provider receipt. Available in portal means an inbox entry was recorded, not that it was read.</p>';
+        if($status['rows']===array()){echo '<p>No linked notification status is available for this record.</p></section>';return;}
+        echo '<p>';
+        foreach(array(NotificationDeliveryStatusReadService::QUEUED=>'Queued',NotificationDeliveryStatusReadService::HANDED_OFF=>'Handed off',NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED=>'Delivery confirmed',NotificationDeliveryStatusReadService::PORTAL_RECORDED=>'Available in portal',NotificationDeliveryStatusReadService::FAILED=>'Failed',NotificationDeliveryStatusReadService::CLOSED=>'Closed') as $key=>$label){
+            $count=(int)($status['summary'][$key]??0);
+            if($count>0)echo '<span class="dzn-badge '.($key===NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED?'is-ok':($key===NotificationDeliveryStatusReadService::FAILED?'is-warn':'')).'">'.esc_html($label.': '.$count).'</span> ';
         }
-        echo '</div>';
-        echo '<h3>Telnyx Webhook</h3><p>Telnyx signs every delivery and inbound event. The public key is configured on the provider settings page; the URL is shown there and in the Integrations overview.</p>';
-        echo '<h3>WhatsApp Template Mapping</h3><p>For business-initiated messages, each event must map to a provider-approved template and language code. Discovered templates and variable-contract warnings are shown on the WhatsApp settings page. Changing local copy requires provider re-approval, and sending never starts without a valid mapping.</p>';
-        $library=new NotificationTemplateLibrary();
-        echo '<table class="widefat striped"><thead><tr><th>Event</th><th>Mapping Status</th><th>Template ID &amp; Language</th><th></th></tr></thead><tbody>';
-        foreach(NotificationCatalogue::events() as $eventKey=>$event){
-            if(!in_array('whatsapp',(array)$event['channels'],true))continue;
-            $status=$library->status($eventKey,'whatsapp',NotificationCatalogue::PRIMARY_LOCALE);
-            $mapping=$library->providerMapping((string)$status['template_key']);
-            echo '<tr><td>'.esc_html((string)$event['label']).'<br><code dir="ltr">'.esc_html($eventKey).'</code></td><td>'.esc_html(self::providerStateLabel((string)$status['provider_state'])).'</td><td><code dir="ltr">'.esc_html($mapping['name']!==''?$mapping['name'].' · '.$mapping['language']:'—').'</code></td><td>';
-            if(self::canEdit()){
-                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_provider_mapping"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="whatsapp"><input type="hidden" name="locale" value="fa-IR">';
-                wp_nonce_field('dzn_notification_provider_mapping');
-                echo '<input name="provider_name" placeholder="template_name" value="'.esc_attr($mapping['name']).'" maxlength="191" dir="ltr"><input name="provider_language" placeholder="fa" value="'.esc_attr($mapping['language']).'" maxlength="10" dir="ltr" size="6"><button class="button button-small">Record Mapping</button></form>';
-            }
-            echo '</td></tr>';
+        echo '</p>';
+        if(current_user_can(self::CAP_VIEW)||current_user_can('manage_options')){
+            echo '<p><a class="button button-small" href="'.esc_url(self::url(array('tab'=>'diagnostics','subject'=>$subject,'subject_id'=>$subjectId))).'">Inspect notification details</a></p>';
         }
-        echo '</tbody></table>';
-        echo '<h3>SMS Length</h3><p>Persian text is measured as UCS-2: 70 characters for one part and 67 for each additional part. Each SMS template preview shows its length and segment count. SMS is used only as a constrained fallback when delivery policy permits it.</p>';
+        echo '</section>';
     }
 
-    // ------------------------------------------------------------------ website inbox
-
-    private static function renderWebsite():void{
-        $inbox=new PortalNotificationInbox();
-        try{$summary=$inbox->adminSummary();$recent=$inbox->recent(50);}catch(\Throwable $error){echo '<div class="notice notice-error inline"><p>The portal notification table could not be read. Check the database migration.</p></div>';return;}
-        echo '<h2>Portal Notifications</h2><p>Student and teacher notifications appear in their personal portal with a link to the same business event. Admin notifications are kept separate, and clicking a notification never approves a business action.</p>';
-        echo '<table class="widefat striped"><thead><tr><th>Audience</th><th>Total</th><th>Unread</th><th>Retention Policy</th></tr></thead><tbody>';
-        foreach(array('student'=>'Student','teacher'=>'Teacher','admin'=>'Admin') as $audience=>$label)echo '<tr><td>'.esc_html($label).'</td><td>'.esc_html((string)(int)($summary[$audience]['total']??0)).'</td><td>'.esc_html((string)(int)($summary[$audience]['unread']??0)).'</td><td>'.esc_html($audience==='admin'?'Admin console only':(PortalNotificationInbox::RETENTION_DAYS.' days')).'</td></tr>';
-        echo '</tbody></table>';
-        echo '<h3>Recent Notifications</h3>';
-        if($recent===array()){echo '<p>No notification has been recorded yet.</p>';}
-        else{
-            echo '<table class="widefat striped"><thead><tr><th>Created</th><th>Audience</th><th>Event</th><th>Title</th><th>Status</th></tr></thead><tbody>';
-            foreach($recent as $row)echo '<tr><td><code dir="ltr">'.esc_html((string)$row['created_at']).'</code></td><td>'.esc_html(self::audienceLabel((string)$row['audience'])).' #'.esc_html((string)$row['recipient_id']).'</td><td><code dir="ltr">'.esc_html((string)$row['event_key']).'</code></td><td>'.esc_html((string)$row['title']).'</td><td>'.esc_html($row['read']?'Read':'Unread').'</td></tr>';
-            echo '</tbody></table>';
+    private static function renderSubjectDetails(string $subject,int $subjectId):void{
+        if(!in_array($subject,array('booking_request','lesson'),true))return;
+        if(!current_user_can(self::CAP_VIEW)&&!current_user_can('manage_options'))return;
+        $service=new NotificationDeliveryStatusReadService();
+        $status=$subject==='booking_request'?$service->forBookingRequest($subjectId):$service->forLesson($subjectId);
+        echo '<h3>Delivery records for '.esc_html($subject==='booking_request'?'booking request':'class').' #'.esc_html((string)$subjectId).'</h3>';
+        if($status['rows']===array()){echo '<p>No delivery record is available.</p>';return;}
+        echo '<table class="widefat striped"><thead><tr><th>Event</th><th>Source</th><th>State</th><th>Operator meaning</th><th>Attempts</th><th>Handed off</th><th>Delivery confirmed</th><th>Last error</th><th>Updated</th></tr></thead><tbody>';
+        foreach($status['rows'] as $row){
+            echo '<tr><td><code dir="ltr">'.esc_html((string)$row['event_key']).'</code></td><td>'.esc_html((string)$row['source']).'</td><td><code dir="ltr">'.esc_html((string)$row['state']).'</code></td><td>'.esc_html(self::deliveryCategoryLabel((string)$row['category'])).'</td><td>'.esc_html((string)$row['attempt_count']).'</td><td>'.esc_html((string)($row['handed_off_at']??'—')).'</td><td>'.esc_html((string)($row['delivery_confirmed_at']??'—')).'</td><td>'.esc_html((string)($row['last_error_code']??'—')).'</td><td><code dir="ltr">'.esc_html((string)$row['updated_at']).'</code></td></tr>';
         }
-        echo '<div class="dzn-notif-grid"><section class="dzn-notif-card"><h3>Retention</h3><p>Portal notifications are removed after '.esc_html((string)PortalNotificationInbox::RETENTION_DAYS).' days. This cleanup deletes only portal-notification rows and never changes class, payment or education history.</p>';
-        if(self::canEdit())echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_inbox_prune">'.wp_nonce_field('dzn_notification_inbox_prune', '_wpnonce', true, false).'<button class="button">Prune Expired Notifications</button></form>';
-        echo '</section><section class="dzn-notif-card"><h3>Safe Check</h3><p>A test notification is recorded for the admin list only; no email, WhatsApp or SMS message is sent.</p>';
-        if(self::canEdit())echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_inbox_test">'.wp_nonce_field('dzn_notification_inbox_test', '_wpnonce', true, false).'<button class="button">Record Admin Test Notification</button></form>';
-        echo '</section></div>';
+        echo '</tbody></table>';
     }
 
     // ------------------------------------------------------------------ handlers
@@ -357,22 +445,22 @@ final class NotificationManagementController {
     public static function saveProviderMapping():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
         $library->saveProviderMapping($input['event_key'],$input['channel'],$input['locale'],(string)($input['provider_name']??''),(string)($input['provider_language']??''));
         return array('type'=>'success','message'=>'Mapping saved. Meta template approval is still required separately.');
-    },array('nonce'=>'dzn_notification_provider_mapping','tab'=>'channels'));}
+    },array('nonce'=>'dzn_notification_provider_mapping','tab'=>'templates'));}
 
     public static function saveChannelPolicy():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
         $library->saveChannelPolicy((array)($input['policy']??array()));
         return array('type'=>'success','message'=>'Channel rules saved.');
-    },array('nonce'=>'dzn_notification_channel_policy','tab'=>'rules','event_required'=>false));}
+    },array('nonce'=>'dzn_notification_channel_policy','tab'=>'settings','event_required'=>false));}
 
     public static function pruneInbox():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
         $deleted=(new PortalNotificationInbox())->prune();
         return array('type'=>'success','message'=>$deleted.' expired notifications pruned.');
-    },array('nonce'=>'dzn_notification_inbox_prune','tab'=>'website','event_required'=>false));}
+    },array('nonce'=>'dzn_notification_inbox_prune','tab'=>'diagnostics','event_required'=>false));}
 
     public static function testInbox():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
         $id=PortalNotificationRecorder::admin('system.inbox_check.admin','admin_test',(int)get_current_user_id(),array('when'=>'Test sample'),null);
         return $id===null?array('type'=>'error','message'=>'The test notification could not be recorded. Check the portal template configuration.'):array('type'=>'success','message'=>'The test notification was recorded in the admin list only. No email, WhatsApp or SMS message was sent.');
-    },array('nonce'=>'dzn_notification_inbox_test','tab'=>'website','event_required'=>false));}
+    },array('nonce'=>'dzn_notification_inbox_test','tab'=>'diagnostics','event_required'=>false));}
 
     public static function recoverLeases():never{
         if(!current_user_can('dzn_operate_notification_dispatch')&&!current_user_can('manage_options'))wp_die('Forbidden',403);
@@ -383,7 +471,7 @@ final class NotificationManagementController {
             ),'admin-recover-leases:'.gmdate('YmdHi'));
             self::flash('success','Recovery complete: '.$result['recovered'].' re-armed, '.$result['closed'].' closed.');
         }catch(\Throwable $error){self::flash('error','Recovery failed: '.$error->getMessage());}
-        self::redirectBack('monitoring');
+        self::redirectBack('diagnostics');
     }
 
     /** @param callable(NotificationTemplateLibrary,array):array $operation */
@@ -407,6 +495,10 @@ final class NotificationManagementController {
         $event=$eventRequired?NotificationCatalogue::get($input['event_key']):null;
         if($eventRequired&&$event===null){self::flash('error','Unknown notification event.');self::redirectBack('templates');}
         if($event!==null&&(string)$event['authority']==='dedicated'&&in_array($input['channel'],array('email','whatsapp','sms'),true)){self::flash('error','This message belongs to a dedicated secure delivery authority and is not edited from this page.');self::redirectBack('templates');}
+        if($event!==null&&$input['channel']!==''&&!(new NotificationTemplateLibrary())->channelPermitted($input['event_key'],$input['channel'])&&in_array($input['channel'],array('email','whatsapp','sms','website'),true)){
+            self::flash('error','That delivery channel is disabled by the category policy.');
+            self::redirectBack('templates',array('template'=>$input['event_key'],'channel'=>$input['channel'],'locale'=>$input['locale']));
+        }
         try{
             $result=$operation(new NotificationTemplateLibrary(),$input);
             self::flash((string)($result['type']??'success'),(string)($result['message']??'Done.'));
@@ -430,6 +522,34 @@ final class NotificationManagementController {
         if(!current_user_can('manage_options')&&!current_user_can(self::CAP_EDIT))wp_die('Forbidden',403);
     }
     private static function canEdit():bool{return current_user_can('manage_options')||current_user_can(self::CAP_EDIT);}
+    private static function canEditTeacherInvitation():bool{return current_user_can('manage_options')||current_user_can('dzn_manage_provider_integrations');}
+    private static function renderDedicatedAuthorityLink():void{
+        if(!self::canEditTeacherInvitation())return;
+        echo '<hr><h3>Dedicated secure authority</h3><p class="dzn-notif-note">Teacher invitations use a separate one-time-secret delivery authority. <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Open the Teacher invitation template</a>. The secret is never copied into the general template library or a preview.</p>';
+    }
+
+    /** Local provider configuration only; never a live send or provider verification. */
+    private static function providerReady(string $channel):?bool{
+        if(!in_array($channel,array('email','whatsapp','sms'),true))return null;
+        try{return (new IntegrationSettingsService())->ready($channel);}catch(\Throwable){return false;}
+    }
+    private static function providerReadyLabel(string $channel):string{
+        $ready=self::providerReady($channel);
+        return $ready===null?'Not applicable':($ready?'Configured (unverified)':'Not configured');
+    }
+
+    private static function excerpt(string $text,int $length):string{
+        $text=trim(preg_replace('/\s+/u',' ',$text));
+        return mb_strlen($text)<=$length?$text:mb_substr($text,0,$length).'…';
+    }
+    private static function deliveryCategoryLabel(string $category):string{return array(
+        NotificationDeliveryStatusReadService::QUEUED=>'Queued',
+        NotificationDeliveryStatusReadService::HANDED_OFF=>'Handed off to provider — delivery not confirmed',
+        NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED=>'Delivery confirmed by provider receipt',
+        NotificationDeliveryStatusReadService::PORTAL_RECORDED=>'Available in portal — read state is separate',
+        NotificationDeliveryStatusReadService::FAILED=>'Failed',
+        NotificationDeliveryStatusReadService::CLOSED=>'Closed',
+    )[$category]??$category;}
 
     /** @param array<string,string|int> $args */
     private static function url(array $args=array()):string{return admin_url('admin.php?'.http_build_query(array_merge(array('page'=>self::PAGE),$args)));}
@@ -453,15 +573,10 @@ final class NotificationManagementController {
     }
 
     public static function channelLabel(string $channel):string{return array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal')[$channel]??$channel;}
-    private static function versionStateLabel(string $state,bool $published,?array $draft):string{
-        if($draft!==null)return 'Draft saved';
-        if($published)return 'Published active version';
-        if($state==='unregistered')return 'Default copy';
-        return 'No active version';
-    }
     private static function providerStateLabel(string $state):string{return array(
         'not_mapped'=>'Not mapped','approval_required'=>'Meta re-approval required','mapped'=>'Mapped',
         'restricted_fallback'=>'Restricted fallback','not_applicable'=>'Not applicable','unsupported'=>'Unsupported',
+        'not_permitted'=>'Not offered by category policy',
     )[$state]??$state;}
     private static function stateLabel(string $state):string{return array('draft'=>'Draft','active'=>'Active','superseded'=>'Superseded','retired'=>'Retired')[$state]??$state;}
     private static function sourceLabel(string $source):string{return array('authored'=>'Authored','rollback'=>'Rollback','default'=>'Default copy','published'=>'Published')[$source]??($source!==''?$source:'—');}

@@ -35,6 +35,24 @@ $fail('output is escaped', str_contains($controller, 'esc_html(') && str_contain
 $fail('the recorder is imported from its real namespace', str_contains($controller, 'use Delnavazan\\Platform\\Core\\Application\\PortalNotificationRecorder;'));
 $fail('the safe inbox test uses a catalogue event', str_contains($controller, "system.inbox_check.admin"));
 
+/* 1b. The preview regression is fixed at the call site, not hidden behind a suppression. */
+$fail('preview passes the locale into the primary action helper', str_contains($library, '$this->ctaFor($eventKey,$body,$variables,(string)(NotificationCatalogue::get($eventKey)[\'audience\']??\'student\'),$locale)'));
+$fail('preview masks one-time secrets', str_contains($library, "foreach(array('claim_code','invitation_code') as \$secret)") && str_contains($library, "'[one-time code]'"));
+$fail('preview test covers all four channels', is_file($root . '/tests/notification-preview-unit.php') && str_contains((string) file_get_contents($root . '/tests/notification-preview-unit.php'), "\$channelsSeen['website']"));
+$fail('delivery status test exists', is_file($root . '/tests/notification-delivery-status-unit.php'));
+
+/* 1c. Notifications is the templates workspace; old tabs keep working as aliases. */
+$fail('templates is the default workspace', str_contains($controller, "'templates'=>'Templates','settings'=>'Channel settings','diagnostics'=>'Diagnostics'"));
+$fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'settings'") && str_contains($controller, "'monitoring'=>'diagnostics'"));
+$fail('channel settings are ordered WhatsApp, Email, SMS', strpos($controller, "self::renderChannelCard('whatsapp'") < strpos($controller, "self::renderChannelCard('email'") && strpos($controller, "self::renderChannelCard('email'") < strpos($controller, "self::renderChannelCard('sms'"));
+$fail('provider mapping lives with the WhatsApp template editor', str_contains($controller, 'private static function renderProviderMapping') && str_contains($controller, "if(\$channel!=='whatsapp')return;"));
+$fail('Twilio is not presented as implemented', str_contains($controller, 'Twilio WhatsApp is not implemented') && str_contains((string) file_get_contents($root . '/src/Admin/Controller/IntegrationControlPlaneController.php'), 'Twilio WhatsApp is not implemented'));
+
+/* 1d. Booking and class records show the shared delivery status vocabulary. */
+$fail('booking records show notification status', str_contains((string) file_get_contents($root . '/src/Admin/Controller/BookingRequestController.php'), "renderRecordStatus('booking_request'"));
+$fail('class records show notification status', str_contains((string) file_get_contents($root . '/src/Admin/Controller/ScreenController.php'), "renderRecordStatus('lesson'"));
+$fail('the status reader keeps hand-off separate from confirmation', str_contains((string) file_get_contents($root . '/src/Core/Application/NotificationDeliveryStatusReadService.php'), 'HANDED_OFF') && str_contains((string) file_get_contents($root . '/src/Core/Application/NotificationDeliveryStatusReadService.php'), 'DELIVERY_CONFIRMED'));
+
 /* 2. Publishing keeps the immutable canonical model and never rewrites a stored version body. */
 $fail('publish uses the canonical service', str_contains($library, 'NotificationTemplateService') && str_contains($library, 'registerVersion(') && str_contains($library, 'activateVersion('));
 $fail('version body is immutable', str_contains($library, 'A template version is immutable') && str_contains($library, 'if(isset($bodies[$versionId]))return;'));

@@ -10,6 +10,10 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 function dzn_theme_route() {
 	$path = wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH );
 	$path = trim( (string) $path, '/' );
+	// An unpublished legal document resolves to a safe, non-indexable pending
+	// response. A published WordPress page keeps editor-managed content.
+	$legal_slug = dzn_theme_legal_pending_slug_for_path( $path );
+	if ( '' !== $legal_slug ) { return 'legal:' . $legal_slug; }
 	// A published WordPress page with the canonical slug keeps editor-managed content.
 	if ( 'recording-and-research' === $path ) {
 		$page = get_page_by_path( 'recording-and-research' );
@@ -45,7 +49,12 @@ add_filter( 'pre_handle_404', 'dzn_theme_prevent_virtual_route_404', 10, 2 );
  * WordPress request throughout its in-page steps.
  */
 function dzn_theme_virtual_route_document_title( $title ) {
-	if ( 'recording-and-research' === dzn_theme_route() ) { return 'Recording and research information – Delnavazan'; }
+	$route = dzn_theme_route();
+	if ( str_starts_with( $route, 'legal:' ) ) {
+		$page = dzn_theme_legal_page( substr( $route, 6 ) );
+		return $page ? (string) $page['title'] . ' – Delnavazan' : $title;
+	}
+	if ( 'recording-and-research' === $route ) { return 'Recording and research information – Delnavazan'; }
 	return 'booking' === dzn_theme_route() ? 'درخواست جلسهٔ معارفه – Delnavazan' : $title;
 }
 add_filter( 'pre_get_document_title', 'dzn_theme_virtual_route_document_title' );
@@ -497,7 +506,8 @@ function dzn_theme_render_virtual_route() {
 	if ( 'booking' === $raw_path ) { wp_safe_redirect( dzn_theme_legacy_booking_redirect_url(), 302 ); exit; }
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
-	$protected = in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true );
+	$is_legal_pending = str_starts_with( $route, 'legal:' );
+	$protected = ! $is_legal_pending && in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations' ), true );
 	// Protected redirects must carry the same no-store/noindex contract as the
 	// rendered screen. Send headers before any dashboard or signed-out redirect.
 	if ( $protected ) {
@@ -515,10 +525,17 @@ function dzn_theme_render_virtual_route() {
 	status_header( 200 );
 	if ( $protected ) {
 		dzn_theme_send_protected_response_headers();
+	} elseif ( $is_legal_pending ) {
+		dzn_theme_legal_pending_headers();
 	} else {
 		nocache_headers();
 	}
 	get_header();
+	if ( $is_legal_pending ) {
+		dzn_theme_render_legal_pending_page( substr( $route, 6 ) );
+		get_footer();
+		exit;
+	}
 	switch ( $route ) {
 		case 'booking': dzn_theme_render_booking_route(); break;
 		case 'login': dzn_theme_render_login_route(); break;

@@ -52,6 +52,17 @@ check_html(){
   fi
 }
 
+check_legal(){
+  local path="$1"
+  if ! fetch "$path"; then return; fi
+  if [[ "$SMOKE_CODE" == 200 ]]; then pass "$path legal page HTTP 200"; else fail "$path expected HTTP 200, got $SMOKE_CODE"; fi
+  if grep -Fq 'site-footer__policies' "$SMOKE_BODY"; then
+    pass "$path renders the footer policy section"
+  else
+    fail "$path does not render the footer policy section"
+  fi
+}
+
 check_css_asset(){
   local asset="$1" url=""
   url="$(grep -E "/assets/css/${asset}\.css(\?|$)" <<<"$css_urls" | head -1 || true)"
@@ -105,6 +116,9 @@ fi
 
 check_html '/'
 check_html '/enrol/'
+for legal_path in /privacy-policy/ /terms-and-conditions/ /cancellation-and-refunds/ /recording-and-ai-policy/ /cookie-policy/; do
+  check_legal "$legal_path"
+done
 css_urls="$(grep -Eo '/wp-content/themes/delnavazan-theme/assets/css/(theme|booking)\.css(\?[^"[:space:]<>]*)?' "$SMOKE_BODY" | sort -u || true)"
 if grep -Eq 'data-instrument-choice="[0-9]+"' "$SMOKE_BODY"; then pass '/enrol/ renders course choices'; else fail '/enrol/ does not render any course choices'; fi
 check_css_asset theme

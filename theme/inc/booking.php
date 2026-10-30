@@ -214,6 +214,7 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما برای تماس و هماهنگی این درخواست استفاده می‌شود. اعلان‌های واتساپ یا پیامک فقط در صورت فعال بودن آن کانال ارسال می‌شوند.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
+                        <p class="dzn-booking__help dzn-booking__policy-links">پیش از ثبت درخواست، <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">سیاست حفظ حریم خصوصی</a>، <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط و ضوابط استفاده</a> و <a href="<?php echo esc_url( home_url( '/cancellation-and-refunds/' ) ); ?>">سیاست لغو و بازپرداخت</a> را بخوانید. این درخواست رایگان است و پرداختی در این مرحله انجام نمی‌شود.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-adult-attested required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند به‌طور مستقل درخواست ثبت‌نام را بپذیرد. برای هنرجوی زیر ۱۸ سال، لطفاً پیش از ثبت درخواست با پشتیبانی تماس بگیرید.</label>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
@@ -234,6 +235,7 @@ function dzn_theme_render_booking_route(): void {
                                     <li>نتیجهٔ هماهنگی از طریق اطلاعات تماسی که وارد کرده‌اید با شما در میان گذاشته می‌شود.</li>
                                     <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از جلسهٔ معارفه هماهنگ می‌شود.</li>
                                 </ul>
+                                <p class="dzn-booking__help">اسناد مرتبط: <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط و ضوابط</a> · <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">حریم خصوصی</a> · <a href="<?php echo esc_url( home_url( '/cancellation-and-refunds/' ) ); ?>">لغو و بازپرداخت</a> · <a href="<?php echo esc_url( home_url( '/recording-and-ai-policy/' ) ); ?>">ضبط و هوش مصنوعی</a></p>
                             </aside>
                             <aside class="dzn-booking__notice" role="note">
                                 <h4>Recording and research · ضبط و پژوهش</h4>

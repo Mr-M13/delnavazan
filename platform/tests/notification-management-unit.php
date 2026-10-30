@@ -377,6 +377,13 @@ namespace {
         'optional' => array('email' => true, 'website' => true, 'whatsapp' => false, 'sms' => false, 'sms_fallback' => false),
     ));
     $fail('security channels stay locked', $policies['security']['email'] === true && $policies['security']['website'] === true && $policies['security']['whatsapp'] === false && $policies['security']['sms'] === false);
+    $fail('claim event offers only email', $library->permittedChannels('account.claim_issued.student') === array('email'));
+    $claimWhatsApp = $library->status('account.claim_issued.student', 'whatsapp', 'fa-IR');
+    $fail('a policy-disabled channel is not advertised', $library->catalogueRows('whatsapp', 'fa-IR') === array());
+    $fail('a policy-disabled channel keeps its factual provider state', $claimWhatsApp['permitted'] === false && $claimWhatsApp['provider_state'] === 'not_mapped');
+    $fail('a policy-disabled channel does not demand a Meta mapping', !str_contains(implode(' ', $claimWhatsApp['issues']), 'Meta-approved template'));
+    $operational = $library->permittedChannels('booking.confirmed.student');
+    $fail('operational events default to email and portal', $operational === array('website', 'email'));
 
     /* 6. Resolver: published copy wins, missing variables and unknown events fall back. */
     $resolved = NotificationCopyResolver::email($event, 'fa-IR', array('name' => 'باران', 'when' => 'شنبه', 'portal_url' => 'https://delnavazan.com/student-portal/', 'teacher' => 'استاد', 'course' => 'تار', 'join_url' => 'https://example.invalid/join'), array('subject' => 'fallback', 'body' => 'fallback'));

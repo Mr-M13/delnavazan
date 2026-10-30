@@ -89,12 +89,39 @@ final class NotificationTemplateLibrary {
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
             foreach((array)$event['channels'] as $eventChannel){
                 if($channel!==null&&$eventChannel!==$channel)continue;
+                // A channel the category policy forbids is not an applicable delivery choice. Its
+                // default copy may stay in the catalogue as a reserved fallback, but it must not be
+                // advertised in the workspace or produce actionable readiness warnings.
+                if(!$this->channelPermitted($eventKey,$eventChannel))continue;
                 foreach($locales as $eventLocale){
                     $rows[]=$this->status($eventKey,$eventChannel,$eventLocale);
                 }
             }
         }
         return $rows;
+    }
+
+    /** Whether an event's category policy currently permits this delivery channel. */
+    public function channelPermitted(string $eventKey,string $channel):bool{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null||!in_array($channel,(array)$event['channels'],true))return false;
+        $policy=$this->channelPolicy((string)$event['category']);
+        return !empty($policy[$channel]);
+    }
+
+    /**
+     * Channels an editor may show for one event, in delivery preference order. Email and portal are
+     * defaults where the catalogue offers them; WhatsApp and SMS remain opt-in and policy-gated.
+     *
+     * @return string[]
+     */
+    public function permittedChannels(string $eventKey):array{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null)return array();
+        $order=array('website','email','whatsapp','sms');
+        $channels=array();
+        foreach($order as $channel)if($this->channelPermitted($eventKey,$channel))$channels[]=$channel;
+        return $channels;
     }
 
     /** Configuration, version and provider-mapping status for one event/channel/locale. */
@@ -115,6 +142,7 @@ final class NotificationTemplateLibrary {
             elseif((string)($event['authority']??'')==='canonical')$issues[]='A canonical event cannot be dispatched without a published version.';
         }elseif(!$active)$issues[]='No active version exists for this template.';
         elseif($activeBody===null)$issues[]='The active version body is unavailable; publish again.';
+        $permitted=$this->channelPermitted($eventKey,$channel);
         $mapping=$this->providerMapping($templateKey);
         $providerState='not_applicable';
         if($channel==='whatsapp'){
@@ -126,6 +154,14 @@ final class NotificationTemplateLibrary {
         }elseif($channel==='sms'){
             $providerState='restricted_fallback';
         }
+        if(!$permitted){
+            // A forbidden channel is not a readiness failure of the message or provider. Saying that
+            // WhatsApp needs a mapping (or that canonical copy is missing) for a security-only event is
+            // misleading, because no send on that channel can ever be authorised by the current policy.
+            // The provider state stays factual (for example not_mapped); only the actionable warning is
+            // replaced by the policy explanation.
+            $issues=array('Not offered for this event: the '.(string)(NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]['label']??'current').' category disables this channel.');
+        }
         return array(
             'event_key'=>$eventKey,'label'=>(string)($event['label']??$eventKey),'category'=>(string)($event['category']??''),
             'channel'=>$channel,'locale'=>$locale,'template_key'=>$templateKey,
@@ -134,6 +170,7 @@ final class NotificationTemplateLibrary {
             'active_state'=>$template?(string)$template->state:'unregistered',
             'published'=>is_array($activeBody),'has_default'=>is_array($default),
             'draft'=>$this->draft($eventKey,$channel,$locale),
+            'permitted'=>$permitted,
             'provider_state'=>$providerState,'issues'=>array_values(array_unique($issues)),
             'updated_at'=>$activeBody['saved_at']??null,
         );
@@ -267,9 +304,18 @@ final class NotificationTemplateLibrary {
         return $rows;
     }
 
-    /** Preview with synthetic values only. The rendered HTML is escaped by the branded shell. */
+    /**
+     * Preview with synthetic values only. The rendered HTML is escaped by the branded shell.
+     *
+     * Preview never sends and never accepts a caller-supplied one-time secret: the code placeholders are
+     * always replaced with a visible synthetic marker, even when a caller passes variables directly.
+     */
     public function preview(string $eventKey,string $channel,string $subject,string $body,string $locale,array $variables=array()):array{
-        $variables=$variables===array()?NotificationCatalogue::previewVariables($eventKey):$variables;
+        $synthetic=NotificationCatalogue::previewVariables($eventKey);
+        $variables=$variables===array()?$synthetic:array_merge($synthetic,$variables);
+        foreach(array('claim_code','invitation_code') as $secret){
+            if(in_array($secret,NotificationCatalogue::variables($eventKey),true))$variables[$secret]='[one-time code]';
+        }
         $replace=static function(string $text)use($variables):string{
             return preg_replace_callback('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',static function(array $m)use($variables):string{
                 return array_key_exists($m[1],$variables)?(string)$variables[$m[1]]:'['.$m[1].']';
@@ -283,7 +329,7 @@ final class NotificationTemplateLibrary {
         if($channel!=='email'){
             return array('subject'=>$renderedSubject,'text'=>$renderedBody,'html'=>'','segments'=>null);
         }
-        $cta=$this->ctaFor($eventKey,$body,$variables,(string)(NotificationCatalogue::get($eventKey)['audience']??'student'));
+        $cta=$this->ctaFor($eventKey,$body,$variables,(string)(NotificationCatalogue::get($eventKey)['audience']??'student'),$locale);
         $rendered=DelnavazanEmailRenderer::render($renderedSubject,$renderedBody,array(
             'locale'=>$locale,'cta'=>$cta,'preheader'=>$renderedSubject,
             'footer_note'=>NotificationCatalogue::previewNotice($locale),

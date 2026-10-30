@@ -182,7 +182,7 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'Telnyx WhatsApp (Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google OAuth / Calendar');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google OAuth / Calendar');
         $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
         $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
@@ -190,6 +190,14 @@ final class IntegrationControlPlaneController {
         if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
         echo '<p>Readiness: <strong>'.esc_html($service->ready($provider)?'Ready':'Needs configuration').'</strong>';
         if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
+        if($provider==='whatsapp'){
+            echo '<h2>WhatsApp via Telnyx and Meta WABA</h2><p>These are the existing WhatsApp provider fields. Saved values are preserved and secrets remain write-only. The fields below describe provider configuration only and never enable a send by themselves.</p>';
+            echo '<div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio WhatsApp credentials are read, stored or validated here, and this page cannot enable a Twilio WhatsApp send. The configured WhatsApp route uses Telnyx and approved Meta WABA templates.</p></div>';
+            echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-notifications&tab=templates&channel=whatsapp')).'">Manage WhatsApp template mapping</a></p>';
+        }
+        if($provider==='email'){
+            echo '<p>The dedicated teacher invitation email has its own one-time-secret delivery authority. <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Open the Teacher invitation template</a>.</p>';
+        }
         if(in_array($provider,array('sms','whatsapp'),true)){
             $keyCheck=(array)get_option('dzn_telnyx_public_key_sync_result',array());
             $hookCheck=(array)get_option('dzn_telnyx_webhook_sync_result',array());

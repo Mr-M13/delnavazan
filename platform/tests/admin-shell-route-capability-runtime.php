@@ -138,20 +138,27 @@ if ( ! str_contains( $settingsHtml, 'Settings groups' )
     || ! str_contains( $settingsHtml, 'Integrations' )
     || ! str_contains( $settingsHtml, 'Access' )
     || ! str_contains( $settingsHtml, 'System' )
+    || ! str_contains( $settingsHtml, 'Notifications' )
+    || ! str_contains( $settingsHtml, 'WhatsApp' )
     || ! str_contains( $settingsHtml, 'Email' )
-    || ! str_contains( $settingsHtml, 'Notification templates' )
+    || ! str_contains( $settingsHtml, 'SMS' )
+    || str_contains( $settingsHtml, 'Communications health' )
+    || str_contains( $settingsHtml, 'Notification templates' )
     || str_contains( $settingsHtml, 'Portal capabilities' ) ) {
     throw new RuntimeException( 'Grouped Settings must show five groups and only the active group member routes.' );
 }
 
-// A notification-only operator lands in Messaging and cannot see access routes.
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_notification_authority' );
+// A notification-only operator lands in Messaging and cannot see access routes. A legacy
+// bookmarked route remains resolvable and is the only hidden route shown while active.
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_notification_authority', 'dzn_access_notification_management' );
 $_GET['page'] = 'dzn-communications';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $restrictedSettings = ob_get_clean();
 if ( ! str_contains( $restrictedSettings, 'Messaging' )
+    || ! str_contains( $restrictedSettings, 'Notifications' )
     || ! str_contains( $restrictedSettings, 'Communications health' )
+    || str_contains( $restrictedSettings, 'Notification templates' )
     || str_contains( $restrictedSettings, 'Staff access' )
     || str_contains( $restrictedSettings, 'Portal capabilities' ) ) {
     throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work group.' );

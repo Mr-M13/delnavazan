@@ -16,6 +16,7 @@ final class NotificationAttemptRepository {
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
 
     public function find(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notification_attempts WHERE id=%d".($lock?' FOR UPDATE':''),$id);}
+    public function bySequence(int $notificationId,int $sequence,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notification_attempts WHERE notification_id=%d AND attempt_sequence=%d".($lock?' FOR UPDATE':''),$notificationId,$sequence);}
     public function attemptsFor(int $notificationId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_attempts WHERE notification_id=%d ORDER BY attempt_sequence",$notificationId))?:array();}
     /** The open attempt of one notification: at most one row may ever be open (§6.6). */
     public function openForNotification(int $notificationId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notification_attempts WHERE notification_id=%d AND finished_at IS NULL".($lock?' FOR UPDATE':''),$notificationId);}

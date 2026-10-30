@@ -519,7 +519,7 @@ final class Migrator {
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -598,7 +598,11 @@ final class Migrator {
 				self::install_notification_management();self::verify_notification_management_schema();
 				$done[]='056_notification_management';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('057_telnyx_provider_events',$done,true)){
+				self::install_telnyx_provider_events();self::verify_telnyx_provider_events_schema();
+				$done[]='057_telnyx_provider_events';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -627,6 +631,49 @@ final class Migrator {
 		if(!$dedupe||strtolower((string)$dedupe->Type)!=='char(64)'||$dedupe->Null!=='NO')throw new \RuntimeException('Migration verification failed: portal notification dedupe structure');
 		$foreign=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND CONSTRAINT_TYPE IN ('FOREIGN KEY','CHECK')",$table));
 		if($foreign>0)throw new \RuntimeException('Migration verification failed: portal notifications must not use foreign keys or CHECK constraints');
+	}
+
+	/**
+	 * Telnyx provider integration (Schema 057): provider template discovery, outbound message
+	 * correlation and idempotent webhook receipts.
+	 *
+	 * Additive only. Provider message ids are never stored raw; the correlation columns hold keyed
+	 * digests. No contact value, rendered body or provider payload is persisted here.
+	 */
+	private static function install_telnyx_provider_events():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}telnyx_templates (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,provider varchar(24) NOT NULL,template_name varchar(191) NOT NULL,language varchar(16) NOT NULL,provider_template_id varchar(191) NULL,category varchar(24) NOT NULL,status varchar(24) NOT NULL,event_key varchar(96) NULL,audience varchar(16) NULL,variable_order varchar(255) NULL,last_verified_at datetime NOT NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY provider_template(provider,template_name,language),KEY event_lookup(event_key,language,status)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}telnyx_messages (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,provider varchar(24) NOT NULL,channel varchar(16) NOT NULL,message_reference_digest char(64) NOT NULL,notification_id bigint unsigned NOT NULL,attempt_id bigint unsigned NOT NULL,provider_template_name varchar(191) NULL,provider_template_language varchar(16) NULL,state varchar(16) NOT NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY message_reference(message_reference_digest),KEY notification_attempt(notification_id,attempt_id),KEY state(state)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}telnyx_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,provider varchar(24) NOT NULL,event_reference_digest char(64) NOT NULL,event_type varchar(64) NOT NULL,message_reference_digest char(64) NULL,notification_id bigint unsigned NULL,attempt_id bigint unsigned NULL,delivery_state varchar(16) NULL,outcome_code varchar(64) NOT NULL,occurred_at datetime NOT NULL,received_at datetime NOT NULL,processed_at datetime NULL,replay_count int unsigned NOT NULL DEFAULT 0,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY event_reference(event_reference_digest),KEY event_type(event_type),KEY message_reference(message_reference_digest),KEY notification(notification_id)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as $sql){dbDelta($sql);if($wpdb->last_error!=='')throw new \RuntimeException('Migration operation failed: telnyx provider events');}
+	}
+	/** Fail closed unless the provider tables are the additive, digest-only stores they declare. */
+	private static function verify_telnyx_provider_events_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_';
+		$specs=array(
+			'telnyx_templates'=>array('uid','provider','template_name','language','provider_template_id','category','status','event_key','audience','variable_order','last_verified_at','created_at','updated_at'),
+			'telnyx_messages'=>array('uid','provider','channel','message_reference_digest','notification_id','attempt_id','provider_template_name','provider_template_language','state','created_at','updated_at'),
+			'telnyx_events'=>array('uid','provider','event_reference_digest','event_type','message_reference_digest','notification_id','attempt_id','delivery_state','outcome_code','occurred_at','received_at','processed_at','replay_count'),
+		);
+		foreach($specs as $table=>$columns){
+			$name=$p.$table;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$name))!==$name)throw new \RuntimeException('Migration verification failed: missing '.$table);
+			foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$name} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			if($wpdb->get_row("SHOW COLUMNS FROM {$name} LIKE '%phone%'")||$wpdb->get_row("SHOW COLUMNS FROM {$name} LIKE '%body%'")||$wpdb->get_row("SHOW COLUMNS FROM {$name} LIKE '%payload%'"))throw new \RuntimeException('Migration verification failed: provider tables must stay contact-free and payload-free');
+		}
+		foreach(array(
+			array('telnyx_templates','provider_template',true),
+			array('telnyx_messages','message_reference',true),
+			array('telnyx_messages','notification_attempt',false),
+			array('telnyx_events','event_reference',true),
+			array('telnyx_events','message_reference',false),
+		) as $index)if(!self::has_index($p.$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: '.$index[0].'.'.$index[1]);
+		foreach(array(array('telnyx_messages','message_reference_digest'),array('telnyx_events','event_reference_digest')) as $shape){
+			$found=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");
+			if(!$found||strtolower((string)$found->Type)!=='char(64)'||$found->Null!=='NO')throw new \RuntimeException('Migration verification failed: provider reference digest '.$shape[0].'.'.$shape[1]);
+		}
 	}
 
 	/** Preserve sealed notification envelopes while allowing the current cipher identifier. */
@@ -803,9 +850,10 @@ final class Migrator {
 		$required[] = '054_lesson_reschedule_authority';
 		$required[] = '055_recording_decision_authority';
 		$required[] = '056_notification_management';
+		$required[] = '057_telnyx_provider_events';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();

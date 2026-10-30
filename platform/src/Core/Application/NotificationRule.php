@@ -473,6 +473,17 @@ final class NotificationRule {
     public static function tierFInstantColumn(string $intent):?string{return self::requiredBinding($intent)['instant'];}
     public static function tierFIntents():array{return array_values(array_filter(self::INTENTS,static fn(string $intent):bool=>self::BINDING_MATRIX[$intent]['tier']==='F'));}
     public static function registeredIntent(string $intent):bool{return in_array($intent,self::INTENTS,true);}
+    /**
+     * A carrier STOP suppresses the recipient's mobile route, never their email/website route.
+     * One-time identity/security messages stay outside the wildcard because the security category
+     * never permits SMS/WhatsApp in the first place; all other mobile messages honour the STOP.
+     */
+    public static function providerStopApplies(string $intent,string $route=''):bool{
+        if($route!=='mobile')return false;
+        $workflow=(string)(self::INTENT_WORKFLOW_KEYS[$intent]??'');
+        if($workflow==='')return false;
+        return !str_starts_with($workflow,'identity.');
+    }
     public static function unboundIntent(string $intent):bool{return in_array($intent,self::UNBOUND_INTENTS,true);}
     /** §6.2.1: the complete required eligibility code set of one intent/audience/recipient-kind triple. */
     public static function requiredEligibilityCodes(string $intent,string $audience,string $recipientKind):array{

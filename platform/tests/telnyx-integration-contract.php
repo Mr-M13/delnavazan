@@ -1,0 +1,65 @@
+<?php
+$root=dirname(__DIR__);
+$repo=dirname($root);
+$read=static fn(string $path):string=>(string)file_get_contents($path);
+$plugin=$read($root.'/delnavazan-platform.php');
+$migration=$read($root.'/src/Core/Infrastructure/Migration/Migrator.php');
+$controller=$read($root.'/src/Integrations/Notifications/TelnyxWebhookController.php');
+$service=$read($root.'/src/Integrations/Notifications/TelnyxWebhookService.php');
+$signature=$read($root.'/src/Integrations/Notifications/TelnyxWebhookSignature.php');
+$normalizer=$read($root.'/src/Integrations/Notifications/TelnyxWebhookEvent.php');
+$bindings=$read($root.'/src/Integrations/Notifications/NotificationProviderBindings.php');
+$configuration=$read($root.'/src/Integrations/Notifications/TelnyxConfiguration.php');
+$sms=$read($root.'/src/Integrations/TelnyxSmsAdapter.php');
+$whatsapp=$read($root.'/src/Integrations/TelnyxWhatsAppAdapter.php');
+$discovery=$read($root.'/src/Integrations/Notifications/TelnyxTemplateDiscoveryService.php');
+$registry=$read($root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php');
+$admin=$read($root.'/src/Admin/Controller/IntegrationControlPlaneController.php');
+$readService=$read($root.'/src/Core/Application/IntegrationControlPlaneReadService.php');
+$settings=$read($root.'/src/Core/Application/IntegrationSettingsService.php');
+$composite=$read($root.'/src/Integrations/Notifications/CompositeNotificationTransport.php');
+$suppressionRepo=$read($root.'/src/Core/Infrastructure/Repository/NotificationSuppressionRepository.php');
+$fail=static function(string $name,bool $ok):void{if(!$ok)throw new RuntimeException('Telnyx integration contract failed: '.$name);};
+
+$fail('webhook route is registered',str_contains($plugin,'TelnyxWebhookController')&&str_contains($plugin,"'register'"));
+$fail('production bindings filter is registered',str_contains($plugin,"dzn_notification_transport_bindings")&&str_contains($plugin,'NotificationProviderBindings'));
+$fail('schema 057 is installed',str_contains($migration,'057_telnyx_provider_events')&&str_contains($migration,'telnyx_events')&&str_contains($migration,'telnyx_messages')&&str_contains($migration,'telnyx_templates'));
+$fail('provider tables are digest-only',str_contains($migration,'message_reference_digest')&&str_contains($migration,'event_reference_digest')&&str_contains($migration,'must stay contact-free and payload-free'));
+$fail('webhook verifies raw-body Ed25519 signature',str_contains($signature,'sodium_crypto_sign_verify_detached')&&str_contains($signature,"'|'.\$rawBody")&&str_contains($signature,'webhook_timestamp_stale'));
+$fail('webhook controller uses the configured verifier',str_contains($controller,'TelnyxWebhookService::fromSettings')&&str_contains($controller,'get_body')&&str_contains($controller,'no-store'));
+$fail('webhook is idempotent by event digest',str_contains($service,'event_reference_digest')&&str_contains($service,'incrementReplay')&&str_contains($service,'terminal'));
+$fail('delivery facts use the existing evidence service',str_contains($service,'NotificationDeliveryEvidenceService')&&str_contains($service,'provider_fact_digest')&&str_contains($service,'provider_event_reference_digest'));
+$fail('out-of-order evidence remains monotonic',str_contains($service,'delivery_regression')||str_contains($service,'delivery_event_stale'));
+$fail('inbound STOP creates purpose-wide suppression',str_contains($service,"'purpose'=>'*'")&&str_contains($service,'suppressFromVerifiedProvider')&&str_contains($service,'provider_stop'));
+$fail('suppression repository supports purpose wildcard',str_contains($suppressionRepo,"purpose='*'"));
+$fail('STOP parser handles SMS and WhatsApp shapes',str_contains($normalizer,"\$inner['text']")&&str_contains($normalizer,'STOP_WORDS')&&str_contains($normalizer,'لغو'));
+$fail('SMS adapter uses Messages API v2',str_contains($sms,'https://api.telnyx.com/v2/messages')&&str_contains($sms,'messaging_profile_id')&&str_contains($sms,'sender_id'));
+$fail('WhatsApp adapter uses the WhatsApp endpoint',str_contains($whatsapp,'https://api.telnyx.com/v2/messages/whatsapp')&&str_contains($whatsapp,'whatsapp_message')&&str_contains($whatsapp,'templatePayload'));
+$fail('WhatsApp adapter never invents variables',str_contains($whatsapp,'variable_contract_mismatch')&&str_contains($whatsapp,'template_not_mapped'));
+$fail('WhatsApp locale maps to the approved fa language',str_contains($whatsapp,"str_starts_with(strtolower(\$locale),'fa')"));
+$fail('stored phone numbers are normalised to E.164',str_contains($sms,'PhoneNumberNormalizer')&&str_contains($whatsapp,'PhoneNumberNormalizer'));
+$fail('shared-number STOP suppresses every matching subject',str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'studentIdsForPhone')&&str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'teacherIdsForPhone')&&str_contains($service,'studentIdsForPhone')&&str_contains($service,'teacherIdsForPhone'));
+$fail('provider STOP is scoped to the mobile route',str_contains($read('platform/src/Core/Application/NotificationRule.php'),'providerStopApplies')&&str_contains($read('platform/src/Core/Application/NotificationDispatchService.php'),'providerStopApplies')&&str_contains($suppressionRepo,'allowWildcard'));
+$fail('unsupported Telnyx events are acknowledged without retry',str_contains($service,"ignored_event")&&str_contains($service,"webhook_event_unsupported"));
+$fail('WhatsApp inbound text uses the nested body shape',str_contains($normalizer,"\$innerText['body']"));
+$fail('WhatsApp body sender wins over the business profile sender',str_contains($normalizer,'$bodyFromPhone')&&str_contains($normalizer,'firstString(array($bodyFromPhone,$fromPhone))'));
+
+$fail('out-of-order facts never regress message state',str_contains($service,"if(!empty(\$result['applied']))\$this->provider->updateMessageState"));
+$fail('bindings require a verified webhook key',str_contains($configuration,'webhookPublicKey')&&str_contains($configuration,'webhookPublicKey()!==')&&str_contains($bindings,'smsReady()')&&str_contains($bindings,'whatsappReady()'));
+$fail('template registry maps approved names',str_contains($registry,'delnavazan_payment_due_fa')&&str_contains($registry,'delnavazan_class_access_fa')&&str_contains($registry,'variable_order'));
+$fail('template discovery is explicit and read-only',str_contains($discovery,'/v2/whatsapp/message_templates')&&str_contains($discovery,'Refresh')===false&&str_contains($discovery,'sync()'));
+$fail('settings expose Telnyx webhook key and WABA',str_contains($settings,"'webhook_public_key'=>'text'")&&str_contains($settings,"'waba_id'=>'text'")&&str_contains($settings,"'sender_id'=>'text'"));
+$fail('admin shows verified webhook and discovery',str_contains($admin,'Verified webhook')&&str_contains($admin,'Refresh approved templates')&&str_contains($admin,'dzn_telnyx_template_sync')&&str_contains($admin,'Webhook URL'));
+$fail('admin readiness is secret-free',str_contains($readService,"'telnyx'=>array")&&str_contains($readService,'webhook_signature')&&str_contains($readService,'dispatch_actor'));
+$fail('fallback is policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'fallback'));
+$fail('no webhook code sends a live message',strpos($service,'wp_remote_post')===false&&strpos($controller,'wp_remote_post')===false);
+$fail('no provider secret is rendered by admin',strpos($admin,'api_key')===false||strpos($admin,'value(\'sms\',\'api_key\')')===false);
+$providerSection=substr($migration,(int)strpos($migration,'install_telnyx_provider_events'),(int)strpos($migration,'verify_telnyx_provider_events_schema')-(int)strpos($migration,'install_telnyx_provider_events'));
+$fail('no raw provider payload is stored',strpos($providerSection,'payload text')===false&&strpos($providerSection,'phone varchar')===false);
+require_once $root.'/src/Integrations/Notifications/NotificationCatalogue.php';
+require_once $root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+foreach(\Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry::definitions() as $name=>$definition){
+    $event=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::get($definition['event_key']);
+    if($event===null||!in_array('whatsapp',(array)$event['channels'],true))throw new RuntimeException('Telnyx integration contract failed: mapped event does not permit WhatsApp: '.$name);
+}
+echo "Telnyx SMS and WhatsApp integration contract passed\n";

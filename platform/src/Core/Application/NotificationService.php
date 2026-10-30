@@ -284,7 +284,7 @@ final class NotificationService {
             $recipient=$this->recipient($version,(int)$notification->subject_aggregate_id,$binding);
             $bound=NotificationEligibility::boundEvidence((string)$notification->intent_key,(int)$notification->subject_aggregate_id,(string)$notification->observed_at);
             $now=NotificationSupport::now();
-            $suppression=$this->suppressions->active((string)$notification->recipient_digest,(string)$version->intent_key,$now);
+            $suppression=$this->suppressions->active((string)$notification->recipient_digest,(string)$version->intent_key,$now,NotificationRule::providerStopApplies((string)$version->intent_key,(string)($recipient['route']??'')));
             $facts=array(
                 'subject_exists'=>(bool)($subject['exists']??false),'bound_evidence'=>$bound,
                 'recipient_resolvable'=>(bool)($recipient['resolvable']??false),

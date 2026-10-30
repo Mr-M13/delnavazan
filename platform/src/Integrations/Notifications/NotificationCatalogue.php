@@ -91,6 +91,7 @@ final class NotificationCatalogue {
             'timezone'=>'Asia/Tehran','join_url'=>'https://meet.example.invalid/abc-defg-hij','portal_url'=>'https://example.invalid/student-portal/',
             'teacher_portal_url'=>'https://example.invalid/teacher-portal/','claim_url'=>'https://example.invalid/claim/','claim_code'=>'[one-time code]',
             'invitation_code'=>'[one-time code]','payment_url'=>'https://example.invalid/pay/','amount'=>'۲٬۵۰۰٬۰۰۰ تومان','due_date'=>'۱۵ آبان ۱۴۰۵',
+            'paid_date'=>'۱۲ آبان ۱۴۰۵','previous_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰','new_when'=>'یکشنبه ۱۱ آبان ۱۴۰۵، ساعت ۱۸:۰۰','current_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
         );
         $out=array();
@@ -150,14 +151,51 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'Your enrolment is ready','body'=>'Your introductory {{course}} lesson was delivered. Complete your enrolment in the Student Portal.'),
             ),
         ));
-        $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(
+        $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · ثبت‌نام شما فعال شد','body'=>"سلام {{name}}،\n\nپرداخت شما تأیید شد و ثبت‌نام «{{course}}» با {{teacher}} فعال است. برنامهٔ هفتگی و کلاس‌های آیندهٔ شما در پرتال هنرجو نمایش داده می‌شود.\n\nمشاهدهٔ برنامه و کلاس‌ها:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'ثبت‌نام شما فعال شد','body'=>'ثبت‌نام «{{course}}» با {{teacher}} فعال شد و برنامهٔ کلاس‌ها در پرتال نمایش داده می‌شود.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، ثبت‌نام «{{course}}» شما با استاد {{teacher}} فعال شد. برنامهٔ کلاس‌ها در پرتال هنرجو در دسترس است: {{portal_url}}'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Your Delnavazan enrolment is active','body'=>"Hello {{name}},\n\nYour payment was verified and your {{course}} enrolment with {{teacher}} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal:\n{{portal_url}}\n\nDelnavazan"),
                 'website'=>array('subject'=>'Your enrolment is active','body'=>'Your {{course}} enrolment with {{teacher}} is active.'),
+            ),
+        ));
+        $out[]=self::event('booking.requested.student','Intro Lesson Request Received','booking','student','BookingRequestSubmissionService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','when','portal_url'),'booking.requested',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · درخواست کلاس آشنایی شما ثبت شد','body'=>"سلام {{name}}،\n\nدرخواست کلاس آشنایی «{{course}}» شما ثبت شد.\n\nزمان درخواستی: {{when}}\n\nپس از تأیید مدرس، اطلاعات نهایی کلاس برای شما ارسال می‌شود.\n\nجزئیات در پرتال هنرجو:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'درخواست کلاس آشنایی ثبت شد','body'=>'درخواست کلاس آشنایی «{{course}}» در {{when}} ثبت شد و در انتظار تأیید مدرس است.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، درخواست رزرو کلاس {{course}} شما در زمان {{when}} ثبت شد. پس از تأیید مدرس، اطلاعات نهایی برای شما ارسال می‌شود. پرتال: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: درخواست کلاس {{course}} در {{when}} ثبت شد. پرتال: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · your introductory lesson request was received','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson request was received.\n\nRequested time: {{when}}\n\nWe will send the final class details after the Teacher confirms.\n\nOpen your Student Portal:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson request received','body'=>'Your {{course}} lesson request for {{when}} is awaiting Teacher confirmation.'),
+            ),
+        ));
+        $out[]=self::event('lesson.reminder.student','Class Reminder','lesson','student','LessonReminderService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.reminder',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"سلام {{name}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به پرتال هنرجو بروید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.'),
+                'whatsapp'=>array('body'=>'سلام {{name}} عزیز، کلاس {{course}} شما با استاد {{teacher}} در {{when}} برگزار می‌شود. برای ورود به کلاس به پرتال هنرجو بروید: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: یادآوری کلاس {{course}} با {{teacher}} در {{when}}. پرتال: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('lesson.cancelled.student','Class Cancelled','lesson','student','LessonCancellationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.cancelled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس لغو شد','body'=>"سلام {{name}}،\n\nکلاس «{{course}}» شما با {{teacher}} در {{when}} لغو شد.\n\nاگر برای هماهنگی جلسهٔ جایگزین به کمک نیاز دارید، از پرتال هنرجو با ما در تماس باشید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس لغو شد','body'=>'کلاس «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، کلاس {{course}} شما با استاد {{teacher}} در زمان {{when}} لغو شد. برای هماهنگی جلسهٔ جایگزین به پرتال هنرجو مراجعه کنید: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: کلاس {{course}} با {{teacher}} در {{when}} لغو شد. پرتال: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('lesson.access.student','Class Access Ready','lesson','student','ClassAccessService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.access',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس شما آمادهٔ برگزاری است','body'=>"سلام {{name}}،\n\nکلاس «{{course}}» شما با {{teacher}} در {{when}} آمادهٔ برگزاری است.\n\nبرای ورود به کلاس به پرتال هنرجو بروید و پیوند جلسه را در اختیار دیگران قرار ندهید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس آمادهٔ برگزاری است','body'=>'کلاس «{{course}}» با {{teacher}} در {{when}} آمادهٔ برگزاری است.'),
+                'whatsapp'=>array('body'=>'سلام {{name}} عزیز، کلاس {{course}} شما با استاد {{teacher}} در {{when}} آمادهٔ برگزاری است. برای ورود به کلاس به پرتال هنرجو بروید: {{portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: کلاس {{course}} با {{teacher}} در {{when}} آماده است. پرتال: {{portal_url}}'),
             ),
         ));
         self::appendRescheduleStudent($out);
@@ -199,6 +237,14 @@ final class NotificationCatalogue {
         $out[]=self::event('teacher.invitation_issued.teacher','Teacher Invitation','security','teacher','TeacherInvitationDeliveryWorker','dedicated',array('email'),'security',true,array('invitation_code','claim_url'),'teacher.invitation',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>"سلام،\n\nبرای شما دعوت‌نامهٔ همکاری با آکادمی موسیقی دلنوازان صادر شده است.\n\nبرای شروع، پیوند زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n{{claim_url}}\n\nکد دعوت: {{invitation_code}}\n\nاین کد فقط یک‌بار قابل استفاده است و باید محرمانه بماند. اگر این دعوت را انتظار نداشتید، این پیام را نادیده بگیرید.\n\nبا احترام، دلنوازان"),
+            ),
+        ));
+        $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'booking.new.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · رزرو تازه برای کلاس شما','body'=>"سلام {{teacher}}،\n\nرزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} ثبت شد.\n\nزمان کلاس: {{when}}\n\nبرای بررسی جزئیات به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد.'),
+                'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. برای بررسی جزئیات به پرتال مدرس مراجعه کنید: {{teacher_portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
             ),
         ));
         self::appendRescheduleTeacher($out);
@@ -244,10 +290,11 @@ final class NotificationCatalogue {
         );
         $out=array();
         foreach($definitions as $key=>[$label,$intent,$faLabel]){
-            $event=self::event($key,$label,'payment','student','canonical:'.$intent,'canonical',array('email','website'),'financial',true,array('name','amount','due_date','portal_url'),strtolower(str_replace('.student','',$key)),array(
+            $event=self::event($key,$label,'payment','student','canonical:'.$intent,'canonical',array('email','website','whatsapp'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),array(
                 self::PRIMARY_LOCALE=>array(
                     'email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{name}}،\n\n".$faLabel.".\n\nمبلغ: {{amount}}\nمهلت: {{due_date}}\n\nبرای مشاهدهٔ جزئیات و اقدام به پرتال هنرجو بروید:\n{{portal_url}}\n\nاین متن پیش‌فرض است و پیش از فعال‌سازی باید از نظر مالی و حقوقی بازبینی شود.\n\nبا احترام، دلنوازان"),
                     'website'=>array('subject'=>$faLabel,'body'=>$faLabel.' — جزئیات در پرتال هنرجو.'),
+                    'whatsapp'=>array('body'=>"درود {{name}} عزیز،\n\n".$faLabel.".\n\nمبلغ: {{amount}}\nمهلت: {{due_date}}\n\nبرای مشاهدهٔ جزئیات و اقدام به پرتال هنرجو بروید:\n{{portal_url}}"),
                 ),
                 'en'=>array('email'=>array('subject'=>'Delnavazan · '.$label,'body'=>"Hello {{name}},\n\n".$label.".\n\nAmount: {{amount}}\nDeadline: {{due_date}}\n\nOpen your Student Portal:\n{{portal_url}}\n\nThis default requires financial and legal review before activation.\n\nDelnavazan")),
             ));
@@ -266,14 +313,17 @@ final class NotificationCatalogue {
             $messages=array(
                 'proposed'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{name}}،\n\nبرای شما یک زمان تازه برای ".('replacement'===$kind?'جلسهٔ جبرانی':'کلاس')." پیشنهاد شد:\n{{when}} ({{timezone}})\n\nلطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید:\n{{portal_url}}\n\nتا پاسخ شما، زمان فعلی کلاس تغییر نمی‌کند.\n\nبا احترام، دلنوازان"),
                 'accepted'=>array('subject'=>'دلنوازان · تأیید زمان پیشنهادی','body'=>"سلام {{name}}،\n\nزمان پیشنهادی تأیید شد.\n\nزمان جدید: {{when}} ({{timezone}})\n\nجزئیات در پرتال هنرجو در دسترس است:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
-                'rejected'=>array('subject'=>'دلنوازان · زمان پیشنهادی رد شد','body'=>"سلام {{name}}،\n\nزمان پیشنهادی رد شد و زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nاگر زمان تازه‌ای مناسب شماست، از پرتال هنرجو با مدرس هماهنگ کنید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'rejected'=>array('subject'=>'دلنوازان · زمان پیشنهادی رد شد','body'=>"سلام {{name}}،\n\nزمان پیشنهادی رد شد و زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nزمان فعلی: {{when}}\n\nاگر زمان تازه‌ای مناسب شماست، از پرتال هنرجو با مدرس هماهنگ کنید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'failed'=>array('subject'=>'دلنوازان · زمان پیشنهادی ثبت نشد','body'=>"سلام {{name}}،\n\nزمان پیشنهادی ثبت نشد و بسته شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nلطفاً زمان تازه‌ای پیشنهاد کنید یا با پشتیبانی دلنوازان تماس بگیرید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'cancelled'=>array('subject'=>'دلنوازان · پیشنهاد زمان لغو شد','body'=>"سلام {{name}}،\n\nپیشنهاد زمان توسط مدیر لغو شد. زمان فعلی کلاس بدون تغییر باقی می‌ماند.\n\nجزئیات در پرتال هنرجو:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
             );
             foreach($messages as $state=>$copy){
-                $studentVariables=array_merge(array('name','portal_url'),in_array($state,array('proposed','accepted'),true)?array('when','timezone'):array());
-                $out[]=self::event($prefix.'.'.$state.'.student',$label.' · '.ucfirst($state),'lesson','student','LessonRescheduleService','queue',array('email','website'),'operational',true,$studentVariables,$prefix.'.'.$state,array(
-                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body'])),
+                $studentVariables=array('name','portal_url');
+                if($state==='proposed')$studentVariables=array_merge($studentVariables,array('when','timezone','teacher','course','current_when','new_when'));
+                elseif($state==='accepted')$studentVariables=array_merge($studentVariables,array('when','timezone','course','teacher','previous_when','new_when'));
+                elseif($state==='rejected')$studentVariables=array_merge($studentVariables,array('course','teacher','when'));
+                $out[]=self::event($prefix.'.'.$state.'.student',$label.' · '.ucfirst($state),'lesson','student','LessonRescheduleService','queue',array('email','website','whatsapp'),'operational',true,$studentVariables,$prefix.'.'.$state,array(
+                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body']),'whatsapp'=>array('body'=>$copy['body'])),
                 ));
             }
         }
@@ -284,14 +334,17 @@ final class NotificationCatalogue {
             $messages=array(
                 'proposed'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام {{teacher}}،\n\nدرخواست ".('replacement'===$kind?'جلسهٔ جبرانی':'تغییر زمان')." ثبت شد.\n\nزمان پیشنهادی: {{when}} ({{timezone}})\n\nتا پاسخ هنرجو، این پیشنهاد قطعی نیست. وضعیت را در پرتال مدرس ببینید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'accepted'=>array('subject'=>'دلنوازان · هنرجو زمان پیشنهادی را پذیرفت','body'=>"سلام {{teacher}}،\n\nهنرجو زمان پیشنهادی را پذیرفت و زمان {{when}} ({{timezone}}) قطعی شد.\n\nمشاهدهٔ کلاس‌ها:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
-                'rejected'=>array('subject'=>'دلنوازان · هنرجو زمان پیشنهادی را رد کرد','body'=>"سلام {{teacher}}،\n\nهنرجو زمان پیشنهادی را رد کرد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nلطفاً با هنرجو هماهنگ کنید و زمان تازه‌ای پیشنهاد دهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'rejected'=>array('subject'=>'دلنوازان · هنرجو زمان پیشنهادی را رد کرد','body'=>"سلام {{teacher}}،\n\nهنرجو زمان پیشنهادی را رد کرد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nزمان فعلی: {{when}}\n\nلطفاً با هنرجو هماهنگ کنید و زمان تازه‌ای پیشنهاد دهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'failed'=>array('subject'=>'دلنوازان · پیشنهاد زمان ثبت نشد','body'=>"سلام {{teacher}}،\n\nپیشنهاد زمان ثبت نشد و بسته شد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nدر صورت نیاز، زمان تازه‌ای پیشنهاد دهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'cancelled'=>array('subject'=>'دلنوازان · پیشنهاد زمان لغو شد','body'=>"سلام {{teacher}}،\n\nپیشنهاد زمان توسط مدیر لغو شد. زمان فعلی کلاس بدون تغییر می‌ماند.\n\nجزئیات در پرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
             );
             foreach($messages as $state=>$copy){
-                $teacherVariables=array_merge(array('teacher','teacher_portal_url'),in_array($state,array('proposed','accepted'),true)?array('when','timezone'):array());
-                $out[]=self::event($prefix.'.'.$state.'.teacher',$label.' · '.ucfirst($state),'lesson','teacher','LessonRescheduleService','queue',array('email','website'),'operational',true,$teacherVariables,$prefix.'.'.$state,array(
-                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body'])),
+                $teacherVariables=array('teacher','teacher_portal_url');
+                if($state==='proposed')$teacherVariables=array_merge($teacherVariables,array('when','timezone','course','student','current_when','new_when'));
+                elseif($state==='accepted')$teacherVariables=array_merge($teacherVariables,array('when','timezone','course','student','previous_when','new_when'));
+                elseif($state==='rejected')$teacherVariables=array_merge($teacherVariables,array('course','student','when'));
+                $out[]=self::event($prefix.'.'.$state.'.teacher',$label.' · '.ucfirst($state),'lesson','teacher','LessonRescheduleService','queue',array('email','website','whatsapp'),'operational',true,$teacherVariables,$prefix.'.'.$state,array(
+                    self::PRIMARY_LOCALE=>array('email'=>$copy,'website'=>array('subject'=>$faLabel,'body'=>$copy['body']),'whatsapp'=>array('body'=>$copy['body'])),
                 ));
             }
         }

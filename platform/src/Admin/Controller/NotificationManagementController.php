@@ -221,7 +221,7 @@ final class NotificationManagementController {
         echo '</p>';
         if(!self::canEdit())return;
         if(!$ready){
-            echo '<div class="notice notice-warning inline"><p>The WhatsApp provider is not configured. <a href="'.esc_url(admin_url('admin.php?page=dzn-integration-whatsapp')).'">Configure Meta WhatsApp Cloud API settings</a> before recording a provider mapping. No send is enabled by this page.</p></div>';
+            echo '<div class="notice notice-warning inline"><p>The WhatsApp provider is not configured. <a href="'.esc_url(admin_url('admin.php?page=dzn-integration-whatsapp')).'">Configure Telnyx WhatsApp and Meta WABA settings</a> before recording a provider mapping. No send is enabled by this page.</p></div>';
             return;
         }
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_provider_mapping"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="whatsapp"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
@@ -254,7 +254,7 @@ final class NotificationManagementController {
         echo '<h2>Channel settings</h2><p>WhatsApp, Email and SMS settings are listed in that order. Readiness here is local configuration only; it is not provider verification and it never starts a send.</p>';
         echo '<div class="dzn-notif-grid">';
         self::renderChannelCard('whatsapp','WhatsApp',array(
-            'Meta WhatsApp Cloud API configuration (existing saved values are preserved).',
+            'Telnyx WhatsApp and Meta WABA configuration (existing saved values are preserved).',
             'Provider template mapping is recorded in the WhatsApp template editor.',
             'Provider readiness: '.self::providerReadyLabel('whatsapp'),
         ),'dzn-integration-whatsapp','Open WhatsApp settings',array('tab'=>'templates','channel'=>'whatsapp'),'Open WhatsApp templates');
@@ -267,7 +267,7 @@ final class NotificationManagementController {
             'Provider readiness: '.self::providerReadyLabel('sms'),
         ),'dzn-integration-sms','Open SMS settings');
         echo '</div>';
-        echo '<section class="dzn-notif-card"><h3>Twilio WhatsApp</h3><div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio credentials are stored or read here, and no Twilio WhatsApp send can be enabled from this screen. Existing Meta WhatsApp Cloud API settings are unchanged.</p></div></section>';
+        echo '<section class="dzn-notif-card"><h3>Twilio WhatsApp</h3><div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio credentials are stored or read here, and no Twilio WhatsApp send can be enabled from this screen. The existing Telnyx WhatsApp and Meta WABA settings are preserved.</p></div></section>';
         self::renderChannelRules($library);
     }
 

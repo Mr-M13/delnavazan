@@ -6,10 +6,40 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestModeReadinessService;
 use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestConfigurationService;
 use Delnavazan\Platform\Integrations\IntegrationTestRunner;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxConfigurationService;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
 final class IntegrationControlPlaneController {
-    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));}
+    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));}
+    /** Explicit provider-template discovery. It reads templates and writes local mappings; it never sends. */
+    public static function syncTelnyxTemplates():void{
+        self::authorizeSettings();check_admin_referer('dzn_telnyx_template_sync');
+        $result=(new TelnyxTemplateDiscoveryService(new IntegrationSettingsService()))->sync();
+        update_option('dzn_telnyx_template_sync_result',array(
+            'ok'=>(bool)($result['ok']??false),'code'=>(string)($result['error']??'synced'),
+            'discovered'=>(int)($result['discovered']??0),'approved'=>(int)($result['approved']??0),
+            'mapped'=>(int)($result['mapped']??0),'at'=>current_time('mysql',true),
+        ),false);
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-whatsapp','telnyx_templates'=>($result['ok']??false)?'synced':'failed'),admin_url('admin.php')));exit;
+    }
+    /** Fetch the account public signing key. Public configuration; never an API key. */
+    public static function syncTelnyxPublicKey():void{
+        self::authorizeSettings();check_admin_referer('dzn_telnyx_public_key_sync');
+        $settings=new IntegrationSettingsService();$result=(new TelnyxConfigurationService($settings))->publicKey();
+        if($result['ok']??false){$settings->save('sms',array('webhook_public_key'=>(string)$result['public_key']));$settings->save('whatsapp',array('webhook_public_key'=>(string)$result['public_key']));}
+        update_option('dzn_telnyx_public_key_sync_result',array('ok'=>(bool)($result['ok']??false),'code'=>(string)($result['error']??'synced'),'at'=>current_time('mysql',true)),false);
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-whatsapp','telnyx_public_key'=>($result['ok']??false)?'synced':'failed'),admin_url('admin.php')));exit;
+    }
+    /** Point the Messaging Profile at the local signed webhook and confirm the read-after-write value. */
+    public static function syncTelnyxWebhook():void{
+        self::authorizeSettings();check_admin_referer('dzn_telnyx_webhook_sync');
+        $result=(new TelnyxConfigurationService(new IntegrationSettingsService()))->setWebhook(TelnyxWebhookController::url());
+        update_option('dzn_telnyx_webhook_sync_result',array('ok'=>(bool)($result['ok']??false),'code'=>(string)($result['error']??'synced'),'at'=>current_time('mysql',true)),false);
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-whatsapp','telnyx_webhook'=>($result['ok']??false)?'synced':'failed'),admin_url('admin.php')));exit;
+    }
     public static function save():void{self::handle('save');}
     public static function test():void{self::handle('test');}
     private static function handle(string $operation):void{
@@ -152,20 +182,43 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS fallback','google'=>'Google OAuth / Calendar');
-        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Sends the configured Meta test template to the entered number only after you press the test button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google OAuth / Calendar');
+        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
+        $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         echo '<div class="wrap"><h1>'.esc_html($labels[$provider]??$provider).'</h1><p>Credentials are encrypted at rest and never displayed. Leave a secret blank to keep its current value.</p>';
         if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
         echo '<p>Readiness: <strong>'.esc_html($service->ready($provider)?'Ready':'Needs configuration').'</strong>';
         if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
         if($provider==='whatsapp'){
-            echo '<h2>Meta WhatsApp Cloud API</h2><p>These are the existing Meta WhatsApp Cloud API fields. Saved values are preserved and secrets remain write-only. The fields below describe provider configuration only and never enable a send by themselves.</p>';
-            echo '<div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio WhatsApp credentials are read, stored or validated here, and this page cannot enable a Twilio WhatsApp send. Only the existing Meta WhatsApp Cloud API configuration shown below is active.</p></div>';
+            echo '<h2>WhatsApp via Telnyx and Meta WABA</h2><p>These are the existing WhatsApp provider fields. Saved values are preserved and secrets remain write-only. The fields below describe provider configuration only and never enable a send by themselves.</p>';
+            echo '<div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio WhatsApp credentials are read, stored or validated here, and this page cannot enable a Twilio WhatsApp send. The configured WhatsApp route uses Telnyx and approved Meta WABA templates.</p></div>';
             echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-notifications&tab=templates&channel=whatsapp')).'">Manage WhatsApp template mapping</a></p>';
         }
         if($provider==='email'){
             echo '<p>The dedicated teacher invitation email has its own one-time-secret delivery authority. <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Open the Teacher invitation template</a>.</p>';
+        }
+        if(in_array($provider,array('sms','whatsapp'),true)){
+            $keyCheck=(array)get_option('dzn_telnyx_public_key_sync_result',array());
+            $hookCheck=(array)get_option('dzn_telnyx_webhook_sync_result',array());
+            echo '<h2>Verified webhook</h2><p>Configure this URL on the Telnyx Messaging Profile. Telnyx signs every request with Ed25519; the public key is not a secret.</p>';
+            echo '<p><strong>Webhook URL:</strong> <code>'.esc_html(TelnyxWebhookController::url()).'</code></p>';
+            echo '<p><strong>Signature verification:</strong> '.esc_html($telnyx->webhookReady()?'configured':'not configured — enter or fetch the Telnyx public key below').'</p>';
+            if($keyCheck)echo '<p>Last public-key fetch: '.esc_html(($keyCheck['ok']??false)?'succeeded':'failed').' · '.esc_html((string)($keyCheck['code']??'')).' · '.esc_html((string)($keyCheck['at']??'')).'</p>';
+            if($hookCheck)echo '<p>Last webhook check: '.esc_html(($hookCheck['ok']??false)?'configured and confirmed':'failed').' · '.esc_html((string)($hookCheck['code']??'')).' · '.esc_html((string)($hookCheck['at']??'')).'</p>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_telnyx_public_key_sync">';wp_nonce_field('dzn_telnyx_public_key_sync');echo '<button class="button" name="fetch_public_key" value="1">Fetch Telnyx public key</button></form> ';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_telnyx_webhook_sync">';wp_nonce_field('dzn_telnyx_webhook_sync');echo '<button class="button" name="configure_webhook" value="1">Verify and configure webhook</button></form>';
+        }
+        if($provider==='whatsapp'){
+            try{$discovery=(new TelnyxTemplateDiscoveryService($service))->status();}
+            catch(\Throwable $error){$discovery=array('counts'=>array(),'templates'=>array());}
+            $sync=(array)get_option('dzn_telnyx_template_sync_result',array());
+            echo '<h2>Approved template discovery</h2><p>Only an explicit refresh reads the WABA. Discovery never sends a message.</p>';
+            echo '<table class="widefat striped"><tbody>';
+            foreach(array('approved'=>'Approved','pending'=>'Pending','rejected'=>'Rejected','other'=>'Other','mapped'=>'Mapped to an event','unmapped'=>'Unmapped','variable_mismatch'=>'Variable contract mismatch') as $key=>$label)echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)(int)($discovery['counts'][$key]??0)).'</td></tr>';
+            echo '</tbody></table>';
+            if($sync)echo '<p>Last refresh: '.esc_html(($sync['ok']??false)?'succeeded':'failed').' · code '.esc_html((string)($sync['code']??'')).' · '.esc_html((string)(int)($sync['discovered']??0)).' discovered, '.esc_html((string)(int)($sync['mapped']??0)).' mapped · '.esc_html((string)($sync['at']??'')).'</p>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_telnyx_template_sync">';wp_nonce_field('dzn_telnyx_template_sync');echo '<p><button class="button" name="refresh_templates" value="1">Refresh approved templates</button> <span class="description">Read-only provider call; no message is sent.</span></p></form>';
         }
         if($provider==='email'&&!empty($last['diagnostic'])&&is_array($last['diagnostic']))self::renderEmailDiagnostic($last['diagnostic']);
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_save"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_save_'.$provider);
@@ -237,6 +290,11 @@ final class IntegrationControlPlaneController {
         foreach($r['notifications']['channels'] as $channel=>$state)echo '<tr><th>'.esc_html(ucfirst($channel)).' binding</th><td>'.esc_html((string)$state).'</td></tr>';
         foreach($r['notifications']['states'] as $state=>$count)echo '<tr><th>Notification state: '.esc_html((string)$state).'</th><td>'.(int)$count.'</td></tr>';
         foreach($r['notifications']['delivery_states'] as $state=>$count)echo '<tr><th>Notification delivery evidence: '.esc_html((string)$state).'</th><td>'.(int)$count.'</td></tr>';
+        $telnyx=(array)($r['telnyx']??array());$webhook=(array)($telnyx['webhook']??array());
+        echo '<tr><th>Telnyx webhook URL</th><td><code>'.esc_html((string)($webhook['url']??'')).'</code></td></tr>';
+        echo '<tr><th>Telnyx webhook signature</th><td>'.esc_html((string)($webhook['signature']??'not_configured')).'</td></tr>';
+        echo '<tr><th>Telnyx WhatsApp templates</th><td>'.esc_html((string)(int)($telnyx['whatsapp']['templates']['approved']??0)).' approved · '.esc_html((string)(int)($telnyx['whatsapp']['templates']['mapped']??0)).' mapped · '.esc_html((string)(int)($telnyx['whatsapp']['templates']['unmapped']??0)).' unmapped</td></tr>';
+        foreach(array('copy_definitions'=>'Notification copy definitions','dispatch_actor'=>'Notification dispatch actor','student_route_filter'=>'Student route authority','student_consent_filter'=>'Student consent authority','student_guardian_filter'=>'Guardian authority') as $key=>$label)echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)($telnyx['routing'][$key]??'not_configured')).'</td></tr>';
         echo '<tr><th>Google teacher calendar</th><td>'.esc_html((string)$r['google_calendar']['oauth_client']).'</td></tr></tbody></table><h2>Google teacher connection</h2><p>Teachers connect or disconnect their own account from their account settings. Calendar entries are projections of Delnavazan’s canonical schedule; Delnavazan remains authoritative.</p><table class="widefat striped"><tbody>';
         foreach($r['google_calendar']['projection_states'] as $state=>$count)echo '<tr><th>Calendar projection: '.esc_html((string)$state).'</th><td>'.esc_html((string)$count).'</td></tr>';
         echo '</tbody></table><h2>Stripe</h2><div class="card"><p>Configure Stripe sandbox credentials and check connectivity. Live credentials and production payment execution remain prohibited.</p>';

@@ -57,7 +57,7 @@ never marked ready because a channel is hidden.
   Channel settings / Diagnostics views rather than 404ing.
 - WhatsApp provider-template mapping moved into the WhatsApp copy editor. The WhatsApp settings page
   states clearly that Twilio WhatsApp is not implemented and that no Twilio credentials are read or
-  written.
+  written. The current provider route uses Telnyx with approved Meta WABA templates.
 - Delivery rules and event channel mapping live under Channel settings. Delivery monitoring, portal
   notification summary/retention and lease recovery live under Diagnostics.
 - Booking request and class records show a compact notification summary using the shared vocabulary:

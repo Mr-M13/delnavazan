@@ -461,6 +461,15 @@ final class NotificationDispatchService {
     public function abandonLease(int $attemptId,array $input,string $key):array{return $this->recordOutcome($attemptId,array_merge($input,array('failure_class'=>'retryable','reason_code'=>(string)($input['reason_code']??'abandoned'))),$key,'abandon_lease');}
 
     /**
+     * Recover a durable provider-rejection command that has no fallback decision yet.  This is the
+     * crash-safe companion to the separate post-closure fallback transaction.
+     */
+    public function reconcileSmsFallbacks():array{
+        NotificationSupport::requireCapability(self::CAPABILITY);
+        return $this->fallbacks!==null?$this->fallbacks->reconcilePending():array('authorised'=>0,'blocked'=>0,'failed'=>0);
+    }
+
+    /**
      * §9 — recover every expired lease from its persisted attempt row.
      *
      * The closure instant is the persisted `lease_expires_at`, never a fresh clock read, so a crash between

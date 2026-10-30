@@ -12,11 +12,12 @@ final class NotificationDispatchWorker {
    $runId=NotificationSupport::uid(); $stamp=NotificationSupport::uid();
    $evidence=array('evidence_channel'=>'system','evidence_reference'=>'notification-worker:'.$runId,'evidence_at'=>NotificationSupport::now());
    $recovery=$this->dispatch->recoverExpiredLeases($evidence,'worker:recover:'.$runId);
+   $fallbackReconciliation=$this->dispatch->reconcileSmsFallbacks();
    $claim=$this->dispatch->claimLease($evidence,'worker:claim:'.$runId);
-   if(empty($claim['claimed']))return array('recovery'=>$recovery,'claim'=>$claim);
+   if(empty($claim['claimed']))return array('recovery'=>$recovery,'fallback_reconciliation'=>$fallbackReconciliation,'claim'=>$claim);
    $attempt=(int)$claim['attempt_id'];
    $handoff=$this->dispatch->handOff($attempt,$evidence,'worker:handoff:'.$attempt.':'.$runId);
-   if(empty($handoff['handed_off']))return array('recovery'=>$recovery,'claim'=>$claim,'handoff'=>$handoff);
+   if(empty($handoff['handed_off']))return array('recovery'=>$recovery,'fallback_reconciliation'=>$fallbackReconciliation,'claim'=>$claim,'handoff'=>$handoff);
    // Only keyed provider evidence crosses back into the closure. No provider payload, recipient value,
    // provider identifier or raw error text is copied into persistence.
    $provider=array();

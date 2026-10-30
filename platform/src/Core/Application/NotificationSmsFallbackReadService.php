@@ -68,6 +68,8 @@ final class NotificationSmsFallbackReadService {
     public static function whatsappLabel(string $state,?string $delivery):string{
         if($delivery==='delivered'||$state==='delivered')return 'WhatsApp delivered';
         if($delivery==='failed'||$state==='failed')return 'WhatsApp failed';
+        if($delivery==='expired'||$state==='expired')return 'WhatsApp failed (delivery expired)';
+        if($delivery==='undelivered')return 'WhatsApp delivery unknown';
         if($state==='dispatched')return 'WhatsApp accepted (delivery pending)';
         if(in_array($state,array('pending','scheduled','queued','dispatching'),true))return 'WhatsApp queued';
         if($state==='suppressed')return 'WhatsApp suppressed';

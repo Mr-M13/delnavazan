@@ -51,6 +51,10 @@ final class NotificationRepository {
         if($operation===null)return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_commands WHERE notification_id=%d ORDER BY id DESC",$notificationId))?:array();
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_commands WHERE notification_id=%d AND operation=%s ORDER BY id DESC",$notificationId,$operation))?:array();
     }
+    public function commandsByOperation(string $operation,int $limit=50):array{
+        global $wpdb;$limit=max(1,min($limit,200));
+        return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_commands WHERE operation=%s ORDER BY id ASC LIMIT %d",$operation,$limit))?:array();
+    }
     public function insertCommand(array $data):int{return $this->insert('notification_commands',$data,'Notification command persistence failed');}
     /** Operational read models: counts by status, never a payload (the diagnostics projection, §14). */
     public function countsByState():array{

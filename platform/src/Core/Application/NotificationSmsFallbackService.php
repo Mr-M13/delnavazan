@@ -241,6 +241,32 @@ final class NotificationSmsFallbackService {
         return $command?$this->notifications->find((int)$command->result_id):null;
     }
 
+    /**
+     * Recover a verified provider rejection whose source closure committed but whose fallback write did
+     * not.  The durable command is the evidence; no provider payload or recipient value is read.
+     */
+    public function reconcilePending(int $limit=25):array{
+        $authorised=0;$blocked=0;$failed=0;
+        foreach($this->notifications->commandsByOperation(self::COMMAND_PROVIDER_FAILURE,$limit) as $command){
+            $sourceId=(int)$command->notification_id;$attemptId=(int)$command->result_id;
+            if($sourceId<1||$attemptId<1)continue;
+            if($this->existingDecision($sourceId,$attemptId)!==null)continue;
+            try{
+                $result=$this->authoriseFromVerifiedFailure(
+                    $sourceId,$attemptId,(string)$command->command_key_digest,
+                    array(
+                        'evidence_channel'=>'provider_evidence',
+                        'evidence_reference'=>'telnyx-failure-command:'.(string)$command->command_key_digest,
+                        'evidence_at'=>(string)$command->created_at,
+                    ),
+                    false
+                );
+                if($result['authorised'])$authorised++;else $blocked++;
+            }catch(\Throwable){$failed++;}
+        }
+        return array('authorised'=>$authorised,'blocked'=>$blocked,'failed'=>$failed);
+    }
+
     public function sourceId(object $fallback):int{
         $reference=(string)($fallback->reference_code??'');
         if(preg_match('/^'.self::REFERENCE_PREFIX.'([1-9][0-9]*)$/',$reference,$match)!==1)return 0;
@@ -270,6 +296,9 @@ final class NotificationSmsFallbackService {
         $commandDigest=NotificationSupport::keyDigest('whatsapp-terminal-failure:'.(int)$source->id.':'.(int)$attempt->id);
         $command=$this->notifications->command($commandDigest);
         if(!$command||(string)$command->operation!==self::COMMAND_PROVIDER_FAILURE||(string)$command->result_state!=='failed'||(int)$command->result_id!==(int)$attempt->id)return null;
+        // A recovery pass uses the durable command's own keyed digest as evidence: the command was
+        // written only after an actual provider rejection, so it is the authoritative persisted fact.
+        if(hash_equals((string)$command->command_key_digest,$failureDigest))return array('digest'=>$failureDigest,'occurred_at'=>(string)$command->created_at);
         $expected=NotificationSupport::payloadDigest(array('domain'=>NotificationRule::DOMAIN,'operation'=>self::COMMAND_PROVIDER_FAILURE,'notification_id'=>(int)$source->id,'attempt_id'=>(int)$attempt->id,'failure_digest'=>$failureDigest));
         if(!hash_equals((string)$command->command_payload_digest,$expected))return null;
         return array('digest'=>$failureDigest,'occurred_at'=>NotificationSupport::now());

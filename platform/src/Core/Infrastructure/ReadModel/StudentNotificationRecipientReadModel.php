@@ -27,11 +27,13 @@ final class StudentNotificationRecipientReadModel implements NotificationBoundRe
   $authority=apply_filters('dzn_notification_student_guardian_authority',null,$subjectAggregateId,$row);
   $optedIn=$consent===true;
   $guardianAuthority=$authority===true;
+  $smsConsent=apply_filters('dzn_notification_student_sms_opted_in',null,$subjectAggregateId,$row);
+  $smsOptedIn=is_bool($smsConsent)?$smsConsent:$optedIn;
 
   $contact=array(
    'route'=>$route,
    'email'=>$email,'email_eligible'=>$emailEligible,
-   'sms'=>$phone,'sms_eligible'=>$smsEligible,
+   'sms'=>$phone,'sms_eligible'=>$smsEligible,'sms_opted_in'=>$smsOptedIn,
    'whatsapp'=>$wa,'whatsapp_eligible'=>$waEligible,
    'locale'=>(string)($row['locale']?:'fa-IR')
   );
@@ -41,6 +43,7 @@ final class StudentNotificationRecipientReadModel implements NotificationBoundRe
   return array(
    'resolvable'=>$routeResolvable&&is_array($envelope),
    'opted_in'=>$optedIn,
+   'sms_opted_in'=>$smsOptedIn,
    'guardian_authority_present'=>$guardianAuthority,
    'recipient_digest'=>hash_hmac('sha256','recipient:student:'.$subjectAggregateId,NotificationSupport::salt()),
    'contact_digest'=>hash_hmac('sha256','contact:student:'.$digestInput,NotificationSupport::salt()),

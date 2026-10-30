@@ -336,7 +336,7 @@ final class NotificationDispatchService {
                 // A verified failure webhook can arrive before this acknowledgement commits.  Reconcile it
                 // once the aggregate is dispatched so a terminal WhatsApp failure is never lost.
                 if($this->fallbacks!==null&&$this->notificationChannel($notification)==='whatsapp'){
-                    try{$this->fallbacks->authoriseExistingFailure((int)$notification->id);}catch(\Throwable){/* The evidence remains durable for operator reconciliation. */}
+                    try{$this->fallbacks->authoriseExistingFailure((int)$notification->id,$attemptId);}catch(\Throwable){/* The evidence remains durable for operator reconciliation. */}
                 }
                 return array('attempt_id'=>$attemptId,'notification_id'=>(int)$notification->id,'state'=>'dispatched','created'=>true);
             }
@@ -347,25 +347,28 @@ final class NotificationDispatchService {
                 $this->attempts->closeAttempt($attemptId,array('state'=>'failed','finished_at'=>$now,'outcome_code'=>$code,'failure_class'=>'terminal','updated_at'=>$now,'updated_by'=>$actor));
                 $this->attempts->insertEvent($this->attemptEvent($attemptId,'failed',(string)$attempt->state,'failed',$code,$now,$actor));
                 // A synchronous provider rejection is authoritative only when the adapter actually reached
-                // Telnyx. Pre-send refusals (missing template, invalid local destination, unmapped copy)
-                // carry no provider evidence and can never create an SMS fallback.
+                // Telnyx and the rejection named the recipient/message. Pre-send refusals (missing template,
+                // invalid local destination, unmapped copy) and operational auth/config failures carry no
+                // provider evidence and can never create an SMS fallback.
                 $fallbackResult=null;
                 $providerDigest=(string)($input['provider_evidence_digest']??'');
-                if(!empty($input['provider_attempted'])&&preg_match('/^[a-f0-9]{64}$/',$providerDigest)===1
-                    &&$this->fallbacks!==null&&$this->notificationChannel($notification)==='whatsapp'){
-                    $failureEvidence=array(
-                        'evidence_channel'=>'provider_evidence',
-                        'evidence_reference'=>'telnyx-provider-rejection:'.$providerDigest,
-                        'evidence_at'=>(string)($input['provider_evidence_at']??$now),
-                    );
-                    $this->fallbacks->recordProviderFailure($notification,$attempt,$providerDigest,$failureEvidence);
-                    $fallbackResult=$this->fallbacks->authoriseFromVerifiedFailure((int)$notification->id,$attemptId,$providerDigest,$failureEvidence,true);
-                }
+                $failureEvidence=array(
+                    'evidence_channel'=>'provider_evidence',
+                    'evidence_reference'=>'telnyx-provider-rejection:'.$providerDigest,
+                    'evidence_at'=>(string)($input['provider_evidence_at']??$now),
+                );
                 $this->repository->transition((int)$notification->id,(string)$notification->state,array('state'=>'failed','failure_reason_code'=>$code,'updated_at'=>$now,'updated_by'=>$actor));
                 $this->repository->insertEvent($this->eventRow((int)$notification->id,'failed',(string)$notification->state,'failed',$code,$evidence,$now,$actor));
                 $this->outbox->closeExhausted((int)$row->id,$code);
                 $this->recordDispatchCommand($digest,$operation,(int)$notification->id,'failed',$now,$actor);
                 $this->repository->commit();
+                // The source closure is committed first. The fallback authority then runs in its own
+                // transaction so a fallback write can never roll back a durable WhatsApp outcome.
+                if(!empty($input['provider_attempted'])&&preg_match('/^[a-f0-9]{64}$/',$providerDigest)===1
+                    &&$this->fallbacks!==null&&$this->notificationChannel($notification)==='whatsapp'){
+                    try{$fallbackResult=$this->fallbacks->authoriseFromProviderRejection((int)$notification->id,$attemptId,$providerDigest,$failureEvidence);}
+                    catch(\Throwable){$fallbackResult=array('authorised'=>false,'reason'=>'fallback_reconciliation_pending','fallback_notification_id'=>null,'replayed'=>false);}
+                }
                 return array('attempt_id'=>$attemptId,'notification_id'=>(int)$notification->id,'state'=>'failed','failure_reason_code'=>$code,'class'=>'terminal','created'=>true,'fallback'=>$fallbackResult);
             }
             $outcome=NotificationRule::nonTerminalClosureCode($failureClass)??'retryable';
@@ -616,7 +619,11 @@ final class NotificationDispatchService {
         $subject=$this->subjects?->subject((string)$binding['aggregate'],$subjectId,$binding['instant']);
         $recipient=$this->recipient($notification,$subjectId,$binding);
         $bound=NotificationEligibility::boundEvidence($intent,$subjectId,(string)$notification->observed_at);
-        $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now,NotificationRule::providerStopApplies($intent,(string)($recipient['route']??'')));
+        $route=(string)($recipient['route']??'');
+        // A fallback aggregate is always the mobile route.  This makes a carrier STOP applicable even
+        // when the legacy route preference hook is not configured.
+        if($route===''&&str_starts_with((string)($notification->reference_code??''),'SMSF'))$route='mobile';
+        $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now,NotificationRule::providerStopApplies($intent,$route));
         $facts=array(
             'subject_exists'=>(bool)($subject['exists']??false),'bound_evidence'=>$bound,
             'recipient_resolvable'=>(bool)($recipient['resolvable']??false),

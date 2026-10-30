@@ -61,7 +61,12 @@ final class TelnyxWebhookService {
         $replayed=$existing!==null;
         if($existing){
             $this->provider->incrementReplay((int)$existing->id);
-            if($this->terminal((string)$existing->outcome_code))return array('http'=>200,'outcome'=>(string)$existing->outcome_code,'replayed'=>true);
+            if($this->terminal((string)$existing->outcome_code)){
+                // Delivery receipts are replayed by providers.  Re-running the aggregate application is
+                // idempotent and lets a fallback/cancellation side effect recover after a transient error.
+                if((int)($existing->notification_id??0)>0&&str_starts_with((string)$existing->outcome_code,'delivery_'))$this->applyAggregate((int)$existing->notification_id);
+                return array('http'=>200,'outcome'=>(string)$existing->outcome_code,'replayed'=>true);
+            }
             $eventId=(int)$existing->id;
         }else{
             try{
@@ -134,10 +139,12 @@ final class TelnyxWebhookService {
         $this->applyAggregate((int)$message->notification_id);
         return $this->result($outcome,(int)$message->notification_id,(int)$message->attempt_id,$state);
     }
-    /** The aggregate transition remains capability-owned; a missing system actor leaves evidence only. */
+    /** The aggregate transition remains capability-owned; a missing runtime leaves evidence only. */
     private function applyAggregate(int $notificationId):void{
         try{NotificationSystemActor::run(fn()=>$this->states->apply($notificationId));}
-        catch(\Throwable){/* Evidence is durable; the aggregate is reconciled by the configured worker. */}
+        catch(\RuntimeException $error){
+            if($error->getMessage()!=='notification_system_actor_unconfigured')throw $error;
+        }catch(\Error){/* Non-runtime/unit environments have no database; evidence is already durable. */}
     }
     private function result(string $outcome,?int $notificationId=null,?int $attemptId=null,?string $deliveryState=null):array{
         return array('outcome'=>$outcome,'notification_id'=>$notificationId,'attempt_id'=>$attemptId,'delivery_state'=>$deliveryState);

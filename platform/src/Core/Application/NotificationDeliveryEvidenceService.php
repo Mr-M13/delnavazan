@@ -55,7 +55,14 @@ class NotificationDeliveryEvidenceService {
 
             $currentRank=$this->deliveries->appliedRank($notificationId);
             $applied=NotificationRule::DELIVERY_APPLIED;$outcome='applied';
-            if($rank<$currentRank){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_regression_attempt';}
+            $deliveredExists=$this->deliveries->hasAppliedDelivered($notificationId);
+            if($state==='delivered'){
+                // A verified delivery is authoritative even when a failure fact arrived first.  It is
+                // absorbing: it cancels any queued SMS fallback and no later failure may undo it.
+                if($deliveredExists){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_event_stale';}
+            }elseif($deliveredExists){
+                $applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_regression_attempt';
+            }elseif($rank<$currentRank){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_regression_attempt';}
             elseif($rank===$currentRank&&$currentRank>0){$applied=NotificationRule::DELIVERY_NOT_APPLIED;$outcome='delivery_event_stale';}
 
             $id=$this->deliveries->insertDelivery(array(

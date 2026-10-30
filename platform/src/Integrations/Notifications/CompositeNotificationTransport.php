@@ -8,9 +8,10 @@ use Delnavazan\Platform\Core\Application\NotificationTransportRouter;
  * Transport-side composition. Domain handoff stays channel-neutral; contact and copy are resolved only
  * here and are never written back to notification/attempt persistence.
  *
- * An optional channel-policy callback is evaluated against the frozen template's event key. It is
- * consulted before a channel is used and again before an SMS fallback, so a permanent WhatsApp
- * refusal never becomes an SMS duplicate when the event/category policy forbids that fallback.
+ * The router is WhatsApp-first.  This class deliberately performs no channel fallback of its own:
+ * a WhatsApp transient failure is returned to the dispatch authority for retry, and a permanent
+ * provider refusal is returned as a terminal closure.  SMS is only reachable through the separate
+ * durable fallback notification that the verified terminal-failure authority creates.
  */
 final class CompositeNotificationTransport implements NotificationTransportPort {
  public function __construct(
@@ -25,28 +26,14 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
   if(!is_array($contact))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
   $route=(string)($contact['route']??'mobile');
   $bindings=$this->allowed($this->router->route($route,$contact),$command,false);
-  if($bindings===array()&&$route==='mobile')$bindings=$this->allowed($this->router->fallbackAfter('whatsapp','send_refused',$contact),$command,true);
   if($bindings===array())return array('acknowledged'=>false,'permanent_failure'=>'no_route');
-  return $this->tryBindings($bindings,$command,$contact);
- }
- private function tryBindings(array $bindings,array $command,array $contact):array{
-  foreach($bindings as $binding){
-   $channel=(string)$binding['channel'];
-   $rendered=$this->copy->render((int)$command['template_version_id'],$channel,(string)($contact['locale']??''),(array)($command['parameters']??array()));
-   if($rendered===null){
-    $fallback=$this->allowed($this->router->fallbackAfter($channel,'send_refused',$contact),$command,true);
-    if($fallback!==array())return $this->tryBindings($fallback,$command,$contact);
-    return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
-   }
-   $transportCommand=$command+array('channel'=>$channel,'to'=>(string)($contact[$channel]??''),'subject'=>(string)($rendered['subject']??''),'body'=>(string)$rendered['body']);
-   $result=$binding['port']->handoff($transportCommand);
-   if(!empty($result['acknowledged']))return array('acknowledged'=>true,'permanent_failure'=>null);
-   $failure=$result['permanent_failure']??null;
-   $fallback=$this->allowed($this->router->fallbackAfter($channel,$failure,$contact),$command,true);
-   if($fallback!==array())return $this->tryBindings($fallback,$command,$contact);
-   return array('acknowledged'=>false,'permanent_failure'=>$failure);
-  }
-  return array('acknowledged'=>false,'permanent_failure'=>'no_route');
+  $binding=$bindings[0];
+  $channel=(string)$binding['channel'];
+  $rendered=$this->copy->render((int)$command['template_version_id'],$channel,(string)($contact['locale']??''),(array)($command['parameters']??array()));
+  if($rendered===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
+  $transportCommand=$command+array('channel'=>$channel,'to'=>(string)($contact[$channel]??''),'subject'=>(string)($rendered['subject']??''),'body'=>(string)$rendered['body']);
+  $result=$binding['port']->handoff($transportCommand);
+  return $result+array('acknowledged'=>(bool)($result['acknowledged']??false),'permanent_failure'=>$result['permanent_failure']??null,'channel'=>$channel);
  }
  private function allowed(array $bindings,array $command,bool $fallback):array{
   if(!is_callable($this->channelPolicy))return $bindings;

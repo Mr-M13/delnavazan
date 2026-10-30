@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Integrations\Notifications;
 use Delnavazan\Platform\Core\Application\NotificationDispatchService;
 use Delnavazan\Platform\Core\Application\NotificationDispatchWorker;
+use Delnavazan\Platform\Core\Application\NotificationSmsFallbackService;
 use Delnavazan\Platform\Core\Application\NotificationTransportRouter;
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Core\Infrastructure\ReadModel\StudentNotificationRecipientReadModel;
@@ -22,13 +23,19 @@ final class NotificationRuntimeFactory {
   $copy=(array)apply_filters('dzn_notification_copy_definitions',array());
   $bindings=(array)apply_filters('dzn_notification_transport_bindings',array());
   $recipients=new StudentNotificationRecipientReadModel();
-  $resolver=new NotificationTransportRecipientResolver($recipients);
+  $fallbacks=new NotificationSmsFallbackService(
+   recipients:$recipients,
+   smsPolicy:static fn(string $eventKey):bool=>NotificationChannelPolicy::allowsSmsFallback($eventKey)
+  );
+  $resolver=new NotificationTransportRecipientResolver($recipients,null,$fallbacks);
   $policy=static function(string $eventKey,string $channel,bool $fallback):bool{
    if($channel==='sms'&&$fallback)return NotificationChannelPolicy::allowsSmsFallback($eventKey);
    return NotificationChannelPolicy::allows($eventKey,$channel);
   };
   $transport=new CompositeNotificationTransport(new NotificationTransportRouter($bindings),new ConfiguredNotificationCopy($copy),$resolver,$policy);
-  return new NotificationDispatchWorker(new NotificationDispatchService(transport:$transport,recipients:$recipients,subjects:new StudentAccountClaimNotificationSubjectReadModel()));
+  return new NotificationDispatchWorker(new NotificationDispatchService(
+   transport:$transport,recipients:$recipients,subjects:new StudentAccountClaimNotificationSubjectReadModel(),fallbacks:$fallbacks
+  ));
  }
  private static function hasConfiguredBinding(array $bindings):bool{
   foreach($bindings as $b)if(is_array($b)&&!empty($b['configured'])&&isset($b['port'])&&$b['port'] instanceof NotificationTransportPort)return true;

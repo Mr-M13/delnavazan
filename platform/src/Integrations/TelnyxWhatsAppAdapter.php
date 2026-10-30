@@ -100,13 +100,25 @@ final class TelnyxWhatsAppAdapter {
             'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
             'body'=>wp_json_encode($payload),
         ));
-        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport');
+        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);
         $status=(int)wp_remote_retrieve_response_code($response);
-        if($status<200||$status>=300)return array('acknowledged'=>false,'permanent_failure'=>self::permanentFailure($status),'http'=>$status);
+        if($status<200||$status>=300){
+            $permanent=self::permanentFailure($status);
+            $result=array('acknowledged'=>false,'permanent_failure'=>$permanent,'http'=>$status,'provider_attempted'=>true,'ambiguous'=>$permanent===null);
+            // Only an actual provider attempt can carry terminal rejection evidence. Local validation,
+            // template mapping and transport errors above deliberately carry none.
+            if($permanent!==null){
+                $at=NotificationSupport::now();
+                $result['provider_evidence_digest']=hash_hmac('sha256','telnyx:whatsapp:rejected:'.(string)($command['notification_key_digest']??'').':'.(int)($command['attempt_sequence']??0).':'.$status.':'.$at,NotificationSupport::salt());
+                $result['provider_evidence_at']=$at;
+                $result['provider_outcome']='rejected';
+            }
+            return $result;
+        }
         $body=json_decode((string)wp_remote_retrieve_body($response),true);
         $reference=is_array($body)?(string)($body['data']['id']??''):'';
         if($reference!==''&&$notification&&$attempt)$this->remember($notification,$attempt,$reference,$mapped['name'],$mapped['language']);
-        return array('acknowledged'=>true,'permanent_failure'=>null,'provider_reference_present'=>$reference!=='');
+        return array('acknowledged'=>true,'permanent_failure'=>null,'provider_attempted'=>true,'provider_reference_present'=>$reference!=='');
     }
 
     public static function templatePayload(string $from,string $to,string $name,string $language,array $order,array $parameters,string $profile=''):array{

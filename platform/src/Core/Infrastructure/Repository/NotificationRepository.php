@@ -14,6 +14,7 @@ final class NotificationRepository {
 
     public function find(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notifications WHERE id=%d".($lock?' FOR UPDATE':''),$id);}
     public function byKeyDigest(string $digest,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notifications WHERE notification_key_digest=%s".($lock?' FOR UPDATE':''),$digest);}
+    public function byReferenceCode(string $code,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notifications WHERE reference_code=%s".($lock?' FOR UPDATE':''),$code);}
     public function forOutbox(int $outboxId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}notifications WHERE outbox_id=%d".($lock?' FOR UPDATE':''),$outboxId);}
     public function insertNotification(array $data):int{return $this->insert('notifications',$data,'Notification persistence failed');}
     public function updateNotification(int $id,int $expectedVersion,array $fields,string $now,int $actor):void{
@@ -45,6 +46,11 @@ final class NotificationRepository {
     public function nextSequence(int $notificationId):int{global $wpdb;return 1+(int)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(event_sequence),0) FROM {$this->p}notification_events WHERE notification_id=%d",$notificationId));}
     public function insertEvent(array $data):int{return $this->insert('notification_events',$data,'Notification event persistence failed');}
     public function command(string $digest):?object{return $this->one("SELECT * FROM {$this->p}notification_commands WHERE command_key_digest=%s",$digest);}
+    public function commandsForNotification(int $notificationId,?string $operation=null):array{
+        global $wpdb;
+        if($operation===null)return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_commands WHERE notification_id=%d ORDER BY id DESC",$notificationId))?:array();
+        return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_commands WHERE notification_id=%d AND operation=%s ORDER BY id DESC",$notificationId,$operation))?:array();
+    }
     public function insertCommand(array $data):int{return $this->insert('notification_commands',$data,'Notification command persistence failed');}
     /** Operational read models: counts by status, never a payload (the diagnostics projection, §14). */
     public function countsByState():array{

@@ -21,6 +21,8 @@ final class NotificationOutboxRepository {
 
     /** One S-owned row, locked for the caller's transaction when requested. */
     public function row(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}platform_outbox WHERE id=%d".($lock?' FOR UPDATE':''),$id);}
+    /** Insert one S-owned work row in the existing shared outbox seam (never a second queue). */
+    public function insertQueued(array $data):int{return $this->insert('platform_outbox',$data,'Notification outbox persistence failed');}
     /** The row that backs one notification, read through the S-owned unique key. */
     public function forNotification(int $notificationId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}platform_outbox WHERE notification_id=%d".($lock?' FOR UPDATE':''),$notificationId);}
     /**
@@ -142,4 +144,13 @@ final class NotificationOutboxRepository {
         if($changed!==1)throw new \RuntimeException('notification_outbox_state_conflict');
     }
     private function one(string $sql,...$args):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare($sql,...$args));}
+    private function insert(string $table,array $data,string $message):int{
+        global $wpdb;
+        $old=$wpdb->suppress_errors(true);
+        $ok=$wpdb->insert($this->p.$table,$data);
+        $error=$wpdb->last_error;
+        $wpdb->suppress_errors($old);
+        if($ok===false)throw new \RuntimeException($message.': '.$error);
+        return (int)$wpdb->insert_id;
+    }
 }

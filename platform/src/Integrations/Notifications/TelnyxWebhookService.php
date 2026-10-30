@@ -33,7 +33,13 @@ final class TelnyxWebhookService {
     }
 
     public static function fromSettings($settings):self{
-        return new self(TelnyxWebhookSignature::fromSettings((new TelnyxConfiguration($settings))->webhookPublicKey()));
+        $recipients=new \Delnavazan\Platform\Core\Infrastructure\ReadModel\StudentNotificationRecipientReadModel();
+        $fallbacks=new \Delnavazan\Platform\Core\Application\NotificationSmsFallbackService(
+            recipients:$recipients,
+            smsPolicy:static fn(string $eventKey):bool=>NotificationChannelPolicy::allowsSmsFallback($eventKey)
+        );
+        $states=new NotificationDeliveryStateService(null,null,$fallbacks);
+        return new self(TelnyxWebhookSignature::fromSettings((new TelnyxConfiguration($settings))->webhookPublicKey()),states:$states);
     }
 
     /**

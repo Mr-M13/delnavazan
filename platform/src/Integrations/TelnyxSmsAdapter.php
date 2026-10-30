@@ -64,9 +64,9 @@ final class TelnyxSmsAdapter {
             'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
             'body'=>wp_json_encode($payload),
         ));
-        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport');
+        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);
         $status=(int)wp_remote_retrieve_response_code($response);
-        if($status<200||$status>=300)return array('acknowledged'=>false,'permanent_failure'=>self::permanentFailure($status),'http'=>$status);
+        if($status<200||$status>=300)return array('acknowledged'=>false,'permanent_failure'=>self::permanentFailure($status),'http'=>$status,'ambiguous'=>in_array($status,array(408,425),true)||$status>=500);
         $body=json_decode((string)wp_remote_retrieve_body($response),true);
         $reference=is_array($body)?(string)($body['data']['id']??''):'';
         if($reference!==''&&$notification&&$attempt)$this->remember($notification,$attempt,$reference,'sent','sms');

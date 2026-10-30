@@ -396,7 +396,7 @@ final class ScreenController {
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
         if ($entity === 'lesson') { if(!$canonicalLesson)self::introductoryOutcomeForm($record); if($canonicalLesson){self::canonicalLessonCompletionForm($record);self::canonicalLessonDeliverySection($record);if(current_user_can('dzn_manage_canonical_lesson_schedules'))self::canonicalLessonSchedule($record);else echo '<p>Schedule changes are handled by staff with class scheduling access.</p>';}else self::lessonSchedules($id,(string)$record->status,(int)($record->current_schedule_version_id??0)); }
-        if ( $entity === 'lesson' ) NotificationManagementController::renderRecordStatus('lesson',$id);
+        if ( $entity === 'lesson' && class_exists(NotificationManagementController::class) ) NotificationManagementController::renderRecordStatus('lesson',$id);
     }
 
     private static function updateTeacherProfile(array $post): int {

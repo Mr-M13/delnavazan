@@ -20,6 +20,9 @@
 - Draft-only WordPress provisioning (`wp dzn-legal provision`) and an operator action under
   **Delnavazan → General → Legal and policy pages**. It creates/refreshes drafts, attaches the Policy
   template, records a version and source SHA-256, and never publishes.
+- A guarded one-shot production workflow, `Provision production legal drafts`, which verifies the
+  exact current `main` SHA and the deployed build identity before running the same draft provisioner.
+  It requires the literal confirmation `PROVISION_LEGAL_DRAFTS` and cannot publish.
 - Booking and post-intro payment surfaces link to Privacy, Terms and Cancellation/Refund before the
   relevant commitment.
 - Production smoke now checks all five public URLs and the footer policy section.

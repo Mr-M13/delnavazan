@@ -1,0 +1,50 @@
+<?php
+$root=dirname(__DIR__);
+$read=static fn(string $p):string=>(string)file_get_contents($root.'/'.$p);
+$fallback=$read('src/Core/Application/NotificationSmsFallbackService.php');
+$policy=$read('src/Core/Application/NotificationSmsFallbackPolicy.php');
+$router=$read('src/Core/Application/NotificationTransportRouter.php');
+$composite=$read('src/Integrations/Notifications/CompositeNotificationTransport.php');
+$state=$read('src/Core/Application/NotificationDeliveryStateService.php');
+$evidence=$read('src/Core/Application/NotificationDeliveryEvidenceService.php');
+$dispatch=$read('src/Core/Application/NotificationDispatchService.php');
+$readModel=$read('src/Core/Application/NotificationSmsFallbackReadService.php');
+$admin=$read('src/Admin/Controller/NotificationManagementController.php');
+$fail=static function(string $name,bool $ok):void{if(!$ok)throw new RuntimeException('SMS fallback contract failed: '.$name);};
+
+$fail('fallback is driven by the closed policy table',str_contains($fallback,'NotificationSmsFallbackPolicy::decide'));
+$fail('only verified terminal evidence can authorise',str_contains($fallback,'appliedFailureForAttempt')&&str_contains($fallback,'verifiedFailure')&&str_contains($fallback,"'failure_unverified'"));
+$fail('delivered evidence is absorbing',str_contains($fallback,'hasAppliedDelivered')&&str_contains($fallback,"'whatsapp_delivered'"));
+$fail('SMS consent and suppression are rechecked',str_contains($fallback,"'opted_in'")&&str_contains($fallback,'guardian_authority_present')&&str_contains($fallback,'->active(')&&str_contains($fallback,"'sms_suppressed'"));
+$fail('channel policy and phone validity are rechecked',str_contains($fallback,'smsPolicy')&&str_contains($fallback,'validPhone'));
+$fail('one source produces one fallback identity',str_contains($fallback,"REFERENCE_PREFIX='SMSF'")&&str_contains($fallback,'byReferenceCode')&&str_contains($fallback,'notificationKeyDigest'));
+$fail('durable commands make authorisation idempotent',str_contains($fallback,'COMMAND_AUTHORISED')&&str_contains($fallback,'COMMAND_BLOCKED')&&str_contains($fallback,'NotificationSupport::keyDigest'));
+$fail('the fallback uses existing notification/outbox/attempt tables',str_contains($fallback,'insertQueued')&&str_contains($fallback,'insertNotification')&&str_contains($fallback,'insertSnapshot'));
+$fail('no duplicate queue or delivery table is introduced',!str_contains($fallback,'CREATE TABLE')&&!str_contains($fallback,'notification_sms_fallbacks'));
+$fail('late delivery cancels a queued fallback',str_contains($fallback,'cancelForDeliveredSource')&&str_contains($fallback,'->closeAny('));
+$fail('dispatch revalidates fallback authority',str_contains($fallback,'authorisedForNotification')&&str_contains($state,'cancelForDeliveredSource'));
+$fail('provider rejection evidence is recorded only after an attempt',str_contains($dispatch,'provider_attempted')&&str_contains($dispatch,'authoriseFromProviderRejection')&&str_contains($fallback,'recordProviderFailure'));
+$fail('source closure commits before fallback persistence',str_contains($dispatch,'fallback_reconciliation_pending')&&str_contains($fallback,'authoriseFromProviderRejection')&&str_contains($fallback,'authoriseFromVerifiedFailure($sourceNotificationId,$sourceAttemptId,$failureDigest,$evidence,false)'));
+$fail('existing failure reconciliation is bound to the acknowledged attempt',str_contains($fallback,'authoriseExistingFailure(int $sourceNotificationId,int $sourceAttemptId')&&str_contains($fallback,'appliedFailureForAttempt($sourceNotificationId,$sourceAttemptId)'));
+$fail('fallback authority is revalidated at hand-off',str_contains($fallback,'$context=$this->smsContext($source,NotificationSupport::now())')&&str_contains($fallback,'sourceAttemptForFallback'));
+$fail('missing policy fails closed',str_contains($fallback,'$policyAllowed=is_callable($this->smsPolicy)&&'));
+$fail('transient block reasons are re-evaluated',str_contains($fallback,'CACHED_BLOCK_REASONS')&&str_contains($fallback,'in_array((string)$blocked->result_state,self::CACHED_BLOCK_REASONS,true)'));
+$fail('fallback claim uses the mobile STOP scope',str_contains($dispatch,"str_starts_with((string)(\$notification->reference_code??''),'SMSF')")&&str_contains($dispatch,"\$route='mobile'"));
+$fail('SMS consent is channel-specific where available',str_contains($read('src/Core/Infrastructure/ReadModel/StudentNotificationRecipientReadModel.php'),'dzn_notification_student_sms_opted_in')&&str_contains($fallback,"'sms_opted_in'"));
+$fail('recipient phone is read from the encrypted contact envelope',str_contains($fallback,'NotificationSupport::decryptEnvelope($recipient[\'contact_envelope\']')&&str_contains($fallback,"\$phone=(string)(\$contact['sms']??'')"));
+$fail('late delivery cancellation cites the delivered fact',str_contains($fallback,'cancelForDeliveredSource(int $sourceNotificationId,string $now,int $actor,?string $deliveredDigest=null)')&&str_contains($state,'$delivered->provider_fact_digest'));
+$fail('replayed delivery webhooks re-run aggregate reconciliation',str_contains($read('src/Integrations/Notifications/TelnyxWebhookService.php'),'str_starts_with((string)$existing->outcome_code,\'delivery_\')'));
+$fail('durable provider rejection commands are reconciled by the worker',str_contains($fallback,'reconcilePending')&&str_contains($read('src/Core/Application/NotificationDispatchService.php'),'reconcileSmsFallbacks')&&str_contains($read('src/Core/Application/NotificationDispatchWorker.php'),'reconcileSmsFallbacks'));
+$fail('ambiguous SMS is never retried',str_contains($dispatch,"'ambiguous'")&&str_contains($dispatch,'$smsFallback'));
+$fail('router never selects SMS as a capability fallback',str_contains($router,'authorisedSmsFallback')&&str_contains($router,'sms_fallback_authorised')&&!str_contains($router,"if(\$wa&&\$wa['configured']"));
+$fail('composite performs no automatic channel fallback',str_contains($composite,'no channel fallback')&&!str_contains($composite,'fallbackAfter('));
+$fail('delivered facts beat out-of-order failures',str_contains($evidence,'hasAppliedDelivered')&&str_contains($evidence,'delivery_regression_attempt'));
+$fail('only the failed fact triggers fallback',str_contains($state,'latestAppliedFailure')&&str_contains($evidence,'delivery_state===\'failed\'')===false&&!str_contains($state,"delivery_state==='expired'"));
+$fail('definitive provider expiry is fallback-eligible and undelivered is not',str_contains($read('src/Core/Infrastructure/Repository/NotificationDeliveryRepository.php'),"IN ('failed','expired')")&&!str_contains($read('src/Core/Infrastructure/Repository/NotificationDeliveryRepository.php'),"IN ('failed','expired','undelivered')"));
+$fail('admin view links source and fallback without sensitive data',str_contains($readModel,'source_attempt_id')&&str_contains($readModel,'fallback_notification_id')&&str_contains($readModel,'blocked_reason')&&str_contains($admin,'WhatsApp → SMS fallback')&&str_contains($admin,'SMS fallback blocked'));
+$fail('admin labels are English and content remains Persian',str_contains($admin,'SMS fallback sent')&&str_contains($admin,'Customer-facing notification content remains Persian'));
+foreach(array('api_key','contact_envelope','rendered_params_envelope') as $secret){
+    $fail('monitoring does not expose '.$secret,!str_contains($readModel,$secret));
+}
+$fail('policy has all closed statuses',str_contains($policy,'STATUS_DELIVERED')&&str_contains($policy,'STATUS_TEMPORARY_FAILED')&&str_contains($policy,'STATUS_PROVIDER_REJECTED')&&str_contains($policy,'STATUS_INELIGIBLE'));
+echo "SMS fallback persistence, idempotency and monitoring contract passed\n";

@@ -126,7 +126,12 @@ final class NotificationIntegrity {
         if((string)$notification->timezone!==''&&$composition['timezone_basis']===null)throw new \InvalidArgumentException('schedule_derivation_divergence');
         if($identity!==array()){
             $generationIdentity=null;
-            if((string)$identity['intent_key']==='STUDENT_ACCOUNT_CLAIM_ISSUED'){
+            if(isset($notification->reference_code)&&trim((string)$notification->reference_code)!==''){
+                // A fallback notification is a distinct aggregate derived from one verified terminal
+                // WhatsApp failure.  Its server-written reference code is part of its immutable identity,
+                // so the same source can never produce a second fallback notification.
+                $generationIdentity=(string)$notification->reference_code;
+            }elseif((string)$identity['intent_key']==='STUDENT_ACCOUNT_CLAIM_ISSUED'){
                 $mirror=$identity['outbox']??null;
                 if(!$mirror||empty($mirror->idempotency_key))throw new \InvalidArgumentException('schedule_derivation_divergence');
                 $generationIdentity=(string)$mirror->idempotency_key;

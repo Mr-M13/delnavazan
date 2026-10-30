@@ -19,6 +19,19 @@ final class NotificationDeliveryRepository {
 
     public function deliveries(int $notificationId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_deliveries WHERE notification_id=%d ORDER BY delivery_sequence",$notificationId))?:array();}
     public function appliedDeliveries(int $notificationId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_deliveries WHERE notification_id=%d AND applied=1 ORDER BY delivery_sequence",$notificationId))?:array();}
+    /** A delivered fact is absorbing: no later terminal failure may authorise a fallback. */
+    public function hasAppliedDelivered(int $notificationId):bool{
+        global $wpdb;
+        return (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$this->p}notification_deliveries WHERE notification_id=%d AND applied=1 AND delivery_state='delivered'",$notificationId))>0;
+    }
+    /** The latest applied authoritative delivery failure of one notification, or null. */
+    public function latestAppliedFailure(int $notificationId):?object{
+        return $this->one("SELECT * FROM {$this->p}notification_deliveries WHERE notification_id=%d AND applied=1 AND delivery_state IN ('failed','expired') ORDER BY delivery_sequence DESC LIMIT 1",$notificationId);
+    }
+    /** The applied terminal failure of one exact hand-off attempt, or null. */
+    public function appliedFailureForAttempt(int $notificationId,int $attemptId):?object{
+        return $this->one("SELECT * FROM {$this->p}notification_deliveries WHERE notification_id=%d AND attempt_id=%d AND applied=1 AND delivery_state IN ('failed','expired') ORDER BY delivery_sequence DESC LIMIT 1",$notificationId,$attemptId);
+    }
     /** Delivery evidence belongs to the exact hand-off attempt; evidence from an earlier retry must never reconcile a later one. */
     public function deliveriesForAttempt(int $attemptId):array{global $wpdb;return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}notification_deliveries WHERE attempt_id=%d ORDER BY delivery_sequence",$attemptId))?:array();}
     public function byProviderReference(string $digest):?object{return $this->one("SELECT * FROM {$this->p}notification_deliveries WHERE provider_event_reference_digest=%s",$digest);}

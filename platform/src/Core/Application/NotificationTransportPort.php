@@ -14,7 +14,10 @@ interface NotificationTransportPort {
      * @param array $authorisedCommand `notification_key_digest`, `attempt_sequence`, `audience`,
      *        `template_version_id`, `variable_codes` and the decrypted parameter envelope — nothing else.
      * @return array `['acknowledged'=>bool,'permanent_failure'=>?string]` where a reported permanent
-     *         failure is one `contact_unusable`/`send_refused`/`no_route` member, or null.
+     *         failure is one `contact_unusable`/`send_refused`/`no_route` member, or null.  A transport
+     *         may additionally return keyed, non-sensitive evidence fields (`provider_attempted`,
+     *         `provider_evidence_digest`, `provider_evidence_at`, `provider_outcome`, `ambiguous`,
+     *         `channel`); raw payloads, provider ids and recipient values never cross this boundary.
      */
     public function handoff(array $authorisedCommand):array;
 }

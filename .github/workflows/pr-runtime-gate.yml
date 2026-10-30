@@ -140,6 +140,8 @@ jobs:
           php platform/tests/homepage-instrument-belt-contract.php
           php platform/tests/notification-transport-routing-contract.php
           php platform/tests/notification-composite-transport-contract.php
+          php platform/tests/notification-sms-fallback-policy-unit.php
+          php platform/tests/notification-sms-fallback-contract.php
           php platform/tests/notification-system-actor-contract.php
           php platform/tests/notification-dispatch-worker-contract.php
           php platform/tests/student-notification-recipient-contract.php

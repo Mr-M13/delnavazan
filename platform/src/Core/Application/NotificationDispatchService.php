@@ -28,7 +28,8 @@ final class NotificationDispatchService {
         private ?NotificationSubjectReadPort $subjects=null,
         private ?NotificationRecipientReadPort $recipients=null,
         private ?NotificationSuppressionRepository $suppressions=null,
-        private ?NotificationTemplateRepository $templates=null
+        private ?NotificationTemplateRepository $templates=null,
+        private ?NotificationSmsFallbackService $fallbacks=null
     ){
         $this->repository??=new NotificationRepository();
         $this->workflows??=new NotificationWorkflowRepository();
@@ -205,9 +206,21 @@ final class NotificationDispatchService {
         // off twice and a replay of the same key never reaches the port again.
         $reservation=$this->reserveHandOff($attemptId,$digest,$actor,$notification,$command,$authorisedCommand,$key);
         if(($reservation['reserved']??false)!==true)return $reservation;
+        // Late WhatsApp delivery may have cancelled this fallback between the reservation and the port
+        // call.  Re-read the durable state so a cancelled/abandoned attempt never reaches the SMS adapter.
+        $liveAttempt=$this->attempts->find($attemptId);
+        $liveNotification=$liveAttempt?$this->repository->find((int)$liveAttempt->notification_id):null;
+        if(!$liveAttempt||$liveAttempt->finished_at!==null||(string)$liveAttempt->state!=='handed_off'
+            ||!$liveNotification||(string)$liveNotification->state!=='dispatching'){
+            return array('attempt_id'=>$attemptId,'state'=>$liveNotification?(string)$liveNotification->state:'failed','handed_off'=>false,'acknowledged'=>false,'permanent_failure'=>null,'outcome'=>'dispatch_cancelled');
+        }
         // The attempt stays open until the outcome is recorded: `handed_off → acknowledged | failed`.
         $response=$this->transport->handoff($command);
-        return array('attempt_id'=>$attemptId,'state'=>'handed_off','handed_off'=>true,'acknowledged'=>(bool)($response['acknowledged']??false),'permanent_failure'=>$response['permanent_failure']??null);
+        $result=array('attempt_id'=>$attemptId,'state'=>'handed_off','handed_off'=>true,'acknowledged'=>(bool)($response['acknowledged']??false),'permanent_failure'=>$response['permanent_failure']??null);
+        foreach(array('provider_attempted','provider_evidence_digest','provider_evidence_at','provider_outcome','ambiguous','channel') as $key){
+            if(array_key_exists($key,$response))$result[$key]=$response[$key];
+        }
+        return $result;
     }
 
     /**
@@ -281,8 +294,17 @@ final class NotificationDispatchService {
         $digest=NotificationSupport::keyDigest($key);
         $acknowledged=!empty($input['acknowledged']);
         $failureClass=trim((string)($input['failure_class']??''));
-        if(!$acknowledged&&!in_array($failureClass,NotificationRule::FAILURE_CLASSES,true))throw new \InvalidArgumentException('terminal_reason_invalid');
         $reason=trim((string)($input['reason_code']??''));
+        // An ambiguous SMS transport response must never be retried automatically: the provider may have
+        // accepted the fallback and a second call could duplicate the only authorised SMS.
+        $smsFallback=false;
+        if(!$acknowledged&&!empty($input['ambiguous'])&&$this->fallbacks!==null){
+            $hint=$this->attempts->find($attemptId);
+            $hintNotification=$hint?$this->repository->find((int)$hint->notification_id):null;
+            $smsFallback=$hintNotification?$this->fallbacks->sourceId($hintNotification)>0:false;
+            if($smsFallback){$failureClass='terminal';$reason='send_refused';}
+        }
+        if(!$acknowledged&&!in_array($failureClass,NotificationRule::FAILURE_CLASSES,true))throw new \InvalidArgumentException('terminal_reason_invalid');
         $this->repository->begin();
         try{
             if($winner=$this->repository->command($digest)){$this->repository->commit();return array('attempt_id'=>$attemptId,'state'=>(string)$winner->result_state,'created'=>false,'idempotent'=>true);}
@@ -319,6 +341,11 @@ final class NotificationDispatchService {
                 $this->outbox->markDelivered((int)$row->id,$now);
                 $this->recordDispatchCommand($digest,$operation,(int)$notification->id,'dispatched',$now,$actor);
                 $this->repository->commit();
+                // A verified failure webhook can arrive before this acknowledgement commits.  Reconcile it
+                // once the aggregate is dispatched so a terminal WhatsApp failure is never lost.
+                if($this->fallbacks!==null&&$this->notificationChannel($notification)==='whatsapp'){
+                    try{$this->fallbacks->authoriseExistingFailure((int)$notification->id,$attemptId);}catch(\Throwable){/* The evidence remains durable for operator reconciliation. */}
+                }
                 return array('attempt_id'=>$attemptId,'notification_id'=>(int)$notification->id,'state'=>'dispatched','created'=>true);
             }
             if($failureClass==='terminal'){
@@ -327,12 +354,30 @@ final class NotificationDispatchService {
                 $code=NotificationIntegrity::normaliseTerminalReason($reason);
                 $this->attempts->closeAttempt($attemptId,array('state'=>'failed','finished_at'=>$now,'outcome_code'=>$code,'failure_class'=>'terminal','updated_at'=>$now,'updated_by'=>$actor));
                 $this->attempts->insertEvent($this->attemptEvent($attemptId,'failed',(string)$attempt->state,'failed',$code,$now,$actor));
+                // A synchronous provider rejection is authoritative only when the adapter actually reached
+                // Telnyx and the rejection named the recipient/message. Pre-send refusals (missing template,
+                // invalid local destination, unmapped copy) and operational auth/config failures carry no
+                // provider evidence and can never create an SMS fallback.
+                $fallbackResult=null;
+                $providerDigest=(string)($input['provider_evidence_digest']??'');
+                $failureEvidence=array(
+                    'evidence_channel'=>'provider_evidence',
+                    'evidence_reference'=>'telnyx-provider-rejection:'.$providerDigest,
+                    'evidence_at'=>(string)($input['provider_evidence_at']??$now),
+                );
                 $this->repository->transition((int)$notification->id,(string)$notification->state,array('state'=>'failed','failure_reason_code'=>$code,'updated_at'=>$now,'updated_by'=>$actor));
                 $this->repository->insertEvent($this->eventRow((int)$notification->id,'failed',(string)$notification->state,'failed',$code,$evidence,$now,$actor));
                 $this->outbox->closeExhausted((int)$row->id,$code);
                 $this->recordDispatchCommand($digest,$operation,(int)$notification->id,'failed',$now,$actor);
                 $this->repository->commit();
-                return array('attempt_id'=>$attemptId,'notification_id'=>(int)$notification->id,'state'=>'failed','failure_reason_code'=>$code,'class'=>'terminal','created'=>true);
+                // The source closure is committed first. The fallback authority then runs in its own
+                // transaction so a fallback write can never roll back a durable WhatsApp outcome.
+                if(!empty($input['provider_attempted'])&&preg_match('/^[a-f0-9]{64}$/',$providerDigest)===1
+                    &&$this->fallbacks!==null&&$this->notificationChannel($notification)==='whatsapp'){
+                    try{$fallbackResult=$this->fallbacks->authoriseFromProviderRejection((int)$notification->id,$attemptId,$providerDigest,$failureEvidence);}
+                    catch(\Throwable){$fallbackResult=array('authorised'=>false,'reason'=>'fallback_reconciliation_pending','fallback_notification_id'=>null,'replayed'=>false);}
+                }
+                return array('attempt_id'=>$attemptId,'notification_id'=>(int)$notification->id,'state'=>'failed','failure_reason_code'=>$code,'class'=>'terminal','created'=>true,'fallback'=>$fallbackResult);
             }
             $outcome=NotificationRule::nonTerminalClosureCode($failureClass)??'retryable';
             $closure=NotificationRetry::closure($policy,array(
@@ -414,6 +459,15 @@ final class NotificationDispatchService {
      * never borrow a terminal-class reason code, and it follows the same ceiling-first two-gate rule.
      */
     public function abandonLease(int $attemptId,array $input,string $key):array{return $this->recordOutcome($attemptId,array_merge($input,array('failure_class'=>'retryable','reason_code'=>(string)($input['reason_code']??'abandoned'))),$key,'abandon_lease');}
+
+    /**
+     * Recover a durable provider-rejection command that has no fallback decision yet.  This is the
+     * crash-safe companion to the separate post-closure fallback transaction.
+     */
+    public function reconcileSmsFallbacks():array{
+        NotificationSupport::requireCapability(self::CAPABILITY);
+        return $this->fallbacks!==null?$this->fallbacks->reconcilePending():array('authorised'=>0,'blocked'=>0,'failed'=>0);
+    }
 
     /**
      * §9 — recover every expired lease from its persisted attempt row.
@@ -501,6 +555,14 @@ final class NotificationDispatchService {
         $rows=$this->ruleRows($version,'retry');
         return NotificationRetry::validatePolicy($rows);
     }
+    /** The channel frozen into the notification's template identity; used only to bind provider evidence. */
+    private function notificationChannel(object $notification):string{
+        $version=$notification->template_version_id===null?null:$this->templates->version((int)$notification->template_version_id);
+        $template=$version?$this->templates->template((int)$version->template_id):null;
+        if(!$template)return '';
+        $parts=explode('.',(string)$template->template_key);
+        return count($parts)<3?'':(string)$parts[count($parts)-2];
+    }
     /**
      * §7.3/§9/§10 — prove the aggregate under its own locks before any eligibility verdict or lease.
      *
@@ -574,7 +636,11 @@ final class NotificationDispatchService {
         $subject=$this->subjects?->subject((string)$binding['aggregate'],$subjectId,$binding['instant']);
         $recipient=$this->recipient($notification,$subjectId,$binding);
         $bound=NotificationEligibility::boundEvidence($intent,$subjectId,(string)$notification->observed_at);
-        $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now,NotificationRule::providerStopApplies($intent,(string)($recipient['route']??'')));
+        $route=(string)($recipient['route']??'');
+        // A fallback aggregate is always the mobile route.  This makes a carrier STOP applicable even
+        // when the legacy route preference hook is not configured.
+        if($route===''&&str_starts_with((string)($notification->reference_code??''),'SMSF'))$route='mobile';
+        $suppression=$this->suppressions->active((string)$notification->recipient_digest,$intent,$now,NotificationRule::providerStopApplies($intent,$route));
         $facts=array(
             'subject_exists'=>(bool)($subject['exists']??false),'bound_evidence'=>$bound,
             'recipient_resolvable'=>(bool)($recipient['resolvable']??false),

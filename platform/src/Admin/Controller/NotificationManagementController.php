@@ -6,6 +6,7 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationDeliveryStatusReadService;
 use Delnavazan\Platform\Core\Application\NotificationDiagnosticsReadService;
 use Delnavazan\Platform\Core\Application\NotificationRule;
+use Delnavazan\Platform\Core\Application\NotificationSmsFallbackReadService;
 use Delnavazan\Platform\Core\Application\NotificationDispatchService;
 use Delnavazan\Platform\Core\Application\NotificationSupport;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -264,6 +265,7 @@ final class NotificationManagementController {
         ),'dzn-integration-email','Open Email settings');
         self::renderChannelCard('sms','SMS',array(
             'SMS is a constrained fallback only; it is never a primary channel.',
+            'Automatic SMS requires a verified terminal WhatsApp delivery failure for the same notification, plus valid SMS consent, suppression and policy eligibility.',
             'Provider readiness: '.self::providerReadyLabel('sms'),
         ),'dzn-integration-sms','Open SMS settings');
         echo '</div>';
@@ -336,6 +338,7 @@ final class NotificationManagementController {
             echo '<tr><td>'.esc_html($label).'<br><code dir="ltr">'.esc_html($state).'</code></td><td>'.esc_html((string)$count).'</td><td>'.esc_html($meaning).'</td></tr>';
         }
         echo '</tbody></table>';
+        self::renderSmsFallbackMonitoring();
         if(is_array($report)){
             echo '<h3>Operational Diagnostics</h3><table class="widefat striped"><tbody>';
             $diagnostics=array(
@@ -376,6 +379,36 @@ final class NotificationManagementController {
             wp_nonce_field('dzn_notification_recover_leases');
             echo '<p><button class="button">Safely recover expired leases</button> <span class="dzn-notif-meta">Releases only expired leases under the existing retry policy and creates no new message.</span></p></form>';
         }
+    }
+
+    /**
+     * The operator view of the WhatsApp-first policy.  Each row links the original WhatsApp attempt to
+     * the one permitted SMS fallback (or records the safe blocking reason).  No contact value, message
+     * body, provider identifier or credential is ever rendered.
+     */
+    private static function renderSmsFallbackMonitoring():void{
+        $report=(new NotificationSmsFallbackReadService())->report(50);
+        $rows=(array)($report['rows']??array());
+        $counts=(array)($report['counts']??array());
+        echo '<h3>WhatsApp → SMS fallback</h3>';
+        echo '<p class="dzn-notif-note">Automatic SMS is sent only after a verified terminal WhatsApp delivery failure. WhatsApp delivery pending, unknown, unconfigured or ineligible never triggers SMS. A later delivery cancels a queued fallback.</p>';
+        echo '<p>';
+        foreach(array(NotificationSmsFallbackReadService::ELIGIBLE=>'SMS fallback eligible',NotificationSmsFallbackReadService::SENT=>'SMS fallback sent',NotificationSmsFallbackReadService::DELIVERED=>'SMS delivered',NotificationSmsFallbackReadService::BLOCKED=>'SMS fallback blocked') as $key=>$label){
+            echo '<span class="dzn-badge '.($key===NotificationSmsFallbackReadService::DELIVERED?'is-ok':($key===NotificationSmsFallbackReadService::BLOCKED?'is-warn':'')).'">'.esc_html($label.': '.(int)($counts[$key]??0)).'</span> ';
+        }
+        echo '</p>';
+        if($rows===array()){echo '<p>No WhatsApp terminal failure has required an SMS fallback decision yet.</p>';return;}
+        echo '<table class="widefat striped"><thead><tr><th>WhatsApp notification</th><th>WhatsApp attempt</th><th>WhatsApp state</th><th>SMS fallback</th><th>SMS state</th><th>Recorded</th></tr></thead><tbody>';
+        foreach($rows as $row){
+            echo '<tr><td><code dir="ltr">#'.esc_html((string)$row['source_notification_id']).'</code></td>';
+            echo '<td>'.($row['source_attempt_id']>0?'<code dir="ltr">#'.esc_html((string)$row['source_attempt_id']).'</code>':'—').'</td>';
+            echo '<td>'.esc_html((string)$row['whatsapp_label']).'</td>';
+            echo '<td>'.($row['fallback_notification_id']!==null?'<code dir="ltr">#'.esc_html((string)$row['fallback_notification_id']).'</code>':'—').'</td>';
+            echo '<td>'.esc_html((string)$row['sms_label']).'</td>';
+            echo '<td><code dir="ltr">'.esc_html((string)$row['recorded_at']).'</code></td></tr>';
+        }
+        echo '</tbody></table>';
+        echo '<p class="dzn-notif-meta">Labels are administrative only. Customer-facing notification content remains Persian and is unchanged by this view.</p>';
     }
 
     /** Compact delivery status for a booking request or class record, with a protected details link. */

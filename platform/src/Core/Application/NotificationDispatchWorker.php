@@ -12,17 +12,24 @@ final class NotificationDispatchWorker {
    $runId=NotificationSupport::uid(); $stamp=NotificationSupport::uid();
    $evidence=array('evidence_channel'=>'system','evidence_reference'=>'notification-worker:'.$runId,'evidence_at'=>NotificationSupport::now());
    $recovery=$this->dispatch->recoverExpiredLeases($evidence,'worker:recover:'.$runId);
+   $fallbackReconciliation=$this->dispatch->reconcileSmsFallbacks();
    $claim=$this->dispatch->claimLease($evidence,'worker:claim:'.$runId);
-   if(empty($claim['claimed']))return array('recovery'=>$recovery,'claim'=>$claim);
+   if(empty($claim['claimed']))return array('recovery'=>$recovery,'fallback_reconciliation'=>$fallbackReconciliation,'claim'=>$claim);
    $attempt=(int)$claim['attempt_id'];
    $handoff=$this->dispatch->handOff($attempt,$evidence,'worker:handoff:'.$attempt.':'.$runId);
-   if(empty($handoff['handed_off']))return array('recovery'=>$recovery,'claim'=>$claim,'handoff'=>$handoff);
+   if(empty($handoff['handed_off']))return array('recovery'=>$recovery,'fallback_reconciliation'=>$fallbackReconciliation,'claim'=>$claim,'handoff'=>$handoff);
+   // Only keyed provider evidence crosses back into the closure. No provider payload, recipient value,
+   // provider identifier or raw error text is copied into persistence.
+   $provider=array();
+   foreach(array('provider_attempted','provider_evidence_digest','provider_evidence_at','provider_outcome','ambiguous') as $key){
+    if(array_key_exists($key,$handoff))$provider[$key]=$handoff[$key];
+   }
    if(!empty($handoff['acknowledged'])){
     $outcome=$this->dispatch->recordOutcome($attempt,$evidence+array('acknowledged'=>true),'worker:outcome:'.$attempt.':'.$stamp);
    }elseif(($handoff['permanent_failure']??null)!==null){
-    $outcome=$this->dispatch->recordOutcome($attempt,$evidence+array('acknowledged'=>false,'failure_class'=>'terminal','reason_code'=>(string)$handoff['permanent_failure']),'worker:outcome:'.$attempt.':'.$stamp);
+    $outcome=$this->dispatch->recordOutcome($attempt,$evidence+$provider+array('acknowledged'=>false,'failure_class'=>'terminal','reason_code'=>(string)$handoff['permanent_failure']),'worker:outcome:'.$attempt.':'.$stamp);
    }else{
-    $outcome=$this->dispatch->recordOutcome($attempt,$evidence+array('acknowledged'=>false,'failure_class'=>'retryable','reason_code'=>'retryable'),'worker:outcome:'.$attempt.':'.$stamp);
+    $outcome=$this->dispatch->recordOutcome($attempt,$evidence+$provider+array('acknowledged'=>false,'failure_class'=>'retryable','reason_code'=>'retryable'),'worker:outcome:'.$attempt.':'.$stamp);
    }
    return array('recovery'=>$recovery,'claim'=>$claim,'handoff'=>$handoff,'outcome'=>$outcome);
   });

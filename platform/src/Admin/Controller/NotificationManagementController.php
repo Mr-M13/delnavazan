@@ -385,10 +385,10 @@ final class NotificationManagementController {
         $service=new NotificationDeliveryStatusReadService();
         $status=$subject==='booking_request'?$service->forBookingRequest($subjectId):$service->forLesson($subjectId);
         echo '<section class="dzn-notif-record-status"><h2>Notifications</h2>';
-        echo '<p class="dzn-notif-meta">Queued means the message is waiting for a worker. Handed off means the provider accepted the request; it is not proof of delivery. Delivery confirmed requires a verified provider receipt.</p>';
-        if($status['rows']===array()){echo '<p>No notification delivery has been recorded for this record yet.</p></section>';return;}
+        echo '<p class="dzn-notif-meta">Shows notification records linked to this booking or class. Queued means the message is waiting for a worker. Handed off means the provider accepted the request; it is not proof of delivery. Delivery confirmed requires a verified provider receipt. Available in portal means an inbox entry was recorded, not that it was read.</p>';
+        if($status['rows']===array()){echo '<p>No linked notification status is available for this record.</p></section>';return;}
         echo '<p>';
-        foreach(array(NotificationDeliveryStatusReadService::QUEUED=>'Queued',NotificationDeliveryStatusReadService::HANDED_OFF=>'Handed off',NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED=>'Delivery confirmed',NotificationDeliveryStatusReadService::FAILED=>'Failed',NotificationDeliveryStatusReadService::CLOSED=>'Closed') as $key=>$label){
+        foreach(array(NotificationDeliveryStatusReadService::QUEUED=>'Queued',NotificationDeliveryStatusReadService::HANDED_OFF=>'Handed off',NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED=>'Delivery confirmed',NotificationDeliveryStatusReadService::PORTAL_RECORDED=>'Available in portal',NotificationDeliveryStatusReadService::FAILED=>'Failed',NotificationDeliveryStatusReadService::CLOSED=>'Closed') as $key=>$label){
             $count=(int)($status['summary'][$key]??0);
             if($count>0)echo '<span class="dzn-badge '.($key===NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED?'is-ok':($key===NotificationDeliveryStatusReadService::FAILED?'is-warn':'')).'">'.esc_html($label.': '.$count).'</span> ';
         }
@@ -546,6 +546,7 @@ final class NotificationManagementController {
         NotificationDeliveryStatusReadService::QUEUED=>'Queued',
         NotificationDeliveryStatusReadService::HANDED_OFF=>'Handed off to provider — delivery not confirmed',
         NotificationDeliveryStatusReadService::DELIVERY_CONFIRMED=>'Delivery confirmed by provider receipt',
+        NotificationDeliveryStatusReadService::PORTAL_RECORDED=>'Available in portal — read state is separate',
         NotificationDeliveryStatusReadService::FAILED=>'Failed',
         NotificationDeliveryStatusReadService::CLOSED=>'Closed',
     )[$category]??$category;}

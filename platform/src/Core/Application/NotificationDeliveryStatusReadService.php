@@ -13,6 +13,7 @@ final class NotificationDeliveryStatusReadService {
     public const QUEUED='queued';
     public const HANDED_OFF='handed_off';
     public const DELIVERY_CONFIRMED='delivery_confirmed';
+    public const PORTAL_RECORDED='portal_recorded';
     public const FAILED='failed';
     public const CLOSED='closed';
 
@@ -27,7 +28,17 @@ final class NotificationDeliveryStatusReadService {
              ORDER BY n.id DESC LIMIT 100",
             $bookingRequestId
         );
-        return $this->shape('booking',$rows);
+        $status=$this->shape('booking',$rows);
+        $portal=$this->query(
+            "SELECT p.event_key,p.audience,'website' AS channel,'recorded' AS state,p.created_at AS updated_at,d.booking_request_id AS subject_id
+             FROM {$this->table('portal_notifications')} p
+             INNER JOIN {$this->table('booking_request_student_notifications')} n ON n.id=p.source_id
+             INNER JOIN {$this->table('booking_request_teacher_deliveries')} d ON d.id=n.delivery_id
+             WHERE p.source_kind='booking_notification' AND d.booking_request_id=%d
+             ORDER BY p.id DESC LIMIT 100",
+            $bookingRequestId
+        );
+        return $this->append($status,'portal',$portal);
     }
 
     /** @return array{summary:array<string,int>,rows:array<int,array<string,mixed>>} */
@@ -41,7 +52,24 @@ final class NotificationDeliveryStatusReadService {
              ORDER BY n.id DESC LIMIT 100",
             $lessonId
         );
-        return $this->shape('lesson_reschedule',$rows);
+        $status=$this->shape('lesson_reschedule',$rows);
+        $attendance=$this->query(
+            "SELECT event_key,audience,'website' AS channel,'recorded' AS state,created_at AS updated_at,source_id AS subject_id
+             FROM {$this->table('portal_notifications')}
+             WHERE source_kind='attendance_notification' AND source_id=%d
+             ORDER BY id DESC LIMIT 100",
+            $lessonId
+        );
+        $status=$this->append($status,'portal',$attendance);
+        $reschedule=$this->query(
+            "SELECT p.event_key,p.audience,'website' AS channel,'recorded' AS state,p.created_at AS updated_at,r.lesson_id AS subject_id
+             FROM {$this->table('portal_notifications')} p
+             INNER JOIN {$this->table('lesson_reschedule_proposals')} r ON r.id=p.source_id
+             WHERE p.source_kind='lesson_reschedule' AND r.lesson_id=%d
+             ORDER BY p.id DESC LIMIT 100",
+            $lessonId
+        );
+        return $this->append($status,'portal',$reschedule);
     }
 
     /** @return array{summary:array<string,int>,rows:array<int,array<string,mixed>>} */
@@ -60,7 +88,7 @@ final class NotificationDeliveryStatusReadService {
     /** @return array{summary:array<string,int>,rows:array<int,array<string,mixed>>} */
     public function empty():array{
         return array(
-            'summary'=>array(self::QUEUED=>0,self::HANDED_OFF=>0,self::DELIVERY_CONFIRMED=>0,self::FAILED=>0,self::CLOSED=>0),
+            'summary'=>array(self::QUEUED=>0,self::HANDED_OFF=>0,self::DELIVERY_CONFIRMED=>0,self::PORTAL_RECORDED=>0,self::FAILED=>0,self::CLOSED=>0),
             'rows'=>array(),
         );
     }
@@ -85,7 +113,17 @@ final class NotificationDeliveryStatusReadService {
             if(in_array($state,array('queued','retry'),true))return self::QUEUED;
             return self::FAILED;
         }
+        if($source==='portal'&&$state==='recorded')return self::PORTAL_RECORDED;
         return self::CLOSED;
+    }
+
+    /** @param array{summary:array<string,int>,rows:array<int,array<string,mixed>>} $status
+     *  @param array<int,object> $rows
+     */
+    private function append(array $status,string $source,array $rows):array{
+        $extra=$this->shape($source,$rows);
+        foreach($extra['summary'] as $category=>$count)$status['summary'][$category]+=$count;
+        return array('summary'=>$status['summary'],'rows'=>array_merge($status['rows'],$extra['rows']));
     }
 
     /** @param array<int,object> $rows */

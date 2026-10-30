@@ -8,9 +8,11 @@ namespace Delnavazan\Platform\Tests {
         public string $prefix='wp_';
         public string $last_error='';
         public array $rows=array();
+        public array $portalRows=array();
+        public array $queries=array();
         public function prepare($sql,...$args){$i=0;return preg_replace_callback('/%[ds]/',function($m)use(&$i,$args){$v=$args[$i++]??'';return $m[0]==='%d'?(string)(int)$v:"'".str_replace("'","''",(string)$v)."'";},$sql);}
         public function suppress_errors($value=true){return false;}
-        public function get_results($sql){return $this->rows;}
+        public function get_results($sql){$this->queries[]=$sql;return str_contains($sql,'FROM wp_dzn_portal_notifications')?$this->portalRows:$this->rows;}
     }
 }
 
@@ -33,6 +35,7 @@ namespace {
     $fail('queued booking is queued',Status::categoryFor('booking','queued')===Status::QUEUED);
     $fail('queued reschedule is queued',Status::categoryFor('lesson_reschedule','retry')===Status::QUEUED);
     $fail('failed booking is failed',Status::categoryFor('booking','failed')===Status::FAILED);
+    $fail('portal entry is distinct from delivery confirmation',Status::categoryFor('portal','recorded')===Status::PORTAL_RECORDED);
 
     /* Read shape: the summary separates queue, hand-off and confirmed delivery. */
     $GLOBALS['wpdb']->rows=array(
@@ -46,6 +49,19 @@ namespace {
     $fail('failure counted',($status['summary'][Status::FAILED]??0)===1);
     $fail('no hand-off is counted as confirmed',($status['summary'][Status::DELIVERY_CONFIRMED]??0)===0);
     $fail('rows carry the operator category',count($status['rows'])===3&&$status['rows'][0]['category']===Status::HANDED_OFF);
+
+    $GLOBALS['wpdb']->portalRows=array((object)array('event_key'=>'booking.confirmed.student','audience'=>'student','channel'=>'website','state'=>'recorded','updated_at'=>'2026-10-30 09:03:00','subject_id'=>44));
+    $status=(new Status())->forBookingRequest(44);
+    $fail('linked portal entry counted separately',($status['summary'][Status::PORTAL_RECORDED]??0)===1&&count($status['rows'])===4);
+    $fail('portal entry is not confirmed delivery',($status['summary'][Status::DELIVERY_CONFIRMED]??0)===0);
+    $fail('booking portal entry is scoped through its notification and booking',str_contains(end($GLOBALS['wpdb']->queries),'d.booking_request_id=44')&&str_contains(end($GLOBALS['wpdb']->queries),"p.source_kind='booking_notification'"));
+    $GLOBALS['wpdb']->portalRows=array();
+
+    $GLOBALS['wpdb']->rows=array();
+    (new Status())->forLesson(99);
+    $queries=array_slice($GLOBALS['wpdb']->queries,-3);
+    $fail('class status includes attendance portal entries',str_contains($queries[1],"source_kind='attendance_notification' AND source_id=99"));
+    $fail('class reschedule portal entries are scoped to the class',str_contains($queries[2],"p.source_kind='lesson_reschedule' AND r.lesson_id=99"));
 
     /* A missing table/row set is an empty status, not a fatal page. */
     $GLOBALS['wpdb']->last_error='no such table';

@@ -62,7 +62,10 @@ never marked ready because a channel is hidden.
   notification summary/retention and lease recovery live under Diagnostics.
 - Booking request and class records show a compact notification summary using the shared vocabulary:
   **Queued**, **Handed off to provider** (not confirmed) and **Delivery confirmed**, with a protected
-  details link.
+  details link. Linked portal inbox entries are shown separately as **Available in portal**; an inbox
+  entry is not evidence that its recipient read it. The class view includes reschedule and attendance
+  portal entries. An immediate attendance email has no persisted delivery record, so the screen does
+  not infer its hand-off from the portal entry.
 
 ## Safety and preservation
 
@@ -74,6 +77,8 @@ never marked ready because a channel is hidden.
 - Dedicated teacher-invitation delivery remains separate and is not editable from the general
   template library.
 - A successful provider hand-off is never reported as confirmed delivery.
+- The operational category retains its existing mandatory policy; this admin change does not relax
+  delivery authority.
 
 ## Verification
 

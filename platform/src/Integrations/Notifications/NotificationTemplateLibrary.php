@@ -424,7 +424,7 @@ final class NotificationTemplateLibrary {
             'security'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
             'essential'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
             'financial'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
-            'operational'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>false),
+            'operational'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
             default=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>false),
         };
     }

@@ -102,4 +102,8 @@ $r=$service->receive($body,$headers,time());
 if($r['http']!==400||$r['outcome']!=='webhook_payload_invalid')throw new RuntimeException('malformed verified JSON must be refused');
 $r=$service->receive($body,array('telnyx-timestamp'=>(string)time(),'telnyx-signature-ed25519'=>'bad'),time());
 if($r['http']!==403||$r['outcome']!=='webhook_signature_invalid')throw new RuntimeException('invalid signature must be refused before parsing');
+$testReference='msg-test';$testDigest=hash_hmac('sha256','telnyx:message:'.$testReference,NotificationSupport::salt());$provider->messages[$testDigest]=(object)array('notification_id'=>0,'attempt_id'=>0,'state'=>'sent');
+$data=array('id'=>'evt-test-delivery','event_type'=>'message.finalized','occurred_at'=>'2026-10-30T10:06:00Z','payload'=>array('id'=>$testReference,'type'=>'WHATSAPP','to'=>array(array('status'=>'delivered'))));$body=dzn_telnyx_body($data);$headers=dzn_telnyx_headers($body,$secret);$before=count($evidence->calls);
+$r=$service->receive($body,$headers,time());
+if($r['http']!==200||$r['outcome']!=='test_delivery'||count($evidence->calls)!==$before)throw new RuntimeException('explicit test delivery must be tracked without notification evidence');
 echo "Telnyx webhook intake unit passed\n";

@@ -53,7 +53,11 @@ final class TelnyxWhatsAppAdapter {
         if(is_wp_error($response))return array('state'=>'failed','code'=>'telnyx_transport_failed','template'=>$name,'language'=>$language);
         $status=(int)wp_remote_retrieve_response_code($response);
         $body=json_decode((string)wp_remote_retrieve_body($response),true);
-        if($status>=200&&$status<300)return array('state'=>'success','code'=>'telnyx_accepted','http'=>$status,'template'=>$name,'language'=>$language);
+        if($status>=200&&$status<300){
+            $reference=is_array($body)?(string)($body['data']['id']??''):'';
+            if($reference!=='')$this->rememberTest($reference,$name,$language);
+            return array('state'=>'success','code'=>'telnyx_accepted','http'=>$status,'template'=>$name,'language'=>$language,'reference_present'=>$reference!=='');
+        }
         return array_merge(array('state'=>'failed','code'=>'telnyx_http_'.$status,'http'=>$status,'template'=>$name,'language'=>$language),self::providerError(is_array($body)?$body:null));
     }
 
@@ -162,6 +166,15 @@ final class TelnyxWhatsAppAdapter {
     private function attempt(array $command,?object $notification):?object{
         if(!$notification)return null;
         return $this->attempts->bySequence((int)$notification->id,(int)($command['attempt_sequence']??0));
+    }
+    /** Explicit tests have no notification/attempt; zero ids mark a tracked test delivery. */
+    private function rememberTest(string $reference,string $name,string $language):void{
+        $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());$now=NotificationSupport::now();
+        try{$this->provider->insertMessage(array(
+            'uid'=>NotificationSupport::uid(),'provider'=>'telnyx','channel'=>'whatsapp','message_reference_digest'=>$digest,
+            'notification_id'=>0,'attempt_id'=>0,'provider_template_name'=>$name,'provider_template_language'=>$language,
+            'state'=>'sent','created_at'=>$now,'updated_at'=>$now,
+        ));}catch(\Throwable $error){if(!$this->provider->messageForReference($digest))throw $error;}
     }
     private function remember(object $notification,object $attempt,string $reference,string $name,string $language):void{
         $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());

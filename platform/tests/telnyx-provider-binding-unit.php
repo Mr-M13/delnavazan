@@ -40,9 +40,10 @@ $sms=TelnyxSmsAdapter::messagePayload('+15550001111','سلام','+15550000001','
 if(($sms['from']??'')!=='+15550000001'||isset($sms['messaging_profile_id'])||($sms['text']??'')!=='سلام')throw new RuntimeException('SMS sender payload contract failed');
 $sms=TelnyxSmsAdapter::messagePayload('+15550001111','سلام','','profile-1');
 if(($sms['messaging_profile_id']??'')!=='profile-1'||isset($sms['from']))throw new RuntimeException('SMS profile payload contract failed');
-$wa=TelnyxWhatsAppAdapter::templatePayload('+15550000001','+15550001111','delnavazan_class_access_fa','fa',array('name','course','teacher','when'),array('name'=>'باران','course'=>'تار','teacher'=>'ندا','when'=>'شنبه'));
+$wa=TelnyxWhatsAppAdapter::templatePayload('+15550000001','+15550001111','delnavazan_class_access_fa','fa',array('name','course','teacher','when'),array('name'=>'باران','course'=>'تار','teacher'=>'ندا','when'=>'شنبه'),'profile-1');
 $template=$wa['whatsapp_message']['template']??array();
 if(($template['name']??'')!=='delnavazan_class_access_fa'||($template['language']['code']??'')!=='fa')throw new RuntimeException('WhatsApp template identity contract failed');
+if(($wa['messaging_profile_id']??'')!=='profile-1')throw new RuntimeException('WhatsApp payload must include the messaging profile when the sender is not SMS-enabled');
 $params=$template['components'][0]['parameters']??array();
 if(array_column($params,'text')!==array('باران','تار','ندا','شنبه'))throw new RuntimeException('WhatsApp body parameter order contract failed');
 if(TelnyxSmsAdapter::permanentFailure(429)!==null||TelnyxSmsAdapter::permanentFailure(500)!==null)throw new RuntimeException('SMS transient status must remain retryable');

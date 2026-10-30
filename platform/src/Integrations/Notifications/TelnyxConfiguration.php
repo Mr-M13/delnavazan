@@ -15,6 +15,7 @@ final class TelnyxConfiguration {
     public function smsSender():string{return trim((string)$this->settings->value('sms','sender_id'));}
     public function smsProfile():string{return trim((string)$this->settings->value('sms','messaging_profile_id'));}
     public function whatsappSender():string{return trim((string)$this->settings->value('whatsapp','sender_id'));}
+    public function messagingProfileId():string{$profile=trim((string)$this->settings->value('whatsapp','messaging_profile_id'));return $profile!==''?$profile:trim((string)$this->settings->value('sms','messaging_profile_id'));}
     public function webhookPublicKey():string{
         $key=trim((string)$this->settings->value('sms','webhook_public_key'));
         if($key==='')$key=trim((string)$this->settings->value('whatsapp','webhook_public_key'));
@@ -23,6 +24,6 @@ final class TelnyxConfiguration {
         return $key;
     }
     public function smsReady():bool{return $this->apiKey()!==''&&($this->smsSender()!==''||$this->smsProfile()!=='')&&$this->webhookPublicKey()!=='';}
-    public function whatsappReady():bool{return $this->apiKey()!==''&&$this->whatsappSender()!==''&&$this->wabaId()!==''&&$this->webhookPublicKey()!=='';}
+    public function whatsappReady():bool{return $this->apiKey()!==''&&$this->whatsappSender()!==''&&$this->wabaId()!==''&&$this->messagingProfileId()!==''&&$this->webhookPublicKey()!=='';}
     public function webhookReady():bool{return $this->webhookPublicKey()!=='';}
 }

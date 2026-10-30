@@ -26,6 +26,7 @@ require_once get_template_directory() . '/inc/content-page.php';
 require_once get_template_directory() . '/inc/home.php';
 require_once get_template_directory() . '/inc/booking.php';
 require_once get_template_directory() . '/inc/operations.php';
+require_once get_template_directory() . '/inc/legal.php';
 require_once get_template_directory() . '/inc/routes.php';
 
 /**

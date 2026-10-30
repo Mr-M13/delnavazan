@@ -22,6 +22,10 @@ final class LiveKitTokenRestController {
 
     public static function issue(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
         nocache_headers();
+        $nonce = (string)($request->get_header('x_wp_nonce') ?: '');
+        if ($nonce === '' || !wp_verify_nonce($nonce, 'wp_rest')) {
+            return new \WP_Error('rest_cookie_invalid_nonce', 'Invalid or missing REST nonce.', array('status' => 403));
+        }
         if (!self::admit()) {
             return new \WP_Error('livekit_rate_limited', 'Too many classroom token requests.', array('status' => 429));
         }

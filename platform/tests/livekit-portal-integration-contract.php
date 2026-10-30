@@ -21,6 +21,7 @@ $check('classroom route is a protected virtual route', str_contains($routes, "'m
 $check('classroom response uses protected no-store/noindex headers', str_contains($routes, "'music-classroom'") && str_contains($routes, 'dzn_theme_send_protected_response_headers'));
 $check('classroom session endpoint is localized', str_contains($routes, "delnavazan-platform/v1/livekit/session"));
 $check('LiveKit SDK is vendored, not loaded from a third-party CDN', str_contains($routes, "assets/js/vendor/livekit-client.umd.min.js") && !str_contains($read('theme/assets/js/music-classroom.js'), 'cdn.jsdelivr.net'));
+$check('vendored LiveKit SDK is pinned and licensed', str_contains($read('theme/assets/js/vendor/livekit-client.umd.min.js'), '2.23.0') && str_contains(strtolower($read('theme/assets/js/vendor/livekit-client.LICENSE')), 'apache license'));
 $check('SDK is a dependency of the classroom script', str_contains($routes, "array( 'delnavazan-livekit-client' )"));
 
 $bridge = $read('theme/inc/platform-bridge.php');
@@ -57,6 +58,8 @@ $check('session token lifetime is five minutes', str_contains($read('platform/sr
 $client = $read('platform/src/Integrations/LiveKit/LiveKitRoomServiceClient.php');
 $check('server enforces two participants', str_contains($client, 'MAX_PARTICIPANTS = 2') && str_contains($client, "'max_participants' => self::MAX_PARTICIPANTS"));
 $check('RoomService calls are HTTPS Twirp calls with an admin token', str_contains($client, '/twirp/livekit.RoomService/') && str_contains($client, 'Bearer '));
+$check('RoomService grants are method-specific', str_contains($client, "'ListRooms' => array('roomList' => true)") && str_contains($client, "'CreateRoom', 'DeleteRoom' => array('roomCreate' => true)") && str_contains($client, "'RemoveParticipant' => array('roomAdmin' => true)"));
+$check('participant removal requests token revocation', str_contains($client, "'revoke_token_ts'"));
 $check('RoomService errors are sanitized', str_contains($client, 'livekit_room_api_unavailable') && !str_contains($client, 'error_log'));
 
 $webhook = $read('platform/src/Integrations/LiveKit/LiveKitWebhookController.php');
@@ -71,6 +74,7 @@ $check('launch ticket is not a token replacement', !str_contains($ticket, 'livek
 
 $rest = $read('platform/src/Integrations/LiveKit/LiveKitTokenRestController.php');
 $check('session endpoint requires an authenticated WordPress user', str_contains($rest, 'is_user_logged_in()'));
+$check('session endpoint verifies the REST nonce explicitly', str_contains($rest, "wp_verify_nonce(\$nonce, 'wp_rest')"));
 $check('session endpoint is rate limited', str_contains($rest, 'RATE_LIMIT') && str_contains($rest, 'get_transient'));
 $check('session endpoint returns no credentials or room name', !str_contains($rest, 'api_secret') && !str_contains($rest, "'room' =>"));
 

@@ -20,13 +20,18 @@ final class LiveKitRoomRegistry {
             throw new \RuntimeException('livekit_session_registry_unavailable');
         }
         $session['recorded_at'] = gmdate('Y-m-d H:i:s');
-        $stored = set_transient($this->roomKey($room), $session, self::TTL_SECONDS);
-        if (!$stored) throw new \RuntimeException('livekit_session_registry_unavailable');
+        set_transient($this->roomKey($room), $session, self::TTL_SECONDS);
+        $stored = get_transient($this->roomKey($room));
+        if (!is_array($stored) || (string)($stored['room'] ?? '') !== $room) {
+            throw new \RuntimeException('livekit_session_registry_unavailable');
+        }
         $resourceKey = $this->resourceKey((string)$session['kind'], (int)$session['resource_id']);
         $index = get_transient($resourceKey);
         $index = is_array($index) ? $index : array();
         $index[$this->roomDigest($room)] = $room;
-        if (!set_transient($resourceKey, $index, self::TTL_SECONDS)) {
+        set_transient($resourceKey, $index, self::TTL_SECONDS);
+        $storedIndex = get_transient($resourceKey);
+        if (!is_array($storedIndex) || (string)($storedIndex[$this->roomDigest($room)] ?? '') !== $room) {
             throw new \RuntimeException('livekit_session_registry_unavailable');
         }
     }

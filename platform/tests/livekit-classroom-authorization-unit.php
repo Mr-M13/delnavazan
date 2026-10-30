@@ -106,7 +106,7 @@ catch (InvalidArgumentException $error) { $assert($error->getMessage() === 'live
 $calls = array();
 $room = str_repeat('r', 12);
 $transport = static function (string $url, array $body, array $headers) use (&$calls, $room): array {
-    $calls[] = array($url, $body);
+    $calls[] = array($url, $body, $headers);
     if (str_ends_with($url, '/ListRooms')) {
         $exists = count(array_filter($calls, static fn(array $call): bool => str_ends_with($call[0], '/CreateRoom'))) > 0;
         return array('status' => 200, 'body' => json_encode(array('rooms' => $exists ? array(array('name' => $body['names'][0], 'max_participants' => 2)) : array())));
@@ -116,10 +116,32 @@ $transport = static function (string $url, array $body, array $headers) use (&$c
 $client = new \Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomServiceClient(array('api_url' => 'https://rtc.example.test', 'key' => 'devkey', 'secret' => 'not-a-real-secret'), null, $transport, static fn(): int => 1000);
 $client->ensureRoom('dzn-' . $room);
 $assert(count(array_filter($calls, static fn(array $call): bool => str_ends_with($call[0], '/CreateRoom'))) === 1, 'Room was not created once.');
+$decodeToken = static function (array $headers): array {
+    $raw = (string)($headers['Authorization'] ?? '');
+    $parts = explode('.', preg_replace('/^Bearer\s+/i', '', $raw));
+    $payload = json_decode(base64_decode(strtr($parts[1] ?? '', '-_', '+/')), true);
+    return is_array($payload) ? $payload : array();
+};
+$grantsByMethod = array();
+foreach ($calls as $call) $grantsByMethod[basename($call[0])] = $decodeToken($call[2])['video'] ?? array();
+$assert(($grantsByMethod['ListRooms']['roomList'] ?? false) === true && !isset($grantsByMethod['ListRooms']['roomAdmin']), 'ListRooms token lacks roomList or is over-privileged.');
+$assert(($grantsByMethod['CreateRoom']['roomCreate'] ?? false) === true && !isset($grantsByMethod['CreateRoom']['roomAdmin']), 'CreateRoom token lacks roomCreate or is over-privileged.');
 $create = array_values(array_filter($calls, static fn(array $call): bool => str_ends_with($call[0], '/CreateRoom')))[0][1];
 $assert((int)$create['max_participants'] === 2, 'Room was not capped at two participants.');
 $assert(str_contains($create['name'], 'dzn-'), 'Room name namespace was lost.');
 $assert(!str_contains(json_encode($create), 'not-a-real-secret'), 'API secret leaked into a RoomService request.');
+
+$removalCalls = array();
+$removalTransport = static function (string $url, array $body, array $headers) use (&$removalCalls): array {
+    $removalCalls[] = array($url, $body, $headers);
+    return array('status' => 200, 'body' => '{}');
+};
+$removalClient = new \Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomServiceClient(array('api_url' => 'https://rtc.example.test', 'key' => 'devkey', 'secret' => 'not-a-real-secret'), null, $removalTransport, static fn(): int => 5000);
+$removalClient->removeParticipant('dzn-' . $room, 't-abc');
+$removeBody = $removalCalls[0][1];
+$removeGrants = $decodeToken($removalCalls[0][2])['video'] ?? array();
+$assert(($removeGrants['roomAdmin'] ?? false) === true && ($removeGrants['room'] ?? '') === 'dzn-' . $room, 'RemoveParticipant token is not room-scoped roomAdmin.');
+$assert((int)($removeBody['revoke_token_ts'] ?? 0) === 5060, 'RemoveParticipant does not revoke already-issued tokens.');
 
 $failing = new \Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomServiceClient(
     array('api_url' => 'https://rtc.example.test', 'key' => 'devkey', 'secret' => 'not-a-real-secret'),
@@ -132,5 +154,20 @@ catch (RuntimeException $error) { $assert($error->getMessage() === 'livekit_room
 
 $meet = new \Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackService();
 $assert($meet->bookingAvailable(12, 'active') === true && $meet->bookingAvailable(null, '') === false, 'Meet fallback availability is incorrect.');
+
+// An existing room with an unsafe cap is deleted and recreated before a token can be issued.
+$capCalls = array();
+$capState = array('exists' => true, 'max' => 0);
+$capTransport = static function (string $url, array $body, array $headers) use (&$capCalls, &$capState, $room): array {
+    $capCalls[] = array($url, $body);
+    if (str_ends_with($url, '/ListRooms')) return array('status' => 200, 'body' => json_encode(array('rooms' => $capState['exists'] ? array(array('name' => $body['names'][0], 'max_participants' => $capState['max'])) : array())));
+    if (str_ends_with($url, '/DeleteRoom')) { $capState['exists'] = false; return array('status' => 200, 'body' => '{}'); }
+    $capState['exists'] = true; $capState['max'] = (int)($body['max_participants'] ?? 0);
+    return array('status' => 200, 'body' => json_encode(array('name' => $room, 'max_participants' => $capState['max'])));
+};
+$capClient = new \Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomServiceClient(array('api_url' => 'https://rtc.example.test', 'key' => 'devkey', 'secret' => 'not-a-real-secret'), null, $capTransport, static fn(): int => 6000);
+$capClient->ensureRoom('dzn-' . $room);
+$assert(count(array_filter($capCalls, static fn(array $call): bool => str_ends_with($call[0], '/DeleteRoom'))) === 1, 'Unsafe existing room was not deleted.');
+$assert(count(array_filter($capCalls, static fn(array $call): bool => str_ends_with($call[0], '/CreateRoom'))) === 1, 'Unsafe existing room was not recreated.');
 
 echo "LiveKit classroom authorization unit passed\n";

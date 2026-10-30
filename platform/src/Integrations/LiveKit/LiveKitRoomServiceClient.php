@@ -38,10 +38,10 @@ final class LiveKitRoomServiceClient {
         $this->assertRoom($room);
         $existing = $this->room($room);
         if ($existing) {
-            if ((int)($existing['max_participants'] ?? 0) !== self::MAX_PARTICIPANTS) {
-                $this->updateRoom($room);
-            }
-            return;
+            if ((int)($existing['max_participants'] ?? 0) === self::MAX_PARTICIPANTS) return;
+            // RoomService has no supported max-participants update call. An existing room with a
+            // wrong cap is deleted and recreated before any new token is issued; fail closed.
+            $this->deleteRoom($room);
         }
         try {
             $this->createRoom($room);
@@ -70,19 +70,16 @@ final class LiveKitRoomServiceClient {
             'name' => $room,
             'empty_timeout' => (int)($this->config['room_empty_timeout'] ?? 300),
             'max_participants' => self::MAX_PARTICIPANTS,
-        ), 60);
-    }
-
-    public function updateRoom(string $room): array {
-        return $this->call('UpdateRoom', array('room' => $room, 'max_participants' => self::MAX_PARTICIPANTS), 60);
+        ), 60, false, '');
     }
 
     public function deleteRoom(string $room): void {
-        $this->call('DeleteRoom', array('room' => $room), 60, true);
+        $this->call('DeleteRoom', array('room' => $room), 60, true, '');
     }
 
     public function removeParticipant(string $room, string $identity): void {
-        $this->call('RemoveParticipant', array('room' => $room, 'identity' => $identity), 60, true);
+        $now = $this->clock !== null ? (int)($this->clock)() : time();
+        $this->call('RemoveParticipant', array('room' => $room, 'identity' => $identity, 'revoke_token_ts' => $now + 60), 60, true, $room);
     }
 
     public function listParticipants(string $room): array {
@@ -95,7 +92,13 @@ final class LiveKitRoomServiceClient {
         if ($base === '') throw new \RuntimeException('livekit_not_configured');
         $now = $this->clock !== null ? (int)($this->clock)() : time();
         $room = $room ?? (string)($body['room'] ?? $body['name'] ?? '');
-        $token = $this->issuer->issueRoomAdmin((string)$this->config['key'], (string)$this->config['secret'], $room, $now);
+        $grants = match ($method) {
+            'ListRooms' => array('roomList' => true),
+            'CreateRoom', 'DeleteRoom' => array('roomCreate' => true),
+            'ListParticipants', 'RemoveParticipant' => array('roomAdmin' => true),
+            default => array('roomAdmin' => true),
+        };
+        $token = $this->issuer->issueRoomServiceToken((string)$this->config['key'], (string)$this->config['secret'], $room, $grants, $now);
         $headers = array('Authorization' => 'Bearer ' . $token, 'Content-Type' => 'application/json');
         $response = ($this->transport)($base . '/twirp/livekit.RoomService/' . $method, $body, $headers);
         $status = (int)($response['status'] ?? 0);

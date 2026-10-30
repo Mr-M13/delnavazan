@@ -49,9 +49,30 @@ final class TelnyxWhatsAppAdapter {
             'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
             'body'=>wp_json_encode($payload),
         ));
-        if(is_wp_error($response))return array('state'=>'failed','code'=>'telnyx_transport_failed');
+        if(is_wp_error($response))return array('state'=>'failed','code'=>'telnyx_transport_failed','template'=>$name,'language'=>$language);
         $status=(int)wp_remote_retrieve_response_code($response);
-        return array('state'=>$status>=200&&$status<300?'success':'failed','code'=>$status>=200&&$status<300?'telnyx_accepted':'telnyx_http_'.$status);
+        $body=json_decode((string)wp_remote_retrieve_body($response),true);
+        if($status>=200&&$status<300)return array('state'=>'success','code'=>'telnyx_accepted','http'=>$status,'template'=>$name,'language'=>$language);
+        return array_merge(array('state'=>'failed','code'=>'telnyx_http_'.$status,'http'=>$status,'template'=>$name,'language'=>$language),self::providerError(is_array($body)?$body:null));
+    }
+
+    /** Reduce a Telnyx error body to safe code/title/detail without recipient data. */
+    public static function providerError(?array $body):array{
+        $error=is_array($body)&&is_array($body['errors']??null)?($body['errors'][0]??null):null;
+        if(!is_array($error))return array('provider_code'=>null,'provider_title'=>null,'provider_detail'=>null);
+        return array(
+            'provider_code'=>isset($error['code'])?(string)$error['code']:null,
+            'provider_title'=>self::safeProviderText((string)($error['title']??''),80),
+            'provider_detail'=>self::safeProviderText((string)($error['detail']??''),240),
+        );
+    }
+    private static function safeProviderText(string $text,int $limit):?string{
+        $text=trim(strip_tags($text));
+        if($text==='')return null;
+        $text=preg_replace('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i','[email]',$text)??$text;
+        $text=preg_replace('/\+?[0-9][0-9\s().-]{6,}[0-9]/','[number]',$text)??$text;
+        $text=preg_replace('/\b[0-9]{5,}\b/','[number]',$text)??$text;
+        return mb_substr($text,0,$limit);
     }
 
     public function send(array $command):array{

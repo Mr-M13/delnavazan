@@ -53,6 +53,10 @@ final class IntegrationControlPlaneController {
             $result=$evidence['state'].'_'.$evidence['code'];
             $record=array('state'=>$evidence['state'],'code'=>$evidence['code'],'at'=>current_time('mysql',true));
             if($provider==='email'&&isset($evidence['diagnostic'])&&is_array($evidence['diagnostic']))$record['diagnostic']=$evidence['diagnostic'];
+            if(in_array($provider,array('whatsapp','sms'),true)){
+                $safe=array();foreach(array('http','template','language','provider_code','provider_title','provider_detail','reason') as $key)if(array_key_exists($key,$evidence))$safe[$key]=$evidence[$key];
+                if($safe!==array())$record['diagnostic']=$safe;
+            }
             update_option('dzn_integration_test_'.$provider,$record,false);
         }
         wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-'.$provider,'integration_result'=>$result),admin_url('admin.php')));exit;
@@ -219,6 +223,14 @@ final class IntegrationControlPlaneController {
             echo '</tbody></table>';
             if($sync)echo '<p>Last refresh: '.esc_html(($sync['ok']??false)?'succeeded':'failed').' · code '.esc_html((string)($sync['code']??'')).' · '.esc_html((string)(int)($sync['discovered']??0)).' discovered, '.esc_html((string)(int)($sync['mapped']??0)).' mapped · '.esc_html((string)($sync['at']??'')).'</p>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_telnyx_template_sync">';wp_nonce_field('dzn_telnyx_template_sync');echo '<p><button class="button" name="refresh_templates" value="1">Refresh approved templates</button> <span class="description">Read-only provider call; no message is sent.</span></p></form>';
+        }
+        if(in_array($provider,array('whatsapp','sms'),true)&&!empty($last['diagnostic'])&&is_array($last['diagnostic'])){
+            echo '<h2>Safe provider test detail</h2><p>Destination, phone numbers and credentials are never stored or shown.</p><table class="widefat striped"><tbody>';
+            foreach(array('http'=>'HTTP status','template'=>'Template','language'=>'Language','provider_code'=>'Provider code','provider_title'=>'Provider title','provider_detail'=>'Provider detail','reason'=>'Reason') as $key=>$label){
+                $value=$last['diagnostic'][$key]??null;if($value===null||$value==='')continue;
+                echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)$value).'</td></tr>';
+            }
+            echo '</tbody></table>';
         }
         if($provider==='email'&&!empty($last['diagnostic'])&&is_array($last['diagnostic']))self::renderEmailDiagnostic($last['diagnostic']);
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_save"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_save_'.$provider);

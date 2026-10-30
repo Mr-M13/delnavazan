@@ -35,6 +35,8 @@ $fail('suppression repository supports purpose wildcard',str_contains($suppressi
 $fail('STOP parser handles SMS and WhatsApp shapes',str_contains($normalizer,"\$inner['text']")&&str_contains($normalizer,'STOP_WORDS')&&str_contains($normalizer,'لغو'));
 $fail('SMS adapter uses Messages API v2',str_contains($sms,'https://api.telnyx.com/v2/messages')&&str_contains($sms,'messaging_profile_id')&&str_contains($sms,'sender_id'));
 $fail('WhatsApp adapter uses the WhatsApp endpoint',str_contains($whatsapp,'https://api.telnyx.com/v2/messages/whatsapp')&&str_contains($whatsapp,'whatsapp_message')&&str_contains($whatsapp,'templatePayload'));
+$fail('explicit WhatsApp test resolves a deterministic approved template',str_contains($read('platform/src/Integrations/IntegrationTestRunner.php'),'TelnyxWhatsAppTestTemplate::resolve')&&str_contains($read('platform/src/Integrations/Notifications/TelnyxWhatsAppTestTemplate.php'),'APPROVED'));
+$fail('explicit WhatsApp test surfaces safe provider errors',str_contains($whatsapp,'providerError')&&str_contains($whatsapp,'safeProviderText')&&str_contains($admin,'Safe provider test detail'));
 $fail('WhatsApp adapter never invents variables',str_contains($whatsapp,'variable_contract_mismatch')&&str_contains($whatsapp,'template_not_mapped'));
 $fail('WhatsApp locale maps to the approved fa language',str_contains($whatsapp,"str_starts_with(strtolower(\$locale),'fa')"));
 $fail('stored phone numbers are normalised to E.164',str_contains($sms,'PhoneNumberNormalizer')&&str_contains($whatsapp,'PhoneNumberNormalizer'));

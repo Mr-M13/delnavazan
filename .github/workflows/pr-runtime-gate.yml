@@ -155,6 +155,7 @@ jobs:
           php platform/tests/telnyx-template-discovery-unit.php
           php platform/tests/telnyx-configuration-unit.php
           php platform/tests/telnyx-phone-normalizer-unit.php
+          php platform/tests/telnyx-whatsapp-test-template-unit.php
           php platform/tests/notification-delivery-evidence-contract.php
           php platform/tests/notification-delivery-state-contract.php
           php platform/tests/notification-handoff-reconciliation-contract.php

@@ -16,9 +16,11 @@ final class TeacherClassJoinService {
         if($lessonUid===''||$scheduleUid==='')throw new \InvalidArgumentException('portal_object_not_portal_visible');
         $principal=(new PortalPrincipalResolver())->resolve('teacher');
         global $wpdb;$p=$wpdb->prefix.'dzn_';
-        $lesson=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}lessons WHERE uid=%s AND archived_at IS NULL LIMIT 1",$lessonUid));
+        $lesson=$wpdb->get_row($wpdb->prepare("SELECT id,record_model,lifecycle_state FROM {$p}lessons WHERE uid=%s AND archived_at IS NULL LIMIT 1",$lessonUid));
         $schedule=$wpdb->get_row($wpdb->prepare("SELECT id,lesson_id,starts_at_utc,ends_at_utc,applicable_slot FROM {$p}canonical_lesson_schedule_versions WHERE uid=%s LIMIT 1",$scheduleUid));
         if(!$lesson||!$schedule||(int)$schedule->lesson_id!==(int)$lesson->id||(int)$schedule->applicable_slot!==1)throw new \InvalidArgumentException('portal_object_not_portal_visible');
+        // A cancelled, completed, or legacy occurrence must not open its old Meet reference.
+        if((string)($lesson->record_model??'')!=='canonical_term_lesson_v1'||(string)($lesson->lifecycle_state??'')!=='authorised')throw new \InvalidArgumentException('portal_object_not_portal_visible');
         PortalAccessPolicy::assertObject('teacher_portal','lesson',(int)$lesson->id,$principal);
         $start=strtotime((string)$schedule->starts_at_utc.' UTC');$end=strtotime((string)$schedule->ends_at_utc.' UTC');$now=time();
         if(!$start||!$end||$now<$start-self::EARLY_SECONDS||$now>$end+self::LATE_SECONDS)throw new \InvalidArgumentException('portal_action_outside_window');

@@ -146,7 +146,6 @@
   background: var(--dzn-classroom-night);
 }
 .dzn-classroom__tile--local video { transform: scaleX(-1); }
-[dir="rtl"] .dzn-classroom__tile--local video { transform: scaleX(1); }
 .dzn-classroom__tile-shade {
   position: absolute;
   inset: 0;
@@ -223,7 +222,7 @@
   height: auto;
   filter: drop-shadow(0 1px 0 rgb(255 255 255 / 55%));
 }
-.dzn-classroom__tile--local .dzn-classroom-watermark { inset-inline-end: auto; inset-inline-start: 0.8rem; }
+.dzn-classroom__tile--local .dzn-classroom-watermark { inset-inline-end: 0.8rem; inset-inline-start: auto; }
 
 .dzn-classroom__controls {
   display: flex;
@@ -373,3 +372,9 @@
   .dzn-classroom-watermark { background: #fffdf8; opacity: 1; }
   .dzn-classroom__tile-label { background: #000; }
 }
+
+/* The layout uses logical properties; this explicit RTL block keeps the status/control rows
+   aligned with the document direction on older browsers that do not fully support logical flex gaps. */
+[dir="rtl"] .dzn-classroom__status-stack,
+[dir="rtl"] .dzn-classroom__meta-main { text-align: right; align-items: flex-start; }
+[dir="rtl"] .dzn-classroom__control-group--end { margin-inline-start: auto; }

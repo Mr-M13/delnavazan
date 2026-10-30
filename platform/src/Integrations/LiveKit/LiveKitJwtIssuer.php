@@ -45,9 +45,23 @@ final class LiveKitJwtIssuer {
 
     /** Short-lived token used only for LiveKit RoomService control-plane calls. */
     public function issueRoomAdmin(string $apiKey, string $apiSecret, string $room, int $now): string {
+        return $this->issueRoomServiceToken($apiKey, $apiSecret, $room, array('roomAdmin' => true), $now);
+    }
+
+    /**
+     * Short-lived RoomService token with exactly the grants a single control-plane call needs.
+     *
+     * @param array<string,bool> $grants roomCreate, roomList, or roomAdmin
+     */
+    public function issueRoomServiceToken(string $apiKey, string $apiSecret, string $room, array $grants, int $now): string {
         if ($apiKey === '' || $apiSecret === '') throw new \InvalidArgumentException('livekit_token_input_invalid');
         if ($room !== '') $this->assertInputs($apiKey, $apiSecret, $room, 'dzn-server');
-        $video = array('roomAdmin' => true);
+        $allowed = array('roomCreate', 'roomList', 'roomAdmin');
+        $video = array();
+        foreach ($allowed as $grant) {
+            if (!empty($grants[$grant])) $video[$grant] = true;
+        }
+        if (!$video) throw new \InvalidArgumentException('livekit_token_input_invalid');
         if ($room !== '') $video['room'] = $room;
         return $this->sign(array(
             'iss' => $apiKey,

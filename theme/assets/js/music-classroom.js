@@ -47,7 +47,8 @@
     connecting: false,
     leaving: false,
     reconnectAttempt: 0,
-    reconnectTimer: null
+    reconnectTimer: null,
+    ignoreDisconnectRoom: null
   };
   state.ticketClaim = readTicketClaim(state.ticket);
 
@@ -131,6 +132,7 @@
     state.connecting = true;
     clearAlert();
     setConnection(isReconnect ? 'در حال اتصال دوباره…' : 'در حال اتصال به کلاس…', 'connecting');
+    var failure = null;
     try {
       var session = await requestSession();
       state.session = session;
@@ -139,13 +141,13 @@
       state.reconnectAttempt = 0;
       setConnection('کلاس متصل است.', 'connected');
     } catch (error) {
-      if (isReconnect) {
-        scheduleReconnect();
-      } else {
-        handleFatalSession(error);
-      }
+      failure = error;
     } finally {
       state.connecting = false;
+    }
+    if (failure) {
+      if (isReconnect) scheduleReconnect();
+      else handleFatalSession(failure);
     }
   }
 
@@ -163,13 +165,41 @@
       localVideo.setAttribute('playsinline', '');
       localVideo.setAttribute('autoplay', '');
     }
-    await room.connect(session.url, session.token, { autoSubscribe: true });
+    await connectWithTimeout(room, session);
     if (state.room !== room) return;
-    await enableMicrophone();
-    await enableCamera();
+    // Publish the connected state before requesting media: a slow device-permission or capture
+    // prompt must not leave the classroom looking disconnected after the LiveKit session is live.
+    setConnection('کلاس متصل است.', 'connected');
     setControlsEnabled(true);
     updateParticipants();
     refreshDevices();
+    await enableMicrophone();
+    await enableCamera();
+  }
+
+
+  function connectWithTimeout(room, session) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        state.ignoreDisconnectRoom = room;
+        try { room.disconnect(); } catch (ignored) {}
+        reject(new Error('connect_timeout'));
+      }, 15000);
+      room.connect(session.url, session.token, { autoSubscribe: true }).then(function () {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve();
+      }).catch(function (error) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        reject(error);
+      });
+    });
   }
 
   function bindRoom(room) {
@@ -186,6 +216,7 @@
     });
     room.on(LK.RoomEvent.Disconnected, function (reason) {
       if (state.room !== room) return;
+      if (state.ignoreDisconnectRoom === room) { state.ignoreDisconnectRoom = null; return; }
       if (state.leaving) {
         setConnection('از کلاس خارج شدید.', 'ended');
         return;
@@ -193,7 +224,7 @@
       if (reason === LK.DisconnectReason.DUPLICATE_IDENTITY) {
         setConnection('این حساب در دستگاه یا تب دیگری وارد شده است.', 'error');
         showAlert('برای حضور در کلاس، فقط یک تب یا دستگاه را باز نگه دارید.');
-        showMeetFallback(true);
+        showMeetFallback(ticketMeetAvailable());
         return;
       }
       setConnection('اتصال کلاس قطع شد.', 'reconnecting');
@@ -226,7 +257,7 @@
   }
 
   function scheduleReconnect() {
-    if (state.leaving || state.connecting) return;
+    if (state.leaving || state.reconnectTimer) return;
     if (state.reconnectAttempt >= 4) {
       setConnection('اتصال به کلاس برقرار نشد.', 'error');
       showAlert('اتصال به کلاس زنده ممکن نشد. می‌توانید از گزینهٔ پشتیبان گوگل میت استفاده کنید یا به پرتال بازگردید.');
@@ -334,7 +365,9 @@
         await state.room.localParticipant.setMicrophoneEnabled(true, captureOptions(), publishOptions());
         setConnection('کلاس متصل است.', 'connected');
       } catch (error) {
-        showAlert(mediaError(error, 'میکروفن') + ' حالت قبلی صدا حفظ شد.');
+        state.micOn = false;
+        updateMicButton();
+        showAlert(mediaError(error, 'میکروفن') + ' میکروفن را دوباره روشن کنید.');
         setConnection('کلاس متصل است.', 'connected');
       }
     }

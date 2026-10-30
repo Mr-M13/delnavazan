@@ -19,8 +19,11 @@ final class LiveKitConfiguration {
         $secret = $this->value('DZN_LIVEKIT_API_SECRET');
         $apiUrl = $this->value('DZN_LIVEKIT_API_URL');
         $parts = parse_url($url);
+        $localDevelopment = $this->localDevelopment();
+        $webSocketScheme = is_array($parts) ? strtolower((string)($parts['scheme'] ?? '')) : '';
+        $webSocketAllowed = $webSocketScheme === 'wss' || ($localDevelopment && $webSocketScheme === 'ws' && $this->loopback((string)($parts['host'] ?? '')));
         if (!$key || !$secret || !is_array($parts)
-            || strtolower((string)($parts['scheme'] ?? '')) !== 'wss'
+            || !$webSocketAllowed
             || empty($parts['host'])
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
             throw new \RuntimeException('livekit_not_configured');
@@ -29,8 +32,10 @@ final class LiveKitConfiguration {
             $apiUrl = 'https://' . strtolower((string)$parts['host']) . (isset($parts['port']) ? ':' . (int)$parts['port'] : '');
         }
         $apiParts = parse_url($apiUrl);
+        $apiScheme = is_array($apiParts) ? strtolower((string)($apiParts['scheme'] ?? '')) : '';
+        $apiAllowed = $apiScheme === 'https' || ($localDevelopment && $apiScheme === 'http');
         if (!is_array($apiParts)
-            || strtolower((string)($apiParts['scheme'] ?? '')) !== 'https'
+            || !$apiAllowed
             || empty($apiParts['host'])
             || isset($apiParts['user']) || isset($apiParts['pass']) || isset($apiParts['query']) || isset($apiParts['fragment'])
             || !preg_match('/^[A-Za-z0-9.-]+$/D', (string)$apiParts['host'])) {
@@ -50,5 +55,16 @@ final class LiveKitConfiguration {
         if (defined($name)) return trim((string)constant($name));
         $value = getenv($name);
         return $value === false ? $default : trim((string)$value);
+    }
+
+    /** Local disposable runtimes may use ws/http on loopback; production requires wss/https. */
+    private function localDevelopment(): bool {
+        if (!function_exists('wp_get_environment_type')) return false;
+        return in_array(wp_get_environment_type(), array('local', 'development'), true);
+    }
+
+    private function loopback(string $host): bool {
+        $host = strtolower(trim($host, '[]'));
+        return in_array($host, array('127.0.0.1', 'localhost', '::1'), true);
     }
 }

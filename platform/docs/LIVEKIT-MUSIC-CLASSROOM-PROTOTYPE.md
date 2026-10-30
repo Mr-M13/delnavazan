@@ -44,8 +44,10 @@ DZN_LIVEKIT_API_URL=https://rtc.delnavazan.com
 ```
 
 `LiveKitConfiguration` rejects a non-`wss` URL, embedded credentials, query/fragment components,
-and a non-HTTPS API URL. The API secret is only used to sign short-lived participant tokens, a
-60-second RoomService token, and webhook verification.
+and a non-HTTPS API URL. A disposable `local`/`development` runtime may use `ws://` and `http://`
+only for a loopback host; production always requires `wss://` and `https://`. The API secret is only used to sign short-lived participant tokens, 60-second
+RoomService tokens with exactly the grant each control-plane call needs (`roomList`, `roomCreate`,
+or `roomAdmin`), and webhook verification.
 
 ## Classroom authorization rules
 
@@ -71,8 +73,11 @@ version. They contain no learner name, booking code, or database identifier.
 
 ### Token revocation limitation and mitigation
 
-LiveKit participant JWTs are stateless. An already-issued five-minute token cannot be individually
-revoked before its `exp`. Delnavazan mitigates this with:
+LiveKit participant JWTs are stateless. An already-issued five-minute token cannot be relied on to
+disappear at the exact moment a Lesson is cancelled. `RemoveParticipant` is called with a
+`revoke_token_ts`; LiveKit servers that implement token revocation invalidate older tokens, while a
+server that does not still enforces the five-minute `exp`, room-scoped token. Delnavazan further
+mitigates this with:
 
 - a five-minute token lifetime;
 - room names that change when the schedule version changes, so an old reschedule token cannot join
@@ -84,8 +89,9 @@ revoked before its `exp`. Delnavazan mitigates this with:
   participant join.
 
 If a cancellation occurs after a token was issued, the room is deleted as soon as the out-of-band
-revocation job runs. The residual worst case is bounded by the five-minute token lifetime. Do not
-describe this as instantaneous token revocation.
+revocation job runs. The residual worst case is bounded by the five-minute token lifetime and by the
+room deletion. Do not describe this as instantaneous or universal token revocation; confirm the
+behaviour of the deployed LiveKit server version.
 
 ## Google Meet fallback policy
 
@@ -238,5 +244,32 @@ php platform/tests/livekit-classroom-authorization-unit.php
 php platform/tests/livekit-portal-integration-contract.php
 ```
 
-These are automated source/unit checks. Real two-device and staging verification is recorded in the
-release report when the required accounts and LiveKit credentials are available.
+The disposable canonical-authorization runtime is part of the attendance runtime:
+
+```sh
+DZN_RUNTIME_STATE_DIR=/tmp/dzn-livekit-runtime \
+DZN_COMPOSE_PROJECT=dzn-livekit-runtime \
+DZN_WP_PORT=18088 \
+platform/runtime/bin/run-attendance-runtime.sh
+```
+
+It creates a real canonical Term/Lesson/schedule through the existing authorities, links one Teacher
+and one Student principal, and exercises the real authorizer (authorised teacher/student, third
+participant, duplicate identity, stale schedule after reschedule, launch ticket, and cancellation).
+It contacts no LiveKit server and uses no live credential.
+
+A manual/staging browser check is available at
+`platform/runtime/browser/livekit-classroom-browser-test.js`. It requires Playwright and synthetic
+teacher/student/admin accounts plus a lesson inside the joining window:
+
+```sh
+npm install playwright
+DZN_BROWSER_STUDENT_USER=... DZN_BROWSER_STUDENT_PASS=... \
+DZN_BROWSER_TEACHER_USER=... DZN_BROWSER_TEACHER_PASS=... \
+DZN_BROWSER_EXPECT=unavailable|connected \
+node platform/runtime/browser/livekit-classroom-browser-test.js
+```
+
+These are automated checks. Real two-device audio/video verification is separate and requires the
+actual LiveKit credentials and two physical devices; it is recorded in the release report when those
+are available.

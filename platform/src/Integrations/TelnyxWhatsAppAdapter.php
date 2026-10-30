@@ -43,7 +43,8 @@ final class TelnyxWhatsAppAdapter {
         $order=TelnyxTemplateRegistry::variableOrderForName($name);
         if($sender===''||$name===''||$order===array())return array('state'=>'failed','code'=>'telnyx_test_template_not_configured');
         foreach($order as $code)if(!array_key_exists($code,$parameters))return array('state'=>'failed','code'=>'test_template_variable_missing');
-        $payload=self::templatePayload($sender,$to,$name,$language,$order,$parameters);
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $payload=self::templatePayload($sender,$to,$name,$language,$order,$parameters,$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
             'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
@@ -88,7 +89,8 @@ final class TelnyxWhatsAppAdapter {
         $mapped=$this->mapping($command);
         if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
         foreach($mapped['variable_order'] as $code)if(!array_key_exists($code,(array)($command['parameters']??array())))return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
-        $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],(array)($command['parameters']??array()));
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],(array)($command['parameters']??array()),$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
             'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
@@ -103,10 +105,10 @@ final class TelnyxWhatsAppAdapter {
         return array('acknowledged'=>true,'permanent_failure'=>null,'provider_reference_present'=>$reference!=='');
     }
 
-    public static function templatePayload(string $from,string $to,string $name,string $language,array $order,array $parameters):array{
+    public static function templatePayload(string $from,string $to,string $name,string $language,array $order,array $parameters,string $profile=''):array{
         $params=array();
         foreach($order as $code)$params[]=array('type'=>'text','text'=>(string)$parameters[$code]);
-        return array(
+        $payload=array(
             'from'=>$from,'to'=>$to,
             'whatsapp_message'=>array(
                 'type'=>'template',
@@ -117,6 +119,8 @@ final class TelnyxWhatsAppAdapter {
                 ),
             ),
         );
+        if($profile!=='')$payload['messaging_profile_id']=$profile;
+        return $payload;
     }
     public static function permanentFailure(int $status):?string{
         if(in_array($status,array(408,425,429),true)||$status>=500)return null;

@@ -35,6 +35,7 @@ $fail('suppression repository supports purpose wildcard',str_contains($suppressi
 $fail('STOP parser handles SMS and WhatsApp shapes',str_contains($normalizer,"\$inner['text']")&&str_contains($normalizer,'STOP_WORDS')&&str_contains($normalizer,'لغو'));
 $fail('SMS adapter uses Messages API v2',str_contains($sms,'https://api.telnyx.com/v2/messages')&&str_contains($sms,'messaging_profile_id')&&str_contains($sms,'sender_id'));
 $fail('WhatsApp adapter uses the WhatsApp endpoint',str_contains($whatsapp,'https://api.telnyx.com/v2/messages/whatsapp')&&str_contains($whatsapp,'whatsapp_message')&&str_contains($whatsapp,'templatePayload'));
+$fail('WhatsApp payload supplies the required messaging profile',str_contains($whatsapp,"\$payload['messaging_profile_id']=\$profile")&&str_contains($configuration,'messagingProfileId'));
 $fail('explicit WhatsApp test resolves a deterministic approved template',str_contains($read('platform/src/Integrations/IntegrationTestRunner.php'),'TelnyxWhatsAppTestTemplate::resolve')&&str_contains($read('platform/src/Integrations/Notifications/TelnyxWhatsAppTestTemplate.php'),'APPROVED'));
 $fail('explicit WhatsApp test surfaces safe provider errors',str_contains($whatsapp,'providerError')&&str_contains($whatsapp,'safeProviderText')&&str_contains($admin,'Safe provider test detail'));
 $fail('WhatsApp adapter never invents variables',str_contains($whatsapp,'variable_contract_mismatch')&&str_contains($whatsapp,'template_not_mapped'));

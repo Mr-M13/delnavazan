@@ -273,3 +273,26 @@ node platform/runtime/browser/livekit-classroom-browser-test.js
 These are automated checks. Real two-device audio/video verification is separate and requires the
 actual LiveKit credentials and two physical devices; it is recorded in the release report when those
 are available.
+
+## Verification status (2026-10-31)
+
+Passed in this development environment:
+
+- all LiveKit unit/source contracts;
+- the full existing PHP source-contract suite;
+- the disposable WordPress/MariaDB canonical authorization runtime;
+- a disposable WordPress + LiveKit **1.13.11** browser run with two separate Chrome
+  instances (simulated Teacher and Student devices): both joined the same room, both saw exactly
+  two participants, Music Mode switched without a reload, and a duplicate Student identity
+  replaced the first connection without adding a third participant;
+- the explicit missing-LiveKit-credentials Persian fallback path.
+
+Not verified here, and required before production release:
+
+- the production `wss://rtc.delnavazan.com` server with the real API key/secret (credentials are not
+  present in this workspace);
+- a production/staging LiveKit webhook configuration;
+- a live Google Meet/Calendar link for the same lesson;
+- physical iPad/iPhone and desktop device audio/video quality, including Safari capture behaviour.
+
+The pull request must remain open until the production/staging checks are completed.

@@ -290,7 +290,8 @@
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local {
   position: absolute;
   z-index: 5;
-  inset-block-end: 1rem;
+  inset-block-start: 1rem;
+  inset-block-end: auto;
   inset-inline-end: 1rem;
   width: clamp(8.5rem, 23vw, 18rem);
   height: auto;
@@ -454,7 +455,7 @@ body.dzn-classroom-faux-active { overflow: hidden; }
   .dzn-classroom__devices select { max-width: 100%; width: 100%; }
   .dzn-classroom__tile-label { max-width: calc(100% - 5.8rem); }
   .dzn-classroom-watermark img { width: 2.6rem; }
-  .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local { width: clamp(7rem, 34vw, 13rem); inset-block-end: 0.6rem; inset-inline-end: 0.6rem; }
+  .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local { width: clamp(7rem, 34vw, 13rem); inset-block-start: 0.6rem; inset-block-end: auto; inset-inline-end: 0.6rem; }
   .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__controls { padding: 0.55rem 0.7rem; flex-wrap: wrap; }
 }
 

@@ -12,7 +12,9 @@ if [[ "$MODE" == 'confirm' ]]; then
 fi
 # shellcheck source=production-smoke-lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/production-smoke-lib.sh"
-trap smoke_cleanup EXIT
+ENROL_BODY=""
+smoke_cleanup_all(){ [[ -n "$ENROL_BODY" ]] && rm -f "$ENROL_BODY"; smoke_cleanup; }
+trap smoke_cleanup_all EXIT
 
 failures=0
 pass(){ printf 'PASS  %s\n' "$1"; }
@@ -116,11 +118,13 @@ fi
 
 check_html '/'
 check_html '/enrol/'
+ENROL_BODY="$(mktemp)"
+cp "$SMOKE_BODY" "$ENROL_BODY"
 for legal_path in /privacy-policy/ /terms-and-conditions/ /cancellation-and-refunds/ /recording-and-ai-policy/ /cookie-policy/; do
   check_legal "$legal_path"
 done
-css_urls="$(grep -Eo '/wp-content/themes/delnavazan-theme/assets/css/(theme|booking)\.css(\?[^"[:space:]<>]*)?' "$SMOKE_BODY" | sort -u || true)"
-if grep -Eq 'data-instrument-choice="[0-9]+"' "$SMOKE_BODY"; then pass '/enrol/ renders course choices'; else fail '/enrol/ does not render any course choices'; fi
+css_urls="$(grep -Eo '/wp-content/themes/delnavazan-theme/assets/css/(theme|booking)\.css(\?[^"[:space:]<>]*)?' "$ENROL_BODY" | sed "s/'$//" | sort -u || true)"
+if grep -Eq 'data-instrument-choice="[0-9]+"' "$ENROL_BODY"; then pass '/enrol/ renders course choices'; else fail '/enrol/ does not render any course choices'; fi
 check_css_asset theme
 check_css_asset booking
 check_theme_asset '/wp-content/themes/delnavazan-theme/style.css' 'text/css'

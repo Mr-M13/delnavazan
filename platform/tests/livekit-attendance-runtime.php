@@ -238,6 +238,11 @@ $thirdEvent=array('event'=>'participant_joined','room'=>array('name'=>$third['ro
 $thirdResult=dzn_lka_webhook($thirdEvent);
 dzn_lka_assert((int)$thirdResult['status']===200&&($thirdResult['data']['action']??'')==='removed_unauthorized_identity','A third participant must be rejected');
 dzn_lka_assert($connection($third['room'],'x-third-party')===null,'A rejected third participant must not create a connection');
+$crossLesson=dzn_lka_join($grantsBy['below']['teacher'],'PA_T_SETTLE_1',(int)$o['below']['start_ts'],'EV_CROSS_LESSON');
+$crossLesson['participant']['identity']=(string)$grantsBy['settle']['student']['identity'];
+$crossLessonResult=dzn_lka_webhook($crossLesson);
+dzn_lka_assert((int)$crossLessonResult['status']===200&&($crossLessonResult['data']['action']??'')==='removed_unauthorized_identity','Another Lesson identity must be rejected');
+dzn_lka_assert($connection((string)$grantsBy['below']['teacher']['room'],(string)$grantsBy['settle']['student']['identity'])===null,'Cross-Lesson evidence must not create a connection');
 
 // 1200 seconds exactly, with a reconnect and duplicate overlapping tab.
 $s=$o['settle'];$sg=$grantsBy['settle'];
@@ -297,6 +302,15 @@ $send(dzn_lka_join($newGrants['student'],'PA_S_RESCHEDULE_NEW',$newStart,'EV_S_R
 $send(dzn_lka_left($newGrants['teacher'],'PA_T_RESCHEDULE_NEW',$newStart+1200,'EV_T_RESCHEDULE_NEW_LEFT'),'reschedule_new_t_left');
 $send(dzn_lka_left($newGrants['student'],'PA_S_RESCHEDULE_NEW',$newStart+1200,'EV_S_RESCHEDULE_NEW_LEFT'),'reschedule_new_s_left');
 
+// Missing leave: a join with no trusted leave must never become a qualifying interval.
+$openOccurrence=$o['open'];$openGrant=$grantsBy['open'];
+$send(dzn_lka_join($openGrant['teacher'],'PA_T_OPEN',$openOccurrence['start_ts'],'EV_T_OPEN_JOIN'),'open_t_join');
+$send(dzn_lka_finished((string)$openGrant['teacher']['room'],time(),'EV_OPEN_ROOM_FINISHED'),'open_room_finished');
+
+// Missing join: a leave with no join is an orphan fact, never a closed interval.
+$orphanOccurrence=$o['orphan'];$orphanGrant=$grantsBy['orphan'];
+$send(dzn_lka_left($orphanGrant['student'],'PA_S_ORPHAN',$orphanOccurrence['start_ts']+60,'EV_S_ORPHAN_LEFT'),'orphan_s_left');
+
 // Room cleanup must not erase the leave fact or the binding.
 $send(dzn_lka_finished((string)$sg['teacher']['room'],time(),'EV_SETTLE_ROOM_FINISHED'),'settle_room_finished');
 
@@ -334,6 +348,16 @@ $send(dzn_lka_left($lg['student'],'PA_S_LATE',$late['start_ts']+120,'EV_S_LATE_L
 
 $reconcile=LiveKitAttendanceReconciliationWorker::run();
 dzn_lka_assert(!empty($reconcile['rooms'])||!empty($reconcile['open']),'The reconciliation worker must process durable work');
+dzn_lka_assert($case($o['open'])===null&&$outcome($o['open'])===null,'A missing leave must not create attendance or an outcome before retention');
+dzn_lka_assert($case($o['orphan'])===null&&$outcome($o['orphan'])===null,'A missing join must not create attendance or an outcome before retention');
+$staleNow=gmdate('Y-m-d H:i:s',strtotime($latest.' UTC')+8*86400);
+$integration->reconcile($staleNow);
+$openCase=$case($o['open']);dzn_lka_assert($openCase!==null&&(string)$openCase->state==='ready_for_review','A retained open interval must become review-only');
+dzn_lka_assert(in_array('open_interval',$anomalies($openCase),true),'A missing leave must be recorded as open_interval');
+dzn_lka_assert($outcome($o['open'])===null&&$lessonState($o['open'])==='authorised','A missing leave must never settle or complete');
+$orphanCase=$case($o['orphan']);dzn_lka_assert($orphanCase!==null&&(string)$orphanCase->state==='ready_for_review','A retained orphan leave must become review-only');
+dzn_lka_assert(in_array('invalid_interval',$anomalies($orphanCase),true),'A missing join must be recorded as invalid_interval');
+dzn_lka_assert($outcome($o['orphan'])===null&&$lessonState($o['orphan'])==='authorised','A missing join must never settle or complete');
 
 // ---------------------------------------------------------------------------
 // Canonical consequences.

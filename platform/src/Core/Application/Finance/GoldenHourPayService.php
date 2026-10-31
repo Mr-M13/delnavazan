@@ -434,17 +434,12 @@ final class GoldenHourPayService {
                 ? (new \DateTimeImmutable($date.' 00:00:00', $zone))->modify('+1 day')
                 : new \DateTimeImmutable($date.' '.$endTime.':00', $zone);
             if ($end <= $start) $end = $end->modify('+1 day');
-            $source = (string) ($window['source'] ?? '');
-            $label = $source === GoldenHourRule::GLOBAL_IRAN_KEY
-                ? 'Iran global'
-                : (string) (GoldenHourRule::defaults()[$source]['label'] ?? $source);
-            $text = $label . ' ' . $start->format('H:i') . '–' . $end->format('H:i') . ' ' . $timezone;
+            // The Teacher presentation intentionally shows only their own local clock.
             if ($teacherZone !== null) {
                 $teacherStart = $start->setTimezone($teacherZone);
                 $teacherEnd = $end->setTimezone($teacherZone);
-                $text .= ' · your time ' . $teacherStart->format('H:i') . '–' . $teacherEnd->format('H:i') . ' ' . $teacherTimezone;
+                $items[] = $teacherStart->format('H:i') . '–' . $teacherEnd->format('H:i') . ' ' . $teacherTimezone;
             }
-            $items[] = $text;
         }
         return implode('; ', array_values(array_unique($items)));
     }

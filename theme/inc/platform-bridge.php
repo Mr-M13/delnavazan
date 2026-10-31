@@ -1188,6 +1188,50 @@ function dzn_theme_platform_demand_regions() {
 		: array();
 }
 
+/**
+ * Teacher-local golden-hour bonus visual.
+ *
+ * Finance owns the resolved policy. This helper only projects its active bonus
+ * windows into the Teacher's local calendar; no academy clock or other Teacher's
+ * availability is exposed here.
+ */
+function dzn_theme_platform_teacher_golden_bonus( $teacher_timezone, $calendar = 'gregorian', $locale = '' ) {
+	$timezone = trim( (string) $teacher_timezone );
+	$fallback = array(
+		'state' => 'unavailable',
+		'enabled' => false,
+		'percentage' => 0,
+		'percentage_label' => '0',
+		'timezone' => $timezone,
+		'timezone_label' => function_exists( 'dzn_theme_platform_timezone_label' ) ? dzn_theme_platform_timezone_label( $timezone ) : $timezone,
+		'has_windows' => false,
+		'days' => array(),
+	);
+	$policy_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourPolicyService';
+	$rule_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourRule';
+	$projection_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourTeacherWindowProjection';
+	if ( ! class_exists( $policy_class ) || ! class_exists( $rule_class ) || ! class_exists( $projection_class ) ) { return $fallback; }
+	try {
+		$policy = ( new $policy_class() )->resolveAt( $rule_class::GLOBAL_IRAN_KEY, gmdate( 'Y-m-d H:i:s' ) );
+		$data = $projection_class::forPolicy( $policy, $timezone, new DateTimeImmutable( 'today', new DateTimeZone( $timezone ) ), 7, true );
+		$data['timezone_label'] = dzn_theme_platform_timezone_label( $timezone );
+		foreach ( (array) ( $data['days'] ?? array() ) as &$day ) {
+			$date = (string) ( $day['date'] ?? '' );
+			if ( '' === $date ) { continue; }
+			try {
+				$noon = new DateTimeImmutable( $date . ' 12:00:00', new DateTimeZone( $timezone ) );
+				$day['date_label'] = dzn_theme_platform_calendar_time( $noon->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' ), $timezone, $calendar, $locale, 'month_day' );
+			} catch ( Throwable $e ) {
+				$day['date_label'] = $date;
+			}
+		}
+		unset( $day );
+		return $data;
+	} catch ( Throwable $e ) {
+		return $fallback;
+	}
+}
+
 /** Teacher-scoped pending booking deliveries; requests are never projected as confirmed classes. */
 function dzn_theme_platform_teacher_booking_requests() {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\BookingTeacherDeliveryService';
@@ -1234,10 +1278,15 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$requested_step = isset($_GET['onboarding-step']) ? absint(wp_unslash($_GET['onboarding-step'])) : 0;
 		$server_step = dzn_theme_platform_teacher_onboarding_step( $onboarding, 0 );
 		$step = dzn_theme_platform_teacher_onboarding_step( $onboarding, $requested_step );
+		$onboarding_timezone = (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
+		if ( ! in_array( $onboarding_timezone, timezone_identifiers_list(), true ) ) { $onboarding_timezone = wp_timezone_string() ?: 'UTC'; }
+		$onboarding_locale = (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' );
+		$onboarding_calendar = dzn_theme_platform_calendar_preference( $onboarding['profile']['calendar_preference'] ?? '', $onboarding_locale );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
 			'navigation' => $nav, 'current_step' => $step, 'max_step' => $server_step, 'onboarding' => $onboarding,
+			'golden_bonus' => dzn_theme_platform_teacher_golden_bonus( $onboarding_timezone, $onboarding_calendar, $onboarding_locale ),
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
@@ -1311,6 +1360,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ), 'navigation' => $nav,
 			'profile' => array( 'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ), 'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ), 'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ), 'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ), 'locale' => (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' ), 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => dzn_theme_platform_timezone_label( (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ) ), 'calendar' => in_array( (string) ( $onboarding['profile']['calendar_preference'] ?? '' ), array( 'gregorian', 'persian' ), true ) ? (string) $onboarding['profile']['calendar_preference'] : 'gregorian' ),
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
+			'golden_bonus' => dzn_theme_platform_teacher_golden_bonus( $teacher_timezone, $teacher_calendar, $teacher_locale ),
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
@@ -1455,9 +1505,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$golden = $golden_hour[ (int) ( $lesson['lesson_id'] ?? 0 ) ] ?? null;
 		if ( is_array( $golden ) ) {
 			$class['golden_hour'] = $golden;
-			$class['golden_hour_label'] = (int) ( $golden['bonus_amount_minor'] ?? 0 ) > 0
+			$class['golden_hour_label'] = (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0
 				? 'Golden hour +' . rtrim( rtrim( number_format( ( (int) ( $golden['bonus_basis_points'] ?? 0 ) ) / 100, 2, '.', '' ), '0' ), '.' ) . '%'
 				: '';
+			$class['golden_hour_window_display'] = (string) ( $golden['teacher_window_display'] ?? '' );
 			$class['golden_hour_estimate_label'] = 'estimated' === ( $golden['status'] ?? '' ) ? 'estimated' : 'committed';
 			$class['golden_hour_review_text'] = ( $golden['review_reason'] ?? null ) !== null ? 'Golden-hour bonus requires service-area review.' : '';
 			$golden_bonus_display = '';

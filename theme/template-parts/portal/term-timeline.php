@@ -36,6 +36,10 @@ $completed = min( $completed, $total );
 	</ol>
 	<?php if ( ! empty( $term['next_label'] ) ) : ?><p class="dzn-term__next"><?php echo esc_html( $term['next_label'] ); ?></p><?php endif; ?>
 	<?php $replacement = trim( (string) ( $term['normal_replacement'] ?? '' ) ); $remedial = trim( (string) ( $term['academy_owed_remedial'] ?? '' ) ); ?>
+	<?php $replacement_limit = trim( (string) ( $term['replacement_limit_message'] ?? '' ) ); ?>
+	<?php if ( '' !== $replacement_limit ) : ?>
+		<p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php echo esc_html( $replacement_limit ); ?></p>
+	<?php endif; ?>
 	<?php if ( '' !== $replacement || '' !== $remedial ) : ?>
 	<div class="dzn-term__status-grid">
 		<?php if ( '' !== $replacement ) : ?><div class="dzn-status-row"><p class="dzn-status-row__label"><?php esc_html_e( 'جایگزین‌های ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( $replacement ); ?></p></div><?php endif; ?>

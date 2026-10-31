@@ -107,7 +107,7 @@ if ( str_contains( $menu, 'dzn-academy-operations' )
     || ! str_contains( $operations, 'Today’s work is collected here.' ) ) {
     throw new RuntimeException( 'The Academy dashboard must be the operational default without a second Operations route.' );
 }
-if ( ! str_contains( $operations, 'Student absence reports awaiting review' )
+if ( ! str_contains( $operations, 'Absence reports needing administrator review' )
     || ! str_contains( $operations, 'Class time changes awaiting student response' )
     || ! str_contains( $operations, "'dzn-attendance-review'" )
     || ! str_contains( $operations, "'Review attendance'" )

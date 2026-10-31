@@ -80,7 +80,7 @@ $check( 'portal route files do not parse UTC directly', ! preg_match( '/strtotim
 /* 4. Payment and absence release gates are explicit. */
 $check( 'payments have a default-off release flag', str_contains( $bridge, 'function dzn_theme_student_payments_enabled()' ) && str_contains( $bridge, "defined( 'DZN_THEME_STUDENT_PAYMENTS' )" ) );
 $check( 'the payment model honours the flag before exposing obligations', str_contains( $bridge, "'disabled'" ) && str_contains( $bridge, '$enabled = dzn_theme_student_payments_enabled();' ) );
-$check( 'the theme makes no persisted absence-report claim', ! str_contains( $bridge, 'absence_reported' ) && ! str_contains( $bridge, 'absence_notified' ) );
+$check( 'the theme renders a persisted absence-report claim only from the Platform fact', str_contains( $bridge, "\$row['absence_reported']" ) && ! str_contains( $bridge, 'absence_notified' ) );
 
 /* 5. No parallel application router and no unapproved service worker. */
 $check( 'no /app/ route is registered', ! str_contains( $routes, "'app'" ) && ! str_contains( $routes, '/app/' ) );

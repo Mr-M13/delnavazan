@@ -40,6 +40,52 @@ final class CanonicalLessonDeliveryPortalReadPortImpl implements CanonicalLesson
 
 final class CanonicalAttendancePortalReadPortImpl implements CanonicalAttendancePortalReadPort {
     public function assertCapabilityClaimAdmissible(PublicCapabilityReadSubject $subject):void { (new CanonicalAttendanceIntakeService())->assertCapabilityClaimAdmissible($subject); }
-    public function summaryForSubject(AuthenticatedPortalReadSubject|PublicCapabilityReadSubject $subject,int $lessonId,int $scheduleVersionId):array { $schedule=(new CanonicalLessonSchedulePortalReadPortImpl())->forSubject($subject,$lessonId);if((int)$schedule['schedule_version_id']!==$scheduleVersionId)throw new \InvalidArgumentException('portal_capability_stale_schedule');$repository=new CanonicalAttendanceRepository();$case=$repository->caseFor($lessonId,$scheduleVersionId);if($case&&!CanonicalAttendanceValidator::validForCase((int)$case->id,$repository,new CanonicalLessonAuthorityRepository(),new CanonicalLessonScheduleRepository()))throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');return array('lesson_id'=>$lessonId,'schedule_version_id'=>$scheduleVersionId,'attendance_state_summary'=>$case?(string)$case->state:'not_recorded','absence_available'=>$case?(string)$case->state==='open':false,'absence_final'=>$case?(string)$case->state==='settled':false); }
+    public function summaryForSubject(AuthenticatedPortalReadSubject|PublicCapabilityReadSubject $subject,int $lessonId,int $scheduleVersionId):array {
+        $schedule=(new CanonicalLessonSchedulePortalReadPortImpl())->forSubject($subject,$lessonId);
+        if((int)$schedule['schedule_version_id']!==$scheduleVersionId)throw new \InvalidArgumentException('portal_capability_stale_schedule');
+        $repository=new CanonicalAttendanceRepository();
+        $case=$repository->caseFor($lessonId,$scheduleVersionId);
+        if($case&&!CanonicalAttendanceValidator::validForCase((int)$case->id,$repository,new CanonicalLessonAuthorityRepository(),new CanonicalLessonScheduleRepository()))throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        // A Student report is durable evidence. The portal must distinguish "no report yet"
+        // from "reported and waiting" so the same class is never presented as still actionable.
+        $claim=null;
+        if($case){
+            $claim=$wpdb->get_row($wpdb->prepare(
+                "SELECT reason_code,evidence_kind,observed_at FROM {$p}canonical_attendance_evidence WHERE case_id=%d AND source_kind='student' AND reason_code IN ('student_advance_absence','student_reports_missed_class','student_disputes_class') ORDER BY id DESC LIMIT 1",
+                (int)$case->id
+            ));
+        }
+        // An accepted replacement is the party-resolved outcome for the reported absence. It is a
+        // separate canonical Lesson; the original occurrence and attendance evidence stay immutable.
+        $replacement=$wpdb->get_row($wpdb->prepare(
+            "SELECT r.uid,r.lifecycle_state,v.uid schedule_version_uid,v.starts_at_utc,v.ends_at_utc
+             FROM {$p}lessons r
+             LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=r.id AND v.applicable_slot=1
+             WHERE r.canonical_replacement_origin_lesson_id=%d AND r.record_model='canonical_term_lesson_v1' AND r.lesson_type='replacement' AND r.archived_at IS NULL
+             ORDER BY r.id ASC LIMIT 1",
+            $lessonId
+        ));
+        if($wpdb->last_error!=='')throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        $state=$case?(string)$case->state:'not_recorded';
+        $resolved=$case&&in_array($state,array('settled','adjudicated','closed_no_change','superseded'),true);
+        $reported=$claim!==null;
+        return array(
+            'lesson_id'=>$lessonId,
+            'schedule_version_id'=>$scheduleVersionId,
+            'attendance_state_summary'=>$state,
+            'absence_available'=>!$reported&&!$resolved,
+            'absence_reported'=>$reported,
+            'absence_reason'=>$claim?(string)$claim->reason_code:null,
+            'absence_observed_at'=>$claim?(string)$claim->observed_at:null,
+            'absence_resolved'=>$resolved,
+            'absence_final'=>$resolved,
+            'replacement_lesson_uid'=>$replacement?(string)$replacement->uid:null,
+            'replacement_lesson_state'=>$replacement?(string)$replacement->lifecycle_state:null,
+            'replacement_schedule_version_uid'=>$replacement?(string)($replacement->schedule_version_uid??''):null,
+            'replacement_starts_at_utc'=>$replacement?(string)($replacement->starts_at_utc??''):null,
+            'replacement_ends_at_utc'=>$replacement?(string)($replacement->ends_at_utc??''):null,
+        );
+    }
     public function submitCapabilityClaim(PublicCapabilityReadSubject $subject,string $redemptionReference):array { if($subject->purpose!=='lesson_absence')throw new \InvalidArgumentException('portal_capability_purpose_mismatch'); if(trim($redemptionReference)==='')throw new \InvalidArgumentException('portal_confirmation_invalid'); return (new CanonicalAttendanceIntakeService())->submitCapabilityClaim($subject,$redemptionReference); }
 }

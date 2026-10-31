@@ -70,7 +70,7 @@ final class CanonicalLessonAuthorityService {
             $now=gmdate('Y-m-d H:i:s');
             $to=$operation==='complete'?'completed':'cancelled';
             $this->repository->transition($l,$expected,$to,$now,$actor);
-            do_action('dzn_phase_2a2m_after_lesson_transition',$operation);
+            do_action('dzn_phase_2a2m_after_lesson_transition',$operation,$lessonId);
             $this->event($lessonId,count($this->repository->events($lessonId,true))+1,$expected,$to,$proof,$now,$actor);
             do_action('dzn_phase_2a2m_after_lifecycle_event_insert',$operation);
             $this->command($digest,$payload,$operation,(int)$hint->enrolment_id,(int)$hint->term_id,null,$lessonId,$expected,null,$lessonId,$to,$now,$actor);

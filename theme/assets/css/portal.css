@@ -1452,3 +1452,14 @@
 .dzn-recording-choices__form input[type="radio"]{margin-block-start:.3rem}
 .dzn-recording-choices__draft{margin-block:1rem;padding:1rem;border:1px dashed var(--dzn-color-warning);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
 .dzn-recording-choices hr{margin-block:2rem;border:0;border-block-start:1px solid var(--dzn-color-border)}
+
+/* Classroom launch: LiveKit primary, explicit Google Meet fallback. */
+.dzn-classroom-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.55rem;min-inline-size:0}
+.dzn-classroom-actions__form{margin:0;display:inline-flex;min-inline-size:0}
+.dzn-classroom-actions__backup{order:2}
+.dzn-classroom-actions__note{margin:0;flex-basis:100%;color:var(--dzn-color-text-muted);font-size:var(--dzn-text-xs);line-height:1.7}
+.dzn-classroom-actions__unavailable{margin:0;flex-basis:100%}
+.dzn-classroom-actions .dzn-button{white-space:nowrap}
+.dzn-schedule-row__actions .dzn-classroom-actions{justify-content:flex-end}
+.dzn-tp-actions .dzn-classroom-actions{justify-content:flex-end}
+@media(max-width:700px){.dzn-classroom-actions,.dzn-schedule-row__actions .dzn-classroom-actions,.dzn-tp-actions .dzn-classroom-actions{justify-content:stretch}.dzn-classroom-actions__form{flex:1 1 100%}.dzn-classroom-actions .dzn-button{width:100%}}

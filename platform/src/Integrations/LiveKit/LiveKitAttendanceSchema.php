@@ -11,7 +11,7 @@ namespace Delnavazan\Platform\Integrations\LiveKit;
  * stores no raw webhook payload, token, secret or contact value.
  */
 final class LiveKitAttendanceSchema {
-    public const VERSION='livekit_attendance_correlation_v1';
+    public const VERSION='livekit_attendance_correlation_v2';
     public const OPTION='dzn_livekit_attendance_schema_version';
     private const LOCK='dzn_livekit_attendance_schema_lock';
 
@@ -105,6 +105,7 @@ final class LiveKitAttendanceSchema {
                 identity_digest char(64) NOT NULL,
                 connection_digest char(64) NOT NULL,
                 room_sid_digest char(64) NULL,
+                room_instance_state varchar(24) NOT NULL DEFAULT 'unverified',
                 join_event_id bigint unsigned NULL,
                 join_event_digest char(64) NULL,
                 join_at_utc datetime NULL,
@@ -143,7 +144,7 @@ final class LiveKitAttendanceSchema {
         $spec=array(
             'livekit_attendance_rooms'=>array('uid','room_name','lesson_id','lesson_uid','schedule_version_id','schedule_uid','enrolment_id','term_id','teacher_id','student_id','teacher_identity_digest','student_identity_digest','window_start_utc','window_end_utc','created_at','updated_at'),
             'livekit_attendance_events'=>array('uid','room_id','event_kind','event_digest','connection_digest','identity_digest','participant_role','provider_at','received_at','state','reason_code','connection_id','created_at'),
-            'livekit_attendance_connections'=>array('uid','room_id','lesson_id','schedule_version_id','participant_role','participant_id','identity_value','identity_digest','connection_digest','room_sid_digest','join_event_id','join_event_digest','join_at_utc','join_received_at','leave_event_id','leave_event_digest','leave_at_utc','leave_received_at','state','closed_ingest_state','closed_ingest_reason','closed_evidence_id','open_ingest_state','open_ingest_reason','open_evidence_id','connection_version','created_at','updated_at'),
+            'livekit_attendance_connections'=>array('uid','room_id','lesson_id','schedule_version_id','participant_role','participant_id','identity_value','identity_digest','connection_digest','room_sid_digest','room_instance_state','join_event_id','join_event_digest','join_at_utc','join_received_at','leave_event_id','leave_event_digest','leave_at_utc','leave_received_at','state','closed_ingest_state','closed_ingest_reason','closed_evidence_id','open_ingest_state','open_ingest_reason','open_evidence_id','connection_version','created_at','updated_at'),
         );
         foreach($spec as$table=>$columns){
             $name=$p.$table;

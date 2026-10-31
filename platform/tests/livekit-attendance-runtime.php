@@ -157,6 +157,21 @@ $eventCount=static function(string $room)use($wpdb,$p):int{
     $roomRow=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}livekit_attendance_rooms WHERE room_name=%s",$room));
     return $roomRow?(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}livekit_attendance_events WHERE room_id=%d",(int)$roomRow->id)):0;
 };
+$connectionBySid=static function(string $room,string $identity,string $sid)use($wpdb,$p):?object{
+    $roomRow=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}livekit_attendance_rooms WHERE room_name=%s",$room));
+    if(!$roomRow)return null;
+    $identityDigest=\Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceIdempotency::identity($identity);
+    $connectionDigest=\Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceIdempotency::connection($sid);
+    return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}livekit_attendance_connections WHERE room_id=%d AND identity_digest=%s AND connection_digest=%s",(int)$roomRow->id,$identityDigest,$connectionDigest));
+};
+$connectionsForRoom=static function(string $room)use($wpdb,$p):array{
+    $roomRow=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}livekit_attendance_rooms WHERE room_name=%s",$room));
+    return $roomRow?($wpdb->get_results($wpdb->prepare("SELECT * FROM {$p}livekit_attendance_connections WHERE room_id=%d ORDER BY id",(int)$roomRow->id))?:array()):array();
+};
+$roomInstanceConflicts=static function(string $room)use($wpdb,$p):int{
+    $roomRow=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}livekit_attendance_rooms WHERE room_name=%s",$room));
+    return $roomRow?(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}livekit_attendance_events WHERE room_id=%d AND reason_code='room_instance_mismatch'",(int)$roomRow->id)):0;
+};
 
 // ---------------------------------------------------------------------------
 // Server-owned integration actor and explicit capture flag. Cutover is prospective only.
@@ -185,12 +200,12 @@ dzn_lka_assert((int)$policy['policy_id']>0,'A prospective cutover policy is requ
 // collide across the synthetic same-time scenarios. The runtime seeds a fresh Phase-J fixture
 // immediately before this suite for exactly this reason.
 $chains=array();$usersBy=array();
-foreach(array('settle','below','reconnect','presume','reschedule','cancel','ambiguous','mismatch','meet','late','open','orphan')as$label){
+foreach(array('settle','below','reconnect','presume','reschedule','cancel','ambiguous','mismatch','meet','late','open','orphan','delayed','sid','concurrency')as$label){
     $chains[$label]=$chain($label);
     $usersBy[$label]=$linkPrincipals($chains[$label]);
 }
 $o=array();
-foreach(array('settle'=>5,'below'=>5,'reconnect'=>5,'presume'=>5,'reschedule'=>5,'cancel'=>2,'ambiguous'=>2,'mismatch'=>2,'meet'=>2,'late'=>2,'open'=>2,'orphan'=>2)as$label=>$minutes)$o[$label]=$occurrence($chains[$label],$label,$minutes,5);
+foreach(array('settle'=>5,'below'=>5,'reconnect'=>5,'presume'=>5,'reschedule'=>5,'cancel'=>2,'ambiguous'=>2,'mismatch'=>2,'meet'=>2,'late'=>2,'open'=>2,'orphan'=>2,'delayed'=>5,'sid'=>2,'concurrency'=>5)as$label=>$minutes)$o[$label]=$occurrence($chains[$label],$label,$minutes,5);
 
 // Wait for the cutover instant and every scheduled start.
 $start=max(array_map(static fn($item)=>$item['start_ts'],$o));
@@ -302,14 +317,54 @@ $send(dzn_lka_join($newGrants['student'],'PA_S_RESCHEDULE_NEW',$newStart,'EV_S_R
 $send(dzn_lka_left($newGrants['teacher'],'PA_T_RESCHEDULE_NEW',$newStart+1200,'EV_T_RESCHEDULE_NEW_LEFT'),'reschedule_new_t_left');
 $send(dzn_lka_left($newGrants['student'],'PA_S_RESCHEDULE_NEW',$newStart+1200,'EV_S_RESCHEDULE_NEW_LEFT'),'reschedule_new_s_left');
 
+// Room-instance mismatch and room-name reuse: a leave from another LiveKit room instance must
+// not close a join from the first instance, and a new participant SID in the reused room must be a
+// separate connection.
+$sidOccurrence=$o['sid'];$sidGrant=$grantsBy['sid']['teacher'];$sidRoom=(string)$sidGrant['room'];
+$sidA='RM_INSTANCE_A';$sidB='RM_INSTANCE_B';
+$send(dzn_lka_join($sidGrant,'PA_T_INSTANCE_1',$sidOccurrence['start_ts'],'EV_T_INSTANCE_1_JOIN',$sidA),'sid_t1_join');
+$send(dzn_lka_left($sidGrant,'PA_T_INSTANCE_1',$sidOccurrence['start_ts']+60,'EV_T_INSTANCE_1_BAD_LEAVE',$sidB),'sid_t1_bad_leave');
+$t1=$connectionBySid($sidRoom,(string)$sidGrant['identity'],'PA_T_INSTANCE_1');
+dzn_lka_assert($t1!==null&&(string)$t1->state==='open'&&(string)$t1->room_instance_state==='mismatch','A mismatched room SID must quarantine the leave and keep the join open');
+dzn_lka_assert($roomInstanceConflicts($sidRoom)>=1,'A room-instance mismatch must leave a durable conflict event');
+dzn_lka_assert($case($o['sid'])===null&&$outcome($o['sid'])===null,'A room-instance mismatch must not create attendance or an outcome');
+$send(dzn_lka_join($sidGrant,'PA_T_INSTANCE_2',$sidOccurrence['start_ts']+30,'EV_T_INSTANCE_2_JOIN',$sidB),'sid_t2_join');
+$send(dzn_lka_left($sidGrant,'PA_T_INSTANCE_2',$sidOccurrence['start_ts']+90,'EV_T_INSTANCE_2_LEAVE',$sidB),'sid_t2_leave');
+$t1=$connectionBySid($sidRoom,(string)$sidGrant['identity'],'PA_T_INSTANCE_1');
+$t2=$connectionBySid($sidRoom,(string)$sidGrant['identity'],'PA_T_INSTANCE_2');
+dzn_lka_assert($t1!==null&&(string)$t1->state==='open','A reused room\'s new instance must not close the older connection');
+dzn_lka_assert($t2!==null&&(string)$t2->state==='closed'&&(string)$t2->room_instance_state==='verified','The new room instance must close only its own connection');
+dzn_lka_assert((string)$t1->room_sid_digest!==(string)$t2->room_sid_digest,'Reused room instances must retain distinct room SID digests');
+$send(dzn_lka_left($sidGrant,'PA_T_INSTANCE_1',$sidOccurrence['start_ts']+120,'EV_T_INSTANCE_1_LEAVE',$sidA),'sid_t1_leave');
+$t1=$connectionBySid($sidRoom,(string)$sidGrant['identity'],'PA_T_INSTANCE_1');
+dzn_lka_assert($t1!==null&&(string)$t1->state==='closed'&&(string)$t1->room_instance_state==='verified','The matching room SID must close the original connection');
+$sidCase=$case($o['sid']);dzn_lka_assert($sidCase!==null&&(string)$sidCase->state==='ready_for_review','The teacher-only instance proof must remain review-only');
+dzn_lka_assert($outcome($o['sid'])===null,'The teacher-only instance proof must not settle');
+
 // Missing leave: a join with no trusted leave must never become a qualifying interval.
 $openOccurrence=$o['open'];$openGrant=$grantsBy['open'];
-$send(dzn_lka_join($openGrant['teacher'],'PA_T_OPEN',$openOccurrence['start_ts'],'EV_T_OPEN_JOIN'),'open_t_join');
+$openJoin=dzn_lka_join($openGrant['teacher'],'PA_T_OPEN',$openOccurrence['start_ts'],'EV_T_OPEN_JOIN');
+unset($openJoin['room']['sid']);
+$send($openJoin,'open_t_join');
 $send(dzn_lka_finished((string)$openGrant['teacher']['room'],time(),'EV_OPEN_ROOM_FINISHED'),'open_room_finished');
 
 // Missing join: a leave with no join is an orphan fact, never a closed interval.
 $orphanOccurrence=$o['orphan'];$orphanGrant=$grantsBy['orphan'];
-$send(dzn_lka_left($orphanGrant['student'],'PA_S_ORPHAN',$orphanOccurrence['start_ts']+60,'EV_S_ORPHAN_LEFT'),'orphan_s_left');
+$orphanLeave=dzn_lka_left($orphanGrant['student'],'PA_S_ORPHAN',$orphanOccurrence['start_ts']+60,'EV_S_ORPHAN_LEFT');
+unset($orphanLeave['room']['sid']);
+$send($orphanLeave,'orphan_s_left');
+
+// Delayed ordering: room_finished can arrive before participant_left. The open connection must
+// remain unresolved (no invented departure, no premature settlement) and the delayed leave must
+// close that exact connection and then qualify normally.
+$delayed=$o['delayed'];$dg=$grantsBy['delayed'];
+$send(dzn_lka_join($dg['teacher'],'PA_T_DELAYED',$delayed['start_ts'],'EV_T_DELAYED_JOIN'),'delayed_t_join');
+$send(dzn_lka_join($dg['student'],'PA_S_DELAYED',$delayed['start_ts'],'EV_S_DELAYED_JOIN'),'delayed_s_join');
+$send(dzn_lka_left($dg['teacher'],'PA_T_DELAYED',$delayed['start_ts']+1200,'EV_T_DELAYED_LEFT'),'delayed_t_left');
+$send(dzn_lka_finished((string)$dg['teacher']['room'],time(),'EV_DELAYED_ROOM_FINISHED'),'delayed_room_finished');
+$delayedAfterFinish=$case($delayed);
+dzn_lka_assert($delayedAfterFinish!==null&&(string)$delayedAfterFinish->state!=='settled'&&$outcome($delayed)===null,'room_finished before a leave must not settle on incomplete evidence');
+$send(dzn_lka_left($dg['student'],'PA_S_DELAYED',$delayed['start_ts']+1200,'EV_S_DELAYED_LEFT'),'delayed_s_left');
 
 // Room cleanup must not erase the leave fact or the binding.
 $send(dzn_lka_finished((string)$sg['teacher']['room'],time(),'EV_SETTLE_ROOM_FINISHED'),'settle_room_finished');
@@ -358,6 +413,10 @@ dzn_lka_assert($outcome($o['open'])===null&&$lessonState($o['open'])==='authoris
 $orphanCase=$case($o['orphan']);dzn_lka_assert($orphanCase!==null&&(string)$orphanCase->state==='ready_for_review','A retained orphan leave must become review-only');
 dzn_lka_assert(in_array('teacher_participation_unproven',$anomalies($orphanCase),true),'A missing join must leave the counterpart unproven and reviewable');
 dzn_lka_assert($outcome($o['orphan'])===null&&$lessonState($o['orphan'])==='authorised','A missing join must never settle or complete');
+$openConn=$connection((string)$openGrant['teacher']['room'],(string)$openGrant['teacher']['identity']);
+$orphanConn=$connection((string)$orphanGrant['student']['room'],(string)$orphanGrant['student']['identity']);
+dzn_lka_assert($openConn!==null&&(string)$openConn->room_instance_state==='unverified','A join without a room SID must be retained as room-instance-unverified');
+dzn_lka_assert($orphanConn!==null&&(string)$orphanConn->room_instance_state==='unverified','A leave without a room SID must be retained as room-instance-unverified');
 
 // ---------------------------------------------------------------------------
 // Canonical consequences.
@@ -368,6 +427,10 @@ dzn_lka_assert((string)$outcome($s)->outcome_code==='delivered','Settlement must
 dzn_lka_assert($lessonState($s)==='completed','Settlement must complete the Lesson through Lesson authority');
 dzn_lka_assert($outcomeCount($s)===1&&$completedEvents($s)===1,'Settlement must create exactly one outcome and one completion event');
 dzn_lka_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}canonical_academy_obligations WHERE source_lesson_id=%d",(int)$s['lesson_id']))===0,'Ordinary delivery must not create academy debt');
+$settleTeacherConn=$connection((string)$sg['teacher']['room'],(string)$sg['teacher']['identity']);
+$settleStudentConn=$connection((string)$sg['student']['room'],(string)$sg['student']['identity']);
+dzn_lka_assert($settleTeacherConn!==null&&(string)$settleTeacherConn->room_instance_state==='verified'&&$settleTeacherConn->room_sid_digest!==null,'A matching Teacher room SID must verify the interval');
+dzn_lka_assert($settleStudentConn!==null&&(string)$settleStudentConn->room_instance_state==='verified'&&$settleStudentConn->room_sid_digest!==null,'A matching Student room SID must verify the interval');
 
 $belowCase=$case($b);dzn_lka_assert($belowCase!==null&&(string)$belowCase->state==='ready_for_review','1199 seconds must remain in review');
 dzn_lka_assert($outcome($b)===null&&$lessonState($b)==='authorised','1199 seconds must not create truth or complete the Lesson');
@@ -404,6 +467,9 @@ dzn_lka_assert($outcomeCount($presume)===1,'Presumed completion must gain exactl
 $lateCase=$case($late);dzn_lka_assert($lateCase!==null&&(string)$lateCase->state==='ready_for_review','Late evidence must remain reviewable');
 dzn_lka_assert(in_array('late_evidence',$anomalies($lateCase),true),'Late evidence must be flagged late_evidence');
 dzn_lka_assert($outcome($late)===null,'Late evidence must not create delivered truth');
+$delayedCase=$case($delayed);dzn_lka_assert($delayedCase!==null&&(string)$delayedCase->state==='settled','A delayed leave after room_finished must converge to settlement');
+dzn_lka_assert((string)$outcome($delayed)->outcome_code==='delivered'&&$lessonState($delayed)==='completed','Delayed evidence must record delivered truth and complete the Lesson');
+dzn_lka_assert($outcomeCount($delayed)===1&&$completedEvents($delayed)===1,'Delayed evidence must not duplicate outcomes or completion');
 
 // Exact replay and a changed interval are both deterministic and append-only.
 $settleEventsBefore=$eventCount((string)$sg['teacher']['room']);
@@ -422,6 +488,17 @@ dzn_lka_assert($financeAfter===$financeBefore,'Replay and conflicts must not dup
 
 // Meet fallback remains intact and creates no attendance authority.
 dzn_lka_assert($case($o['meet'])===null&&$outcome($o['meet'])===null,'Meet fallback must not create LiveKit attendance or absence');
+
+// Leave a settlement-pending occurrence for the shell-level concurrent reconciliation proof.
+$concurrency=$o['concurrency'];$cg=$grantsBy['concurrency'];
+$send(dzn_lka_join($cg['teacher'],'PA_T_CONCURRENCY',$concurrency['start_ts'],'EV_T_CONCURRENCY_JOIN'),'concurrency_t_join');
+$send(dzn_lka_join($cg['student'],'PA_S_CONCURRENCY',$concurrency['start_ts'],'EV_S_CONCURRENCY_JOIN'),'concurrency_s_join');
+$send(dzn_lka_left($cg['teacher'],'PA_T_CONCURRENCY',$concurrency['start_ts']+1200,'EV_T_CONCURRENCY_LEFT'),'concurrency_t_left');
+$send(dzn_lka_left($cg['student'],'PA_S_CONCURRENCY',$concurrency['start_ts']+1200,'EV_S_CONCURRENCY_LEFT'),'concurrency_s_left');
+$concurrencyConn=$connection((string)$cg['student']['room'],(string)$cg['student']['identity']);
+dzn_lka_assert($concurrencyConn!==null&&(string)$concurrencyConn->closed_ingest_state==='pending_settlement','The webhook principal must leave settlement to the scheduled settlement principal');
+$concurrencyFinance=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_lesson_snapshots WHERE lesson_id=%d",(int)$concurrency['lesson_id']));
+update_option('dzn_livekit_attendance_concurrency_fixture',array('lesson_id'=>(int)$concurrency['lesson_id'],'version_id'=>(int)$concurrency['version_id'],'finance_snapshots'=>$concurrencyFinance),false);
 
 wp_set_current_user(1);
 echo "LiveKit canonical attendance runtime passed\n";

@@ -335,6 +335,7 @@ final class LiveKitAttendanceIntegration {
         if($existing=$this->repository->eventByDigest($digest,true))return array('state'=>'duplicate','event_state'=>(string)$existing->state,'retry'=>false);
         $now=gmdate('Y-m-d H:i:s');
         $connectionDigest=LiveKitAttendanceIdempotency::connection((string)$event['participant_sid']);
+        $roomSid=$this->roomSidDigest($event);
         $connection=$this->repository->connectionByKey((int)$room->id,$identity['identity_digest'],$connectionDigest,true);
         $state='accepted';$reason=null;$update=null;$eventConnectionId=null;
         if(!$connection){
@@ -342,7 +343,7 @@ final class LiveKitAttendanceIntegration {
                 'uid'=>Identifier::uid(),'room_id'=>(int)$room->id,'lesson_id'=>(int)$room->lesson_id,'schedule_version_id'=>(int)$room->schedule_version_id,
                 'participant_role'=>$identity['role'],'participant_id'=>$identity['participant_id'],
                 'identity_value'=>$identity['identity'],'identity_digest'=>$identity['identity_digest'],'connection_digest'=>$connectionDigest,
-                'room_sid_digest'=>$event['room_sid']===null?null:LiveKitAttendanceIdempotency::roomInstance((string)$event['room_sid']),
+                'room_sid_digest'=>$roomSid,'room_instance_state'=>$roomSid===null?'unverified':'verified',
                 'join_event_id'=>null,'join_event_digest'=>null,'join_at_utc'=>null,'join_received_at'=>null,
                 'leave_event_id'=>null,'leave_event_digest'=>null,'leave_at_utc'=>null,'leave_received_at'=>null,
                 'state'=>'pending_join','closed_ingest_state'=>'none','closed_ingest_reason'=>null,'closed_evidence_id'=>null,
@@ -350,20 +351,36 @@ final class LiveKitAttendanceIntegration {
                 'created_at'=>$now,'updated_at'=>$now,
             ));
             $eventConnectionId=$connectionId;
-            $update=array('join_event_digest'=>$digest,'join_at_utc'=>$event['provider_at'],'join_received_at'=>$event['received_at'],'state'=>'open');
+            $update=array(
+                'join_event_digest'=>$digest,'join_at_utc'=>$event['provider_at'],'join_received_at'=>$event['received_at'],
+                'state'=>$this->repository->roomFinished((int)$room->id)?'room_finished_open':'open',
+            );
         }else{
             $eventConnectionId=(int)$connection->id;
+            $existingSid=$connection->room_sid_digest===null?null:(string)$connection->room_sid_digest;
             if((string)$connection->state==='orphan_leave'){
-                if((string)$event['provider_at']<(string)$connection->leave_at_utc){
+                if($existingSid!==null&&$roomSid!==null&&!hash_equals($existingSid,$roomSid)){
+                    $state='conflict';$reason='room_instance_mismatch';
+                }elseif((string)$event['provider_at']<(string)$connection->leave_at_utc){
                     $state='closed';
-                    $update=array('join_event_digest'=>$digest,'join_at_utc'=>$event['provider_at'],'join_received_at'=>$event['received_at'],'state'=>'closed','closed_ingest_state'=>'none','closed_ingest_reason'=>null);
+                    $update=array(
+                        'join_event_digest'=>$digest,'join_at_utc'=>$event['provider_at'],'join_received_at'=>$event['received_at'],
+                        'state'=>'closed','closed_ingest_state'=>'none','closed_ingest_reason'=>null,
+                        'room_sid_digest'=>$existingSid??$roomSid,
+                        'room_instance_state'=>$this->closedRoomInstanceState($roomSid,$existingSid),
+                    );
                 }else{
                     $state='conflict';$reason='impossible_interval';
                 }
             }elseif((string)$connection->state==='open'&&(string)$connection->join_at_utc===(string)$event['provider_at']){
-                $state='duplicate';$reason='duplicate_join';
+                if($existingSid!==null&&$roomSid!==null&&!hash_equals($existingSid,$roomSid)){
+                    $state='conflict';$reason='room_instance_mismatch';
+                }else{
+                    $state='duplicate';$reason='duplicate_join';
+                }
             }else{
-                $state='conflict';$reason='connection_already_exists';
+                $state='conflict';
+                $reason=($existingSid!==null&&$roomSid!==null&&!hash_equals($existingSid,$roomSid))?'room_instance_mismatch':'connection_already_exists';
             }
         }
         $eventId=$this->repository->insertEvent(array(
@@ -386,14 +403,15 @@ final class LiveKitAttendanceIntegration {
         if($existing=$this->repository->eventByDigest($digest,true))return array('state'=>'duplicate','event_state'=>(string)$existing->state,'retry'=>false);
         $now=gmdate('Y-m-d H:i:s');
         $connectionDigest=LiveKitAttendanceIdempotency::connection((string)$event['participant_sid']);
+        $roomSid=$this->roomSidDigest($event);
         $connection=$this->repository->connectionByKey((int)$room->id,$identity['identity_digest'],$connectionDigest,true);
-        $state='accepted';$reason=null;$update=null;$eventConnectionId=null;$phaseConflict=false;
+        $state='accepted';$reason=null;$update=null;$eventConnectionId=null;$phaseConflict=false;$markMismatch=false;
         if(!$connection){
             $connectionId=$this->repository->insertConnection(array(
                 'uid'=>Identifier::uid(),'room_id'=>(int)$room->id,'lesson_id'=>(int)$room->lesson_id,'schedule_version_id'=>(int)$room->schedule_version_id,
                 'participant_role'=>$identity['role'],'participant_id'=>$identity['participant_id'],
                 'identity_value'=>$identity['identity'],'identity_digest'=>$identity['identity_digest'],'connection_digest'=>$connectionDigest,
-                'room_sid_digest'=>$event['room_sid']===null?null:LiveKitAttendanceIdempotency::roomInstance((string)$event['room_sid']),
+                'room_sid_digest'=>$roomSid,'room_instance_state'=>$roomSid===null?'unverified':'leave_only',
                 'join_event_id'=>null,'join_event_digest'=>null,'join_at_utc'=>null,'join_received_at'=>null,
                 'leave_event_id'=>null,'leave_event_digest'=>$digest,'leave_at_utc'=>$event['provider_at'],'leave_received_at'=>$event['received_at'],
                 'state'=>'orphan_leave','closed_ingest_state'=>'none','closed_ingest_reason'=>'missing_join','closed_evidence_id'=>null,
@@ -405,16 +423,29 @@ final class LiveKitAttendanceIntegration {
         }else{
             $eventConnectionId=(int)$connection->id;
             $current=(string)$connection->state;
+            $existingSid=$connection->room_sid_digest===null?null:(string)$connection->room_sid_digest;
+            $mismatch=$existingSid!==null&&$roomSid!==null&&!hash_equals($existingSid,$roomSid);
             if(in_array($current,array('open','room_finished_open','stale_open'),true)){
-                if($connection->join_at_utc===null||(string)$event['provider_at']<=(string)$connection->join_at_utc){
+                if($mismatch){
+                    $state='conflict';$reason='room_instance_mismatch';$markMismatch=true;
+                }elseif($connection->join_at_utc===null||(string)$event['provider_at']<=(string)$connection->join_at_utc){
                     $state='conflict';$reason='impossible_interval';
                 }else{
-                    $update=array('leave_event_digest'=>$digest,'leave_at_utc'=>$event['provider_at'],'leave_received_at'=>$event['received_at'],'state'=>'closed','closed_ingest_state'=>'none','closed_ingest_reason'=>null);
+                    $update=array(
+                        'leave_event_digest'=>$digest,'leave_at_utc'=>$event['provider_at'],'leave_received_at'=>$event['received_at'],
+                        'state'=>'closed','closed_ingest_state'=>'none','closed_ingest_reason'=>null,
+                        'room_sid_digest'=>$existingSid??$roomSid,
+                        'room_instance_state'=>$this->closedRoomInstanceState($existingSid,$roomSid),
+                    );
                 }
             }elseif(in_array($current,array('closed','orphan_leave','conflict'),true)){
-                $existingLeave=$connection->leave_at_utc===null?null:(string)$connection->leave_at_utc;
-                if($existingLeave!==null&&$existingLeave===(string)$event['provider_at']){$state='duplicate';$reason='duplicate_leave';}
-                else{$state='conflict';$reason='changed_leave';$phaseConflict=true;}
+                if($mismatch){
+                    $state='conflict';$reason='room_instance_mismatch';
+                }else{
+                    $existingLeave=$connection->leave_at_utc===null?null:(string)$connection->leave_at_utc;
+                    if($existingLeave!==null&&$existingLeave===(string)$event['provider_at']){$state='duplicate';$reason='duplicate_leave';}
+                    else{$state='conflict';$reason='changed_leave';$phaseConflict=true;}
+                }
             }else{
                 $state='conflict';$reason='connection_state';
             }
@@ -425,6 +456,10 @@ final class LiveKitAttendanceIntegration {
             'provider_at'=>$event['provider_at'],'received_at'=>$event['received_at'],'state'=>$state,'reason_code'=>$reason,
             'connection_id'=>$eventConnectionId,'created_at'=>$now,
         ));
+        if($markMismatch){
+            $fresh=$this->repository->connectionById($eventConnectionId,true);
+            if($fresh)$this->repository->updateConnection((int)$fresh->id,(int)$fresh->connection_version,array('room_instance_state'=>'mismatch'),$now);
+        }
         if($update!==null){
             $fresh=$this->repository->connectionById($eventConnectionId,true);
             if(!$fresh)throw new \RuntimeException('livekit_attendance_connection_missing');
@@ -432,6 +467,18 @@ final class LiveKitAttendanceIntegration {
             $this->repository->updateConnection((int)$fresh->id,(int)$fresh->connection_version,$update,$now);
         }
         return array('state'=>$state==='accepted'?'closed':$state,'reason'=>$reason,'event_digest'=>$digest,'connection_id'=>$eventConnectionId,'phase_conflict'=>$phaseConflict,'retry'=>false);
+    }
+
+    private function roomSidDigest(array $event):?string{
+        return $event['room_sid']===null?null:LiveKitAttendanceIdempotency::roomInstance((string)$event['room_sid']);
+    }
+
+    /** Both present and equal is verified; one side missing is explicitly unverified. */
+    private function closedRoomInstanceState(?string $joinSid,?string $leaveSid):string{
+        if($joinSid!==null&&$leaveSid!==null)return hash_equals($joinSid,$leaveSid)?'verified':'mismatch';
+        if($joinSid!==null)return 'join_only';
+        if($leaveSid!==null)return 'leave_only';
+        return 'unverified';
     }
 
     private function ingestClosed(int $connectionId,string $now,bool $worker=false):array{
@@ -520,20 +567,22 @@ final class LiveKitAttendanceIntegration {
 
     private function closedInput(object $connection,object $room,string $now,array $override=array()):array{
         $leave=(string)($override['leave_at_utc']??$connection->leave_at_utc);
+        $instance=$connection->room_sid_digest===null?'no-room-sid':(string)$connection->room_sid_digest;
         $payload=array(
-            'room'=>$room->room_name,'connection'=>$connection->connection_digest,'role'=>$connection->participant_role,
+            'room'=>$room->room_name,'connection'=>$connection->connection_digest,'room_instance'=>$connection->room_sid_digest,
+            'room_instance_state'=>$connection->room_instance_state,'role'=>$connection->participant_role,
             'join'=>$connection->join_at_utc,'leave'=>$leave,'join_event'=>$connection->join_event_digest,
             'leave_event'=>$connection->leave_event_digest,'conflict_event'=>$override['conflict_event_digest']??null,
         );
         return array(
             'provider_code'=>'livekit','provider_account_key'=>(string)$connection->identity_value,
-            'provider_event_key'=>'livekit-closed:'.$room->room_name.':'.$connection->connection_digest,
+            'provider_event_key'=>'livekit-closed:'.$room->room_name.':'.$connection->connection_digest.':'.$instance,
             'provider_payload_key'=>LiveKitAttendanceIdempotency::interval($payload),
             'participant_role'=>(string)$connection->participant_role,
             'join_at_utc'=>$connection->join_at_utc,'leave_at_utc'=>$leave,
             'observed_at'=>$this->observedAt($leave,(string)$connection->leave_received_at),
-            'provenance_reference'=>'livekit-interval:'.$room->room_name.':'.$connection->connection_digest,
-            'evidence_reference'=>'livekit-provider:'.$room->room_name.':'.$connection->connection_digest.':'.$connection->join_event_digest.':'.$connection->leave_event_digest,
+            'provenance_reference'=>'livekit-interval:'.$room->room_name.':'.$connection->connection_digest.':'.$instance,
+            'evidence_reference'=>'livekit-provider:'.$room->room_name.':'.$connection->connection_digest.':'.$instance.':'.$connection->join_event_digest.':'.$connection->leave_event_digest,
         );
     }
 
@@ -542,15 +591,16 @@ final class LiveKitAttendanceIntegration {
         $leave=$connection->leave_at_utc===null?null:(string)$connection->leave_at_utc;
         $received=$connection->join_received_at===null?(string)$connection->created_at:(string)$connection->join_received_at;
         $observed=$this->observedAt($leave??$join??$received,$received);
-        $payload=array('room'=>$room->room_name,'connection'=>$connection->connection_digest,'role'=>$connection->participant_role,'join'=>$join,'leave'=>$leave,'open'=>true);
+        $instance=$connection->room_sid_digest===null?'no-room-sid':(string)$connection->room_sid_digest;
+        $payload=array('room'=>$room->room_name,'connection'=>$connection->connection_digest,'room_instance'=>$connection->room_sid_digest,'room_instance_state'=>$connection->room_instance_state,'role'=>$connection->participant_role,'join'=>$join,'leave'=>$leave,'open'=>true);
         return array(
             'provider_code'=>'livekit','provider_account_key'=>(string)$connection->identity_value,
-            'provider_event_key'=>'livekit-open:'.$room->room_name.':'.$connection->connection_digest,
+            'provider_event_key'=>'livekit-open:'.$room->room_name.':'.$connection->connection_digest.':'.$instance,
             'provider_payload_key'=>LiveKitAttendanceIdempotency::interval($payload),
             'participant_role'=>(string)$connection->participant_role,
             'join_at_utc'=>$join,'leave_at_utc'=>$leave,'observed_at'=>$observed,
-            'provenance_reference'=>'livekit-open:'.$room->room_name.':'.$connection->connection_digest,
-            'evidence_reference'=>'livekit-open:'.$room->room_name.':'.$connection->connection_digest,
+            'provenance_reference'=>'livekit-open:'.$room->room_name.':'.$connection->connection_digest.':'.$instance,
+            'evidence_reference'=>'livekit-open:'.$room->room_name.':'.$connection->connection_digest.':'.$instance,
         );
     }
 

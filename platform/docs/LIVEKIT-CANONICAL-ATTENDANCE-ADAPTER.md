@@ -57,23 +57,41 @@ schema option, so an unrelated in-flight platform migration cannot be activated 
 | --- | --- |
 | `dzn_livekit_attendance_rooms` | Exact room → Lesson + immutable schedule version + assigned Teacher/Student + qualifying window |
 | `dzn_livekit_attendance_events` | Append-only normalized provider event receipts (keyed digests, provider instant, receipt instant, outcome) |
-| `dzn_livekit_attendance_connections` | One row per exact connection/session; joins the trusted leave; stores durable ingest state and evidence id |
+| `dzn_livekit_attendance_connections` | One row per exact connection/session; joins the trusted leave; stores the exact room-instance SID digest, room-instance state, durable ingest state and evidence id |
 
 The event table is append-only. The connection table is derived correlation state, not attendance
 truth. No raw webhook body, token, launch ticket, API secret, contact value or provider payload is
 stored. Only keyed digests of event ids, connection SIDs, identities and interval facts are kept.
 
-### Exact connection binding
+### Exact connection and room-instance binding
 
 A leave closes only the connection whose **room + participant identity + LiveKit participant SID**
 matches the join. A stale leave from an earlier connection can never close a newer connection.
 Reconnects are separate connection rows. Duplicate tabs and overlapping devices are separate rows
 that the locked rule unions, so they cannot double-count.
 
+The exact LiveKit **room SID** is also part of the correlation:
+
+| Join room SID | Leave room SID | Behavior |
+| --- | --- | --- |
+| present | present, same | verified instance; the leave may close the connection |
+| present | present, different | **quarantined**: durable `room_instance_mismatch` event, no close, no qualifying interval |
+| present | absent | the exact participant SID/identity/room binding is authoritative; the connection closes and is recorded as `join_only`/unverified |
+| absent | present | the exact participant SID/identity/room binding is authoritative; the connection closes and is recorded as `leave_only`/unverified |
+| absent | absent | the exact participant SID/identity/room binding is authoritative; recorded as `unverified` |
+
+A mismatched room SID never creates a Phase-P evidence row. A reused room name with a new room
+instance creates a new participant-SID connection row; its leave cannot close the older instance's
+connection. The room SID digest is included in the provider event key, payload digest and provenance
+so evidence is explicitly bound to the instance that produced it. Missing room SIDs are retained as
+an explicit `unverified` correlation state rather than guessed.
+
 Duplicate event ids are idempotent at the database boundary. A changed join/leave for the same
 connection is retained as an append-only conflict event; the first trusted interval is never
-overwritten. The changed interval is also submitted to Phase P with the same provider event key and a
-new command key, which leaves a durable canonical conflict receipt and opens review.
+overwritten. A changed interval **inside the same room instance** is also submitted to Phase P with
+the same provider event key and a new command key, which leaves a durable canonical conflict receipt
+and opens review. A changed interval carrying a different room SID is only a correlation conflict and
+never becomes Phase-P evidence.
 
 ### Provider timestamps and receipt time
 
@@ -81,7 +99,26 @@ Participation facts use the provider event instant (`participant.joinedAt` for j
 `createdAt` for leaves). Receipt time is stored separately. A missing provider leave instant is
 **never** replaced with the current time, scheduled end, grace end or room termination. It remains
 open and non-qualifying. A delayed join can still pair with an earlier orphan leave through the same
-exact SID; an orphan leave with no join never creates an interval.
+exact SID; an orphan leave with no join never creates an interval. A join delivered after
+`room_finished` is recorded as `room_finished_open`, not as a live room, so it cannot block
+reconciliation indefinitely.
+
+### Delayed and out-of-order webhook ordering
+
+The adapter is deliberately order-independent:
+
+- `room_finished` never closes a connection and never invents a leave. It marks remaining `open`
+  connections as `room_finished_open` and flushes only intervals that were already closed.
+- A delayed `participant_left` may arrive after `room_finished`; it closes the exact
+  `room_finished_open` connection and then the normal assessment runs.
+- A `participant_left` before `participant_joined` creates an orphan row. The later join may close it
+  only when the room SID matches (or both sides are missing); otherwise the join is quarantined.
+- A `participant_joined` after `room_finished` is recorded as `room_finished_open`; it does not
+  create a live-room settlement gate.
+- Settlement is deferred while a live `open` connection exists. `room_finished_open` and
+  `stale_open` do not block already-closed evidence, because no further participation can be inferred
+  without a trusted leave.
+- Duplicate and replayed deliveries converge on the same event digest and Phase-P command key.
 
 ### Server-owned identity mapping
 
@@ -143,6 +180,20 @@ adapter.
 
 The adapter is **disabled by default**. Installing the code does not capture attendance.
 
+### Reconciliation reliability
+
+`LiveKitAttendanceReconciliationWorker` runs on the existing five-minute WordPress cron schedule. It
+processes a bounded batch, retries only durable non-terminal states (`pending`, `pending_occurrence`,
+`pending_settlement`, `mapping_pending`, `unconfigured`), and records failures through
+`dzn_livekit_attendance_reconcile_failed`/`dzn_livekit_attendance_conflict_failed` actions. It uses
+database uniqueness for event/connection identity, room-row locks for flush selection and optimistic
+connection versions; Phase-P command keys make concurrent convergence idempotent.
+
+**Production recommendation:** do not rely solely on visitor-driven WP-Cron. Configure a system cron
+entry that invokes `wp cron event run --due-now` (or the hosting equivalent) every five minutes,
+with a real HTTP request to `wp-cron.php` as a fallback. This is an operational recommendation only;
+this change does not modify production infrastructure.
+
 ## Activation (prospective, separate from deployment)
 
 Do not run these steps as part of a code review or merge. Activation is a separate operational change.
@@ -165,7 +216,9 @@ Do not run these steps as part of a code review or merge. Activation is a separa
    `CanonicalAttendanceIntakeService::recordCutoverPolicy()`. The instant must still be prospective;
    a backdated cutover is refused. Occurrences before the cutover are never admitted, and no
    historical attendance is backfilled.
-8. Observe `dzn_livekit_attendance_*` actions, the Phase-P attendance review queue and Finance
+8. Configure a reliable system cron trigger for WordPress events (recommended every five minutes),
+   so reconciliation and settlement do not depend on visitor traffic.
+9. Observe `dzn_livekit_attendance_*` actions, the Phase-P attendance review queue and Finance
    pending states. Do not expect automatic confirmation for occurrences that started before the
    cutover.
 
@@ -207,8 +260,13 @@ platform/runtime/bin/run-attendance-runtime.sh
 The runtime suite covers: exact 1200/1199, reconnect union, duplicate tabs, pre-start/post-grace
 clipping, open intervals, invalid signatures, unknown participants, identity ambiguity/mismatch,
 cross-schedule reschedule, cancellation, presumed completion correction, late evidence after Term
-closure, exact replay, changed-payload conflicts, room cleanup, Meet fallback and no duplicate
-outcome/completion/finance capture.
+closure, exact replay, changed-payload conflicts, room cleanup, Meet fallback, matching/mismatched/
+missing room SIDs, room-name reuse, `room_finished` before `participant_left`, missing join/leave,
+and no duplicate outcome/completion/finance capture.
+
+The shell-level concurrency proof launches two reconciliation workers against one durable pending
+occurrence and verifies exactly one delivered outcome, one completion event and one settlement
+decision.
 
 ## Known gaps / non-goals
 
@@ -220,6 +278,6 @@ outcome/completion/finance capture.
 - The adapter does not backfill historical LiveKit or Google Meet attendance.
 - The adapter does not create recordings, egress, transcripts, Analytics, PixelBox storage or any
   provider-side data.
-- A true multi-process concurrency storm is covered by the existing Phase-P command/evidence unique
-  keys and concurrency suites; this adapter adds database uniqueness for event and connection
-  identity and retries races deterministically.
+- The shell-level proof races two reconciliation workers on one pending occurrence. It does not claim
+  to simulate an unbounded production-wide concurrency storm; the underlying Phase-P command/evidence
+  uniqueness and concurrency suites remain the canonical authority for that broader matrix.

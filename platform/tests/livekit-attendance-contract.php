@@ -44,6 +44,8 @@ $check(str_contains($integration,'LiveKitAttendanceEvent::normalise'),'provider 
 $check(str_contains($integration,'STALE_OPEN_RETENTION_SECONDS')&&str_contains($integration,'livekit-open:'),'missing leave must be surfaced only as open evidence');
 $check(str_contains($integration,'hasLiveOpenConnection'),'settlement must not revoke a still-live room');
 $check(str_contains($integration,'phase_conflict')&&str_contains($integration,'submitCorrelationConflict'),'changed provider intervals must leave a conflict receipt');
+$check(str_contains($integration,'room_instance_mismatch')&&str_contains($integration,'roomSidDigest')&&str_contains($integration,'closedRoomInstanceState'),'join/leave correlation must validate the exact room instance');
+$check(str_contains($integration,'roomFinished('),'a join after room_finished must not be treated as a live room');
 $check(!str_contains($integration,'raw_body')&&!str_contains($integration,'wp_remote'),'the adapter must not persist raw payloads or call providers');
 
 $check(str_contains($repository,'livekit_attendance_events')&&str_contains($repository,'livekit_attendance_connections')&&str_contains($repository,'livekit_attendance_rooms'),'durable correlation storage must be explicit');
@@ -52,13 +54,15 @@ $check(str_contains($repository,'pending_occurrence'),'occurrence-end retry must
 $check(str_contains($schema,"UNIQUE KEY event_digest(event_digest)"),'provider events must be idempotent at the database boundary');
 $check(str_contains($schema,"UNIQUE KEY connection_key(room_id,identity_digest,connection_digest)"),'one connection must have one correlation row');
 $check(str_contains($schema,"'payload','token','secret','email','phone','contact','raw_body'"),'the schema verifier must forbid raw payload/secret columns');
-$check(str_contains($schema,'OPTION')&&str_contains($schema,'livekit_attendance_correlation_v1'),'the LiveKit schema must be feature-local and versioned');
+$check(str_contains($schema,'OPTION')&&str_contains($schema,'livekit_attendance_correlation_v2'),'the LiveKit schema must be feature-local and versioned');
+$check(str_contains($schema,'room_instance_state'),'the schema must retain explicit room-instance correlation state');
 $check(!str_contains($plugin,'DZN_PLATFORM_SCHEMA_VERSION\', \'58'),'the adapter must not activate an unrelated platform schema version');
 
 $check(str_contains($event,'MAX_FUTURE_SECONDS')&&str_contains($event,'provider_at'),'provider event time must be bounded and normalized');
 $check(str_contains($event,"'room_finished'"),'room termination must be a supported correlation event');
 
 $check(str_contains($worker,'LiveKitAttendanceIntegration::enabled')&&str_contains($worker,'reconcile'),'the worker must be disabled by default and only retry durable work');
+$check(is_file($root.'/tests/livekit-attendance-concurrency-worker.php')&&is_file($root.'/tests/livekit-attendance-concurrency-verify.php'),'concurrent reconciliation proof must be committed');
 $check(str_contains($session,'bindGrant'),'token issuance must establish the durable server-owned mapping');
 $check(str_contains($actor,"'dzn_ingest_canonical_attendance_evidence'")&&str_contains($actor,"'dzn_manage_canonical_attendance_identity'"),'the integration actor must hold only the narrow evidence/mapping capabilities');
 $check(str_contains($actor,'manage_options')&&str_contains($actor,'dzn_manage_provider_integrations'),'the integration actor must refuse broad authority');
@@ -70,6 +74,8 @@ $docs=$read('docs/LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md');
 $check(str_contains($docs,'Activation')&&str_contains($docs,'Rollback'),'activation and rollback must be documented separately');
 $check(str_contains($docs,'dzn_attendance_settlement_system_user_id'),'the separate settlement actor must be documented');
 $check(str_contains($docs,'1200')&&str_contains($docs,'900'),'the locked policy must be documented');
+$check(str_contains($docs,'room SID')||str_contains($docs,'Room SID'),'room-instance validation must be documented');
+$check(str_contains($docs,'system cron')||str_contains($docs,'system Cron'),'reliable system cron configuration must be documented');
 $check(str_contains($docs,'prospective')&&str_contains($docs,'backfill'),'prospective-only activation and no backfill must be documented');
 
 echo "LiveKit attendance contract passed\n";

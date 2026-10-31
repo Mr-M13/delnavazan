@@ -65,6 +65,11 @@ final class LiveKitAttendanceRepository {
     public function markStaleOpen(int $connectionId,int $expectedVersion,string $now):void{
         $this->updateConnection($connectionId,$expectedVersion,array('state'=>'stale_open'),$now);
     }
+    /** A join delivered after room termination must not be treated as a still-live classroom. */
+    public function roomFinished(int $roomId):bool{
+        global $wpdb;
+        return (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$this->p}livekit_attendance_events WHERE room_id=%d AND event_kind='room_finished'",$roomId))>0;
+    }
 
     /**
      * Closed intervals the adapter may hand to Phase P. `pending_occurrence` is held until the

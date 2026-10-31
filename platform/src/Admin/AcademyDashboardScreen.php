@@ -11,6 +11,7 @@ namespace Delnavazan\Platform\Admin;
  */
 final class AcademyDashboardScreen {
     public const OPTION = 'dzn_academy_sections';
+    public const DISMISSED_OPTION = 'dzn_academy_dismissed_actions';
 
     /** @return array<string, string> */
     public static function sections(): array {
@@ -35,6 +36,53 @@ final class AcademyDashboardScreen {
         add_filter('screen_options_show_submit', static function ($show, $screen) {
             return $screen && self::isAcademyScreen((string) $screen->id) ? true : $show;
         }, 10, 2);
+        add_action('admin_post_dzn_academy_dismiss_action', array(__CLASS__, 'dismissAction'));
+        add_action('admin_post_dzn_academy_restore_action', array(__CLASS__, 'restoreAction'));
+    }
+
+    /**
+     * Dismissing is a per-user presentation preference. It never resolves, approves or mutates
+     * the underlying queue. A changed count brings the item back so new work cannot stay hidden.
+     *
+     * @return array<string,string>
+     */
+    public static function dismissed(): array {
+        $stored = get_user_meta(get_current_user_id(), self::DISMISSED_OPTION, true);
+        if (!is_array($stored)) return array();
+        $dismissed = array();
+        foreach ($stored as $key => $signature) {
+            if (is_string($key) && is_scalar($signature)) $dismissed[$key] = (string) $signature;
+        }
+        return $dismissed;
+    }
+
+    public static function isDismissed(string $key, string $signature): bool {
+        $dismissed = self::dismissed();
+        return $key !== '' && array_key_exists($key, $dismissed) && hash_equals($dismissed[$key], $signature);
+    }
+
+    public static function dismissAction(): void {
+        self::changeDismissal(true);
+    }
+
+    public static function restoreAction(): void {
+        self::changeDismissal(false);
+    }
+
+    private static function changeDismissal(bool $dismiss): void {
+        if (!current_user_can('dzn_view_booking_requests')) wp_die('Forbidden', 403);
+        check_admin_referer($dismiss ? 'dzn_academy_dismiss_action' : 'dzn_academy_restore_action');
+        $key = isset($_POST['action_key']) && is_scalar($_POST['action_key']) ? sanitize_key(wp_unslash((string) $_POST['action_key'])) : '';
+        $signature = isset($_POST['signature']) && is_scalar($_POST['signature']) ? sanitize_text_field(wp_unslash((string) $_POST['signature'])) : '';
+        $dismissed = self::dismissed();
+        if ($key !== '') {
+            if ($dismiss) $dismissed[$key] = substr($signature, 0, 64);
+            else unset($dismissed[$key]);
+            update_user_meta(get_current_user_id(), self::DISMISSED_OPTION, $dismissed);
+        }
+        $redirect = wp_get_referer();
+        wp_safe_redirect($redirect !== false && $redirect !== '' ? $redirect : admin_url('admin.php?page=dzn-academy-dashboard'));
+        exit;
     }
 
     public static function configure(): void {

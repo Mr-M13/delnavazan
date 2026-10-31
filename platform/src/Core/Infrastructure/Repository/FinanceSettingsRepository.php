@@ -45,4 +45,28 @@ final class FinanceSettingsRepository {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(setting_version),0)+1 FROM {$this->prefix}finance_settings WHERE setting_key=%s", $key));
     }
+
+    /**
+     * Record an audit event for a versioned settings row.
+     *
+     * It uses the established infrastructure seam and the same digest-only shape as the rest of
+     * Finance. The previous and new values remain available in the versioned setting history; the
+     * safe detail here is a short, bounded summary.
+     */
+    public function audit(int $settingId, string $settingKey, string $eventType, int $actor, string $now, ?string $safeDetail = null): void {
+        global $wpdb;
+        $key = hash('sha256', 'finance_settings:' . $settingKey . ':' . $eventType . ':' . $settingId . ':' . $now);
+        $inserted = $wpdb->insert($this->prefix . 'platform_audit_events', array(
+            'aggregate_type' => 'finance_settings',
+            'aggregate_id' => $settingId,
+            'event_type' => substr($eventType, 0, 64),
+            'actor_type' => 'user',
+            'actor_id' => $actor,
+            'reason_code' => null,
+            'safe_detail' => $safeDetail === null ? null : substr($safeDetail, 0, 190),
+            'idempotency_key' => $key,
+            'occurred_at' => $now,
+        ));
+        if ($inserted === false) throw new \RuntimeException('Finance setting audit evidence could not be recorded');
+    }
 }

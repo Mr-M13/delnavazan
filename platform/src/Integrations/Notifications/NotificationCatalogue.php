@@ -259,14 +259,13 @@ final class NotificationCatalogue {
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'اعلان آزمایشی دلنوازان','body'=>'این یک اعلان آزمایشی داخلی است. زمان ثبت: {{when}}. هیچ ایمیل، واتس‌اپ یا پیامکی ارسال نشده است.')),
         ));
         foreach(array('change'=>array('Lesson Change','تغییر زمان کلاس'),'replacement'=>array('Replacement Session','جلسهٔ جبرانی')) as $kind=>[$label,$faLabel]){
-            foreach(array('proposed'=>array('Proposal Created','{{when}} ({{timezone}}) پیشنهاد شد و در انتظار پاسخ هنرجو است.'),
-                'accepted'=>array('Proposal Accepted','هنرجو پیشنهاد را پذیرفت و زمان {{when}} ({{timezone}}) قطعی شد.'),
+            foreach(array('proposed'=>array('Proposal Created','زمان تازه پیشنهاد شد و در انتظار پاسخ هنرجو است.'),
+                'accepted'=>array('Proposal Accepted','هنرجو پیشنهاد را پذیرفت و زمان تازه قطعی شد.'),
                 'rejected'=>array('Proposal Rejected','هنرجو پیشنهاد را رد کرد. زمان فعلی کلاس بدون تغییر می‌ماند.'),
                 'failed'=>array('Proposal Closed','پیشنهاد ثبت نشد و بسته شد؛ مورد برای بررسی در صف مدیر قرار گرفت.'),
                 'cancelled'=>array('Proposal Cancelled','پیشنهاد توسط مدیر لغو شد.')) as $state=>$content){
-                $timeVariables=in_array($state,array('proposed','accepted'),true)?array('when','timezone'):array();
-                $out[]=self::event('reschedule.'.$kind.'.'.$state.'.admin','Admin · '.$label.' · '.$content[0],'lesson','admin','LessonRescheduleService','queue',array('email'),'operational',true,$timeVariables,'reschedule.'.$kind.'.'.$state.'.admin',array(
-                    self::PRIMARY_LOCALE=>array('email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام،\n\n".$content[1]."\n\nاین پیام فقط برای اطلاع مدیر آموزشگاه است.\n\nدلنوازان")),
+                $out[]=self::event('reschedule.'.$kind.'.'.$state.'.admin','Admin · '.$label.' · '.$content[0],'lesson','admin','LessonRescheduleService','queue',array('email'),'operational',true,array('student','teacher','when','timezone'),'reschedule.'.$kind.'.'.$state.'.admin',array(
+                    self::PRIMARY_LOCALE=>array('email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"سلام،\n\nهنرجو: {{student}}\nمدرس: {{teacher}}\nزمان کلاس: {{when}} ({{timezone}})\n\n".$content[1]."\n\nاین پیام فقط برای اطلاع مدیر آموزشگاه است.\n\nدلنوازان")),
                 ));
             }
         }

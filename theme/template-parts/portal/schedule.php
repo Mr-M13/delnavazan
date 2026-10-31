@@ -47,6 +47,8 @@ $render_rows = static function ( array $rows ) use ( $labels ): void {
 				<h4><?php echo esc_html( (string) ( $item['course'] ?? '' ) ); ?><?php if ( 'replacement' === ( $item['lesson_kind'] ?? '' ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'جلسهٔ جایگزین', 'delnavazan-theme' ); ?></span><?php elseif ( ! empty( $item['rescheduled'] ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'زمان جدید', 'delnavazan-theme' ); ?></span><?php endif; ?></h4>
 				<?php if ( ! empty( $item['teacher'] ) ) : ?><p class="dzn-schedule-row__teacher"><?php echo esc_html( sprintf( 'با %s', $item['teacher'] ) ); ?></p><?php endif; ?>
 				<p class="dzn-status dzn-status--<?php echo esc_attr( $presentation[1] ); ?>"><?php echo esc_html( $presentation[0] ); ?></p>
+				<?php if ( ! empty( $item['absence_label'] ) ) : ?><p class="dzn-status dzn-status--warning"><?php echo esc_html( (string) $item['absence_label'] ); ?></p><?php endif; ?>
+				<?php if ( ! empty( $item['replacement_time'] ) ) : ?><p class="dzn-portal-help"><?php echo esc_html( sprintf( 'جلسهٔ جبرانی: %s', (string) $item['replacement_time'] ) ); ?></p><?php endif; ?>
 				<?php if ( $is_intro ) : ?><p class="dzn-portal-help"><?php esc_html_e( 'جلسهٔ معارفه؛ شرایط آن از منبع معتبر خوانده شده است.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 			</div>
 			<div class="dzn-schedule-row__actions">
@@ -72,6 +74,8 @@ $render_rows = static function ( array $rows ) use ( $labels ): void {
 							<button class="dzn-button dzn-button--secondary" type="submit"><?php esc_html_e( 'ثبت اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 						</form>
 					</details>
+				<?php elseif ( ! empty( $item['absence_message'] ) ) : ?>
+					<p class="dzn-portal-help"><?php echo esc_html( (string) $item['absence_message'] ); ?></p>
 				<?php endif; ?>
 				<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
 			</div>
@@ -79,7 +83,7 @@ $render_rows = static function ( array $rows ) use ( $labels ): void {
 	<?php endforeach;
 };
 ?>
-<?php if ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ورود به کلاس ممکن نشد؛ لینک امن یا زمان ورود را بررسی کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'livekit_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'کلاس زندهٔ دلنوازان در این لحظه در دسترس نیست یا زمان ورود نرسیده است. دوباره تلاش کنید یا از گزینهٔ پشتیبان گوگل میت استفاده کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'meet_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'گزینهٔ پشتیبان گوگل میت برای این جلسه در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ثبت اطلاع غیبت برای این جلسه ممکن نشد. لطفاً دوباره تلاش کنید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
+<?php if ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ورود به کلاس ممکن نشد؛ لینک امن یا زمان ورود را بررسی کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'livekit_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'کلاس زندهٔ دلنوازان در این لحظه در دسترس نیست یا زمان ورود نرسیده است. دوباره تلاش کنید یا از گزینهٔ پشتیبان گوگل میت استفاده کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'meet_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'گزینهٔ پشتیبان گوگل میت برای این جلسه در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded_no_replacement' === $absence_status ) : ?><p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد؛ اما سهمیهٔ جلسات جبرانی این ترم تمام شده است و امکان هماهنگی جلسهٔ جبرانی برای این غیبت وجود ندارد. مورد برای بررسی مدیر ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ثبت اطلاع غیبت برای این جلسه ممکن نشد. لطفاً دوباره تلاش کنید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 <section class="dzn-portal-section dzn-schedule" aria-labelledby="dzn-schedule-title">
 	<div class="dzn-portal-section__heading">
 		<div><p class="dzn-portal-kicker"><?php esc_html_e( 'برنامهٔ شما', 'delnavazan-theme' ); ?></p><h2 id="dzn-schedule-title"><?php esc_html_e( 'کلاس‌های امروز و آینده', 'delnavazan-theme' ); ?></h2></div>

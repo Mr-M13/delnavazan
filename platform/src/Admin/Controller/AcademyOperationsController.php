@@ -76,7 +76,7 @@ final class AcademyOperationsController {
     private static function kpiCards(array $summary): void {
         $counts = $summary['counts'];
         $classes = self::classSnapshot();
-        $pending = self::pendingActionItems();
+        $pending = self::visiblePendingActionItems();
         $actionCount = 0;
         foreach ($pending as $item) $actionCount += (int) $item['count'];
         $cards = array(
@@ -122,21 +122,45 @@ final class AcademyOperationsController {
 
     /** Prominent queues are individually capability-gated; this page never broadens authority. */
     private static function pendingActions(): void {
-        $items = array_values(array_filter(self::pendingActionItems(), static fn(array $item): bool => (int) $item['count'] > 0));
-        echo '<section class="dzn-panel" id="dzn-action-centre"><div class="dzn-panel__head"><div><h2>Action centre</h2><p>Only work that is waiting for a decision is shown. Zero-count queues are omitted.</p></div></div>';
-        if (!$items) {
+        $showDismissed = isset($_GET['dismissed']) && is_scalar($_GET['dismissed']) && '1' === (string) wp_unslash((string) $_GET['dismissed']);
+        $all = array_values(array_filter(self::pendingActionItems(), static fn(array $item): bool => (int) $item['count'] > 0));
+        $items = array();
+        $dismissed = array();
+        foreach ($all as $item) {
+            if (AcademyDashboardScreen::isDismissed((string) $item['key'], (string) $item['signature'])) $dismissed[] = $item;
+            else $items[] = $item;
+        }
+        $toggleUrl = add_query_arg(array_filter(array('page' => self::PAGE, 'dismissed' => $showDismissed ? '0' : '1')), admin_url('admin.php'));
+        echo '<section class="dzn-panel" id="dzn-action-centre"><div class="dzn-panel__head"><div><h2>Action centre</h2><p>Only work that is waiting for a decision is shown. Zero-count queues are omitted. Dismissing hides the card for your account until its count changes.</p></div>';
+        if ($dismissed) echo '<a class="dzn-panel__link" href="' . esc_url($toggleUrl) . '">' . ($showDismissed ? 'Hide dismissed →' : esc_html(number_format_i18n(count($dismissed)) . ' dismissed →')) . '</a>';
+        echo '</div>';
+        if (!$items && !$dismissed) {
             echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No pending operational decisions in your work areas.</p></section>';
             return;
         }
-        echo '<div class="dzn-action-grid">';
-        foreach ($items as $item) {
+        $cards = $showDismissed ? array_merge($items, $dismissed) : $items;
+        if ($cards) echo '<div class="dzn-action-grid">';
+        foreach ($cards as $item) {
+            $isDismissed = AcademyDashboardScreen::isDismissed((string) $item['key'], (string) $item['signature']);
             $url = add_query_arg(array_merge(array('page' => $item['page']), $item['args']), admin_url('admin.php'));
-            echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p><a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
+            echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . ($isDismissed ? ' is-dismissed' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p><div class="dzn-action-card__actions"><a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-action-card__dismiss">';
+            echo '<input type="hidden" name="action" value="' . ($isDismissed ? 'dzn_academy_restore_action' : 'dzn_academy_dismiss_action') . '">';
+            echo '<input type="hidden" name="action_key" value="' . esc_attr((string) $item['key']) . '"><input type="hidden" name="signature" value="' . esc_attr((string) $item['signature']) . '">';
+            wp_nonce_field($isDismissed ? 'dzn_academy_restore_action' : 'dzn_academy_dismiss_action');
+            echo '<button class="button-link" type="submit">' . ($isDismissed ? 'Restore' : 'Dismiss') . '</button></form></div></article>';
         }
-        echo '</div></section>';
+        if ($cards) echo '</div>';
+        if (!$items && $dismissed && !$showDismissed) echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> Every pending decision in your work areas is dismissed for now.</p>';
+        echo '</section>';
     }
 
     /** @return list<array{label:string,count:int,page:string,action:string,args:array<string,mixed>,description:string,urgent:bool}> */
+    private static function visiblePendingActionItems(): array {
+        return array_values(array_filter(self::pendingActionItems(), static fn(array $item): bool => !AcademyDashboardScreen::isDismissed((string) $item['key'], (string) $item['signature'])));
+    }
+
+    /** @return list<array{key:string,signature:string,label:string,count:int,page:string,action:string,args:array<string,mixed>,description:string,urgent:bool}> */
     private static function pendingActionItems(): array {
         if (self::$pendingCache !== null) return self::$pendingCache;
         global $wpdb;
@@ -144,25 +168,27 @@ final class AcademyOperationsController {
         $items = array();
         if (current_user_can('dzn_manage_onboarding')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
-            $items[] = array('label' => 'Teacher onboarding submissions', 'count' => $count, 'page' => 'dzn-teachers-menu', 'action' => 'Review and decide', 'args' => array('view' => 'onboarding'), 'description' => 'Profiles and availability submitted for an explicit staff decision.', 'urgent' => $count > 0);
+            $items[] = array('key' => 'teacher_onboarding', 'signature' => 'count:' . $count, 'label' => 'Teacher onboarding submissions', 'count' => $count, 'page' => 'dzn-teachers-menu', 'action' => 'Review and decide', 'args' => array('view' => 'onboarding'), 'description' => 'Profiles and availability submitted for an explicit staff decision.', 'urgent' => $count > 0);
         }
         if (current_user_can('dzn_manage_booking_request_coordination')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
-            $items[] = array('label' => 'Teacher booking requests pending response', 'count' => $count, 'page' => 'dzn-booking-requests', 'action' => 'Review request delivery', 'args' => array(), 'description' => 'A teacher has not yet answered a booking request.', 'urgent' => false);
+            $items[] = array('key' => 'booking_teacher_responses', 'signature' => 'count:' . $count, 'label' => 'Teacher booking requests pending response', 'count' => $count, 'page' => 'dzn-booking-requests', 'action' => 'Review request delivery', 'args' => array(), 'description' => 'A teacher has not yet answered a booking request.', 'urgent' => false);
         }
         if (current_user_can('dzn_manage_canonical_attendance_review')) {
-            $count = (int) $wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student'");
-            $items[] = array('label' => 'Student absence reports awaiting review', 'count' => $count, 'page' => 'dzn-attendance-review', 'action' => 'Review attendance', 'args' => array(), 'description' => 'Evidence-backed absence reports need an authorised decision.', 'urgent' => $count > 0);
+            // Pending/accepted proposals are still owned by the Teacher and Student. The absence
+            // queue must not ask an administrator to intervene before the parties have resolved it.
+            $count = (int) $wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id AND v.lesson_id=c.lesson_id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student' AND (v.id IS NULL OR (v.applicable_slot=1 AND v.superseded_at IS NULL)) AND NOT EXISTS (SELECT 1 FROM {$p}lesson_reschedule_proposals rp WHERE rp.lesson_id=c.lesson_id AND rp.created_at>=c.created_at AND (rp.state IN ('committing','accepted') OR (rp.state='pending' AND (rp.expires_at IS NULL OR rp.expires_at>UTC_TIMESTAMP()))))");
+            $items[] = array('key' => 'attendance_review', 'signature' => 'count:' . $count, 'label' => 'Absence reports needing administrator review', 'count' => $count, 'page' => 'dzn-attendance-review', 'action' => 'Review attendance', 'args' => array(), 'description' => 'No active Teacher/Student replacement is resolving these reports. Exhausted allowances and disputed outcomes are included.', 'urgent' => $count > 0);
         }
         if (current_user_can('dzn_manage_exceptions')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}operational_exceptions WHERE status='open'");
-            $items[] = array('label' => 'Operational exceptions', 'count' => $count, 'page' => 'dzn-exception', 'action' => 'Review exceptions', 'args' => array(), 'description' => 'Catalogue, booking or workflow exceptions need acknowledgement or resolution.', 'urgent' => $count > 0);
+            $items[] = array('key' => 'operational_exceptions', 'signature' => 'count:' . $count, 'label' => 'Operational exceptions', 'count' => $count, 'page' => 'dzn-exception', 'action' => 'Review exceptions', 'args' => array(), 'description' => 'Catalogue, booking or workflow exceptions need acknowledgement or resolution.', 'urgent' => $count > 0);
         }
         if (current_user_can('dzn_manage_lessons')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending'");
-            $items[] = array('label' => 'Class time changes awaiting student response', 'count' => $count, 'page' => self::PAGE, 'action' => 'Review time changes', 'args' => array(), 'description' => 'A negotiated time change is waiting for the other party.', 'urgent' => false);
+            $items[] = array('key' => 'reschedule_pending', 'signature' => 'count:' . $count, 'label' => 'Class time changes awaiting student response', 'count' => $count, 'page' => self::PAGE, 'action' => 'Review time changes', 'args' => array(), 'description' => 'A negotiated time change is waiting for the other party.', 'urgent' => false);
             $escalated = (int) $wpdb->get_var("SELECT COUNT(*) FROM (SELECT lesson_id FROM {$p}lesson_reschedule_proposals WHERE state='rejected' GROUP BY lesson_id HAVING COUNT(*)>=3) escalated");
-            $items[] = array('label' => 'Reschedule negotiations needing admin intervention', 'count' => $escalated, 'page' => self::PAGE, 'action' => 'Open reschedule queue', 'args' => array(), 'description' => 'Three or more rejected proposals need a manual schedule decision.', 'urgent' => $escalated > 0);
+            $items[] = array('key' => 'reschedule_escalated', 'signature' => 'count:' . $escalated, 'label' => 'Reschedule negotiations needing admin intervention', 'count' => $escalated, 'page' => self::PAGE, 'action' => 'Open reschedule queue', 'args' => array(), 'description' => 'Three or more rejected proposals need a manual schedule decision.', 'urgent' => $escalated > 0);
         }
         self::$pendingCache = $items;
         return $items;

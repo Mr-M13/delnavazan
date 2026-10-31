@@ -82,6 +82,15 @@ version with `schedule_version_conflict` rather than presenting the stale aggreg
 informational boolean. Historical evidence remains stored; it is simply never presented as current
 attendance truth, and the read never mutates state or opens a write transaction.
 
+The operator review queue applies the same rule. It joins the exact schedule version stored on the
+case and only advertises versions that are still applicable, so a claim submitted before a reschedule
+can never reappear as a current review item. When the schedule authority supersedes a version, it
+closes any unresolved `open` / `ready_for_review` case for the removed occurrence append-only as
+`closed_no_change` / `superseded` inside the same schedule transaction. This is a schedule lifecycle
+consequence, not an attendance adjudication: it never publishes `delivered`, `review_required`,
+`teacher_non_delivery`, an obligation or any replacement. A settled or adjudicated case is canonical
+history and is not rewritten by a later schedule change.
+
 ## P-3 / P-4 — context-bound provider replay and durable conflicts
 
 A repeated provider event key must prove full immutable context equality: provider code, account

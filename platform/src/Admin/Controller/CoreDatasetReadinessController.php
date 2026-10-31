@@ -337,6 +337,8 @@ final class CoreDatasetReadinessController {
     public static function completeCanonicalLesson( int $lessonId, array $evidence, string $key ): array {
         self::requireCapability( self::ACTIONS['complete_canonical_lesson'] );
         $result = ( new CanonicalLessonAuthorityService() )->complete( $lessonId, 'authorised', $evidence, $key );
+        try { ( new \Delnavazan\Platform\Core\Application\Finance\LessonFinanceOrchestrationService() )->captureAfterCompletion( (int) $result['lesson_id'], 'operator_completion' ); }
+        catch ( \Throwable ) { /* Finance pending must never reverse a completed attendance fact. */ }
         return self::withOperatorEvidence( $result, 'canonical_lesson_completion', 'lesson', $lessonId, (string) ( $evidence['evidence_channel'] ?? '' ), (string) ( $evidence['evidence_reference'] ?? '' ), $key, 'lesson_id' );
     }
 

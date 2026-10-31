@@ -31,7 +31,7 @@ function dzn_u_fix_accepted(callable $call,string $message):mixed{
 /** Remove every recorded Finance fact and every Finance serialisation root; canonical data is preserved. */
 function dzn_u_fix_reset():void{
     global $wpdb;$p=$wpdb->prefix.'dzn_';
-    foreach(array('finance_reconciliation_commands','finance_reconciliation_findings','finance_reconciliation_runs','finance_statement_commands','finance_statement_events','finance_statement_lines','finance_statements','finance_payability_commands','finance_payability_overrides','finance_payability_evaluations','finance_snapshot_commands','finance_snapshot_corrections','finance_lesson_snapshots','finance_teacher_rate_commands','finance_teacher_rate_events','finance_teacher_rates','finance_policy_commands','finance_exceptions','finance_teacher_roots') as $table){
+    foreach(array('finance_reconciliation_commands','finance_reconciliation_findings','finance_reconciliation_runs','finance_statement_commands','finance_statement_events','finance_statement_lines','finance_statements','finance_payability_commands','finance_payability_overrides','finance_payability_evaluations','finance_snapshot_commands','finance_snapshot_corrections','finance_golden_hour_details','finance_lesson_snapshots','finance_teacher_rate_commands','finance_teacher_rate_events','finance_teacher_rates','finance_policy_commands','finance_exceptions','finance_teacher_roots') as $table){
         dzn_u_fix_assert($wpdb->query("DELETE FROM {$p}{$table}")!==false,'Failed to reset disposable Phase U storage: '.$table);
     }
     dzn_u_fix_assert($wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}dzn_platform_audit_events WHERE aggregate_type LIKE %s",'finance_%'))!==false,'Failed to reset disposable Phase U audit evidence');

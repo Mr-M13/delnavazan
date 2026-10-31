@@ -66,6 +66,8 @@ function dzn_theme_instrument_image( $name, $surface = 'public' ) {
 	$key  = is_string( $key ) ? strtolower( $key ) : '';
 
 	$images = array(
+		'baghlama'   => array( 'C-Baghlama.webp', 'C-Baghlama.webp' ),
+		'باغلاما'    => array( 'C-Baghlama.webp', 'C-Baghlama.webp' ),
 		'avaz'       => array( 'C-Avaz.webp', 'C-Avaz-400.webp' ),
 		'vocal'      => array( 'C-Avaz.webp', 'C-Avaz-400.webp' ),
 		'آواز'       => array( 'C-Avaz.webp', 'C-Avaz-400.webp' ),
@@ -108,7 +110,10 @@ function dzn_theme_instrument_image( $name, $surface = 'public' ) {
 		return '';
 	}
 
-	return 'teacher' === $surface ? $images[ $key ][1] : $images[ $key ][0];
+	// Teacher settings and the public booking catalogue must show the same artwork for the
+	// same instrument. The alternate teacher-only files were incomplete, so an instrument
+	// with no alternate image fell back to a music note while the booking page showed art.
+	return $images[ $key ][0];
 }
 
 /**

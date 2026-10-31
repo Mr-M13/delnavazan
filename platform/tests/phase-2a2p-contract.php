@@ -129,6 +129,13 @@ $assessBody=substr($intake,strpos($intake,'private function assessAndDecide'),st
 if(str_contains($assessBody,"'review_required'"))throw new RuntimeException('Phase P must not auto-publish Phase-O review_required');
 if(str_contains($assessBody,"'teacher_non_delivery'"))throw new RuntimeException('Failed assessment must never identify Teacher responsibility automatically');
 if(!str_contains($assessBody,"'ready_for_review'"))throw new RuntimeException('Phase P anomalies must surface as its own review state');
+if(str_contains($assessBody,'openAnomaly('))throw new RuntimeException('An assessment must open each anomaly exactly once through the anomaly decision');
+if(!str_contains($intake,'supersedeForScheduleChange'))throw new RuntimeException('A superseded schedule version must close unresolved attendance cases');
+if(!str_contains($intake,"'closed_no_change','superseded'"))throw new RuntimeException('A superseded case must close append-only without publishing delivery truth');
+if(!str_contains($repo,'LEFT JOIN {$this->p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id'))throw new RuntimeException('The review queue must exclude historical cases bound to a superseded schedule version');
+$lessonRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLessonAuthorityRepository.php');
+if(!str_contains($lessonRepo,'c.schedule_version_id=v.id'))throw new RuntimeException('Presumed completion must only be blocked by an unresolved case for the exact current schedule version');
+if(!str_contains($plugin,'dzn_phase_2a2n_after_version_supersede')||!str_contains($plugin,'supersedeForScheduleChange'))throw new RuntimeException('The schedule authority must close attendance cases for a superseded version');
 if(str_contains($settlement,"review_required")||str_contains($settlement,"teacher_non_delivery"))throw new RuntimeException('Automatic settlement must only ever publish delivered truth');
 if(!str_contains($intake,'lesson_not_delivery_recordable'))throw new RuntimeException('Administrative publishing must respect Lesson lifecycle recordability');
 if(!str_contains($settlement,'lesson_cancelled'))throw new RuntimeException('Settlement must refuse cancelled Lessons');

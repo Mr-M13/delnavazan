@@ -97,6 +97,8 @@ final class LessonCompletionAutomationWorker {
         return PostIntroSystemActor::run(static function()use($lessonId,$evidence,$key):array{
             try{
                 $result=(new CanonicalLessonAuthorityService())->presume($lessonId,'authorised',$evidence,$key);
+                try { (new \Delnavazan\Platform\Core\Application\Finance\LessonFinanceOrchestrationService())->captureAfterCompletion($lessonId,'presumed_completion'); }
+                catch (\Throwable $error) { /* Finance pending must never block the presumed lifecycle fact. */ }
                 return array('lesson_id'=>$lessonId,'state'=>'presumed','result'=>$result);
             }catch(\InvalidArgumentException $exception){
                 if(in_array($exception->getMessage(),self::SKIP_CODES,true))return array('lesson_id'=>$lessonId,'state'=>'skipped','reason'=>$exception->getMessage());

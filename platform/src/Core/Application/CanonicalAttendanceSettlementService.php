@@ -96,6 +96,10 @@ final class CanonicalAttendanceSettlementService {
             ),'attendance-settlement-complete-'.$uid);
         }
         do_action('dzn_phase_2a2p_after_lesson_completion',$caseId,$lessonId);
+        // Finance is a separate orchestration seam: a missing rate, service area or other Finance
+        // blocker leaves the Lesson Finance pending and never reverses delivered attendance.
+        try { (new Finance\LessonFinanceOrchestrationService())->captureAfterCompletion($lessonId,'attendance_settlement'); }
+        catch (\Throwable $error) { /* Pending Finance evidence is recorded by the orchestration seam. */ }
 
         // 3. Verify canonical truth before reporting success.
         $effective=$guard->effective($lessonId);

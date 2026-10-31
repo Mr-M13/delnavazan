@@ -21,13 +21,15 @@ final class FinanceCorrectionService {
         private ?TeacherRateRepository $rates=null,
         private ?FinanceStatementRepository $statements=null,
         private ?LessonPayabilityService $payability=null,
-        private ?TeacherStatementService $statementService=null
+        private ?TeacherStatementService $statementService=null,
+        private ?GoldenHourPayService $goldenHour=null
     ){
         $this->snapshots??=new FinanceSnapshotRepository();
         $this->rates??=new TeacherRateRepository();
         $this->statements??=new FinanceStatementRepository();
         $this->payability??=new LessonPayabilityService();
         $this->statementService??=new TeacherStatementService();
+        $this->goldenHour??=new GoldenHourPayService();
     }
 
     /**
@@ -97,6 +99,9 @@ final class FinanceCorrectionService {
                 if((string)$statement->state!=='issued')continue;
                 foreach($this->statements->lines((int)$statement->id) as $line)if((int)$line->lesson_id===$lessonId)throw new FinanceRefusalException('statement_supersession_required','A correction that would change an issued statement must be paired with its supersession',array('teacher_id'=>(int)$snapshot->teacher_id,'statement_id'=>(int)$statement->id,'lesson_id'=>$lessonId));
             }
+            // An explicit audited correction is the only path that may restate a committed bonus.
+            // A Lesson that predates golden-hour pay has no golden row and is deliberately never backfilled.
+            $this->goldenHour->correctBase($lessonId,(int)$snapshot->id,$correctionId,$derivedAmount,$currency,$actor,$now);
             $command['correction_id']=$correctionId;$command['result_correction_id']=$correctionId;
             $commandId=$this->snapshots->insertCommand($command);
             return array('correction_id'=>$correctionId,'snapshot_id'=>(int)$snapshot->id,'lesson_id'=>$lessonId,'corrected_derived_amount_minor'=>$derivedAmount,'command_id'=>$commandId);

@@ -79,7 +79,7 @@ $account  = (string) file_get_contents( $theme . '/page-templates/teacher-portal
 $portal   = (string) file_get_contents( $theme . '/inc/portal.php' );
 
 $check( 'absence inference from attendance_state_summary is gone', ! str_contains( $bridge, "'attendance_state_summary' ?? '' ) === 'open'" ) );
-$check( 'the theme does not invent a persisted absence report', ! str_contains( $bridge, 'absence_reported' ) && ! str_contains( $bridge, 'absence_notified' ) );
+$check( 'the theme renders a persisted absence report only from the Platform fact', str_contains( $bridge, "\$row['absence_reported']" ) && ! str_contains( $bridge, 'absence_notified' ) );
 $check( 'student partition keeps in-progress rows', str_contains( $bridge, "'in_progress' === \$temporal" ) && str_contains( $bridge, '$active[] = $lesson' ) );
 $check( 'teacher partition keeps in-progress rows', str_contains( $bridge, '// An active canonical class must remain reachable' ) );
 $check( 'teacher navigation home no longer says account', str_contains( $bridge, "'screen' => 'home', 'label' => 'امروز'" ) && ! str_contains( $bridge, "'screen' => 'home', 'label' => 'حساب کاربری'" ) );

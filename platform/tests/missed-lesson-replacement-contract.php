@@ -13,7 +13,7 @@ $read = static fn(string $path): string => (string) file_get_contents($root . '/
 $assert = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
 
 $plugin = $read('delnavazan-platform.php');
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '55'"), 'The package must publish the current additive schema without removing the replacement repair');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '56'"), 'The package must publish the current additive schema without removing the replacement repair');
 $assert(str_contains($plugin, 'LessonRescheduleController::register') && str_contains($plugin, 'LessonRescheduleWorker::register'), 'The existing portal/worker wiring must remain active');
 
 $service = $read('src/Core/Application/LessonRescheduleService.php');
@@ -69,7 +69,7 @@ $assert(str_contains($repository, 'function replacementFacts'), 'The store must 
 $assert(str_contains($repository, 'function proposalKind'), 'The store must derive proposal kind from immutable events');
 $assert(str_contains($repository, 'function proposalRejectionCount'), 'The store must expose durable rejection count');
 
-$assert(str_contains($absenceRead, 'v.lesson_id=l.id AND v.applicable_slot=1'), 'Absence attention must read the current applicable schedule version');
+$assert(str_contains($absenceRead, 'v.id=c.schedule_version_id AND v.lesson_id=l.id AND v.applicable_slot=1'), 'Absence attention must read the exact current applicable schedule version');
 $assert(str_contains($absenceRead, 'NOT EXISTS'), 'Absence attention must not duplicate an already-acted case');
 $assert(str_contains($absenceRead, "'request_kind'"), 'Absence attention must tell the Teacher which lifecycle applies');
 $assert(str_contains($rejectedRead, "r.state IN ('rejected','failed')"), 'Rejected and failed proposals must both be recoverable');
@@ -91,6 +91,14 @@ $assert(str_contains($googleProjection, 'ProviderCredentialRefresher') && str_co
 $assert(str_contains($googleProjection, 'DISPATCH_CAPABILITY'), 'The projection worker principal must be able to dispatch with the dispatch capability');
 $assert(str_contains($credentialRefresher, 'refreshConnection') && str_contains($credentialRefresher, 'GoogleOAuthTransport'), 'The credential refresher must use the existing encrypted provider authority');
 $assert(str_contains($studentRead, 'original_starts_at_utc') && str_contains($studentRead, 'teacher_replacement_proposed'), 'Student proposals must include the original occurrence and kind');
+$absenceReadPort = $read('src/Core/Application/PortalOwnerReadPorts.php');
+$absenceController = $read('src/Portals/StudentAbsenceController.php');
+$dashboardRead = $read('src/Core/Application/AcademyDashboardReadService.php');
+$termTimeline = $read('../theme/template-parts/portal/term-timeline.php');
+$assert(str_contains($absenceReadPort, "'absence_reported'") && str_contains($absenceReadPort, "'replacement_lesson_uid'"), 'The portal must expose the persisted absence report and its replacement Lesson');
+$assert(str_contains($absenceController, 'absence_recorded_no_replacement'), 'A Student must be told when the replacement allowance is exhausted');
+$assert(str_contains($dashboardRead, "rp.state IN ('committing','accepted')") && str_contains($dashboardRead, 'rp.expires_at>UTC_TIMESTAMP()'), 'Admin counts must exclude party-owned active replacements but return expired proposals');
+$assert(str_contains($termTimeline, 'replacement_limit_message'), 'The Student dashboard must surface the exhausted replacement allowance');
 $assert(str_contains($admin, 'dzn-academy-reschedule-history') && str_contains($admin, 'expired'), 'Admin must see confirmed, rejected, failed and expired proposals');
 $assert(str_contains($capacity, "lesson_type??'')==='replacement'") && substr_count($capacity, "==='replacement'") >= 3, 'Replacement issuance must not bind, satisfy or reopen a standard protected capacity interval');
 $assert(str_contains($capacity, 'claimsWholeTerm&&!$isReplacement'), 'A replacement allowance must not be mistaken for a missing funded session');

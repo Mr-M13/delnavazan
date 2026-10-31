@@ -319,6 +319,48 @@ final class CanonicalAttendanceIntakeService {
         }
     }
 
+    /**
+     * A canonical schedule revision removes the occurrence a case was admitted for.
+     *
+     * The old occurrence no longer exists, so an unresolved claim bound to it must not remain in
+     * operator review or be presented as current attendance truth. This is a schedule-owned
+     * lifecycle consequence, not an attendance adjudication: the closure is append-only
+     * (`closed_no_change` / `superseded`) and never publishes delivery responsibility.
+     *
+     * The schedule authority invokes this while its own transaction is open, so the case closure
+     * commits or rolls back with the schedule change. When called outside a transaction it owns one.
+     *
+     * @return array<int,array{case_id:int,schedule_version_id:int,decision_id:int,state:string}>
+     */
+    public function supersedeForScheduleChange(int $lessonId,string $basis='schedule_version_superseded'):array{
+        if($lessonId<1)throw new \InvalidArgumentException('Canonical Lesson identity required');
+        if(!preg_match('/^[a-z0-9_]+$/D',$basis))throw new \InvalidArgumentException('Controlled basis required');
+        $ownTransaction=$this->repository->openTransactions()===0;
+        if($ownTransaction)$this->repository->begin();
+        try{
+            // A revision runs after the prior version has been marked non-applicable and before the
+            // successor is inserted, so there is deliberately no current applicable version here.
+            $current=null;
+            foreach($this->schedules->versionsForLesson($lessonId,true)as$version)if((int)$version->applicable_slot===1){$current=(int)$version->id;break;}
+            $superseded=array();
+            foreach($this->repository->casesForLesson($lessonId,true)as$case){
+                if($current!==null&&(int)$case->schedule_version_id===$current)continue;
+                // Only unresolved evidence-only states are closed. A settled/adjudicated case is
+                // canonical history and is never rewritten by a schedule change.
+                if(!in_array((string)$case->state,array('open','ready_for_review'),true))continue;
+                if(!CanonicalAttendanceValidator::validForCase((int)$case->id,$this->repository,$this->lessons,$this->schedules,false))throw new \InvalidArgumentException('canonical_attendance_integrity_conflict');
+                $now=gmdate('Y-m-d H:i:s');
+                $decisionId=$this->recordDecision($case,'closed_no_change','superseded',null,$basis,array(),$now,$this->actorForScheduleChange($case));
+                $superseded[]=array('case_id'=>(int)$case->id,'schedule_version_id'=>(int)$case->schedule_version_id,'decision_id'=>$decisionId,'state'=>'superseded');
+            }
+            if($ownTransaction)$this->repository->commit();
+            return $superseded;
+        }catch(\Throwable$e){
+            if($ownTransaction)$this->repository->rollback();
+            throw $e;
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Internals
     // ---------------------------------------------------------------------
@@ -432,7 +474,8 @@ final class CanonicalAttendanceIntakeService {
         $stateAfter=$eligible?'settlement_pending':'ready_for_review';
         $decisionId=$this->recordDecision($case,'assessment',$stateAfter,$assessment['seconds'],$eligible?'automatically_eligible':'review',array(),$now,$this->actor());
         if(!$eligible){
-            foreach($anomalies as$code)$this->openAnomaly($case,$code,$now,$this->actor(),$decisionId);
+            // recordDecision() opens exactly one anomaly row per code for this decision. Opening the
+            // set here as well duplicated every anomaly on each assessment.
             $decisionId=$this->recordDecision($case,'anomaly_opened','ready_for_review',$assessment['seconds'],'review',$anomalies,$now,$this->actor());
         }
         return array(
@@ -829,4 +872,11 @@ final class CanonicalAttendanceIntakeService {
     private function requireCapability(string $capability):void{if(!current_user_can($capability))throw new \RuntimeException('Unauthorized');}
     private function isAdministrator():bool{return current_user_can(self::REVIEW_CAPABILITY);}
     private function actor(?int $anonymousActor=null):int{$id=get_current_user_id();if($id>0)return$id;if($anonymousActor===0)return 0;throw new \RuntimeException('Canonical attendance actor unavailable');}
+    /** A schedule change is attributable to its acting principal even without an attendance capability. */
+    private function actorForScheduleChange(object $case):int{
+        $id=get_current_user_id();
+        if($id>0)return $id;
+        foreach(array($case->updated_by??0,$case->created_by??0)as$fallback)if((int)$fallback>0)return (int)$fallback;
+        throw new \RuntimeException('Canonical attendance actor unavailable');
+    }
 }

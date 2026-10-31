@@ -75,7 +75,12 @@ final class LessonRescheduleNotificationService {
         $timezone=(string)($recipient['timezone']??'');
         if(!in_array($timezone,timezone_identifiers_list(),true))$timezone=(string)$proposal->schedule_timezone;
         $calendar=in_array((string)($recipient['calendar']??''),array('gregorian','persian'),true)?(string)$recipient['calendar']:'persian';
-        $when=$this->format((string)$proposal->proposed_starts_at_utc,$timezone,$calendar);
+        $parties=$this->parties($proposal);
+        $proposedWhen=$this->format((string)$proposal->proposed_starts_at_utc,$timezone,$calendar);
+        $originalWhen=$parties['original_starts_at_utc']!==''?$this->format($parties['original_starts_at_utc'],$timezone,$calendar):'';
+        // A proposal/accepted notice describes the new class time; every other state must still
+        // name the unchanged class date instead of presenting an empty or unrelated instant.
+        $when=in_array($eventType,array('proposed','accepted'),true)?$proposedWhen:($originalWhen!==''?$originalWhen:$proposedWhen);
         $kind='reschedule';
         try{$kind=$this->store->proposalKind((int)($proposal->id??0));}catch(\Throwable){}
         $replacement=$kind==='replacement';
@@ -111,11 +116,51 @@ final class LessonRescheduleNotificationService {
         }
         $body='سلام'.(''!==trim($name)?' '.trim($name):'')."،\n\n".($messages[$eventType]??$messages['failed'])."\n\nدلنوازان";
         $portal='admin'===$audience?'':(function_exists('home_url')?home_url('student'===$audience?'/student-portal/':'/teacher-portal/'):'');
-        $variables=array('name'=>trim($name),'teacher'=>trim($name),'student'=>trim($name),'when'=>$when,'timezone'=>$timezone,'portal_url'=>$portal,'teacher_portal_url'=>$portal);
+        $variables=array(
+            'name'=>trim($name),
+            'teacher'=>$parties['teacher'],
+            'student'=>$parties['student'],
+            'when'=>$when,
+            'timezone'=>$timezone,
+            'class_date'=>$originalWhen!==''?$originalWhen:$when,
+            'portal_url'=>$portal,
+            'teacher_portal_url'=>$portal,
+        );
         $eventKey=$this->eventKey($proposal,$eventType,$audience);
         $copy=array('subject'=>$subject,'body'=>$body,'source'=>'fallback');
         if(class_exists(NotificationCopyResolver::class))$copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
+        // Administrators receive class notices as operational alerts, not as a list that requires
+        // opening the class to identify it. Keep the two parties and the class date in every admin
+        // message even when an older stored template predates those placeholders.
+        if('admin'===$audience){
+            $body=(string)$copy['body'];
+            if(!str_contains($body,$variables['student'])||!str_contains($body,$variables['teacher'])){
+                $copy['body']="هنرجو: ".$variables['student']."\nمدرس: ".$variables['teacher']."\nزمان کلاس: ".$variables['when']." (".$timezone.")\n\n".$body;
+            }
+        }
         return array('subject'=>$copy['subject'],'body'=>$copy['body'],'variables'=>$variables,'event_key'=>$eventKey,'source'=>$copy['source']);
+    }
+
+    /**
+     * The two parties and the unaffected class date. Display names use the same fallbacks as the
+     * operator reschedule queue; no identifier or contact value enters the notification.
+     *
+     * @return array{student:string,teacher:string,original_starts_at_utc:string}
+     */
+    private function parties(object $proposal):array{
+        $out=array('student'=>'هنرجو','teacher'=>'مدرس','original_starts_at_utc'=>'');
+        global $wpdb;
+        if(!is_object($wpdb)||!isset($wpdb->prefix))return $out;
+        try{
+            $p=$wpdb->prefix.'dzn_';
+            $student=(string)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(NULLIF(display_name,''),NULLIF(reference_code,''),'هنرجو') FROM {$p}students WHERE id=%d LIMIT 1",(int)($proposal->student_id??0)));
+            $teacher=(string)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name,'مدرس') FROM {$p}teachers WHERE id=%d LIMIT 1",(int)($proposal->teacher_id??0)));
+            $original=(string)$wpdb->get_var($wpdb->prepare("SELECT starts_at_utc FROM {$p}canonical_lesson_schedule_versions WHERE id=%d AND lesson_id=%d LIMIT 1",(int)($proposal->schedule_version_id??0),(int)($proposal->lesson_id??0)));
+            if(trim($student)!=='')$out['student']=trim($student);
+            if(trim($teacher)!=='')$out['teacher']=trim($teacher);
+            $out['original_starts_at_utc']=$original;
+        }catch(\Throwable){}
+        return $out;
     }
 
     /**

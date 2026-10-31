@@ -152,6 +152,7 @@ final class ScreenController {
                 'create_course' => (new CatalogueService())->course(self::createPayload('course', $post)),
                 'create_term' => (new TermService())->create(self::createPayload('term', $post)),
                 'create_canonical_term' => self::canonicalTermCreate($post),
+                'save_enrolment_service_area' => self::saveEnrolmentServiceArea($post),
                 'activate_canonical_enrolment' => self::canonicalEnrolmentTransition($post, 'activate'),
                 'pause_canonical_enrolment' => self::canonicalEnrolmentTransition($post, 'pause'),
                 'resume_canonical_enrolment' => self::canonicalEnrolmentTransition($post, 'resume'),
@@ -392,6 +393,7 @@ final class ScreenController {
                 return;
             }
             if ($history) self::objectTable($history, null); else echo '<p>No canonical lifecycle history.</p>';
+            if (current_user_can('dzn_manage_enrolments')) self::enrolmentServiceAreaForm($record);
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }
@@ -719,6 +721,10 @@ final class ScreenController {
             self::canonicalEvidence($post),
             (string) ($post['idempotency_key'] ?? '')
         );
+        // Attendance/completion remains successful even when Finance is pending. The orchestration
+        // invokes the existing snapshot/payability authority and records its own pending evidence.
+        try { (new \Delnavazan\Platform\Core\Application\Finance\LessonFinanceOrchestrationService())->captureAfterCompletion((int) $result['lesson_id'], 'administrator_completion'); }
+        catch (\Throwable) { /* Finance pending must never reverse a completed attendance fact. */ }
         return (int) $result['lesson_id'];
     }
 
@@ -914,6 +920,34 @@ final class ScreenController {
         $service = new CanonicalEnrolmentLifecycleService();
         $result = $service->{$operation}(absint($post['enrolment_id'] ?? 0), sanitize_key($post['expected_state'] ?? ''), self::canonicalEvidence($post), (string)($post['idempotency_key'] ?? ''));
         return (int)$result['enrolment_id'];
+    }
+
+    private static function saveEnrolmentServiceArea(array $post): int {
+        $result = (new \Delnavazan\Platform\Core\Application\EnrolmentServiceAreaService())->set(
+            absint($post['enrolment_id'] ?? 0),
+            (string) ($post['service_area_key'] ?? '')
+        );
+        return (int) $result['enrolment_id'];
+    }
+
+    /** The one explicit service-area fact used by Golden Hour pay; blank requires review. */
+    private static function enrolmentServiceAreaForm(object $enrolment): void {
+        $current = (string) ($enrolment->service_area_key ?? '');
+        $policy = new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPolicyService();
+        echo '<h2>Service area for golden hours</h2>';
+        echo '<p>This explicit Enrolment value decides which configured local window applies to teacher pay. It is never inferred from country, teacher timezone, browser timezone, or bonus size. Changing it affects future compensation commitments only; committed snapshots remain unchanged.</p>';
+        self::formStart('save_enrolment_service_area');
+        echo '<input type="hidden" name="enrolment_id" value="' . esc_attr((string) $enrolment->id) . '">';
+        echo '<p><label>Service area for golden hours<br><select name="service_area_key">';
+        echo '<option value=""' . selected($current, '', false) . '>Not set — Golden-hour bonus requires service-area review</option>';
+        foreach (\Delnavazan\Platform\Core\Application\Finance\GoldenHourRule::defaults() as $key => $default) {
+            $configured = $policy->latest($key);
+            $label = (string) $default['label'] . ' · ' . (string) ($configured['timezone'] ?? $default['timezone']) . ' · ' . $key;
+            echo '<option value="' . esc_attr($key) . '"' . selected($current, $key, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select></label></p>';
+        submit_button('Save service area');
+        echo '</form>';
     }
 
     private static function canonicalEnrolmentLifecycleForm(object $enrolment): void {

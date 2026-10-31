@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '55' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '56' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-telnyx-sms-whatsapp-20261030.1' );
@@ -115,9 +115,22 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomRevocationListener::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
+	Delnavazan\Platform\Integrations\LessonScheduleCalendarResync::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
 	Delnavazan\Platform\Integrations\LessonCompletionAutomationWorker::register();
+	// A superseded schedule version is a historical occurrence: close any unresolved Phase-P case
+	// bound to it while the schedule transaction is still open, so operator review never presents a
+	// stale absence claim as current attendance truth.
+	add_action( 'dzn_phase_2a2n_after_version_supersede', static function ( string $operation, int $lessonId ): void {
+		if ( $lessonId < 1 || ! in_array( $operation, array( 'schedule_revise', 'schedule_release' ), true ) ) { return; }
+		try {
+			( new Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService() )->supersedeForScheduleChange( $lessonId );
+		} catch ( \Throwable $error ) {
+			// The schedule change is canonical and must commit. A stale case remains historical and
+			// is excluded from the current review queue by the schedule-version join.
+		}
+	}, 10, 2 );
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
 	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();

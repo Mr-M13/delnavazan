@@ -59,5 +59,4 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 			<?php endforeach; ?>
 		</ol>
 	<?php endif; ?>
-	<p class="dzn-tp-note">این اعلان‌ها فقط وضعیت را نشان می‌دهند؛ تأیید یا تغییر کلاس، پرداخت یا درخواست همچنان از دکمهٔ همان صفحهٔ کاری انجام می‌شود.</p>
 </section>

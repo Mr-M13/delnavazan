@@ -285,7 +285,7 @@ final class NotificationManagementController {
         echo '<h2>Delivery rules</h2><p>Email and Portal are the default channels for events that offer both. WhatsApp and SMS remain off unless this category policy, the event, recipient consent and provider readiness all permit them. Security, account and financial messages stay mandatory and cannot be disabled.</p>';
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_channel_policy">';
         wp_nonce_field('dzn_notification_channel_policy');
-        echo '<table class="widefat striped"><thead><tr><th>Category</th><th>Email</th><th>Portal</th><th>WhatsApp</th><th>SMS</th><th>SMS instead of WhatsApp</th><th>Mandatory</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>Category</th><th>Email</th><th>Portal</th><th>WhatsApp</th><th>SMS</th><th>SMS fallback after WhatsApp failure</th><th>Mandatory</th></tr></thead><tbody>';
         foreach($library->channelPolicies() as $category=>$policy){
             $locked=!empty($policy['mandatory']);
             echo '<tr><td><input type="hidden" name="policy['.esc_attr($category).'][present]" value="1"><strong>'.esc_html((string)(NotificationCatalogue::CATEGORIES[$category]['label']??$category)).'</strong><br><span class="dzn-notif-meta">'.esc_html((string)(NotificationCatalogue::CATEGORIES[$category]['description']??'')).'</span></td>';

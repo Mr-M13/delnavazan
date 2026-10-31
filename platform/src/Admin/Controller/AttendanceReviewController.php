@@ -27,6 +27,7 @@ final class AttendanceReviewController {
         if($status==='saved')echo '<div class="notice notice-success"><p>Attendance review command recorded.</p></div>';
         elseif($status==='error')echo '<div class="notice notice-error"><p>Attendance review command failed or the case changed. Refresh and review the current evidence before retrying.</p></div>';
         echo '<p>Human claims are evidence only. Review the exact case version before applying a canonical outcome.</p>';
+        echo '<p class="description">A case bound to a schedule version that was later superseded is historical. Its evidence is retained, but it is not a current review item and cannot establish attendance truth.</p>';
         if(!$rows){echo '<p>No attendance cases currently require operator review.</p></div>';return;}
         echo '<table class="widefat striped"><thead><tr><th>Case</th><th>Occurrence UTC</th><th>State / version</th><th>Evidence</th><th>Action</th></tr></thead><tbody>';
         foreach($rows as$row){
@@ -34,7 +35,10 @@ final class AttendanceReviewController {
             foreach($e as$item)$summary[]=esc_html((string)$item->evidence_kind).' #'.(int)$item->id.' · '.esc_html((string)$item->source_kind).' · '.esc_html((string)($item->verification_state??'')).' · '.esc_html((string)$item->reason_code).' · '.esc_html((string)$item->observed_at);
             $latest=$repo->latestDecision((int)$row->id);$anomalies=$repo->anomaliesForCase((int)$row->id);$meta=array();
             if($latest)$meta[]='latest: '.esc_html((string)$latest->decision_kind).' / '.esc_html((string)$latest->state_after).' / '.esc_html((string)$latest->decision_basis);
-            if($anomalies)$meta[]='anomalies: '.implode(', ',array_map(static fn($a)=>esc_html((string)$a->code),$anomalies));
+            // Anomaly rows are append-only and may span several assessments; the current review card
+            // presents each distinct code once.
+            $anomalyCodes=array_values(array_unique(array_map(static fn($a)=>(string)$a->code,$anomalies)));
+            if($anomalyCodes)$meta[]='anomalies: '.implode(', ',array_map('esc_html',$anomalyCodes));
             echo '<tr><td>#'.(int)$row->id.'<br>Lesson '.(int)$row->lesson_id.' / schedule '.(int)$row->schedule_version_id.'</td><td>'.esc_html((string)$row->occurrence_start_utc).'<br>window ends '.esc_html((string)$row->window_end_utc).'</td><td>'.esc_html((string)$row->state).' / v'.(int)$row->case_version.($meta?'<br>'.implode('<br>',$meta):'').'</td><td>'.($summary?implode('<br>',$summary):'No evidence').'</td><td>';
             echo '<form method="post">';wp_nonce_field('dzn_attendance_review');
             echo '<input type="hidden" name="case_id" value="'.(int)$row->id.'"><input type="hidden" name="expected_case_version" value="'.(int)$row->case_version.'">';

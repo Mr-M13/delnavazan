@@ -62,7 +62,18 @@ final class StudentAbsenceController {
             // The Teacher owns the replacement conversation. Email is best-effort; the durable
             // pending task is the Teacher portal absence read.
             try{(new CanonicalAttendanceNotificationService())->notifyTeacher($lesson,(int)$schedule->id,$claimKind);}catch(\Throwable){}
-            self::back($success);
+            // A post-occurrence report consumes the Student's bounded replacement allowance. When
+            // that allowance is already spent and no replacement exists for this origin, tell the
+            // Student now instead of waiting for a Teacher refusal.
+            $status=$success;
+            if($claimKind==='attendance_claim'){
+                $termId=(int)$wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}lessons WHERE id=%d LIMIT 1",$lesson));
+                $term=$termId>0?$wpdb->get_row($wpdb->prepare("SELECT replacement_allowance FROM {$p}terms WHERE id=%d LIMIT 1",$termId)):null;
+                $replacement=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}lessons WHERE canonical_replacement_origin_lesson_id=%d AND lesson_type='replacement' AND archived_at IS NULL LIMIT 1",$lesson));
+                $used=$termId>0?(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",$termId)):0;
+                if($term&&$replacement<1&&$used>=(int)$term->replacement_allowance)$status='absence_recorded_no_replacement';
+            }
+            self::back($status);
         }catch(\Throwable){self::back($failure);}
     }
 

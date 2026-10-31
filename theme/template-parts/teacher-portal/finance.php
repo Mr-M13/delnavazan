@@ -100,6 +100,9 @@ $hours_month  = number_format_i18n( ( (int) ( $summary['minutes_month'] ?? 0 ) )
 					<span> · <?php echo esc_html( $state_label ); ?></span>
 					<span> · <?php echo esc_html( (string) (int) ( $statement['payable_line_count'] ?? 0 ) ); ?> ردیف قابل پرداخت</span>
 					<span> · <?php echo esc_html( $format_money( (int) ( $statement['payable_amount_minor'] ?? 0 ), $currency ) ); ?></span>
+					<?php if ( (int) ( $statement['golden_hour_bonus_minor'] ?? 0 ) > 0 ) : ?>
+						<span class="dzn-tp-golden-badge"><?php echo esc_html( sprintf( 'Golden hour +%s', $format_money( (int) $statement['golden_hour_bonus_minor'], $currency ) ) ); ?></span>
+					<?php endif; ?>
 				</li>
 			<?php endforeach; ?>
 		</ul>

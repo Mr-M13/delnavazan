@@ -629,6 +629,29 @@ body.dzn-admin-page .nav-tab-active:hover {
   justify-self: start;
 }
 
+.dzn-action-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dzn-action-card__dismiss {
+  margin: 0;
+}
+
+.dzn-action-card__dismiss .button-link {
+  color: var(--dzn-text-muted, #646970);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dzn-action-card.is-dismissed {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
 .dzn-all-clear {
   display: flex;
   align-items: center;

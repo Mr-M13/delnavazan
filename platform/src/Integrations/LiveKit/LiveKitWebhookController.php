@@ -43,8 +43,8 @@ final class LiveKitWebhookController {
         }
 
         $registry = new LiveKitRoomRegistry();
-        $attendance = new LiveKitAttendanceIntegration();
         $capture = LiveKitAttendanceIntegration::enabled();
+        $attendance = $capture ? new LiveKitAttendanceIntegration() : null;
 
         if ($eventType === 'room_finished') {
             // Resolve (and, if necessary, bootstrap) the durable binding before the transient

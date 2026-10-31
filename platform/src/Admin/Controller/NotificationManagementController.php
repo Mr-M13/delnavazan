@@ -283,15 +283,16 @@ final class NotificationManagementController {
 
     private static function renderChannelRules(NotificationTemplateLibrary $library):void{
         echo '<h2>Delivery rules</h2><p>Email and Portal are the default channels for events that offer both. WhatsApp and SMS remain off unless this category policy, the event, recipient consent and provider readiness all permit them. Security, account and financial messages stay mandatory and cannot be disabled.</p>';
+        echo '<p class="dzn-notif-note">SMS is a fallback only. Selecting <strong>SMS fallback</strong> permits an SMS only after a verified terminal WhatsApp delivery failure for the same notification. It never sends SMS when WhatsApp is queued, accepted, pending, delivered, unknown, unconfigured or ineligible.</p>';
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_channel_policy">';
         wp_nonce_field('dzn_notification_channel_policy');
-        echo '<table class="widefat striped"><thead><tr><th>Category</th><th>Email</th><th>Portal</th><th>WhatsApp</th><th>SMS</th><th>SMS instead of WhatsApp</th><th>Mandatory</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>Category</th><th>Email</th><th>Portal</th><th>WhatsApp</th><th>SMS fallback</th><th>Mandatory</th></tr></thead><tbody>';
         foreach($library->channelPolicies() as $category=>$policy){
             $locked=!empty($policy['mandatory']);
             echo '<tr><td><input type="hidden" name="policy['.esc_attr($category).'][present]" value="1"><strong>'.esc_html((string)(NotificationCatalogue::CATEGORIES[$category]['label']??$category)).'</strong><br><span class="dzn-notif-meta">'.esc_html((string)(NotificationCatalogue::CATEGORIES[$category]['description']??'')).'</span></td>';
-            foreach(array('email','website','whatsapp','sms','sms_fallback') as $flag){
+            foreach(array('email','website','whatsapp','sms_fallback') as $flag){
                 $mandatoryDisabled=$locked&&in_array($flag,array('email','website'),true);
-                $securityDisabled=($category==='security')&&in_array($flag,array('whatsapp','sms','sms_fallback'),true);
+                $securityDisabled=($category==='security')&&in_array($flag,array('whatsapp','sms_fallback'),true);
                 echo '<td><input type="checkbox" name="policy['.esc_attr($category).']['.esc_attr($flag).']" value="1"'.(!empty($policy[$flag])?' checked':'').(($mandatoryDisabled||$securityDisabled)?' disabled':'').'></td>';
             }
             echo '<td>'.($locked?'<span class="dzn-badge is-locked">Locked</span>':'<span class="dzn-badge">Optional</span>').'</td></tr>';

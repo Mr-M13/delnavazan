@@ -385,6 +385,14 @@ namespace {
     $operational = $library->permittedChannels('booking.confirmed.student');
     $fail('operational events default to email and portal', $operational === array('website', 'email'));
 
+    /* 5b. SMS is fallback-only: a direct SMS flag cannot survive save or policy read. */
+    $direct = $library->saveChannelPolicy(array('booking' => array('sms' => true, 'sms_fallback' => false)));
+    $fail('direct SMS alone is refused', $direct['booking']['sms'] === false && $direct['booking']['sms_fallback'] === false);
+    $fallback = $library->saveChannelPolicy(array('booking' => array('sms_fallback' => true)));
+    $fail('SMS fallback enables the derived SMS capability', $fallback['booking']['sms_fallback'] === true && $fallback['booking']['sms'] === true);
+    $library->saveChannelPolicy(array('booking' => array('email' => true, 'website' => true, 'whatsapp' => false, 'sms_fallback' => false)));
+    $fail('SMS fallback and SMS capability stay in sync', $library->channelPolicy('booking')['sms'] === false && $library->channelPolicy('booking')['sms_fallback'] === false);
+
     /* 6. Resolver: published copy wins, missing variables and unknown events fall back. */
     $resolved = NotificationCopyResolver::email($event, 'fa-IR', array('name' => 'باران', 'when' => 'شنبه', 'portal_url' => 'https://delnavazan.com/student-portal/', 'teacher' => 'استاد', 'course' => 'تار', 'join_url' => 'https://example.invalid/join'), array('subject' => 'fallback', 'body' => 'fallback'));
     $fail('resolver renders published copy', $resolved['source'] === 'published' && str_contains($resolved['body'], 'باران'));

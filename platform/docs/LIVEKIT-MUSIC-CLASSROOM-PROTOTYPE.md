@@ -202,13 +202,20 @@ permission is granted.
 ## Branding and watermark
 
 - The classroom header uses the official `theme/assets/images/delnavazan-logo.png`.
-- Both local and remote video tiles carry a small semi-transparent Delnavazan watermark in a video
-  corner, on a light chip that remains legible over light and dark video.
+- Both local and remote video tiles carry a small, transparent, low-opacity Delnavazan watermark in
+  a video corner. It has no white background and uses a subtle dual drop-shadow for legibility over
+  light and dark video.
 - The watermark uses CSS logical properties (`inset-inline-*`) so it follows RTL. It does not overlap
   the participant label, face area, or controls, and it is `pointer-events: none`.
 - The watermark is intentionally a UI overlay. **Recording is not implemented, and a CSS overlay
   would not appear in recorded video.** Any future recording/egress implementation must composite
   the mark into the recorded output separately.
+- On desktop the remote participant is the dominant tile and the self-view is a smaller side tile.
+- Fullscreen keeps the remote video large and places the self-view in a corner; controls remain
+  available as a bottom overlay. Mobile fullscreen places the self-view above the controls.
+- A **چرخش نمایش** control rotates the video presentation between landscape and portrait without
+  rotating labels, controls, or the watermark. This is a per-participant display rotation; it does
+  not re-encode or rotate the published camera stream for the other participant.
 - The page uses Persian labels and RTL-aware responsive layouts for desktop, phone, and iPad.
 
 ## Deployment procedure
@@ -277,6 +284,8 @@ Never log the API secret, participant JWT, launch ticket, Meet URL, or raw provi
   re-vendored deliberately on upgrade.
 - Browser capture constraints are advisory. Safari/iOS may ignore stereo, sample rate, and audio
   processing flags.
+- The classroom rotation control rotates the local presentation only. Publishing a physically
+  rotated camera stream would require a canvas/video processor and is not implemented.
 - No recording, egress, transcription, analytics, data-channel messaging, or PixelBox storage is
   implemented.
 - Real two-browser Chrome testing was completed against the production LiveKit server. Physical

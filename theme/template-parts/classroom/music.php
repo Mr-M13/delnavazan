@@ -39,13 +39,6 @@ $logo = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
 	<p id="dzn-classroom-alert" class="dzn-classroom__alert" role="alert" hidden></p>
 
 	<section class="dzn-classroom__stage" aria-label="ویدئوهای کلاس">
-		<article class="dzn-classroom__tile dzn-classroom__tile--local">
-			<video id="dzn-classroom-local" autoplay muted playsinline aria-label="ویدئوی شما"></video>
-			<div class="dzn-classroom__tile-shade" aria-hidden="true"></div>
-			<figure class="dzn-classroom-watermark" aria-hidden="true"><img src="<?php echo esc_url( $logo ); ?>" alt=""></figure>
-			<p class="dzn-classroom__tile-label"><span class="dzn-classroom__tile-dot" aria-hidden="true"></span><span id="dzn-classroom-local-label">شما</span></p>
-			<p class="dzn-classroom__tile-placeholder" id="dzn-classroom-local-placeholder">دوربین خاموش است</p>
-		</article>
 		<article class="dzn-classroom__tile dzn-classroom__tile--remote">
 			<div id="dzn-classroom-remote-video" class="dzn-classroom__remote-media"></div>
 			<div id="dzn-classroom-remote-audio" class="dzn-classroom__remote-audio"></div>
@@ -53,6 +46,13 @@ $logo = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
 			<figure class="dzn-classroom-watermark" aria-hidden="true"><img src="<?php echo esc_url( $logo ); ?>" alt=""></figure>
 			<p class="dzn-classroom__tile-placeholder" id="dzn-classroom-remote-placeholder">در انتظار ورود مدرس…</p>
 			<p class="dzn-classroom__tile-label"><span class="dzn-classroom__tile-dot" aria-hidden="true"></span><span id="dzn-classroom-remote-label">شرکت‌کننده</span></p>
+		</article>
+		<article class="dzn-classroom__tile dzn-classroom__tile--local">
+			<video id="dzn-classroom-local" autoplay muted playsinline aria-label="ویدئوی شما"></video>
+			<div class="dzn-classroom__tile-shade" aria-hidden="true"></div>
+			<figure class="dzn-classroom-watermark" aria-hidden="true"><img src="<?php echo esc_url( $logo ); ?>" alt=""></figure>
+			<p class="dzn-classroom__tile-label"><span class="dzn-classroom__tile-dot" aria-hidden="true"></span><span id="dzn-classroom-local-label">شما</span></p>
+			<p class="dzn-classroom__tile-placeholder" id="dzn-classroom-local-placeholder">دوربین خاموش است</p>
 		</article>
 	</section>
 
@@ -77,6 +77,16 @@ $logo = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
 		<div class="dzn-classroom__control-group dzn-classroom__devices">
 			<label>میکروفن <select id="dzn-classroom-mic-device" disabled><option>در حال شناسایی…</option></select></label>
 			<label>دوربین <select id="dzn-classroom-camera-device" disabled><option>در حال شناسایی…</option></select></label>
+		</div>
+		<div class="dzn-classroom__control-group">
+			<button type="button" id="dzn-classroom-rotate" class="dzn-classroom__control" aria-pressed="false" title="چرخش نمایش ویدئو" disabled>
+				<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7.1 7.1A7 7 0 1 1 5.3 13H3.2A9 9 0 1 0 6 5.2V2H4v6h6V6H7.1v1.1Z"/></svg>
+				<span>چرخش نمایش</span>
+			</button>
+			<button type="button" id="dzn-classroom-fullscreen" class="dzn-classroom__control" aria-pressed="false" title="تمام‌صفحه" disabled>
+				<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 9V4h5v2H6v3H4Zm16 0h-2V6h-3V4h5v5ZM4 15h2v3h3v2H4v-5Zm14 3v-3h2v5h-5v-2h3Z"/></svg>
+				<span>تمام‌صفحه</span>
+			</button>
 		</div>
 		<div class="dzn-classroom__control-group dzn-classroom__control-group--end">
 			<form id="dzn-classroom-meet" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php?action=dzn_livekit_meet_fallback' ) ); ?>" hidden>

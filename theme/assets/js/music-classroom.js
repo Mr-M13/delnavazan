@@ -30,6 +30,9 @@
   var cameraDevice = $('#dzn-classroom-camera-device');
   var leave = $('#dzn-classroom-leave');
   var meetForm = $('#dzn-classroom-meet');
+  var stage = $('.dzn-classroom__stage');
+  var rotateButton = $('#dzn-classroom-rotate');
+  var fullscreenButton = $('#dzn-classroom-fullscreen');
 
   if (!LK || !LK.Room) {
     setConnection('کتابخانهٔ کلاس بارگذاری نشد. صفحه را دوباره باز کنید.', 'error');
@@ -48,7 +51,9 @@
     leaving: false,
     reconnectAttempt: 0,
     reconnectTimer: null,
-    ignoreDisconnectRoom: null
+    ignoreDisconnectRoom: null,
+    rotated: false,
+    rotationObserver: null
   };
   state.ticketClaim = readTicketClaim(state.ticket);
 
@@ -458,6 +463,80 @@
   }
 
   /* ---------------------------------------------------------------------
+   * Layout, rotation, and fullscreen
+   * ------------------------------------------------------------------- */
+
+  function updateRotationGeometry() {
+    if (!stage || !state.rotated) return;
+    Array.prototype.forEach.call(stage.querySelectorAll('.dzn-classroom__tile'), function (tile) {
+      var rect = tile.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return;
+      tile.style.setProperty('--dzn-rotate-width', rect.height + 'px');
+      tile.style.setProperty('--dzn-rotate-height', rect.width + 'px');
+    });
+  }
+
+  function toggleRotation() {
+    if (!stage) return;
+    state.rotated = !state.rotated;
+    stage.classList.toggle('is-rotated', state.rotated);
+    if (rotateButton) {
+      rotateButton.setAttribute('aria-pressed', String(state.rotated));
+      var label = rotateButton.querySelector('span');
+      if (label) label.textContent = state.rotated ? 'نمایش عمودی' : 'چرخش نمایش';
+    }
+    updateRotationGeometry();
+  }
+
+  function nativeFullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function syncFullscreenButton() {
+    if (!fullscreenButton || !root) return;
+    var active = !!nativeFullscreenElement() || root.classList.contains('is-faux-fullscreen');
+    fullscreenButton.setAttribute('aria-pressed', String(active));
+    var label = fullscreenButton.querySelector('span');
+    if (label) label.textContent = active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه';
+    fullscreenButton.title = active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه';
+  }
+
+  function enterFauxFullscreen() {
+    if (!root) return;
+    root.classList.add('is-faux-fullscreen');
+    document.body.classList.add('dzn-classroom-faux-active');
+    syncFullscreenButton();
+    window.setTimeout(updateRotationGeometry, 60);
+  }
+
+  function exitFauxFullscreen() {
+    if (!root) return;
+    root.classList.remove('is-faux-fullscreen');
+    document.body.classList.remove('dzn-classroom-faux-active');
+    syncFullscreenButton();
+    updateRotationGeometry();
+  }
+
+  function toggleFullscreen() {
+    if (!root) return;
+    if (nativeFullscreenElement()) {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) { try { exit.call(document); } catch (ignored) {} }
+      return;
+    }
+    if (root.classList.contains('is-faux-fullscreen')) { exitFauxFullscreen(); return; }
+    var request = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (!request) { enterFauxFullscreen(); return; }
+    try {
+      var result = request.call(root);
+      if (result && typeof result.catch === 'function') result.catch(function () { enterFauxFullscreen(); });
+    } catch (ignored) {
+      enterFauxFullscreen();
+    }
+    window.setTimeout(function () { if (!nativeFullscreenElement() && !root.classList.contains('is-faux-fullscreen')) enterFauxFullscreen(); }, 350);
+  }
+
+  /* ---------------------------------------------------------------------
    * UI state
    * ------------------------------------------------------------------- */
 
@@ -531,7 +610,7 @@
   }
 
   function setControlsEnabled(enabled) {
-    [micButton, cameraButton, music, leave].forEach(function (control) {
+    [micButton, cameraButton, music, leave, rotateButton, fullscreenButton].forEach(function (control) {
       if (control) control.disabled = !enabled;
     });
     if (!enabled) {
@@ -620,6 +699,8 @@
   if (micButton) micButton.addEventListener('click', function () { setMicrophone(!state.micOn); });
   if (cameraButton) cameraButton.addEventListener('click', function () { setCamera(!state.cameraOn); });
   if (music) music.addEventListener('change', changeMusicMode);
+  if (rotateButton) rotateButton.addEventListener('click', toggleRotation);
+  if (fullscreenButton) fullscreenButton.addEventListener('click', toggleFullscreen);
   if (micDevice) micDevice.addEventListener('change', function () { switchDevice('audioinput', micDevice.value); });
   if (cameraDevice) cameraDevice.addEventListener('change', function () { switchDevice('videoinput', cameraDevice.value); });
   if (leave) {
@@ -634,6 +715,17 @@
   if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
     navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
   }
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (eventName) {
+    document.addEventListener(eventName, function () { syncFullscreenButton(); window.setTimeout(updateRotationGeometry, 80); });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && root && root.classList.contains('is-faux-fullscreen')) exitFauxFullscreen();
+  });
+  window.addEventListener('resize', updateRotationGeometry);
+  if (window.ResizeObserver && stage) {
+    state.rotationObserver = new ResizeObserver(function () { updateRotationGeometry(); });
+    state.rotationObserver.observe(stage);
+  }
   window.addEventListener('pagehide', function () {
     state.leaving = true;
     if (state.room) state.room.disconnect();
@@ -642,5 +734,6 @@
   updateMicButton();
   updateCameraButton();
   updateMusicLabel();
+  syncFullscreenButton();
   connect(false);
 })();

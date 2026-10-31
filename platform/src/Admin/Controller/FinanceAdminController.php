@@ -650,7 +650,8 @@ final class FinanceAdminController {
             echo '<p class="description">Golden-hour percentage changes require teacher-rate authority. Coverage-dashboard access alone is not sufficient.</p></section>';
             return;
         }
-        foreach (GoldenHourRule::defaults() as $area => $default) {
+        foreach ($service->definitions() as $area => $default) {
+            $isGlobal = $area === GoldenHourRule::GLOBAL_IRAN_KEY;
             $current = $service->latest($area);
             $weekdays = array_map('intval', (array) $current['weekdays']);
             $preview = GoldenHourRule::previewText($exampleMinor, $currency, (int) $current['bonus_basis_points'], (string) $current['timezone']);
@@ -658,10 +659,11 @@ final class FinanceAdminController {
             echo '<input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_golden_hour_policy"><input type="hidden" name="golden_area" value="' . esc_attr($area) . '">';
             wp_nonce_field('dzn_finance_settings');
             echo '<h4>' . esc_html((string) $default['label']) . ' <span class="dzn-finance-muted">' . esc_html($area . ' · ' . (string) $current['timezone']) . '</span></h4>';
+            if ($isGlobal) echo '<p class="description"><strong>Additional global window.</strong> It applies alongside each Enrolment service-area window. The highest applicable percentage applies once per eligible minute. The window is evaluated in Asia/Tehran and shown in each teacher’s own timezone.</p>';
             echo '<p class="description">Current version v' . esc_html((string) $current['setting_version']) . ' effective from ' . esc_html((string) $current['effective_from']) . ($current['effective_until'] !== null ? ' until ' . esc_html((string) $current['effective_until']) : '') . '. Saving a changed value records a new version from the effective date below.</p>';
             echo '<p><label class="dzn-finance-checkbox"><input type="checkbox" name="golden_enabled" value="1"' . checked(!empty($current['enabled']), true, false) . '> Enable golden-hour bonus for this area</label></p>';
             echo '<div class="dzn-finance-golden-grid">';
-            echo '<label>Area time zone <span class="dzn-finance-muted">(IANA)</span><input name="golden_timezone" value="' . esc_attr((string) $current['timezone']) . '" placeholder="Australia/Brisbane" required></label>';
+            echo '<label>Area time zone <span class="dzn-finance-muted">(IANA)</span><input name="golden_timezone" value="' . esc_attr((string) $current['timezone']) . '" placeholder="Australia/Brisbane" required' . ($isGlobal ? ' readonly' : '') . '></label>';
             echo '<label>Golden-hour start<input type="time" name="golden_start" value="' . esc_attr(substr((string) $current['start'], 0, 5)) . '" required></label>';
             echo '<label>Golden-hour end<input type="time" name="golden_end" value="' . esc_attr(substr((string) $current['end'], 0, 5)) . '" required></label>';
             echo '<label>Bonus percentage <span class="dzn-finance-muted">(0–100)</span><input type="number" name="golden_bonus_percentage" min="0" max="100" step="0.01" value="' . esc_attr(number_format(((int) $current['bonus_basis_points']) / 100, 2, '.', '')) . '" required></label>';

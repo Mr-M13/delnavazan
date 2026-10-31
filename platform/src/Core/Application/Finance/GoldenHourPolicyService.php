@@ -23,9 +23,16 @@ final class GoldenHourPolicyService {
         return GoldenHourRule::defaults();
     }
 
+    /** @return array<string,array<string,mixed>> */
+    public function definitions(): array {
+        $out = GoldenHourRule::defaults();
+        $out[GoldenHourRule::GLOBAL_IRAN_KEY] = GoldenHourRule::globalDefinition();
+        return $out;
+    }
+
     /** The latest recorded policy for display, or the disabled structural default. */
     public function latest(string $area): array {
-        $defaults = GoldenHourRule::defaults();
+        $defaults = $this->definitions();
         if (!isset($defaults[$area])) throw new \InvalidArgumentException('golden_hour_area_invalid');
         $history = $this->settings->history($this->key($area));
         if ($history === array()) return $defaults[$area];
@@ -38,7 +45,7 @@ final class GoldenHourPolicyService {
      * The occurrence date, not the date an administrator opens a page, decides effectiveness.
      */
     public function resolveAt(string $area, string $occurrenceStartsAtUtc): array {
-        $defaults = GoldenHourRule::defaults();
+        $defaults = $this->definitions();
         if (!isset($defaults[$area])) throw new \InvalidArgumentException('golden_hour_area_invalid');
         $versions = array();
         foreach ($this->settings->history($this->key($area)) as $row) {
@@ -64,7 +71,7 @@ final class GoldenHourPolicyService {
 
     /** Whether any area has an effective enabled bonus at an occurrence instant. */
     public function anyEnabledAt(string $occurrenceStartsAtUtc): bool {
-        foreach (GoldenHourRule::defaults() as $area => $default) {
+        foreach ($this->definitions() as $area => $default) {
             $policy = $this->resolveAt($area, $occurrenceStartsAtUtc);
             if (!empty($policy['enabled']) && (int) $policy['bonus_basis_points'] > 0) return true;
         }
@@ -74,7 +81,7 @@ final class GoldenHourPolicyService {
     /** Save one explicit, effective-dated policy version. */
     public function save(string $area, array $input): array {
         FinanceSupport::requireCapability(self::CAPABILITY);
-        $defaults = GoldenHourRule::defaults();
+        $defaults = $this->definitions();
         if (!isset($defaults[$area])) throw new \InvalidArgumentException('golden_hour_area_invalid');
         $actor = FinanceSupport::actor();
         $now = FinanceSupport::now();
@@ -122,7 +129,7 @@ final class GoldenHourPolicyService {
     }
 
     public function preview(int $baseMinor, string $currency, string $area, array $input): string {
-        $normalized = GoldenHourRule::normalizePolicy($area, $input, GoldenHourRule::defaults()[$area]);
+        $normalized = GoldenHourRule::normalizePolicy($area, $input, $this->definitions()[$area]);
         return GoldenHourRule::previewText($baseMinor, $currency, (int) $normalized['bonus_basis_points'], (string) $normalized['timezone']);
     }
 
@@ -146,6 +153,7 @@ final class GoldenHourPolicyService {
         $decoded['configured'] = true;
         $decoded['setting_id'] = (int) ($row->id ?? 0);
         $decoded['setting_version'] = (int) ($row->setting_version ?? 0);
+        $decoded['global'] = !empty($fallback['global']);
         return $decoded;
     }
 

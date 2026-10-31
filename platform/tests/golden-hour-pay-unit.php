@@ -56,6 +56,17 @@ $dstWinter = GoldenHourCalculator::calculate(4000, '2026-10-25 16:00:00', '2026-
 $dstSpring = GoldenHourCalculator::calculate(4000, '2026-03-29 15:00:00', '2026-03-29 20:00:00', array($window('16:00','21:00',2000)), 'Europe/London');
 $check($dstSummer['bonus_minor'] === 800 && $dstWinter['bonus_minor'] === 800 && $dstSpring['bonus_minor'] === 800, 'A local window must survive both daylight-saving transitions.');
 
+// Additional global Iran window: each window keeps its own timezone.
+$multi = GoldenHourCalculator::calculate(4000, '2026-10-05 12:30:00', '2026-10-05 13:30:00', array(
+    array('source'=>'GLOBAL_IRAN','timezone'=>'Asia/Tehran','weekdays'=>array(1,2,3,4,5,6,7),'start'=>'16:00','end'=>'21:00','bonus_basis_points'=>3000),
+), 'Asia/Tehran');
+$check($multi['eligible_minutes'] === 60 && $multi['bonus_minor'] === 1200 && $multi['total_minor'] === 5200, 'The global Iran window must calculate from Asia/Tehran regardless of the lesson/teacher location.');
+$highest = GoldenHourCalculator::calculate(4000, '2026-10-05 16:00:00', '2026-10-05 17:00:00', array(
+    array('source'=>'GB','timezone'=>'Europe/London','weekdays'=>array(1,2,3,4,5,6,7),'start'=>'16:00','end'=>'21:00','bonus_basis_points'=>2000),
+    array('source'=>'GLOBAL_IRAN','timezone'=>'Asia/Tehran','weekdays'=>array(1,2,3,4,5,6,7),'start'=>'16:00','end'=>'21:00','bonus_basis_points'=>3000),
+), 'Europe/London');
+$check($highest['eligible_minutes'] === 60 && $highest['bonus_minor'] === 1200, 'An overlapping area and global window must apply the highest percentage once, not stack.');
+
 // Overlapping windows do not stack: the highest percentage applies once to each minute.
 $overlap = GoldenHourCalculator::calculate(4000, '2026-10-05 06:00:00', '2026-10-05 11:00:00', array($window('16:00','19:00',2000), $window('18:00','21:00',3000)), 'Australia/Brisbane');
 $check($overlap['eligible_minutes'] === 300 && $overlap['bonus_minor'] === 1040 && $overlap['total_minor'] === 5040, 'Overlapping windows must apply the highest percentage once per minute (26% weighted, not 50%).');
@@ -106,6 +117,14 @@ foreach (array(
     unset($input['message']);
     try { GoldenHourRule::normalizePolicy('AU', $input, $defaults['AU']); $failures[] = 'Invalid policy accepted: ' . $probe['message']; } catch (InvalidArgumentException $expected) {}
 }
+
+$globalDefaults = GoldenHourRule::globalDefinition();
+$global = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, array(
+    'enabled' => '1', 'timezone' => 'Asia/Tehran', 'weekdays' => array(1,2,3,4,5,6,7),
+    'start' => '16:00', 'end' => '21:00', 'bonus_percentage' => '25',
+    'effective_from' => '2026-10-01 00:00:00', 'effective_until' => '',
+), $globalDefaults);
+$check($global['area'] === GoldenHourRule::GLOBAL_IRAN_KEY && $global['timezone'] === 'Asia/Tehran' && $global['bonus_basis_points'] === 2500, 'The global Iran policy must normalise with the fixed Asia/Tehran timezone.');
 
 // Versioned effective dates choose the version covering the occurrence, not today's page view.
 $v1 = array('enabled'=>true,'timezone'=>'Australia/Brisbane','weekdays'=>array(1,2,3,4,5),'start'=>'16:00','end'=>'21:00','bonus_basis_points'=>2000,'effective_from'=>'2026-01-01 00:00:00','effective_until'=>null,'setting_version'=>1);

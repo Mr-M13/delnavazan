@@ -519,7 +519,7 @@ final class Migrator {
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -606,7 +606,11 @@ final class Migrator {
 				self::install_golden_hour_pay_snapshot_details();self::verify_golden_hour_pay_snapshot_details_schema();
 				$done[]='058_golden_hour_pay_snapshot_details';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('059_golden_hour_iran_global',$done,true)){
+				self::install_golden_hour_iran_global();self::verify_golden_hour_iran_global_schema();
+				$done[]='059_golden_hour_iran_global';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -856,9 +860,10 @@ final class Migrator {
 		$required[] = '056_notification_management';
 		$required[] = '057_telnyx_provider_events';
 		$required[] = '058_golden_hour_pay_snapshot_details';
+		$required[] = '059_golden_hour_iran_global';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -2982,6 +2987,54 @@ final class Migrator {
 		if(!self::has_index($p.'enrolments','service_area_key',false))throw new \RuntimeException('Golden-hour Enrolment service-area index missing');
 		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}enrolments WHERE service_area_key IS NOT NULL AND service_area_key NOT IN ('AU','EU','GB','NA_EAST','NA_WEST')");if($invalid!==0)throw new \RuntimeException('Golden-hour Enrolment service-area vocabulary is invalid');
 		$duplicate=(int)$wpdb->get_var("SELECT COUNT(*) FROM (SELECT snapshot_version_reference FROM {$table} GROUP BY snapshot_version_reference HAVING COUNT(*)>1) duplicates");if($duplicate!==0)throw new \RuntimeException('Golden-hour duplicate snapshot detail');
+	}
+
+	/**
+	 * Schema 57: the additional global Iran/Asia-Tehran golden-hour policy provenance.
+	 *
+	 * Additive only. Existing detail rows keep their committed amounts and receive a canonical
+	 * window-definition snapshot derived from their already recorded breakdown.
+	 */
+	private static function install_golden_hour_iran_global():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$table=$p.'finance_golden_hour_details';
+		$columns=array(
+			'global_policy_setting_id'=>"bigint unsigned NULL AFTER policy_effective_until",
+			'global_policy_setting_version'=>"int unsigned NOT NULL DEFAULT 0 AFTER global_policy_setting_id",
+			'global_policy_effective_from'=>"datetime NULL AFTER global_policy_setting_version",
+			'global_policy_effective_until'=>"datetime NULL AFTER global_policy_effective_from",
+			'global_policy_timezone'=>"varchar(64) NULL AFTER global_policy_effective_until",
+			'window_definitions'=>"mediumtext NULL AFTER window_breakdown",
+		);
+		foreach($columns as$name=>$definition){
+			if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$name}'")){
+				if($wpdb->query("ALTER TABLE {$table} ADD COLUMN {$name} {$definition}")===false)throw new \RuntimeException('Golden-hour Iran global migration failed: '.$name);
+			}
+		}
+		$rows=$wpdb->get_results("SELECT id,service_area_key,policy_timezone,window_breakdown,window_definitions FROM {$table} WHERE window_definitions IS NULL OR window_definitions=''")?:array();
+		foreach($rows as$row){
+			$breakdown=json_decode((string)$row->window_breakdown,true);$breakdown=is_array($breakdown)?$breakdown:array();$windows=array();
+			foreach($breakdown as$group){
+				$basisPoints=(int)($group['basis_points']??0);if($basisPoints<=0)continue;
+				$windows[]=array(
+					'source'=>(string)($row->service_area_key??''),'timezone'=>(string)($row->policy_timezone??''),
+					'weekdays'=>array_values(array_map('intval',(array)($group['weekdays']??array(1,2,3,4,5,6,7)))),
+					'start'=>(string)($group['window_start']??''),'end'=>(string)($group['window_end']??''),
+					'bonus_basis_points'=>$basisPoints,
+				);
+			}
+			$wpdb->update($table,array('window_definitions'=>wp_json_encode($windows)),array('id'=>(int)$row->id));
+			if($wpdb->last_error!=='')throw new \RuntimeException('Golden-hour window-definition migration failed');
+		}
+	}
+	private static function verify_golden_hour_iran_global_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$table=$p.'finance_golden_hour_details';
+		foreach(array('global_policy_setting_id','global_policy_setting_version','global_policy_effective_from','global_policy_effective_until','global_policy_timezone','window_definitions')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Golden-hour Iran global schema verification failed: '.$column);
+		$version=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'global_policy_setting_version'");
+		if(!$version||preg_match('/^(?:int|bigint)(?:\(\d+\))? unsigned$/',strtolower(trim((string)$version->Type)))!==1||$version->Null!=='NO')throw new \RuntimeException('Golden-hour Iran global policy version shape is invalid');
+		$timezone=$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'global_policy_timezone'");
+		if(!$timezone||strtolower((string)$timezone->Type)!=='varchar(64)'||$timezone->Null!=='YES')throw new \RuntimeException('Golden-hour Iran global timezone shape is invalid');
+		if(!self::has_index_columns($table,'snapshot_version_reference',true,array('snapshot_version_reference')))throw new \RuntimeException('Golden-hour detail unique snapshot reference missing');
+		if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'"))throw new \RuntimeException('Golden-hour detail rows must be immutable');
 	}
 
 }

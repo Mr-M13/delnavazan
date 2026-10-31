@@ -1,11 +1,11 @@
 <?php
-/** Static guard for the disabled Schema 56 recording/research decision authority. */
+/** Static guard for the disabled Schema 57 recording/research decision authority. */
 $root=dirname(__DIR__);
 $m=(string)file_get_contents($root.'/src/Core/Infrastructure/Migration/Migrator.php');
 $s=(string)file_get_contents($root.'/src/Core/Application/RecordingDecisionAuthorityService.php');
 $p=(string)file_get_contents($root.'/delnavazan-platform.php');
 $fail=array();
-foreach(array("DZN_PLATFORM_SCHEMA_VERSION', '56'",'055_recording_decision_authority','recording_notice_versions','recording_decisions','recording_decision_commands','notice_uid','notice_audience_code','notice_language_code','notice_version_number','expires_at','withdrawn_at','verify_recording_decision_authority_schema')as$x)if(!str_contains($m.$p,$x))$fail[]='missing migration authority '.$x;
+foreach(array("DZN_PLATFORM_SCHEMA_VERSION', '57'",'055_recording_decision_authority','recording_notice_versions','recording_decisions','recording_decision_commands','notice_uid','notice_audience_code','notice_language_code','notice_version_number','expires_at','withdrawn_at','verify_recording_decision_authority_schema')as$x)if(!str_contains($m.$p,$x))$fail[]='missing migration authority '.$x;
 if(str_contains($m,'053_recording_consent_retention_deletion_authority'))$fail[]='Schema 053 must not be reused for recording decisions';
 foreach(array('054_lesson_reschedule_authority','056_notification_management','verify_lesson_reschedule_authority_schema','verify_notification_management_schema')as$x)if(!str_contains($m,$x))$fail[]='current-main migration or verifier was removed '.$x;
 foreach(array("array('recording_decisions','uid',true","array('recording_decision_commands','uid',true")as$x)if(!str_contains($m,$x))$fail[]='required unique evidence index is not verified '.$x;

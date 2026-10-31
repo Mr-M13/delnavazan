@@ -18,34 +18,34 @@ final class GoldenHourCalculator {
         if (!GoldenHourRule::utc($startsAtUtc) || !GoldenHourRule::utc($endsAtUtc) || $endsAtUtc <= $startsAtUtc) {
             throw new \InvalidArgumentException('golden_hour_interval_invalid');
         }
-        if ($timezone === '' || !in_array($timezone, timezone_identifiers_list(), true)) {
-            throw new \InvalidArgumentException('golden_hour_timezone_invalid');
-        }
         $utc = new \DateTimeZone('UTC');
-        $zone = new \DateTimeZone($timezone);
         $lessonStart = (new \DateTimeImmutable($startsAtUtc, $utc))->getTimestamp();
         $lessonEnd = (new \DateTimeImmutable($endsAtUtc, $utc))->getTimestamp();
         $totalSeconds = max(1, $lessonEnd - $lessonStart);
         if ($windows === array()) {
             return array('total_seconds'=>$totalSeconds,'eligible_seconds'=>0,'eligible_minutes'=>0,'seconds_by_basis_points'=>array(),'highest_basis_points'=>0);
         }
-
-        // One extra local day on each side covers a lesson that crosses local midnight and a
-        // window that starts on the previous local date.
-        $firstLocalDate = (new \DateTimeImmutable('@'.$lessonStart))->setTimezone($zone)->setTime(0, 0)->modify('-1 day');
-        $lastLocalDate = (new \DateTimeImmutable('@'.$lessonEnd))->setTimezone($zone)->setTime(0, 0)->modify('+1 day');
         $intervals = array();
-        for ($date = $firstLocalDate; $date <= $lastLocalDate; $date = $date->modify('+1 day')) {
-            $weekday = (int) $date->format('N');
-            foreach ($windows as $window) {
+        // Each window carries its own service-area or global timezone. Iterating them separately is
+        // required when an enrolment-area window and the global Iran window use different zones.
+        foreach ($windows as $window) {
+            $windowTimezone = (string) ($window['timezone'] ?? $timezone);
+            if ($windowTimezone === '' || !in_array($windowTimezone, timezone_identifiers_list(), true)) {
+                throw new \InvalidArgumentException('golden_hour_timezone_invalid');
+            }
+            $basisPoints = (int) ($window['bonus_basis_points'] ?? 0);
+            if ($basisPoints <= 0) continue;
+            $zone = new \DateTimeZone($windowTimezone);
+            $firstLocalDate = (new \DateTimeImmutable('@'.$lessonStart))->setTimezone($zone)->setTime(0, 0)->modify('-1 day');
+            $lastLocalDate = (new \DateTimeImmutable('@'.$lessonEnd))->setTimezone($zone)->setTime(0, 0)->modify('+1 day');
+            for ($date = $firstLocalDate; $date <= $lastLocalDate; $date = $date->modify('+1 day')) {
+                $weekday = (int) $date->format('N');
                 $weekdays = array_map('intval', (array) ($window['weekdays'] ?? array()));
                 if (!in_array($weekday, $weekdays, true)) continue;
-                $basisPoints = (int) ($window['bonus_basis_points'] ?? 0);
-                if ($basisPoints <= 0) continue;
-                $start = self::wall($date->format('Y-m-d'), (string) $window['start'], $zone);
-                $end = self::wall($date->format('Y-m-d'), (string) $window['end'], $zone);
-                $startTs = max($lessonStart, $start->getTimestamp());
-                $endTs = min($lessonEnd, $end->getTimestamp());
+                $windowStart = self::wall($date->format('Y-m-d'), (string) $window['start'], $zone);
+                $windowEnd = self::wall($date->format('Y-m-d'), (string) $window['end'], $zone);
+                $startTs = max($lessonStart, $windowStart->getTimestamp());
+                $endTs = min($lessonEnd, $windowEnd->getTimestamp());
                 if ($endTs <= $startTs) continue; // Half-open [start, end): exact end is not eligible.
                 $intervals[] = array($startTs, $endTs, $basisPoints);
             }
@@ -53,7 +53,6 @@ final class GoldenHourCalculator {
         if ($intervals === array()) {
             return array('total_seconds'=>$totalSeconds,'eligible_seconds'=>0,'eligible_minutes'=>0,'seconds_by_basis_points'=>array(),'highest_basis_points'=>0);
         }
-
         $boundaries = array();
         foreach ($intervals as $interval) { $boundaries[$interval[0]] = true; $boundaries[$interval[1]] = true; }
         $boundaries = array_keys($boundaries);

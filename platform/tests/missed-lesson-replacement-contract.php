@@ -13,7 +13,7 @@ $read = static fn(string $path): string => (string) file_get_contents($root . '/
 $assert = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
 
 $plugin = $read('delnavazan-platform.php');
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '56'"), 'The package must publish the current additive schema without removing the replacement repair');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '57'"), 'The package must publish the current additive schema without removing the replacement repair');
 $assert(str_contains($plugin, 'LessonRescheduleController::register') && str_contains($plugin, 'LessonRescheduleWorker::register'), 'The existing portal/worker wiring must remain active');
 
 $service = $read('src/Core/Application/LessonRescheduleService.php');

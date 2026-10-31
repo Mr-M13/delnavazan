@@ -55,6 +55,11 @@ final class GoldenHourPayService {
             'policy_setting_version' => $resolved['policy_setting_version'],
             'policy_effective_from' => $resolved['policy_effective_from'],
             'policy_effective_until' => $resolved['policy_effective_until'],
+            'global_policy_setting_id' => $resolved['global_policy_setting_id'],
+            'global_policy_setting_version' => $resolved['global_policy_setting_version'],
+            'global_policy_effective_from' => $resolved['global_policy_effective_from'],
+            'global_policy_effective_until' => $resolved['global_policy_effective_until'],
+            'global_policy_timezone' => $resolved['global_policy_timezone'],
             'service_area_key' => $resolved['area'],
             'policy_timezone' => $resolved['timezone'],
             'lesson_starts_at_utc' => (string) $context['occurrence_starts_at_utc'],
@@ -64,6 +69,7 @@ final class GoldenHourPayService {
             'eligible_seconds' => (int) $resolved['eligible_seconds'],
             'eligible_minutes' => (int) $resolved['eligible_minutes'],
             'window_breakdown' => wp_json_encode($resolved['breakdown'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+            'window_definitions' => wp_json_encode($resolved['window_definitions'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
             'total_bonus_minor' => (int) $resolved['bonus_minor'],
             'committed_total_minor' => (int) $resolved['total_minor'],
             'calculation_version' => GoldenHourRule::RULE_VERSION,
@@ -135,6 +141,11 @@ final class GoldenHourPayService {
             'policy_setting_version' => (int) ($baseData['policy_setting_version'] ?? 0),
             'policy_effective_from' => $baseData['policy_effective_from'] ?? null,
             'policy_effective_until' => $baseData['policy_effective_until'] ?? null,
+            'global_policy_setting_id' => $baseData['global_policy_setting_id'] ?? null,
+            'global_policy_setting_version' => (int) ($baseData['global_policy_setting_version'] ?? 0),
+            'global_policy_effective_from' => $baseData['global_policy_effective_from'] ?? null,
+            'global_policy_effective_until' => $baseData['global_policy_effective_until'] ?? null,
+            'global_policy_timezone' => $baseData['global_policy_timezone'] ?? null,
             'service_area_key' => $baseData['service_area_key'] ?? null,
             'policy_timezone' => $baseData['policy_timezone'] ?? null,
             'lesson_starts_at_utc' => (string) $baseData['lesson_starts_at_utc'],
@@ -144,6 +155,7 @@ final class GoldenHourPayService {
             'eligible_seconds' => (int) $calculation['eligible_seconds'],
             'eligible_minutes' => (int) $calculation['eligible_minutes'],
             'window_breakdown' => wp_json_encode($calculation['breakdown'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+            'window_definitions' => wp_json_encode($calculation['window_definitions'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
             'total_bonus_minor' => (int) $calculation['bonus_minor'],
             'committed_total_minor' => (int) $calculation['total_minor'],
             'calculation_version' => GoldenHourRule::RULE_VERSION,
@@ -163,16 +175,16 @@ final class GoldenHourPayService {
      * @param list<int> $lessonIds
      * @return array<int,array<string,mixed>>
      */
-    public function forLessonIds(array $lessonIds): array {
+    public function forLessonIds(array $lessonIds, ?string $teacherTimezone = null): array {
         $out = array();
         foreach (array_values(array_unique(array_filter(array_map('intval', $lessonIds), static fn(int $id): bool => $id > 0))) as $lessonId) {
             $committed = $this->details($lessonId);
             if ($committed !== null) {
-                $out[$lessonId] = $this->presentation($committed, 'committed');
+                $out[$lessonId] = $this->presentation($committed, 'committed', $teacherTimezone);
                 continue;
             }
             $estimate = $this->estimate($lessonId);
-            if ($estimate !== null) $out[$lessonId] = $this->presentation($estimate, 'estimated');
+            if ($estimate !== null) $out[$lessonId] = $this->presentation($estimate, 'estimated', $teacherTimezone);
         }
         return $out;
     }
@@ -199,8 +211,14 @@ final class GoldenHourPayService {
                 'policy_setting_version' => $resolved['policy_setting_version'],
                 'policy_effective_from' => $resolved['policy_effective_from'],
                 'policy_effective_until' => $resolved['policy_effective_until'],
+                'global_policy_setting_id' => $resolved['global_policy_setting_id'],
+                'global_policy_setting_version' => $resolved['global_policy_setting_version'],
+                'global_policy_effective_from' => $resolved['global_policy_effective_from'],
+                'global_policy_effective_until' => $resolved['global_policy_effective_until'],
+                'global_policy_timezone' => $resolved['global_policy_timezone'],
                 'service_area_key' => $resolved['area'],
                 'policy_timezone' => $resolved['timezone'],
+                'window_definitions' => $resolved['window_definitions'],
                 'eligible_seconds' => $resolved['eligible_seconds'],
                 'eligible_minutes' => $resolved['eligible_minutes'],
                 'window_breakdown' => $resolved['breakdown'],
@@ -218,119 +236,121 @@ final class GoldenHourPayService {
     /** @return array<string,mixed> */
     private function resolve(array $context, int $baseAmountMinor, string $currency): array {
         $area = GoldenHourAreaResolver::resolve($context['service_area_key'] ?? null);
+        $occurrence = (string) $context['occurrence_starts_at_utc'];
+        $areaPolicy = $area['area'] === null ? null : $this->policies->resolveAt((string) $area['area'], $occurrence);
+        $globalPolicy = $this->policies->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, $occurrence);
         $resolved = array(
             'area' => $area['area'],
-            'timezone' => null,
-            'policy_setting_id' => null,
-            'policy_setting_version' => 0,
-            'policy_effective_from' => null,
-            'policy_effective_until' => null,
+            'timezone' => $areaPolicy === null ? null : (string) $areaPolicy['timezone'],
+            'policy_setting_id' => $areaPolicy === null || $areaPolicy['setting_id'] === null ? null : (int) $areaPolicy['setting_id'],
+            'policy_setting_version' => $areaPolicy === null ? 0 : (int) $areaPolicy['setting_version'],
+            'policy_effective_from' => $areaPolicy === null ? null : (string) $areaPolicy['effective_from'],
+            'policy_effective_until' => $areaPolicy === null ? null : $areaPolicy['effective_until'],
+            'global_policy_setting_id' => $globalPolicy['setting_id'] === null ? null : (int) $globalPolicy['setting_id'],
+            'global_policy_setting_version' => (int) $globalPolicy['setting_version'],
+            'global_policy_effective_from' => (string) $globalPolicy['effective_from'],
+            'global_policy_effective_until' => $globalPolicy['effective_until'],
+            'global_policy_timezone' => (string) $globalPolicy['timezone'],
             'eligible_seconds' => 0,
             'eligible_minutes' => 0,
             'bonus_minor' => 0,
             'total_minor' => $baseAmountMinor,
             'breakdown' => array(),
+            'window_definitions' => array(),
             'outcome' => GoldenHourRule::OUTCOME_AREA_REQUIRED,
             'review_reason' => $area['review_reason'],
         );
-        if ($area['area'] === null) return $resolved;
-        $policy = $this->policies->resolveAt((string) $area['area'], (string) $context['occurrence_starts_at_utc']);
-        $resolved['timezone'] = (string) $policy['timezone'];
-        $resolved['policy_setting_id'] = $policy['setting_id'] === null ? null : (int) $policy['setting_id'];
-        $resolved['policy_setting_version'] = (int) $policy['setting_version'];
-        $resolved['policy_effective_from'] = (string) $policy['effective_from'];
-        $resolved['policy_effective_until'] = $policy['effective_until'];
-        if (empty($policy['enabled'])) {
-            $resolved['outcome'] = GoldenHourRule::OUTCOME_DISABLED;
+        $windows = array();
+        if ($areaPolicy !== null && !empty($areaPolicy['enabled']) && (int) $areaPolicy['bonus_basis_points'] > 0) {
+            $windows[] = array(
+                'source' => (string) $area['area'],
+                'timezone' => (string) $areaPolicy['timezone'],
+                'weekdays' => array_values(array_map('intval', (array) $areaPolicy['weekdays'])),
+                'start' => (string) $areaPolicy['start'],
+                'end' => (string) $areaPolicy['end'],
+                'bonus_basis_points' => (int) $areaPolicy['bonus_basis_points'],
+            );
+        }
+        if (!empty($globalPolicy['enabled']) && (int) $globalPolicy['bonus_basis_points'] > 0) {
+            $windows[] = array(
+                'source' => GoldenHourRule::GLOBAL_IRAN_KEY,
+                'timezone' => (string) $globalPolicy['timezone'],
+                'weekdays' => array_values(array_map('intval', (array) $globalPolicy['weekdays'])),
+                'start' => (string) $globalPolicy['start'],
+                'end' => (string) $globalPolicy['end'],
+                'bonus_basis_points' => (int) $globalPolicy['bonus_basis_points'],
+            );
+        }
+        $resolved['window_definitions'] = $windows;
+        if ($windows === array()) {
+            if ($area['area'] === null) return $resolved;
+            if (empty($areaPolicy['enabled']) && empty($globalPolicy['enabled'])) {
+                $resolved['outcome'] = GoldenHourRule::OUTCOME_DISABLED;
+            } elseif ((int) ($areaPolicy['bonus_basis_points'] ?? 0) <= 0 && (int) ($globalPolicy['bonus_basis_points'] ?? 0) <= 0) {
+                $resolved['outcome'] = GoldenHourRule::OUTCOME_ZERO;
+            } else {
+                $resolved['outcome'] = GoldenHourRule::OUTCOME_NO_OVERLAP;
+            }
             return $resolved;
         }
-        if ((int) $policy['bonus_basis_points'] <= 0) {
-            $resolved['outcome'] = GoldenHourRule::OUTCOME_ZERO;
-            return $resolved;
-        }
-        $calculation = GoldenHourCalculator::calculate(
-            $baseAmountMinor,
-            (string) $context['occurrence_starts_at_utc'],
-            (string) $context['occurrence_ends_at_utc'],
-            array(array(
-                'weekdays' => (array) $policy['weekdays'],
-                'start' => (string) $policy['start'],
-                'end' => (string) $policy['end'],
-                'bonus_basis_points' => (int) $policy['bonus_basis_points'],
-            )),
-            (string) $policy['timezone']
-        );
+        $fallbackTimezone = (string) ($windows[0]['timezone'] ?? GoldenHourRule::GLOBAL_IRAN_TIMEZONE);
+        $calculation = GoldenHourCalculator::calculate($baseAmountMinor, $occurrence, (string) $context['occurrence_ends_at_utc'], $windows, $fallbackTimezone);
         $resolved['eligible_seconds'] = (int) $calculation['eligible_seconds'];
         $resolved['eligible_minutes'] = (int) $calculation['eligible_minutes'];
         $resolved['bonus_minor'] = (int) $calculation['bonus_minor'];
         $resolved['total_minor'] = (int) $calculation['total_minor'];
-        $resolved['breakdown'] = array();
-        foreach ((array) $calculation['breakdown'] as $group) {
-            $group['window_start'] = (string) $policy['start'];
-            $group['window_end'] = (string) $policy['end'];
-            $group['weekdays'] = array_values(array_map('intval', (array) $policy['weekdays']));
-            $resolved['breakdown'][] = $group;
-        }
+        $resolved['breakdown'] = (array) $calculation['breakdown'];
         $resolved['outcome'] = $resolved['eligible_seconds'] > 0 ? GoldenHourRule::OUTCOME_APPLIED : GoldenHourRule::OUTCOME_NO_OVERLAP;
         return $resolved;
     }
 
-    /** @return array{bonus_minor:int,total_minor:int,eligible_minutes:int,eligible_seconds:int,breakdown:array,outcome:string,review_reason:?string} */
+    /** @return array{bonus_minor:int,total_minor:int,eligible_minutes:int,eligible_seconds:int,breakdown:array,window_definitions:array,outcome:string,review_reason:?string} */
     private function calculateFromRecordedPolicy(array $recorded, int $baseAmountMinor): array {
-        if (($recorded['review_reason'] ?? null) === GoldenHourRule::REVIEW_SERVICE_AREA_REQUIRED || empty($recorded['service_area_key'])) {
-            return array('bonus_minor'=>0,'total_minor'=>$baseAmountMinor,'eligible_minutes'=>0,'eligible_seconds'=>0,'breakdown'=>array(),'outcome'=>GoldenHourRule::OUTCOME_AREA_REQUIRED,'review_reason'=>GoldenHourRule::REVIEW_SERVICE_AREA_REQUIRED);
+        $windows = json_decode((string) ($recorded['window_definitions'] ?? '[]'), true);
+        $windows = is_array($windows) ? $windows : array();
+        if ($windows === array()) {
+            $breakdown = json_decode((string) ($recorded['window_breakdown'] ?? '[]'), true);
+            $breakdown = is_array($breakdown) ? $breakdown : array();
+            foreach ($breakdown as $group) {
+                $basisPoints = (int) ($group['basis_points'] ?? 0);
+                if ($basisPoints <= 0) continue;
+                $windows[] = array(
+                    'source' => (string) ($recorded['service_area_key'] ?? ''),
+                    'timezone' => (string) ($recorded['policy_timezone'] ?? GoldenHourRule::GLOBAL_IRAN_TIMEZONE),
+                    'weekdays' => array_values(array_map('intval', (array) ($group['weekdays'] ?? array(1,2,3,4,5,6,7)))),
+                    'start' => (string) ($group['window_start'] ?? '00:00'),
+                    'end' => (string) ($group['window_end'] ?? '24:00'),
+                    'bonus_basis_points' => $basisPoints,
+                );
+            }
         }
-        $breakdown = json_decode((string) ($recorded['window_breakdown'] ?? '[]'), true);
-        $breakdown = is_array($breakdown) ? $breakdown : array();
-        if ($breakdown === array() || empty($recorded['policy_timezone'])) {
-            $outcome = (string) ($recorded['calculation_outcome'] ?? GoldenHourRule::OUTCOME_NO_OVERLAP);
-            return array('bonus_minor'=>0,'total_minor'=>$baseAmountMinor,'eligible_minutes'=>0,'eligible_seconds'=>0,'breakdown'=>array(),'outcome'=>$outcome,'review_reason'=>null);
+        if ($windows === array()) {
+            return array('bonus_minor'=>0,'total_minor'=>$baseAmountMinor,'eligible_minutes'=>0,'eligible_seconds'=>0,'breakdown'=>array(),'window_definitions'=>array(),'outcome'=>(string) ($recorded['calculation_outcome'] ?? GoldenHourRule::OUTCOME_NO_OVERLAP),'review_reason'=>$recorded['review_reason'] ?? null);
         }
-        $windows = array();
-        $seen = array();
-        foreach ($breakdown as $group) {
-            $basisPoints = (int) ($group['basis_points'] ?? 0);
-            if ($basisPoints <= 0) continue;
-            $start = (string) ($group['window_start'] ?? '00:00');
-            $end = (string) ($group['window_end'] ?? '24:00');
-            $weekdays = array_values(array_map('intval', (array) ($group['weekdays'] ?? array(1,2,3,4,5,6,7))));
-            $key = $basisPoints . '|' . $start . '|' . $end . '|' . implode('', $weekdays);
-            if (isset($seen[$key])) continue;
-            $seen[$key] = true;
-            $windows[] = array(
-                'weekdays' => $weekdays,
-                'start' => $start,
-                'end' => $end,
-                'bonus_basis_points' => $basisPoints,
-            );
-        }
-        if ($windows === array()) return array('bonus_minor'=>0,'total_minor'=>$baseAmountMinor,'eligible_minutes'=>0,'eligible_seconds'=>0,'breakdown'=>array(),'outcome'=>GoldenHourRule::OUTCOME_NO_OVERLAP,'review_reason'=>null);
         $calculation = GoldenHourCalculator::calculate(
             $baseAmountMinor,
             (string) $recorded['lesson_starts_at_utc'],
             (string) $recorded['lesson_ends_at_utc'],
             $windows,
-            (string) $recorded['policy_timezone']
+            (string) ($windows[0]['timezone'] ?? GoldenHourRule::GLOBAL_IRAN_TIMEZONE)
         );
-        foreach ((array) $calculation['breakdown'] as $index => $group) {
-            $calculation['breakdown'][$index]['window_start'] = $windows[0]['start'];
-            $calculation['breakdown'][$index]['window_end'] = $windows[0]['end'];
-            $calculation['breakdown'][$index]['weekdays'] = $windows[0]['weekdays'];
-        }
         return array(
             'bonus_minor' => (int) $calculation['bonus_minor'],
             'total_minor' => (int) $calculation['total_minor'],
             'eligible_minutes' => (int) $calculation['eligible_minutes'],
             'eligible_seconds' => (int) $calculation['eligible_seconds'],
             'breakdown' => (array) $calculation['breakdown'],
+            'window_definitions' => $windows,
             'outcome' => (int) $calculation['eligible_seconds'] > 0 ? GoldenHourRule::OUTCOME_APPLIED : GoldenHourRule::OUTCOME_NO_OVERLAP,
-            'review_reason' => null,
+            'review_reason' => $recorded['review_reason'] ?? null,
         );
     }
 
     private function decode(object $row): array {
         $breakdown = json_decode((string) ($row->window_breakdown ?? '[]'), true);
         $breakdown = is_array($breakdown) ? $breakdown : array();
+        $windowDefinitions = json_decode((string) ($row->window_definitions ?? '[]'), true);
+        $windowDefinitions = is_array($windowDefinitions) ? $windowDefinitions : array();
         $highest = 0;
         foreach ($breakdown as $group) $highest = max($highest, (int) ($group['basis_points'] ?? 0));
         return array(
@@ -343,6 +363,11 @@ final class GoldenHourPayService {
             'policy_setting_version' => (int) ($row->policy_setting_version ?? 0),
             'policy_effective_from' => $row->policy_effective_from ?? null,
             'policy_effective_until' => $row->policy_effective_until ?? null,
+            'global_policy_setting_id' => isset($row->global_policy_setting_id) && $row->global_policy_setting_id !== null ? (int) $row->global_policy_setting_id : null,
+            'global_policy_setting_version' => (int) ($row->global_policy_setting_version ?? 0),
+            'global_policy_effective_from' => $row->global_policy_effective_from ?? null,
+            'global_policy_effective_until' => $row->global_policy_effective_until ?? null,
+            'global_policy_timezone' => $row->global_policy_timezone ?? null,
             'service_area_key' => $row->service_area_key ?? null,
             'policy_timezone' => $row->policy_timezone ?? null,
             'lesson_starts_at_utc' => (string) ($row->lesson_starts_at_utc ?? ''),
@@ -352,6 +377,7 @@ final class GoldenHourPayService {
             'eligible_seconds' => (int) ($row->eligible_seconds ?? 0),
             'eligible_minutes' => (int) ($row->eligible_minutes ?? 0),
             'window_breakdown' => $breakdown,
+            'window_definitions' => $windowDefinitions,
             'highest_basis_points' => $highest,
             'total_bonus_minor' => (int) ($row->total_bonus_minor ?? 0),
             'committed_total_minor' => (int) ($row->committed_total_minor ?? 0),
@@ -363,8 +389,9 @@ final class GoldenHourPayService {
         );
     }
 
-    private function presentation(array $data, string $status): array {
+    private function presentation(array $data, string $status, ?string $teacherTimezone = null): array {
         $breakdown = (array) ($data['window_breakdown'] ?? array());
+        $windowDefinitions = (array) ($data['window_definitions'] ?? array());
         $highest = 0;
         foreach ($breakdown as $group) $highest = max($highest, (int) ($group['basis_points'] ?? 0));
         $duration = 0;
@@ -389,6 +416,10 @@ final class GoldenHourPayService {
                 : null,
             'timezone' => $data['policy_timezone'] ?? null,
             'window_breakdown' => $breakdown,
+            'window_definitions' => $windowDefinitions,
+            'teacher_window_display' => $this->teacherWindowDisplay($windowDefinitions, (string) ($data['lesson_starts_at_utc'] ?? ''), $teacherTimezone),
+            'global_policy_setting_version' => (int) ($data['global_policy_setting_version'] ?? 0),
+            'global_policy_timezone' => $data['global_policy_timezone'] ?? null,
             'review_reason' => $data['review_reason'] ?? null,
             'review_text' => ($data['review_reason'] ?? null) !== null ? GoldenHourRule::REVIEW_TEXT : null,
             'policy_setting_version' => (int) ($data['policy_setting_version'] ?? 0),
@@ -396,6 +427,41 @@ final class GoldenHourPayService {
             'policy_effective_until' => $data['policy_effective_until'] ?? null,
             'base_rate_source' => (string) ($data['base_rate_source'] ?? 'unknown'),
         );
+    }
+
+    /** Display the applied policy windows in the teacher's own timezone for their schedule. */
+    private function teacherWindowDisplay(array $windows, string $lessonStartsAtUtc, ?string $teacherTimezone): string {
+        if ($windows === array() || $lessonStartsAtUtc === '') return '';
+        $utc = new \DateTimeZone('UTC');
+        $lesson = new \DateTimeImmutable($lessonStartsAtUtc, $utc);
+        $teacherZone = null;
+        if ($teacherTimezone !== null && in_array($teacherTimezone, timezone_identifiers_list(), true)) {
+            $teacherZone = new \DateTimeZone($teacherTimezone);
+        }
+        $items = array();
+        foreach ($windows as $window) {
+            $timezone = (string) ($window['timezone'] ?? '');
+            if ($timezone === '' || !in_array($timezone, timezone_identifiers_list(), true)) continue;
+            $zone = new \DateTimeZone($timezone);
+            $date = $lesson->setTimezone($zone)->format('Y-m-d');
+            $start = new \DateTimeImmutable($date.' '.(string) ($window['start'] ?? '00:00').':00', $zone);
+            $endTime = (string) ($window['end'] ?? '24:00');
+            $end = $endTime === '24:00'
+                ? (new \DateTimeImmutable($date.' 00:00:00', $zone))->modify('+1 day')
+                : new \DateTimeImmutable($date.' '.$endTime.':00', $zone);
+            $source = (string) ($window['source'] ?? '');
+            $label = $source === GoldenHourRule::GLOBAL_IRAN_KEY
+                ? 'Iran global'
+                : (string) (GoldenHourRule::defaults()[$source]['label'] ?? $source);
+            $text = $label . ' ' . $start->format('H:i') . '–' . $end->format('H:i') . ' ' . $timezone;
+            if ($teacherZone !== null) {
+                $teacherStart = $start->setTimezone($teacherZone);
+                $teacherEnd = $end->setTimezone($teacherZone);
+                $text .= ' · your time ' . $teacherStart->format('H:i') . '–' . $teacherEnd->format('H:i') . ' ' . $teacherTimezone;
+            }
+            $items[] = $text;
+        }
+        return implode('; ', array_values(array_unique($items)));
     }
 
     private function versionReference(int $snapshotId, int $correctionId): string {

@@ -126,8 +126,9 @@
 
 .dzn-classroom__stage {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 30%);
   gap: 0.85rem;
+  align-items: stretch;
 }
 .dzn-classroom__tile {
   position: relative;
@@ -197,32 +198,125 @@
 .dzn-classroom__remote-media video { width: 100%; height: 100%; object-fit: cover; }
 .dzn-classroom__remote-audio { display: none; }
 
-/* Watermark: a small branded corner chip, never a face or control overlay. */
+/* Watermark: transparent, low-opacity corner mark; never a face or control overlay. */
 .dzn-classroom-watermark {
   position: absolute;
   z-index: 2;
-  inset-block-end: 0.7rem;
-  inset-inline-end: 0.8rem;
+  inset-block-end: 0.55rem;
+  inset-inline-end: 0.65rem;
   display: grid;
   place-items: center;
   margin: 0;
-  padding: 0.28rem 0.5rem;
-  border: 1px solid rgb(255 253 248 / 24%);
-  border-radius: var(--dzn-radius-sm);
-  background: rgb(255 253 248 / 84%);
-  box-shadow: 0 0.25rem 0.9rem rgb(0 0 0 / 24%);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   pointer-events: none;
-  opacity: 0.86;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  opacity: 0.36;
+  filter: none;
 }
 .dzn-classroom-watermark img {
   display: block;
-  width: clamp(3.6rem, 7vw, 5.4rem);
+  width: clamp(2.2rem, 4.5vw, 3.4rem);
   height: auto;
-  filter: drop-shadow(0 1px 0 rgb(255 255 255 / 55%));
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 40%)) drop-shadow(0 0 2px rgb(0 0 0 / 45%));
 }
-.dzn-classroom__tile--local .dzn-classroom-watermark { inset-inline-end: 0.8rem; inset-inline-start: auto; }
+.dzn-classroom__tile--local .dzn-classroom-watermark { inset-inline-end: 0.65rem; inset-inline-start: auto; }
+.dzn-classroom__tile--local .dzn-classroom-watermark img { width: clamp(1.7rem, 3vw, 2.5rem); }
+
+/* Rotate only the video presentation; labels, controls, and the watermark stay upright. */
+.dzn-classroom__stage.is-rotated .dzn-classroom__tile video,
+.dzn-classroom__stage.is-rotated .dzn-classroom__remote-media video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--dzn-rotate-width, 100%);
+  height: var(--dzn-rotate-height, 100%);
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.dzn-classroom__stage.is-rotated .dzn-classroom__tile--local video {
+  transform: translate(-50%, -50%) rotate(90deg) scaleX(-1);
+}
+
+/* Fullscreen: remote video fills the screen, own camera stays as a corner window. */
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: #000;
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__header,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__meta,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__notice,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__alert,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) noscript { display: none; }
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--remote {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  background: #000;
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--remote video,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--remote .dzn-classroom__remote-media video {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  background: #000;
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local {
+  position: absolute;
+  z-index: 5;
+  inset-block-end: 1rem;
+  inset-inline-end: 1rem;
+  width: clamp(8.5rem, 23vw, 18rem);
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  border: 2px solid rgb(255 253 248 / 68%);
+  border-radius: var(--dzn-radius-md);
+  box-shadow: 0 0.5rem 1.8rem rgb(0 0 0 / 55%);
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local .dzn-classroom__tile-label { inset-block-end: 0.35rem; inset-inline-start: 0.4rem; padding: 0.2rem 0.4rem; font-size: var(--dzn-text-xs); max-width: calc(100% - 3.2rem); }
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local .dzn-classroom-watermark { inset-block-end: 0.3rem; inset-inline-end: 0.35rem; }
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local .dzn-classroom-watermark img { width: 1.5rem; }
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__controls {
+  position: absolute;
+  z-index: 10;
+  inset-inline: 0;
+  inset-block-end: 0;
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 82%), rgb(0 0 0 / 0%));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+body.dzn-classroom-faux-active { overflow: hidden; }
 
 .dzn-classroom__controls {
   display: flex;
@@ -342,6 +436,7 @@
 @media (max-width: 900px) {
   .dzn-classroom__stage { grid-template-columns: 1fr; }
   .dzn-classroom__tile { min-height: clamp(15rem, 58vw, 24rem); }
+  .dzn-classroom__tile--local { min-height: clamp(10rem, 38vw, 17rem); }
   .dzn-classroom__control-group--end { margin-inline-start: 0; }
 }
 
@@ -358,8 +453,9 @@
   .dzn-classroom__devices { display: grid; grid-template-columns: 1fr 1fr; }
   .dzn-classroom__devices select { max-width: 100%; width: 100%; }
   .dzn-classroom__tile-label { max-width: calc(100% - 5.8rem); }
-  .dzn-classroom-watermark { padding: 0.2rem 0.35rem; }
-  .dzn-classroom-watermark img { width: 3.4rem; }
+  .dzn-classroom-watermark img { width: 2.6rem; }
+  .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__tile--local { width: clamp(7rem, 34vw, 13rem); inset-block-end: 0.6rem; inset-inline-end: 0.6rem; }
+  .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__controls { padding: 0.55rem 0.7rem; flex-wrap: wrap; }
 }
 
 /* iPad and other touch tablets: keep controls large and avoid hover-only affordances. */
@@ -369,7 +465,7 @@
 }
 
 @media (prefers-contrast: more) {
-  .dzn-classroom-watermark { background: #fffdf8; opacity: 1; }
+  .dzn-classroom-watermark { opacity: 0.9; }
   .dzn-classroom__tile-label { background: #000; }
 }
 

@@ -152,7 +152,6 @@ final class ScreenController {
                 'create_course' => (new CatalogueService())->course(self::createPayload('course', $post)),
                 'create_term' => (new TermService())->create(self::createPayload('term', $post)),
                 'create_canonical_term' => self::canonicalTermCreate($post),
-                'save_enrolment_service_area' => self::saveEnrolmentServiceArea($post),
                 'activate_canonical_enrolment' => self::canonicalEnrolmentTransition($post, 'activate'),
                 'pause_canonical_enrolment' => self::canonicalEnrolmentTransition($post, 'pause'),
                 'resume_canonical_enrolment' => self::canonicalEnrolmentTransition($post, 'resume'),
@@ -393,7 +392,6 @@ final class ScreenController {
                 return;
             }
             if ($history) self::objectTable($history, null); else echo '<p>No canonical lifecycle history.</p>';
-            if (current_user_can('dzn_manage_enrolments')) self::enrolmentServiceAreaForm($record);
             if (($record->record_model ?? '') === 'canonical_student_course_v1' && current_user_can('dzn_manage_canonical_enrolment_lifecycle')) self::canonicalEnrolmentLifecycleForm($record);
         }
         if ($canonicalTerm && current_user_can('dzn_manage_canonical_terms')) { self::canonicalTermHistory($id); self::canonicalTermLifecycleForm($record); }

@@ -42,6 +42,7 @@ final class GoldenHourRule {
             'weekdays' => array(1,2,3,4,5,6,7),
             'start' => '16:00',
             'end' => '21:00',
+            'periods' => array(array('start'=>'16:00','end'=>'21:00')),
             'bonus_basis_points' => 0,
             'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
             'effective_until' => null,
@@ -64,6 +65,7 @@ final class GoldenHourRule {
                 'weekdays' => array(1,2,3,4,5,6,7),
                 'start' => (string) $region['start'],
                 'end' => (string) $region['end'],
+                'periods' => array(array('start'=>(string) $region['start'],'end'=>(string) $region['end'])),
                 'bonus_basis_points' => 0,
                 'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
                 'effective_until' => null,
@@ -126,9 +128,26 @@ final class GoldenHourRule {
         sort($weekdays, SORT_NUMERIC);
         if ($weekdays === array()) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
         foreach ($weekdays as $weekday) if ($weekday < 1 || $weekday > 7) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
-        $start = self::normalizeTime((string) ($input['start'] ?? $defaults['start']));
-        $end = self::normalizeTime((string) ($input['end'] ?? $defaults['end']), true);
-        if (self::minutes($end) <= self::minutes($start)) throw new \InvalidArgumentException('golden_hour_window_overnight_not_supported');
+        $periodsInput = $input['periods'] ?? null;
+        if (!is_array($periodsInput) || $periodsInput === array()) {
+            $periodsInput = array(array(
+                'start' => (string) ($input['start'] ?? ($defaults['periods'][0]['start'] ?? $defaults['start'])),
+                'end' => (string) ($input['end'] ?? ($defaults['periods'][0]['end'] ?? $defaults['end'])),
+            ));
+        }
+        if (count($periodsInput) > 12) throw new \InvalidArgumentException('golden_hour_periods_too_many');
+        $periods = array();
+        foreach ($periodsInput as $period) {
+            if (!is_array($period)) throw new \InvalidArgumentException('golden_hour_window_invalid');
+            $start = self::normalizeTime((string) ($period['start'] ?? ''));
+            $end = self::normalizeTime((string) ($period['end'] ?? ''), true);
+            if (self::minutes($start) >= 1440) throw new \InvalidArgumentException('golden_hour_window_invalid');
+            if (self::minutes($end) === self::minutes($start)) throw new \InvalidArgumentException('golden_hour_window_invalid');
+            $periods[] = array('start' => $start, 'end' => $end);
+        }
+        if ($periods === array()) throw new \InvalidArgumentException('golden_hour_window_invalid');
+        $start = $periods[0]['start'];
+        $end = $periods[0]['end'];
         $effectiveFrom = trim((string) ($input['effective_from'] ?? $defaults['effective_from']));
         if (!self::utc($effectiveFrom)) throw new \InvalidArgumentException('golden_hour_effective_from_invalid');
         $effectiveUntilRaw = trim((string) ($input['effective_until'] ?? ''));
@@ -145,6 +164,7 @@ final class GoldenHourRule {
             'weekdays' => $weekdays,
             'start' => $start,
             'end' => $end,
+            'periods' => $periods,
             'bonus_basis_points' => self::percentageToBasisPoints($input['bonus_percentage'] ?? 0),
             'effective_from' => $effectiveFrom,
             'effective_until' => $effectiveUntil,
@@ -186,7 +206,7 @@ final class GoldenHourRule {
         $bonusText = PricingMoney::format($bonus, $currency);
         $percent = rtrim(rtrim(number_format($basisPoints / 100, 2, '.', ''), '0'), '.');
         return sprintf(
-            'A base rate of %s/hour becomes %s/hour during this window (%s%% · %s). A 60-minute lesson entirely inside the window earns a %s bonus.',
+            'A base rate of %s/hour becomes %s/hour during an eligible window (%s%% · %s). A 60-minute lesson entirely inside a window earns a %s bonus.',
             $base,
             $totalText,
             $percent,

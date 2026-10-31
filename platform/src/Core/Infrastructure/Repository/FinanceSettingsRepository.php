@@ -25,6 +25,23 @@ final class FinanceSettingsRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->prefix}finance_settings WHERE setting_key=%s ORDER BY setting_version DESC,id DESC", $key)) ?: array();
     }
 
+    public function byId(int $id, bool $lock = false): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}finance_settings WHERE id=%d" . ($lock ? ' FOR UPDATE' : ''), $id));
+    }
+
+    public function updateValue(int $id, array $data): void {
+        global $wpdb;
+        $changed = $wpdb->update($this->prefix . 'finance_settings', $data, array('id' => $id));
+        if ($changed === false) throw new \RuntimeException('Finance setting update failed: ' . $wpdb->last_error);
+    }
+
+    public function deleteById(int $id): void {
+        global $wpdb;
+        $deleted = $wpdb->delete($this->prefix . 'finance_settings', array('id' => $id));
+        if ($deleted !== 1) throw new \RuntimeException('Finance setting removal failed');
+    }
+
     public function insert(array $data): int {
         global $wpdb;
         if ($wpdb->insert($this->prefix . 'finance_settings', $data) === false) throw new \RuntimeException('Finance setting persistence failed: ' . $wpdb->last_error);

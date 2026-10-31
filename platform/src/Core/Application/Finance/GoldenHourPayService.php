@@ -9,9 +9,8 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\FinanceGoldenHourReposito
  * The base amount always comes from the canonical Lesson finance snapshot. The dedicated immutable
  * golden-hour detail table supplements that snapshot with the committed bonus facts; it is not a
  * second rate or statement-total authority. A missing explicit Enrolment service area records base
- * pay with zero bonus and the declared `service_area_required` review; a technical calculation or
- * persistence failure throws so the enclosing snapshot command rolls back and the Lesson remains
- * Finance pending.
+ * pay with zero bonus when the global policy is disabled; a technical calculation or persistence
+ * failure throws so the enclosing snapshot command rolls back and the Lesson remains Finance pending.
  */
 final class GoldenHourPayService {
     public function __construct(
@@ -195,7 +194,7 @@ final class GoldenHourPayService {
             $context = $this->facts->context($lessonId);
             if (!empty($context['finalised'])) return null;
             $instant = (string) $context['occurrence_starts_at_utc'];
-            if (($context['service_area_key'] ?? null) === null && !$this->policies->anyEnabledAt($instant)) return null;
+            if (!$this->policies->anyEnabledAt($instant)) return null;
             $resolution = $this->rates->resolveFor((int) $context['teacher_id'], (int) $context['course_id'], $instant);
             if (empty($resolution['resolved'])) return null;
             $rate = $resolution['rate'];
@@ -235,66 +234,51 @@ final class GoldenHourPayService {
 
     /** @return array<string,mixed> */
     private function resolve(array $context, int $baseAmountMinor, string $currency): array {
-        $area = GoldenHourAreaResolver::resolve($context['service_area_key'] ?? null);
         $occurrence = (string) $context['occurrence_starts_at_utc'];
-        $areaPolicy = $area['area'] === null ? null : $this->policies->resolveAt((string) $area['area'], $occurrence);
-        $globalPolicy = $this->policies->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, $occurrence);
+        $policy = $this->policies->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, $occurrence);
         $resolved = array(
-            'area' => $area['area'],
-            'timezone' => $areaPolicy === null ? null : (string) $areaPolicy['timezone'],
-            'policy_setting_id' => $areaPolicy === null || $areaPolicy['setting_id'] === null ? null : (int) $areaPolicy['setting_id'],
-            'policy_setting_version' => $areaPolicy === null ? 0 : (int) $areaPolicy['setting_version'],
-            'policy_effective_from' => $areaPolicy === null ? null : (string) $areaPolicy['effective_from'],
-            'policy_effective_until' => $areaPolicy === null ? null : $areaPolicy['effective_until'],
-            'global_policy_setting_id' => $globalPolicy['setting_id'] === null ? null : (int) $globalPolicy['setting_id'],
-            'global_policy_setting_version' => (int) $globalPolicy['setting_version'],
-            'global_policy_effective_from' => (string) $globalPolicy['effective_from'],
-            'global_policy_effective_until' => $globalPolicy['effective_until'],
-            'global_policy_timezone' => (string) $globalPolicy['timezone'],
+            'area' => null,
+            'timezone' => null,
+            'policy_setting_id' => null,
+            'policy_setting_version' => 0,
+            'policy_effective_from' => null,
+            'policy_effective_until' => null,
+            'global_policy_setting_id' => $policy['setting_id'] === null ? null : (int) $policy['setting_id'],
+            'global_policy_setting_version' => (int) $policy['setting_version'],
+            'global_policy_effective_from' => (string) $policy['effective_from'],
+            'global_policy_effective_until' => $policy['effective_until'],
+            'global_policy_timezone' => (string) $policy['timezone'],
             'eligible_seconds' => 0,
             'eligible_minutes' => 0,
             'bonus_minor' => 0,
             'total_minor' => $baseAmountMinor,
             'breakdown' => array(),
             'window_definitions' => array(),
-            'outcome' => GoldenHourRule::OUTCOME_AREA_REQUIRED,
-            'review_reason' => $area['review_reason'],
+            'outcome' => GoldenHourRule::OUTCOME_DISABLED,
+            'review_reason' => null,
         );
-        $windows = array();
-        if ($areaPolicy !== null && !empty($areaPolicy['enabled']) && (int) $areaPolicy['bonus_basis_points'] > 0) {
-            $windows[] = array(
-                'source' => (string) $area['area'],
-                'timezone' => (string) $areaPolicy['timezone'],
-                'weekdays' => array_values(array_map('intval', (array) $areaPolicy['weekdays'])),
-                'start' => (string) $areaPolicy['start'],
-                'end' => (string) $areaPolicy['end'],
-                'bonus_basis_points' => (int) $areaPolicy['bonus_basis_points'],
-            );
+        if (empty($policy['enabled'])) return $resolved;
+        if ((int) $policy['bonus_basis_points'] <= 0) {
+            $resolved['outcome'] = GoldenHourRule::OUTCOME_ZERO;
+            return $resolved;
         }
-        if (!empty($globalPolicy['enabled']) && (int) $globalPolicy['bonus_basis_points'] > 0) {
+        $windows = array();
+        foreach ((array) ($policy['periods'] ?? array()) as $period) {
             $windows[] = array(
                 'source' => GoldenHourRule::GLOBAL_IRAN_KEY,
-                'timezone' => (string) $globalPolicy['timezone'],
-                'weekdays' => array_values(array_map('intval', (array) $globalPolicy['weekdays'])),
-                'start' => (string) $globalPolicy['start'],
-                'end' => (string) $globalPolicy['end'],
-                'bonus_basis_points' => (int) $globalPolicy['bonus_basis_points'],
+                'timezone' => (string) $policy['timezone'],
+                'weekdays' => array_values(array_map('intval', (array) $policy['weekdays'])),
+                'start' => (string) $period['start'],
+                'end' => (string) $period['end'],
+                'bonus_basis_points' => (int) $policy['bonus_basis_points'],
             );
         }
         $resolved['window_definitions'] = $windows;
         if ($windows === array()) {
-            if ($area['area'] === null) return $resolved;
-            if (empty($areaPolicy['enabled']) && empty($globalPolicy['enabled'])) {
-                $resolved['outcome'] = GoldenHourRule::OUTCOME_DISABLED;
-            } elseif ((int) ($areaPolicy['bonus_basis_points'] ?? 0) <= 0 && (int) ($globalPolicy['bonus_basis_points'] ?? 0) <= 0) {
-                $resolved['outcome'] = GoldenHourRule::OUTCOME_ZERO;
-            } else {
-                $resolved['outcome'] = GoldenHourRule::OUTCOME_NO_OVERLAP;
-            }
+            $resolved['outcome'] = GoldenHourRule::OUTCOME_ZERO;
             return $resolved;
         }
-        $fallbackTimezone = (string) ($windows[0]['timezone'] ?? GoldenHourRule::GLOBAL_IRAN_TIMEZONE);
-        $calculation = GoldenHourCalculator::calculate($baseAmountMinor, $occurrence, (string) $context['occurrence_ends_at_utc'], $windows, $fallbackTimezone);
+        $calculation = GoldenHourCalculator::calculate($baseAmountMinor, $occurrence, (string) $context['occurrence_ends_at_utc'], $windows, (string) $policy['timezone']);
         $resolved['eligible_seconds'] = (int) $calculation['eligible_seconds'];
         $resolved['eligible_minutes'] = (int) $calculation['eligible_minutes'];
         $resolved['bonus_minor'] = (int) $calculation['bonus_minor'];
@@ -449,6 +433,7 @@ final class GoldenHourPayService {
             $end = $endTime === '24:00'
                 ? (new \DateTimeImmutable($date.' 00:00:00', $zone))->modify('+1 day')
                 : new \DateTimeImmutable($date.' '.$endTime.':00', $zone);
+            if ($end <= $start) $end = $end->modify('+1 day');
             $source = (string) ($window['source'] ?? '');
             $label = $source === GoldenHourRule::GLOBAL_IRAN_KEY
                 ? 'Iran global'

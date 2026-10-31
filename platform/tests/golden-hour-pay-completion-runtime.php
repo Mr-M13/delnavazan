@@ -10,7 +10,6 @@ if (getenv('DZN_GOLDEN_HOUR_COMPLETION_RUNTIME') !== 'orchestration' || !defined
     exit(1);
 }
 require __DIR__ . '/phase-2a2u-fixture.php';
-use Delnavazan\Platform\Core\Application\EnrolmentServiceAreaService;
 use Delnavazan\Platform\Core\Application\Finance\{GoldenHourPolicyService, GoldenHourRule, LessonFinanceOrchestrationService};
 global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
@@ -23,12 +22,10 @@ $chain = dzn_u_fix_chain($fixture);
 $enrolmentId = (int) $chain['enrolment_id'];
 $teacherId = (int) $chain['teacher_id'];
 $courseId = (int) $chain['course_id'];
-$area = (new EnrolmentServiceAreaService())->set($enrolmentId, 'AU');
-dzn_u_fix_assert($area['service_area_key'] === 'AU', 'The explicit Enrolment service area must be recorded.');
 dzn_u_fix_rate($teacherId, array('scope_kind'=>'teacher','course_scope_id'=>0,'amount_minor'=>4000,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s', time()-86400),'compensation_basis'=>'per_session'), 'golden-completion');
-(new GoldenHourPolicyService())->save('AU', array(
-    'enabled'=>'1','timezone'=>'UTC','weekdays'=>array(1,2,3,4,5,6,7),
-    'start'=>'00:00','end'=>'24:00','bonus_percentage'=>'20',
+(new GoldenHourPolicyService())->save(GoldenHourRule::GLOBAL_IRAN_KEY, array(
+    'enabled'=>'1','timezone'=>'Asia/Tehran','weekdays'=>array(1,2,3,4,5,6,7),
+    'periods'=>array(array('start'=>'00:00','end'=>'24:00')),'bonus_percentage'=>'20',
     'effective_from'=>'2020-01-01 00:00:00','effective_until'=>'',
 ));
 $occurrence = dzn_u_fix_occurrence($chain, $fixture, 'golden-completion', 2, 30);
@@ -37,23 +34,21 @@ $first = (new LessonFinanceOrchestrationService())->captureAfterCompletion((int)
 dzn_u_fix_assert($first['state'] === 'captured' && (int) $first['snapshot_id'] > 0, 'Completion must capture the canonical Finance snapshot.');
 dzn_u_fix_assert((int) $first['bonus_minor'] === 800 && (int) $first['total_minor'] === 4800, 'A 20% full-overlap bonus must be committed from the canonical base.');
 $detail = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d AND snapshot_correction_id=0", (int) $first['snapshot_id']));
-dzn_u_fix_assert($detail !== null && (string) $detail->service_area_key === 'AU' && (int) $detail->total_bonus_minor === 800, 'The dedicated detail must record the area, policy context and bonus.');
+dzn_u_fix_assert($detail !== null && (int) $detail->global_policy_setting_version > 0 && (int) $detail->total_bonus_minor === 800, 'The dedicated detail must record the area, policy context and bonus.');
 dzn_u_fix_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_settings WHERE setting_key LIKE %s", 'GOLDEN_HOUR_LESSON_%')) === 0, 'Committed lesson compensation must not be stored in finance_settings.');
 $second = (new LessonFinanceOrchestrationService())->captureAfterCompletion((int) $occurrence['lesson_id'], 'runtime_repeat');
 dzn_u_fix_assert((int) $second['snapshot_id'] === (int) $first['snapshot_id'], 'Repeated completion must reuse the committed snapshot.');
 dzn_u_fix_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d", (int) $first['snapshot_id'])) === 1, 'Repeated completion must not duplicate the detail row.');
-// A missing explicit area records base pay with zero bonus and the exact review reason.
+// A second lesson captures against the same global policy.
 $reviewChain = dzn_u_fix_chain($fixture);
-(new EnrolmentServiceAreaService())->set((int) $reviewChain['enrolment_id'], '');
 $reviewOccurrence = dzn_u_fix_occurrence($reviewChain, $fixture, 'golden-review', 2, 30);
 dzn_u_fix_complete($reviewOccurrence, 'golden-review');
 $review = (new LessonFinanceOrchestrationService())->captureAfterCompletion((int) $reviewOccurrence['lesson_id'], 'runtime_review');
-dzn_u_fix_assert($review['state'] === 'captured' && (int) $review['bonus_minor'] === 0, 'A missing service area must not prevent base-pay capture.');
+dzn_u_fix_assert($review['state'] === 'captured', 'A second lesson must still capture against the global policy.');
 $reviewDetail = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d AND snapshot_correction_id=0", (int) $review['snapshot_id']));
-dzn_u_fix_assert($reviewDetail !== null && (string) $reviewDetail->review_reason === GoldenHourRule::REVIEW_SERVICE_AREA_REQUIRED, 'A missing service area must record service_area_required.');
+dzn_u_fix_assert($reviewDetail !== null, 'The global policy detail must be recorded.');
 // A technical Finance blocker leaves the Lesson Finance pending without reversing completion.
 $blockedChain = dzn_u_fix_chain($fixture);
-(new EnrolmentServiceAreaService())->set((int) $blockedChain['enrolment_id'], 'AU');
 $blockedOccurrence = dzn_u_fix_occurrence($blockedChain, $fixture, 'golden-blocked', 2, 30);
 dzn_u_fix_complete($blockedOccurrence, 'golden-blocked');
 $blocked = (new LessonFinanceOrchestrationService())->captureAfterCompletion((int) $blockedOccurrence['lesson_id'], 'runtime_blocked');

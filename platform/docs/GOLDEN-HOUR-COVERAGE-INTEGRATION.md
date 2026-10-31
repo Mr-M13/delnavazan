@@ -13,11 +13,13 @@ coverage calculation.
 
 `Delnavazan\Platform\Core\Application\Finance\GoldenHourPolicyService`
 
-- `coverageWindows(): array` — the shared structural area/window defaults used by
-  coverage and pay.
-- `resolveAt(string $area, string $occurrenceStartsAtUtc): array` — the policy
-  version effective at an instant, including weekdays, local start/end, IANA
-  timezone, label and `enabled`.
+- `coverageWindows(): array` — the structural service-area windows used by
+  coverage: `AU`, `EU`, `GB`, `NA_EAST`, `NA_WEST`, with weekdays, local start/end,
+  IANA timezone and label.
+- `resolveAt(string $area, string $occurrenceStartsAtUtc): array` — the global
+  Iran pay policy resolution (`GLOBAL_IRAN` only). It is **not** a service-area
+  window resolver; calling it with `AU`, `EU`, etc. throws
+  `golden_hour_area_invalid`.
 - `GoldenHourRule::defaults()` remains built from
   `AcademyDemandWindowRule::regions()`.
 
@@ -28,26 +30,21 @@ pay bonus is disabled remains an operational coverage window.
 
 `AcademyCoverageReadService::windowsForWeek(DateTimeImmutable $weekStart)`:
 
-1. Calls `GoldenHourPolicyService::coverageWindows()` for the shared area set and
-   fallback metadata.
-2. For each area and each local date of the selected week, calls
-   `GoldenHourPolicyService::resolveAt($area, '<date> 12:00:00')`.
-3. Emits one effective window row for that date when the resolved policy's
-   weekdays include it.
+1. Calls `GoldenHourPolicyService::coverageWindows()` once.
+2. Expands each structural area window across the local dates of the selected
+   week when its configured weekdays include that date.
+3. Emits one window row per area/date with the configured start/end, timezone and
+   label.
 
 This means:
 
-- a version that takes effect during the selected week is used from that date;
-- historical weeks resolve their own applicable versions;
-- a weekday excluded by the policy contributes no slots and is shown as
-  `No configured window`, not as a fabricated gap;
+- coverage remains available when the global pay bonus is disabled;
+- a weekday excluded by the structural window contributes no slots and is shown
+  as `No configured window`, not as a fabricated gap;
 - a changed start/end changes the week's total half-hour slots;
-- a disabled pay bonus does not remove the window.
-
-The neutral `12:00:00` UTC probe resolves at date granularity. A policy effective
-later on the same UTC date is used from the following coverage date. This is a
-coverage-side date-level projection; the pay calculator still resolves the exact
-policy at each Lesson occurrence instant.
+- the current finance contract has no per-area effective-dated coverage versions.
+  If finance adds them later, the replacement belongs at this `windowsForWeek`
+  boundary; the presentation and availability calculation remain unchanged.
 
 ## Analyzer contract
 

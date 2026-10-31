@@ -63,12 +63,13 @@ final class AcademyCoverageReadService {
     }
 
     /**
-     * Resolve the shared finance window definitions for the selected week.
+     * Resolve the shared structural coverage windows for the selected week.
      *
-     * Finance owns the versioned configuration. Coverage resolves each local date
-     * at a neutral UTC probe so a version that takes effect during the week is used
-     * from that date onward, historical weeks use their own versions, and a disabled
-     * pay bonus never removes the operational window.
+     * Finance owns the window contract. Coverage consumes `coverageWindows()`
+     * directly: the operational areas are independent of the global Iran pay
+     * policy, so disabling a bonus cannot remove a coverage window. If finance
+     * later adds versioned per-area coverage windows, the replacement belongs at
+     * this boundary; the presentation and availability calculation stay unchanged.
      *
      * @return list<array<string,mixed>>
      */
@@ -78,21 +79,22 @@ final class AcademyCoverageReadService {
         $windows=array();
         for($offset=0;$offset<7;$offset++){
             $date=$weekStart->modify('+'.$offset.' days')->format('Y-m-d');
-            $probe=$date.' 12:00:00';
             $weekday=$offset+1;
-            foreach($structural as$area=>$current){
-                $resolved=$policy->resolveAt((string)$area,$probe);
-                $weekdays=array_values(array_unique(array_map('intval',(array)($resolved['weekdays']??$current['weekdays']??array(1,2,3,4,5,6,7)))));
+            foreach($structural as$area=>$window){
+                $weekdays=array_values(array_unique(array_map('intval',(array)($window['weekdays']??array(1,2,3,4,5,6,7)))));
                 if(!in_array($weekday,$weekdays,true))continue;
+                $start=GoldenHourRule::minutes((string)($window['start']??'16:00'));
+                $end=GoldenHourRule::minutes((string)($window['end']??'21:00'));
+                if($end<=$start)continue;
                 $windows[]=array(
                     'region'=>(string)$area,
-                    'label'=>(string)($resolved['label']??$current['label']??$area),
-                    'timezone'=>(string)($resolved['timezone']??$current['timezone']??'UTC'),
+                    'label'=>(string)($window['label']??$area),
+                    'timezone'=>(string)($window['timezone']??'UTC'),
                     'date'=>$date,
                     'weekday'=>$weekday,
-                    'start_minute'=>GoldenHourRule::minutes((string)($resolved['start']??$current['start']??'16:00')),
-                    'end_minute'=>GoldenHourRule::minutes((string)($resolved['end']??$current['end']??'21:00')),
-                    'version'=>(int)($resolved['setting_version']??0),
+                    'start_minute'=>$start,
+                    'end_minute'=>$end,
+                    'version'=>(int)($window['setting_version']??0),
                 );
             }
         }

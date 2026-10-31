@@ -100,10 +100,16 @@ final class LessonFinanceSnapshotService {
                 'rule_version'=>FinanceRule::SNAPSHOT_RULE_VERSION,'created_at'=>$now,'created_by'=>$actor,
             ));
             $this->snapshots->assignPublicHandle($snapshotId);
+            // Golden-hour pay is committed at this exact immutable snapshot point. The golden row
+            // records the window/policy version and minutes so the result is reproducible; a policy
+            // saved later cannot rewrite it. A Lesson without a reliable area keeps its base pay.
+            $golden=(new GoldenHourPayService())->captureForSnapshot(
+                $lessonId,$snapshotId,$context,$derivedAmount,(string)$rate->currency,$rate,$actor,$now,$digest
+            );
             FinanceSupport::audit('finance_lesson_snapshots',$snapshotId,'capture',$actor,$digest,null,$now,null);
             $command['snapshot_id']=$snapshotId;$command['result_snapshot_id']=$snapshotId;
             $commandId=$this->snapshots->insertCommand($command);
-            return array('snapshot_id'=>$snapshotId,'lesson_id'=>$lessonId,'rate_id'=>(int)$rate->id,'rate_version'=>(int)$rate->rate_version,'derived_amount_minor'=>$derivedAmount,'currency'=>(string)$rate->currency,'snapshot_instant_utc'=>$instant,'captured'=>true,'command_id'=>$commandId);
+            return array('snapshot_id'=>$snapshotId,'lesson_id'=>$lessonId,'rate_id'=>(int)$rate->id,'rate_version'=>(int)$rate->rate_version,'derived_amount_minor'=>$derivedAmount,'golden_hour_bonus_minor'=>(int)($golden['total_bonus_minor']??0),'total_amount_minor'=>(int)($golden['committed_total_minor']??$derivedAmount),'golden_hour'=>$golden,'currency'=>(string)$rate->currency,'snapshot_instant_utc'=>$instant,'captured'=>true,'command_id'=>$commandId);
         });
     }
     /**

@@ -189,8 +189,8 @@ final class FinanceRule {
         'FINANCE_RECONCILIATION_EXCEPTION_RAISED'=>'finance_reconciliation_runs',
     );
 
-    /** §13.1: the twenty-one declared Finance tables. */
-    public const TABLES=array('finance_policy_roots','finance_teacher_roots','finance_policies','finance_policy_commands','finance_teacher_rates','finance_teacher_rate_events','finance_teacher_rate_commands','finance_lesson_snapshots','finance_snapshot_corrections','finance_snapshot_commands','finance_payability_evaluations','finance_payability_overrides','finance_payability_commands','finance_statements','finance_statement_lines','finance_statement_events','finance_statement_commands','finance_reconciliation_runs','finance_reconciliation_findings','finance_reconciliation_commands','finance_exceptions');
+    /** §13.1: the declared Finance tables, including the later golden-hour snapshot-detail table. */
+    public const TABLES=array('finance_policy_roots','finance_teacher_roots','finance_policies','finance_policy_commands','finance_teacher_rates','finance_teacher_rate_events','finance_teacher_rate_commands','finance_lesson_snapshots','finance_snapshot_corrections','finance_snapshot_commands','finance_payability_evaluations','finance_payability_overrides','finance_payability_commands','finance_statements','finance_statement_lines','finance_statement_events','finance_statement_commands','finance_reconciliation_runs','finance_reconciliation_findings','finance_reconciliation_commands','finance_exceptions','finance_golden_hour_details');
     /** §13.1: the five tables addressed by a stable public handle. */
     public const HANDLE_TABLES=array('finance_teacher_rates','finance_lesson_snapshots','finance_statements','finance_reconciliation_runs','finance_exceptions');
     /** §15.7: the two pre-existing infrastructure seams this phase may write, insert-only. */

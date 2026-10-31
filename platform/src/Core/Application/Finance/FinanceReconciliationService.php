@@ -23,7 +23,8 @@ final class FinanceReconciliationService {
         private ?FinancePayabilityRepository $evaluations=null,
         private ?TeacherRateRepository $rates=null,
         private ?TeacherStatementService $statementService=null,
-        private ?FinanceFacts $facts=null
+        private ?FinanceFacts $facts=null,
+        private ?GoldenHourPayService $goldenHour=null
     ){
         $this->reconciliation??=new FinanceReconciliationRepository();
         $this->statements??=new FinanceStatementRepository();
@@ -32,6 +33,7 @@ final class FinanceReconciliationService {
         $this->rates??=new TeacherRateRepository();
         $this->facts??=new FinanceFacts();
         $this->statementService??=new TeacherStatementService();
+        $this->goldenHour??=new GoldenHourPayService();
     }
 
     /** §11.2 `run`: append one run and one finding row per difference; never repair anything. */
@@ -173,9 +175,11 @@ final class FinanceReconciliationService {
                 foreach($this->statements->lines((int)$statement->id) as $candidate)if((int)$candidate->lesson_id===(int)$lessonId)$line=$candidate;
                 if((string)$statement->state==='issued'&&$line===null)$findings[]=array('finding_code'=>'lesson_missing_from_statement','severity'=>'blocking','teacher_id'=>$teacherId,'lesson_id'=>(int)$lessonId,'statement_id'=>(int)$statement->id);
                 if($line===null)continue;
-                $expected=$snapshot->derived_amount_minor===null?0:(int)$snapshot->derived_amount_minor;
+                $expected=$correction!==null?(int)$correction->corrected_derived_amount_minor:($snapshot->derived_amount_minor===null?0:(int)$snapshot->derived_amount_minor);
                 $observed=(int)$line->line_amount_minor;
-                $recomputed=(string)$line->disposition==='payable'?$expected:0;
+                $recomputed=(string)$line->disposition==='payable'
+                    ?(int)$this->goldenHour->committedTotal((int)$lessonId,$expected,(string)$line->currency,(int)$snapshot->id,$correction===null?0:(int)$correction->id)['total_minor']
+                    :0;
                 if($recomputed!==$observed)$findings[]=array('finding_code'=>'line_amount_differs_from_recomputation','severity'=>'blocking','teacher_id'=>$teacherId,'lesson_id'=>(int)$lessonId,'statement_id'=>(int)$statement->id,'line_id'=>(int)$line->id,'expected_amount_minor'=>$recomputed,'observed_amount_minor'=>$observed);
                 if($correction!==null&&(string)$statement->state==='issued')$findings[]=array('finding_code'=>'snapshot_corrected_after_issue','severity'=>'informational','teacher_id'=>$teacherId,'lesson_id'=>(int)$lessonId,'statement_id'=>(int)$statement->id,'line_id'=>(int)$line->id);
                 $currentDelivery=$context['outcome']?(string)$context['outcome']->delivery_state:null;

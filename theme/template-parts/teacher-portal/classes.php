@@ -63,6 +63,13 @@ $card_index = 0;
 				<div class="dzn-tp-class__title-row">
 					<h3 id="<?php echo esc_attr( $title ); ?>" class="dzn-tp-class__student"><?php echo esc_html( $valid ? $item['student'] : 'کلاس در دسترس نیست' ); ?></h3>
 					<?php if ( $valid ) : ?><p class="dzn-tp-state dzn-tp-state--<?php echo esc_attr( $state ); ?>"><span class="dzn-tp-state__bullet" aria-hidden="true">●</span> <span class="dzn-tp-sr">وضعیت: </span><?php echo esc_html( $item['status'] ); ?></p><?php endif; ?>
+					<?php
+					$golden = is_array( $item['golden_hour'] ?? null ) ? $item['golden_hour'] : array();
+					$golden_label = (string) ( $item['golden_hour_label'] ?? '' );
+					$golden_review = (string) ( $item['golden_hour_review_text'] ?? '' );
+					?>
+					<?php if ( $valid && '' !== $golden_label ) : ?><span class="dzn-tp-golden-badge" title="<?php echo esc_attr( (string) ( $item['golden_hour_estimate_label'] ?? '' ) === 'estimated' ? 'برآورد تا پیش از قطعی‌شدن پرداخت' : 'ثبت‌شده در محاسبهٔ نهایی' ); ?>"><?php echo esc_html( $golden_label ); ?><?php echo 'estimated' === (string) ( $item['golden_hour_estimate_label'] ?? '' ) ? ' · estimated' : ''; ?></span><?php endif; ?>
+					<?php if ( $valid && '' !== $golden_review ) : ?><span class="dzn-tp-golden-review"><?php echo esc_html( $golden_review ); ?></span><?php endif; ?>
 				</div>
 				<?php if ( $valid ) : ?>
 					<p class="dzn-tp-class__course-line"><span class="dzn-tp-class__course"><?php echo esc_html( $item['course'] ); ?></span><?php if ( $is_today ) : ?> <span class="dzn-tp-class__dot" aria-hidden="true">·</span> <span class="dzn-tp-class__progress"><?php echo esc_html( $item['progress'] ); ?></span><?php endif; ?></p>
@@ -91,6 +98,15 @@ $card_index = 0;
 						<?php $whatsapp = preg_replace( '/[^0-9]/', '', (string) ( $item['student_whatsapp'] ?? '' ) ); ?>
 						<p class="dzn-tp-student-contact"><span>واتس‌اپ:</span> <?php if ( '' !== $whatsapp ) : ?><a href="<?php echo esc_url( 'https://wa.me/' . $whatsapp ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $item['student_whatsapp'] ); ?></a><?php else : ?><span class="dzn-tp-muted">ثبت نشده</span><?php endif; ?></p>
 						<h4>زمان‌بندی</h4><p><?php echo esc_html( $item['schedule_summary'] ); ?></p>
+						<?php if ( ! empty( $golden ) ) : ?>
+							<h4>Golden hour</h4>
+							<?php if ( '' !== (string) ( $golden['review_reason'] ?? '' ) ) : ?>
+								<p>Golden-hour bonus requires service-area review.</p>
+							<?php elseif ( (int) ( $golden['bonus_amount_minor'] ?? 0 ) > 0 ) : ?>
+								<p><?php echo esc_html( sprintf( 'Golden-hour bonus: +%s (%s%% on %d of %d minutes) · %s', (string) ( $item['golden_hour_bonus_display'] ?? '' ), (string) ( $item['golden_hour_percentage_display'] ?? '' ), (int) ( $golden['eligible_minutes'] ?? 0 ), (int) ( $golden['duration_minutes'] ?? 0 ), (string) ( $golden['area_label'] ?? '' ) . ' · ' . (string) ( $golden['timezone'] ?? '' ) ) ); ?></p>
+								<p class="dzn-tp-help"><?php echo esc_html( 'estimated' === (string) ( $golden['status'] ?? '' ) ? 'این مبلغ برآوردی است و تا قطعی‌شدن محاسبهٔ پرداخت، نهایی نیست.' : 'این مبلغ در محاسبهٔ پرداخت این جلسه ثبت شده است. تأیید یا پرداخت صورت‌حساب همچنان وضعیت جداگانه‌ای دارد.' ); ?></p>
+							<?php endif; ?>
+						<?php endif; ?>
 						<?php if ( ! empty( $item['term_total'] ) ) : ?><h4>پیشرفت ترم</h4><p><?php echo esc_html( sprintf( 'تکمیل‌شده: %d از %d · باقی‌مانده: %d', (int) $item['term_completed'], (int) $item['term_total'], (int) $item['term_remaining'] ) ); ?></p><?php endif; ?>
 						<?php if ( isset( $item['previous_private_note'] ) && '' !== trim( (string) $item['previous_private_note'] ) ) : ?><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( (string) $item['previous_private_note'] ); ?></p><?php endif; ?></section>
 					<section class="dzn-tp-detail-card"><h4>لینک Google Meet</h4><p class="dzn-tp-detail-help">ورود فقط در بازهٔ مجاز و با تأیید امن سامانه فعال می‌شود.</p>

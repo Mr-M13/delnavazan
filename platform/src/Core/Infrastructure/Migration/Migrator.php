@@ -519,7 +519,7 @@ final class Migrator {
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -602,7 +602,11 @@ final class Migrator {
 				self::install_telnyx_provider_events();self::verify_telnyx_provider_events_schema();
 				$done[]='057_telnyx_provider_events';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('058_golden_hour_pay_snapshot_details',$done,true)){
+				self::install_golden_hour_pay_snapshot_details();self::verify_golden_hour_pay_snapshot_details_schema();
+				$done[]='058_golden_hour_pay_snapshot_details';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -851,9 +855,10 @@ final class Migrator {
 		$required[] = '055_recording_decision_authority';
 		$required[] = '056_notification_management';
 		$required[] = '057_telnyx_provider_events';
+		$required[] = '058_golden_hour_pay_snapshot_details';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -2728,7 +2733,7 @@ final class Migrator {
 		}
 		// Rule 10: Phase 2A.2-U owns only its declared finance tables. Later migrations may add
 		// separately verified finance namespaces; do not make the older verifier reject them.
-		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations','finance_regional_prices','finance_settings');
+		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations','finance_regional_prices','finance_settings','finance_golden_hour_details');
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $p . 'finance_%' ) ) as $table ) {
 			$short = substr( (string) $table, strlen( $p ) );
 			if ( ! isset( $spec[ $short ] ) && ! in_array( $short, $laterFinanceTables, true ) ) throw new \RuntimeException('Migration verification failed: table outside the declared Phase 2A.2-U set: '.$short);
@@ -2884,6 +2889,99 @@ final class Migrator {
 			array('recording_decision_commands','uid',true,array('uid')),
 			array('recording_decision_commands','command_key_digest',true,array('command_key_digest')),
 		)as$x)if(!self::has_index_columns($p.$x[0],$x[1],$x[2],$x[3]))throw new \RuntimeException('Migration verification failed: recording decision index '.$x[0].'.'.$x[1]);
+	}
+
+	/**
+	 * Schema 56: explicit Enrolment service area and the committed golden-hour detail record.
+	 *
+	 * Additive only. It creates the detail table, adds one nullable service-area field to every
+	 * Enrolment, and moves any lesson-level golden-hour records previously stored in
+	 * finance_settings into the dedicated table without recalculating their committed amounts.
+	 */
+	private static function install_golden_hour_pay_snapshot_details():void{
+		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
+		$enrolments=$p.'enrolments';
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$enrolments} LIKE 'service_area_key'")){
+			if($wpdb->query("ALTER TABLE {$enrolments} ADD COLUMN service_area_key varchar(16) NULL AFTER schedule_timezone")===false)throw new \RuntimeException('Golden-hour service-area migration failed');
+		}
+		if(!self::has_index($enrolments,'service_area_key',false)){
+			if($wpdb->query("ALTER TABLE {$enrolments} ADD KEY service_area_key(service_area_key)")===false)throw new \RuntimeException('Golden-hour service-area index failed');
+		}
+		$sql="CREATE TABLE {$p}finance_golden_hour_details (id bigint unsigned NOT NULL AUTO_INCREMENT,snapshot_id bigint unsigned NOT NULL,snapshot_correction_id bigint unsigned NOT NULL DEFAULT 0,snapshot_version_reference varchar(64) NOT NULL,lesson_id bigint unsigned NOT NULL,policy_setting_id bigint unsigned NULL,policy_setting_version int unsigned NOT NULL DEFAULT 0,policy_effective_from datetime NULL,policy_effective_until datetime NULL,service_area_key varchar(16) NULL,policy_timezone varchar(64) NULL,lesson_starts_at_utc datetime NOT NULL,lesson_ends_at_utc datetime NOT NULL,base_amount_minor bigint unsigned NOT NULL,currency char(3) NOT NULL,eligible_seconds int unsigned NOT NULL,eligible_minutes int unsigned NOT NULL,window_breakdown text NOT NULL,total_bonus_minor bigint unsigned NOT NULL,committed_total_minor bigint unsigned NOT NULL,calculation_version varchar(48) NOT NULL,calculation_outcome varchar(32) NOT NULL,review_reason varchar(64) NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL DEFAULT 0,PRIMARY KEY(id),UNIQUE KEY snapshot_version_reference(snapshot_version_reference),KEY snapshot_version(snapshot_id,snapshot_correction_id),KEY lesson(lesson_id),KEY area_time(service_area_key,lesson_starts_at_utc)) ENGINE=InnoDB $c";
+		dbDelta(self::dbdelta_sql($sql));
+		if($wpdb->last_error!=='')throw new \RuntimeException('Golden-hour detail migration failed: '.$wpdb->last_error);
+		// Move the prior lesson-level finance_settings rows, idempotently and without recalculation.
+		$rows=$wpdb->get_results("SELECT * FROM {$p}finance_settings WHERE setting_key LIKE 'GOLDEN_HOUR_LESSON_%' AND setting_type='golden_hour_lesson_snapshot' ORDER BY setting_key,setting_version")?:array();
+		$groups=array();foreach($rows as$row)$groups[(string)$row->setting_key][]=$row;
+		foreach($groups as$key=>$versions){
+			$active=null;$latest=null;
+			foreach($versions as$row){
+				if((string)$row->status==='active'&&$active===null)$active=$row;
+				if($latest===null||(int)$row->setting_version>(int)$latest->setting_version)$latest=$row;
+			}
+			$active=$active??$latest;
+			$activeId=$active?(int)$active->id:0;
+			$usedCorrections=array();
+			foreach($versions as$row){
+				$data=json_decode((string)$row->setting_value,true);
+				if(!is_array($data)||(int)($data['snapshot_id']??0)<1)continue;
+				$snapshotId=(int)$data['snapshot_id'];
+				$correctionVersion=(int)($data['correction_version']??0);
+				$correctionId=0;
+				if($correctionVersion>0){
+					$correctionId=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}finance_snapshot_corrections WHERE snapshot_id=%d AND applicable_slot=1 ORDER BY id DESC LIMIT 1",$snapshotId));
+				}
+				$isActive=(int)$row->id===$activeId;
+				$reference=$isActive?('S'.$snapshotId.':C'.$correctionId):('L'.(int)$row->id);
+				if($isActive&&$correctionId>0&&isset($usedCorrections[$reference]))$reference='L'.(int)$row->id;
+				if($correctionId>0)$usedCorrections[$reference]=true;
+				if($wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}finance_golden_hour_details WHERE snapshot_version_reference=%s",$reference))!==null)continue;
+				$base=(int)($data['base_amount_minor']??0);
+				$bonus=(int)($data['bonus_amount_minor']??0);
+				$total=(int)($data['total_amount_minor']??($base+$bonus));
+				$breakdown=array();
+				if((int)($data['eligible_seconds']??0)>0&&(int)($data['bonus_basis_points']??0)>0){
+					$breakdown[]=array(
+						'basis_points'=>(int)$data['bonus_basis_points'],'seconds'=>(int)$data['eligible_seconds'],
+						'minutes'=>(int)($data['eligible_minutes']??round(((int)$data['eligible_seconds'])/60)),
+						'bonus_minor'=>$bonus,'window_start'=>(string)($data['window_start']??''),
+						'window_end'=>(string)($data['window_end']??''),'weekdays'=>array_values(array_map('intval',(array)($data['weekdays']??array(1,2,3,4,5,6,7)))),
+					);
+				}
+				$review=isset($data['review_reason'])&&$data['review_reason']!==null?(string)$data['review_reason']:null;
+				if($review==='golden_hour_area_review'||$review==='golden_hour_area_ambiguous'||$review==='golden_hour_group_area_conflict')$review='service_area_required';
+				$outcome=(string)($data['calculation_outcome']??($review!==null?'service_area_required':($bonus>0?'bonus_applied':((int)($data['eligible_seconds']??0)>0?'bonus_applied':'no_eligible_overlap'))));
+				$wpdb->insert($p.'finance_golden_hour_details',array(
+					'snapshot_id'=>$snapshotId,'snapshot_correction_id'=>$correctionId,'snapshot_version_reference'=>$reference,
+					'lesson_id'=>(int)($data['lesson_id']??0),'policy_setting_id'=>isset($data['policy_setting_id'])?(int)$data['policy_setting_id']:null,
+					'policy_setting_version'=>(int)($data['policy_setting_version']??0),
+					'policy_effective_from'=>isset($data['policy_effective_from'])&&$data['policy_effective_from']!==null?(string)$data['policy_effective_from']:null,
+					'policy_effective_until'=>isset($data['policy_effective_until'])&&$data['policy_effective_until']!==null?(string)$data['policy_effective_until']:null,
+					'service_area_key'=>isset($data['area'])&&$data['area']!==null?(string)$data['area']:null,
+					'policy_timezone'=>isset($data['timezone'])&&$data['timezone']!==null?(string)$data['timezone']:null,
+					'lesson_starts_at_utc'=>(string)($data['lesson_starts_at_utc']??$data['lesson_start_utc']??'1970-01-01 00:00:00'),
+					'lesson_ends_at_utc'=>(string)($data['lesson_ends_at_utc']??$data['lesson_end_utc']??'1970-01-01 00:00:00'),
+					'base_amount_minor'=>$base,'currency'=>(string)($data['currency']??'TOM'),'eligible_seconds'=>(int)($data['eligible_seconds']??0),
+					'eligible_minutes'=>(int)($data['eligible_minutes']??0),'window_breakdown'=>wp_json_encode($breakdown),
+					'total_bonus_minor'=>$bonus,'committed_total_minor'=>$total,'calculation_version'=>(string)($data['rule_version']??'legacy_golden_hour_v1'),
+					'calculation_outcome'=>$outcome,'review_reason'=>$review,'created_at'=>(string)$row->created_at,'created_by'=>(int)$row->created_by,
+				));
+				if($wpdb->last_error!=='')throw new \RuntimeException('Golden-hour legacy detail migration failed: '.$wpdb->last_error);
+			}
+			$wpdb->delete($p.'finance_settings',array('setting_key'=>$key,'setting_type'=>'golden_hour_lesson_snapshot'));
+			if($wpdb->last_error!=='')throw new \RuntimeException('Golden-hour legacy settings cleanup failed: '.$wpdb->last_error);
+		}
+	}
+	private static function verify_golden_hour_pay_snapshot_details_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$table=$p.'finance_golden_hour_details';
+		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table||strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Golden-hour detail schema verification failed');
+		foreach(array('snapshot_id','snapshot_correction_id','snapshot_version_reference','lesson_id','policy_setting_id','policy_setting_version','policy_effective_from','policy_effective_until','service_area_key','policy_timezone','lesson_starts_at_utc','lesson_ends_at_utc','base_amount_minor','currency','eligible_seconds','eligible_minutes','window_breakdown','total_bonus_minor','committed_total_minor','calculation_version','calculation_outcome','review_reason','created_at','created_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Golden-hour detail schema verification failed: '.$column);
+		if(!self::has_index_columns($table,'snapshot_version_reference',true,array('snapshot_version_reference')))throw new \RuntimeException('Golden-hour detail unique snapshot reference missing');
+		if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE 'updated_at'"))throw new \RuntimeException('Golden-hour detail rows must be immutable');
+		$column=$wpdb->get_row("SHOW COLUMNS FROM {$p}enrolments LIKE 'service_area_key'");if(!$column||strtolower((string)$column->Type)!=='varchar(16)'||$column->Null!=='YES')throw new \RuntimeException('Golden-hour Enrolment service-area field missing');
+		if(!self::has_index($p.'enrolments','service_area_key',false))throw new \RuntimeException('Golden-hour Enrolment service-area index missing');
+		$invalid=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}enrolments WHERE service_area_key IS NOT NULL AND service_area_key NOT IN ('AU','EU','GB','NA_EAST','NA_WEST')");if($invalid!==0)throw new \RuntimeException('Golden-hour Enrolment service-area vocabulary is invalid');
+		$duplicate=(int)$wpdb->get_var("SELECT COUNT(*) FROM (SELECT snapshot_version_reference FROM {$table} GROUP BY snapshot_version_reference HAVING COUNT(*)>1) duplicates");if($duplicate!==0)throw new \RuntimeException('Golden-hour duplicate snapshot detail');
 	}
 
 }

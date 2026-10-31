@@ -259,6 +259,8 @@ jobs:
           php platform/tests/lesson-term-workflow-repair-contract.php
           php platform/tests/operational-cashbook-rule-unit.php
           php platform/tests/operational-cashbook-contract.php
+          php platform/tests/golden-hour-pay-unit.php
+          php platform/tests/golden-hour-pay-contract.php
           php platform/tests/finance-pricing-unit.php
           php platform/tests/finance-statement-template-unit.php
           php platform/tests/intro-payment-unit.php

@@ -90,6 +90,8 @@ final class FinanceFacts {
         $teacherId=(int)$lesson->teacher_id;
         if($outcome&&(int)$outcome->teacher_id!==$teacherId)throw new \RuntimeException('upstream_aggregate_invalid');
         if($outcome&&(int)$outcome->teacher_assignment_id!==(int)$lesson->teacher_assignment_id)throw new \RuntimeException('upstream_aggregate_invalid');
+        $student=$this->student((int)$lesson->student_id,$lock);
+        $serviceArea=$lesson->enrolment_id===null?null:$this->serviceAreaKey((int)$lesson->enrolment_id,$lock);
         return array(
             'lesson'=>$lesson,'kind'=>$kind,'state'=>$state,'finalised'=>in_array($state,self::FINAL_STATES,true),
             // Silence-based completion is final for lifecycle but never independently verified
@@ -100,6 +102,10 @@ final class FinanceFacts {
             'course_id'=>(int)$lesson->course_id,'teacher_assignment_id'=>(int)$lesson->teacher_assignment_id,
             'schedule_version_id'=>$scheduleVersionId,'occurrence_starts_at_utc'=>(string)$starts,
             'occurrence_ends_at_utc'=>(string)$ends,'duration_minutes'=>$duration,
+            'student_id'=>(int)$lesson->student_id,
+            'student_country_code'=>$student!==null&&$student->country_code!==null?(string)$student->country_code:null,
+            'student_timezone'=>$student!==null&&$student->timezone!==null?(string)$student->timezone:null,
+            'service_area_key'=>$serviceArea,
             'outcome'=>$outcome,'obligation'=>$obligation,
         );
     }
@@ -111,6 +117,7 @@ final class FinanceFacts {
         $occurrence=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lesson_schedule_versions WHERE lesson_id=%d AND id=(SELECT current_schedule_version_id FROM {$p}lessons WHERE id=%d) AND superseded_at IS NULL".($lock?' FOR UPDATE':''),(int)$lesson->id,(int)$lesson->id));
         if(!$occurrence)throw new \RuntimeException('occurrence_anchor_missing');
         $state=(string)$lesson->status;
+        $student=$this->student((int)$lesson->student_id,$lock);
         return array(
             'lesson'=>$lesson,'kind'=>self::INTRO_TYPE,'state'=>$state,'finalised'=>in_array($state,self::FINAL_STATES,true),
             'completion_presumed'=>false,
@@ -119,8 +126,25 @@ final class FinanceFacts {
             'schedule_version_id'=>(int)$occurrence->id,'occurrence_starts_at_utc'=>(string)$occurrence->starts_at_utc,
             'occurrence_ends_at_utc'=>(string)$occurrence->ends_at_utc,
             'duration_minutes'=>max(1,(int)round((strtotime((string)$occurrence->ends_at_utc.' UTC')-strtotime((string)$occurrence->starts_at_utc.' UTC'))/60)),
+            'student_id'=>(int)$lesson->student_id,
+            'student_country_code'=>$student!==null&&$student->country_code!==null?(string)$student->country_code:null,
+            'student_timezone'=>$student!==null&&$student->timezone!==null?(string)$student->timezone:null,
+            'service_area_key'=>null,
             'outcome'=>null,'obligation'=>null,
         );
+    }
+
+    /** The explicit canonical Enrolment service area. It is never inferred from country or timezone. */
+    private function serviceAreaKey(int $enrolmentId,bool $lock=false):?string{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $value=$wpdb->get_var($wpdb->prepare("SELECT service_area_key FROM {$p}enrolments WHERE id=%d".($lock?' FOR UPDATE':''),$enrolmentId));
+        return $value===null||$value===''?null:(string)$value;
+    }
+
+    /** The canonical Student context, read through its own live row. */
+    public function student(int $studentId,bool $lock=false):?object{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}students WHERE id=%d".($lock?' FOR UPDATE':''),$studentId));
     }
 
     /** The live canonical Teacher, fail closed. */

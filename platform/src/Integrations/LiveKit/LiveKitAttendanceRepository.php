@@ -74,14 +74,14 @@ final class LiveKitAttendanceRepository {
      */
     public function closedPendingForRoom(int $roomId,string $now,bool $lock=false):array{
         global $wpdb;$suffix=$lock?' FOR UPDATE':'';
-        $sql="SELECT c.* FROM {$this->p}livekit_attendance_connections c INNER JOIN {$this->p}livekit_attendance_rooms r ON r.id=c.room_id WHERE c.room_id=%d AND c.state='closed' AND c.join_at_utc IS NOT NULL AND c.leave_at_utc IS NOT NULL AND c.leave_at_utc>c.join_at_utc AND c.closed_ingest_state IN ('none','pending','pending_occurrence','mapping_pending','unconfigured') AND (c.closed_ingest_state<>'pending_occurrence' OR DATE_SUB(r.window_end_utc,INTERVAL 900 SECOND)<=%s) ORDER BY c.id{$suffix}";
+        $sql="SELECT c.* FROM {$this->p}livekit_attendance_connections c INNER JOIN {$this->p}livekit_attendance_rooms r ON r.id=c.room_id WHERE c.room_id=%d AND c.state='closed' AND c.join_at_utc IS NOT NULL AND c.leave_at_utc IS NOT NULL AND c.leave_at_utc>c.join_at_utc AND c.closed_ingest_state IN ('none','pending','pending_occurrence','pending_settlement','mapping_pending','unconfigured') AND (c.closed_ingest_state<>'pending_occurrence' OR DATE_SUB(r.window_end_utc,INTERVAL 900 SECOND)<=%s) ORDER BY c.id{$suffix}";
         return $wpdb->get_results($wpdb->prepare($sql,$roomId,$now))?:array();
     }
 
     /** @return array<int,int> room ids with retryable closed evidence */
     public function roomsWithPendingClosed(int $limit=50):array{
         global $wpdb;$limit=max(1,min(200,$limit));
-        $rows=$wpdb->get_results("SELECT DISTINCT room_id FROM {$this->p}livekit_attendance_connections WHERE state='closed' AND closed_ingest_state IN ('none','pending','pending_occurrence','mapping_pending','unconfigured') ORDER BY room_id LIMIT {$limit}")?:array();
+        $rows=$wpdb->get_results("SELECT DISTINCT room_id FROM {$this->p}livekit_attendance_connections WHERE state='closed' AND closed_ingest_state IN ('none','pending','pending_occurrence','pending_settlement','mapping_pending','unconfigured') ORDER BY room_id LIMIT {$limit}")?:array();
         return array_map(static fn($row)=>(int)$row->room_id,$rows);
     }
 

@@ -101,7 +101,13 @@ does not guess an identity and does not create immutable unverified evidence. Th
 worker retries once the mapping exists. Ambiguous, revoked or mismatched mappings are still
 submitted as evidence and remain review-only.
 
-### Settlement safety
+### Settlement safety and the two-actor boundary
+
+The webhook/ingest actor cannot complete a Lesson. The existing staged settlement runs only from the
+scheduled reconciliation worker under a separate settlement actor that holds the two capabilities
+the canonical delivery/completion services already require. Both the delivery and completion
+services revalidate the durable Phase-P case, exact schedule version, policy and lifecycle; the
+settlement actor cannot choose an outcome or adjudicate attendance.
 
 Closed intervals are only flushed to Phase P when the room has no live `open` connection. This
 prevents an automatic completion from revoking a classroom that is still in use. If the occurrence
@@ -131,7 +137,8 @@ adapter.
 | Option | Meaning |
 | --- | --- |
 | `dzn_livekit_attendance_capture` | Set to `enabled` to capture facts. Any other value (or absent) leaves the webhook on the pre-adapter lifecycle path. |
-| `dzn_provider_evidence_system_user_id` | WordPress user id of the narrow integration actor. |
+| `dzn_provider_evidence_system_user_id` | WordPress user id of the narrow webhook/ingest actor. It may record evidence and provider identity mappings only. |
+| `dzn_attendance_settlement_system_user_id` | WordPress user id of the separate scheduled settlement actor. It holds only the capabilities the existing staged settlement coordinator requires and is never used by the webhook. |
 | `dzn_livekit_attendance_schema_version` | Feature-local schema marker; written only after the three tables verify. |
 
 The adapter is **disabled by default**. Installing the code does not capture attendance.
@@ -143,22 +150,30 @@ Do not run these steps as part of a code review or merge. Activation is a separa
 1. Deploy the reviewed code through the normal release process. Do **not** merge or deploy as part of
    this document's review.
 2. Confirm `LiveKitAttendanceSchema::verify()` passes and the three correlation tables exist.
-3. Create a dedicated WordPress user for the integration actor. Grant only
+3. Create a dedicated WordPress user for the webhook/ingest actor. Grant only
    `dzn_ingest_canonical_attendance_evidence` and `dzn_manage_canonical_attendance_identity`. Do not
-   grant `manage_options` or `dzn_manage_provider_integrations`.
-4. Set `dzn_provider_evidence_system_user_id` to that user id.
-5. Set `dzn_livekit_attendance_capture` to `enabled`.
-6. Record a **future** cutover instant through
+   grant `manage_options`, `dzn_manage_provider_integrations`, attendance review/adjudication,
+   Lesson delivery or Lesson authority capabilities to this user.
+4. Create a second dedicated WordPress user for the scheduled settlement actor. Grant only
+   `dzn_ingest_canonical_attendance_evidence`, `dzn_manage_canonical_lesson_delivery` and
+   `dzn_manage_canonical_lessons`. Do not grant `manage_options`,
+   `dzn_manage_provider_integrations` or `dzn_manage_canonical_attendance_review`. This actor is used
+   only by the five-minute reconciliation worker, never by the public webhook.
+5. Set `dzn_provider_evidence_system_user_id` and `dzn_attendance_settlement_system_user_id`.
+6. Set `dzn_livekit_attendance_capture` to `enabled`.
+7. Record a **future** cutover instant through
    `CanonicalAttendanceIntakeService::recordCutoverPolicy()`. The instant must still be prospective;
    a backdated cutover is refused. Occurrences before the cutover are never admitted, and no
    historical attendance is backfilled.
-7. Observe `dzn_livekit_attendance_*` actions, the Phase-P attendance review queue and Finance
+8. Observe `dzn_livekit_attendance_*` actions, the Phase-P attendance review queue and Finance
    pending states. Do not expect automatic confirmation for occurrences that started before the
    cutover.
 
-Activation order matters: configure the actor and verify mappings **before** enabling capture.
-Enabling capture without the actor leaves closed evidence in `unconfigured`/`mapping_pending` state
-and never guesses identity.
+Activation order matters: configure both actors and verify mappings **before** enabling capture.
+Enabling capture without the ingest actor leaves closed evidence in `unconfigured`/`mapping_pending`
+state and never guesses identity. Enabling capture without the settlement actor leaves a validated
+case in `pending_settlement`; the worker retries once the settlement actor is configured, and the
+webhook itself never gains the authority to complete a Lesson.
 
 ## Rollback (separate from deployment rollback)
 

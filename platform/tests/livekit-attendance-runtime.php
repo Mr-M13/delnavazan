@@ -13,6 +13,7 @@ use Delnavazan\Platform\Core\Application\{
     CanonicalAttendanceIdempotency,
     CanonicalAttendanceIdentityService,
     CanonicalAttendanceIntakeService,
+    CanonicalAttendanceSettlementSystemActor,
     CanonicalEnrolmentLifecycleService,
     CanonicalLessonAuthorityService,
     CanonicalLessonScheduleService,
@@ -166,8 +167,16 @@ dzn_lka_assert($actorUser instanceof WP_User,'Integration actor creation failed'
 $actorUser->add_cap('dzn_ingest_canonical_attendance_evidence');
 $actorUser->add_cap('dzn_manage_canonical_attendance_identity');
 update_option(ProviderEvidenceSystemActor::USER_OPTION,$actorId,false);
+$settlementActorId=$user('lka-settlement-actor-'.substr(wp_generate_uuid4(),0,8),'lka-settlement-'.wp_generate_uuid4().'@dzn.invalid');
+$settlementUser=get_user_by('id',$settlementActorId);
+dzn_lka_assert($settlementUser instanceof WP_User,'Settlement actor creation failed');
+$settlementUser->add_cap('dzn_ingest_canonical_attendance_evidence');
+$settlementUser->add_cap('dzn_manage_canonical_lesson_delivery');
+$settlementUser->add_cap('dzn_manage_canonical_lessons');
+update_option(CanonicalAttendanceSettlementSystemActor::USER_OPTION,$settlementActorId,false);
 update_option(LiveKitAttendanceIntegration::CAPTURE_OPTION,LiveKitAttendanceIntegration::CAPTURE_ENABLED,false);
 dzn_lka_assert(ProviderEvidenceSystemActor::isConfigured(),'The narrow integration actor must be configured');
+dzn_lka_assert(CanonicalAttendanceSettlementSystemActor::isConfigured(),'The narrow settlement actor must be configured');
 
 $policy=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',time()+2),dzn_lka_key('cutover'));
 dzn_lka_assert((int)$policy['policy_id']>0,'A prospective cutover policy is required');

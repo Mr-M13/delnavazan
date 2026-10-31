@@ -22,6 +22,7 @@ $event=$read('src/Integrations/LiveKit/LiveKitAttendanceEvent.php');
 $worker=$read('src/Integrations/LiveKit/LiveKitAttendanceReconciliationWorker.php');
 $session=$read('src/Integrations/LiveKit/LiveKitClassroomSessionService.php');
 $actor=$read('src/Core/Application/ProviderEvidenceSystemActor.php');
+$settlementActor=$read('src/Core/Application/CanonicalAttendanceSettlementSystemActor.php');
 $plugin=$read('delnavazan-platform.php');
 
 $check(str_contains($intake,"'livekit'"),'the controlled Phase-P provider list must admit livekit explicitly');
@@ -37,6 +38,7 @@ $check(!str_contains($webhook,'settleDelivered')&&!str_contains($webhook,'Canoni
 $check(str_contains($integration,'ingestProviderEvidence'),'closed intervals must be submitted through Phase-P intake');
 $check(!str_contains($integration,'settleDelivered')&&!str_contains($integration,'CanonicalLessonAuthorityService')&&!str_contains($integration,'CanonicalLessonDeliveryService'),'the adapter must not own settlement or completion');
 $check(str_contains($integration,'ProviderEvidenceSystemActor::run'),'provider evidence must run under the narrow integration actor');
+$check(str_contains($integration,'CanonicalAttendanceSettlementSystemActor::run'),'settlement must run under the separate narrow settlement actor');
 $check(str_contains($integration,'mappingPreflight')&&str_contains($integration,'provider_identity_unmapped'),'an unmapped participant must be held, never guessed');
 $check(str_contains($integration,'LiveKitAttendanceEvent::normalise'),'provider timestamps must be normalized before correlation');
 $check(str_contains($integration,'STALE_OPEN_RETENTION_SECONDS')&&str_contains($integration,'livekit-open:'),'missing leave must be surfaced only as open evidence');
@@ -60,10 +62,13 @@ $check(str_contains($worker,'LiveKitAttendanceIntegration::enabled')&&str_contai
 $check(str_contains($session,'bindGrant'),'token issuance must establish the durable server-owned mapping');
 $check(str_contains($actor,"'dzn_ingest_canonical_attendance_evidence'")&&str_contains($actor,"'dzn_manage_canonical_attendance_identity'"),'the integration actor must hold only the narrow evidence/mapping capabilities');
 $check(str_contains($actor,'manage_options')&&str_contains($actor,'dzn_manage_provider_integrations'),'the integration actor must refuse broad authority');
+$check(str_contains($settlementActor,"'dzn_manage_canonical_lesson_delivery'")&&str_contains($settlementActor,"'dzn_manage_canonical_lessons'"),'the settlement actor must hold only the staged settlement capabilities');
+$check(str_contains($settlementActor,'dzn_manage_canonical_attendance_review'),'the settlement actor must refuse attendance adjudication');
 $check(str_contains($plugin,'LiveKitAttendanceSchema::maybeInstall')&&str_contains($plugin,'LiveKitAttendanceReconciliationWorker::register'),'the additive schema and worker must be wired');
 
 $docs=$read('docs/LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md');
 $check(str_contains($docs,'Activation')&&str_contains($docs,'Rollback'),'activation and rollback must be documented separately');
+$check(str_contains($docs,'dzn_attendance_settlement_system_user_id'),'the separate settlement actor must be documented');
 $check(str_contains($docs,'1200')&&str_contains($docs,'900'),'the locked policy must be documented');
 $check(str_contains($docs,'prospective')&&str_contains($docs,'backfill'),'prospective-only activation and no backfill must be documented');
 

@@ -6,6 +6,7 @@ use Delnavazan\Platform\Core\Application\{
     CanonicalAttendanceIdentityService,
     CanonicalAttendanceIntakeService,
     CanonicalAttendanceRule,
+    CanonicalAttendanceSettlementSystemActor,
     IdempotencyConflictException,
     ProviderEvidenceSystemActor
 };
@@ -176,7 +177,7 @@ final class LiveKitAttendanceIntegration {
     }
 
     /** Hand every closed, complete interval to Phase P once the live room has no open connection. */
-    public function flushRoom(int $roomId,?string $now=null):array{
+    public function flushRoom(int $roomId,?string $now=null,bool $worker=false):array{
         if(!self::enabled())return array('state'=>'disabled','retry'=>false,'processed'=>0);
         $now??=gmdate('Y-m-d H:i:s');
         if($this->repository->hasLiveOpenConnection($roomId))return array('state'=>'held_open','retry'=>false,'processed'=>0);
@@ -200,7 +201,7 @@ final class LiveKitAttendanceIntegration {
         }
         $result=array('state'=>'flushed','retry'=>false,'processed'=>0,'accepted'=>0,'pending'=>0,'rejected'=>0);
         foreach($ids as$id){
-            $one=$this->ingestClosed($id,$now);
+            $one=$this->ingestClosed($id,$now,$worker);
             $result['processed']++;
             if(!empty($one['retry']))$result['retry']=true;
             if(($one['state']??'')==='accepted')$result['accepted']++;
@@ -217,7 +218,7 @@ final class LiveKitAttendanceIntegration {
         $result=array('disabled'=>false,'rooms'=>0,'closed'=>0,'open'=>0);
         foreach($this->repository->roomsWithPendingClosed()as$roomId){
             $result['rooms']++;
-            $one=$this->flushRoom($roomId,$now);
+            $one=$this->flushRoom($roomId,$now,true);
             $result['closed']+=(int)($one['processed']??0);
         }
         foreach($this->repository->staleOpenConnections($now,self::STALE_OPEN_RETENTION_SECONDS)as$connection){
@@ -232,7 +233,7 @@ final class LiveKitAttendanceIntegration {
                     if($error->getMessage()!=='livekit_attendance_stale_connection')throw $error;
                     continue;
                 }
-                $this->flushRoom((int)$connection->room_id,$now);
+                $this->flushRoom((int)$connection->room_id,$now,true);
                 $fresh=$this->repository->connectionById((int)$connection->id);
                 if(!$fresh)continue;
                 $connection=$fresh;
@@ -433,7 +434,7 @@ final class LiveKitAttendanceIntegration {
         return array('state'=>$state==='accepted'?'closed':$state,'reason'=>$reason,'event_digest'=>$digest,'connection_id'=>$eventConnectionId,'phase_conflict'=>$phaseConflict,'retry'=>false);
     }
 
-    private function ingestClosed(int $connectionId,string $now):array{
+    private function ingestClosed(int $connectionId,string $now,bool $worker=false):array{
         $connection=$this->repository->connectionById($connectionId);
         if(!$connection)return array('state'=>'missing','retry'=>false);
         if((string)$connection->state!=='closed'||$connection->join_at_utc===null||$connection->leave_at_utc===null)return array('state'=>'skipped','retry'=>false);
@@ -446,14 +447,17 @@ final class LiveKitAttendanceIntegration {
             $this->markClosed($connectionId,$preflight,$preflight,$now,null);
             return array('state'=>$preflight,'retry'=>false);
         }
-        if(!ProviderEvidenceSystemActor::isConfigured()){
-            $this->markClosed($connectionId,'unconfigured','system_actor_unconfigured',$now,null);
+        $actorReady=$worker?CanonicalAttendanceSettlementSystemActor::isConfigured():ProviderEvidenceSystemActor::isConfigured();
+        if(!$actorReady){
+            $this->markClosed($connectionId,'unconfigured',$worker?'settlement_actor_unconfigured':'system_actor_unconfigured',$now,null);
             return array('state'=>'unconfigured','retry'=>false);
         }
         $input=$this->closedInput($connection,$room,$now);
         $key='livekit-attendance:'.$connection->uid.':closed';
         try{
-            $result=ProviderEvidenceSystemActor::run(fn()=>$this->intake->ingestProviderEvidence((int)$room->lesson_id,(int)$room->schedule_version_id,$input,$key));
+            $result=$worker
+                ?CanonicalAttendanceSettlementSystemActor::run(fn()=>$this->intake->ingestProviderEvidence((int)$room->lesson_id,(int)$room->schedule_version_id,$input,$key))
+                :ProviderEvidenceSystemActor::run(fn()=>$this->intake->ingestProviderEvidence((int)$room->lesson_id,(int)$room->schedule_version_id,$input,$key));
         }catch(\Throwable $error){
             return $this->handleClosedFailure($connectionId,$error,$now);
         }
@@ -527,7 +531,7 @@ final class LiveKitAttendanceIntegration {
             'provider_payload_key'=>LiveKitAttendanceIdempotency::interval($payload),
             'participant_role'=>(string)$connection->participant_role,
             'join_at_utc'=>$connection->join_at_utc,'leave_at_utc'=>$leave,
-            'observed_at'=>$this->observedAt($leave,$connection->leave_received_at,$now),
+            'observed_at'=>$this->observedAt($leave,(string)$connection->leave_received_at),
             'provenance_reference'=>'livekit-interval:'.$room->room_name.':'.$connection->connection_digest,
             'evidence_reference'=>'livekit-provider:'.$room->room_name.':'.$connection->connection_digest.':'.$connection->join_event_digest.':'.$connection->leave_event_digest,
         );
@@ -537,7 +541,7 @@ final class LiveKitAttendanceIntegration {
         $join=$connection->join_at_utc===null?null:(string)$connection->join_at_utc;
         $leave=$connection->leave_at_utc===null?null:(string)$connection->leave_at_utc;
         $received=$connection->join_received_at===null?(string)$connection->created_at:(string)$connection->join_received_at;
-        $observed=$this->observedAt($leave??$join??$received,$received,$now);
+        $observed=$this->observedAt($leave??$join??$received,$received);
         $payload=array('room'=>$room->room_name,'connection'=>$connection->connection_digest,'role'=>$connection->participant_role,'join'=>$join,'leave'=>$leave,'open'=>true);
         return array(
             'provider_code'=>'livekit','provider_account_key'=>(string)$connection->identity_value,
@@ -559,6 +563,18 @@ final class LiveKitAttendanceIntegration {
         if($message==='cutover_policy_required'||$message==='occurrence_before_cutover'){
             $this->markClosed($connectionId,'cutover_unavailable',substr($message,0,64),$now,null);
             return array('state'=>'cutover_unavailable','reason'=>$message,'retry'=>false);
+        }
+        if($message==='Unauthorized'){
+            // The webhook principal may ingest but intentionally lacks settlement capabilities.
+            // The existing staged settlement is retried by the scheduled settlement principal.
+            $connection=$this->repository->connectionById($connectionId);
+            if($connection){
+                $case=$this->attendance->caseFor((int)$connection->lesson_id,(int)$connection->schedule_version_id);
+                if($case&&(string)($case->state??'')==='settlement_pending'){
+                    $this->markClosed($connectionId,'pending_settlement','settlement_actor_required',$now,null);
+                    return array('state'=>'pending_settlement','reason'=>'settlement_actor_required','retry'=>false);
+                }
+            }
         }
         if($this->isConfigurationFailure($error)){
             $this->markClosed($connectionId,'unconfigured',substr($message,0,64),$now,null);
@@ -659,10 +675,15 @@ final class LiveKitAttendanceIntegration {
         return LiveKitAttendanceIdempotency::event((string)$event['event_key']);
     }
 
-    private function observedAt(string $candidate,string $receivedAt,string $now):string{
-        $value=$candidate!==''?$candidate:$receivedAt;
-        if($value==='') $value=$now;
-        return $value>$now?$now:$value;
+    /**
+     * A replay-stable observation instant: the provider instant when it is already in the past,
+     * otherwise the durable receipt instant. The wall clock at a later retry is never used, so an
+     * exact retry of the same evidence can never change the command payload.
+     */
+    private function observedAt(string $candidate,string $receivedAt):string{
+        if($receivedAt==='')$receivedAt=gmdate('Y-m-d H:i:s');
+        if($candidate==='')return$receivedAt;
+        return $candidate<=$receivedAt?$candidate:$receivedAt;
     }
 
     private function withTransaction(callable $work):array{

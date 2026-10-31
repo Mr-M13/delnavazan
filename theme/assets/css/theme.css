@@ -350,6 +350,19 @@
     overflow-wrap: break-word;
   }
 
+  :where(
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    .dzn-button,
+    .wp-element-button,
+    .wp-block-button__link
+  ) {
+    font-family:
+      var(--dzn-font-body);
+  }
+
   h1,
   h2,
   h3,
@@ -1881,6 +1894,9 @@
     cursor:
       pointer;
 
+    font-family:
+      var(--dzn-font-body);
+
     font-weight:
       750;
 
@@ -1910,12 +1926,55 @@
       var(--dzn-color-on-action);
   }
 
+  /* Keep button links out of the global visited-anchor cascade. */
+  .dzn-button:link,
+  .dzn-button:visited,
+  .wp-element-button:link,
+  .wp-element-button:visited,
+  .wp-block-button__link:link,
+  .wp-block-button__link:visited {
+    color:
+      var(--dzn-color-on-action);
+  }
+
+  .dzn-button > *,
+  .wp-element-button > *,
+  .wp-block-button__link > * {
+    color:
+      inherit;
+  }
+
+  .dzn-button:active,
+  .dzn-button:focus-visible,
+  .wp-element-button:active,
+  .wp-element-button:focus-visible,
+  .wp-block-button__link:active,
+  .wp-block-button__link:focus-visible {
+    color:
+      var(--dzn-color-on-action);
+  }
+
   .dzn-button--secondary {
     border-color:
       var(--dzn-color-action-secondary);
 
     background:
       transparent;
+
+    color:
+      var(--dzn-color-action-secondary);
+  }
+
+  .dzn-button--secondary:link,
+  .dzn-button--secondary:visited,
+  .dzn-button--secondary:hover,
+  .dzn-button--secondary:focus-visible,
+  .dzn-button--secondary:active {
+    border-color:
+      var(--dzn-color-action-secondary);
+
+    background:
+      var(--dzn-color-surface);
 
     color:
       var(--dzn-color-action-secondary);
@@ -1943,6 +2002,9 @@
       var(--dzn-color-error);
   }
 
+  .dzn-button--danger:link,
+  .dzn-button--danger:visited,
+  .dzn-button--danger:active,
   .dzn-button--danger:hover,
   .dzn-button--danger:focus-visible {
     border-color:

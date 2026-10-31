@@ -49,6 +49,59 @@ only for a loopback host; production always requires `wss://` and `https://`. Th
 RoomService tokens with exactly the grant each control-plane call needs (`roomList`, `roomCreate`,
 or `roomAdmin`), and webhook verification.
 
+## Production configuration (deployed)
+
+- Deployed build: `main-cee1d2f23157` from `cee1d2f23157e958220c9af6234a1ac877a478d9`.
+- Platform schema: 57.
+- Production credentials are stored outside the web root:
+  `/home/delnavaz/domains/delnavazan.com/private/livekit-config.php`
+  (mode `0600`, owner `delnavaz:delnavaz`).
+- `wp-config.php` loads that file only if it is readable. The WordPress web process and WP-CLI both
+  read the same protected file.
+- No LiveKit credential is present in Git, the database, JavaScript, logs, or this document.
+- The existing LiveKit API key/secret was rotated during release preparation because the previous
+  value appeared in a local diagnostic output. The rotated secret is not recorded anywhere in the
+  repository.
+- Production API URL: `https://rtc.delnavazan.com`; browser endpoint:
+  `wss://rtc.delnavazan.com`.
+- Production classroom route is protected and redirects signed-out visitors to login.
+- The portal hides **ورود به کلاس** when credentials are absent; it does not offer a broken primary
+  action.
+
+## Webhook configuration (verified)
+
+LiveKit 1.13.11 configuration at `/opt/livekit/livekit.yaml` contains:
+
+```yaml
+webhook:
+  api_key: <the existing LiveKit API key>
+  urls:
+    - https://delnavazan.com/wp-json/delnavazan-platform/v1/livekit/webhook
+```
+
+The LiveKit webhook token is sent directly in the `Authorization` header (not with a `Bearer`
+prefix in this server version). The verifier accepts that form and the Bearer form. It verifies the
+HS256 signature, issuer, expiry, and the base64-encoded SHA-256 body digest.
+
+Verified events from the real production LiveKit server:
+
+- `room_started`
+- `participant_joined`
+- `participant_left`
+- `room_finished`
+
+An actual test room and participant from the production LiveKit server reached the production
+WordPress endpoint and received `200`. The participant was removed with
+`PARTICIPANT_REMOVED`, and the LiveKit participant count returned to zero.
+
+Direct endpoint tests also passed:
+
+- valid signed delivery: `200`
+- invalid signature: `401`
+- tampered body: `401`
+- duplicate delivery: `200`
+- out-of-order `room_finished` and `participant_left`: `200`
+
 ## Classroom authorization rules
 
 1. Resolve exactly one canonical Teacher or Student principal for the signed-in WordPress user.
@@ -160,26 +213,27 @@ permission is granted.
 
 ## Deployment procedure
 
-1. Add `DZN_LIVEKIT_URL`, `DZN_LIVEKIT_API_KEY`, `DZN_LIVEKIT_API_SECRET`, and (if needed)
-   `DZN_LIVEKIT_API_URL` to the protected PHP-FPM/systemd or WordPress configuration on production.
-   Restrict the file to the service account and reload PHP-FPM only.
-2. Deploy the reviewed plugin and theme through the existing GitHub → PR → `main` → protected manual
+1. Create `/home/delnavaz/domains/delnavazan.com/private/` with mode `0700` and a private
+   `livekit-config.php` with mode `0600`, owned by the PHP service account. It defines
+   `DZN_LIVEKIT_URL`, `DZN_LIVEKIT_API_URL`, `DZN_LIVEKIT_API_KEY`, and
+   `DZN_LIVEKIT_API_SECRET`. Do not write the secret into `wp-config.php`, a served `.env`, a
+   WordPress option, JavaScript, or chat.
+2. Add the guarded `require_once` for that private file to `wp-config.php`; the application only
+   loads it when readable.
+3. Deploy the reviewed plugin and theme through the existing GitHub → PR → `main` → protected manual
    deployment workflow. There is no database schema migration in this change.
-3. Confirm the LiveKit server API is reachable over HTTPS at
+4. Confirm the LiveKit server API is reachable over HTTPS at
    `https://rtc.delnavazan.com/twirp/livekit.RoomService/ListRooms` with the configured credentials.
-4. Configure the LiveKit server webhook, if webhook enforcement is desired, to send
-   `participant_joined`, `participant_left`, and `room_finished` to
-   `https://delnavazan.com/wp-json/delnavazan-platform/v1/livekit/webhook`. Use the same API key and
-   secret. This is a LiveKit VPS configuration change; the application change alone does not enable
-   webhooks. If the webhook is not configured, room capacity and token lifetime still enforce the
-   one-to-one boundary.
-5. Verify with one teacher account and one enrolled student account in separate browsers/devices:
+5. Configure `/opt/livekit/livekit.yaml` with the `webhook` block above, using the existing API key.
+   Restart only the `livekit` container and verify the YAML parses and the container returns healthy.
+6. Verify with one teacher account and one enrolled student account in separate browsers/devices:
    primary LiveKit entry, primary join, Music Mode on both sides, device switching, reconnect,
    explicit Meet fallback, and cancellation/reschedule refusal.
-6. Verify a third account and a guessed/stale link are refused.
+7. Verify a third account and a guessed/stale link are refused.
+8. Run `deployment/qa/production-smoke.sh https://delnavazan.com`.
 
-The repository does not contain the LiveKit VPS Compose file. Do not modify the VPS unless a
-verified defect requires it.
+The repository does not contain the LiveKit VPS Compose file. The deployment procedure above was
+executed against the real VPS; do not edit it again unless a verified defect requires it.
 
 ## Troubleshooting
 
@@ -200,28 +254,39 @@ Never log the API secret, participant JWT, launch ticket, Meet URL, or raw provi
 
 1. Roll back the plugin and theme to the previous deployed release through the standard deployment
    workflow. No database rollback is needed because this change adds no table or column.
-2. Remove or disable the `DZN_LIVEKIT_*` values only if the previous release must not contact
-   LiveKit.
-3. If the webhook was configured on the LiveKit VPS, disable or remove it after the rollback.
+2. To disable LiveKit without changing code, remove the guarded `require_once` from `wp-config.php`
+   or rename the private `livekit-config.php`. The portal readiness gate then hides the LiveKit
+   action; Google Meet remains available.
+3. Remove the `webhook` block from `/opt/livekit/livekit.yaml` and restart only the `livekit`
+   container if webhook delivery must stop.
 4. Existing Google Meet links, calendar mappings, canonical lessons, schedules, attendance, and
    finance records are untouched and remain valid.
 5. Active rooms may survive until empty timeout; delete them from the LiveKit control plane if
    necessary.
+6. On any credential exposure, rotate the LiveKit API key/secret on the VPS, update the protected
+   production config, and restart LiveKit.
 
 ## Known limitations
 
 - LiveKit stateless participant JWTs cannot be individually revoked before `exp`; see the
   five-minute mitigation above.
-- Webhook enforcement requires a LiveKit VPS configuration change and is not enabled by this
-  repository.
+- Webhook enforcement is enabled on the production VPS. LiveKit sends all webhook events; the
+  application acts on `participant_joined` and `room_finished` and safely ignores unrelated events.
+- The webhook endpoint is intentionally public and fails closed without a valid signed JWT.
 - The LiveKit SDK is vendored from `livekit-client@2.23.0` under Apache-2.0. It must be reviewed and
   re-vendored deliberately on upgrade.
 - Browser capture constraints are advisory. Safari/iOS may ignore stereo, sample rate, and audio
   processing flags.
 - No recording, egress, transcription, analytics, data-channel messaging, or PixelBox storage is
   implemented.
-- Classroom tests that require two real devices and authenticated production accounts must be run
-  separately from automated source/unit tests.
+- Real two-browser Chrome testing was completed against the production LiveKit server. Physical
+  iPad/iPhone Safari and real microphone/speaker quality were not tested in this release.
+- Production authenticated teacher/student portal click-through was not performed because no
+  controlled production test accounts were available; the same deployed code was exercised in the
+  disposable WordPress runtime with the production LiveKit server.
+- A live Google Meet redirect was not exercised because no controlled authenticated production
+  test account was available; the existing production Meet mapping and vault reference were
+  verified read-only.
 
 ## Future recording and PixelBox storage integration (not implemented)
 
@@ -276,38 +341,39 @@ are available.
 
 ## Verification status (2026-10-31)
 
-Passed in this development environment:
+Deployed production build: `main-cee1d2f23157` (commit
+`cee1d2f23157e958220c9af6234a1ac877a478d9`, schema 57).
 
-- all LiveKit unit/source contracts;
-- the full existing PHP source-contract suite;
-- the disposable WordPress/MariaDB canonical authorization runtime;
-- a disposable WordPress + LiveKit **1.13.11** browser run with two separate Chrome
-  instances (simulated Teacher and Student devices): both joined the same room, both saw exactly
-  two participants, Music Mode switched without a reload, and a duplicate Student identity
-  replaced the first connection without adding a third participant;
-- the explicit missing-LiveKit-credentials Persian fallback path.
+Passed:
 
-Production observation on 2026-10-31:
+- all LiveKit unit/source contracts and the full PR runtime gate;
+- real LiveKit production RoomService: create room with `max_participants=2`, verify, delete;
+- real server enforcement: first two participants connected, third direct-token participant was
+  rejected, room reported exactly two participants;
+- two separate Chrome sessions through the Delnavazan classroom: Teacher and Student connected to
+  the same real production room, both saw `۲ از ۲ نفر`, and Music Mode switched without reload;
+- duplicate identity: second connection replaced the first, the first received the Persian
+  duplicate-session message, and the room did not gain a third participant;
+- expired token beyond LiveKit's allowed clock leeway was rejected;
+- real production webhook delivery: LiveKit `room_started`, `participant_joined`,
+  `participant_left`, and `room_finished` reached the production endpoint; an unknown participant
+  was removed with `PARTICIPANT_REMOVED` and the server count returned to zero;
+- invalid signature and tampered body were rejected with `401`;
+- duplicate and out-of-order webhook deliveries were accepted safely;
+- production smoke suite: `RESULT: PASS`;
+- production routes: `/music-classroom/` redirects signed-out visitors to login; session and webhook
+  endpoints return `401` without authentication/signature.
 
-- production build is `main-97d681aa3e27`;
-- production WordPress has no `DZN_LIVEKIT_URL`, `DZN_LIVEKIT_API_KEY`, or
-  `DZN_LIVEKIT_API_SECRET` constant or environment value, and the LiveKit class is not yet deployed;
-- `https://rtc.delnavazan.com/twirp/livekit.RoomService/ListRooms` is reachable from the production
-  host and correctly returns `401` without a credential;
-- production already has 2 verified Google Calendar mappings, 2 active calendar secrets, 1 active
-  booking-calendar secret, 12 authorised canonical lessons, and 1 confirmed introductory booking;
-- the LiveKit VPS rejected the locally available SSH keys for `ubuntu`, `root`, `debian`, `admin`,
-  and `livekit` with `Permission denied (publickey,password)`.
+Google Meet production status:
 
-The portal now hides the LiveKit primary action when server credentials are absent, so a code-only
-deployment cannot present a broken primary classroom; the existing Meet fallback remains available.
+- 2 verified Google Calendar mappings, 2 active calendar vault secrets, and 1 active booking-calendar
+  secret;
+- the newest verified Meet reference decrypted successfully, with host `meet.google.com` and a
+  non-empty path, without printing the URL;
+- a live redirect through an authenticated production test account was not performed.
 
-Not verified here, and required before production release:
+Not verified:
 
-- the production `wss://rtc.delnavazan.com` server with the real API key/secret (credentials are not
-  present in this workspace);
-- a production/staging LiveKit webhook configuration;
-- a live Google Meet/Calendar link for the same lesson;
-- physical iPad/iPhone and desktop device audio/video quality, including Safari capture behaviour.
-
-The pull request must remain open until the production/staging checks are completed.
+- physical iPad/iPhone Safari audio/video and device switching;
+- physical microphone/speaker quality on two real devices;
+- a controlled authenticated production Meet redirect.

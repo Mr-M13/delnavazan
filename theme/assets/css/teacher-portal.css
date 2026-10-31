@@ -1209,7 +1209,7 @@
 
 .dzn-tp-instrument-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(6.25rem, 1fr));
   gap: .7rem;
   margin-block: .5rem 1rem;
 }
@@ -1238,7 +1238,10 @@
 .dzn-tp-instrument__thumb {
   display: block;
   overflow: hidden;
+  inline-size: 5rem;
+  max-inline-size: 100%;
   aspect-ratio: 1;
+  justify-self: center;
   border-radius: .6rem;
   background: var(--dzn-color-background);
 }
@@ -1296,6 +1299,111 @@
   align-items: end;
   gap: .65rem;
   margin-block-start: .5rem;
+}
+
+.dzn-tp-availability-add {
+  margin-block: 1rem 1.25rem;
+  border-radius: .8rem;
+  background: var(--dzn-color-surface-sunken);
+  padding: .9rem;
+}
+
+.dzn-tp-selected-hours li {
+  align-items: center;
+}
+
+.dzn-tp-capacity-totals,
+.dzn-tp-capacity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: .75rem;
+}
+
+.dzn-tp-capacity-totals > div,
+.dzn-tp-capacity-grid > article {
+  border: 1px solid var(--dzn-color-border);
+  border-radius: .75rem;
+  background: var(--dzn-color-surface-sunken);
+  padding: .8rem;
+}
+
+.dzn-tp-capacity-totals span,
+.dzn-tp-capacity-totals small,
+.dzn-tp-capacity-grid small {
+  display: block;
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-tp-capacity-totals strong {
+  display: block;
+  margin-block: .15rem;
+  color: var(--dzn-color-action-primary);
+  font-size: 1.45rem;
+}
+
+.dzn-tp-capacity-grid {
+  margin-block-start: 1rem;
+}
+
+.dzn-tp-eligible-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin: .5rem 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-tp-eligible-periods li {
+  border: 1px solid var(--dzn-color-highlight);
+  border-radius: 999px;
+  background: var(--dzn-tp-state-gold-bg);
+  padding: .25rem .6rem;
+  color: var(--dzn-color-highlight-ink);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.dzn-tp-capacity-grid h3,
+.dzn-tp-capacity-grid p {
+  margin: .2rem 0;
+}
+
+.dzn-tp-golden-potential {
+  border-inline-start: 4px solid var(--dzn-color-highlight);
+  border-radius: .55rem;
+  background: var(--dzn-tp-state-gold-bg);
+  padding: .65rem .8rem;
+  color: var(--dzn-color-text-primary);
+}
+
+.dzn-tp-golden-slot__segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+}
+
+.dzn-tp-golden-slot__segments span {
+  border: 1px solid var(--dzn-color-border);
+  border-radius: 999px;
+  padding: .12rem .4rem;
+}
+
+.dzn-tp-golden-slot__segments .is-selected {
+  border-color: var(--dzn-color-highlight);
+  background: var(--dzn-color-highlight);
+  color: var(--dzn-color-on-dark);
+  font-weight: 800;
+}
+
+.dzn-tp-golden-slot__segments .is-unselected {
+  background: var(--dzn-color-surface-sunken);
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-tp-golden-slot.is-selected,
+.dzn-tp-golden-slot.is-partial {
+  border-color: var(--dzn-color-highlight);
 }
 
 /* -------------------------------------------------------------------------

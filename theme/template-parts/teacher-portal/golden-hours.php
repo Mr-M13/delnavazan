@@ -19,6 +19,7 @@ $day_labels = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهار
 		<?php if ( 'active' === $state ) : ?><span class="dzn-tp-golden-rate" dir="ltr" aria-label="درصد پاداش ساعت طلایی">+<?php echo esc_html( (string) ( $golden['percentage_label'] ?? '0' ) ); ?>%</span><?php endif; ?>
 	</div>
 	<p class="dzn-tp-help">این نمایش فقط بازه‌های پاداش‌دار را به وقت محلی شما<?php echo '' !== $timezone_label ? ' (<bdi>' . esc_html( $timezone_label ) . '</bdi>)' : ''; ?> نشان می‌دهد. زمان آکادمی یا دسترسی سایر مدرسان نمایش داده نمی‌شود.</p>
+	<p class="dzn-tp-golden-potential" role="note"><strong>پاداش ساعت طلایی:</strong> بخش‌های پررنگ با زمان‌های انتخاب‌شدهٔ شما هم‌پوشانی دارند و فقط واجد شرایط بالقوه‌اند؛ پاداش قطعی پس از برگزاری و احراز شرایط مالی کلاس مشخص می‌شود.</p>
 	<?php if ( 'inactive' === $state ) : ?>
 		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3>پاداش ساعت طلایی در حال حاضر فعال نیست</h3><p>هر زمان که مدیر آکادمی پاداش را فعال کند، بازه‌های آن به وقت محلی شما همین‌جا نمایش داده می‌شود.</p></div>
 	<?php elseif ( 'unavailable' === $state ) : ?>
@@ -36,8 +37,8 @@ $day_labels = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهار
 					<?php if ( ! empty( $day['intervals'] ) ) : ?>
 						<div class="dzn-tp-golden-day__slots">
 							<?php foreach ( (array) $day['intervals'] as $interval ) : ?>
-								<div class="dzn-tp-golden-slot">
-									<span class="dzn-tp-golden-slot__time" dir="ltr"><?php echo esc_html( (string) ( $interval['label'] ?? '' ) ); ?></span>
+							<div class="dzn-tp-golden-slot<?php echo ! empty( $interval['fully_selected'] ) ? ' is-selected' : ( ! empty( $interval['partially_selected'] ) ? ' is-partial' : '' ); ?>">
+								<?php if ( ! empty( $interval['segments'] ) ) : ?><span class="dzn-tp-golden-slot__segments" dir="ltr" aria-label="<?php echo esc_attr( (string) ( $interval['label'] ?? '' ) ); ?>"><?php foreach ( (array) $interval['segments'] as $segment ) : ?><span class="<?php echo ! empty( $segment['selected'] ) ? 'is-selected' : 'is-unselected'; ?>"><?php echo esc_html( (string) ( $segment['label'] ?? '' ) ); ?></span><?php endforeach; ?></span><?php else : ?><span class="dzn-tp-golden-slot__time" dir="ltr"><?php echo esc_html( (string) ( $interval['label'] ?? '' ) ); ?></span><?php endif; ?>
 									<span class="dzn-tp-golden-slot__bonus" dir="ltr">+<?php echo esc_html( (string) ( $interval['percentage_label'] ?? $golden['percentage_label'] ?? '0' ) ); ?>%</span>
 								</div>
 							<?php endforeach; ?>
@@ -48,7 +49,7 @@ $day_labels = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهار
 				</article>
 			<?php endforeach; ?>
 		</div>
-		<p class="dzn-tp-help">این بازه‌ها به وقت محلی شما هستند. برای دریافت پاداش، در دسترسی هفتگی خود همین ساعت‌ها را اضافه کنید.</p>
+		<p class="dzn-tp-help">این بازه‌ها به وقت محلی شما هستند. بخش کم‌رنگ هنوز در زمان‌های تدریس انتخاب‌شدهٔ شما قرار ندارد.</p>
 		<?php if ( $show_cta ) : ?><a class="dzn-button dzn-button--secondary" href="#tp-availability">افزودن دسترسی در ساعت‌های طلایی</a><?php endif; ?>
 	<?php endif; ?>
 </section>

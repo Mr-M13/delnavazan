@@ -93,6 +93,9 @@ jobs:
           php platform/tests/golden-hour-coverage-unit.php
           php platform/tests/golden-hour-coverage-view-unit.php
           php platform/tests/golden-hour-teacher-visual-unit.php
+          php platform/tests/teacher-availability-summary-unit.php
+          php platform/tests/tuition-allocation-unit.php
+          php platform/tests/teacher-portal-ux-finance-contract.php
           php platform/tests/booking-canonical-occupancy-contract.php
           php platform/tests/teacher-availability-dst-contract.php
           php platform/tests/booking-preference-order-contract.php

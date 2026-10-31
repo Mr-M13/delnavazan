@@ -29,6 +29,21 @@ final class TeacherOnboardingRepository {
     public function state(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_onboarding_states WHERE teacher_id=%d", $teacherId ) ); }
     public function availabilityProfile(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_availability_profiles WHERE teacher_id=%d", $teacherId ) ); }
     public function availabilityHasFacts(int $profileId): bool { global $wpdb; return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$this->prefix}teacher_availability_rules WHERE profile_id=%d LIMIT 1", $profileId ) ) || (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$this->prefix}teacher_availability_exceptions WHERE profile_id=%d LIMIT 1", $profileId ) ); }
+    /** Keep availability local-wall-clock facts attached to the Teacher's selected IANA zone. */
+    public function updateAvailabilityTimezone(int $teacherId, string $timezone, string $now, int $actor): void {
+        global $wpdb;
+        $profile = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_availability_profiles WHERE teacher_id=%d FOR UPDATE", $teacherId ) );
+        if ( ! $profile || (string) $profile->timezone === $timezone ) return;
+        $updated = $wpdb->update( $this->prefix . 'teacher_availability_profiles', array(
+            'timezone' => $timezone, 'version' => (int) $profile->version + 1,
+            'updated_at' => $now, 'updated_by' => $actor,
+        ), array( 'id' => (int) $profile->id, 'version' => (int) $profile->version ) );
+        if ( $updated !== 1 ) throw new \RuntimeException( 'Teacher availability profile changed concurrently' );
+        foreach ( array( 'teacher_availability_rules', 'teacher_availability_exceptions' ) as $table ) {
+            $sql = $wpdb->prepare( "UPDATE {$this->prefix}{$table} SET timezone=%s,version=version+1,updated_at=%s,updated_by=%d WHERE profile_id=%d", $timezone, $now, $actor, (int) $profile->id );
+            if ( $wpdb->query( $sql ) === false ) throw new \RuntimeException( 'Teacher availability timezone update failed' );
+        }
+    }
     public function availabilityRules(int $teacherId): array { global $wpdb; return $wpdb->get_results( $wpdb->prepare( "SELECT id,weekday,local_start_time,local_end_time,state,timezone,status FROM {$this->prefix}teacher_availability_rules WHERE teacher_id=%d AND status='active' ORDER BY weekday,local_start_time,id", $teacherId ) ); }
     public function hasUsableAvailability(int $teacherId, string $timezone): bool {
         global $wpdb;

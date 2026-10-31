@@ -57,7 +57,7 @@ final class TeacherOnboardingService {
             $principal = get_userdata( $actor );
             if ( ! $principal || ! hash_equals( strtolower( (string) $principal->user_email ), strtolower( (string) $data['email'] ) ) ) throw new \InvalidArgumentException( 'Teacher email must match the linked account' );
             $availability = $this->repo->availabilityProfile( (int) $teacher->id );
-            if ( $availability && (string) $availability->timezone !== $data['timezone'] && $this->repo->availabilityHasFacts( (int) $availability->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' );
+            if ( $availability && (string) $availability->timezone !== $data['timezone'] ) $this->repo->updateAvailabilityTimezone( (int) $teacher->id, $data['timezone'], $now, $actor );
             $this->repo->updateTeacherProfile( (int) $teacher->id, $data, $now, $actor );
             $fresh = $this->repo->teacherForUpdate( (int) $teacher->id ); $this->refreshProgress( $fresh, $state, $now, $actor );
             $this->repo->commit();
@@ -75,7 +75,7 @@ final class TeacherOnboardingService {
             $data['phone'] = Normalizer::phone( $input['phone'] ?? null );
             $data['whatsapp_phone'] = Normalizer::phone( $input['whatsapp_phone'] ?? null );
             $availability = $this->repo->availabilityProfile( $teacherId );
-            if ( $availability && (string) $availability->timezone !== $data['timezone'] && $this->repo->availabilityHasFacts( (int) $availability->id ) ) throw new \InvalidArgumentException( 'Timezone cannot change while availability facts exist' );
+            if ( $availability && (string) $availability->timezone !== $data['timezone'] ) $this->repo->updateAvailabilityTimezone( $teacherId, $data['timezone'], $now, $actor );
             $this->repo->updateTeacherProfile( $teacherId, $data, $now, $actor );
             $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }

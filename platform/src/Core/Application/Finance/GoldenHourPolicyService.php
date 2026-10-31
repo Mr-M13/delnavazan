@@ -23,11 +23,9 @@ final class GoldenHourPolicyService {
         return GoldenHourRule::defaults();
     }
 
-    /** @return array<string,array<string,mixed>> */
+    /** Golden-hour pay now has one policy: the global Iran/Asia-Tehran window. */
     public function definitions(): array {
-        $out = GoldenHourRule::defaults();
-        $out[GoldenHourRule::GLOBAL_IRAN_KEY] = GoldenHourRule::globalDefinition();
-        return $out;
+        return array(GoldenHourRule::GLOBAL_IRAN_KEY => GoldenHourRule::globalDefinition());
     }
 
     /** The latest recorded policy for display, or the disabled structural default. */
@@ -57,25 +55,18 @@ final class GoldenHourPolicyService {
     }
 
     /**
-     * The shared window definitions used by coverage. A configured window describes coverage even
-     * when the bonus is disabled, so disabling pay never hides the operational coverage window.
+     * Structural coverage windows. The coverage dashboard remains independent of Iran pay policy.
      *
      * @return array<string,array<string,mixed>>
      */
     public function coverageWindows(): array {
-        $out = array();
-        $now = gmdate('Y-m-d H:i:s');
-        foreach (GoldenHourRule::defaults() as $area => $default) $out[$area] = $this->resolveAt($area, $now);
-        return $out;
+        return GoldenHourRule::defaults();
     }
 
-    /** Whether any area has an effective enabled bonus at an occurrence instant. */
+    /** Whether the global Iran policy has an effective enabled bonus at an occurrence instant. */
     public function anyEnabledAt(string $occurrenceStartsAtUtc): bool {
-        foreach ($this->definitions() as $area => $default) {
-            $policy = $this->resolveAt($area, $occurrenceStartsAtUtc);
-            if (!empty($policy['enabled']) && (int) $policy['bonus_basis_points'] > 0) return true;
-        }
-        return false;
+        $policy = $this->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, $occurrenceStartsAtUtc);
+        return !empty($policy['enabled']) && (int) $policy['bonus_basis_points'] > 0;
     }
 
     /** Save one explicit, effective-dated policy version. */
@@ -128,6 +119,66 @@ final class GoldenHourPolicyService {
         }
     }
 
+    /** Edit one recorded policy version in place, with explicit audit evidence. */
+    public function editVersion(int $settingId, array $input): array {
+        FinanceSupport::requireCapability(self::CAPABILITY);
+        $actor = FinanceSupport::actor(); $now = FinanceSupport::now();
+        $row = $this->settings->byId($settingId, true);
+        if (!$row || (string) $row->setting_key !== $this->key(GoldenHourRule::GLOBAL_IRAN_KEY) || (string) $row->setting_type !== 'golden_hour_policy') {
+            throw new \InvalidArgumentException('golden_hour_policy_version_not_found');
+        }
+        $default = $this->definitions()[GoldenHourRule::GLOBAL_IRAN_KEY];
+        $old = $this->decode($row, $default);
+        $normalized = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, $input, $default);
+        foreach ($this->settings->history($this->key(GoldenHourRule::GLOBAL_IRAN_KEY)) as $other) {
+            if ((int) $other->id === $settingId) continue;
+            $decoded = $this->decode($other, $default);
+            if ((string) $decoded['effective_from'] === (string) $normalized['effective_from']) {
+                throw new \InvalidArgumentException('golden_hour_effective_from_conflict');
+            }
+        }
+        $normalized['setting_version'] = (int) $row->setting_version;
+        $this->settings->begin();
+        try {
+            $this->settings->updateValue($settingId, array(
+                'setting_value' => wp_json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+                'updated_at' => $now,
+                'updated_by' => $actor,
+            ));
+            $this->settings->audit($settingId, $this->key(GoldenHourRule::GLOBAL_IRAN_KEY), 'golden_hour_policy_version_edited', $actor, $now, 'prev=' . $this->auditShape($old) . ';new=' . $this->auditShape($normalized));
+            $this->settings->commit();
+            $normalized['setting_id'] = $settingId;
+            return $normalized;
+        } catch (\Throwable $error) {
+            $this->settings->rollback();
+            throw $error;
+        }
+    }
+
+    /** Remove one previous non-active policy version. Committed lesson details are untouched. */
+    public function removeVersion(int $settingId): array {
+        FinanceSupport::requireCapability(self::CAPABILITY);
+        $actor = FinanceSupport::actor(); $now = FinanceSupport::now();
+        $row = $this->settings->byId($settingId, true);
+        if (!$row || (string) $row->setting_key !== $this->key(GoldenHourRule::GLOBAL_IRAN_KEY) || (string) $row->setting_type !== 'golden_hour_policy') {
+            throw new \InvalidArgumentException('golden_hour_policy_version_not_found');
+        }
+        if ((string) $row->status === 'active' || (int) $row->active_slot === 1) {
+            throw new \InvalidArgumentException('golden_hour_active_version_requires_replacement');
+        }
+        $old = $this->decode($row, $this->definitions()[GoldenHourRule::GLOBAL_IRAN_KEY]);
+        $this->settings->begin();
+        try {
+            $this->settings->deleteById($settingId);
+            $this->settings->audit($settingId, $this->key(GoldenHourRule::GLOBAL_IRAN_KEY), 'golden_hour_policy_version_removed', $actor, $now, 'removed=' . $this->auditShape($old));
+            $this->settings->commit();
+            return array('setting_id' => $settingId, 'removed' => true, 'setting_version' => (int) $row->setting_version);
+        } catch (\Throwable $error) {
+            $this->settings->rollback();
+            throw $error;
+        }
+    }
+
     public function preview(int $baseMinor, string $currency, string $area, array $input): string {
         $normalized = GoldenHourRule::normalizePolicy($area, $input, $this->definitions()[$area]);
         return GoldenHourRule::previewText($baseMinor, $currency, (int) $normalized['bonus_basis_points'], (string) $normalized['timezone']);
@@ -145,8 +196,13 @@ final class GoldenHourPolicyService {
         $decoded['enabled'] = !empty($decoded['enabled']);
         $decoded['timezone'] = (string) ($decoded['timezone'] ?? $fallback['timezone']);
         $decoded['weekdays'] = array_values(array_map('intval', (array) ($decoded['weekdays'] ?? $fallback['weekdays'])));
-        $decoded['start'] = (string) ($decoded['start'] ?? $fallback['start']);
-        $decoded['end'] = (string) ($decoded['end'] ?? $fallback['end']);
+        $periods = $decoded['periods'] ?? ($fallback['periods'] ?? array());
+        if (!is_array($periods) || $periods === array()) {
+            $periods = array(array('start' => (string) ($decoded['start'] ?? $fallback['start']), 'end' => (string) ($decoded['end'] ?? $fallback['end'])));
+        }
+        $decoded['periods'] = array_values(array_map(static fn(array $period): array => array('start' => (string) $period['start'], 'end' => (string) $period['end']), $periods));
+        $decoded['start'] = (string) ($decoded['periods'][0]['start'] ?? $fallback['start']);
+        $decoded['end'] = (string) ($decoded['periods'][0]['end'] ?? $fallback['end']);
         $decoded['bonus_basis_points'] = (int) ($decoded['bonus_basis_points'] ?? 0);
         $decoded['effective_from'] = (string) ($decoded['effective_from'] ?? $fallback['effective_from']);
         $decoded['effective_until'] = isset($decoded['effective_until']) && $decoded['effective_until'] !== null ? (string) $decoded['effective_until'] : null;
@@ -162,6 +218,7 @@ final class GoldenHourPolicyService {
             'enabled' => !empty($policy['enabled']),
             'timezone' => (string) $policy['timezone'],
             'weekdays' => array_values(array_map('intval', (array) $policy['weekdays'])),
+            'periods' => array_values(array_map(static fn(array $period): array => array('start' => (string) $period['start'], 'end' => (string) $period['end']), (array) ($policy['periods'] ?? array()))),
             'start' => (string) $policy['start'],
             'end' => (string) $policy['end'],
             'bonus_basis_points' => (int) $policy['bonus_basis_points'],
@@ -175,8 +232,7 @@ final class GoldenHourPolicyService {
             . ',pct=' . number_format(((int) $policy['bonus_basis_points']) / 100, 2, '.', '')
             . ',tz=' . (string) $policy['timezone']
             . ',days=' . implode('', array_map('intval', (array) $policy['weekdays']))
-            . ',start=' . (string) $policy['start']
-            . ',end=' . (string) $policy['end']
+            . ',periods=' . implode('|', array_map(static fn(array $period): string => $period['start'] . '-' . $period['end'], (array) ($policy['periods'] ?? array())))
             . ',from=' . (string) $policy['effective_from']
             . ',until=' . ($policy['effective_until'] === null ? '' : (string) $policy['effective_until']);
     }

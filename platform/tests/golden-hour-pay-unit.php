@@ -86,45 +86,37 @@ foreach (array('-1', '100.01', '101', '1e2', 'NaN', 'INF', '', '20.555') as $inv
     try { GoldenHourRule::percentageToBasisPoints($invalid); $failures[] = 'Invalid percentage accepted: ' . $invalid; } catch (InvalidArgumentException $expected) {}
 }
 
-// Missing and group-conflicting area mappings require review rather than guessing.
-$missing = GoldenHourAreaResolver::resolve(null);
-$check($missing['area'] === null && $missing['review_reason'] === GoldenHourRule::REVIEW_SERVICE_AREA_REQUIRED, 'A blank Enrolment service area must require explicit review.');
-$explicit = GoldenHourAreaResolver::resolve('NA_EAST');
-$check($explicit['area'] === 'NA_EAST' && $explicit['review_reason'] === null, 'North America East must come only from the explicit Enrolment key.');
-foreach (array('US','CA','AUSTRALIA','Europe/London','golden') as $invalid) {
-    try { GoldenHourAreaResolver::resolve($invalid); $failures[] = 'Non-canonical service area accepted: ' . $invalid; } catch (InvalidArgumentException $expected) {}
-}
-
 // Configuration validation rejects invalid values instead of silently changing them.
-$defaults = GoldenHourRule::defaults();
-$normalized = GoldenHourRule::normalizePolicy('AU', array(
-    'enabled' => '1', 'timezone' => 'Australia/Brisbane', 'weekdays' => array(1,2,3,4,5),
-    'start' => '16:00', 'end' => '21:00', 'bonus_percentage' => '20',
-    'effective_from' => '2026-10-01 00:00:00', 'effective_until' => '2026-12-31 00:00:00',
-), $defaults['AU']);
-$check($normalized['bonus_basis_points'] === 2000 && $normalized['weekdays'] === array(1,2,3,4,5), 'A valid policy must normalise to exact basis points and weekdays.');
-$check(!$defaults['AU']['enabled'] && $defaults['AU']['bonus_basis_points'] === 0, 'The structural default must be disabled at 0%.');
+$globalDefaults = GoldenHourRule::globalDefinition();
+$global = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, array(
+    'enabled' => '1', 'timezone' => 'Asia/Tehran', 'weekdays' => array(1,2,3,4,5,6,7),
+    'periods' => array(array('start'=>'06:00','end'=>'10:00'), array('start'=>'22:00','end'=>'02:00')),
+    'bonus_percentage' => '25', 'effective_from' => '2026-10-01 00:00:00', 'effective_until' => '',
+), $globalDefaults);
+$check($global['area'] === GoldenHourRule::GLOBAL_IRAN_KEY && $global['timezone'] === 'Asia/Tehran' && $global['bonus_basis_points'] === 2500, 'The global Iran policy must normalise with the fixed Asia/Tehran timezone.');
+$check($global['periods'] === array(array('start'=>'06:00','end'=>'10:00'), array('start'=>'22:00','end'=>'02:00')), 'Multiple Iran periods, including an overnight period, must be preserved.');
+$check(!$globalDefaults['enabled'] && $globalDefaults['bonus_basis_points'] === 0, 'The structural default must be disabled at 0%.');
 foreach (array(
     array('timezone' => 'Not/AZone', 'message' => 'invalid timezone'),
-    array('start' => '21:00', 'end' => '16:00', 'message' => 'overnight window'),
+    array('periods' => array(array('start'=>'10:00','end'=>'10:00')), 'message' => 'zero-length period'),
+    array('periods' => array(array('start'=>'25:00','end'=>'10:00')), 'message' => 'invalid start time'),
+    array('periods' => array_fill(0, 13, array('start'=>'06:00','end'=>'10:00')), 'message' => 'too many periods'),
     array('weekdays' => array(), 'message' => 'empty weekdays'),
     array('bonus_percentage' => '-5', 'message' => 'negative percentage'),
     array('effective_from' => 'not-a-date', 'message' => 'invalid effective date'),
     array('effective_until' => '2026-09-01 00:00:00', 'message' => 'effective-until before effective-from'),
 ) as $probe) {
-    $input = array('enabled' => '1','timezone' => 'Australia/Brisbane','weekdays' => array(1,2,3,4,5),'start' => '16:00','end' => '21:00','bonus_percentage' => '20','effective_from' => '2026-10-01 00:00:00','effective_until' => '');
+    $input = array('enabled' => '1','timezone' => 'Asia/Tehran','weekdays' => array(1,2,3,4,5),'periods' => array(array('start'=>'16:00','end'=>'21:00')),'bonus_percentage' => '20','effective_from' => '2026-10-01 00:00:00','effective_until' => '');
     $input = array_merge($input, $probe);
     unset($input['message']);
-    try { GoldenHourRule::normalizePolicy('AU', $input, $defaults['AU']); $failures[] = 'Invalid policy accepted: ' . $probe['message']; } catch (InvalidArgumentException $expected) {}
+    try { GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, $input, $globalDefaults); $failures[] = 'Invalid policy accepted: ' . $probe['message']; } catch (InvalidArgumentException $expected) {}
 }
 
-$globalDefaults = GoldenHourRule::globalDefinition();
-$global = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, array(
-    'enabled' => '1', 'timezone' => 'Asia/Tehran', 'weekdays' => array(1,2,3,4,5,6,7),
-    'start' => '16:00', 'end' => '21:00', 'bonus_percentage' => '25',
-    'effective_from' => '2026-10-01 00:00:00', 'effective_until' => '',
-), $globalDefaults);
-$check($global['area'] === GoldenHourRule::GLOBAL_IRAN_KEY && $global['timezone'] === 'Asia/Tehran' && $global['bonus_basis_points'] === 2500, 'The global Iran policy must normalise with the fixed Asia/Tehran timezone.');
+// Overnight calculation: 22:00–02:00 Asia/Tehran crosses local midnight.
+$overnight = GoldenHourCalculator::calculate(4000, '2026-10-05 19:00:00', '2026-10-05 20:00:00', array(
+    array('source'=>'GLOBAL_IRAN','timezone'=>'Asia/Tehran','weekdays'=>array(1,2,3,4,5,6,7),'start'=>'22:00','end'=>'02:00','bonus_basis_points'=>2000),
+), 'Asia/Tehran');
+$check($overnight['eligible_minutes'] === 60 && $overnight['bonus_minor'] === 800, 'A late-night Iran period must cross midnight correctly.');
 
 // Versioned effective dates choose the version covering the occurrence, not today's page view.
 $v1 = array('enabled'=>true,'timezone'=>'Australia/Brisbane','weekdays'=>array(1,2,3,4,5),'start'=>'16:00','end'=>'21:00','bonus_basis_points'=>2000,'effective_from'=>'2026-01-01 00:00:00','effective_until'=>null,'setting_version'=>1);

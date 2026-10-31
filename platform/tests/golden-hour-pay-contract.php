@@ -3,7 +3,7 @@
  * Source contract for Golden-hour teacher pay.
  *
  * It proves the feature is wired into the existing pay authority: the shared coverage/pay window
- * authority, explicit Enrolment service area, the dedicated immutable snapshot-detail table, the
+ * authority, one global Iran policy with multiple periods, the dedicated immutable detail table, the
  * snapshot commitment point, Finance-pending orchestration, statement/reconciliation projection,
  * the explicit correction path, and both administrator/teacher presentation surfaces.
  */
@@ -38,21 +38,20 @@ $assert = static function (bool $condition, string $message) use (&$fail): void 
 
 $assert(str_contains($rule, "public const MAX_BONUS_BASIS_POINTS = 10000"), 'The documented percentage limit must be 100% in exact basis points.');
 $assert(str_contains($rule, "GLOBAL_IRAN_KEY = 'GLOBAL_IRAN'") && str_contains($rule, "GLOBAL_IRAN_TIMEZONE = 'Asia/Tehran'"), 'The global Iran window must use the explicit Asia/Tehran key.');
-$assert(str_contains($rule, 'globalDefinition') && str_contains($rule, "'global' => true"), 'The Iran window must be an additional global policy, not an Enrolment area.');
-$assert(str_contains($policy, 'definitions()') && str_contains($policy, 'GoldenHourRule::GLOBAL_IRAN_KEY'), 'Policy resolution must include the global Iran policy.');
-$assert(str_contains($pay, 'GLOBAL_IRAN_KEY') && str_contains($pay, 'window_definitions'), 'Pay calculation must merge the Iran window with the Enrolment-area window and persist both definitions.');
+$assert(str_contains($rule, 'globalDefinition') && str_contains($rule, "'periods' => array"), 'The Iran policy must support multiple periods and remain a global policy.');
+$assert(str_contains($policy, 'definitions()') && str_contains($policy, 'return array(GoldenHourRule::GLOBAL_IRAN_KEY'), 'Only the global Iran pay policy must remain.');
+$assert(str_contains($pay, 'GLOBAL_IRAN_KEY') && str_contains($pay, 'window_definitions') && str_contains($pay, 'periods'), 'Pay calculation must expand the global Iran periods and persist their definitions.');
 $assert(str_contains($calculator, '$windowTimezone = (string) ($window[\'timezone\']') || str_contains($calculator, "window['timezone']"), 'The calculator must support different timezones for additional windows.');
 $assert(str_contains($pay, 'teacherWindowDisplay') && str_contains($pay, 'your time '), 'Teacher presentation must convert the Iran window into the teacher timezone.');
 $assert(str_contains($theme, 'forLessonIds( $golden_hour_ids, $teacher_timezone )'), 'The teacher schedule must pass the teacher timezone into the golden-hour projection.');
 $assert(str_contains($migration, "'059_golden_hour_iran_global'") && str_contains($migration, 'global_policy_setting_version') && str_contains($migration, 'window_definitions'), 'Schema 57 must persist global policy provenance and window definitions.');
-$assert(str_contains($admin, 'GLOBAL_IRAN_KEY') && str_contains($admin, 'Additional global window'), 'Finance Settings must expose the additional Iran global window.');
+$assert(str_contains($admin, 'GLOBAL_IRAN_KEY') && str_contains($admin, 'golden_periods_text') && str_contains($admin, 'edit_golden_hour_policy') && str_contains($admin, 'remove_golden_hour_policy'), 'Finance Settings must expose multiple Iran periods and history edit/remove actions.');
+$assert(str_contains($policy, 'editVersion') && str_contains($policy, 'removeVersion') && str_contains($policy, 'golden_hour_policy_version_edited') && str_contains($policy, 'golden_hour_policy_version_removed'), 'Policy history edit/remove must be audited and retain committed details.');
 $assert(str_contains($rule, "'enabled' => false") && str_contains($rule, "'bonus_basis_points' => 0"), 'The structural default must be disabled at 0%.');
 $assert(str_contains($rule, 'percentageToBasisPoints') && str_contains($rule, 'golden_hour_percentage_invalid'), 'Percentage validation must reject invalid values.');
-$assert(str_contains($rule, 'golden_hour_window_overnight_not_supported'), 'Overnight windows must be rejected clearly because coverage does not model them.');
+$assert(str_contains($rule, 'periods') && str_contains($calculator, "modify('+1 day')"), 'Multiple periods and overnight windows must be supported explicitly.');
 $assert(str_contains($rule, 'resolveVersion') && str_contains($rule, 'effective_until'), 'Policy effective dates must be versioned and resolved by occurrence instant.');
-$assert(str_contains($rule, "REVIEW_SERVICE_AREA_REQUIRED = 'service_area_required'"), 'A missing Enrolment service area must use the exact service_area_required reason.');
-$assert(str_contains($rule, "SERVICE_AREA_KEYS = array('AU','EU','GB','NA_EAST','NA_WEST')"), 'The one canonical service-area vocabulary must be explicit.');
-$assert(str_contains($rule, 'serviceAreaKey') && !str_contains($rule, 'AREA_COUNTRIES'), 'Service area must not be derived from a country mapping.');
+$assert(str_contains($rule, 'golden_hour_periods_too_many') && str_contains($rule, 'periods'), 'Multiple periods and their validation limit must be explicit.');
 $assert(str_contains($calculator, '[start, end)') || str_contains($calculator, 'Half-open'), 'The calculator must document half-open interval boundaries.');
 $assert(str_contains($calculator, 'highest = max') && str_contains($calculator, 'seconds_by_basis_points'), 'Overlapping windows must choose one highest percentage per minute.');
 $assert(str_contains($calculator, "'breakdown'") && str_contains($calculator, "'bonus_minor'"), 'The calculator must expose an applied-window breakdown whose amounts sum to the total bonus.');
@@ -63,7 +62,6 @@ $assert(!str_contains($policy, 'LESSON_KEY') && !str_contains($policy, 'golden_h
 $assert(str_contains($policy, 'coverageWindows'), 'Coverage and pay must share one window authority.');
 $assert(str_contains($coverage, 'GoldenHourPolicyService') && str_contains($coverage, 'coverageWindows'), 'The coverage dashboard must read the shared golden-hour window authority.');
 $assert(str_contains($migration, "'058_golden_hour_pay_snapshot_details'") && str_contains($migration, 'finance_golden_hour_details'), 'The dedicated detail table must be installed by the migration system.');
-$assert(str_contains($migration, 'service_area_key') && str_contains($migration, 'ADD COLUMN service_area_key'), 'The canonical Enrolment service-area field must be migrated additively.');
 $assert(str_contains($migration, "UNIQUE KEY snapshot_version_reference") && str_contains($migration, 'Golden-hour duplicate snapshot detail'), 'The detail table must enforce one record per canonical snapshot version.');
 $assert(str_contains($migration, 'legacy_golden_hour_v1') && str_contains($migration, 'without recalculation'), 'Legacy lesson-level records must migrate idempotently without recalculation.');
 $assert(str_contains($migration, "DELETE FROM") || str_contains($migration, "finance_settings"), 'Legacy lesson-level settings rows must be moved out, not left as a parallel authority.');
@@ -71,7 +69,7 @@ $assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '57'"), 'The migrat
 $assert(str_contains($repository, 'finance_golden_hour_details') && str_contains($repository, 'insertDetail'), 'A dedicated repository must own the immutable detail rows.');
 $assert(!str_contains($repository, 'function update') && !str_contains($repository, 'function delete') && !str_contains($repository, 'UPDATE '), 'Normal operations must not expose an update or delete of committed details.');
 $assert(str_contains($pay, 'captureForSnapshot') && str_contains($pay, 'committedTotal') && str_contains($pay, 'detailsForVersion') && str_contains($pay, 'forLessonIds'), 'One pay service must own capture, committed totals and teacher presentation.');
-$assert(str_contains($pay, 'OUTCOME_AREA_REQUIRED') && str_contains($rule, "REVIEW_SERVICE_AREA_REQUIRED = 'service_area_required'"), 'A missing area must retain the service_area_required outcome when no global window applies.');
+$assert(str_contains($pay, 'OUTCOME_DISABLED') && str_contains($pay, 'OUTCOME_NO_OVERLAP'), 'Disabled and no-overlap outcomes must remain explicit for the global policy.');
 $assert(str_contains($pay, 'insertDetail') && str_contains($pay, 'window_breakdown') && str_contains($pay, 'committed_total_minor'), 'The detail must persist the applied window breakdown and committed total.');
 $assert(str_contains($pay, 'throw') && str_contains($snapshot, 'captureForSnapshot'), 'A technical failure must propagate through snapshot capture instead of recording a zero bonus.');
 $assert(str_contains($snapshot, 'GoldenHourPayService') && str_contains($snapshot, 'captureForSnapshot'), 'The existing snapshot capture must be the compensation commitment point.');
@@ -83,10 +81,7 @@ $assert(str_contains($statement, "\$disposition==='payable'?\$this->payableAmoun
 $assert(str_contains($reconciliation, 'committedTotal') && str_contains($reconciliation, 'corrected_derived_amount_minor'), 'Reconciliation must recompute the same corrected golden-hour total.');
 $assert(str_contains($statementRead, 'detailsForVersion') && str_contains($statementRead, 'committedTotal'), 'Teacher statement reads must use the canonical snapshot-version projection.');
 $assert(str_contains($correction, 'correctBase') && str_contains($correction, '(int)$snapshot->id,$correctionId'), 'Only the explicit correction path may append a corrected detail version.');
-$assert(str_contains($screen, 'save_enrolment_service_area') && str_contains($screen, 'Service area for golden hours'), 'The admin Enrolment form must expose the labelled service-area selector.');
-$assert(str_contains($enrolmentArea, 'dzn_manage_enrolments') && str_contains($enrolmentArea, 'service_area_key'), 'Service-area writes must use the narrow Enrolment permission and one canonical field.');
 $assert(str_contains($enrolmentArea, 'previous=') && str_contains($enrolmentArea, 'new='), 'Service-area changes must record previous and new values in the audit trail.');
-$assert(str_contains($enrolmentRepository, 'setServiceArea') && str_contains($enrolmentRepository, 'FOR UPDATE'), 'The Enrolment service area must be written under the existing lock discipline.');
 $assert(str_contains($admin, 'save_golden_hour_policy') && str_contains($admin, 'Golden hour pay bonus'), 'Finance Settings must expose the golden-hour policy section and operation.');
 $assert(str_contains($admin, 'FinanceSettingsService::MANAGE_TEACHER_RATE_CAPABILITY'), 'The admin form must require teacher-rate authority.');
 $assert(str_contains($admin, 'data-dzn-golden-preview') && str_contains($admin, '"A base rate of "+f(b)+"'), 'The admin form must show a plain-language preview before saving.');
@@ -95,7 +90,9 @@ $assert(str_contains($payability, 'Golden-hour bonus') && str_contains($payabili
 $assert(str_contains($theme, 'GoldenHourPayService') && str_contains($theme, "'golden_hour'"), 'The teacher schedule view model must receive golden-hour facts.');
 $assert(str_contains($classes, 'dzn-tp-golden-badge') && str_contains($classes, 'estimated'), 'The teacher schedule must distinguish estimated from committed bonuses.');
 $assert(str_contains($finance, 'golden_hour_bonus_minor'), 'The teacher earnings view must label a statement that includes golden-hour pay.');
-$assert(str_contains($pay, 'service_area_key') && !str_contains($pay, 'student_country_code') && !str_contains($pay, 'teacher_timezone'), 'Eligibility must use only the explicit Enrolment service area.');
+$assert(str_contains($pay, 'resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY') && !str_contains($pay, 'resolveAt((string) $area'), 'Eligibility must use only the global Iran policy.');
+$assert(str_contains($admin, 'data-dzn-example-base') && !str_contains($admin, 'name="golden_example_base"'), 'The example base rate must not be editable and must follow the global teacher rate.');
+$assert(str_contains($admin, 'Teacher and course-specific rates keep precedence'), 'The admin copy must state that actual pay uses the teacher-specific rate when present.');
 $assert(!str_contains($pay, 'wp_remote_') && !str_contains($pay, 'curl_') && !str_contains($pay, "INSERT INTO") && !str_contains($pay, 'UPDATE '), 'Golden-hour pay must add no provider call or parallel ledger write.');
 
 if ($fail !== array()) {

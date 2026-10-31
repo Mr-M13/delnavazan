@@ -125,18 +125,14 @@ final class FinanceAdminController {
                 (new FinanceSettingsService())->resetTemplate();
                 $result = 'template_reset';
             } elseif ($operation === 'save_golden_hour_policy') {
-                $weekdays = isset($_POST['golden_weekdays']) && is_array($_POST['golden_weekdays']) ? array_map('absint', $_POST['golden_weekdays']) : array();
-                (new GoldenHourPolicyService())->save((string) ($_POST['golden_area'] ?? ''), array(
-                    'enabled' => isset($_POST['golden_enabled']) ? '1' : '',
-                    'timezone' => (string) ($_POST['golden_timezone'] ?? ''),
-                    'weekdays' => $weekdays,
-                    'start' => (string) ($_POST['golden_start'] ?? ''),
-                    'end' => (string) ($_POST['golden_end'] ?? ''),
-                    'bonus_percentage' => (string) ($_POST['golden_bonus_percentage'] ?? ''),
-                    'effective_from' => (string) ($_POST['golden_effective_from'] ?? ''),
-                    'effective_until' => (string) ($_POST['golden_effective_until'] ?? ''),
-                ));
+                (new GoldenHourPolicyService())->save(GoldenHourRule::GLOBAL_IRAN_KEY, self::goldenHourInput());
                 $result = 'golden_hour_saved';
+            } elseif ($operation === 'edit_golden_hour_policy') {
+                (new GoldenHourPolicyService())->editVersion(absint($_POST['golden_setting_id'] ?? 0), self::goldenHourInput());
+                $result = 'golden_hour_updated';
+            } elseif ($operation === 'remove_golden_hour_policy') {
+                (new GoldenHourPolicyService())->removeVersion(absint($_POST['golden_setting_id'] ?? 0));
+                $result = 'golden_hour_removed';
             } elseif ($operation === 'save_finance_policy') {
                 self::saveFinancePolicy();
                 $result = 'policy_saved';
@@ -643,62 +639,109 @@ final class FinanceAdminController {
         $canManage = current_user_can(FinanceSettingsService::MANAGE_TEACHER_RATE_CAPABILITY);
         $currency = FinanceSettingsService::TEACHER_CURRENCY;
         $exampleMinor = $global ? (int) $global['amount_minor'] : 0;
+        $exampleDisplay = $exampleMinor > 0 ? PricingMoney::fromMinor($exampleMinor, $currency) : '';
         $service = new GoldenHourPolicyService();
-        echo '<section id="golden-hour-pay" class="dzn-finance-golden"><h3>Golden hour pay bonus</h3>';
-        echo '<p>Pay a percentage bonus only for the payable portion of a Lesson that overlaps the configured local window of the Student’s service area. The default is disabled at 0%, so installing this feature does not raise existing liabilities. A version takes effect from its effective date when each Lesson’s compensation is committed; completed, approved or paid compensation is never rewritten. Future unpaid Lessons use the version that covers their occurrence date. Completed or paid Lessons require the existing explicit adjustment/correction process.</p>';
+        $current = $service->latest(GoldenHourRule::GLOBAL_IRAN_KEY);
+        $history = (new \Delnavazan\Platform\Core\Infrastructure\Repository\FinanceSettingsRepository())->history(GoldenHourRule::POLICY_KEY_PREFIX . GoldenHourRule::GLOBAL_IRAN_KEY);
+        $preview = GoldenHourRule::previewText($exampleMinor, $currency, (int) $current['bonus_basis_points'], GoldenHourRule::GLOBAL_IRAN_TIMEZONE);
+        echo '<section id="golden-hour-pay" class="dzn-finance-golden"><h3>Golden hour pay bonus · Iran</h3>';
+        echo '<p>Only the global Iran policy remains. Configure one or more daily periods in <strong>Asia/Tehran</strong>. A late-night period may cross midnight, for example <code>22:00–02:00</code>. The policy applies to otherwise payable lessons only; completed, approved or paid compensation is never rewritten.</p>';
+        echo '<p class="description">The preview uses the global teacher rate. Actual bonuses use each teacher’s effective snapshotted rate, so a teacher-specific or teacher/course rate receives the percentage on that rate rather than on the global default.</p>';
         if (!$canManage) {
             echo '<p class="description">Golden-hour percentage changes require teacher-rate authority. Coverage-dashboard access alone is not sufficient.</p></section>';
             return;
         }
-        foreach ($service->definitions() as $area => $default) {
-            $isGlobal = $area === GoldenHourRule::GLOBAL_IRAN_KEY;
-            $current = $service->latest($area);
-            $weekdays = array_map('intval', (array) $current['weekdays']);
-            $preview = GoldenHourRule::previewText($exampleMinor, $currency, (int) $current['bonus_basis_points'], (string) $current['timezone']);
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-golden-card" data-dzn-golden-form data-dzn-currency="' . esc_attr($currency) . '" onsubmit="return confirm(\'Save this effective-dated golden-hour policy? Committed, completed and paid compensation will not be rewritten.\')">';
-            echo '<input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_golden_hour_policy"><input type="hidden" name="golden_area" value="' . esc_attr($area) . '">';
-            wp_nonce_field('dzn_finance_settings');
-            echo '<h4>' . esc_html((string) $default['label']) . ' <span class="dzn-finance-muted">' . esc_html($area . ' · ' . (string) $current['timezone']) . '</span></h4>';
-            if ($isGlobal) echo '<p class="description"><strong>Additional global window.</strong> It applies alongside each Enrolment service-area window. The highest applicable percentage applies once per eligible minute. The window is evaluated in Asia/Tehran and shown in each teacher’s own timezone.</p>';
-            echo '<p class="description">Current version v' . esc_html((string) $current['setting_version']) . ' effective from ' . esc_html((string) $current['effective_from']) . ($current['effective_until'] !== null ? ' until ' . esc_html((string) $current['effective_until']) : '') . '. Saving a changed value records a new version from the effective date below.</p>';
-            echo '<p><label class="dzn-finance-checkbox"><input type="checkbox" name="golden_enabled" value="1"' . checked(!empty($current['enabled']), true, false) . '> Enable golden-hour bonus for this area</label></p>';
-            echo '<div class="dzn-finance-golden-grid">';
-            echo '<label>Area time zone <span class="dzn-finance-muted">(IANA)</span><input name="golden_timezone" value="' . esc_attr((string) $current['timezone']) . '" placeholder="Australia/Brisbane" required' . ($isGlobal ? ' readonly' : '') . '></label>';
-            echo '<label>Golden-hour start<input type="time" name="golden_start" value="' . esc_attr(substr((string) $current['start'], 0, 5)) . '" required></label>';
-            echo '<label>Golden-hour end<input type="time" name="golden_end" value="' . esc_attr(substr((string) $current['end'], 0, 5)) . '" required></label>';
-            echo '<label>Bonus percentage <span class="dzn-finance-muted">(0–100)</span><input type="number" name="golden_bonus_percentage" min="0" max="100" step="0.01" value="' . esc_attr(number_format(((int) $current['bonus_basis_points']) / 100, 2, '.', '')) . '" required></label>';
-            echo '<label>Effective from (UTC)<input name="golden_effective_from" value="' . esc_attr(gmdate('Y-m-d H:i:s')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}" required></label>';
-            echo '<label>Effective until (UTC, optional)<input name="golden_effective_until" value="' . esc_attr((string) ($current['effective_until'] ?? '')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"></label>';
-            echo '<label>Example base rate <span class="dzn-finance-muted">(' . esc_html($currency) . ', preview only)</span><input name="golden_example_base" inputmode="decimal" value="' . esc_attr($exampleMinor > 0 ? PricingMoney::fromMinor($exampleMinor, $currency) : '') . '"></label>';
-            echo '</div>';
-            echo '<fieldset class="dzn-finance-golden-days"><legend>Days of the week</legend><div>';
-            $labels = array(1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday');
-            foreach ($labels as $day => $label) echo '<label class="dzn-finance-checkbox"><input type="checkbox" name="golden_weekdays[]" value="' . $day . '"' . checked(in_array($day, $weekdays, true), true, false) . '> ' . esc_html($label) . '</label>';
-            echo '</div></fieldset>';
-            echo '<p class="dzn-finance-golden-preview" data-dzn-golden-preview>' . esc_html($preview) . '</p>';
-            echo '<p class="description">This area label uses <strong>' . esc_html((string) $current['timezone']) . '</strong> for every calculation. Changing the area label alone does not make every local time in that country equivalent. Overnight windows are not supported by the existing coverage model and are rejected.</p>';
-            echo '<button class="button button-primary">Save golden-hour policy</button>';
-            echo '</form>';
-            try {
-                $history = (new \Delnavazan\Platform\Core\Infrastructure\Repository\FinanceSettingsRepository())->history(GoldenHourRule::POLICY_KEY_PREFIX . $area);
-            } catch (\Throwable) { $history = array(); }
-            if ($history) {
-                echo '<details class="dzn-finance-golden-history"><summary>Policy history · ' . esc_html((string) $default['label']) . '</summary><table class="widefat striped"><thead><tr><th>Version</th><th>Status</th><th>Bonus</th><th>Effective from</th><th>Effective until</th><th>Recorded</th></tr></thead><tbody>';
-                foreach (array_slice($history, 0, 10) as $row) {
-                    $decoded = json_decode((string) $row->setting_value, true);
-                    $decoded = is_array($decoded) ? $decoded : array();
-                    echo '<tr><td>v' . (int) $row->setting_version . '</td><td>' . esc_html((string) $row->status) . '</td><td>' . esc_html(number_format(((int) ($decoded['bonus_basis_points'] ?? 0)) / 100, 2) . '%' . (empty($decoded['enabled']) ? ' · disabled' : '')) . '</td><td>' . esc_html((string) ($decoded['effective_from'] ?? '—')) . '</td><td>' . esc_html((string) ($decoded['effective_until'] ?? '—')) . '</td><td>' . esc_html((string) $row->created_at) . '</td></tr>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-golden-card" data-dzn-golden-form data-dzn-currency="' . esc_attr($currency) . '" data-dzn-example-base="' . esc_attr($exampleDisplay) . '" onsubmit="return confirm(\'Save this effective-dated Iran golden-hour policy? Committed compensation will not be rewritten.\')">';
+        echo '<input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_golden_hour_policy"><input type="hidden" name="golden_area" value="' . esc_attr(GoldenHourRule::GLOBAL_IRAN_KEY) . '"><input type="hidden" name="golden_timezone" value="' . esc_attr(GoldenHourRule::GLOBAL_IRAN_TIMEZONE) . '">';
+        wp_nonce_field('dzn_finance_settings');
+        self::goldenHourEditorFields($current, true);
+        echo '<p class="dzn-finance-golden-preview" data-dzn-golden-preview>' . esc_html($preview) . '</p>';
+        echo '<p class="description">Time zone: <strong>' . esc_html(GoldenHourRule::GLOBAL_IRAN_TIMEZONE) . '</strong>. Overnight periods are supported. Teacher and course-specific rates keep precedence over the global default.</p>';
+        echo '<button class="button button-primary">Save Iran golden-hour policy</button></form>';
+        if ($history) {
+            echo '<details class="dzn-finance-golden-history" open><summary>Policy history · Iran</summary><table class="widefat striped"><thead><tr><th>Version</th><th>Status</th><th>Bonus</th><th>Periods (Asia/Tehran)</th><th>Effective from</th><th>Effective until</th><th>Recorded</th><th>Actions</th></tr></thead><tbody>';
+            foreach (array_slice($history, 0, 20) as $row) {
+                $decoded = json_decode((string) $row->setting_value, true);
+                $decoded = is_array($decoded) ? $decoded : array();
+                $periods = self::goldenPeriodsText($decoded);
+                $isActive = (string) $row->status === 'active';
+                echo '<tr><td>v' . (int) $row->setting_version . '</td><td>' . esc_html((string) $row->status) . '</td><td>' . esc_html(number_format(((int) ($decoded['bonus_basis_points'] ?? 0)) / 100, 2) . '%' . (empty($decoded['enabled']) ? ' · disabled' : '')) . '</td><td>' . esc_html($periods) . '</td><td>' . esc_html((string) ($decoded['effective_from'] ?? '—')) . '</td><td>' . esc_html((string) ($decoded['effective_until'] ?? '—')) . '</td><td>' . esc_html((string) $row->created_at) . '</td><td><a class="button button-small" href="#edit-golden-' . (int) $row->id . '">Edit</a>';
+                if (!$isActive) {
+                    echo ' <form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline" onsubmit="return confirm(\'Remove this previous policy version? Committed lesson details are retained.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="remove_golden_hour_policy"><input type="hidden" name="golden_setting_id" value="' . (int) $row->id . '">';
+                    wp_nonce_field('dzn_finance_settings');
+                    echo '<button class="button button-small">Remove</button></form>';
                 }
-                echo '</tbody></table></details>';
+                echo '</td></tr>';
+                $decoded['setting_version'] = (int) $row->setting_version;
+                $decoded['setting_id'] = (int) $row->id;
+                echo '<tr id="edit-golden-' . (int) $row->id . '"><td colspan="8"><details><summary>Edit v' . (int) $row->setting_version . '</summary><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" data-dzn-golden-form data-dzn-currency="' . esc_attr($currency) . '" data-dzn-example-base="' . esc_attr($exampleDisplay) . '"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="edit_golden_hour_policy"><input type="hidden" name="golden_setting_id" value="' . (int) $row->id . '"><input type="hidden" name="golden_area" value="' . esc_attr(GoldenHourRule::GLOBAL_IRAN_KEY) . '"><input type="hidden" name="golden_timezone" value="' . esc_attr(GoldenHourRule::GLOBAL_IRAN_TIMEZONE) . '">';
+                wp_nonce_field('dzn_finance_settings');
+                self::goldenHourEditorFields($decoded, false);
+                echo '<p class="dzn-finance-golden-preview" data-dzn-golden-preview>' . esc_html(GoldenHourRule::previewText($exampleMinor, $currency, (int) ($decoded['bonus_basis_points'] ?? 0), GoldenHourRule::GLOBAL_IRAN_TIMEZONE)) . '</p><p><button class="button button-primary">Save changes to v' . (int) $row->setting_version . '</button></p></form></details></td></tr>';
             }
+            echo '</tbody></table><p class="description">Editing or removing a previous policy version changes future policy resolution only. Already committed lesson details and statement amounts are retained.</p></details>';
         }
         self::goldenHourPreviewScript();
         echo '</section>';
     }
 
-    /** The preview is computed before saving from the actual currency and the administrator's example rate. */
+    private static function goldenHourEditorFields(array $policy, bool $newVersion): void {
+        $weekdays = array_map('intval', (array) ($policy['weekdays'] ?? array(1,2,3,4,5,6,7)));
+        echo '<p><label class="dzn-finance-checkbox"><input type="checkbox" name="golden_enabled" value="1"' . checked(!empty($policy['enabled']), true, false) . '> Enable the global Iran golden-hour bonus</label></p>';
+        echo '<div class="dzn-finance-golden-grid">';
+        echo '<label>Bonus percentage <span class="dzn-finance-muted">(0–100)</span><input type="number" name="golden_bonus_percentage" min="0" max="100" step="0.01" value="' . esc_attr(number_format(((int) ($policy['bonus_basis_points'] ?? 0)) / 100, 2, '.', '')) . '" required></label>';
+        echo '<label>Effective from (UTC)<input name="golden_effective_from" value="' . esc_attr($newVersion ? gmdate('Y-m-d H:i:s') : (string) ($policy['effective_from'] ?? '')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}" required></label>';
+        echo '<label>Effective until (UTC, optional)<input name="golden_effective_until" value="' . esc_attr((string) ($policy['effective_until'] ?? '')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"></label>';
+        echo '</div>';
+        echo '<label class="dzn-finance-golden-periods">Golden-hour periods in Asia/Tehran <span class="dzn-finance-muted">(one per line, HH:MM–HH:MM; overnight allowed)</span><textarea name="golden_periods_text" rows="4" required placeholder="06:00–10:00&#10;22:00–02:00">' . esc_textarea(self::goldenPeriodsText($policy)) . '</textarea></label>';
+        echo '<fieldset class="dzn-finance-golden-days"><legend>Days of the week</legend><div>';
+        $labels = array(1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday');
+        foreach ($labels as $day => $label) echo '<label class="dzn-finance-checkbox"><input type="checkbox" name="golden_weekdays[]" value="' . $day . '"' . checked(in_array($day, $weekdays, true), true, false) . '> ' . esc_html($label) . '</label>';
+        echo '</div></fieldset>';
+    }
+
+    private static function goldenPeriodsText(array $policy): string {
+        $periods = (array) ($policy['periods'] ?? array());
+        if ($periods === array()) $periods = array(array('start' => (string) ($policy['start'] ?? ''), 'end' => (string) ($policy['end'] ?? '')));
+        $lines = array();
+        foreach ($periods as $period) {
+            $start = substr((string) ($period['start'] ?? ''), 0, 5);
+            $end = substr((string) ($period['end'] ?? ''), 0, 5);
+            if ($start !== '' && $end !== '') $lines[] = $start . '–' . $end;
+        }
+        return implode("\n", $lines);
+    }
+
+    private static function goldenHourInput(): array {
+        $periods = array();
+        $text = (string) ($_POST['golden_periods_text'] ?? '');
+        foreach (preg_split('/\r\n|\r|\n/', $text) ?: array() as $line) {
+            $line = trim($line);
+            if ($line === '') continue;
+            if (preg_match('/^(\d{1,2}:\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})$/i', $line, $matches) !== 1) {
+                throw new \InvalidArgumentException('golden_hour_window_invalid');
+            }
+            $periods[] = array('start' => $matches[1], 'end' => $matches[2]);
+        }
+        if ($periods === array() && isset($_POST['golden_start'], $_POST['golden_end'])) {
+            $periods[] = array('start' => (string) $_POST['golden_start'], 'end' => (string) $_POST['golden_end']);
+        }
+        if ($periods === array()) throw new \InvalidArgumentException('golden_hour_period_required');
+        $weekdays = isset($_POST['golden_weekdays']) && is_array($_POST['golden_weekdays']) ? array_map('absint', $_POST['golden_weekdays']) : array();
+        return array(
+            'enabled' => isset($_POST['golden_enabled']) ? '1' : '',
+            'timezone' => (string) ($_POST['golden_timezone'] ?? GoldenHourRule::GLOBAL_IRAN_TIMEZONE),
+            'weekdays' => $weekdays,
+            'periods' => $periods,
+            'bonus_percentage' => (string) ($_POST['golden_bonus_percentage'] ?? ''),
+            'effective_from' => (string) ($_POST['golden_effective_from'] ?? ''),
+            'effective_until' => (string) ($_POST['golden_effective_until'] ?? ''),
+        );
+    }
+
+    /** The preview follows the global teacher-rate setting; actual pay uses the teacher's snapshotted rate. */
     private static function goldenHourPreviewScript(): void {
-        echo '<script>(function(){var forms=document.querySelectorAll("[data-dzn-golden-form]");forms.forEach(function(form){var pct=form.querySelector("[name=golden_bonus_percentage]"),base=form.querySelector("[name=golden_example_base]"),tz=form.querySelector("[name=golden_timezone]"),out=form.querySelector("[data-dzn-golden-preview]");if(!pct||!base||!out)return;var update=function(){var p=Math.max(0,Math.min(100,parseFloat(String(pct.value||"0"))||0)),b=Math.max(0,parseFloat(String(base.value||"0").replace(/,/g,""))||0),c=form.getAttribute("data-dzn-currency")||"";var bonus=b*p/100,total=b+bonus;var f=function(n){return n.toLocaleString(undefined,{minimumFractionDigits:c==="TOM"?0:2,maximumFractionDigits:c==="TOM"?0:2});};out.textContent="A base rate of "+f(b)+" "+c+"/hour becomes "+f(total)+" "+c+"/hour during this window ("+p+"% · "+(tz?tz.value:"")+"). A 60-minute lesson entirely inside the window earns a "+f(bonus)+" "+c+" bonus.";};[pct,base,tz].forEach(function(el){if(el)el.addEventListener("input",update);});update();});})();</script>';
+        echo '<script>(function(){var forms=document.querySelectorAll("[data-dzn-golden-form]");forms.forEach(function(form){var pct=form.querySelector("[name=golden_bonus_percentage]"),tz=form.querySelector("[name=golden_timezone]"),out=form.querySelector("[data-dzn-golden-preview]");if(!pct||!out)return;var update=function(){var p=Math.max(0,Math.min(100,parseFloat(String(pct.value||"0"))||0)),b=Math.max(0,parseFloat(String(form.getAttribute("data-dzn-example-base")||"0").replace(/,/g,""))||0),c=form.getAttribute("data-dzn-currency")||"";var bonus=b*p/100,total=b+bonus;var f=function(n){return n.toLocaleString(undefined,{minimumFractionDigits:c==="TOM"?0:2,maximumFractionDigits:c==="TOM"?0:2});};out.textContent="A base rate of "+f(b)+" "+c+"/hour becomes "+f(total)+" "+c+"/hour during an eligible window ("+p+"% · "+(tz?tz.value:"Asia/Tehran")+"). A 60-minute lesson entirely inside a window earns a "+f(bonus)+" "+c+" bonus.";};[pct,tz].forEach(function(el){if(el)el.addEventListener("input",update);});update();});})();</script>';
     }
 
     private static function renderPolicySettings(): void {
@@ -870,7 +913,9 @@ final class FinanceAdminController {
             'teacher_default_saved' => array('success', 'The global Toman teacher-rate default was saved as a new effective version.'),
             'teacher_rate_saved' => array('success', 'The teacher-specific Toman rate was recorded and marked as an override.'),
             'teacher_default_resumed' => array('success', 'A new effective rate version now resumes the global teacher default.'),
-            'golden_hour_saved' => array('success', 'The effective-dated golden-hour policy was saved. Committed, completed and paid compensation was not rewritten.'),
+            'golden_hour_saved' => array('success', 'The effective-dated Iran golden-hour policy was saved. Committed, completed and paid compensation was not rewritten.'),
+            'golden_hour_updated' => array('success', 'The previous Iran golden-hour policy version was updated. Committed lesson details were retained.'),
+            'golden_hour_removed' => array('success', 'The previous Iran golden-hour policy version was removed. Committed lesson details were retained.'),
             'template_saved' => array('success', 'The statement template was saved. Financial calculations were not changed.'),
             'template_reset' => array('success', 'The statement template was reset to the delivered default.'),
             'policy_saved' => array('success', 'A new policy version was recorded.'),
@@ -902,12 +947,15 @@ final class FinanceAdminController {
                     'golden_hour_timezone_invalid' => 'Enter a valid IANA time zone such as Australia/Brisbane.',
                     'golden_hour_weekdays_invalid' => 'Choose at least one valid day of the week.',
                     'golden_hour_window_invalid' => 'Enter valid local start and end times.',
-                    'golden_hour_window_overnight_not_supported' => 'Overnight golden-hour windows are not supported by the existing coverage model. The end time must be later than the start time.',
+                    'golden_hour_period_required' => 'Add at least one golden-hour period, one per line as HH:MM–HH:MM.',
+                    'golden_hour_periods_too_many' => 'Add no more than 12 golden-hour periods.',
+                    'golden_hour_active_version_requires_replacement' => 'The active policy version cannot be removed. Create a replacement version first.',
+                    'golden_hour_policy_version_not_found' => 'That policy version no longer exists.',
                     'golden_hour_effective_from_invalid' => 'Enter the effective-from instant as YYYY-MM-DD HH:MM:SS in UTC.',
                     'golden_hour_effective_until_invalid' => 'The optional effective-until instant must be valid and later than effective-from.',
                     'golden_hour_effective_from_before_current' => 'A new policy version cannot be effective before the current version.',
                     'golden_hour_effective_from_conflict' => 'Change the effective date when recording a materially different policy version.',
-                    'golden_hour_area_invalid' => 'Choose a configured serviced area.',
+                    'golden_hour_area_invalid' => 'Only the global Iran golden-hour policy is supported.',
                     'unsafe_template_url' => 'The logo URL must use https.',
                     'template_html_too_large' => 'The template HTML is too large.',
                     'template_css_too_large' => 'The template CSS is too large.',
@@ -1019,6 +1067,7 @@ final class FinanceAdminController {
         .dzn-finance-golden-days{border:1px solid #dcdcde;border-radius:6px;padding:10px;margin-block:12px}.dzn-finance-golden-days div{display:flex;flex-wrap:wrap;gap:12px}
         .dzn-finance-golden-days .dzn-finance-checkbox,.dzn-finance-golden-card>.dzn-finance-checkbox{display:inline-flex;align-items:center;gap:6px;font-weight:600}
         .dzn-finance-golden-preview{padding:10px 12px;border-inline-start:4px solid #dba617;background:#fcf9e8;font-weight:600}
+        .dzn-finance-golden-periods{display:block;margin-block:12px;font-weight:600}.dzn-finance-golden-periods textarea{display:block;width:100%;margin-block-start:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
         .dzn-finance-golden-history{margin-block:12px}
         @media(max-width:900px){.dzn-finance-template-grid{grid-template-columns:1fr}.dzn-finance-template-preview{position:static}}
         @media(max-width:782px){.dzn-finance-admin__tabs .nav-tab{font-size:13px}.dzn-finance-panel,.dzn-finance-settings-section{padding:12px}.dzn-finance-table{display:block;overflow-x:auto}}

@@ -44,6 +44,7 @@ final class GoldenHourCalculator {
                 if (!in_array($weekday, $weekdays, true)) continue;
                 $windowStart = self::wall($date->format('Y-m-d'), (string) $window['start'], $zone);
                 $windowEnd = self::wall($date->format('Y-m-d'), (string) $window['end'], $zone);
+                if ($windowEnd <= $windowStart) $windowEnd = $windowEnd->modify('+1 day');
                 $startTs = max($lessonStart, $windowStart->getTimestamp());
                 $endTs = min($lessonEnd, $windowEnd->getTimestamp());
                 if ($endTs <= $startTs) continue; // Half-open [start, end): exact end is not eligible.

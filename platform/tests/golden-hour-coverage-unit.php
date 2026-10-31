@@ -5,9 +5,14 @@ use Delnavazan\Platform\Core\Application\AcademyDemandWindowRule;
 use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
 
 $root=dirname(__DIR__);
+if(!isset($GLOBALS['wpdb'])){$GLOBALS['wpdb']=(object)array('prefix'=>'wp_');}
 require_once $root.'/src/Core/Application/AvailabilityLocalTime.php';
 require_once $root.'/src/Core/Application/AcademyDemandWindowRule.php';
 require_once $root.'/src/Core/Application/AcademyCoverageAnalyzer.php';
+require_once $root.'/src/Core/Infrastructure/Repository/FinanceSettingsRepository.php';
+require_once $root.'/src/Core/Application/Finance/GoldenHourRule.php';
+require_once $root.'/src/Core/Application/Finance/GoldenHourPolicyService.php';
+require_once $root.'/src/Core/Application/AcademyCoverageReadService.php';
 
 $assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
 $utc=static fn(string $value):DateTimeImmutable=>new DateTimeImmutable($value,new DateTimeZone('UTC'));
@@ -146,10 +151,24 @@ $alpha=AcademyCoverageAnalyzer::analyze(array(
 ),array($baseTeacher(20,'Piano Teacher',$window('Australia/Brisbane',$week),array(2))),$week,array(),'alpha');
 $assert($alpha['instruments'][0]['name']==='Piano','Alphabetical sorting must be available');
 
+$windowPolicy=new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPolicyService();
+$coverageWindows=$windowPolicy->coverageWindows();
+$assert(count($coverageWindows)===5&&isset($coverageWindows['AU'],$coverageWindows['EU'],$coverageWindows['GB'],$coverageWindows['NA_EAST'],$coverageWindows['NA_WEST']),'Coverage windows must come from the five structural service areas.');
+$areaResolutionFailed=false;
+try{$windowPolicy->resolveAt('AU','2026-11-02 12:00:00');}catch(\InvalidArgumentException $error){$areaResolutionFailed=$error->getMessage()==='golden_hour_area_invalid';}
+$assert($areaResolutionFailed,'The global Iran pay resolver must not accept service-area keys; coverage must use coverageWindows() instead.');
+$coverageService=new \Delnavazan\Platform\Core\Application\AcademyCoverageReadService();
+$windowsMethod=new ReflectionMethod($coverageService,'windowsForWeek');$windowsMethod->setAccessible(true);
+$effectiveWindows=$windowsMethod->invoke($coverageService,$week);
+$assert(count($effectiveWindows)===35,'Five structural areas across seven days must produce 35 coverage window rows.');
+$assert(count(array_unique(array_map(static fn(array $row):string=>$row['region'],$effectiveWindows)))===5,'Coverage must retain all five service areas.');
+$assert(count(array_filter($effectiveWindows,static fn(array $row):bool=>(int)$row['start_minute']===960&&(int)$row['end_minute']===1260))===35,'The structural 16:00–21:00 window must survive the finance refactor.');
+
 $service=file_get_contents($root.'/src/Core/Application/AcademyCoverageReadService.php');
 $assert(str_contains($service,'catch(\\Throwable)')&&str_contains($service,"'unavailable'")&&str_contains($service,'availability records could not be read'),'The read service must fail closed on unreadable availability data');
 foreach(array("o.state='active'","o.readiness_state='ready'","a.state IN ('accepting','limited')","e.status='active'","c.status='active'","ap.status='active'","r.state IN ('preferred','requestable')","new TeacherAvailabilityService()","->effective(")as$needle)$assert(str_contains($service,$needle),'Eligibility and effective-availability authority must be preserved: '.$needle);
-foreach(array('GoldenHourPolicyService','coverageWindows','resolveAt','windowsForWeek')as$needle)$assert(str_contains($service,$needle),'Coverage must use the shared finance window authority: '.$needle);
+foreach(array('GoldenHourPolicyService','coverageWindows','windowsForWeek')as$needle)$assert(str_contains($service,$needle),'Coverage must use the shared finance window authority: '.$needle);
+$assert(!str_contains($service,'resolveAt('),'Coverage must not resolve the global Iran pay policy as a service-area window');
 $analyzer=file_get_contents($root.'/src/Core/Application/AcademyCoverageAnalyzer.php');
 $assert(str_contains($analyzer,'$blocked=true')&&str_contains($analyzer,'$available[$teacherId]'),'Blocked time must win while availability is counted by distinct teacher id');
 

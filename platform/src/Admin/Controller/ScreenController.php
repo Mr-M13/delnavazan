@@ -267,8 +267,8 @@ final class ScreenController {
                 echo '<p>Teacher overview requires teacher maintenance access. Use <strong>Onboarding &amp; Invitations</strong> for your permitted work.</p>';
                 return;
             }
-            self::teacherDirectory();
             self::teacherCoverage();
+            self::teacherDirectory();
             return;
         }
         try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
@@ -517,10 +517,7 @@ final class ScreenController {
 
     private static function teacherCoverage(): void {
         if(!current_user_can('dzn_view_booking_requests'))return;
-        $rows=(new \Delnavazan\Platform\Core\Application\AcademyCoverageReadService())->matrix();
-        echo '<section id="teacher-coverage"><h2>Coverage</h2><p>Decision support from current eligibility and declared availability only. When there is no usable supply or demand basis, the result is unavailable rather than invented.</p><table class="widefat striped"><thead><tr><th>Instrument</th><th>Region</th><th>Covered / insufficient</th><th>Uncovered times</th></tr></thead><tbody>';
-        foreach($rows as$r){$g=array_slice($r['gaps'],0,4);$labels=[];foreach($g as$x)$labels[]='day '.$x['weekday'].' '.sprintf('%02d:%02d',intdiv($x['minute'],60),$x['minute']%60);$coverage=($r['metric_state']??'available')==='insufficient'?'Insufficient: no eligible teacher availability recorded':((int)$r['total_slots']>0?(int)$r['coverage_percent'].'% · '.(int)$r['covered_slots'].'/'.(int)$r['total_slots']:'Unavailable');echo '<tr><td>'.esc_html((string)$r['instrument']).'</td><td>'.esc_html((string)$r['region_label']).'</td><td>'.esc_html($coverage).'</td><td>'.esc_html($labels?implode(', ',$labels):'No uncovered measured slots').'</td></tr>';}
-        echo '</tbody></table></section>';
+        AcademyCoverageController::renderAtlas('dzn-teachers-menu');
     }
 
     private static function teacherMaintenanceForm(object $teacher): void {

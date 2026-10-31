@@ -1,16 +1,59 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
+
+use Delnavazan\Platform\Admin\View\AcademyCoverageView;
 use Delnavazan\Platform\Core\Application\AcademyCoverageReadService;
+use Delnavazan\Platform\Core\Application\AcademyDemandWindowRule;
+
+/** Read-only Golden Hour Coverage Atlas on the consolidated Teachers overview. */
 final class AcademyCoverageController {
     private const CAP='dzn_view_booking_requests';
-    /** Coverage is rendered at the bottom of the canonical Teachers page. */
+    /** Coverage is rendered inside the canonical Teachers page. */
     public static function register():void{}
     public static function menu():void{}
     public static function screen():void{
-        if(!current_user_can(self::CAP))wp_die('Forbidden',403);$rows=(new AcademyCoverageReadService())->matrix();
-        echo '<div class="wrap"><h1>Academy golden-hour coverage</h1><p>Read-only planning view. Coverage uses only active, ready, accepting/limited teachers with active course eligibility and declared preferred/requestable availability. Regional windows are the same versioned definitions used by Golden hour pay bonus and are converted with timezone/DST rules for the current week. A broad region label always shows its exact configured IANA zone.</p>';
-        echo '<table class="widefat striped"><thead><tr><th>Instrument</th><th>Region</th><th>Coverage</th><th>Uncovered demand</th></tr></thead><tbody>';
-        foreach($rows as$r){$g=array_slice($r['gaps'],0,6);$labels=[];foreach($g as$x)$labels[]='day '.$x['weekday'].' '.sprintf('%02d:%02d',intdiv($x['minute'],60),$x['minute']%60);$more=count($r['gaps'])>6?' +'.(count($r['gaps'])-6).' more':'';echo '<tr><td>'.esc_html($r['instrument']).'</td><td>'.esc_html($r['region_label']).'<br><small>'.esc_html((string)$r['region_timezone']).'</small></td><td><strong>'.(int)$r['coverage_percent'].'%</strong> · '.(int)$r['covered_slots'].'/'.(int)$r['total_slots'].' half-hour slots</td><td>'.esc_html($labels?implode(', ',$labels).$more:'No uncovered golden-hour slots').'</td></tr>';}
-        echo '</tbody></table><p><em>This is capacity guidance, not a booking promise. Dated exceptions, existing bookings and student-specific constraints are evaluated later by the scheduling authority.</em></p></div>';
+        if(!current_user_can(self::CAP))wp_die('Forbidden',403);
+        echo '<div class="wrap">';
+        self::renderAtlas('dzn-academy-coverage');
+        echo '</div>';
+    }
+
+    public static function renderAtlas(string $page='dzn-teachers-menu'):void{
+        if(!current_user_can(self::CAP))return;
+        $filters=self::filters($page);
+        $matrix=(new AcademyCoverageReadService())->matrix($filters['week_date'],$filters['sort']);
+        $canViewTeacherNames=current_user_can('dzn_manage_teachers')||current_user_can('dzn_manage_teacher_availability');
+        AcademyCoverageView::render($matrix,$filters,$canViewTeacherNames);
+    }
+
+    private static function filters(string $page):array{
+        $regions=AcademyDemandWindowRule::regions();
+        $week=null;
+        $weekInput=isset($_GET['coverage_week'])&&is_scalar($_GET['coverage_week'])?sanitize_text_field(wp_unslash((string)$_GET['coverage_week'])):'';
+        if(preg_match('/^\d{4}-\d{2}-\d{2}$/D',$weekInput)){
+            try{$candidate=new \DateTimeImmutable($weekInput.' 00:00:00',new \DateTimeZone('UTC'));if($candidate->format('Y-m-d')===$weekInput)$week=$candidate;}catch(\Throwable){$week=null;}
+        }
+        $weekStart=AcademyDemandWindowRule::weekStart($week);
+
+        $area='';
+        $areaInput=isset($_GET['coverage_area'])&&is_scalar($_GET['coverage_area'])?strtoupper(sanitize_key(wp_unslash((string)$_GET['coverage_area']))):'';
+        if(isset($regions[$areaInput]))$area=$areaInput;
+
+        $instrument=isset($_GET['coverage_instrument'])&&is_scalar($_GET['coverage_instrument'])?absint($_GET['coverage_instrument']):0;
+        $sort=isset($_GET['coverage_sort'])&&is_scalar($_GET['coverage_sort'])&&sanitize_key(wp_unslash((string)$_GET['coverage_sort']))==='alpha'?'alpha':'gap';
+
+        $detail=null;
+        $detailInput=isset($_GET['coverage_detail'])&&is_scalar($_GET['coverage_detail'])?sanitize_text_field(wp_unslash((string)$_GET['coverage_detail'])):'';
+        if(preg_match('/^([1-9][0-9]*):([A-Za-z_]+)$/D',$detailInput,$matches)&&isset($regions[strtoupper($matches[2])]))$detail=array('instrument'=>(int)$matches[1],'area'=>strtoupper($matches[2]));
+
+        return array(
+            'page'=>$page,
+            'week_date'=>$weekStart,
+            'week_value'=>$weekStart->format('Y-m-d'),
+            'instrument'=>$instrument,
+            'area'=>$area,
+            'sort'=>$sort,
+            'detail'=>$detail,
+        );
     }
 }

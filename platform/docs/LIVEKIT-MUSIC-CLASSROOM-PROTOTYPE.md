@@ -287,6 +287,21 @@ Passed in this development environment:
   replaced the first connection without adding a third participant;
 - the explicit missing-LiveKit-credentials Persian fallback path.
 
+Production observation on 2026-10-31:
+
+- production build is `main-97d681aa3e27`;
+- production WordPress has no `DZN_LIVEKIT_URL`, `DZN_LIVEKIT_API_KEY`, or
+  `DZN_LIVEKIT_API_SECRET` constant or environment value, and the LiveKit class is not yet deployed;
+- `https://rtc.delnavazan.com/twirp/livekit.RoomService/ListRooms` is reachable from the production
+  host and correctly returns `401` without a credential;
+- production already has 2 verified Google Calendar mappings, 2 active calendar secrets, 1 active
+  booking-calendar secret, 12 authorised canonical lessons, and 1 confirmed introductory booking;
+- the LiveKit VPS rejected the locally available SSH keys for `ubuntu`, `root`, `debian`, `admin`,
+  and `livekit` with `Permission denied (publickey,password)`.
+
+The portal now hides the LiveKit primary action when server credentials are absent, so a code-only
+deployment cannot present a broken primary classroom; the existing Meet fallback remains available.
+
 Not verified here, and required before production release:
 
 - the production `wss://rtc.delnavazan.com` server with the real API key/secret (credentials are not

@@ -27,6 +27,7 @@ $check('SDK is a dependency of the classroom script', str_contains($routes, "arr
 $bridge = $read('theme/inc/platform-bridge.php');
 $check('student and teacher cards expose LiveKit availability', str_contains($bridge, "'livekit_available'") && substr_count($bridge, "'livekit_action_url'") >= 2);
 $check('LiveKit does not require a Google Meet mapping', str_contains($bridge, 'function dzn_theme_platform_livekit_available') && !str_contains($bridge, '$livekit_available = $join_available'));
+$check('LiveKit primary action is hidden when server credentials are absent', str_contains($bridge, 'function dzn_theme_platform_livekit_ready') && str_contains($bridge, '! dzn_theme_platform_livekit_ready()'));
 $check('Meet fallback remains a separate server action', str_contains($bridge, 'dzn_student_join_class') && str_contains($bridge, 'dzn_teacher_join_class'));
 $check('cancelled and completed lessons are not joinable', str_contains($bridge, "'authorised' === (string) ( \$row['lifecycle_state']") || str_contains($bridge, "'authorised' === (string) ( \$row['lifecycle_state'] ?? '' )"));
 $check('schedule-version mismatch is refused', str_contains($read('platform/src/Integrations/LiveKit/LiveKitClassroomAuthorizer.php'), 'requested_schedule_key'));

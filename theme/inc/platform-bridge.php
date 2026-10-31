@@ -512,9 +512,21 @@ function dzn_theme_platform_calendar_export_url( $role, array $row ) {
 	} catch ( Throwable ) { return ''; }
 }
 
+/** Local LiveKit readiness gate: never show a primary classroom action when server credentials are absent. */
+function dzn_theme_platform_livekit_ready() {
+	$class = '\\Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitConfiguration';
+	if ( ! class_exists( $class ) ) { return false; }
+	try {
+		( new $class() )->values();
+		return true;
+	} catch ( Throwable ) {
+		return false;
+	}
+}
+
 /** LiveKit is the primary classroom; it does not depend on a Google Meet mapping existing. */
 function dzn_theme_platform_livekit_available( $role, array $row, $is_booking, $within_join ) {
-	if ( ! $within_join ) { return false; }
+	if ( ! $within_join || ! dzn_theme_platform_livekit_ready() ) { return false; }
 	if ( $is_booking ) {
 		return in_array( (string) ( $row['version'] ?? '' ), array( 'student_booking_class_v1', 'teacher_booking_class_v1' ), true )
 			&& 'confirmed' === (string) ( $row['confirmation_state'] ?? 'confirmed' )

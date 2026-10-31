@@ -99,6 +99,7 @@ $signed = $webhookToken(array('iss' => 'devkey', 'exp' => 2000, 'sha256' => hash
 $signedBase64 = $webhookToken(array('iss' => 'devkey', 'exp' => 2000, 'sha256' => base64_encode(hash('sha256', $body, true))), 'not-a-real-secret');
 $assert($verifier->verify('Bearer ' . $signed, $body, 'devkey', 'not-a-real-secret', 1000)['iss'] === 'devkey', 'Valid hex-digest webhook signature was rejected.');
 $assert($verifier->verify('Bearer ' . $signedBase64, $body, 'devkey', 'not-a-real-secret', 1000)['iss'] === 'devkey', 'Valid LiveKit base64-digest webhook signature was rejected.');
+$assert($verifier->verify($signedBase64, $body, 'devkey', 'not-a-real-secret', 1000)['iss'] === 'devkey', 'Valid LiveKit raw Authorization JWT was rejected.');
 try { $verifier->verify('Bearer ' . $signed, $body . ' ', 'devkey', 'not-a-real-secret', 1000); throw new RuntimeException('Webhook body digest was not verified.'); }
 catch (InvalidArgumentException $error) { $assert($error->getMessage() === 'livekit_webhook_unauthorized', 'Webhook body tampering did not fail closed.'); }
 try { $verifier->verify('Bearer ' . $signedBase64, $body . ' ', 'devkey', 'not-a-real-secret', 1000); throw new RuntimeException('LiveKit base64 body digest was not verified.'); }

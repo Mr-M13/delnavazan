@@ -11,8 +11,10 @@ namespace Delnavazan\Platform\Integrations\LiveKit;
 final class LiveKitWebhookVerifier {
     public function verify(string $authorization, string $rawBody, string $apiKey, string $apiSecret, int $now): array {
         if ($apiKey === '' || $apiSecret === '') throw new \RuntimeException('livekit_not_configured');
-        if (!preg_match('/^Bearer\s+(\S+)$/i', trim($authorization), $matches)) throw new \InvalidArgumentException('livekit_webhook_unauthorized');
-        $parts = explode('.', $matches[1]);
+        $authorization = trim($authorization);
+        if (preg_match('/^Bearer\s+(\S+)$/i', $authorization, $matches)) $authorization = $matches[1];
+        // LiveKit currently sends the JWT directly in Authorization; accept the Bearer form too.
+        $parts = explode('.', $authorization);
         if (count($parts) !== 3) throw new \InvalidArgumentException('livekit_webhook_unauthorized');
         [$header64, $payload64, $signature64] = $parts;
         $header = json_decode($this->decode($header64), true);

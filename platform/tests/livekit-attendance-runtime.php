@@ -185,12 +185,12 @@ dzn_lka_assert((int)$policy['policy_id']>0,'A prospective cutover policy is requ
 // collide across the synthetic same-time scenarios. The runtime seeds a fresh Phase-J fixture
 // immediately before this suite for exactly this reason.
 $chains=array();$usersBy=array();
-foreach(array('settle','below','reconnect','presume','reschedule','cancel','ambiguous','mismatch','meet','late')as$label){
+foreach(array('settle','below','reconnect','presume','reschedule','cancel','ambiguous','mismatch','meet','late','open','orphan')as$label){
     $chains[$label]=$chain($label);
     $usersBy[$label]=$linkPrincipals($chains[$label]);
 }
 $o=array();
-foreach(array('settle'=>5,'below'=>5,'reconnect'=>5,'presume'=>5,'reschedule'=>5,'cancel'=>2,'ambiguous'=>2,'mismatch'=>2,'meet'=>2,'late'=>2)as$label=>$minutes)$o[$label]=$occurrence($chains[$label],$label,$minutes,5);
+foreach(array('settle'=>5,'below'=>5,'reconnect'=>5,'presume'=>5,'reschedule'=>5,'cancel'=>2,'ambiguous'=>2,'mismatch'=>2,'meet'=>2,'late'=>2,'open'=>2,'orphan'=>2)as$label=>$minutes)$o[$label]=$occurrence($chains[$label],$label,$minutes,5);
 
 // Wait for the cutover instant and every scheduled start.
 $start=max(array_map(static fn($item)=>$item['start_ts'],$o));

@@ -350,7 +350,7 @@ $reconcile=LiveKitAttendanceReconciliationWorker::run();
 dzn_lka_assert(!empty($reconcile['rooms'])||!empty($reconcile['open']),'The reconciliation worker must process durable work');
 dzn_lka_assert($case($o['open'])===null&&$outcome($o['open'])===null,'A missing leave must not create attendance or an outcome before retention');
 dzn_lka_assert($case($o['orphan'])===null&&$outcome($o['orphan'])===null,'A missing join must not create attendance or an outcome before retention');
-$staleNow=gmdate('Y-m-d H:i:s',strtotime($latest.' UTC')+8*86400);
+$staleNow=gmdate('Y-m-d H:i:s',$latest+8*86400);
 $integration->reconcile($staleNow);
 $openCase=$case($o['open']);dzn_lka_assert($openCase!==null&&(string)$openCase->state==='ready_for_review','A retained open interval must become review-only');
 dzn_lka_assert(in_array('open_interval',$anomalies($openCase),true),'A missing leave must be recorded as open_interval');

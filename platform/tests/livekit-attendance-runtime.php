@@ -172,10 +172,16 @@ dzn_lka_assert(ProviderEvidenceSystemActor::isConfigured(),'The narrow integrati
 $policy=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',time()+2),dzn_lka_key('cutover'));
 dzn_lka_assert((int)$policy['policy_id']>0,'A prospective cutover policy is required');
 
-$chainA=$chain('a');$chainB=$chain('b');$usersA=$linkPrincipals($chainA);$usersB=$linkPrincipals($chainB);
+// Each occurrence gets its own canonical chain/Teacher so a single Teacher occupancy cannot
+// collide across the synthetic same-time scenarios. The runtime seeds a fresh Phase-J fixture
+// immediately before this suite for exactly this reason.
+$chains=array();$usersBy=array();
+foreach(array('settle','below','reconnect','presume','reschedule','cancel','ambiguous','mismatch','meet','late')as$label){
+    $chains[$label]=$chain($label);
+    $usersBy[$label]=$linkPrincipals($chains[$label]);
+}
 $o=array();
-foreach(array('settle'=>5,'below'=>5,'reconnect'=>5,'presume'=>5,'reschedule'=>5,'cancel'=>2,'ambiguous'=>2,'mismatch'=>2,'meet'=>2)as$label=>$minutes)$o[$label]=$occurrence($chainA,$label,$minutes,5);
-$o['late']=$occurrence($chainB,'late',2,5);
+foreach(array('settle'=>5,'below'=>5,'reconnect'=>5,'presume'=>5,'reschedule'=>5,'cancel'=>2,'ambiguous'=>2,'mismatch'=>2,'meet'=>2,'late'=>2)as$label=>$minutes)$o[$label]=$occurrence($chains[$label],$label,$minutes,5);
 
 // Wait for the cutover instant and every scheduled start.
 $start=max(array_map(static fn($item)=>$item['start_ts'],$o));
@@ -183,7 +189,7 @@ dzn_lka_assert($start>time(),'Synthetic occurrences must start in the future');
 while(time()<$start+1)sleep(1);
 
 $grantsBy=array();
-foreach($o as$label=>$item)$grantsBy[$label]=$grants($item,$label==='late'?$usersB:$usersA);
+foreach($o as$label=>$item)$grantsBy[$label]=$grants($item,$usersBy[$label]);
 foreach($o as$label=>$item){$bind($grantsBy[$label]['teacher']);}
 
 // A cancelled occurrence is revoked before delivery; its binding still accepts the leave fact.
@@ -270,13 +276,13 @@ foreach(array('ambiguous','mismatch')as$label){
 $rs=$o['reschedule'];$rsg=$grantsBy['reschedule'];
 $send(dzn_lka_join($rsg['teacher'],'PA_T_RESCHEDULE_OLD',$rs['start_ts'],'EV_T_RESCHEDULE_OLD_JOIN'),'reschedule_old_t_join');
 $newWall=gmdate('Y-m-d H:i:s',time()+8);
-$revised=$schedules->revise((int)$rs['lesson_id'],(int)$chainA['assignment_id'],array('expected_schedule_version_id'=>(int)$rs['version_id'],'schedule_timezone'=>'UTC','local_wall_date'=>substr($newWall,0,10),'local_wall_time'=>substr($newWall,11),'duration_minutes'=>5,'reason_code'=>'synthetic_livekit_reschedule')+dzn_lka_evidence('reschedule-livekit'),dzn_lka_key('reschedule-livekit'));
+$revised=$schedules->revise((int)$rs['lesson_id'],(int)$chains['reschedule']['assignment_id'],array('expected_schedule_version_id'=>(int)$rs['version_id'],'schedule_timezone'=>'UTC','local_wall_date'=>substr($newWall,0,10),'local_wall_time'=>substr($newWall,11),'duration_minutes'=>5,'reason_code'=>'synthetic_livekit_reschedule')+dzn_lka_evidence('reschedule-livekit'),dzn_lka_key('reschedule-livekit'));
 $newVersion=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}canonical_lesson_schedule_versions WHERE id=%d",(int)$revised['schedule_version_id']));
 $newStart=(int)strtotime($newVersion->starts_at_utc.' UTC');
 $send(dzn_lka_left($rsg['teacher'],'PA_T_RESCHEDULE_OLD',$rs['start_ts']+600,'EV_T_RESCHEDULE_OLD_LEFT'),'reschedule_old_t_left');
 wp_set_current_user(1);
 $newOccurrence=array('lesson_id'=>$rs['lesson_id'],'version_id'=>(int)$newVersion->id,'lesson_uid'=>(string)$rs['lesson_uid'],'version_uid'=>(string)$newVersion->uid,'start'=>(string)$newVersion->starts_at_utc,'end'=>(string)$newVersion->ends_at_utc,'start_ts'=>$newStart,'teacher_id'=>$rs['teacher_id'],'student_id'=>$rs['student_id']);
-$newGrants=$grants($newOccurrence,$usersA);$bind($newGrants['teacher']);
+$newGrants=$grants($newOccurrence,$usersBy['reschedule']);$bind($newGrants['teacher']);
 $send(dzn_lka_join($newGrants['teacher'],'PA_T_RESCHEDULE_NEW',$newStart,'EV_T_RESCHEDULE_NEW_JOIN'),'reschedule_new_t_join');
 $send(dzn_lka_join($newGrants['student'],'PA_S_RESCHEDULE_NEW',$newStart,'EV_S_RESCHEDULE_NEW_JOIN'),'reschedule_new_s_join');
 $send(dzn_lka_left($newGrants['teacher'],'PA_T_RESCHEDULE_NEW',$newStart+1200,'EV_T_RESCHEDULE_NEW_LEFT'),'reschedule_new_t_left');
@@ -310,7 +316,7 @@ $late=$o['late'];
 $presumedLate=LessonCompletionAutomationWorker::runLesson((int)$late['lesson_id']);
 dzn_lka_assert(($presumedLate['state']??'')==='presumed','The late-evidence occurrence must first be presumed completed');
 wp_set_current_user(1);
-$terms->close((int)$chainB['term_id'],'current',dzn_lka_evidence('late-term-close'),dzn_lka_key('late-term-close'));
+$terms->close((int)$chains['late']['term_id'],'current',dzn_lka_evidence('late-term-close'),dzn_lka_key('late-term-close'));
 $lg=$grantsBy['late'];
 $send(dzn_lka_join($lg['teacher'],'PA_T_LATE',$late['start_ts'],'EV_T_LATE_JOIN'),'late_t_join');
 $send(dzn_lka_join($lg['student'],'PA_S_LATE',$late['start_ts'],'EV_S_LATE_JOIN'),'late_s_join');

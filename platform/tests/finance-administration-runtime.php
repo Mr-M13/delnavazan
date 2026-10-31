@@ -16,6 +16,7 @@ use Delnavazan\Platform\Core\Application\Finance\Intro\{IntroCheckoutInitiationS
 use Delnavazan\Platform\Core\Application\Finance\Pricing\{PricingMoney,RegionalPricingService};
 use Delnavazan\Platform\Core\Application\Finance\TeacherRateInheritanceService;
 use Delnavazan\Platform\Core\Application\Finance\TeacherRateService;
+use Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementBatchService;
 use Delnavazan\Platform\Admin\Controller\FinanceAdminController;
 use Delnavazan\Platform\Core\Application\TeacherService;
 use Delnavazan\Platform\Core\Infrastructure\Migration\Migrator;
@@ -376,6 +377,7 @@ ob_start();
 FinanceAdminController::screen();
 $paymentsHtml = (string) ob_get_clean();
 dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Instalment schedules') && str_contains($paymentsHtml, 'Before Lesson 7') && str_contains($paymentsHtml, 'Offer outstanding') && str_contains($paymentsHtml, 'dzn-finance-pill">Settled'), 'Payments must render the instalment schedule and its real status cell');
+dzn_fin_runtime_assert(str_contains($paymentsHtml, 'Manual refunds') && str_contains($paymentsHtml, 'Refund review cases'), 'Payments must render the administrator-only refund workspace');
 $_GET = array('page' => 'dzn-finance', 'tab' => 'settings');
 ob_start();
 FinanceAdminController::screen();
@@ -383,6 +385,21 @@ $screenHtml = (string) ob_get_clean();
 dzn_fin_runtime_assert(substr_count($screenHtml, 'class="nav-tab') >= 4, 'The actual Finance screen must render four tabs');
 foreach (array('Payments', 'Central Ledger', 'Teacher Statements', 'Settings') as $tabLabel) dzn_fin_runtime_assert(str_contains($screenHtml, '>' . $tabLabel . '<'), 'Rendered Finance tab missing: ' . $tabLabel);
 dzn_fin_runtime_assert(str_contains($screenHtml, 'Global regional pricing') && str_contains($screenHtml, 'Teacher compensation'), 'Settings tab must render consolidated finance fields');
+
+/* The Statements tab must expose the draft/issue lifecycle and the unset-timezone warning. */
+$_GET = array('page' => 'dzn-finance', 'tab' => 'statements', 'teacher_id' => $teacherId);
+ob_start();
+FinanceAdminController::screen();
+$statementsHtml = (string) ob_get_clean();
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Draft a statement for a completed period'), 'Statements must expose the draft form');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement timezone policy is unset'), 'Statements must warn when the timezone policy is unset');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Teacher Statements'), 'Statements must render its own tab content');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Generate statements for every Teacher who worked in a month'), 'Statements must expose the monthly batch generator');
+$previousMonth = gmdate('Y-m', strtotime('first day of last month UTC'));
+$batchPreview = (new TeacherStatementBatchService())->preview($previousMonth);
+dzn_fin_runtime_assert(isset($batchPreview['month'], $batchPreview['period_start'], $batchPreview['period_end'], $batchPreview['teachers']), 'The monthly batch preview must return its period and candidate list');
+$batchResult = (new TeacherStatementBatchService())->run($previousMonth, array('issue' => '1', 'email' => ''), 'finance-runtime-batch-' . wp_generate_uuid4());
+dzn_fin_runtime_assert(isset($batchResult['summary']['teachers']) && is_array($batchResult['teachers']), 'The monthly batch must return an isolated per-Teacher result set');
 $_GET = array();
 
 echo 'Finance administration runtime: PASS' . PHP_EOL;

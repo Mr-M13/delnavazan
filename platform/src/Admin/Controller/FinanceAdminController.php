@@ -9,12 +9,16 @@ use Delnavazan\Platform\Core\Application\Finance\FinanceRule;
 use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
 use Delnavazan\Platform\Core\Application\Finance\GoldenHourPolicyService;
 use Delnavazan\Platform\Core\Application\Finance\GoldenHourRule;
+use Delnavazan\Platform\Core\Application\Finance\ManualPaymentSettlementService;
+use Delnavazan\Platform\Core\Application\Finance\ManualRefundService;
 use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
 use Delnavazan\Platform\Core\Application\Finance\Pricing\{PricingMoney,RegionalPricingRule,RegionalPricingService};
 use Delnavazan\Platform\Core\Application\Finance\Read\FinanceAdminReadService;
 use Delnavazan\Platform\Core\Application\Finance\Read\TeacherRateReadService;
 use Delnavazan\Platform\Core\Application\Finance\Read\TeacherStatementReadService;
-use Delnavazan\Platform\Core\Application\Finance\Statements\{StatementTemplateRule,StatementTemplateService};
+use Delnavazan\Platform\Core\Application\Finance\Statements\{StatementTemplateRule,StatementTemplateService,TeacherStatementBatchService,TeacherStatementEmailService};
+use Delnavazan\Platform\Core\Application\Finance\TeacherStatementService;
+use Delnavazan\Platform\Core\Application\RefundReviewService;
 
 /**
  * One Finance administration page with exactly four top-level tabs.
@@ -41,6 +45,12 @@ final class FinanceAdminController {
         add_action('admin_post_dzn_finance_settings', array(__CLASS__, 'handleSettings'));
         add_action('admin_post_dzn_finance_promotion', array(__CLASS__, 'handlePromotion'));
         add_action('admin_post_dzn_finance_statement_export', array(__CLASS__, 'exportStatement'));
+        add_action('admin_post_dzn_finance_manual_payment', array(__CLASS__, 'handleManualPayment'));
+        add_action('admin_post_dzn_finance_statement', array(__CLASS__, 'handleStatement'));
+        add_action('admin_post_dzn_finance_statement_email', array(__CLASS__, 'handleStatementEmail'));
+        add_action('admin_post_dzn_finance_statement_batch', array(__CLASS__, 'handleStatementBatch'));
+        add_action('admin_post_dzn_finance_refund', array(__CLASS__, 'handleRefund'));
+        add_action('admin_post_dzn_finance_refund_review', array(__CLASS__, 'handleRefundReview'));
     }
 
     public static function menu(): void {
@@ -243,6 +253,219 @@ final class FinanceAdminController {
         return $limit;
     }
 
+    /** Record an administrator-verified offline payment against one canonical obligation. */
+    public static function handleManualPayment(): void {
+        if (!current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY)) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_manual_payment');
+        $_POST = wp_unslash($_POST);
+        $kind = sanitize_key((string) ($_POST['payment_kind'] ?? ''));
+        $commandKey = sanitize_text_field((string) ($_POST['command_key'] ?? ''));
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS);
+        try {
+            $service = new ManualPaymentSettlementService();
+            if ($kind === 'standard') {
+                $service->markStandardPaid(array(
+                    'offer_uid' => (string) ($_POST['offer_uid'] ?? ''),
+                    'obligation_sequence' => (string) ($_POST['obligation_sequence'] ?? ''),
+                    'evidence_reference' => (string) ($_POST['evidence_reference'] ?? ''),
+                    'received_on' => (string) ($_POST['received_on'] ?? ''),
+                ), $commandKey);
+            } elseif ($kind === 'intro') {
+                $service->markIntroPaid(array(
+                    'obligation_uid' => (string) ($_POST['obligation_uid'] ?? ''),
+                    'evidence_reference' => (string) ($_POST['evidence_reference'] ?? ''),
+                    'received_on' => (string) ($_POST['received_on'] ?? ''),
+                ), $commandKey);
+            } else {
+                throw new \InvalidArgumentException('manual_payment_kind_invalid');
+            }
+            $args['finance_result'] = 'payment_marked_paid';
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'manual_payment_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#outstanding-payments');
+        exit;
+    }
+
+    /** Draft, issue, withdraw or supersede a teacher compensation statement. */
+    public static function handleStatement(): void {
+        if (!current_user_can('dzn_manage_finance_statements')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_statement');
+        $_POST = wp_unslash($_POST);
+        $operation = sanitize_key((string) ($_POST['statement_operation'] ?? ''));
+        $teacherId = absint($_POST['teacher_id'] ?? 0);
+        $statementId = absint($_POST['statement_id'] ?? 0);
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_STATEMENTS);
+        if ($teacherId > 0) $args['teacher_id'] = $teacherId;
+        if ($statementId > 0) $args['statement_id'] = $statementId;
+        try {
+            $service = new TeacherStatementService();
+            $now = gmdate('Y-m-d H:i:s');
+            $key = 'finance-statement-' . $operation . '-' . wp_generate_uuid4();
+            if ($operation === 'draft') {
+                $start = self::statementDate((string) ($_POST['period_start'] ?? ''));
+                $end = self::statementDate((string) ($_POST['period_end'] ?? ''), true);
+                $result = $service->draft($teacherId, $start, $end, $key);
+                $args['statement_id'] = (int) $result['statement_id'];
+                $args['finance_result'] = 'statement_drafted';
+            } elseif ($operation === 'issue') {
+                if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
+                $service->issue($statementId, $key);
+                $args['finance_result'] = 'statement_issued';
+            } elseif ($operation === 'withdraw') {
+                if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
+                $service->withdraw($statementId, array(
+                    'reason_code' => 'operator_decision',
+                    'evidence_channel' => 'authenticated_platform',
+                    'evidence_reference' => 'finance-statement-withdraw:' . $statementId . ':' . $now,
+                    'evidence_at' => $now,
+                ), $key);
+                $args['finance_result'] = 'statement_withdrawn';
+            } elseif ($operation === 'supersede') {
+                if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
+                $result = $service->supersede($statementId, array(
+                    'reason_code' => 'operator_decision',
+                    'evidence_channel' => 'authenticated_platform',
+                    'evidence_reference' => 'finance-statement-supersede:' . $statementId . ':' . $now,
+                    'evidence_at' => $now,
+                ), $key);
+                $args['statement_id'] = (int) ($result['statement_id'] ?? $statementId);
+                $args['finance_result'] = 'statement_superseded';
+            } else {
+                throw new \InvalidArgumentException('statement_operation_invalid');
+            }
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'statement_operation_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#teacher-statements');
+        exit;
+    }
+
+    /** Email one issued statement to its recorded Teacher address. */
+    public static function handleStatementEmail(): void {
+        if (!current_user_can('dzn_manage_finance_statements')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_statement_email');
+        $_POST = wp_unslash($_POST);
+        $statementId = absint($_POST['statement_id'] ?? 0);
+        $teacherId = absint($_POST['teacher_id'] ?? 0);
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_STATEMENTS);
+        if ($teacherId > 0) $args['teacher_id'] = $teacherId;
+        if ($statementId > 0) $args['statement_id'] = $statementId;
+        try {
+            if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
+            $result = (new TeacherStatementEmailService())->send($statementId);
+            $args['finance_result'] = !empty($result['emailed']) ? 'statement_emailed' : 'statement_email_failed';
+            if (empty($result['emailed']) && !empty($result['reason'])) $args['finance_error'] = (string) $result['reason'];
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'statement_email_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#teacher-statements');
+        exit;
+    }
+
+    /** Generate one statement per Teacher with active work in the chosen completed month. */
+    public static function handleStatementBatch(): void {
+        if (!current_user_can('dzn_manage_finance_statements')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_statement_batch');
+        $_POST = wp_unslash($_POST);
+        $month = sanitize_text_field((string) ($_POST['batch_month'] ?? ''));
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_STATEMENTS, 'batch_month' => $month);
+        try {
+            $result = (new TeacherStatementBatchService())->run($month, array(
+                'issue' => isset($_POST['batch_issue']) ? '1' : '',
+                'email' => isset($_POST['batch_email']) ? '1' : '',
+            ), sanitize_text_field((string) ($_POST['command_key'] ?? '')));
+            set_transient('dzn_finance_statement_batch_' . get_current_user_id(), $result, 15 * MINUTE_IN_SECONDS);
+            $args['finance_result'] = 'statement_batch_complete';
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'statement_batch_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#statement-batch');
+        exit;
+    }
+
+    /** Record one administrator-only manual refund and its review case. */
+    public static function handleRefund(): void {
+        if (!current_user_can(ManualRefundService::MANAGE_CAPABILITY)) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_refund');
+        $_POST = wp_unslash($_POST);
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS);
+        try {
+            $result = (new ManualRefundService())->record(array(
+                'offer_uid' => (string) ($_POST['offer_uid'] ?? ''),
+                'obligation_sequence' => (string) ($_POST['obligation_sequence'] ?? ''),
+                'amount' => (string) ($_POST['refund_amount'] ?? ''),
+                'evidence_reference' => (string) ($_POST['evidence_reference'] ?? ''),
+                'refunded_on' => (string) ($_POST['refunded_on'] ?? ''),
+                'note' => (string) ($_POST['refund_note'] ?? ''),
+            ), sanitize_text_field((string) ($_POST['command_key'] ?? '')));
+            $args['finance_result'] = 'refund_recorded';
+            if ((int) ($result['refund_review_id'] ?? 0) > 0) $args['finance_refund_review_id'] = (int) $result['refund_review_id'];
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'refund_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#refund-reviews');
+        exit;
+    }
+
+    /** Route, resolve or dismiss one manual refund review. */
+    public static function handleRefundReview(): void {
+        if (!current_user_can('dzn_manage_refund_reviews')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_refund_review');
+        $_POST = wp_unslash($_POST);
+        $operation = sanitize_key((string) ($_POST['refund_operation'] ?? ''));
+        $caseId = absint($_POST['refund_review_id'] ?? 0);
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS);
+        try {
+            if ($caseId < 1) throw new \InvalidArgumentException('refund_review_required');
+            $now = gmdate('Y-m-d H:i:s');
+            $service = new RefundReviewService();
+            $proof = array(
+                'evidence_channel' => 'staff_record',
+                'evidence_reference' => 'finance-refund-review:' . $operation . ':' . $caseId . ':' . $now,
+                'evidence_at' => $now,
+            );
+            $key = 'finance-refund-review-' . $operation . '-' . $caseId . '-' . wp_generate_uuid4();
+            if ($operation === 'route') {
+                $service->routeForReview($caseId, $proof, $key);
+                $args['finance_result'] = 'refund_review_routed';
+            } elseif ($operation === 'resolve') {
+                $service->resolve($caseId, $proof + array('resolution_note' => sanitize_textarea_field((string) ($_POST['resolution_note'] ?? ''))), $key);
+                $args['finance_result'] = 'refund_review_resolved';
+            } elseif ($operation === 'dismiss') {
+                $service->dismiss($caseId, $proof, $key);
+                $args['finance_result'] = 'refund_review_dismissed';
+            } else {
+                throw new \InvalidArgumentException('refund_review_operation_invalid');
+            }
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'refund_review_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#refund-reviews');
+        exit;
+    }
+
+    /** The statement period is a half-open UTC range: start date 00:00 to the day after the inclusive end. */
+    private static function statementDate(string $date, bool $inclusiveEnd = false): string {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) !== 1) throw new \InvalidArgumentException('statement_period_invalid');
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date, new \DateTimeZone('UTC'));
+        if (!$parsed || $parsed->format('Y-m-d') !== $date) throw new \InvalidArgumentException('statement_period_invalid');
+        if ($inclusiveEnd) $parsed = $parsed->modify('+1 day');
+        return $parsed->format('Y-m-d') . ' 00:00:00';
+    }
+
     public static function exportStatement(): void {
         if (!current_user_can('dzn_view_finance_authority')) wp_die('Forbidden', 403);
         check_admin_referer('dzn_finance_statement_export');
@@ -274,41 +497,59 @@ final class FinanceAdminController {
         );
         $page = max(1, absint($_GET['paged'] ?? 1));
         $data = $read->payments($filters, $page);
-        echo '<section class="dzn-finance-panel"><h2>Student payments</h2><p>Checkout attempts and Stripe status. This view is read-only; reconciliation uses the existing guarded action and every provider reference remains hidden.</p>';
+        echo '<section class="dzn-finance-panel"><h2>Student payments</h2><p>Checkout attempts, verified settlements and administrator-recorded offline payments. Amounts are display-only and every provider reference remains hidden.</p>';
         echo '<div class="dzn-finance-cards">';
-        foreach (array('all' => 'All', 'pending' => 'Pending', 'successful' => 'Successful', 'failed' => 'Failed', 'refunded' => 'Refund evidence') as $key => $label) {
+        foreach (array('all' => 'All attempts', 'pending' => 'Pending', 'checkout_completed' => 'Checkout complete', 'failed' => 'Failed', 'settled' => 'Settled', 'refunded' => 'Refund evidence') as $key => $label) {
             echo '<a class="dzn-finance-card" href="' . esc_url(add_query_arg(array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS, 'state' => $key), admin_url('admin.php'))) . '"><span>' . esc_html($label) . '</span><strong>' . esc_html((string) ($counts[$key] ?? 0)) . '</strong></a>';
         }
         echo '</div>';
         self::filterForm(self::TAB_PAYMENTS, array(
             'q' => array('label' => 'Search student, offer, purchase or attempt', 'type' => 'search'),
-            'state' => array('label' => 'Status', 'type' => 'select', 'options' => array('' => 'All statuses', 'pending' => 'Pending', 'successful' => 'Successful', 'failed' => 'Failed', 'refunded' => 'Refund evidence')),
+            'state' => array('label' => 'Status', 'type' => 'select', 'options' => array('' => 'All statuses', 'pending' => 'Pending', 'checkout_completed' => 'Checkout complete (not yet settled)', 'settled' => 'Settled', 'failed' => 'Failed', 'refunded' => 'Refund evidence')),
             'from' => array('label' => 'From', 'type' => 'date'), 'through' => array('label' => 'Through', 'type' => 'date'),
         ), $filters);
-        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Date</th><th>Student</th><th>Course / offer</th><th>Amount</th><th>Checkout state</th><th>Stripe / reconciliation</th><th>Reference</th></tr></thead><tbody>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Date</th><th>Student</th><th>Course / offer</th><th>Amount</th><th>Checkout state</th><th>Settlement / reconciliation</th><th>Reference</th></tr></thead><tbody>';
         if (!$data['rows']) echo '<tr><td colspan="7">No payments match these filters.</td></tr>';
         foreach ($data['rows'] as $row) {
             $rowState = (string) $row->state;
-            $paid = (int) ($row->settled_evidence ?? 0) > 0 || $rowState === 'completed';
+            $paid = (int) ($row->settled_evidence ?? 0) > 0;
             $refund = (int) ($row->refund_evidence ?? 0) > 0;
-            $reconciliation = $refund ? 'Refund evidence recorded' : ($paid ? 'Settled evidence' : ($rowState === 'failed' ? 'Failed / needs review' : 'Awaiting payment'));
+            $reconciliation = $refund ? 'Refund evidence recorded'
+                : ($paid ? 'Settlement recorded'
+                : ($rowState === 'completed' ? 'Checkout complete; settlement not accepted'
+                : ($rowState === 'failed' ? 'Failed / needs review' : 'Awaiting payment')));
             echo '<tr><td>' . esc_html((string) $row->created_at) . '</td><td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td><td>' . esc_html((string) ($row->course_name ?: '—')) . '<br><small>' . esc_html((string) ($row->offer_reference ?: ('#' . (int) $row->id))) . '</small></td><td>' . esc_html(PricingMoney::format((int) $row->amount_minor, (string) $row->currency)) . '</td><td><span class="dzn-finance-pill">' . esc_html($rowState) . '</span>' . ($row->close_reason ? '<br><small>' . esc_html((string) $row->close_reason) . '</small>' : '') . '</td><td>' . esc_html($reconciliation) . '<br><small>' . esc_html((string) ($row->provider_key ?: 'provider')) . '</small></td><td><code>' . esc_html((string) $row->uid) . '</code>' . ($row->purchase_reference ? '<br><small>' . esc_html((string) $row->purchase_reference) . '</small>' : '') . '</td></tr>';
         }
         echo '</tbody></table>';
         self::pagination($data, self::TAB_PAYMENTS, $filters);
+        echo '<p class="description">This table lists Checkout attempts and their obligations. Administrator-recorded offline payments do not need a Checkout attempt; they appear under Outstanding payments and Recent settlements below. A completed Checkout is not the same as an accepted settlement.</p>';
+        self::renderOutstandingObligations($read);
+        self::renderRefundWorkspace($read);
         $introCounts = $read->introPaymentCounts();
         $introPage = max(1, absint($_GET['intro_paged'] ?? 1));
         $introFilters = $filters;
-        if ((string) ($introFilters['state'] ?? '') === 'successful') $introFilters['state'] = 'paid';
+        if (in_array((string) ($introFilters['state'] ?? ''), array('successful', 'settled', 'checkout_completed'), true)) $introFilters['state'] = 'paid';
         $intro = $read->introPayments($introFilters, $introPage);
         echo '<h3>Introductory lesson payments</h3><p>Paid introductions use the same verified Stripe webhook and test-mode adapter. A free introduction has no row here and never creates a charge.</p>';
         echo '<div class="dzn-finance-cards">';
         foreach (array('all' => 'All intro obligations', 'pending' => 'Awaiting payment', 'paid' => 'Paid', 'failed' => 'Failed attempt', 'refunded' => 'Refunded') as $key => $label) echo '<div class="dzn-finance-card"><span>' . esc_html($label) . '</span><strong>' . esc_html((string) ($introCounts[$key] ?? 0)) . '</strong></div>';
-        echo '</div><table class="widefat striped dzn-finance-table"><thead><tr><th>Created</th><th>Student</th><th>Intro course</th><th>Amount</th><th>Obligation state</th><th>Checkout</th><th>Latest provider event</th><th>Reference</th></tr></thead><tbody>';
-        if (!$intro['rows']) echo '<tr><td colspan="8">No paid introductory obligations match these filters.</td></tr>';
+        echo '</div><table class="widefat striped dzn-finance-table"><thead><tr><th>Created</th><th>Student</th><th>Intro course</th><th>Amount</th><th>Obligation state</th><th>Checkout</th><th>Latest provider event</th><th>Reference</th><th>Action</th></tr></thead><tbody>';
+        if (!$intro['rows']) echo '<tr><td colspan="9">No paid introductory obligations match these filters.</td></tr>';
         foreach ($intro['rows'] as $row) {
             $eventLabel = $row->last_event_kind ? (string) $row->last_event_kind . ' · ' . (string) $row->last_event_result . ($row->last_event_reason ? ' · ' . (string) $row->last_event_reason : '') : 'No provider event yet';
-            echo '<tr><td>' . esc_html((string) $row->created_at) . '</td><td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td><td>' . esc_html((string) ($row->course_name ?: '—')) . '</td><td>' . esc_html(PricingMoney::format((int) $row->amount_minor, (string) $row->currency)) . '</td><td><span class="dzn-finance-pill">' . esc_html((string) $row->state) . '</span></td><td>' . esc_html((string) ($row->checkout_state ?: 'not started')) . '<br><small>' . esc_html((string) ($row->expires_at ?: '')) . '</small></td><td>' . esc_html($eventLabel) . '</td><td><code>' . esc_html((string) $row->reference_code) . '</code></td></tr>';
+            $introPending = in_array((string) $row->state, array('pending', 'failed'), true);
+            $introAction = '—';
+            if ($introPending && current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY)) {
+                $introAction = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form">'
+                    . '<input type="hidden" name="action" value="dzn_finance_manual_payment"><input type="hidden" name="payment_kind" value="intro">'
+                    . '<input type="hidden" name="obligation_uid" value="' . esc_attr((string) $row->uid) . '">'
+                    . '<input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . wp_nonce_field('dzn_finance_manual_payment', '_wpnonce', true, false)
+                    . '<label>Reference<input type="text" name="evidence_reference" maxlength="191" required placeholder="Bank / receipt reference"></label>'
+                    . '<label>Received<input type="date" name="received_on" value="' . esc_attr(gmdate('Y-m-d')) . '" max="' . esc_attr(gmdate('Y-m-d')) . '" required></label>'
+                    . '<button class="button button-small">Mark paid</button></form>';
+            }
+            echo '<tr><td>' . esc_html((string) $row->created_at) . '</td><td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td><td>' . esc_html((string) ($row->course_name ?: '—')) . '</td><td>' . esc_html(PricingMoney::format((int) $row->amount_minor, (string) $row->currency)) . '</td><td><span class="dzn-finance-pill">' . esc_html((string) $row->state) . '</span></td><td>' . esc_html((string) ($row->checkout_state ?: 'not started')) . '<br><small>' . esc_html((string) ($row->expires_at ?: '')) . '</small></td><td>' . esc_html($eventLabel) . '</td><td><code>' . esc_html((string) $row->reference_code) . '</code></td><td>' . $introAction . '</td></tr>';
         }
         echo '</tbody></table>';
         if ((int) $intro['pages'] > 1) {
@@ -324,6 +565,154 @@ final class FinanceAdminController {
         }
         echo '<p class="description">Failed or unmatched Stripe events are reconciled only through the existing guarded action in the payment execution service. No provider payload or secret is shown here.</p></section>';
         self::renderPromotionCodes();
+    }
+
+    /** Outstanding standard-course obligations and the guarded manual-settlement action. */
+    private static function renderOutstandingObligations(FinanceAdminReadService $read): void {
+        $filters = array(
+            'q' => self::query('ob_q'), 'state' => self::query('ob_state'),
+            'from' => self::query('ob_from'), 'through' => self::query('ob_through'),
+        );
+        $page = max(1, absint($_GET['ob_paged'] ?? 1));
+        $data = $read->outstandingObligations($filters, $page);
+        $canManage = current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY);
+        echo '<h3 id="outstanding-payments">Outstanding payments</h3>';
+        echo '<p>Every collectable obligation with a positive amount. Recording a payment here uses the same canonical settlement and funding authority as Stripe: it creates the purchase, entitlement and academic funding exactly once. The amount is read from the stored obligation and is never entered by the browser.</p>';
+        echo '<form method="get" class="dzn-finance-filter"><input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '"><input type="hidden" name="tab" value="' . esc_attr(self::TAB_PAYMENTS) . '">';
+        echo '<label for="ob-q">Search student, offer or obligation</label><input id="ob-q" type="search" name="ob_q" value="' . esc_attr($filters['q']) . '">';
+        echo '<label for="ob-state">Status</label><select id="ob-state" name="ob_state"><option value="">All outstanding</option><option value="overdue"' . selected($filters['state'], 'overdue', false) . '>Overdue</option><option value="instalment"' . selected($filters['state'], 'instalment', false) . '>Two-instalment plans</option></select>';
+        echo '<label for="ob-from">From</label><input id="ob-from" type="date" name="ob_from" value="' . esc_attr($filters['from']) . '">';
+        echo '<label for="ob-through">Through</label><input id="ob-through" type="date" name="ob_through" value="' . esc_attr($filters['through']) . '">';
+        echo '<button class="button">Filter outstanding</button></form>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Student</th><th>Course / offer</th><th>Instalment</th><th>Amount</th><th>Due</th><th>State</th><th>Settlement</th></tr></thead><tbody>';
+        if (!$data['rows']) echo '<tr><td colspan="7">No outstanding standard-course obligation matches these filters.</td></tr>';
+        foreach ($data['rows'] as $row) {
+            $overdue = $row->due_at !== null && (string) $row->due_at < gmdate('Y-m-d H:i:s');
+            $instalment = (int) $row->obligation_sequence;
+            $plan = (string) $row->plan_kind === 'two_instalments' ? 'Two instalments' : 'Full term';
+            $predecessor = (int) ($row->predecessor_outstanding ?? 0) === 1;
+            $state = $overdue ? 'Overdue' : 'Outstanding';
+            $due = $row->due_at !== null ? (string) $row->due_at : ($instalment === 2 ? 'Before Lesson 7' : 'Not scheduled');
+            $action = '—';
+            if ($canManage) {
+                $action = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-manual-pay">'
+                    . '<input type="hidden" name="action" value="dzn_finance_manual_payment"><input type="hidden" name="payment_kind" value="standard">'
+                    . '<input type="hidden" name="offer_uid" value="' . esc_attr((string) $row->offer_uid) . '">'
+                    . '<input type="hidden" name="obligation_sequence" value="' . esc_attr((string) $instalment) . '">'
+                    . '<input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . wp_nonce_field('dzn_finance_manual_payment', '_wpnonce', true, false)
+                    . '<label>Reference<input type="text" name="evidence_reference" maxlength="191" required placeholder="Bank / receipt reference"></label>'
+                    . '<label>Received<input type="date" name="received_on" value="' . esc_attr(gmdate('Y-m-d')) . '" max="' . esc_attr(gmdate('Y-m-d')) . '" required></label>'
+                    . '<button class="button button-small">Mark paid</button></form>';
+            }
+            echo '<tr><td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td>'
+                . '<td>' . esc_html((string) ($row->course_name ?: '—')) . '<br><small>' . esc_html('Offer ' . (string) ($row->offer_reference ?: $row->offer_uid) . ' · ' . $plan . ' · ' . (int) $row->committed_sessions . ' lessons') . '</small></td>'
+                . '<td>#' . esc_html((string) $instalment) . '<br><small>Lessons ' . esc_html((string) $row->sessions_from . '–' . (string) $row->sessions_to) . '</small></td>'
+                . '<td>' . esc_html(PricingMoney::format((int) $row->amount_minor, (string) $row->currency)) . '</td>'
+                . '<td>' . esc_html($due) . '</td>'
+                . '<td><span class="dzn-finance-pill">' . esc_html($state) . '</span>'
+                . ((string) $row->offer_state === 'issued' && $row->expires_at !== null ? '<br><small>Offer expires ' . esc_html((string) $row->expires_at) . '</small>' : '')
+                . ($predecessor ? '<br><small>Earlier instalment outstanding — funding stays blocked until it settles.</small>' : '')
+                . '</td><td>' . $action . '</td></tr>';
+        }
+        echo '</tbody></table>';
+        if ((int) $data['pages'] > 1) {
+            $base = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS) + array_filter(array('ob_q' => $filters['q'], 'ob_state' => $filters['state'], 'ob_from' => $filters['from'], 'ob_through' => $filters['through']), static fn($value) => $value !== '');
+            echo '<p class="tablenav">Outstanding page ' . esc_html((string) $data['page']) . ' of ' . esc_html((string) $data['pages']);
+            if ((int) $data['page'] > 1) echo ' <a class="button" href="' . esc_url(add_query_arg($base + array('ob_paged' => (int) $data['page'] - 1), admin_url('admin.php'))) . '">Previous</a>';
+            if ((int) $data['page'] < (int) $data['pages']) echo ' <a class="button" href="' . esc_url(add_query_arg($base + array('ob_paged' => (int) $data['page'] + 1), admin_url('admin.php'))) . '">Next</a>';
+            echo '</p>';
+        }
+        echo '<p class="description">A manual payment is recorded as staff evidence with a required receipt/reference and the actual receipt date. It never rewrites a Stripe checkout, and an already-settled obligation cannot be settled again.</p>';
+        if (!$canManage) echo '<p class="description">Recording an offline payment requires payment-execution management authority.</p>';
+
+        $settlements = $read->recentSettlements(25);
+        echo '<h3 id="recent-settlements">Recent settlements</h3><p>Authoritative settlement facts, including offline payments that have no checkout attempt. Provider references remain digested and are not displayed.</p>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Settled</th><th>Student</th><th>Course / offer</th><th>Instalment</th><th>Amount</th><th>Source</th><th>State</th></tr></thead><tbody>';
+        if (!$settlements) echo '<tr><td colspan="7">No payment settlement has been recorded yet.</td></tr>';
+        foreach ($settlements as $row) {
+            $provider = (string) $row->provider_key;
+            $source = $provider === 'manual' ? 'Manual / offline' : ($provider === 'stripe' ? 'Stripe' : ucfirst($provider));
+            echo '<tr><td>' . esc_html((string) $row->settled_at) . '</td>'
+                . '<td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td>'
+                . '<td>' . esc_html((string) ($row->course_name ?: '—')) . '<br><small>' . esc_html('Offer ' . (string) ($row->offer_reference ?: $row->offer_uid)) . '</small></td>'
+                . '<td>#' . esc_html((string) (int) $row->obligation_sequence) . '<br><small>Lessons ' . esc_html((string) $row->sessions_from . '–' . (string) $row->sessions_to) . '</small></td>'
+                . '<td>' . esc_html(PricingMoney::format((int) $row->amount_minor, (string) $row->currency)) . '</td>'
+                . '<td>' . esc_html($source) . '<br><small>' . esc_html((string) $row->evidence_kind) . '</small></td>'
+                . '<td><span class="dzn-finance-pill">' . esc_html((string) $row->processing_state) . '</span>' . ($row->reason_code ? '<br><small>' . esc_html((string) $row->reason_code) . '</small>' : '') . '</td></tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    /** Administrator-only manual refunds and their review lifecycle. */
+    private static function renderRefundWorkspace(FinanceAdminReadService $read): void {
+        if (!current_user_can('dzn_view_recurring_authority')) return;
+        $canManage = current_user_can('dzn_manage_refund_reviews');
+        $settlements = $read->recentSettlements(25);
+        $reviews = $read->refundReviews(50);
+        echo '<section class="dzn-finance-settings-section" id="refund-reviews"><h3>Manual refunds</h3>';
+        echo '<p>Refunds are recorded and reviewed by an administrator only. Recording a refund creates accepted manual refund evidence and a review case. It does not move money, rewrite the settlement, reduce academic funding, cancel a Lesson or change a statement. Complete the actual bank/card refund outside this page, then route and resolve the case here.</p>';
+        echo '<h4>Refundable settlements</h4>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Settled</th><th>Student</th><th>Offer / instalment</th><th>Settled</th><th>Refunded</th><th>Remaining</th><th>Action</th></tr></thead><tbody>';
+        if (!$settlements) echo '<tr><td colspan="7">No settled obligation is available for a refund.</td></tr>';
+        foreach ($settlements as $row) {
+            $settledMinor = (int) $row->amount_minor;
+            $refundedMinor = (int) ($row->refunded_minor ?? 0);
+            $remaining = max(0, $settledMinor - $refundedMinor);
+            $action = $remaining > 0 ? 'Available' : 'Fully refunded';
+            if ($canManage && $remaining > 0) {
+                $action = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-manual-pay">'
+                    . '<input type="hidden" name="action" value="dzn_finance_refund"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . '<input type="hidden" name="offer_uid" value="' . esc_attr((string) $row->offer_uid) . '"><input type="hidden" name="obligation_sequence" value="' . esc_attr((string) (int) $row->obligation_sequence) . '">'
+                    . wp_nonce_field('dzn_finance_refund', '_wpnonce', true, false)
+                    . '<label>Amount (' . esc_html((string) $row->currency) . ', blank = full remaining)<input type="text" name="refund_amount" inputmode="decimal" placeholder="' . esc_attr(PricingMoney::fromMinor($remaining, (string) $row->currency)) . '"></label>'
+                    . '<label>Refunded on<input type="date" name="refunded_on" value="' . esc_attr(gmdate('Y-m-d')) . '" max="' . esc_attr(gmdate('Y-m-d')) . '" required></label>'
+                    . '<label>Evidence reference<input type="text" name="evidence_reference" maxlength="191" required placeholder="Bank / refund reference"></label>'
+                    . '<label>Note<input type="text" name="refund_note" maxlength="500" placeholder="Optional decision note"></label>'
+                    . '<button class="button button-small" onclick="return confirm(\'Record this manual refund? It creates evidence and a review case but does not move money.\')">Record refund</button></form>';
+            }
+            echo '<tr><td>' . esc_html((string) $row->settled_at) . '</td>'
+                . '<td>' . esc_html((string) ($row->student_name ?: '—')) . '<br><small>' . esc_html((string) ($row->student_reference ?: '')) . '</small></td>'
+                . '<td>' . esc_html((string) $row->offer_reference ?: (string) $row->offer_uid) . '<br><small>#' . esc_html((string) (int) $row->obligation_sequence) . ' · Lessons ' . esc_html((string) $row->sessions_from . '–' . (string) $row->sessions_to) . '</small></td>'
+                . '<td>' . esc_html(PricingMoney::format($settledMinor, (string) $row->currency)) . '</td>'
+                . '<td>' . esc_html(PricingMoney::format($refundedMinor, (string) $row->currency)) . '</td>'
+                . '<td><strong>' . esc_html(PricingMoney::format($remaining, (string) $row->currency)) . '</strong></td>'
+                . '<td>' . $action . '</td></tr>';
+        }
+        echo '</tbody></table>';
+        echo '<h4>Refund review cases</h4>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Case</th><th>Student</th><th>Offer / instalment</th><th>Amount</th><th>State</th><th>Note</th><th>Action</th></tr></thead><tbody>';
+        if (!$reviews) echo '<tr><td colspan="7">No refund review case has been recorded.</td></tr>';
+        foreach ($reviews as $review) {
+            $caseId = (int) $review->id;
+            $state = (string) $review->state;
+            $action = '—';
+            if ($canManage && in_array($state, array('open', 'review_required'), true)) {
+                $action = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
+                    . '<input type="hidden" name="action" value="dzn_finance_refund_review"><input type="hidden" name="refund_review_id" value="' . $caseId . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . wp_nonce_field('dzn_finance_refund_review', '_wpnonce', true, false);
+                if ($state === 'open') {
+                    $action .= '<input type="hidden" name="refund_operation" value="route"><button class="button button-small">Route for review</button></form>';
+                }
+                if ($state === 'review_required') {
+                    $action .= '<input type="hidden" name="refund_operation" value="resolve"><input type="text" name="resolution_note" maxlength="500" placeholder="Decision note" required><button class="button button-small button-primary">Resolve</button></form>';
+                }
+                $action .= '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
+                    . '<input type="hidden" name="action" value="dzn_finance_refund_review"><input type="hidden" name="refund_review_id" value="' . $caseId . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . wp_nonce_field('dzn_finance_refund_review', '_wpnonce', true, false)
+                    . '<input type="hidden" name="refund_operation" value="dismiss"><button class="button button-small" onclick="return confirm(\'Dismiss this refund review? This decision is recorded and terminal.\')">Dismiss</button></form>';
+            }
+            echo '<tr><td>#' . $caseId . '<br><small>' . esc_html((string) ($review->refunded_at ?: '')) . '</small></td>'
+                . '<td>' . esc_html((string) ($review->student_name ?: '—')) . '<br><small>' . esc_html((string) ($review->student_reference ?: '')) . '</small></td>'
+                . '<td>' . esc_html((string) ($review->offer_reference ?: $review->offer_uid)) . '<br><small>#' . esc_html((string) (int) $review->obligation_sequence) . '</small></td>'
+                . '<td>' . esc_html(PricingMoney::format((int) $review->amount_minor, (string) $review->currency)) . '</td>'
+                . '<td><span class="dzn-finance-pill">' . esc_html($state) . '</span></td>'
+                . '<td>' . esc_html((string) ($review->resolution_note ?: '—')) . '</td>'
+                . '<td>' . $action . '</td></tr>';
+        }
+        echo '</tbody></table>';
+        if (!$canManage) echo '<p class="description">Recording, routing, resolving and dismissing a refund require administrator refund-review authority.</p>';
+        echo '</section>';
     }
 
     /** Create, list and deactivate Student percentage discount codes. */
@@ -440,20 +829,27 @@ final class FinanceAdminController {
             'kind' => array('label' => 'Type', 'type' => 'select', 'options' => array('' => 'All types', 'income' => 'Money received', 'expense' => 'Money spent', 'opening_balance' => 'Opening balance', 'balance_adjustment' => 'Balance adjustment', 'transfer_out' => 'Transfer out', 'transfer_in' => 'Transfer in', 'reversal' => 'Reversal')),
             'from' => array('label' => 'From', 'type' => 'date'), 'through' => array('label' => 'Through', 'type' => 'date'),
         ), $filters);
-        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Student / teacher</th><th>Gross</th><th>Fees</th><th>Net</th><th>Currency</th><th>Reconciliation</th></tr></thead><tbody>';
-        if (!$data['rows']) echo '<tr><td colspan="9">No manual ledger entries match these filters.</td></tr>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Category / description</th><th>Amount</th><th>Currency</th><th>Reconciliation</th></tr></thead><tbody>';
+        if (!$data['rows']) echo '<tr><td colspan="7">No manual ledger entries match these filters.</td></tr>';
         $labels = array('income' => 'Income', 'expense' => 'Expense', 'opening_balance' => 'Opening balance', 'balance_adjustment' => 'Balance adjustment', 'transfer_out' => 'Transfer out', 'transfer_in' => 'Transfer in', 'reversal' => 'Reversal', 'conversion' => 'Conversion');
         foreach ($data['rows'] as $row) {
             $gross = (int) $row->amount_minor;
             $net = $gross * (int) $row->direction;
-            $reconciled = $row->latest_reconciliation !== null && (string) $row->latest_reconciliation >= (string) $row->transaction_date;
+            $covered = $row->latest_reconciliation !== null && (string) $row->latest_reconciliation >= (string) $row->transaction_date;
+            $difference = $row->latest_reconciliation_difference === null ? null : (int) $row->latest_reconciliation_difference;
             $reference = $row->evidence_reference ?: ('CASH-' . (int) $row->id);
-            echo '<tr><td>' . esc_html((string) $row->transaction_date) . '</td><td>' . esc_html($labels[(string) $row->transaction_kind] ?? (string) $row->transaction_kind) . '</td><td><code>' . esc_html((string) $reference) . '</code></td><td>—</td><td>' . esc_html(PricingMoney::format($gross, (string) $row->currency)) . '</td><td>' . esc_html(PricingMoney::format(0, (string) $row->currency)) . '</td><td>' . esc_html(($net < 0 ? '−' : '') . PricingMoney::format(abs($net), (string) $row->currency)) . '</td><td>' . esc_html((string) $row->currency) . '</td><td>' . esc_html($reconciled ? 'Reconciled to statement' : 'Not reconciled') . '</td></tr>';
+            $reconciliation = !$covered
+                ? 'Not reconciled'
+                : ($difference === null ? 'Reconciled to statement' : ($difference === 0 ? 'Reconciled · no difference' : 'Statement difference ' . ($difference > 0 ? '+' : '−') . PricingMoney::format(abs($difference), (string) $row->currency)));
+            echo '<tr><td>' . esc_html((string) $row->transaction_date) . '</td><td>' . esc_html($labels[(string) $row->transaction_kind] ?? (string) $row->transaction_kind) . '</td><td><code>' . esc_html((string) $reference) . '</code></td><td>' . esc_html(trim((string) ($row->category ?: '') . ((string) ($row->category ?: '') !== '' && (string) ($row->description ?: '') !== '' ? ' · ' : '') . (string) ($row->description ?: '—'))) . '</td><td>' . esc_html(($net < 0 ? '−' : '') . PricingMoney::format(abs($net), (string) $row->currency)) . '</td><td>' . esc_html((string) $row->currency) . '</td><td>' . esc_html($reconciliation) . '</td></tr>';
         }
         echo '</tbody></table>';
         self::pagination($data, self::TAB_LEDGER, $filters);
-        if (current_user_can('dzn_manage_cash_ledger')) self::manualEntryForm();
-        echo '<p class="description">Entries are append-only. Mistakes are corrected by a reversal and a corrected entry; the existing academy cashbook rules remain authoritative.</p></section>';
+        if (current_user_can('dzn_manage_cash_ledger')) {
+            self::manualEntryForm();
+            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-finance-cashbook')) . '">Open the full cashbook for transfers, statement comparisons and reversals</a></p>';
+        }
+        echo '<p class="description">Entries are append-only. Mistakes are corrected by a reversal and a corrected entry; the existing academy cashbook rules remain authoritative. Online settlement and this manual ledger stay deliberately separate: a payment marked complete in Payments does not silently write a bookkeeping entry, and a ledger entry never marks a Student obligation paid.</p></section>';
     }
 
     private static function renderStatements(FinanceAdminReadService $read): void {
@@ -461,19 +857,54 @@ final class FinanceAdminController {
         $teachers = $read->selectableTeachers();
         $teacherId = absint($_GET['teacher_id'] ?? 0);
         if ($teacherId < 1 && $teachers) $teacherId = (int) $teachers[0]->id;
-        echo '<section class="dzn-finance-panel"><h2>Teacher Statements</h2><p>Effective-dated compensation statements. A statement records lesson compensation only; it is not a payout, invoice or bank instruction. Template changes are presentation-only and cannot alter totals.</p>';
+        $canManage = current_user_can('dzn_manage_finance_statements');
+        $statementTimezone = $read->statementTimezone();
+        echo '<section class="dzn-finance-panel" id="teacher-statements"><h2>Teacher Statements</h2><p>Effective-dated compensation statements. A statement records lesson compensation only; it is not a payout, invoice or bank instruction. Template changes are presentation-only and cannot alter totals.</p>';
         echo '<form method="get" class="dzn-finance-inline-form"><input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '"><input type="hidden" name="tab" value="' . esc_attr(self::TAB_STATEMENTS) . '"><label for="finance-statement-teacher">Teacher</label><select id="finance-statement-teacher" name="teacher_id">';
         foreach ($teachers as $teacher) echo '<option value="' . (int) $teacher->id . '"' . selected($teacherId, (int) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name) . ' · ' . esc_html((string) $teacher->reference_code) . '</option>';
         echo '</select><button class="button">View statements</button></form>';
         if ($teacherId < 1) { echo '<p>No active Teacher is available.</p></section>'; return; }
+        if (!$statementTimezone['set']) {
+            echo '<div class="notice notice-warning inline"><p><strong>Statement timezone policy is unset.</strong> A draft records the timezone version in force at drafting. Until a timezone is recorded in Finance → Settings → Finance policies, a draft cannot be issued. <a href="' . esc_url(self::tabUrl(self::TAB_SETTINGS) . '#finance-policies') . '">Record the timezone policy</a>.</p></div>';
+        }
+        self::renderStatementBatch($read);
+        $statements = array();
+        if ($canManage) {
+            $defaultStart = gmdate('Y-m-01', strtotime('first day of last month UTC'));
+            $defaultEnd = gmdate('Y-m-t', strtotime('last day of last month UTC'));
+            echo '<details class="dzn-finance-settings-section" ' . ($statements ? '' : 'open ') . '><summary><strong>Draft a statement for a completed period</strong></summary>';
+            echo '<p class="description">The period is a half-open UTC range. Choose the first and last calendar day to include; the recorded end is the following midnight. Every non-archived Lesson in the period must be finalised, snapshotted and have an effective payability evaluation.</p>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form">';
+            echo '<input type="hidden" name="action" value="dzn_finance_statement"><input type="hidden" name="statement_operation" value="draft"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
+            wp_nonce_field('dzn_finance_statement');
+            echo '<label>Period start (UTC)<input type="date" name="period_start" value="' . esc_attr($defaultStart) . '" max="' . esc_attr(gmdate('Y-m-d', strtotime('-1 day'))) . '" required></label>';
+            echo '<label>Period end (inclusive, UTC)<input type="date" name="period_end" value="' . esc_attr($defaultEnd) . '" max="' . esc_attr(gmdate('Y-m-d', strtotime('-1 day'))) . '" required></label>';
+            echo '<button class="button button-primary">Draft statement</button></form></details>';
+        }
         try {
             $statements = (new TeacherStatementReadService())->statements($teacherId);
         } catch (\Throwable) { $statements = array(); }
-        echo '<table class="widefat striped"><thead><tr><th>Statement</th><th>Period</th><th>State</th><th>Currency</th><th>Payable</th><th>Lines</th><th>Issued</th></tr></thead><tbody>';
-        if (!$statements) echo '<tr><td colspan="7">No statement has been drafted for this Teacher.</td></tr>';
+        echo '<table class="widefat striped"><thead><tr><th>Statement</th><th>Period</th><th>State</th><th>Currency</th><th>Payable</th><th>Lines</th><th>Issued</th><th>Action</th></tr></thead><tbody>';
+        if (!$statements) echo '<tr><td colspan="8">No statement has been drafted for this Teacher.</td></tr>';
         foreach ($statements as $statement) {
             $url = add_query_arg(array('page' => self::MENU_SLUG, 'tab' => self::TAB_STATEMENTS, 'teacher_id' => $teacherId, 'statement_id' => (int) $statement['statement_id']), admin_url('admin.php'));
-            echo '<tr><td><a href="' . esc_url($url) . '">' . esc_html((string) $statement['statement_id']) . '</a></td><td>' . esc_html((string) $statement['period_start_utc'] . ' → ' . (string) $statement['period_end_utc']) . '</td><td>' . esc_html((string) $statement['state']) . '</td><td>' . esc_html((string) $statement['currency']) . '</td><td>' . esc_html(PricingMoney::format((int) $statement['payable_amount_minor'], (string) $statement['currency'])) . '</td><td>' . esc_html((string) $statement['total_line_count']) . '</td><td>' . esc_html((string) ($statement['issued_at'] ?? '—')) . '</td></tr>';
+            $state = (string) $statement['state'];
+            $action = '—';
+            if ($canManage && in_array($state, array('draft', 'issued'), true)) {
+                $action = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
+                    . '<input type="hidden" name="action" value="dzn_finance_statement"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '"><input type="hidden" name="statement_id" value="' . (int) $statement['statement_id'] . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . wp_nonce_field('dzn_finance_statement', '_wpnonce', true, false);
+                if ($state === 'draft') {
+                    $action .= '<input type="hidden" name="statement_operation" value="issue"><button class="button button-small button-primary" onclick="return confirm(\'Issue this statement? The issuance gate must pass.\')">Issue</button>'
+                        . '</form><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
+                        . '<input type="hidden" name="action" value="dzn_finance_statement"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '"><input type="hidden" name="statement_id" value="' . (int) $statement['statement_id'] . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                        . wp_nonce_field('dzn_finance_statement', '_wpnonce', true, false)
+                        . '<input type="hidden" name="statement_operation" value="withdraw"><button class="button button-small" onclick="return confirm(\'Withdraw this draft? It becomes terminal and cannot be issued later.\')">Withdraw</button></form>';
+                } else {
+                    $action .= '<input type="hidden" name="statement_operation" value="supersede"><button class="button button-small" onclick="return confirm(\'Supersede this issued statement? A new draft version is created from current recorded facts.\')">Supersede</button></form>';
+                }
+            }
+            echo '<tr><td><a href="' . esc_url($url) . '">' . esc_html((string) $statement['statement_id']) . '</a></td><td>' . esc_html((string) $statement['period_start_utc'] . ' → ' . (string) $statement['period_end_utc']) . '</td><td>' . esc_html($state) . '</td><td>' . esc_html((string) $statement['currency']) . '</td><td>' . esc_html(PricingMoney::format((int) $statement['payable_amount_minor'], (string) $statement['currency'])) . '</td><td>' . esc_html((string) $statement['total_line_count']) . '</td><td>' . esc_html((string) ($statement['issued_at'] ?? '—')) . '</td><td>' . $action . '</td></tr>';
         }
         echo '</tbody></table>';
         $statementId = absint($_GET['statement_id'] ?? 0);
@@ -489,12 +920,93 @@ final class FinanceAdminController {
             echo '<div class="dzn-finance-statement-preview"><div class="dzn-finance-statement-preview__head"><h3>Preview · statement ' . esc_html((string) $statementId) . '</h3><div>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" target="_blank" style="display:inline">' . self::exportFields($statementId, false) . '<button class="button">Print / open</button></form> ';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">' . self::exportFields($statementId, true) . '<button class="button">Download HTML</button></form>';
+            if ($canManage && (string) $selected['state'] === 'issued') {
+                echo ' <form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
+                    . '<input type="hidden" name="action" value="dzn_finance_statement_email"><input type="hidden" name="statement_id" value="' . (int) $statementId . '"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '">'
+                    . wp_nonce_field('dzn_finance_statement_email', '_wpnonce', true, false)
+                    . '<button class="button">Email to teacher</button></form>';
+            }
+            $emailEvent = $read->statementEmailEvent($statementId);
+            if ($emailEvent !== null) {
+                echo '<p class="description">Last email attempt: ' . esc_html($emailEvent['type'] === 'emailed' ? 'sent' : 'failed') . ' at ' . esc_html($emailEvent['occurred_at']) . ' UTC.</p>';
+            }
             echo '</div></div><iframe class="dzn-finance-statement-frame" sandbox title="Teacher statement preview" srcdoc="' . esc_attr($html) . '"></iframe></div>';
         } else {
             echo '<div class="dzn-finance-statement-preview"><h3>Sample preview</h3><p class="description">Choose a statement above to preview recorded facts. The sample below uses illustrative values only.</p><iframe class="dzn-finance-statement-frame" sandbox title="Sample teacher statement" srcdoc="' . esc_attr($renderer->renderSample($template, self::academyName())) . '"></iframe></div>';
         }
         self::statementTemplateSettings($template, $renderer);
         echo '</section>';
+    }
+
+    /** Monthly batch generation, preview and per-Teacher results. */
+    private static function renderStatementBatch(FinanceAdminReadService $read): void {
+        $canManage = current_user_can('dzn_manage_finance_statements');
+        $requested = self::query('batch_month') !== '';
+        $month = $requested ? self::query('batch_month') : gmdate('Y-m', strtotime('first day of last month UTC'));
+        $previousMonth = gmdate('Y-m', strtotime('first day of last month UTC'));
+        echo '<details class="dzn-finance-settings-section" id="statement-batch"><summary><strong>Generate statements for every Teacher who worked in a month</strong></summary>';
+        echo '<p>Choose a completed month. The batch finds every Teacher with at least one active Lesson in that UTC month, drafts one statement from the recorded Lesson snapshots and payability evaluations, and can issue and email each statement. One Teacher\'s failure never blocks another Teacher.</p>';
+        echo '<form method="get" class="dzn-finance-inline-form"><input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '"><input type="hidden" name="tab" value="' . esc_attr(self::TAB_STATEMENTS) . '"><label>Completed month<input type="month" name="batch_month" value="' . esc_attr($month) . '" max="' . esc_attr($previousMonth) . '" required></label><button class="button">Preview Teachers</button></form>';
+        if (!$requested) {
+            echo '<p class="description">Preview a month to see which Teachers have active work and whether an email address is recorded.</p></details>';
+            return;
+        }
+        try {
+            $preview = (new TeacherStatementBatchService())->preview($month);
+        } catch (\Throwable $error) {
+            $message = trim($error->getMessage());
+            $label = $message === 'statement_period_not_elapsed' ? 'Choose a month that has already ended.' : ($message === 'statement_batch_month_invalid' ? 'Choose a valid month.' : 'The batch preview could not be read. No statement was changed.');
+            echo '<div class="notice notice-error inline"><p>' . esc_html($label) . '</p></div></details>';
+            return;
+        }
+        if (!$preview['teachers']) {
+            echo '<p>No Teacher has active Lesson work in ' . esc_html($month) . '.</p></details>';
+            return;
+        }
+        echo '<p class="description">' . esc_html((string) count($preview['teachers'])) . ' Teacher(s) have active Lesson work from ' . esc_html($preview['period_start']) . ' to ' . esc_html($preview['period_end']) . ' UTC. Existing live statements are reported and never replaced.</p>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Teacher</th><th>Active lessons</th><th>Archived</th><th>Existing statement</th><th>Email</th></tr></thead><tbody>';
+        foreach ($preview['teachers'] as $teacher) {
+            $existing = (int) ($teacher['existing_statement_id'] ?? 0) > 0
+                ? '#' . (int) $teacher['existing_statement_id'] . ' · ' . (string) $teacher['existing_state']
+                : '—';
+            $email = trim((string) ($teacher['teacher_email'] ?? ''));
+            echo '<tr><td>' . esc_html((string) $teacher['teacher_name']) . '<br><small>' . esc_html((string) $teacher['teacher_reference']) . '</small></td>'
+                . '<td>' . esc_html((string) (int) $teacher['active_lessons']) . '</td>'
+                . '<td>' . esc_html((string) (int) $teacher['archived_lessons']) . '</td>'
+                . '<td>' . esc_html($existing) . '</td>'
+                . '<td>' . ($email !== '' ? esc_html($email) : '<span class="dzn-finance-muted">Missing — statement can be issued but not emailed</span>') . '</td></tr>';
+        }
+        echo '</tbody></table>';
+        if ($canManage) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Generate statements for this month? Each Teacher is drafted and optionally issued and emailed independently.\')">';
+            echo '<input type="hidden" name="action" value="dzn_finance_statement_batch"><input type="hidden" name="batch_month" value="' . esc_attr($month) . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
+            wp_nonce_field('dzn_finance_statement_batch');
+            echo '<label class="dzn-finance-checkbox"><input type="checkbox" name="batch_issue" value="1" checked> Issue each statement when the gate passes</label>';
+            echo '<label class="dzn-finance-checkbox"><input type="checkbox" name="batch_email" value="1" checked> Email each issued statement to the Teacher\'s recorded address</label>';
+            echo '<button class="button button-primary">Generate monthly statements</button></form>';
+        }
+        $result = get_transient('dzn_finance_statement_batch_' . get_current_user_id());
+        if (is_array($result)) {
+            delete_transient('dzn_finance_statement_batch_' . get_current_user_id());
+            $summary = (array) ($result['summary'] ?? array());
+            echo '<h4>Batch result · ' . esc_html((string) ($result['month'] ?? $month)) . '</h4>';
+            echo '<p><strong>' . esc_html((string) ($summary['teachers'] ?? 0)) . '</strong> Teacher(s) · drafted ' . esc_html((string) ($summary['drafted'] ?? 0)) . ' · issued ' . esc_html((string) ($summary['issued'] ?? 0)) . ' · skipped ' . esc_html((string) ($summary['skipped'] ?? 0)) . ' · failed ' . esc_html((string) ($summary['failed'] ?? 0)) . ' · emailed ' . esc_html((string) ($summary['emailed'] ?? 0)) . '.</p>';
+            echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Teacher</th><th>Result</th><th>Statement</th><th>Reason</th><th>Email</th></tr></thead><tbody>';
+            foreach ((array) ($result['teachers'] ?? array()) as $row) {
+                $state = (string) ($row['state'] ?? '');
+                $reason = (string) ($row['reason'] ?? '');
+                $email = !empty($row['emailed']) ? 'Sent' : ($reason !== '' ? '—' : 'Not requested');
+                $sid = (int) ($row['statement_id'] ?? 0);
+                $statementCell = $sid > 0 ? '#' . $sid : '—';
+                echo '<tr><td>' . esc_html((string) ($row['teacher_name'] ?? '')) . '<br><small>' . esc_html((string) ($row['teacher_reference'] ?? '')) . '</small></td>'
+                    . '<td><span class="dzn-finance-pill">' . esc_html(ucfirst($state)) . '</span></td>'
+                    . '<td>' . esc_html($statementCell) . '</td>'
+                    . '<td>' . esc_html($reason !== '' ? $reason : '—') . '</td>'
+                    . '<td>' . esc_html($email) . ((string) ($row['email_reason'] ?? '') !== '' ? '<br><small>' . esc_html((string) $row['email_reason']) . '</small>' : '') . '</td></tr>';
+            }
+            echo '</tbody></table>';
+        }
+        echo '</details>';
     }
 
     private static function statementTemplateSettings(array $template, StatementTemplateService $renderer): void {
@@ -839,7 +1351,7 @@ final class FinanceAdminController {
     private static function manualEntryForm(): void {
         echo '<details class="dzn-finance-settings-section"><summary><strong>Record a manual ledger entry</strong></summary><p>This records bookkeeping only. It does not collect a student payment or change a teacher statement.</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="dzn_cashbook_record"><input type="hidden" name="cashbook_operation" value="record"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
         wp_nonce_field('cashbook_record');
-        echo '<table class="form-table"><tbody><tr><th><label for="finance-ledger-account">Account</label></th><td><select id="finance-ledger-account" name="account_key"><option value="australia">Australia account (AUD)</option><option value="iran">Iran account (TOM)</option></select></td></tr><tr><th><label for="finance-ledger-kind">Type</label></th><td><select id="finance-ledger-kind" name="transaction_kind"><option value="income">Money received</option><option value="expense">Money spent</option><option value="opening_balance">Opening balance</option><option value="balance_adjustment">Balance adjustment</option></select></td></tr><tr><th><label for="finance-ledger-date">Date</label></th><td><input id="finance-ledger-date" type="date" name="transaction_date" required value="' . esc_attr(gmdate('Y-m-d')) . '"></td></tr><tr><th><label for="finance-ledger-amount">Amount</label></th><td><input id="finance-ledger-amount" name="amount" inputmode="decimal" required></td></tr><tr><th><label for="finance-ledger-category">Category</label></th><td><input id="finance-ledger-category" name="category" maxlength="100"></td></tr><tr><th><label for="finance-ledger-description">Description</label></th><td><input id="finance-ledger-description" class="large-text" name="description" required maxlength="500"></td></tr><tr><th><label for="finance-ledger-evidence">Evidence reference</label></th><td><input id="finance-ledger-evidence" class="large-text" name="evidence_reference" required maxlength="191"><input type="hidden" name="evidence_channel" value="staff_record"><input type="hidden" name="adjustment_direction" value="increase"><input type="hidden" name="reason_code" value="data_entry_correction"></td></tr></tbody></table><button class="button button-primary">Record ledger entry</button></form></details>';
+        echo '<table class="form-table"><tbody><tr><th><label for="finance-ledger-account">Account</label></th><td><select id="finance-ledger-account" name="account_key"><option value="australia">Australia account (AUD)</option><option value="iran">Iran account (TOM)</option></select></td></tr><tr><th><label for="finance-ledger-kind">Type</label></th><td><select id="finance-ledger-kind" name="transaction_kind"><option value="income">Money received</option><option value="expense">Money spent</option><option value="opening_balance">Opening balance</option><option value="balance_adjustment">Balance adjustment</option></select></td></tr><tr><th><label for="finance-ledger-date">Date</label></th><td><input id="finance-ledger-date" type="date" name="transaction_date" required max="' . esc_attr(gmdate('Y-m-d')) . '" value="' . esc_attr(gmdate('Y-m-d')) . '"></td></tr><tr><th><label for="finance-ledger-amount">Amount</label></th><td><input id="finance-ledger-amount" name="amount" inputmode="decimal" required></td></tr><tr><th><label for="finance-ledger-category">Category</label></th><td><input id="finance-ledger-category" name="category" maxlength="100"></td></tr><tr><th><label for="finance-ledger-description">Description</label></th><td><input id="finance-ledger-description" class="large-text" name="description" required maxlength="500"></td></tr><tr><th><label for="finance-ledger-direction">Adjustment direction</label></th><td><select id="finance-ledger-direction" name="adjustment_direction"><option value="increase">Increase balance</option><option value="decrease">Decrease balance</option></select> <label for="finance-ledger-reason">Reason</label> <select id="finance-ledger-reason" name="reason_code"><option value="data_entry_correction">Data entry correction</option><option value="opening_balance">Opening balance correction</option><option value="balance_reconciliation">Statement review</option><option value="other_reviewed_correction">Other reviewed correction</option></select><p class="description">Used only for a balance adjustment.</p></td></tr><tr><th><label for="finance-ledger-evidence">Evidence reference</label></th><td><input id="finance-ledger-evidence" class="large-text" name="evidence_reference" required maxlength="191"><input type="hidden" name="evidence_channel" value="staff_record"></td></tr></tbody></table><button class="button button-primary">Record ledger entry</button></form></details>';
     }
 
     private static function filterForm(string $tab, array $fields, array $values): void {
@@ -921,6 +1433,18 @@ final class FinanceAdminController {
             'policy_saved' => array('success', 'A new policy version was recorded.'),
             'promotion_created' => array('success', 'The discount code was created and is active.'),
             'promotion_deactivated' => array('success', 'The discount code was deactivated. Existing offers keep their recorded snapshot.'),
+            'payment_marked_paid' => array('success', 'The offline payment was recorded through the canonical settlement authority. The purchase, entitlement and academic funding were materialised exactly once.'),
+            'statement_drafted' => array('success', 'The statement draft was recorded from the current Lesson facts and effective payability evaluations.'),
+            'statement_issued' => array('success', 'The statement passed its issuance gate and is now issued.'),
+            'statement_withdrawn' => array('success', 'The draft statement was withdrawn. Its lines remain recorded and cannot be reused.'),
+            'statement_superseded' => array('success', 'A new statement draft version was created and the previous issued version was superseded.'),
+            'statement_emailed' => array('success', 'The issued statement was emailed to the Teacher\'s recorded address.'),
+            'statement_email_failed' => array('error', 'The statement email was not sent. The statement itself was not changed.'),
+            'statement_batch_complete' => array('success', 'The monthly batch finished. Review each Teacher\'s result below; no failed Teacher blocked another.'),
+            'refund_recorded' => array('success', 'The manual refund evidence and review case were recorded. No settlement, funding, Lesson or statement was changed; complete the money movement outside this page.'),
+            'refund_review_routed' => array('success', 'The refund review was routed for a human decision.'),
+            'refund_review_resolved' => array('success', 'The refund review was resolved and the decision note was recorded.'),
+            'refund_review_dismissed' => array('success', 'The refund review was dismissed and the decision was recorded.'),
             'use_settings' => array('info', 'Student pricing is configured once per region in Finance → Settings. No technical catalogue fields were changed.'),
             'error' => array('error', 'The change was not saved. Review the highlighted values, permissions and effective dates, then try again.'),
         );
@@ -967,6 +1491,67 @@ final class FinanceAdminController {
                     'commercial_promotion_required' => 'The discount code was not found.',
                     'promotion_operation_invalid' => 'The requested discount-code operation is not supported.',
                     'promotion_operation_failed' => 'The discount-code change failed. No financial record was changed.',
+                    'manual_payment_offer_required' => 'The selected offer no longer exists. Refresh the outstanding payments list.',
+                    'manual_payment_obligation_required' => 'The selected obligation no longer exists. Refresh the outstanding payments list.',
+                    'manual_payment_already_settled' => 'That obligation is already settled. No second settlement was recorded.',
+                    'manual_payment_evidence_reference_required' => 'Enter the bank, receipt or other evidence reference for this payment.',
+                    'manual_payment_received_on_invalid' => 'Enter a valid received date that is not in the future.',
+                    'manual_payment_received_on_future' => 'The received date cannot be in the future.',
+                    'manual_payment_received_before_offer' => 'The received date is earlier than the offer. Record the actual receipt date or issue the current offer first.',
+                    'manual_payment_obligation_sequence_invalid' => 'The instalment identifier is invalid. Refresh the list.',
+                    'manual_payment_kind_invalid' => 'The payment type was not recognised.',
+                    'manual_payment_amount_required' => 'A zero-value obligation is settled by its promotion, not by an offline payment.',
+                    'manual_payment_failed' => 'The offline payment was not accepted. No settlement was recorded.',
+                    'amount_mismatch' => 'The recorded payment amount does not exactly match the obligation.',
+                    'currency_mismatch' => 'The recorded payment currency does not match the obligation.',
+                    'late_payment_after_offer_window' => 'The offer window had already closed before the recorded payment date. Issue a current offer.',
+                    'conflicting_payment_evidence' => 'Other payment evidence already exists for this obligation. Review it before retrying.',
+                    'invalid_or_expired_offer' => 'The offer is no longer payable. Issue a current offer.',
+                    'intro_payment_state_conflict' => 'This introductory obligation can no longer be marked paid in its current state.',
+                    'intro_payment_manual_evidence_required' => 'Enter the bank, receipt or other evidence reference for this introductory payment.',
+                    'intro_payment_manual_occurred_at_invalid' => 'Enter a valid past-or-present received date.',
+                    'statement_period_invalid' => 'Enter a valid start and end date in UTC.',
+                    'statement_required' => 'Choose a statement first.',
+                    'statement_operation_invalid' => 'The statement operation was not recognised.',
+                    'statement_operation_failed' => 'The statement operation failed. No financial record was changed.',
+                    'statement_period_too_long' => 'A statement period may not exceed 62 days.',
+                    'statement_period_not_elapsed' => 'A statement can only cover a period that has already ended.',
+                    'statement_period_overlap' => 'This Teacher already has a live statement overlapping that period.',
+                    'lesson_not_finalised_in_period' => 'At least one Lesson in the period is not finalised. Complete attendance first.',
+                    'payability_pending' => 'At least one Lesson has pending payability. Resolve the payability review before issuing.',
+                    'policy_unset_for_statement_period' => 'The statement timezone policy was unset when the draft was created. Record it before drafting, or draft again after recording it.',
+                    'snapshot_missing_for_lesson' => 'At least one Lesson in the period has no Finance snapshot.',
+                    'lesson_stated_twice' => 'A live statement already states one of these Lessons.',
+                    'statement_state_transition_conflict' => 'The statement state changed. Refresh before retrying.',
+                    'statement_derivation_mismatch' => 'The statement derivation no longer matches the period. Draft a fresh statement.',
+                    'statement_batch_month_invalid' => 'Choose a valid completed month in YYYY-MM form.',
+                    'statement_batch_key_required' => 'The batch command key was missing. Retry the batch.',
+                    'statement_batch_failed' => 'The batch could not start. No statement was changed.',
+                    'statement_email_missing' => 'The Teacher has no recorded email address. Update the Teacher profile and try again.',
+                    'statement_email_transport_failed' => 'The email transport did not accept the message. The statement remains issued and unchanged.',
+                    'statement_not_issued' => 'Only an issued statement can be emailed. Issue the draft first.',
+                    'manual_refund_command_required' => 'The refund command key was missing. Retry the refund.',
+                    'manual_refund_offer_required' => 'The selected offer no longer exists. Refresh the settlements list.',
+                    'manual_refund_obligation_required' => 'The selected obligation no longer exists. Refresh the settlements list.',
+                    'manual_refund_purchase_required' => 'The obligation has no accepted purchase. A refund cannot be recorded yet.',
+                    'manual_refund_settlement_required' => 'Only a settled obligation can be refunded.',
+                    'manual_refund_before_settlement' => 'The refund date is earlier than the settlement date.',
+                    'manual_refund_already_complete' => 'This obligation has already been fully refunded.',
+                    'manual_refund_amount_required' => 'Enter a refund amount greater than zero.',
+                    'manual_refund_exceeds_remaining' => 'The refund amount is more than the remaining settled balance.',
+                    'manual_refund_evidence_reference_required' => 'Enter the refund/bank evidence reference.',
+                    'manual_refund_date_invalid' => 'Enter a valid past-or-present refund date.',
+                    'manual_refund_note_too_long' => 'The refund note is too long.',
+                    'refund_failed' => 'The manual refund was not recorded. No settlement or review case was changed.',
+                    'refund_review_required' => 'Choose a refund review case first.',
+                    'refund_review_operation_invalid' => 'The refund review operation was not recognised.',
+                    'refund_review_already_exists' => 'This refund evidence already has a review case.',
+                    'refund_review_evidence_conflict' => 'The refund evidence does not match the purchase and obligation.',
+                    'accepted_payment_evidence_required' => 'Only accepted refund evidence can open a review case.',
+                    'reversal_evidence_not_supported' => 'A reversal cannot be represented by this manual refund path.',
+                    'invalid_refund_review_state' => 'The refund review state changed. Refresh before retrying.',
+                    'refund_review_not_found' => 'The refund review case no longer exists.',
+                    'refund_review_failed' => 'The refund review operation failed. No decision was recorded.',
                 );
                 $detail = $detailMap[self::query('finance_error')] ?? '';
             }
@@ -1055,6 +1640,7 @@ final class FinanceAdminController {
         .dzn-finance-promotion-form label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:12px}
         .dzn-finance-promotion-form input[type=text],.dzn-finance-promotion-form input[type=number]{width:100%;margin-block-start:0}
         .dzn-finance-promotion-form .dzn-finance-checkbox{flex-direction:row;align-items:center;gap:8px;min-block-size:30px;font-weight:600}
+        .dzn-finance-manual-pay{display:flex;flex-direction:column;gap:4px;min-width:190px}.dzn-finance-manual-pay label{display:flex;flex-direction:column;gap:2px;font-size:11px;font-weight:600}.dzn-finance-manual-pay input{width:100%;margin:0}.dzn-finance-manual-pay button{align-self:flex-start}
         .dzn-finance-promotion-form .dzn-finance-checkbox input{margin:0}
         .dzn-finance-statement-preview{margin-block-start:20px}.dzn-finance-statement-preview__head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
         .dzn-finance-statement-frame{width:100%;min-height:620px;border:1px solid #dcdcde;border-radius:6px;background:#fff}.dzn-finance-template-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,1fr);gap:18px;align-items:start}

@@ -6,7 +6,7 @@ final class StaffAccessController {
   'teachers'=>['label'=>'Teachers','caps'=>['dzn_manage_teachers','dzn_manage_onboarding','dzn_issue_teacher_invitations','dzn_revoke_teacher_invitations','dzn_view_onboarding_audit','dzn_manage_teaching_eligibility','dzn_manage_teacher_availability']],
   'bookings'=>['label'=>'Bookings & teaching','caps'=>['dzn_view_booking_requests','dzn_prepare_booking_request_matches','dzn_manage_booking_request_coordination','dzn_manage_terms','dzn_manage_lessons','dzn_manage_canonical_attendance_review']],
   'communications'=>['label'=>'Communications','caps'=>['dzn_view_notification_authority']],
-  'finance'=>['label'=>'Finance','caps'=>['dzn_view_finance_authority','dzn_view_payment_execution_authority']],
+  'finance'=>['label'=>'Finance','caps'=>['dzn_view_finance_authority','dzn_view_payment_execution_authority','dzn_manage_payment_execution','dzn_ingest_commercial_payment_evidence','dzn_manage_finance_statements','dzn_view_cash_ledger','dzn_manage_cash_ledger']],
  ];
  public static function register():void{add_action('admin_menu',[self::class,'menu']);}
  public static function menu():void{$h=add_submenu_page(Menu::ROOT_SLUG,'Staff Access','Staff Access','manage_options','dzn-staff-access',[self::class,'screen']);if($h)add_action('load-'.$h,[self::class,'post']);}

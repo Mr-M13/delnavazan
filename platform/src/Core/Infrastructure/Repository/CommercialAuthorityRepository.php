@@ -149,6 +149,8 @@ final class CommercialAuthorityRepository {
     // ------------------------------------------------------------------------------- purchase offer
 
     public function offer(int $offerId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_offers WHERE id=%d".($lock?' FOR UPDATE':''),$offerId);}
+    /** Administrative surfaces identify an immutable offer by its opaque UID. */
+    public function offerByUid(string $uid,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_offers WHERE uid=%s".($lock?' FOR UPDATE':''),$uid);}
     public function offersForContinuation(int $caseId):array{
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offers WHERE continuation_case_id=%d ORDER BY id",$caseId))?:array();
@@ -192,6 +194,9 @@ final class CommercialAuthorityRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d ORDER BY obligation_sequence,id{$suffix}",$offerId))?:array();
     }
     public function obligation(int $obligationId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_offer_obligations WHERE id=%d".($lock?' FOR UPDATE':''),$obligationId);}
+    public function obligationByOfferSequence(int $offerId,int $sequence,bool $lock=false):?object{
+        return $this->one("SELECT * FROM {$this->p}commercial_offer_obligations WHERE offer_id=%d AND obligation_sequence=%d".($lock?' FOR UPDATE':''),$offerId,$sequence);
+    }
     /** Public checkout identifies an obligation by opaque UID; ownership is enforced by the application service. */
     public function obligationByUid(string $uid,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_offer_obligations WHERE uid=%s".($lock?' FOR UPDATE':''),$uid);}
     public function obligationByReferenceDigest(string $digest,bool $lock=false):?object{

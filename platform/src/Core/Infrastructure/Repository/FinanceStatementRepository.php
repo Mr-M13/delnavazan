@@ -15,6 +15,10 @@ final class FinanceStatementRepository extends FinanceRepository {
     public function liveStatements(int $teacherId,bool $lock=false):array{
         return $this->many("SELECT * FROM {$this->p}finance_statements WHERE teacher_id=%d AND state IN ('draft','issued') ORDER BY period_start_utc".($lock?' FOR UPDATE':''),$teacherId);
     }
+    /** Whether an issued statement was already successfully emailed. */
+    public function hasEmailEvent(int $statementId):bool{
+        return (int)$this->value("SELECT COUNT(*) FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type='emailed'",$statementId)>0;
+    }
     public function liveInPeriod(int $teacherId,string $startUtc,string $endUtc,int $excludeId=0,bool $lock=false):array{
         return $this->many("SELECT * FROM {$this->p}finance_statements WHERE teacher_id=%d AND state IN ('draft','issued') AND id<>%d AND period_start_utc<%s AND period_end_utc>%s".($lock?' FOR UPDATE':''),$teacherId,$excludeId,$endUtc,$startUtc);
     }
@@ -61,6 +65,37 @@ final class FinanceStatementRepository extends FinanceRepository {
     public function candidateLessons(int $teacherId):array{
         return $this->many("SELECT lesson.id AS lesson_id,lesson.lesson_type,lesson.record_model,lesson.lifecycle_state,lesson.status AS legacy_status,lesson.archived_at,lesson.enrolment_id,lesson.term_id,lesson.course_id,lesson.teacher_assignment_id,outcome.occurrence_starts_at_utc AS outcome_starts,canonical_schedule.starts_at_utc AS canonical_starts,legacy_schedule.starts_at_utc AS legacy_starts FROM {$this->p}lessons lesson LEFT JOIN {$this->p}canonical_lesson_delivery_outcomes outcome ON outcome.lesson_id=lesson.id AND outcome.applicable_slot=1 LEFT JOIN {$this->p}canonical_lesson_schedule_versions canonical_schedule ON canonical_schedule.lesson_id=lesson.id AND canonical_schedule.applicable_slot=1 LEFT JOIN {$this->p}lesson_schedule_versions legacy_schedule ON legacy_schedule.lesson_id=lesson.id AND legacy_schedule.id=lesson.current_schedule_version_id AND legacy_schedule.superseded_at IS NULL WHERE lesson.teacher_id=%d",$teacherId);
     }
+    /**
+     * Teachers with at least one candidate Lesson anchored inside the period.
+     *
+     * The batch generator uses this only to find the candidate set; it re-reads the authoritative
+     * per-Teacher period set before drafting, so an archived-only Teacher is skipped rather than
+     * treated as having worked.
+     *
+     * @return list<object>
+     */
+    public function teachersWithWork(string $startUtc, string $endUtc): array {
+        return $this->many(
+            "SELECT lesson.teacher_id,COUNT(*) lesson_count,
+                    COALESCE(teacher.display_name,'') teacher_name,
+                    COALESCE(teacher.reference_code,'') teacher_reference,
+                    COALESCE(teacher.email,'') teacher_email,
+                    COALESCE(teacher.locale,'') teacher_locale
+             FROM {$this->p}lessons lesson
+             LEFT JOIN {$this->p}canonical_lesson_delivery_outcomes outcome ON outcome.lesson_id=lesson.id AND outcome.applicable_slot=1
+             LEFT JOIN {$this->p}canonical_lesson_schedule_versions canonical_schedule ON canonical_schedule.lesson_id=lesson.id AND canonical_schedule.applicable_slot=1
+             LEFT JOIN {$this->p}lesson_schedule_versions legacy_schedule ON legacy_schedule.lesson_id=lesson.id AND legacy_schedule.id=lesson.current_schedule_version_id AND legacy_schedule.superseded_at IS NULL
+             INNER JOIN {$this->p}teachers teacher ON teacher.id=lesson.teacher_id
+             WHERE COALESCE(outcome.occurrence_starts_at_utc,canonical_schedule.starts_at_utc,legacy_schedule.starts_at_utc)>=%s
+               AND COALESCE(outcome.occurrence_starts_at_utc,canonical_schedule.starts_at_utc,legacy_schedule.starts_at_utc)<%s
+               AND teacher.archived_at IS NULL
+             GROUP BY lesson.teacher_id,teacher.display_name,teacher.reference_code,teacher.email,teacher.locale
+             ORDER BY teacher.display_name,lesson.teacher_id",
+            $startUtc,
+            $endUtc
+        );
+    }
+
     /** §10.5 rule 9: the open blocking exceptions of one Teacher within the period's scope. */
     public function blockingExceptions(int $teacherId,string $startUtc,string $endUtc):array{
         return $this->many("SELECT * FROM {$this->p}finance_exceptions WHERE state='open' AND severity='blocking' AND teacher_id=%d AND (statement_id IS NULL OR statement_id IN (SELECT id FROM {$this->p}finance_statements WHERE teacher_id=%d AND period_start_utc<%s AND period_end_utc>%s))",$teacherId,$teacherId,$endUtc,$startUtc);

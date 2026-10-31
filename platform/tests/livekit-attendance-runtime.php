@@ -356,7 +356,7 @@ $openCase=$case($o['open']);dzn_lka_assert($openCase!==null&&(string)$openCase->
 dzn_lka_assert(in_array('open_interval',$anomalies($openCase),true),'A missing leave must be recorded as open_interval');
 dzn_lka_assert($outcome($o['open'])===null&&$lessonState($o['open'])==='authorised','A missing leave must never settle or complete');
 $orphanCase=$case($o['orphan']);dzn_lka_assert($orphanCase!==null&&(string)$orphanCase->state==='ready_for_review','A retained orphan leave must become review-only');
-dzn_lka_assert(in_array('invalid_interval',$anomalies($orphanCase),true),'A missing join must be recorded as invalid_interval');
+dzn_lka_assert(in_array('teacher_participation_unproven',$anomalies($orphanCase),true),'A missing join must leave the counterpart unproven and reviewable');
 dzn_lka_assert($outcome($o['orphan'])===null&&$lessonState($o['orphan'])==='authorised','A missing join must never settle or complete');
 
 // ---------------------------------------------------------------------------

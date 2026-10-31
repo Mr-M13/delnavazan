@@ -82,4 +82,10 @@ foreach (array('check_admin_referer(', 'current_user_can(', 'wp_safe_redirect(',
 }
 $fail('template editing still uses the canonical capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
 
+/* 8. SMS is presented only as a verified WhatsApp fallback, never as a primary channel. */
+$fail('delivery rules use the SMS fallback label', str_contains($controller, '<th>SMS fallback</th>') && !str_contains($controller, 'SMS instead of WhatsApp'));
+$fail('delivery rules carry the fallback-only explanation', str_contains($controller, 'SMS is a fallback only') && str_contains($controller, 'verified terminal WhatsApp delivery failure'));
+$fail('delivery rules expose one SMS fallback flag', str_contains($controller, "foreach(array('email','website','whatsapp','sms_fallback') as \$flag)"));
+$fail('customer content remains Persian after the label change', $persian(NotificationCatalogue::defaultCopy('booking.confirmed.student', 'sms', 'fa-IR')['body']));
+
 echo "Notification admin language contract passed\n";

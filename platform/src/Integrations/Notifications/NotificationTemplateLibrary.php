@@ -389,6 +389,9 @@ final class NotificationTemplateLibrary {
         if(in_array($category,array('security','account','payment'),true)){
             $effective['email']=true;$effective['website']=true;$effective['mandatory']=true;
         }
+        // SMS is a fallback-only capability.  Legacy direct-SMS settings are normalised away so no
+        // template, router or admin surface can advertise SMS as an independent primary channel.
+        $effective['sms']=!empty($effective['sms_fallback']);
         $effective['category']=$category;
         return $effective;
     }
@@ -406,7 +409,11 @@ final class NotificationTemplateLibrary {
         foreach(NotificationCatalogue::CATEGORIES as $category=>$meta){
             if(!isset($input[$category])||!is_array($input[$category]))continue;
             $flags=array();
-            foreach(array('email','whatsapp','sms','website','sms_fallback') as $channel)$flags[$channel]=!empty($input[$category][$channel]);
+            foreach(array('email','whatsapp','website') as $channel)$flags[$channel]=!empty($input[$category][$channel]);
+            // SMS is never a primary channel.  Its capability flag is derived from the one fallback
+            // option, so an operator cannot configure direct or capability-based SMS routing.
+            $flags['sms_fallback']=!empty($input[$category]['sms_fallback']);
+            $flags['sms']=$flags['sms_fallback'];
             if(in_array((string)$meta['policy'],array('security','essential','financial'),true)){
                 $flags['email']=true;$flags['website']=true;
                 if((string)$meta['policy']==='security'){$flags['whatsapp']=false;$flags['sms']=false;$flags['sms_fallback']=false;}

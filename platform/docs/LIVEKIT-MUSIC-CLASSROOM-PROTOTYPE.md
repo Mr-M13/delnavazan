@@ -23,7 +23,10 @@ authority.
   room-scoped, short-lived, and cannot create, administer, or record rooms.
 - **Webhook** — signed intake at `POST /wp-json/delnavazan-platform/v1/livekit/webhook`. It rejects
   a third identity and closes a room whose canonical authorisation has been withdrawn. It is
-  defence in depth, not an attendance authority.
+  defence in depth. An optional, disabled-by-default adapter can additionally record normalized
+  join/leave facts and hand **closed** intervals to the existing Phase-P attendance authority; see
+  `LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md`. The webhook itself never completes a Lesson or writes
+  delivery/finance truth.
 - **Portal presentation** — the shared component
   `theme/template-parts/components/classroom-actions.php` renders the primary
   **ورود به کلاس** action and the secondary **ورود با گوگل میت** action from server-issued URLs,
@@ -166,7 +169,10 @@ behaviour of the deployed LiveKit server version.
 
 - The room is created or verified on the server before the token is issued.
 - Empty rooms expire after the LiveKit `empty_timeout` setting (300 seconds in the RoomService call).
-- `participant_left` and `room_finished` do not alter canonical attendance.
+- `participant_left` and `room_finished` do not alter canonical attendance in the default
+  lifecycle-only mode. When the optional canonical attendance adapter is explicitly enabled, a
+  closed join/leave interval is submitted through Phase P; a missing leave remains open and
+  non-qualifying. See `LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md` for activation and rollback.
 - The browser uses LiveKit's built-in reconnect for transient network loss. On a full disconnect it
   requests a fresh token with bounded exponential backoff (four attempts). It does not request a new
   token on every reconnect event and stops on duplicate identity, expiry, cancellation, or leave.
@@ -307,7 +313,9 @@ Recording is out of scope for this task. If it is added later:
   post-processing), because a CSS overlay is not captured;
 - store recordings only in the approved PixelBox storage boundary with retention, access, and deletion
   policy;
-- keep LiveKit webhooks and egress events out of attendance/completion authority;
+- keep egress/recording events out of attendance/completion authority; canonical participant
+  lifecycle evidence follows the separate, disabled-by-default adapter documented in
+  `LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md`;
 - add separate security, privacy, and rollback review for recording.
 
 ## Automated checks

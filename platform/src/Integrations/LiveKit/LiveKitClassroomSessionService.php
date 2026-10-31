@@ -10,13 +10,15 @@ final class LiveKitClassroomSessionService {
         private ?LiveKitRoomServiceClient $rooms = null,
         private ?LiveKitJwtIssuer $issuer = null,
         private ?LiveKitLaunchTicket $tickets = null,
-        private $clock = null
+        private $clock = null,
+        private ?LiveKitAttendanceIntegration $attendance = null
     ) {
         $this->authorizer ??= new LiveKitClassroomAuthorizer();
         $this->configuration ??= new LiveKitConfiguration();
         $this->registry ??= new LiveKitRoomRegistry();
         $this->issuer ??= new LiveKitJwtIssuer();
         $this->tickets ??= new LiveKitLaunchTicket();
+        $this->attendance ??= new LiveKitAttendanceIntegration();
     }
 
     public function session(string $ticket): array {
@@ -42,6 +44,14 @@ final class LiveKitClassroomSessionService {
             'student_identity' => (string)$grant['student_identity'],
             'expires_at' => gmdate('Y-m-d H:i:s', $this->now() + LiveKitRoomRegistry::TTL_SECONDS),
         ));
+        // Attendance binding is server-owned and additive. A binding failure must never prevent a
+        // legitimate classroom from opening; it is logged and the webhook falls back to the
+        // short-lived registry until the next token issuance can bind durably.
+        try {
+            $this->attendance->bindGrant($grant);
+        } catch (\Throwable $error) {
+            do_action('dzn_livekit_attendance_bind_failed', (string)$grant['room'], get_class($error), (string)$error->getMessage());
+        }
         $token = $this->issuer->issueParticipant(
             (string)$config['key'],
             (string)$config['secret'],

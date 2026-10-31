@@ -32,7 +32,9 @@ use Delnavazan\Platform\Core\Support\Identifier;
  *    admitted case is bound to the exact immutable policy row that admitted it.
  */
 final class CanonicalAttendanceIntakeService {
-    public const PROVIDER_CODES=array('google_meet','zoom','teams','other_trusted_provider');
+    // `livekit` is the server-owned classroom provider. It is admitted deliberately here rather
+    // than through `other_trusted_provider`, so evidence provenance, replay and review stay exact.
+    public const PROVIDER_CODES=array('google_meet','zoom','teams','livekit','other_trusted_provider');
     private const PROVIDER_CAPABILITY='dzn_ingest_canonical_attendance_evidence';
     private const STUDENT_CLAIM_CAPABILITY='dzn_submit_own_attendance_claim';
     private const TEACHER_CLAIM_CAPABILITY='dzn_submit_own_delivery_claim';

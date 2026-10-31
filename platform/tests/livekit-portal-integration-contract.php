@@ -66,8 +66,9 @@ $check('RoomService errors are sanitized', str_contains($client, 'livekit_room_a
 $webhook = $read('platform/src/Integrations/LiveKit/LiveKitWebhookController.php');
 $check('webhook validates its signature before acting', str_contains($webhook, 'LiveKitWebhookVerifier'));
 $check('webhook removes an unauthorized identity', str_contains($webhook, 'removed_unauthorized_identity'));
-$check('webhook never records attendance', !str_contains($webhook, 'CanonicalAttendance') && !str_contains($webhook, 'complete('));
-$check('webhook ignores non-classroom rooms', str_contains($webhook, "str_starts_with(\$room, 'dzn-')"));
+$check('webhook never writes canonical attendance or completes a Lesson directly', !str_contains($webhook, 'ingestProviderEvidence') && !str_contains($webhook, 'CanonicalLessonAuthorityService') && !str_contains($webhook, 'settleDelivered') && !str_contains($webhook, 'complete('));
+$check('webhook ignores non-classroom rooms', str_contains($webhook, "str_starts_with(\$roomName, 'dzn-')"));
+$check('webhook attendance capture is optional and disabled by default', str_contains($webhook, 'LiveKitAttendanceIntegration::enabled()'));
 
 $ticket = $read('platform/src/Integrations/LiveKit/LiveKitLaunchTicket.php');
 $check('launch ticket is signed and user-bound', str_contains($ticket, 'hash_hmac') && str_contains($ticket, 'livekit_ticket_user_mismatch'));

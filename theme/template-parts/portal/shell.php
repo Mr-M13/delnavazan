@@ -114,6 +114,7 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 				<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>"><?php esc_html_e( 'تلاش دوباره', 'delnavazan-theme' ); ?></a>
 			</p>
 		<?php elseif ( 'schedule' === $screen ) : ?>
+			<?php if ( ! empty( $model['replacement_limit_message'] ) ) : ?><p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php echo esc_html( (string) $model['replacement_limit_message'] ); ?></p><?php endif; ?>
 			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
 		<?php elseif ( 'payments' === $screen ) : ?>

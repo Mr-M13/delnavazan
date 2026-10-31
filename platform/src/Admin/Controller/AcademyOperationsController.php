@@ -151,8 +151,10 @@ final class AcademyOperationsController {
             $items[] = array('label' => 'Teacher booking requests pending response', 'count' => $count, 'page' => 'dzn-booking-requests', 'action' => 'Review request delivery', 'args' => array(), 'description' => 'A teacher has not yet answered a booking request.', 'urgent' => false);
         }
         if (current_user_can('dzn_manage_canonical_attendance_review')) {
-            $count = (int) $wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student'");
-            $items[] = array('label' => 'Student absence reports awaiting review', 'count' => $count, 'page' => 'dzn-attendance-review', 'action' => 'Review attendance', 'args' => array(), 'description' => 'Evidence-backed absence reports need an authorised decision.', 'urgent' => $count > 0);
+            // Pending/accepted proposals are still owned by the Teacher and Student. The absence
+            // queue must not ask an administrator to intervene before the parties have resolved it.
+            $count = (int) $wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id AND v.lesson_id=c.lesson_id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student' AND (v.id IS NULL OR (v.applicable_slot=1 AND v.superseded_at IS NULL)) AND NOT EXISTS (SELECT 1 FROM {$p}lesson_reschedule_proposals rp WHERE rp.lesson_id=c.lesson_id AND rp.created_at>=c.created_at AND (rp.state IN ('committing','accepted') OR (rp.state='pending' AND (rp.expires_at IS NULL OR rp.expires_at>UTC_TIMESTAMP()))))");
+            $items[] = array('label' => 'Absence reports needing administrator review', 'count' => $count, 'page' => 'dzn-attendance-review', 'action' => 'Review attendance', 'args' => array(), 'description' => 'No active Teacher/Student replacement is resolving these reports. Exhausted allowances and disputed outcomes are included.', 'urgent' => $count > 0);
         }
         if (current_user_can('dzn_manage_exceptions')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}operational_exceptions WHERE status='open'");

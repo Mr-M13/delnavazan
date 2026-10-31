@@ -167,6 +167,16 @@ $studentAfter=(new PortalAuthenticatedReadService())->student();
 dzn_rr_assert(empty(array_filter($studentAfter['reschedule_proposals'],static fn($row)=>(string)($row['lesson_uid']??'')===(string)$origin->lesson_uid)),'the accepted proposal must leave the Student pending list');
 $studentLesson=null;foreach($studentAfter['lessons'] as$row)if((string)($row['lesson_uid']??'')===(string)$newLesson->uid)$studentLesson=$row;
 dzn_rr_assert($studentLesson!==null&&(string)$studentLesson['starts_at_utc']===(string)$slot['start'],'the Student portal schedule must show the confirmed replacement');
+// The original occurrence stays immutable but its Student-reported absence and the linked
+// replacement must be visible; the Term allowance must be consumed exactly once.
+$originAfter=null;foreach($studentAfter['lessons'] as$row)if((string)($row['lesson_uid']??'')===(string)$origin->lesson_uid)$originAfter=$row;
+dzn_rr_assert($originAfter!==null&&!empty($originAfter['absence_reported']),'the Student portal must mark the notified absence');
+dzn_rr_assert((string)($originAfter['replacement_lesson_uid']??'')===(string)$newLesson->uid,'the notified absence must expose its replacement Lesson');
+$replacementEnrolment=null;foreach($studentAfter['enrolments'] as$row){foreach((array)($row['replacement_lessons']??array())as$replacementRow)if((string)($replacementRow['lesson_uid']??'')===(string)$newLesson->uid)$replacementEnrolment=$row;}
+dzn_rr_assert($replacementEnrolment!==null,'the Term projection must include the accepted replacement');
+dzn_rr_assert((int)$replacementEnrolment['replacement_used']===1&&(int)$replacementEnrolment['replacement_remaining']===(int)$replacementEnrolment['replacement_allowance']-1,'accepting a replacement must consume exactly one Term allowance');
+$reviewQueue=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository())->reviewQueue(250);
+dzn_rr_assert(empty(array_filter($reviewQueue,static fn($row)=>(int)$row->id===(int)$claim['case_id'])),'an accepted replacement must not remain an administrator review item');
 wp_set_current_user($teacherUserId);
 $teacherAfter=(new PortalAuthenticatedReadService())->teacher();
 $teacherLesson=null;foreach($teacherAfter['lessons'] as$row)if((string)($row['lesson_uid']??'')===(string)$newLesson->uid)$teacherLesson=$row;

@@ -34,6 +34,9 @@ $support_message = rawurlencode( 'سلام، درخواست بررسی توقف 
 				· <?php echo esc_html( sprintf( '%d جایگزین در انتظار تعیین زمان', (int) $status['replacement_pending'] ) ); ?>
 			<?php endif; ?>
 		</p>
+		<?php if ( ! empty( $status['replacement_limit_message'] ) ) : ?>
+			<p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php echo esc_html( (string) $status['replacement_limit_message'] ); ?></p>
+		<?php endif; ?>
 	<?php endif; ?>
 	<div class="dzn-account-status__actions">
 		<a class="dzn-button" href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>"><?php esc_html_e( 'ادامهٔ کلاس‌ها', 'delnavazan-theme' ); ?></a>

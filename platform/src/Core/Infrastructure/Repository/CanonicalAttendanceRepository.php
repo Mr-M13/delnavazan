@@ -41,10 +41,19 @@ final class CanonicalAttendanceRepository {
         $sql="SELECT c.* FROM {$this->p}canonical_attendance_cases c WHERE c.enrolment_id=%d OR c.lesson_id IN (SELECT l.id FROM {$this->p}lessons l WHERE l.enrolment_id=%d AND l.record_model='canonical_term_lesson_v1') ORDER BY c.id{$suffix}";
         return $wpdb->get_results($wpdb->prepare($sql,$enrolmentId,$enrolmentId))?:array();
     }
-    /** Operator review queue: unresolved/reviewable cases only, oldest occurrence first. */
+    /**
+     * Operator review queue: unresolved/reviewable cases only, oldest occurrence first.
+     *
+     * A case is bound to the exact schedule version that admitted it. Once a later revision
+     * supersedes that version, the occurrence is historical: its evidence is retained, but it is
+     * never presented as a current review item. This is the same schedule discipline the protected
+     * occurrence read enforces.
+     */
     public function reviewQueue(int $limit=100):array{
         global $wpdb;$limit=max(1,min(250,$limit));
-        return $wpdb->get_results("SELECT * FROM {$this->p}canonical_attendance_cases WHERE state IN ('open','ready_for_review','settlement_pending') ORDER BY occurrence_start_utc ASC,id ASC LIMIT {$limit}")?:array();
+        // A pending or accepted replacement proposal is an in-progress party-led resolution. It is
+        // deliberately not an administrator review item; three rejections/exhaustion remain visible.
+        return $wpdb->get_results("SELECT c.* FROM {$this->p}canonical_attendance_cases c LEFT JOIN {$this->p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id AND v.lesson_id=c.lesson_id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND (v.id IS NULL OR (v.applicable_slot=1 AND v.superseded_at IS NULL)) AND NOT EXISTS (SELECT 1 FROM {$this->p}lesson_reschedule_proposals rp WHERE rp.lesson_id=c.lesson_id AND rp.created_at>=c.created_at AND (rp.state IN ('committing','accepted') OR (rp.state='pending' AND (rp.expires_at IS NULL OR rp.expires_at>UTC_TIMESTAMP())))) ORDER BY c.occurrence_start_utc ASC,c.id ASC LIMIT {$limit}")?:array();
     }
     public function insertCase(array $data):int{return $this->insert('canonical_attendance_cases',$data,'Canonical attendance case persistence failed');}
     public function updateCaseState(int $caseId,int $expectedVersion,string $state,?int $latestDecisionId,string $now,int $actor):void{

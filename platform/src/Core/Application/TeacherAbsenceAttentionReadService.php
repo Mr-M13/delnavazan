@@ -27,7 +27,7 @@ final class TeacherAbsenceAttentionReadService {
                     (SELECT d.outcome_code FROM {$p}canonical_lesson_delivery_outcomes d WHERE d.lesson_id=l.id AND d.applicable_slot=1 LIMIT 1) delivery_outcome
              FROM {$p}canonical_attendance_cases c
              INNER JOIN {$p}lessons l ON l.id=c.lesson_id AND l.archived_at IS NULL
-             INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
+             INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id AND v.lesson_id=l.id AND v.applicable_slot=1
              INNER JOIN {$p}students s ON s.id=c.student_id
              LEFT JOIN {$p}courses co ON co.id=l.course_id
              LEFT JOIN {$p}instruments i ON i.id=co.instrument_id
@@ -43,6 +43,7 @@ final class TeacherAbsenceAttentionReadService {
                AND NOT EXISTS (
                    SELECT 1 FROM {$p}lesson_reschedule_proposals p
                    WHERE p.lesson_id=c.lesson_id AND p.created_at>=c.created_at
+                     AND (p.state IN ('committing','accepted') OR (p.state='pending' AND (p.expires_at IS NULL OR p.expires_at>UTC_TIMESTAMP())))
                )
              ORDER BY c.occurrence_start_utc ASC,c.id ASC LIMIT 50",
             $teacherId

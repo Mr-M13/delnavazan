@@ -1,0 +1,23 @@
+<?php
+$root=dirname(__DIR__);$theme=dirname($root).'/theme';
+$read=static fn(string$path):string=>($value=file_get_contents($path))===false?throw new RuntimeException('Unreadable '.$path):$value;
+$assert=static function(bool$condition,string$message):void{if(!$condition)throw new RuntimeException($message);};
+$service=$read($root.'/src/Core/Application/TeacherAvailabilityService.php');
+$assessment=$read($root.'/src/Core/Application/BookingAvailabilityAssessmentService.php');
+$account=$read($theme.'/template-parts/teacher-portal/account.php');$onboarding=$read($theme.'/template-parts/teacher-portal/onboarding.php');$calendar=$read($theme.'/template-parts/teacher-portal/calendar.php');
+$finance=$read($theme.'/template-parts/components/tuition-allocation.php');$bridge=$read($theme.'/inc/platform-bridge.php');$termRead=$read($root.'/src/Core/Application/Finance/Read/TermTuitionAllocationReadService.php');
+$assert(str_contains($account,'زمان‌های در دسترس برای تدریس')&&str_contains($account,'سایر زمان‌ها به‌صورت خودکار غیرقابل رزرو خواهند بود'),'The teacher workflow must explain positive-only availability.');
+$assert(!str_contains($account,'name="state"')&&!str_contains($onboarding,'name="state"'),'Teacher-facing forms must not expose availability-state choices.');
+$assert(str_contains($service,"['state']='preferred'")||str_contains($service,"['state'] = 'preferred'"),'Self-service availability must force an available state server-side.');
+$assert(str_contains($assessment,"! in_array( \$segment['state'], array( 'preferred', 'requestable' ), true )"),'Booking validation must consume the same positive availability states and reject uncovered time.');
+$assert(str_contains($service,"'state'=>'blocked'")&&str_contains($service,'setOwnDatedException'),'Holiday/date-specific blocked exceptions must remain supported.');
+$assert(!str_contains($service,'lessons')&&!str_contains($service,'DELETE FROM'),'Availability edits must not mutate existing Lesson records.');
+$assert(str_contains($account,"dzn_theme_teacher_portal_component('golden-hours'")&&str_contains($account,'availability_summary'),'Golden Hours and the consolidated summary must be integrated.');
+$assert(str_contains($account,'dzn_theme_instrument_image($instrument_name)')&&str_contains($account,'width="80" height="80"')&&str_contains($account,'تصویر ساز'),'Teacher instruments must reuse public booking artwork at accessible reduced dimensions.');
+$assert(!str_contains($account,'راهنمای کلاس')&&!str_contains($calendar,'نگاه پیش رو')&&str_contains($calendar,'تقویم کلاس‌های آینده'),'Redundant presentation must be removed without removing the canonical calendar.');
+$assert(str_contains($finance,'این اطلاعات صرفاً برآوردی')&&str_contains($finance,'100.0%')&&str_contains($finance,'تخصیص شهریه'),'Both portals must use the shared illustrative allocation component.');
+$assert(substr_count($bridge,"dzn_theme_platform_tuition_allocations( 'student' )")>=2&&str_contains($bridge,"dzn_theme_platform_tuition_allocations( 'teacher' )"),'Student settings/payments and Teacher finance must receive the shared model.');
+$assert(str_contains($termRead,"resolve('student')")&&str_contains($termRead,"resolve('teacher')")&&str_contains($termRead,'hasActiveTeacherAuthority'),'Allocation reads must be scoped to authenticated portal principals.');
+$assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i',$termRead),'The illustrative allocation reader must remain read-only.');
+$assert(!str_contains($termRead,'Stripe')&&!str_contains($termRead,'TeacherStatementService')&&!str_contains($termRead,'CommercialPaymentService'),'The illustrative read must not become payment or settlement authority.');
+echo "teacher-portal-ux-finance-contract: OK\n";

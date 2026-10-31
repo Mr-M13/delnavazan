@@ -840,6 +840,18 @@ function dzn_theme_platform_student_payments_model( array $read, $timezone, $ena
 	);
 }
 
+/** Read-only illustrative tuition allocations, independently fail-closed from checkout. */
+function dzn_theme_platform_tuition_allocations( $role ) {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TermTuitionAllocationReadService';
+	if ( ! class_exists( $class ) ) { return array( 'state' => 'unavailable', 'items' => array(), 'illustrative' => true ); }
+	try {
+		$service = new $class();
+		return 'teacher' === $role ? $service->ownTeacher() : $service->ownStudent();
+	} catch ( Throwable ) {
+		return array( 'state' => 'unavailable', 'items' => array(), 'illustrative' => true );
+	}
+}
+
 
 /**
  * The website inbox model for one authenticated portal user.
@@ -961,6 +973,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	}
 	if ( 'payments' === $screen ) {
 		$model['payments'] = $payments_model;
+		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
 	}
 	if ( 'account' === $screen ) {
@@ -1000,6 +1013,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		);
 		$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' );
 		$model['payments'] = $payments_model;
+		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
 	}
     $booking_temporal = static fn( $row ) => dzn_theme_platform_lesson_temporal_state( $row, $now );
@@ -1282,11 +1296,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! in_array( $onboarding_timezone, timezone_identifiers_list(), true ) ) { $onboarding_timezone = wp_timezone_string() ?: 'UTC'; }
 		$onboarding_locale = (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' );
 		$onboarding_calendar = dzn_theme_platform_calendar_preference( $onboarding['profile']['calendar_preference'] ?? '', $onboarding_locale );
+		$onboarding_golden = dzn_theme_platform_teacher_golden_bonus( $onboarding_timezone, $onboarding_calendar, $onboarding_locale );
+		$onboarding_rules = array_values( array_filter( (array) ( $onboarding['availability_rules'] ?? array() ), static fn( $rule ) => is_array( $rule ) && in_array( (string) ( $rule['state'] ?? '' ), array( 'preferred', 'requestable' ), true ) ) );
+		$availability_summary_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilitySummary';
+		if ( class_exists( $availability_summary_class ) ) {
+			try { $onboarding_summary = $availability_summary_class::build( $onboarding_rules, $onboarding_golden ); $onboarding_golden = (array) ( $onboarding_summary['golden'] ?? $onboarding_golden ); } catch ( Throwable ) {}
+		}
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
 			'navigation' => $nav, 'current_step' => $step, 'max_step' => $server_step, 'onboarding' => $onboarding,
-			'golden_bonus' => dzn_theme_platform_teacher_golden_bonus( $onboarding_timezone, $onboarding_calendar, $onboarding_locale ),
+			'golden_bonus' => $onboarding_golden,
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
@@ -1342,6 +1362,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ), 'navigation' => $nav,
 			'finance_state' => $state, 'statements' => $statements,
 			'finance_summary' => $summary, 'finance_summary_state' => $summary_state,
+			'tuition_allocations' => dzn_theme_platform_tuition_allocations( 'teacher' ),
 			'teacher_timezone' => $teacher_timezone, 'teacher_calendar' => $teacher_calendar, 'teacher_locale' => $teacher_locale,
 		);
 	}
@@ -1355,12 +1376,20 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$assigned = array_unique( array_filter( array_map( static fn( $row ) => is_array( $row ) ? (string) ( $row['student_display_reference'] ?? '' ) : '', (array) ( $data['assignments'] ?? array() ) ) ) );
 		$upcoming_count = count( array_filter( $all_scheduled_classes, static fn( $row ) => ( dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' ) ?: 0 ) >= time() ) );
 		$nav[0]['current'] = false;
+		$availability_rules = array_values( array_filter( (array) ( $onboarding['availability_rules'] ?? array() ), static fn( $rule ) => is_array( $rule ) && in_array( (string) ( $rule['state'] ?? '' ), array( 'preferred', 'requestable' ), true ) ) );
+		$golden_bonus = dzn_theme_platform_teacher_golden_bonus( $teacher_timezone, $teacher_calendar, $teacher_locale );
+		$availability_summary = array( 'weekly_minutes' => 0, 'golden_minutes' => 0, 'golden' => $golden_bonus );
+		$summary_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilitySummary';
+		if ( class_exists( $summary_class ) ) {
+			try { $availability_summary = $summary_class::build( $availability_rules, $golden_bonus ); } catch ( Throwable ) {}
+		}
 		return array(
 			'available' => true, 'screen' => $screen, 'source' => 'platform',
 			'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ), 'navigation' => $nav,
 			'profile' => array( 'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ), 'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ), 'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ), 'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ), 'locale' => (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' ), 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => dzn_theme_platform_timezone_label( (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ) ), 'calendar' => in_array( (string) ( $onboarding['profile']['calendar_preference'] ?? '' ), array( 'gregorian', 'persian' ), true ) ? (string) $onboarding['profile']['calendar_preference'] : 'gregorian' ),
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
-			'golden_bonus' => dzn_theme_platform_teacher_golden_bonus( $teacher_timezone, $teacher_calendar, $teacher_locale ),
+			'golden_bonus' => (array) ( $availability_summary['golden'] ?? $golden_bonus ),
+			'availability_summary' => $availability_summary,
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
@@ -1369,7 +1398,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'google_sync_url' => admin_url( 'admin-post.php?action=dzn_google_calendar_sync' ),
 			'google_sync_nonce' => wp_create_nonce( 'dzn_google_calendar_sync' ),
 			'availability_available' => true,
-			'availability' => array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},(array)($onboarding['availability_rules']??[])),
+			'availability' => array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},$availability_rules),
 			'availability_action_url' => admin_url('admin-post.php?action=dzn_teacher_availability_rule'),
 			'availability_retire_url' => admin_url('admin-post.php?action=dzn_teacher_availability_retire'),
 			'availability_retire_nonce' => wp_create_nonce('dzn_teacher_availability_retire'),

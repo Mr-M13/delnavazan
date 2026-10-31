@@ -116,6 +116,7 @@ namespace {
 	}
 
 	require_once dirname( __DIR__, 2 ) . '/theme/inc/platform-bridge.php';
+	require_once dirname( __DIR__, 2 ) . '/theme/inc/template-tags.php';
 	require_once dirname( __DIR__, 2 ) . '/theme/inc/teacher-portal.php';
 
 	$failures = array();

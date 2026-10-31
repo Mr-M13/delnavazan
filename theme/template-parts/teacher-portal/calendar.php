@@ -7,7 +7,7 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 <section class="dzn-tp-section" aria-labelledby="tp-calendar">
 	<?php if ( 'export_unavailable' === sanitize_key( (string) ( $_GET['calendar_status'] ?? '' ) ) ) : ?><p class="dzn-tp-notice is-error" role="alert">دریافت فایل تقویم برای این کلاس ممکن نشد. لطفاً صفحه را تازه کنید و دوباره تلاش کنید.</p><?php endif; ?>
 	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">نگاه پیش رو</p><h2 id="tp-calendar">تقویم کلاس‌های آینده</h2></div>
+		<div><h2 id="tp-calendar">تقویم کلاس‌های آینده</h2></div>
 		<div class="dzn-tp-heading__meta">
 			<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> منطقهٔ زمانی: <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 			<?php if ( $demo ) : ?><div class="dzn-tp-actions"><button type="button" data-dzn-tp-presentation>روز قبل</button><button type="button" data-dzn-tp-presentation>هفتهٔ بعد</button></div><?php endif; ?>

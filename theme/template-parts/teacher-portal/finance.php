@@ -112,3 +112,5 @@ $hours_month  = number_format_i18n( ( (int) ( $summary['minutes_month'] ?? 0 ) )
 		<p>نمای مالی مدرس در حال حاضر در دسترس نیست. مبلغ یا وضعیت پرداختی از روی کلاس‌ها حدس زده نمی‌شود.</p>
 	<?php endif; ?>
 </section>
+
+<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $m['tuition_allocations'] ?? array(), 'id' => 'teacher-tuition-allocation' ) ); ?>

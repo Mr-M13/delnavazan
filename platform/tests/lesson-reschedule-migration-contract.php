@@ -8,7 +8,7 @@ $assert = static function (bool $ok, string $message): void { if (!$ok) throw ne
 $assert(preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/", $plugin, $match) === 1, 'Schema constant is missing');
 $schema = (int) $match[1];
 $assert(substr_count($plugin, "define( 'DZN_PLATFORM_SCHEMA_VERSION'") === 1, 'Schema constant must be declared once');
-$assert($schema === 55, 'This branch must retain Schema 54 and publish the additive Schema 55 decision authority');
+$assert($schema === 56, 'This branch must retain Schema 54 and publish the additive Schema 56 decision authority');
 $assert(str_contains($migration, "'054_lesson_reschedule_authority'"), 'Schema 54 migration id is missing');
 $assert(!str_contains($migration, "'053_lesson_reschedule_authority'"), 'This branch must not claim PR #380 schema 53');
 $assert(substr_count($migration, '054_lesson_reschedule_authority') >= 3, 'Migration must be registered, installed and verified');

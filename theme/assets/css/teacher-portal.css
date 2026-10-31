@@ -688,6 +688,29 @@
   color: var(--dzn-color-text-muted);
 }
 
+.dzn-tp-golden-badge,
+.dzn-tp-golden-review {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  border: 1px solid var(--dzn-color-highlight);
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-tp-state-gold-bg);
+  padding: .12rem .5rem;
+  color: var(--dzn-color-highlight-ink);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-golden-review {
+  border-color: var(--dzn-color-warning-border);
+  background: var(--dzn-tp-state-warning-bg);
+  color: var(--dzn-color-warning);
+}
+
 .dzn-tp-class .dzn-tp-actions {
   justify-content: flex-end;
 }

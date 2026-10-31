@@ -1109,6 +1109,17 @@ function dzn_theme_platform_teacher_day_offs() {
 	try { return ( new $class() )->upcomingOwnExceptions(); } catch ( Throwable ) { return array(); }
 }
 
+/** The shared golden-hour windows, with the structural defaults as a fail-safe fallback. */
+function dzn_theme_platform_demand_regions() {
+	$policy = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourPolicyService';
+	if ( class_exists( $policy ) ) {
+		try { return ( new $policy() )->coverageWindows(); } catch ( Throwable $e ) {}
+	}
+	return class_exists( '\\Delnavazan\\Platform\\Core\\Application\\AcademyDemandWindowRule' )
+		? \Delnavazan\Platform\Core\Application\AcademyDemandWindowRule::regions()
+		: array();
+}
+
 /** Teacher-scoped pending booking deliveries; requests are never projected as confirmed classes. */
 function dzn_theme_platform_teacher_booking_requests() {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\BookingTeacherDeliveryService';
@@ -1283,6 +1294,19 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$today_classes = array();
 	$upcoming_classes = array();
 	$class_rows = array_merge( $today_rows, $upcoming_rows );
+	$golden_hour = array();
+	$golden_hour_ids = array();
+	foreach ( $class_rows as $golden_row ) {
+		$golden_lesson_id = (int) ( $golden_row['lesson_id'] ?? 0 );
+		if ( $golden_lesson_id > 0 ) { $golden_hour_ids[] = $golden_lesson_id; }
+	}
+	if ( $golden_hour_ids && class_exists( '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourPayService' ) ) {
+		try {
+			$golden_hour = ( new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPayService() )->forLessonIds( $golden_hour_ids );
+		} catch ( Throwable $e ) {
+			$golden_hour = array();
+		}
+	}
 	foreach ( $class_rows as $index => $lesson ) {
 		$start = dzn_theme_platform_utc_timestamp( $lesson['starts_at_utc'] ?? '' );
 		$is_today_row = null !== $day_window && $start && $start < dzn_theme_platform_utc_timestamp( $day_window['today_end'] );
@@ -1352,6 +1376,25 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'progress' => $is_booking ? 'کلاس آشنایی' : 'کلاس ترم',
 			'status' => 'in_progress' === $temporal ? 'در حال برگزاری' : ( $ended ? ( $is_booking ? 'پایان یافته' : 'پایان یافته — ثبت گزارش' ) : ( $is_booking ? ( $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده' ) : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ) ) ),
 		);
+		$golden = $golden_hour[ (int) ( $lesson['lesson_id'] ?? 0 ) ] ?? null;
+		if ( is_array( $golden ) ) {
+			$class['golden_hour'] = $golden;
+			$class['golden_hour_label'] = (int) ( $golden['bonus_amount_minor'] ?? 0 ) > 0
+				? 'Golden hour +' . rtrim( rtrim( number_format( ( (int) ( $golden['bonus_basis_points'] ?? 0 ) ) / 100, 2, '.', '' ), '0' ), '.' ) . '%'
+				: '';
+			$class['golden_hour_estimate_label'] = 'estimated' === ( $golden['status'] ?? '' ) ? 'estimated' : 'committed';
+			$class['golden_hour_review_text'] = ( $golden['review_reason'] ?? null ) !== null ? 'Golden-hour bonus requires service-area review.' : '';
+			$golden_bonus_display = '';
+			if ( class_exists( '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Pricing\\PricingMoney' ) ) {
+				try {
+					$golden_bonus_display = \Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney::format( (int) ( $golden['bonus_amount_minor'] ?? 0 ), (string) ( $golden['currency'] ?? '' ), true );
+				} catch ( Throwable $e ) {
+					$golden_bonus_display = '';
+				}
+			}
+			$class['golden_hour_bonus_display'] = $golden_bonus_display;
+			$class['golden_hour_percentage_display'] = rtrim( rtrim( number_format( ( (int) ( $golden['bonus_basis_points'] ?? 0 ) ) / 100, 2, '.', '' ), '0' ), '.' );
+		}
 		if ( function_exists( 'dzn_theme_teacher_portal_class_valid' ) && ! dzn_theme_teacher_portal_class_valid( $class ) ) {
 			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'class', $index, 'display_contract' );
 		}

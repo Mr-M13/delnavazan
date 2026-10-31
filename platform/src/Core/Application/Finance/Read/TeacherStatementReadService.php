@@ -18,11 +18,13 @@ final class TeacherStatementReadService {
     public function __construct(
         private ?FinanceStatementRepository $statements=null,
         private ?FinanceSnapshotRepository $snapshots=null,
-        private ?FinancePayabilityRepository $evaluations=null
+        private ?FinancePayabilityRepository $evaluations=null,
+        private ?\Delnavazan\Platform\Core\Application\Finance\GoldenHourPayService $goldenHour=null
     ){
         $this->statements??=new FinanceStatementRepository();
         $this->snapshots??=new FinanceSnapshotRepository();
         $this->evaluations??=new FinancePayabilityRepository();
+        $this->goldenHour??=new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPayService();
     }
 
     /** One statement's recorded identity, period, totals and issuance evidence. */
@@ -60,7 +62,9 @@ final class TeacherStatementReadService {
             $effective=FinanceSnapshotIntegrity::effective((int)$line->lesson_id,$this->snapshots);
             $evaluation=FinancePayabilityIntegrity::effective((int)$line->lesson_id,$this->evaluations,$this->snapshots);
             if(!$evaluation)continue;
-            $expected=(string)$evaluation->disposition==='payable'?$effective['amount_minor']:0;
+            $expected=(string)$evaluation->disposition==='payable'
+                ?$this->goldenHour->committedTotal((int)$line->lesson_id,(int)$effective['amount_minor'],(string)$effective['currency'],(int)$effective['snapshot']->id,$effective['correction']===null?0:(int)$effective['correction']->id)['total_minor']
+                :0;
             if($expected!==(int)$line->line_amount_minor)$differences[]=array('lesson_id'=>(int)$line->lesson_id,'expected_amount_minor'=>$expected,'observed_amount_minor'=>(int)$line->line_amount_minor);
         }
         $labels=$this->lessonLabels(array_column($differences,'lesson_id'));
@@ -94,6 +98,21 @@ final class TeacherStatementReadService {
         return $labels;
     }
     private function shape(object $statement):array{
-        return array('statement_id'=>(int)$statement->id,'teacher_id'=>(int)$statement->teacher_id,'period_start_utc'=>(string)$statement->period_start_utc,'period_end_utc'=>(string)$statement->period_end_utc,'period_timezone'=>$statement->period_timezone===null?null:(string)$statement->period_timezone,'period_label'=>$statement->period_label===null?null:(string)$statement->period_label,'currency'=>(string)$statement->currency,'state'=>(string)$statement->state,'statement_version'=>(int)$statement->statement_version,'timezone_policy_version'=>$statement->timezone_policy_version===null?null:(int)$statement->timezone_policy_version,'total_line_count'=>(int)$statement->total_line_count,'payable_line_count'=>(int)$statement->payable_line_count,'payable_amount_minor'=>(int)$statement->payable_amount_minor,'non_payable_line_count'=>(int)$statement->non_payable_line_count,'pending_line_count'=>(int)$statement->pending_line_count,'excluded_archived_count'=>(int)$statement->excluded_archived_count,'issued_at'=>$statement->issued_at===null?null:(string)$statement->issued_at,'issued_by'=>$statement->issued_by===null?null:(int)$statement->issued_by,'superseded_by_statement_id'=>$statement->superseded_by_statement_id===null?null:(int)$statement->superseded_by_statement_id);
+        $golden=$this->goldenBonus((int)$statement->id);
+        return array('statement_id'=>(int)$statement->id,'teacher_id'=>(int)$statement->teacher_id,'period_start_utc'=>(string)$statement->period_start_utc,'period_end_utc'=>(string)$statement->period_end_utc,'period_timezone'=>$statement->period_timezone===null?null:(string)$statement->period_timezone,'period_label'=>$statement->period_label===null?null:(string)$statement->period_label,'currency'=>(string)$statement->currency,'state'=>(string)$statement->state,'statement_version'=>(int)$statement->statement_version,'timezone_policy_version'=>$statement->timezone_policy_version===null?null:(int)$statement->timezone_policy_version,'total_line_count'=>(int)$statement->total_line_count,'payable_line_count'=>(int)$statement->payable_line_count,'payable_amount_minor'=>(int)$statement->payable_amount_minor,'golden_hour_bonus_minor'=>$golden['bonus_minor'],'golden_hour_lesson_count'=>$golden['lesson_count'],'non_payable_line_count'=>(int)$statement->non_payable_line_count,'pending_line_count'=>(int)$statement->pending_line_count,'excluded_archived_count'=>(int)$statement->excluded_archived_count,'issued_at'=>$statement->issued_at===null?null:(string)$statement->issued_at,'issued_by'=>$statement->issued_by===null?null:(int)$statement->issued_by,'superseded_by_statement_id'=>$statement->superseded_by_statement_id===null?null:(int)$statement->superseded_by_statement_id);
+    }
+
+    /** @return array{bonus_minor:int,lesson_count:int} */
+    private function goldenBonus(int $statementId):array{
+        $bonus=0;$lessons=array();
+        foreach($this->statements->lines($statementId) as $line){
+            if((string)$line->disposition!=='payable')continue;
+            $details=$this->goldenHour->detailsForVersion((int)$line->snapshot_id,$line->snapshot_correction_id===null?0:(int)$line->snapshot_correction_id);
+            if($details===null)continue;
+            $amount=(int)($details['total_bonus_minor']??0);
+            if($amount<=0)continue;
+            $bonus+=$amount;$lessons[(int)$line->lesson_id]=true;
+        }
+        return array('bonus_minor'=>$bonus,'lesson_count'=>count($lessons));
     }
 }

@@ -22,13 +22,15 @@ final class TeacherStatementService {
         private ?FinanceSnapshotRepository $snapshots=null,
         private ?FinancePayabilityRepository $evaluations=null,
         private ?FinanceFacts $facts=null,
-        private ?FinancePolicyService $policies=null
+        private ?FinancePolicyService $policies=null,
+        private ?GoldenHourPayService $goldenHour=null
     ){
         $this->statements??=new FinanceStatementRepository();
         $this->snapshots??=new FinanceSnapshotRepository();
         $this->evaluations??=new FinancePayabilityRepository();
         $this->facts??=new FinanceFacts();
         $this->policies??=new FinancePolicyService();
+        $this->goldenHour??=new GoldenHourPayService();
     }
 
     /** §10.2 `draft`: one immutable line per Lesson, recorded totals and the timezone triple. */
@@ -190,7 +192,7 @@ final class TeacherStatementService {
             $evaluation=FinancePayabilityIntegrity::effective($lessonId,$this->evaluations,$this->snapshots);
             if(!$evaluation)throw new FinanceRefusalException('payability_pending','A Lesson of the period has no effective payability evaluation yet',array('teacher_id'=>$teacherId,'lesson_id'=>$lessonId));
             $disposition=(string)$evaluation->disposition;
-            $lineAmount=$disposition==='payable'?$effective['amount_minor']:0;
+            $lineAmount=$disposition==='payable'?$this->payableAmount($lessonId,(int)$effective['amount_minor'],(string)$effective['currency'],(int)$effective['snapshot']->id,$effective['correction']===null?0:(int)$effective['correction']->id):0;
             $lineValues=array('lesson_id'=>$lessonId,'disposition'=>$disposition,'basis_code'=>(string)$evaluation->basis_code,'snapshot_id'=>(int)$effective['snapshot']->id,'snapshot_correction_id'=>$effective['correction']===null?null:(int)$effective['correction']->id,'payability_evaluation_id'=>(int)$evaluation->id,'rate_id'=>$effective['rate_id'],'rate_version'=>$effective['rate_version'],'line_amount_minor'=>$lineAmount,'currency'=>(string)$effective['currency']);
             $lines[]=array('values'=>$lineValues,'digest'=>FinanceStatementIntegrity::lineDigest((object)array_merge($lineValues,array())),'context'=>$context,'effective'=>$effective,'evaluation'=>$evaluation,'amount'=>$lineAmount,'disposition'=>$disposition);
         }
@@ -311,7 +313,7 @@ final class TeacherStatementService {
         if($disposition==='pending')throw new FinanceRefusalException('payability_pending','A pending payability blocks statement issuance',$scope);
         $correctionId=$effective['correction']===null?null:(int)$effective['correction']->id;
         $lineCorrection=$line->snapshot_correction_id===null?null:(int)$line->snapshot_correction_id;
-        $recomputed=$disposition==='payable'?(int)$effective['amount_minor']:0;
+        $recomputed=$disposition==='payable'?$this->payableAmount((int)$line->lesson_id,(int)$effective['amount_minor'],(string)$effective['currency'],(int)$effective['snapshot']->id,$effective['correction']===null?0:(int)$effective['correction']->id):0;
         if((int)$line->snapshot_id!==(int)$effective['snapshot']->id
             ||$lineCorrection!==$correctionId
             ||(int)$line->payability_evaluation_id!==(int)$evaluation->id
@@ -324,6 +326,10 @@ final class TeacherStatementService {
             ||(int)$line->line_amount_minor!==$recomputed)
             throw new FinanceRefusalException('statement_derivation_mismatch','A draft line no longer matches the current effective snapshot and payability evaluation, so the draft is withdrawn and re-drafted',$scope);
         if($recomputed<0)throw new FinanceRefusalException('finance_amount_not_exact','A statement line amount must be an exact integer',$scope);
+    }
+    /** The one payable amount: the snapshotted base plus its committed golden-hour bonus, if any. */
+    private function payableAmount(int $lessonId,int $baseAmountMinor,string $currency,int $snapshotId,int $correctionId=0):int{
+        return (int)$this->goldenHour->committedTotal($lessonId,$baseAmountMinor,$currency,$snapshotId,$correctionId)['total_minor'];
     }
     /** §10.1: the human-facing period label rendered in the recorded IANA zone. */
     private function renderPeriodLabel(string $startUtc,string $endUtc,string $timezone):string{

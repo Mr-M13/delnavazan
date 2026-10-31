@@ -99,6 +99,29 @@ final class EnrolmentRepository extends BaseRepository {
         ));
     }
 
+    /** The explicit canonical service area of one Enrolment; never inferred from country or timezone. */
+    public function serviceArea(int $enrolmentId, bool $lock = false): ?string {
+        global $wpdb;
+        $value = $wpdb->get_var($wpdb->prepare(
+            "SELECT service_area_key FROM {$this->table} WHERE id=%d" . ($lock ? ' FOR UPDATE' : ''),
+            $enrolmentId
+        ));
+        return $value === null || $value === '' ? null : (string) $value;
+    }
+
+    /** Set the explicit Enrolment service area and return the prior value for the audit record. */
+    public function setServiceArea(int $enrolmentId, ?string $serviceAreaKey, string $now, int $actor): ?string {
+        global $wpdb;
+        $prior = $this->serviceArea($enrolmentId, true);
+        $changed = $wpdb->update($this->table, array(
+            'service_area_key' => $serviceAreaKey,
+            'updated_at' => $now,
+            'updated_by' => $actor,
+        ), array('id' => $enrolmentId));
+        if ($changed === false) throw new \RuntimeException('Enrolment service-area persistence failed: ' . $wpdb->last_error);
+        return $prior;
+    }
+
     public function hasOperationalLessons(int $enrolmentId): bool {
         global $wpdb;
         $lessons = $wpdb->prefix . 'dzn_lessons';

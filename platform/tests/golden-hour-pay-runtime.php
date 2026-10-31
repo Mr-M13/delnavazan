@@ -67,6 +67,18 @@ $assert((int) $corrected['base_amount_minor'] === 8000 && (int) $corrected['tota
 $assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d", 9900002)) === 2, 'A correction must append a new detail version and retain the old one.');
 $assert((int) $pay->detailsForVersion(9900002, 0)['committed_total_minor'] === 4800, 'The original detail must remain unchanged after correction.');
 
+// The global Iran window is additional; the highest applicable percentage wins once.
+$policies->save(GoldenHourRule::GLOBAL_IRAN_KEY, array(
+    'enabled' => '1', 'timezone' => 'Asia/Tehran', 'weekdays' => array(1,2,3,4,5,6,7),
+    'start' => '00:00', 'end' => '24:00', 'bonus_percentage' => '25',
+    'effective_from' => '2026-01-01 00:00:00', 'effective_until' => '',
+));
+$combined = $pay->captureForSnapshot(990000005, 9900005, $context('2026-10-05 06:00:00', '2026-10-05 07:00:00'), 4000, 'AUD', $rate, 1, gmdate('Y-m-d H:i:s'), 'runtime-global');
+$assert((int) $combined['total_bonus_minor'] === 1000 && (int) $combined['committed_total_minor'] === 5000, 'The global Iran window must merge with the area window using the highest percentage once.');
+$assert(count((array) $combined['window_definitions']) === 2, 'The detail must persist both the area and global window definitions.');
+$sources = array_column((array) $combined['window_definitions'], 'source');
+$assert(in_array('AU', $sources, true) && in_array(GoldenHourRule::GLOBAL_IRAN_KEY, $sources, true), 'Both the area and global Iran sources must be recorded.');
+
 // A later policy takes effect only from its occurrence date.
 $policies->save('AU', array(
     'enabled' => '1', 'timezone' => 'Australia/Brisbane', 'weekdays' => array(1,2,3,4,5),

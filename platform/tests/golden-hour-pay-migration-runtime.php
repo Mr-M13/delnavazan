@@ -1,6 +1,6 @@
 <?php
 /**
- * Disposable WordPress/MariaDB proof that Schema 56 creates the golden-hour snapshot-detail table,
+ * Disposable WordPress/MariaDB proof that Schema 57 installs the golden-hour detail/global provenance,
  * moves prior lesson-level finance_settings records idempotently, and never recalculates their amounts.
  */
 if (getenv('DZN_GOLDEN_HOUR_MIGRATION_RUNTIME') !== 'idempotent' || !defined('WP_CLI') || !WP_CLI || !in_array(wp_get_environment_type(), array('local', 'development'), true)) {
@@ -38,16 +38,19 @@ $inserted = $wpdb->insert($p . 'finance_settings', array(
 ));
 $assert($inserted === 1, 'Legacy lesson-level golden fixture insert failed');
 $wpdb->query("DROP TABLE IF EXISTS {$p}finance_golden_hour_details");
-$done = array_values(array_filter((array) get_option('dzn_platform_completed_migrations', array()), static fn($id) => $id !== '058_golden_hour_pay_snapshot_details'));
+$done = array_values(array_filter((array) get_option('dzn_platform_completed_migrations', array()), static fn($id) => !in_array($id, array('058_golden_hour_pay_snapshot_details','059_golden_hour_iran_global'), true)));
 update_option('dzn_platform_completed_migrations', $done, false);
-update_option('dzn_platform_schema_version', '55', false);
+update_option('dzn_platform_schema_version', '56', false);
 Migrator::maybe_upgrade();
-$assert((string) get_option('dzn_platform_schema_version') === '56', 'The migration must reach Schema 56');
+$assert((string) get_option('dzn_platform_schema_version') === '57', 'The migration must reach Schema 57');
 $detail = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d AND snapshot_correction_id=0", 9950001));
 $assert($detail !== null, 'The legacy lesson-level record must move into the dedicated detail table');
 $assert((int) $detail->base_amount_minor === 4000 && (int) $detail->total_bonus_minor === 800 && (int) $detail->committed_total_minor === 4800, 'The migration must preserve the committed amounts without recalculation.');
 $assert((string) $detail->service_area_key === 'AU' && (string) $detail->policy_timezone === 'Australia/Brisbane', 'The migration must preserve service-area and timezone provenance.');
 $assert((string) $detail->calculation_version === 'golden_hour_pay_v1', 'The migration must preserve the historical calculation version.');
+$assert((int) $detail->global_policy_setting_version === 0 && $detail->global_policy_timezone === null, 'A pre-global record must retain an empty global policy provenance.');
+$definition = json_decode((string) $detail->window_definitions, true);
+$assert(is_array($definition) && count($definition) === 1 && (string) $definition[0]['source'] === 'AU', 'The migration must derive canonical window definitions without recalculating amounts.');
 $assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_settings WHERE setting_key=%s", $key)) === 0, 'Legacy lesson-level settings must be removed after migration.');
 $before = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d", 9950001));
 Migrator::maybe_upgrade();

@@ -102,8 +102,9 @@ $card_index = 0;
 							<h4>Golden hour</h4>
 							<?php if ( '' !== (string) ( $golden['review_reason'] ?? '' ) ) : ?>
 								<p>Golden-hour bonus requires service-area review.</p>
-							<?php elseif ( (int) ( $golden['bonus_amount_minor'] ?? 0 ) > 0 ) : ?>
-								<p><?php echo esc_html( sprintf( 'Golden-hour bonus: +%s (%s%% on %d of %d minutes) · %s', (string) ( $item['golden_hour_bonus_display'] ?? '' ), (string) ( $item['golden_hour_percentage_display'] ?? '' ), (int) ( $golden['eligible_minutes'] ?? 0 ), (int) ( $golden['duration_minutes'] ?? 0 ), (string) ( $golden['area_label'] ?? '' ) . ' · ' . (string) ( $golden['timezone'] ?? '' ) ) ); ?></p>
+							<?php endif; ?>
+							<?php if ( (int) ( $golden['bonus_amount_minor'] ?? 0 ) > 0 ) : ?>
+								<p><?php echo esc_html( sprintf( 'Golden-hour bonus: +%s (%s%% on %d of %d minutes) · %s', (string) ( $item['golden_hour_bonus_display'] ?? '' ), (string) ( $item['golden_hour_percentage_display'] ?? '' ), (int) ( $golden['eligible_minutes'] ?? 0 ), (int) ( $golden['duration_minutes'] ?? 0 ), (string) ( $item['golden_hour_window_display'] ?? ( (string) ( $golden['area_label'] ?? '' ) . ' · ' . (string) ( $golden['timezone'] ?? '' ) ) ) ) ); ?></p>
 								<p class="dzn-tp-help"><?php echo esc_html( 'estimated' === (string) ( $golden['status'] ?? '' ) ? 'این مبلغ برآوردی است و تا قطعی‌شدن محاسبهٔ پرداخت، نهایی نیست.' : 'این مبلغ در محاسبهٔ پرداخت این جلسه ثبت شده است. تأیید یا پرداخت صورت‌حساب همچنان وضعیت جداگانه‌ای دارد.' ); ?></p>
 							<?php endif; ?>
 						<?php endif; ?>

@@ -1302,7 +1302,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	}
 	if ( $golden_hour_ids && class_exists( '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourPayService' ) ) {
 		try {
-			$golden_hour = ( new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPayService() )->forLessonIds( $golden_hour_ids );
+			$golden_hour = ( new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPayService() )->forLessonIds( $golden_hour_ids, $teacher_timezone );
 		} catch ( Throwable $e ) {
 			$golden_hour = array();
 		}

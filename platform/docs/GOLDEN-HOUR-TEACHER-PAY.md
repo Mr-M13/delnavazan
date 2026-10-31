@@ -20,6 +20,11 @@ Each serviced area stores a versioned policy in `finance_settings`:
 The shared `GoldenHourPolicyService` window definitions are used by both the coverage dashboard and
 teacher pay. The area label always displays its exact configured IANA timezone.
 
+An additional **Iran global golden hours** policy uses `Asia/Tehran`. It is configured in the same
+section with the same weekday, local-window, percentage and effective-date fields. It applies
+alongside each Enrolment area window; overlapping minutes use the highest applicable percentage once.
+The teacher schedule shows the Iran window converted into that teacher's own profile timezone.
+
 ## Explicit Enrolment service area
 
 Every Enrolment has one nullable `service_area_key`. Allowed values are `AU`, `EU`, `GB`,
@@ -33,9 +38,9 @@ guessed.
 
 ## Calculation and commitment
 
-The area window is converted from its IANA timezone using the Lesson's canonical UTC occurrence.
-Boundaries are `[start, end)`. Overlapping windows are merged and the highest applicable percentage
-applies once to each minute. The base amount is the rate already resolved and snapshotted by the
+Each area window and the global Iran window is converted from its own IANA timezone using the
+Lesson's canonical UTC occurrence. Boundaries are `[start, end)`. Overlapping windows are merged and
+the highest applicable percentage applies once to each minute. The base amount is the rate already resolved and snapshotted by the
 existing Finance rate authority, including teacher/course overrides.
 
 The fixed per-session rule is applied proportionally:

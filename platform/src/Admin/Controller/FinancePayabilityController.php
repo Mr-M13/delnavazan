@@ -62,7 +62,13 @@ final class FinancePayabilityController {
             $bonusLabel=$bonusMinor>0
                 ? '+'.PricingMoney::format($bonusMinor,$currency).' ('.number_format($highest/100,2).'% on '.(int)($details['eligible_minutes']??0).' minutes)'
                 : '—';
-            $window=$details===null||($details['service_area_key']??null)===null?'—':(string)$details['service_area_key'].' · '.substr((string)($first['window_start']??''),0,5).'–'.substr((string)($first['window_end']??''),0,5).' '.(string)($details['policy_timezone']??'');
+            $windowParts=array();
+            foreach((array)($details['window_definitions']??array())as$definition){
+                $source=(string)($definition['source']??'');
+                $label=$source===GoldenHourRule::GLOBAL_IRAN_KEY?'Iran global':$source;
+                $windowParts[]=$label.' '.substr((string)($definition['start']??''),0,5).'–'.substr((string)($definition['end']??''),0,5).' '.(string)($definition['timezone']??'');
+            }
+            $window=$windowParts?implode('; ',$windowParts):'—';
             $review=$details!==null&&($details['review_reason']??null)!==null?'<span class="dzn-badge dzn-badge--gold">'.esc_html((string)$details['review_reason']).'<br>'.esc_html(GoldenHourRule::REVIEW_TEXT).'</span>':'—';
             echo '<tr><td>'.$classLabel.'</td><td>'.esc_html((string)$row->student_name).'<br><small>'.esc_html((string)$row->course_name).'</small></td><td><span class="dzn-badge '.esc_attr($disposition[1]).'">'.esc_html($disposition[0]).'</span></td><td>'.esc_html(PricingMoney::format($baseMinor,$currency)).'</td><td>'.esc_html($bonusLabel).'</td><td>'.esc_html(PricingMoney::format($totalMinor,$currency)).'</td><td>'.esc_html($window).'</td><td>'.$review.'</td><td>'.esc_html($basis).'</td><td>'.esc_html($policy!==''?$policy:'—').'</td><td>'.($row->override_id===null?'—':'<span class="dzn-badge dzn-badge--blue">Override applied</span>').'</td><td>'.esc_html($row->applicable_slot===null?'History':'Current').'</td></tr>';
         }

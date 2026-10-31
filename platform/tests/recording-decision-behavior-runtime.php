@@ -17,7 +17,7 @@ function dzn_rda_notice(string $audience,string $language,int $version,string $s
 function dzn_rda_count(string $subject,int $id,?string $purpose=null):int{global $wpdb;$p=dzn_rda_p();if($purpose===null)return(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_decisions WHERE subject_type=%s AND subject_id=%d",$subject,$id));return(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_decisions WHERE subject_type=%s AND subject_id=%d AND purpose_code=%s",$subject,$id,$purpose));}
 
 // Every fixture below is created after the runner reset this runtime's own database.
-dzn_rda_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='56','behavior runtime requires Schema 56');
+dzn_rda_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='57','behavior runtime requires Schema 57');
 dzn_rda_assert(RecordingDecisionAuthorityService::CAPTURE_ENABLED===false,'capture must stay disabled');
 dzn_rda_assert(RecordingDecisionAuthorityService::RESEARCH_EXPORT_ENABLED===false,'research export must stay disabled');
 

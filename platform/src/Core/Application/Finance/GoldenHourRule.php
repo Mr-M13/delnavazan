@@ -17,6 +17,8 @@ final class GoldenHourRule {
     public const BASIS_POINTS_SCALE = 10000;
     public const MAX_BONUS_BASIS_POINTS = 10000;
     public const POLICY_KEY_PREFIX = 'GOLDEN_HOUR_POLICY_';
+    public const GLOBAL_IRAN_KEY = 'GLOBAL_IRAN';
+    public const GLOBAL_IRAN_TIMEZONE = 'Asia/Tehran';
     public const DEFAULT_EFFECTIVE_FROM = '1970-01-01 00:00:00';
 
     /** The one canonical Enrolment service-area vocabulary. */
@@ -29,6 +31,26 @@ final class GoldenHourRule {
     public const OUTCOME_ZERO = 'policy_zero_percent';
     public const OUTCOME_AREA_REQUIRED = 'service_area_required';
     public const OUTCOME_LEGACY = 'legacy_migrated';
+
+    /** The global Iran-time window is an additional policy, not an Enrolment service area. */
+    public static function globalDefinition(): array {
+        return array(
+            'area' => self::GLOBAL_IRAN_KEY,
+            'label' => 'Iran global golden hours',
+            'enabled' => false,
+            'timezone' => self::GLOBAL_IRAN_TIMEZONE,
+            'weekdays' => array(1,2,3,4,5,6,7),
+            'start' => '16:00',
+            'end' => '21:00',
+            'bonus_basis_points' => 0,
+            'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
+            'effective_until' => null,
+            'configured' => false,
+            'setting_id' => null,
+            'setting_version' => 0,
+            'global' => true,
+        );
+    }
 
     /** @return array<string,array<string,mixed>> */
     public static function defaults(): array {
@@ -90,7 +112,9 @@ final class GoldenHourRule {
 
     /** A normalised, validated policy value, still unpersisted. */
     public static function normalizePolicy(string $area, array $input, array $defaults): array {
-        if (!isset(self::defaults()[$area])) throw new \InvalidArgumentException('golden_hour_area_invalid');
+        $definitions = self::defaults();
+        $definitions[self::GLOBAL_IRAN_KEY] = self::globalDefinition();
+        if (!isset($definitions[$area])) throw new \InvalidArgumentException('golden_hour_area_invalid');
         $timezone = trim((string) ($input['timezone'] ?? $defaults['timezone']));
         if ($timezone === '' || strlen($timezone) > 64 || !in_array($timezone, timezone_identifiers_list(), true)) {
             throw new \InvalidArgumentException('golden_hour_timezone_invalid');

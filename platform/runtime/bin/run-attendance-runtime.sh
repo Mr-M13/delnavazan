@@ -7,9 +7,11 @@ bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 
 "$bin/run-fresh-install.sh"
 "$bin/provision-post-intro-actor.sh"
+php "$DZN_PLUGIN_SOURCE/platform/tests/livekit-attendance-threshold-unit.php"
 dzn_wp_env DZN_PHASE_2A2J_RUNTIME_TEST=fixture -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/phase-2a2j-fixture.php" --user=1
 dzn_wp_env DZN_INTERIM_ATTENDANCE_RUNTIME=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/interim-attendance-completion-runtime.php" --user=1
 dzn_wp_env DZN_LIVEKIT_RUNTIME=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/livekit-classroom-runtime.php" --user=1
+dzn_wp_env DZN_LIVEKIT_ATTENDANCE_RUNTIME=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/livekit-attendance-runtime.php" --user=1
 dzn_wp_env DZN_LESSON_REPLACEMENT_RUNTIME=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/lesson-replacement-runtime.php" --user=1
 # Existing post-intro enrolment, twelve-Lesson scheduling and instalment funding must stay intact.
 dzn_wp_env DZN_POST_INTRO_RUNTIME_TEST=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/post-intro-enrolment-automation-runtime.php" --user=1

@@ -52,6 +52,14 @@ add_action( 'plugins_loaded', static function () {
 	if ( (string) get_option( 'dzn_platform_schema_version' ) !== (string) DZN_PLATFORM_SCHEMA_VERSION ) {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
+	// Feature-local, additive LiveKit attendance correlation. It never advances the platform-wide
+	// schema option and is safe to install while attendance capture remains disabled.
+	try {
+		Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceSchema::maybeInstall();
+	} catch ( \Throwable $error ) {
+		do_action( 'dzn_livekit_attendance_schema_failed', get_class( $error ), (string) $error->getMessage() );
+	}
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceReconciliationWorker::register();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();

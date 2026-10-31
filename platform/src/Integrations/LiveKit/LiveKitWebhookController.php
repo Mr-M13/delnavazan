@@ -4,9 +4,11 @@ namespace Delnavazan\Platform\Integrations\LiveKit;
 /**
  * Signed LiveKit webhook intake.
  *
- * The webhook is defence in depth for participant lifecycle: it rejects a third identity and
- * closes a room whose canonical authorisation has since been withdrawn. It is not an attendance
- * authority, does not complete Lessons, and never writes attendance or financial evidence.
+ * The webhook remains defence in depth for participant lifecycle: it rejects a third identity and
+ * closes a room whose canonical authorisation has since been withdrawn. When the server-owned
+ * attendance adapter is explicitly enabled, it additionally records normalized join/leave facts in
+ * durable correlation storage and submits *closed* intervals to the existing Phase-P authority.
+ * It never completes a Lesson or writes delivery/finance truth directly.
  *
  * LiveKit must be configured to send webhooks to
  * `/wp-json/delnavazan-platform/v1/livekit/webhook` with the same API key/secret.
@@ -34,18 +36,81 @@ final class LiveKitWebhookController {
         }
 
         $eventType = (string)($event['event'] ?? '');
-        $room = (string)($event['room']['name'] ?? '');
+        $roomName = (string)($event['room']['name'] ?? '');
         $identity = (string)($event['participant']['identity'] ?? '');
-        if ($room === '' || !str_starts_with($room, 'dzn-')) {
+        if ($roomName === '' || !str_starts_with($roomName, 'dzn-')) {
             return new \WP_REST_Response(array('ok' => true, 'ignored' => true), 200);
         }
+
         $registry = new LiveKitRoomRegistry();
+        $capture = LiveKitAttendanceIntegration::enabled();
+        $attendance = $capture ? new LiveKitAttendanceIntegration() : null;
+
         if ($eventType === 'room_finished') {
-            $registry->forget($room);
+            // Resolve (and, if necessary, bootstrap) the durable binding before the transient
+            // registry entry is discarded; attendance must never depend on that cache.
+            $room = $capture ? $attendance->roomForWebhook($roomName) : null;
+            $registry->forget($roomName);
+            if (!$capture) return new \WP_REST_Response(array('ok' => true), 200);
+            if (!$room) return new \WP_REST_Response(array('ok' => true, 'ignored' => true), 200);
+            try {
+                $result = $attendance->recordRoomFinished($event, $room);
+            } catch (\Throwable $error) {
+                return self::retry($error);
+            }
+            if (!empty($result['retry'])) return self::retry(null);
+            return new \WP_REST_Response(array('ok' => true, 'action' => 'room_finished'), 200);
+        }
+
+        if (!in_array($eventType, array('participant_joined', 'participant_left'), true)) {
             return new \WP_REST_Response(array('ok' => true), 200);
         }
-        if ($eventType !== 'participant_joined') return new \WP_REST_Response(array('ok' => true), 200);
 
+        $room = $capture ? $attendance->roomForWebhook($roomName) : null;
+
+        if ($eventType === 'participant_joined') {
+            if (!$room) {
+                return self::legacyJoined($registry, $roomName, $identity);
+            }
+            try {
+                $result = $attendance->recordJoined($event, $room);
+            } catch (\Throwable $error) {
+                return self::retry($error);
+            }
+            if (($result['state'] ?? '') === 'unauthorized_identity' || $identity === '') {
+                self::remove($roomName, $identity);
+                return new \WP_REST_Response(array('ok' => true, 'action' => 'removed_unauthorized_identity'), 200);
+            }
+            if (!empty($result['retry'])) return self::retry(null);
+            try {
+                $active = (new LiveKitClassroomAuthorizer())->grantStillActive($attendance->lifecycleSession($room));
+            } catch (\Throwable) {
+                $active = false;
+            }
+            if (!$active) {
+                try {
+                    (new LiveKitRoomRevoker())->revokeRoom($roomName);
+                } catch (\Throwable) {
+                    self::remove($roomName, $identity);
+                }
+                return new \WP_REST_Response(array('ok' => true, 'action' => 'room_revoked'), 200);
+            }
+            return new \WP_REST_Response(array('ok' => true, 'action' => 'admitted'), 200);
+        }
+
+        // participant_left
+        if (!$room) return new \WP_REST_Response(array('ok' => true, 'ignored' => true), 200);
+        try {
+            $result = $attendance->recordLeft($event, $room);
+        } catch (\Throwable $error) {
+            return self::retry($error);
+        }
+        if (!empty($result['retry'])) return self::retry(null);
+        return new \WP_REST_Response(array('ok' => true, 'action' => (string)($result['state'] ?? 'left')), 200);
+    }
+
+    /** Preserve the pre-adapter lifecycle behaviour for rooms with no durable attendance binding. */
+    private static function legacyJoined(LiveKitRoomRegistry $registry, string $room, string $identity): \WP_REST_Response {
         $session = $registry->get($room);
         if (!$session) {
             self::remove($room, $identity);
@@ -70,6 +135,14 @@ final class LiveKitWebhookController {
             return new \WP_REST_Response(array('ok' => true, 'action' => 'room_revoked'), 200);
         }
         return new \WP_REST_Response(array('ok' => true, 'action' => 'admitted'), 200);
+    }
+
+    /** Only a genuinely transient failure is answered non-2xx so LiveKit retries the delivery. */
+    private static function retry(?\Throwable $error): \WP_Error {
+        if ($error !== null && function_exists('do_action')) {
+            do_action('dzn_livekit_webhook_retry_requested', get_class($error));
+        }
+        return new \WP_Error('livekit_webhook_retry', 'LiveKit webhook will be retried.', array('status' => 503));
     }
 
     private static function remove(string $room, string $identity): void {

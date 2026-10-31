@@ -3,6 +3,19 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## LiveKit canonical attendance adapter — source only, not activated
+
+Adds an opt-in, disabled-by-default adapter from signed LiveKit participant lifecycle evidence to
+the existing Phase-P attendance intake and staged Phase-O settlement. It reuses the locked
+1200-second / `[start, end + 900s)` / union-then-intersection rule, never infers a missing leave,
+records only normalized facts and keyed digests, and keeps introductory bookings and Google Meet
+fallback outside this adapter. It adds three feature-local correlation tables without advancing the
+platform-wide schema option, a narrow provider-evidence system actor, a separate scheduled
+settlement actor, exact room-SID and room-instance correlation, delayed/out-of-order webhook
+handling, and a five-minute reconciliation worker with a two-worker concurrency proof. No production
+cutover, backfill, deployment or activation is performed. See
+`LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md` for the separate activation and rollback runbooks.
+
 ## Unified notification management — 2026-10-29
 
 Branch `feature/unified-notification-management` (base `b67f510`). One notification definition

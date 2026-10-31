@@ -41,6 +41,12 @@ descendant chain from the original candidate.
 | Raw evidence (P-D11) | Canonical storage keeps normalized facts, keyed digests and provenance digests only; no raw provider payload is stored. |
 | Provider finality (P-D12) | As soon as ≥1200 seconds of trusted qualifying overlap is irreversibly established, settlement may proceed without waiting for meeting finalisation. Later events never retract proven minutes; payload/identity/event-key/canonical conflicts open review, leave a durable conflict receipt and use append-only correction instead of silent rewrite. |
 
+> **Post-Phase-P provider adapter.** The LiveKit adapter
+> (`LIVEKIT-CANONICAL-ATTENDANCE-ADAPTER.md`) adds `livekit` to the controlled provider-code list
+> and submits closed provider intervals to this Phase-P authority. It changes no rule version,
+> threshold, window, union/intersection, identity-resolution, settlement-stage or cutover policy. It
+> is disabled by default and was not activated by the adapter change.
+
 ## P-1 — durable provider-neutral participant identity authority
 
 `CanonicalAttendanceIdentityService` is the **only** authority allowed to decide which canonical

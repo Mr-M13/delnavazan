@@ -4,8 +4,9 @@ namespace Delnavazan\Platform\Integrations\LiveKit;
 /**
  * Verifies the HS256 JWT that LiveKit sends in the webhook Authorization header.
  *
- * The body digest is checked when present. The verifier never trusts an unsigned body and never
- * logs the token, body, or API secret.
+ * The body digest is checked when present. LiveKit sends the SHA-256 digest as standard base64;
+ * the verifier also accepts base64url and legacy hex encodings for compatibility. It never trusts
+ * an unsigned body and never logs the token, body, or API secret.
  */
 final class LiveKitWebhookVerifier {
     public function verify(string $authorization, string $rawBody, string $apiKey, string $apiSecret, int $now): array {
@@ -24,8 +25,15 @@ final class LiveKitWebhookVerifier {
         if (!hash_equals($apiKey, (string)($payload['iss'] ?? ''))) throw new \InvalidArgumentException('livekit_webhook_unauthorized');
         if (isset($payload['nbf']) && (int)$payload['nbf'] > $now + 5) throw new \InvalidArgumentException('livekit_webhook_unauthorized');
         if (isset($payload['exp']) && (int)$payload['exp'] < $now - 5) throw new \InvalidArgumentException('livekit_webhook_unauthorized');
-        if (isset($payload['sha256']) && !hash_equals((string)$payload['sha256'], hash('sha256', $rawBody))) {
-            throw new \InvalidArgumentException('livekit_webhook_unauthorized');
+        if (isset($payload['sha256'])) {
+            $rawDigest = hash('sha256', $rawBody, true);
+            $digest = (string)$payload['sha256'];
+            $base64 = base64_encode($rawDigest);
+            $base64url = rtrim(strtr($base64, '+/', '-_'), '=');
+            $hex = bin2hex($rawDigest);
+            if (!hash_equals($base64, $digest) && !hash_equals($base64url, $digest) && !hash_equals($hex, $digest)) {
+                throw new \InvalidArgumentException('livekit_webhook_unauthorized');
+            }
         }
         return $payload;
     }

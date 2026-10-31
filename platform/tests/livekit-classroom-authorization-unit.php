@@ -96,9 +96,13 @@ $webhookToken = static function (array $payload, string $apiSecret): string {
 $verifier = new \Delnavazan\Platform\Integrations\LiveKit\LiveKitWebhookVerifier();
 $body = '{"event":"participant_joined"}';
 $signed = $webhookToken(array('iss' => 'devkey', 'exp' => 2000, 'sha256' => hash('sha256', $body)), 'not-a-real-secret');
-$assert($verifier->verify('Bearer ' . $signed, $body, 'devkey', 'not-a-real-secret', 1000)['iss'] === 'devkey', 'Valid webhook signature was rejected.');
+$signedBase64 = $webhookToken(array('iss' => 'devkey', 'exp' => 2000, 'sha256' => base64_encode(hash('sha256', $body, true))), 'not-a-real-secret');
+$assert($verifier->verify('Bearer ' . $signed, $body, 'devkey', 'not-a-real-secret', 1000)['iss'] === 'devkey', 'Valid hex-digest webhook signature was rejected.');
+$assert($verifier->verify('Bearer ' . $signedBase64, $body, 'devkey', 'not-a-real-secret', 1000)['iss'] === 'devkey', 'Valid LiveKit base64-digest webhook signature was rejected.');
 try { $verifier->verify('Bearer ' . $signed, $body . ' ', 'devkey', 'not-a-real-secret', 1000); throw new RuntimeException('Webhook body digest was not verified.'); }
 catch (InvalidArgumentException $error) { $assert($error->getMessage() === 'livekit_webhook_unauthorized', 'Webhook body tampering did not fail closed.'); }
+try { $verifier->verify('Bearer ' . $signedBase64, $body . ' ', 'devkey', 'not-a-real-secret', 1000); throw new RuntimeException('LiveKit base64 body digest was not verified.'); }
+catch (InvalidArgumentException $error) { $assert($error->getMessage() === 'livekit_webhook_unauthorized', 'LiveKit base64 body tampering did not fail closed.'); }
 try { $verifier->verify('Bearer ' . $signed, $body, 'devkey', 'wrong-secret', 1000); throw new RuntimeException('Webhook signature was not verified.'); }
 catch (InvalidArgumentException $error) { $assert($error->getMessage() === 'livekit_webhook_unauthorized', 'Webhook signature failure did not fail closed.'); }
 

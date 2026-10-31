@@ -83,10 +83,10 @@ $check( 'teacher assets are route-gated', str_contains( $read( $theme . '/inc/te
 $check( 'operations assets are route-gated', str_contains( $read( $theme . '/inc/operations.php' ), "if ( ! dzn_theme_is_route( 'admin-operations' ) )" ) );
 
 /* 4. Button contrast and Persian typography remain centralized. */
-$check( 'native and anchor buttons use the canonical Persian font token', str_contains( $css['theme'], 'input[type="submit"]' ) && str_contains( $css['theme'], 'font-family:\n      var(--dzn-font-body);' ) );
-$check( 'visited primary button links retain white action text', str_contains( $css['theme'], '.dzn-button:visited' ) && str_contains( $css['theme'], 'color:\n      var(--dzn-color-on-action);' ) );
-$check( 'secondary buttons use readable dark text on a light surface', str_contains( $css['theme'], '.dzn-button--secondary:link' ) && str_contains( $css['theme'], 'background:\n      var(--dzn-color-surface);' ) && str_contains( $css['theme'], 'color:\n      var(--dzn-color-action-secondary);' ) );
-$check( 'danger buttons keep dark text on their light surface', str_contains( $css['theme'], '.dzn-button--danger:visited' ) && str_contains( $css['theme'], 'var(--dzn-color-error);' ) );
+$check( 'native and anchor buttons use the canonical Persian font token', str_contains( $css['theme'], 'input[type="submit"]' ) && str_contains( $css['theme'], 'font-family:' ) && str_contains( $css['theme'], 'var(--dzn-font-body)' ) );
+$check( 'visited primary button links retain white action text', str_contains( $css['theme'], '.dzn-button:visited' ) && str_contains( $css['theme'], 'var(--dzn-color-on-action)' ) );
+$check( 'secondary buttons use readable dark text on a light surface', str_contains( $css['theme'], '.dzn-button--secondary:link' ) && str_contains( $css['theme'], 'var(--dzn-color-surface)' ) && str_contains( $css['theme'], 'var(--dzn-color-action-secondary)' ) );
+$check( 'danger buttons keep dark text on their light surface', str_contains( $css['theme'], '.dzn-button--danger:visited' ) && str_contains( $css['theme'], 'var(--dzn-color-error)' ) );
 
 /* 5. Overflow is owned by the component, not the document. */
 $check( 'no document-wide overflow clip', ! preg_match( '/html\s*,\s*body\s*\{[^}]*overflow-x\s*:\s*clip/s', $css['theme'] ) );

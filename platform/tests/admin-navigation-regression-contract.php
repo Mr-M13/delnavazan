@@ -15,6 +15,7 @@ $integrations = file_get_contents( $controllers . '/IntegrationControlPlaneContr
 $coverage = file_get_contents( $controllers . '/AcademyCoverageController.php' );
 $catalogue = file_get_contents( $controllers . '/CommercialCatalogueController.php' );
 $screen = file_get_contents( $controllers . '/ScreenController.php' );
+$teacher_workspace_view = file_get_contents( dirname( $controllers, 2 ) . '/Admin/View/TeacherWorkspaceView.php' );
 $teaching_eligibility = file_get_contents( $controllers . '/TeachingEligibilityController.php' );
 $availability = file_get_contents( $controllers . '/TeacherAvailabilityController.php' );
 $core_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CoreReadService.php' );
@@ -165,8 +166,9 @@ if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
     throw new RuntimeException( 'Stripe integration must live in Finance while payment operations remain there' );
 }
 if ( ! str_contains( $menu, "['Teachers', self::TEACHER_OPERATIONS_CAP, 'dzn-teachers-menu'" )
-    || ! str_contains( $screen, 'teacherDirectory()' )
-    || ! str_contains( $screen, 'teacherInvitationPanel()' )
+    || ! str_contains( $screen, 'TeacherWorkspaceController::screen()' )
+    || ! str_contains( $teacher_workspace_view, 'Teacher directory' )
+    || ! str_contains( $teacher_workspace_view, 'Onboarding and invitations' )
     || ! str_contains( $catalogue, 'add_submenu_page(Menu::ROOT_SLUG' )
     || str_contains( $coverage, "add_submenu_page('dzn-settings-menu'" )
     || str_contains( $catalogue, "add_submenu_page('dzn-settings-menu'" ) ) {
@@ -216,8 +218,8 @@ if ( ! str_contains( $screen, "'<h2>Student directory</h2>" )
     || ! str_contains( $screen, 'All non-archived students' )
     || ! str_contains( $screen, 'Location / time zone' )
     || ! str_contains( $screen, 'private static function studentStatus(string $status, bool $archived): string' )
-    || ! str_contains( $screen, 'teacherOnboardingSummary(object $teacher)' )
-    || ! str_contains( $screen, 'Weekly availability' ) ) {
+    || ! str_contains( $teacher_workspace_view, 'onboarding_label' )
+    || ! str_contains( $teacher_workspace_view, 'Weekly availability' ) ) {
     throw new RuntimeException( 'Student and Teacher directories must provide concise operational identity and state.' );
 }
 if ( ! str_contains( $screen, 'private static function catalogueFields(string $entity): array' )

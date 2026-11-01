@@ -22,6 +22,7 @@ final class AcademyDashboardScreen {
             'pipeline' => 'Learner pipeline',
             'activity' => '14-day activity',
             'finance' => 'Finance snapshot',
+            'coverage' => 'Golden-hour coverage',
             'attention' => 'Needs attention',
             'queue' => 'Learner journey queue',
             'reschedules' => 'Class time changes',

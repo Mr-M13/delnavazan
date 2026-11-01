@@ -33,14 +33,13 @@ $contains($academy, array(
     'pendingActions()',
 ), 'Academy must render the combined dashboard content');
 
-// Teachers has exactly two tabs and no finance destinations.
-$test(2 === preg_match_all("/\\['(?:Overview|Onboarding & Invitations)', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly two tabs');
+// Teachers is one consolidated destination with no finance or legacy sub-tabs.
+$test(1 === preg_match_all("/\\['Teachers', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly one consolidated destination');
 $contains($shell, array(
-    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
-    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
-), 'Teachers tabs must be Overview and Onboarding & Invitations');
-$test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teacher tabs must not contain finance or legacy directory workflows');
-$contains($screen, array("\$view === ''", "!current_user_can('dzn_manage_teachers')", 'Menu::TEACHER_ONBOARDING_CAP', "\$view === 'onboarding'", 'self::teacherInvitationPanel();'), 'Teacher onboarding must be a gated view of the existing authority, including legacy generic links');
+    "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
+), 'Teachers must be a single capability-aware destination');
+$test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'") && !str_contains($shell, "['Overview', 'dzn-teachers-menu'"), 'Teacher navigation must not contain finance or legacy directory workflows');
+$contains($screen, array("TeacherWorkspaceController::screen()", 'dzn-teachers-menu'), 'Teacher maintenance and onboarding must render the consolidated workspace');
 
 // Enrolment has exactly four tabs with the agreed destinations.
 $status = preg_match_all("/\\['(?:Classes & Schedules|Bookings & Enrolments|Courses & Instruments|Attendance & Post-intro)'/", $shell);

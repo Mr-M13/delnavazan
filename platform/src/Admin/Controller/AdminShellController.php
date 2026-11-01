@@ -87,6 +87,7 @@ final class AdminShellController {
     public static function register(): void {
         add_action('in_admin_header', [__CLASS__, 'renderNavigation']);
         add_action('admin_head', [__CLASS__, 'styles']);
+        add_action('admin_head', [__CLASS__, 'viewport']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueueAssets']);
         add_filter('admin_body_class', [__CLASS__, 'bodyClass']);
         AcademyDashboardScreen::register();
@@ -230,6 +231,12 @@ final class AdminShellController {
             if (in_array($page, $slugs, true)) return $key;
         }
         return '';
+    }
+
+    /** Native wp-admin predates mobile viewport metadata; Delnavazan pages declare it explicitly. */
+    public static function viewport(): void {
+        if (!str_starts_with(self::currentPage(), 'dzn-')) return;
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     }
 
     public static function styles(): void {

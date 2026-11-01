@@ -71,7 +71,7 @@ final class TeacherWorkspaceReadService {
         $p = $wpdb->prefix . 'dzn_';
         $where = $archived
             ? "(t.status='archived' OR t.archived_at IS NOT NULL)"
-            : "t.archived_at IS NULL AND t.status<>'archived'";
+            : "t.archived_at IS NULL AND t.status<>'archived' AND NOT (o.state='reset_pending' AND (i.id IS NULL OR i.status IN ('revoked','superseded')) AND l.id IS NULL)";
         $rows = $wpdb->get_results(
             "SELECT t.*,o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state,o.submitted_at,o.reviewed_at,
                     l.wordpress_user_id linked_user_id,l.status principal_status,
@@ -218,8 +218,10 @@ final class TeacherWorkspaceReadService {
             if (!$teacher) continue;
             if ((string) ($teacher->archived_at ?? '') !== '' || (string) ($teacher->status ?? '') === 'archived') continue;
             $terminalInvitation = $invitation !== null && in_array((string) ($invitation->lifecycle_status ?? ''), array('revoked', 'superseded', 'teacher_archived'), true);
-            if ($terminalInvitation && $item === null) continue;
+            $hasOnboarding = $item !== null && trim((string) ($item['teacher']->state ?? '')) !== '';
+            if ($terminalInvitation && !$hasOnboarding) continue;
             if ($terminalInvitation) $invitation = null;
+            if ($item !== null && (string) ($item['teacher']->state ?? '') === 'reset_pending' && $invitation === null) continue;
             $name = $this->displayName($teacher);
             $email = (string) ($teacher->email ?? '');
             $progress = is_array($item['progress'] ?? null) ? $item['progress'] : array();
@@ -378,7 +380,7 @@ final class TeacherWorkspaceReadService {
             $isToday = (string) ($lesson->local_wall_date ?? '') === $today;
             if ($lesson->lesson_type === 'replacement') $result['replacements'][] = $lesson;
             if ($isFuture) $result['upcoming'][] = $lesson;
-            elseif ((string) $lesson->lifecycle_state === 'completed') $result['recent'][] = $lesson;
+            elseif ((string) $lesson->lifecycle_state === 'completed' || (string) ($lesson->status ?? '') === 'completed') $result['recent'][] = $lesson;
             if ($isToday) $result['today'][] = $lesson;
         }
         $result['attendance'] = $wpdb->get_results($wpdb->prepare(

@@ -2607,3 +2607,43 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
 .dzn-tw-snapshot__body span {
   color: var(--dzn-muted);
 }
+
+/* Teachers workspace: allow the WordPress admin chrome itself to reflow on phones. */
+@media (max-width: 782px) {
+  body.dzn-admin-page {
+    min-inline-size: 0;
+    max-inline-size: 100vw;
+    overflow-x: hidden;
+  }
+
+  body.dzn-admin-page .dzn-teachers-admin {
+    max-inline-size: 100vw;
+    overflow-x: hidden;
+  }
+
+  body.dzn-admin-page #wpwrap,
+  body.dzn-admin-page #wpcontent,
+  body.dzn-admin-page #wpbody,
+  body.dzn-admin-page #wpbody-content {
+    min-inline-size: 0;
+  }
+
+  body.dzn-admin-page .dzn-admin-shell__tabs,
+  body.dzn-admin-page .dzn-admin-shell__subtabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  body.dzn-admin-page .dzn-tw-section,
+  body.dzn-admin-page .dzn-tw-hero,
+  body.dzn-admin-page .dzn-tw-profile-head,
+  body.dzn-admin-page .dzn-tw-table-scroll {
+    max-inline-size: 100%;
+  }
+
+  body.dzn-admin-page .dzn-tw-form label,
+  body.dzn-admin-page .dzn-tw-form input,
+  body.dzn-admin-page .dzn-tw-form select {
+    min-inline-size: 0;
+  }
+}

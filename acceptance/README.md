@@ -56,6 +56,13 @@ the initial Teacher Assignment. A `pre_wp_mail` guard proves that none of those
 paths reached external mail transport. The runner destroys the scoped runtime
 on exit, including after a failed assertion.
 
+`make teacher-workspace` exercises the consolidated Teachers administration
+recovery and state-refresh paths: invitation resend/revoke, invitation-only removal,
+reset with another WordPress role/content preserved, exclusive-account deletion,
+protected-history refusal and archive path, open-ended versus bounded
+unavailability, Teacher-entered display-name handling, class-history retrieval and
+current-state onboarding status refresh.
+
 `make teacher-onboarding` additionally exercises Teacher soft archive and
 restore: the invitation and Teacher principal are revoked, the Teacher-only
 WordPress role is removed while an unrelated role remains, lifecycle history is

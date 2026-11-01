@@ -67,7 +67,31 @@ services for mutations.
 
 ## Teacher profile
 
-The profile is an in-page full-width record with these sections:
+The profile is an in-page full-width record. Teacher-specific decisions stay in
+the profile wherever the existing authority can be used safely:
+
+- rate entry, effective rate timeline, statement draft/issue, statement payment
+  and statement reconciliation are embedded;
+- student pause/resume uses the canonical Enrolment lifecycle authority;
+- pending reschedule proposals can be confirmed or cancelled inline;
+- attendance cases expose the same canonical reviewed-outcome commands;
+- class rows expose an in-page inspection detail and a show-all control for the
+  complete retrieved history.
+
+The following remain with their owning authority for a precise reason:
+
+- **Teacher-assignment replacement** remains in Enrolments because it is a
+  cross-teacher agreement with commercial/authority evidence, not a single-record
+  Teacher edit.
+- **Canonical class scheduling/evidence recording** remains in Classes for complex
+  schedule reconstruction and delivery-evidence commands; the profile links to the
+  selected class.
+- **Statement email/PDF export and cross-teacher central-ledger reconciliation**
+  remain in Finance because they are transport and multi-teacher operations.
+- **Google reconnection** remains Teacher-owned in the Teacher portal and is never
+  impersonated by an administrator.
+
+The profile has these sections:
 
 1. Teacher details
 2. Operational status and student intake
@@ -86,16 +110,21 @@ archive therefore continue to use their canonical services.
 
 ## Temporary unavailability
 
-Temporary unavailability is represented as dated all-day `blocked` availability
-exceptions in the Teacher's own timezone. It does not alter weekly availability,
-historical attendance or confirmed lessons. The canonical
-`TeacherAvailabilityService::effective()` read automatically removes those dates
-from new booking eligibility.
+The administrator explicitly chooses:
 
-Before saving, the workspace identifies future canonical lessons and confirmed
-introductory bookings in the period. Conflicting lessons are shown and must be
-acknowledged; they are never cancelled silently. Reactivation removes only future
-temporary-unavailability exceptions.
+- **Until reactivated** — one durable open-ended sentinel exception. The canonical
+  `TeacherAvailabilityService::effective()` read blocks every future occurrence
+  from the effective date until an administrator reactivates the Teacher. There is
+  no automatic 90-day expiry.
+- **A bounded period** — one dated all-day `blocked` exception per day in the
+  selected period. Bounded periods are limited to 366 days.
+
+Both forms preserve weekly availability, historical attendance and confirmed
+lessons. Before saving, the workspace identifies future canonical lessons and
+confirmed introductory bookings in the period (the conflict review window is two
+years for open-ended periods). Conflicting lessons are shown and must be
+acknowledged; they are never cancelled silently. Reactivation removes only the
+open sentinel and future bounded temporary-unavailability exceptions.
 
 ## Onboarding lifecycle
 
@@ -119,6 +148,32 @@ teaching, attendance, statement, payment or audit records.
 - **Settings → General** exposes the canonical golden-hour definitions and rules
   entry, which remains owned by Finance settings.
 
+## Failed-onboarding recovery tests
+
+`make -C acceptance teacher-workspace` exercises a real disposable
+WordPress/MariaDB runtime:
+
+1. invite a new email and inspect the queued row;
+2. resend without creating a duplicate Teacher;
+3. revoke and confirm the row leaves the active onboarding view;
+4. re-invite, then revoke-and-remove an invitation-only Teacher and re-invite the
+   same email;
+5. reset an account-linked Teacher whose only other role is `subscriber`, proving
+   the account and role are preserved;
+6. reset an account whose only role is `dzn_teacher`, proving only the exclusive
+   account is deleted;
+7. reset an account with authored content, proving the account and content are
+   preserved;
+8. create protected finance history, prove reset is refused, and prove the archive
+   path remains available;
+9. invite the same email again after reset and prove one Teacher identity remains;
+10. apply open-ended unavailability, prove booking eligibility is blocked, then
+    reactivate and prove it is no longer blocked;
+11. change the display name and prove the directory follows it while English and
+    Persian name fields remain intact;
+12. change review, expiry, delivery, Google and availability records and prove the
+    onboarding table refreshes from current state.
+
 ## Verification
 
 The source and pure-state contracts are:
@@ -130,7 +185,23 @@ The source and pure-state contracts are:
 - `platform/tests/onboarding-admin-authority-contract.php`
 - `platform/tests/golden-hour-coverage-view-unit.php`
 - `platform/tests/admin-dashboard-ux-contract.php`
+- `acceptance/fixtures/teacher-workspace-recovery.php`
 
-Runtime verification still requires the repository's disposable WordPress/MySQL
-acceptance environment. The workspace deliberately fails closed when a canonical
-read cannot be proven; it does not fabricate a statistic.
+Runtime evidence:
+
+```text
+make -C acceptance teacher-workspace
+Teacher workspace recovery acceptance: PASS
+```
+
+Screenshots:
+
+- `platform/docs/evidence/teachers-directory-desktop-2026-11-02.png`
+- `platform/docs/evidence/teachers-profile-desktop-2026-11-02.png`
+- `platform/docs/evidence/teachers-onboarding-desktop-2026-11-02.png`
+- `platform/docs/evidence/teachers-directory-mobile-2026-11-02.png`
+- `platform/docs/evidence/teachers-profile-mobile-2026-11-02.png`
+- `platform/docs/evidence/teachers-onboarding-mobile-2026-11-02.png`
+
+The workspace fails closed when a canonical read cannot be proven; it does not
+fabricate a statistic.

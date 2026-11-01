@@ -187,12 +187,28 @@ The source and pure-state contracts are:
 - `platform/tests/admin-dashboard-ux-contract.php`
 - `acceptance/fixtures/teacher-workspace-recovery.php`
 
-Runtime evidence:
+Runtime evidence (disposable WordPress + MariaDB, synthetic `@example.invalid` data):
 
 ```text
 make -C acceptance teacher-workspace
 Teacher workspace recovery acceptance: PASS
+
+make -C acceptance teacher-onboarding
+Teacher onboarding acceptance: PASS
+
+make -C acceptance smoke
+Role-aware login routing smoke: PASS
 ```
+
+The profile class-history control was also exercised in a real browser:
+
+```text
+{"before":10,"hasLink":true,"after":12}
+```
+
+This means the UI shows the newest ten records by default and the **Show all
+records** control exposes the remaining retrieved history without leaving the
+Teacher workspace.
 
 Screenshots:
 

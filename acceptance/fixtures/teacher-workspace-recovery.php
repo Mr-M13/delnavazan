@@ -2,6 +2,7 @@
 // Isolated, synthetic recovery and state-refresh acceptance. It never calls wp_mail.
 defined( 'ABSPATH' ) || exit( 1 );
 
+use Delnavazan\Platform\Core\Application\ArchiveService;
 use Delnavazan\Platform\Core\Application\PrincipalInvitationService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityService;
 use Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker;
@@ -145,6 +146,9 @@ $rowE = $row( (int) $issuedE['teacher_id'] );
 $expect( is_array( $rowE ) && in_array( 'finance rates', $rowE['protected_history'], true ), 'staff did not see protected history' );
 $refuse( static fn() => $lifecycle->resetOnboarding( (int) $issuedE['teacher_id'], 'acceptance_protected' ), 'reset with protected history was allowed' );
 $expect( get_userdata( $userIdE ) !== false, 'protected-history refusal deleted the WordPress account' );
+( new ArchiveService() )->archive( 'teacher', (int) $issuedE['teacher_id'] );
+$expect( (string) $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}dzn_teachers WHERE id=%d", (int) $issuedE['teacher_id'] ) ) === 'archived', 'protected history did not expose a working archive path' );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_finance_teacher_rates WHERE teacher_id=%d", (int) $issuedE['teacher_id'] ) ) === 1, 'archive removed protected finance history' );
 
 // Scenario D: open-ended unavailability stays blocked until reactivated and never
 // rewrites an existing weekly availability rule.
@@ -183,6 +187,12 @@ $cleared = $unavailable->clearFuture( $teacherId );
 $expect( $cleared > 0, 'reactivation did not clear the open-ended sentinel' );
 $segments = $availability->effective( $teacherId, $startUtc, $endUtc );
 $expect( ! (bool) array_filter( $segments, static fn( array $segment ): bool => $segment['state'] === 'blocked' ), 'reactivation left the Teacher blocked' );
+$boundedFrom = ( new DateTimeImmutable( '+21 days', new DateTimeZone( 'Australia/Brisbane' ) ) )->format( 'Y-m-d' );
+$boundedTo = ( new DateTimeImmutable( '+23 days', new DateTimeZone( 'Australia/Brisbane' ) ) )->format( 'Y-m-d' );
+$bounded = $unavailable->apply( $teacherId, $boundedFrom, $boundedTo, 'acceptance_bounded_leave', false );
+$expect( $bounded['open_ended'] === false, 'bounded period was treated as open-ended' );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_availability_exceptions WHERE teacher_id=%d AND status='active' AND reason_code='temporary_unavailability'", $teacherId ) ) === 3, 'bounded period did not create exactly its selected days' );
+$unavailable->clearFuture( $teacherId );
 
 // Class history: the profile exposes more than ten records without leaving the page.
 $workspace = new TeacherWorkspaceReadService();

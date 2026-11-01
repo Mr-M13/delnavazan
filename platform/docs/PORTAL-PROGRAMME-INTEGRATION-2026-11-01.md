@@ -99,36 +99,30 @@ Screenshots and the full matrix are in
 
 ## Remaining blockers / limits
 
-1. **Two-party LiveKit audio was not exercised against a live LiveKit server.** The canonical
-   authorizer runtime, synchronization contracts and rotation screenshots passed; a real two-browser
-   audio session remains a staging gate.
-2. **Settlement is full-statement only.** Partial settlements and bank-statement reconciliation are
+1. **Physical audible LiveKit output is not verified.** A live local two-participant session proved
+   publication, subscription, shared music, reconnection and exit/Finish; headless Chrome used a fake
+   media device, so a final audible check on a staging device remains.
+2. **True future-term obligation creation is BLOCKED by the current commercial authority.** #472
+   safely exposes an already-issued future-term obligation and its selection/unit path passes. The
+   staging environment has no canonical way to issue an unbound future-term offer while a current
+   Term is applicable. Checkout, signed webhook and duplicate-webhook idempotency pass on a valid
+   synthetic obligation.
+3. **Settlement is full-statement only.** Partial settlement and bank-statement reconciliation are
    outside this authority. No bank/IBAN/card data is stored.
-3. **Future-term advance payment exposes existing obligations only.** #472 does not create a future
-   term offer; a Platform-issued obligation must already exist. The enabled path is unit-proven, the
-   authenticated fixture correctly showed the disabled state because no future offer existed.
 4. **Shared music mode is in-memory.** A simultaneous full reload of both participants resets it to
    off; there is no server-persisted room mode.
-5. **No real money movement or Stripe checkout** was performed. Finance runtime uses synthetic local
-   evidence only.
+5. **No real money movement** was performed. The Stripe test-mode E2E is offline and local.
 6. **Cancelled replacement release is a policy decision.** A cancelled replacement now releases the
-   Student slot; if cancellation is attributable to Student conduct, an administrator may still need
-   a separate audited decision.
+   Student slot; a cancellation attributable to Student conduct may still need an audited decision.
 7. **No production deployment or financial activation.**
 
 ## Production readiness
 
-**Ready for owner review and a controlled staging release; not deployed.** The source and runtime
-safeguards pass, and authenticated desktop/tablet/mobile evidence is captured. Before production:
+**Ready for owner review. Merge and deployment remain blocked** until the owner explicitly accepts or
+resolves the two remaining BLOCKED checklist items: a physical audible LiveKit check and a canonical
+future-term offer/collection path. Everything else is implemented and verified.
 
-- run a two-participant LiveKit session on staging;
-- run one real completed-period statement and settlement through the admin surface with synthetic
-  staging records;
-- verify a future-term obligation and its secure checkout end-to-end;
-- confirm notification/payment workflows and mobile devices on staging.
-
-No merge, deploy, financial activation or production record change was performed without explicit
-approval.
+No merge, deployment, financial activation or production record change was performed.
 
 ---
 

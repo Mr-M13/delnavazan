@@ -59,6 +59,9 @@ button sends the same canonical endpoint and accepts the new `class_completed` s
 - Targeted contracts: teacher Today/Classes/Settings, portal identity, finance reconciliation,
   tuition transparency, LiveKit sync/portal integration, student replacement summary/account,
   recording choices, navigation/accessibility, responsive shell, public hardening, static lint: **pass**.
+- GitHub PR checks observed as passing: PHP source contracts, Interim attendance runtime, Finance
+  runtime, Recording choices UI runtime (component PRs #464–#469). The integration PR #470 runs the
+  full matrix separately.
 
 ## Run the runtime proof
 

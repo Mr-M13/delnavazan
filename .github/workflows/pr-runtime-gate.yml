@@ -208,6 +208,7 @@ jobs:
           php platform/tests/post-intro-enrolment-automation-contract.php
           php platform/tests/calendar-transport-retry-unit.php
           php platform/tests/interim-attendance-completion-contract.php
+          php platform/tests/teacher-delivery-confirmation-contract.php
           php platform/tests/payment-plan-choice-contract.php
           php platform/tests/instalment-deadline-policy-contract.php
           php platform/tests/post-intro-system-actor-unit.php

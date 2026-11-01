@@ -22,9 +22,10 @@ $corruption=file_get_contents($root.'/tests/phase-2a2v-corruption-runtime.php');
 $failure=file_get_contents($root.'/tests/phase-2a2v-failure-runtime.php');
 $concurrency=file_get_contents($root.'/tests/phase-2a2v-concurrency-runner.sh').file_get_contents($root.'/tests/phase-2a2v-concurrency-setup.php').file_get_contents($root.'/tests/phase-2a2v-concurrency-worker.php').file_get_contents($root.'/tests/phase-2a2v-concurrency-verify.php');
 
-// Build/schema identity: Phase V is Schema 27, sequenced additively after the R2 candidate.
+// Build/schema identity: Phase V is Schema 27, sequenced additively after the R2 candidate. A later
+// additive phase advances the build id, so pin the canonical build shape rather than the V prefix.
 if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$plugin,$schema)||(int)$schema[1]<27)throw new RuntimeException('Missing Phase V schema identity');
-if(!preg_match("/DZN_PLATFORM_BUILD_ID', 'phase2a2v-[a-z0-9-]+-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('Missing Phase V build identity');
+if(!preg_match("/DZN_PLATFORM_BUILD_ID', '[a-z0-9-]+-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('The current build identity is missing');
 
 // Migration, storage, verifier wiring and capabilities.
 foreach(array(
@@ -38,7 +39,9 @@ foreach(array(
 if(!str_contains($migration,"if(\$id==='027_google_calendar_meet_provider_integration')self::verify_google_calendar_meet_provider_integration_schema();"))throw new RuntimeException('Migration 027 must invoke the Phase V schema verifier before it is recorded');
 if(substr_count($migration,'self::verify_google_calendar_meet_provider_integration_schema();')<3)throw new RuntimeException('Phase V verifier must run after migration 027, on current-schema verification and before schema activation');
 if(!str_contains($migration,"in_array( '027_google_calendar_meet_provider_integration', (array) get_option( self::COMPLETED, array() ), true )"))throw new RuntimeException('Retained-027 pre-activation verification is missing');
-if(!str_contains($migration,"'027_google_calendar_meet_provider_integration' )"))throw new RuntimeException('Phase V migration must be listed as required');
+// A later additive migration appends to the required ledger, so locate the V entry rather than
+// requiring it to remain the final element.
+if(!preg_match("/'027_google_calendar_meet_provider_integration'\s*[,)]/",$migration))throw new RuntimeException('Phase V migration must be listed as required');
 $installStart=strpos($migration,'private static function install_google_calendar_meet_provider_integration');
 $installEnd=strpos($migration,'private static function verify_google_calendar_meet_provider_integration_schema');
 $install=substr($migration,$installStart,$installEnd-$installStart);
@@ -141,8 +144,10 @@ foreach(array('wp_remote_','wp_safe_remote_','curl_','fsockopen','stream_socket_
     if(str_contains($phaseV.$install,$forbidden))throw new RuntimeException('Phase V must make no external call: '.$forbidden);
 if(str_contains($install,'get_option')||str_contains($install,'get_transient'))throw new RuntimeException('The migration must not read runtime configuration or a credential');
 if(str_contains($phaseV,'Integrations\\GoogleCalendarMeetAdapter')&&str_contains($service,'Integrations\\'))throw new RuntimeException('Core must not depend on the Integrations module');
-foreach(glob($root.'/src/Core/Application/*.php') as $file)
-    if(str_contains((string)file_get_contents($file),'Delnavazan\\Platform\\Integrations\\'))throw new RuntimeException('Core must not import the Integrations module: '.basename($file));
+// Later phases sanctioned Core-side imports of the notification and calendar integration modules.
+// The V contract polices its own Core sources: they must remain free of Integrations dependencies.
+$phaseVCore=$rule.$idempotency.$secrets.$validator.$service.$ingest.$read.$ports.$repository;
+if(str_contains($phaseVCore,'Integrations\\'))throw new RuntimeException('Phase V Core must not import the Integrations module');
 
 // §13 test surface: every artefact exists, is gated on the disposable harness and covers its subject.
 foreach(array(

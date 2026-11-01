@@ -365,7 +365,10 @@ final class FinanceAdminController {
             } elseif ($operation === 'record_payment') {
                 if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
                 $paymentDate = trim((string) ($_POST['payment_date'] ?? ''));
-                $paidAt = preg_match('/^\d{4}-\d{2}-\d{2}$/D', $paymentDate) === 1 ? $paymentDate . ' 00:00:00' : $now;
+                $paidAt = $now;
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $paymentDate) === 1) {
+                    $paidAt = $paymentDate === gmdate('Y-m-d') ? $now : $paymentDate . ' 23:59:59';
+                }
                 (new \Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementPaymentService())->record($statementId, array(
                     'paid_at' => $paidAt,
                     'method_code' => sanitize_key((string) ($_POST['payment_method'] ?? 'manual_bank_transfer')),

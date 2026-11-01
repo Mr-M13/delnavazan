@@ -31,6 +31,7 @@ dzn_theme_teacher_portal_component(
 	array(
 		'items'          => array(),
 		'today_items'    => $model['today_classes'] ?? array(),
+		'past_items'     => array(),
 		'upcoming_items' => array(),
 		'show_upcoming'  => false,
 		'model'          => $model,

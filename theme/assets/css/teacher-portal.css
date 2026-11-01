@@ -1910,11 +1910,15 @@
 .dzn-tp-appbar__badge{position:absolute;inset-block-start:2px;inset-inline-end:0;min-inline-size:18px;padding:0 4px;border-radius:999px;background:var(--dzn-color-accent);color:var(--dzn-color-on-action);font-size:.68rem;font-weight:800;line-height:18px;text-align:center}
 .dzn-tp-section__heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-block-end:.75rem}
 .dzn-tp-note{margin-block-start:.75rem;color:var(--dzn-color-text-muted);font-size:.82rem;line-height:1.9}
+.dzn-notifications{padding-block:.95rem 1rem}
+.dzn-notifications .dzn-tp-section__heading{margin-block-end:.3rem}
+.dzn-notifications .dzn-tp-section__heading h2{margin:0;font-size:1.05rem}
+.dzn-notifications .dzn-tp-empty{margin:.2rem 0 0;padding:.7rem .9rem}
 .dzn-notifications__count{display:inline-block;margin-inline-start:.4rem;padding:.1rem .5rem;border-radius:999px;background:color-mix(in srgb, var(--dzn-color-accent) 12%, transparent);color:var(--dzn-color-accent);font-size:.72rem;font-weight:800;vertical-align:middle}
 .dzn-notifications__all{display:flex;justify-content:flex-end;margin-block-end:.5rem}
 .dzn-notifications__all form{margin:0}
 .dzn-notifications__list{margin:0;padding:0;list-style:none;border-block-start:1px solid var(--dzn-tp-border)}
-.dzn-notifications__item{display:grid;gap:.35rem;padding-block:1rem;border-block-end:1px solid var(--dzn-tp-border)}
+.dzn-notifications__item{display:grid;gap:.35rem;padding-block:.6rem;border-block-end:1px solid var(--dzn-tp-border)}
 .dzn-notifications__item.is-unread{background:linear-gradient(90deg,color-mix(in srgb, var(--dzn-color-action-primary) 6%, transparent),transparent)}
 .dzn-notifications__item time{color:var(--dzn-color-accent);font-size:.76rem;font-weight:800}
 .dzn-notifications__body h3{margin:0 0 .25rem;font-size:1rem}
@@ -1929,3 +1933,150 @@
 .dzn-teacher-recording-terms__notice{margin-block:1rem;padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card)}
 .dzn-teacher-recording-terms__notice h3{margin-block-start:0}
 .dzn-teacher-recording-terms__notice form{margin-block-start:1rem}
+
+/* Today actions: the Delnavazan classroom is unambiguously primary; Meet is the backup. */
+.dzn-tp-class .dzn-tp-btn-join {
+  min-block-size: 2.7rem;
+  padding-inline: 1.1rem;
+  font-weight: 800;
+}
+
+.dzn-tp-class .dzn-classroom-actions__backup .dzn-button {
+  border-color: var(--dzn-tp-border);
+  background: transparent;
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-tp-class__golden {
+  color: var(--dzn-color-text-secondary);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+/* Compact expandable calendar cards. */
+.dzn-tp-calendar__item summary {
+  display: grid;
+  gap: .25rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dzn-tp-calendar__item summary::-webkit-details-marker {
+  display: none;
+}
+
+.dzn-tp-calendar__item summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
+  outline-offset: 3px;
+  border-radius: .4rem;
+}
+
+.dzn-tp-calendar__when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .5rem;
+}
+
+.dzn-tp-calendar__compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .4rem;
+}
+
+.dzn-tp-calendar__student {
+  color: var(--dzn-color-text-secondary);
+  font-size: .82rem;
+}
+
+.dzn-tp-calendar__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .7rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: .76rem;
+}
+
+.dzn-tp-calendar__meta .dzn-tp-golden-badge {
+  font-size: .72rem;
+}
+
+.dzn-tp-calendar__detail {
+  display: grid;
+  gap: .45rem;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  margin-block-start: .55rem;
+  padding-block-start: .55rem;
+}
+
+.dzn-tp-calendar-action--link {
+  justify-self: start;
+  min-block-size: 1.6rem;
+  font-size: .78rem;
+}
+
+/* Collapsed completed-class history. */
+.dzn-tp-class-history {
+  border-block-start: 1px solid var(--dzn-tp-border);
+  margin-block-start: 1.1rem;
+  padding-block-start: .85rem;
+}
+
+.dzn-tp-class-history > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.dzn-tp-class-history > summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
+  outline-offset: 3px;
+  border-radius: .4rem;
+}
+
+.dzn-tp-class-history__count {
+  display: inline-block;
+  margin-inline-start: .35rem;
+  padding: .05rem .45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dzn-color-accent) 12%, transparent);
+  color: var(--dzn-color-accent);
+  font-size: .72rem;
+}
+
+.dzn-tp-class-history__list {
+  display: grid;
+  gap: .55rem;
+  margin: .75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-tp-class-history__item {
+  display: grid;
+  gap: .2rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-inline-start: 4px solid var(--dzn-color-text-muted);
+  border-radius: .6rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .7rem .85rem;
+}
+
+.dzn-tp-class-history__item.is-success {
+  border-inline-start-color: var(--dzn-color-success);
+}
+
+.dzn-tp-class-history__item p {
+  margin: 0;
+  font-size: .82rem;
+  line-height: 1.7;
+}
+
+.dzn-tp-class-history__when {
+  color: var(--dzn-color-text-secondary);
+  font-size: .76rem !important;
+}
+
+.dzn-tp-class-history__outcome {
+  font-weight: 700;
+}

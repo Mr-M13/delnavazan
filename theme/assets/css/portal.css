@@ -1789,5 +1789,4 @@
 @media (max-width: 47.99rem) {
   .dzn-schedule-row__join { inline-size: 100%; min-inline-size: 0; }
   .dzn-term__compact-summary { grid-template-columns: 1fr 1fr; }
-
 }

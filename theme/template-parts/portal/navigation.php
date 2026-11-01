@@ -27,7 +27,7 @@ if ( ! $items ) {
 				<?php if ( $url ) : ?>
 					<a class="dzn-portal-nav__link<?php echo $current ? ' is-current' : ''; ?>" href="<?php echo esc_url( $url ); ?>"<?php echo $current ? ' aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
 				<?php else : ?>
-					<span class="dzn-portal-nav__link is-disabled<?php echo $current ? ' is-current' : ''; ?>"<?php echo $current ? ' aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></span>
+					<span class="dzn-portal-nav__link is-disabled<?php echo $current ? ' is-current' : ''; ?>"<?php echo $current ? ' aria-current="page"' : ''; ?> aria-disabled="true"><?php echo esc_html( $label ); ?></span>
 				<?php endif; ?>
 			</li>
 		<?php endforeach; ?>

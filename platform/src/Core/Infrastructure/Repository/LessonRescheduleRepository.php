@@ -113,11 +113,12 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     public function termReplacementAllocation(int $termId):array{
         $term=$this->one("SELECT replacement_allowance FROM {$this->p}terms WHERE id=%d LIMIT 1",$termId);
         $allowance=$term?max(0,(int)$term->replacement_allowance):0;
-        $used=(int)$this->scalar(
+        $replacementLessonCount=(int)$this->scalar(
             "SELECT COUNT(*) FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",
             $termId
         );
         $eligible=array();
+        $consumedAbsenceOccurrences=0;
         $rows=$this->rows(
             "SELECT c.id case_id,c.lesson_id,c.schedule_version_id,c.occurrence_start_utc,c.state case_state,c.created_at,e.reason_code,
                     (SELECT r.id FROM {$this->p}lessons r WHERE r.canonical_replacement_origin_lesson_id=c.lesson_id AND r.record_model='canonical_term_lesson_v1' AND r.lesson_type='replacement' AND r.archived_at IS NULL ORDER BY r.id ASC LIMIT 1) replacement_lesson_id,
@@ -147,6 +148,12 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
             if(in_array($outcome,array('delivered','teacher_non_delivery','review_required'),true))continue;
             if(in_array($state,array('settled','adjudicated'),true))continue;
             if($state==='closed_no_change'&&in_array($basis,array('administrative_no_change','administrative_settle_delivered','administrative_teacher_non_delivery','administrative_review_required'),true))continue;
+            // An accepted absence-driven schedule revision closes the original occurrence as
+            // superseded. It is a confirmed use of the allowance, not a still-pending allocation.
+            if($row->replacement_lesson_id===null&&($state==='superseded'||($state==='closed_no_change'&&$basis==='superseded'))){
+                $consumedAbsenceOccurrences++;
+                continue;
+            }
             $key=(int)$row->lesson_id.':'.(int)$row->schedule_version_id;
             if(isset($eligible[$key]))continue;
             $eligible[$key]=array(
@@ -156,6 +163,7 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
                 'replacement_lesson_id'=>$row->replacement_lesson_id===null?null:(int)$row->replacement_lesson_id,
             );
         }
+        $used=$replacementLessonCount+$consumedAbsenceOccurrences;
         $pending=array_filter($eligible,static fn(array $row):bool=>$row['replacement_lesson_id']===null);
         $orderedKeys=array_keys($pending);
         $allocation=TermReplacementAllocationRule::allocate($allowance,$used,$orderedKeys);

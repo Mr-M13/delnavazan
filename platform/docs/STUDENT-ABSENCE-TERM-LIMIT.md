@@ -8,9 +8,10 @@ entitlement: a Student may still report a third absence or dispute a class, and 
 recorded, but no replacement slot is promised or reserved for an occurrence beyond the allowance.
 
 An eligible Student-origin absence consumes one slot when it enters the replacement workflow. A
-confirmed replacement Lesson consumes a slot directly. Remaining slots are allocated once to
+confirmed replacement Lesson consumes a slot directly, and an accepted absence-driven revision of
+a future occurrence counts as used rather than pending. Remaining slots are allocated once to
 distinct eligible absences awaiting discussion, a Teacher proposal, or Student acceptance, in
-occurrence order. Rejection or expiry of a proposed time does not release the allocation; the
+first-entered occurrence order. Rejection or expiry of a proposed time does not release the allocation; the
 Teacher may propose another time. An explicit audited resolution that the absence is ineligible,
 withdrawn, delivered, academy-owed or otherwise no longer owed releases it.
 

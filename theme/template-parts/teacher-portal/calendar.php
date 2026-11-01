@@ -17,10 +17,45 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 	<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3>رویدادی در تقویم پیش رو نیست</h3><p>پس از تأیید یا زمان‌بندی کلاس، تاریخ و ساعت آن اینجا فهرست می‌شود.</p></div>
 <?php else : ?>
 <ul class="dzn-tp-calendar">
-<?php foreach ( $items as $item ) : $valid = dzn_theme_teacher_portal_calendar_valid( $item ); ?>
-	<li class="is-<?php echo esc_attr( $valid ? $item['state'] : 'unknown' ); ?>"><p class="dzn-tp-calendar__day"><?php echo esc_html( $valid ? $item['day'] : 'رویداد در دسترس نیست' ); ?></p><p class="dzn-tp-calendar__time"><span class="dzn-tp-sr">ساعت </span><?php echo esc_html( $valid ? $item['time'] : '—' ); ?></p><strong class="dzn-tp-calendar__label"><?php echo esc_html( $valid ? ( $item['label'] ?? '' ) : 'اطلاعات این رویداد معتبر نیست' ); ?></strong><?php if ( $valid && ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>">افزودن به تقویم</a><?php endif; ?></li>
+<?php foreach ( $items as $index => $item ) : ?>
+	<?php
+	$valid = dzn_theme_teacher_portal_calendar_valid( $item );
+	$instrument = $valid ? trim( (string) ( $item['instrument'] ?? '' ) ) : '';
+	$student = $valid ? trim( (string) ( $item['student'] ?? '' ) ) : '';
+	$label = $valid ? (string) ( $item['label'] ?? '' ) : '';
+	if ( '' === $instrument && '' === $student ) { $label_parts = array_filter( array_map( 'trim', explode( '·', $label ) ) ); $instrument = (string) ( $label_parts[0] ?? $label ); $student = (string) ( $label_parts[1] ?? '' ); }
+	$term_reference = $valid ? trim( (string) ( $item['term_reference'] ?? '' ) ) : '';
+	$lesson_number = $valid ? (int) ( $item['lesson_number'] ?? 0 ) : 0;
+	$golden_label = $valid ? trim( (string) ( $item['golden_hour_label'] ?? '' ) ) : '';
+	$golden_eligible = $valid && ! empty( $item['golden_hour_eligible'] );
+	$details_id = 'tp-calendar-details-' . (int) $index;
+	?>
+	<li class="is-<?php echo esc_attr( $valid ? $item['state'] : 'unknown' ); ?>">
+		<?php if ( ! $valid ) : ?>
+			<p class="dzn-tp-calendar__day">رویداد در دسترس نیست</p>
+			<strong class="dzn-tp-calendar__label">اطلاعات این رویداد معتبر نیست</strong>
+		<?php else : ?>
+		<details class="dzn-tp-calendar__item">
+			<summary>
+				<span class="dzn-tp-calendar__when"><span class="dzn-tp-calendar__day"><?php echo esc_html( (string) $item['day'] ); ?></span><span class="dzn-tp-calendar__time"><span class="dzn-tp-sr">ساعت </span><?php echo esc_html( (string) $item['time'] ); ?></span></span>
+				<span class="dzn-tp-calendar__compact"><strong class="dzn-tp-calendar__label"><?php echo esc_html( '' !== $instrument ? $instrument : $label ); ?></strong><?php if ( '' !== $student ) : ?><span class="dzn-tp-calendar__student"><?php echo esc_html( $student ); ?></span><?php endif; ?></span>
+				<?php if ( '' !== $term_reference || $lesson_number > 0 || '' !== $golden_label ) : ?>
+					<span class="dzn-tp-calendar__meta">
+						<?php if ( '' !== $term_reference ) : ?><span>ترم <?php echo esc_html( $term_reference ); ?></span><?php endif; ?>
+						<?php if ( $lesson_number > 0 ) : ?><span>جلسهٔ <?php echo esc_html( (string) $lesson_number ); ?></span><?php endif; ?>
+						<?php if ( '' !== $golden_label ) : ?><span class="dzn-tp-golden-badge<?php echo $golden_eligible ? ' is-eligible' : ''; ?>"><?php echo esc_html( $golden_label ); ?></span><?php endif; ?>
+					</span>
+				<?php endif; ?>
+			</summary>
+			<div class="dzn-tp-calendar__detail" id="<?php echo esc_attr( $details_id ); ?>">
+				<?php if ( '' !== $label ) : ?><p><?php echo esc_html( $label ); ?></p><?php endif; ?>
+				<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-tp-calendar-action dzn-tp-calendar-action--link" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>">افزودن به تقویم</a><?php endif; ?>
+			</div>
+		</details>
+		<?php endif; ?>
+	</li>
 <?php endforeach; ?>
 </ul>
-<p class="dzn-tp-help">برچسب نوشتاری هر رویداد نوع آن را مشخص می‌کند و تاریخ و ساعت از اطلاعات تأییدشدهٔ سامانه می‌آیند؛ پوسته زمان‌بندی را محاسبه نمی‌کند.</p>
+<p class="dzn-tp-help">تاریخ و ساعت از اطلاعات تأییدشدهٔ سامانه می‌آیند؛ برای دیدن جزئیات هر رویداد آن را باز کنید.</p>
 <?php endif; ?>
 </section>

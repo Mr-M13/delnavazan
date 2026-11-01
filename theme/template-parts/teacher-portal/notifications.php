@@ -15,7 +15,6 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 <section id="dzn-tp-notifications" class="dzn-tp-section dzn-notifications" aria-labelledby="dzn-tp-notifications-title">
 	<div class="dzn-tp-section__heading">
 		<div>
-			<p class="dzn-tp-kicker">پیام‌های حساب شما</p>
 			<h2 id="dzn-tp-notifications-title">اعلان‌ها<?php if ( $unread > 0 ) : ?> <span class="dzn-notifications__count"><?php echo esc_html( number_format_i18n( $unread ) ); ?> تازه</span><?php endif; ?></h2>
 		</div>
 	</div>
@@ -59,5 +58,4 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 			<?php endforeach; ?>
 		</ol>
 	<?php endif; ?>
-	<p class="dzn-tp-note">این اعلان‌ها فقط وضعیت را نشان می‌دهند؛ تأیید یا تغییر کلاس، پرداخت یا درخواست همچنان از دکمهٔ همان صفحهٔ کاری انجام می‌شود.</p>
 </section>

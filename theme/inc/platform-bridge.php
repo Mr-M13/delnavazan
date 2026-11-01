@@ -1576,6 +1576,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$calendar = array();
 	$today_classes = array();
 	$upcoming_classes = array();
+	$past_classes = array();
 	$class_rows = array_merge( $today_rows, $upcoming_rows );
 	$golden_hour = array();
 	$golden_hour_ids = array();
@@ -1598,6 +1599,64 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$temporal = dzn_theme_platform_lesson_temporal_state( $lesson, $now );
 		$soon = $start && $start - $now <= HOUR_IN_SECONDS;
 		$ended = 'ended' === $temporal;
+		$delivery_outcome = strtolower( trim( (string) ( $lesson['delivery_state_summary'] ?? 'not_recorded' ) ) );
+		$attendance_summary = strtolower( trim( (string) ( $lesson['attendance_state_summary'] ?? 'not_recorded' ) ) );
+		$recorded_outcome = '' !== $delivery_outcome && ! in_array( $delivery_outcome, array( 'not_recorded', 'presumed_completed', 'review_required', 'pending_review', 'conflict', 'disputed' ), true );
+		$lifecycle_completed = 'completed' === (string) ( $lesson['lifecycle_state'] ?? '' );
+		// The canonical attendance/delivery read is authoritative. If the Platform read does not
+		// project the completion flags yet, derive only the plain outcome those fields already prove
+		// (a recorded delivery outcome or a completed lifecycle) and never infer completion from time.
+		$completion_completed = array_key_exists( 'completion_completed', $lesson )
+			? (bool) $lesson['completion_completed']
+			: ( $lifecycle_completed || $recorded_outcome );
+		$completion_claimed = array_key_exists( 'completion_claimed', $lesson ) ? (bool) $lesson['completion_claimed'] : false;
+		$completion_review_pending = array_key_exists( 'completion_review_pending', $lesson )
+			? (bool) $lesson['completion_review_pending']
+			: in_array( $attendance_summary, array( 'review_required', 'pending_review', 'conflict', 'disputed' ), true );
+		$completion_available = array_key_exists( 'completion_available', $lesson )
+			? (bool) $lesson['completion_available']
+			: ( $ended
+				&& ! $is_booking
+				&& 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' )
+				&& ! $completion_completed
+				&& ! $completion_claimed
+				&& ! $completion_review_pending
+				&& ! $recorded_outcome
+				&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' ) );
+		// The completion form is only shown for an occurrence that has ended and is still open.
+		$completion_available = $completion_available && $ended && ! $completion_completed && ! $completion_claimed;
+		$completion_outcome_labels = array(
+			'completed'              => 'برگزار شد',
+			'delivered'              => 'برگزار شد',
+			'cancelled'              => 'لغو شده',
+			'no_show'                => 'حضور تأیید نشده',
+			'student_no_show'        => 'غیبت هنرجو ثبت شده',
+			'teacher_no_show'        => 'عدم برگزاری ثبت شده',
+			'not_delivered'          => 'برگزار نشد',
+			'review_required'        => 'در انتظار بررسی',
+			'presumed_completed'     => 'پایان زمان‌بندی‌شده؛ حضور تأیید نشده',
+		);
+		$completion_outcome = $recorded_outcome ? ( $completion_outcome_labels[ $delivery_outcome ] ?? 'وضعیت برگزاری ثبت شده' ) : '';
+		if ( '' === $completion_outcome && $lifecycle_completed ) { $completion_outcome = 'پایان‌یافته — گزارش برگزاری ثبت نشده'; }
+		$completion_tone = in_array( $delivery_outcome, array( 'completed', 'delivered' ), true ) ? 'success' : ( $recorded_outcome ? 'warning' : 'muted' );
+		$completion_message = trim( (string) ( $lesson['completion_message'] ?? '' ) );
+		if ( '' === $completion_message ) {
+			if ( $completion_completed ) {
+				$completion_message = 'این کلاس تکمیل شده است و فرم گزارش برگزاری برای آن نمایش داده نمی‌شود.';
+			} elseif ( $completion_claimed ) {
+				$completion_message = 'گزارش برگزاری این کلاس ثبت شده و در انتظار بررسی مدیر است.';
+			} elseif ( $completion_review_pending ) {
+				$completion_message = 'این کلاس در انتظار بررسی حضور است؛ گزارش تازه‌ای ثبت نمی‌شود.';
+			} elseif ( ! $ended ) {
+				$completion_message = 'پس از پایان زمان کلاس می‌توانید برگزاری و حضور را تأیید کنید.';
+			} elseif ( 'authorised' !== (string) ( $lesson['lifecycle_state'] ?? '' ) || $is_booking ) {
+				$completion_message = 'این کلاس در وضعیت قابل گزارش نیست.';
+			} elseif ( $recorded_outcome ) {
+				$completion_message = 'برای این کلاس پیش‌تر وضعیت برگزاری ثبت شده است.';
+			} else {
+				$completion_message = 'اگر کلاس برگزار شد، برگزاری و حضور را تأیید کنید.';
+			}
+		}
 		$within_join = $start && $end && $start - HOUR_IN_SECONDS <= $now && $end + ( 2 * HOUR_IN_SECONDS ) >= $now;
 		$join_ready = dzn_theme_platform_meet_available( $lesson, $is_booking, $within_join );
 		$livekit_ready = dzn_theme_platform_livekit_available( 'teacher', $lesson, $is_booking, $within_join );
@@ -1619,7 +1678,25 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$can_reschedule = ! $is_booking
 			&& 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' )
 			&& in_array( (string) ( $lesson['delivery_state_summary'] ?? 'not_recorded' ), array( '', 'not_recorded' ), true )
+			&& ! $completion_completed
+			&& ! $completion_claimed
 			&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' );
+		$status_label = 'پیش رو';
+		if ( 'in_progress' === $temporal ) {
+			$status_label = 'در حال برگزاری';
+		} elseif ( $completion_completed ) {
+			$status_label = $lifecycle_completed ? 'تکمیل‌شده' : ( '' !== $completion_outcome ? $completion_outcome : 'وضعیت برگزاری ثبت شده' );
+		} elseif ( $completion_claimed ) {
+			$status_label = 'گزارش ثبت شده — در انتظار بررسی';
+		} elseif ( $completion_review_pending ) {
+			$status_label = 'در انتظار بررسی حضور';
+		} elseif ( $ended ) {
+			$status_label = $is_booking ? 'پایان یافته' : 'پایان یافته — ثبت گزارش';
+		} elseif ( $is_booking ) {
+			$status_label = $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده';
+		} elseif ( $soon ) {
+			$status_label = 'به‌زودی شروع می‌شود';
+		}
 		$class = array(
 			'ref' => $reference,
 			'start_available' => $livekit_ready || $join_ready,
@@ -1638,9 +1715,23 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'is_today' => ! $is_booking && $is_today_row,
 			'details_available' => ! $is_booking && $is_today_row,
 			'student_whatsapp' => (string) ( $lesson['student_whatsapp'] ?? $lesson['student_phone'] ?? '' ),
+			'term_reference' => (string) ( $lesson['term_reference'] ?? '' ),
 			'term_total' => (int) ( $lesson['term_lesson_total'] ?? 0 ),
 			'term_completed' => (int) ( $lesson['term_lesson_completed'] ?? 0 ),
 			'term_remaining' => (int) ( $lesson['term_lesson_remaining'] ?? 0 ),
+			'term_progress_label' => (int) ( $lesson['term_lesson_total'] ?? 0 ) > 0
+				? dzn_theme_platform_persian_digits( (int) ( $lesson['term_lesson_completed'] ?? 0 ) ) . ' از ' . dzn_theme_platform_persian_digits( (int) ( $lesson['term_lesson_total'] ?? 0 ) ) . ' جلسه · ' . dzn_theme_platform_persian_digits( (int) ( $lesson['term_lesson_remaining'] ?? 0 ) ) . ' جلسه باقی‌مانده'
+				: '',
+			'lesson_number' => (int) ( $lesson['canonical_sequence'] ?? ( $lesson['lesson_number'] ?? 0 ) ),
+			'completion_available' => $completion_available,
+			'completion_completed' => $completion_completed,
+			'completion_claimed' => $completion_claimed,
+			'completion_review_pending' => $completion_review_pending,
+			'completion_message' => $completion_message,
+			'completion_outcome' => $completion_outcome,
+			'completion_tone' => $completion_tone,
+			'completion_action_url' => (string) ( $lesson['completion_action_url'] ?? '' ) ?: admin_url( 'admin-post.php?action=dzn_teacher_report_delivery' ),
+			'completion_nonce' => (string) ( $lesson['completion_nonce'] ?? '' ) ?: wp_create_nonce( 'dzn_teacher_report_delivery' ),
 			'reschedule_available' => $can_reschedule,
 			'reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_propose_reschedule' ),
 			'reschedule_nonce' => wp_create_nonce( 'dzn_teacher_propose_reschedule' ),
@@ -1665,17 +1756,40 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'student' => $student_label,
 			'course' => $course_label,
 			'progress' => $is_booking ? 'کلاس آشنایی' : 'کلاس ترم',
-			'status' => 'in_progress' === $temporal ? 'در حال برگزاری' : ( $ended ? ( $is_booking ? 'پایان یافته' : 'پایان یافته — ثبت گزارش' ) : ( $is_booking ? ( $soon ? 'تأیید شده و به‌زودی شروع می‌شود' : 'کلاس آشنایی تأیید شده' ) : ( $soon ? 'به‌زودی شروع می‌شود' : 'پیش رو' ) ) ),
+			'status' => $status_label,
 		);
+		// Replacement allowance is canonical Enrolment data. The teacher Lesson read does not
+		// project it today, so only carry it when the read actually supplies it; never derive it.
+		foreach ( array( 'replacement_available', 'replacement_remaining' ) as $replacement_key ) {
+			if ( array_key_exists( $replacement_key, $lesson ) ) {
+				$replacement_available = max( 0, (int) $lesson[ $replacement_key ] );
+				$class['replacement_available'] = $replacement_available;
+				$class['replacement_label'] = dzn_theme_platform_persian_digits( $replacement_available ) . ' جایگزین قابل استفاده';
+				break;
+			}
+		}
 		$golden = $golden_hour[ (int) ( $lesson['lesson_id'] ?? 0 ) ] ?? null;
+		$golden_summary = '';
 		if ( is_array( $golden ) ) {
 			$class['golden_hour'] = $golden;
-			$class['golden_hour_label'] = (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0
-				? 'Golden hour +' . rtrim( rtrim( number_format( ( (int) ( $golden['bonus_basis_points'] ?? 0 ) ) / 100, 2, '.', '' ), '0' ), '.' ) . '%'
-				: '';
+			$golden_percentage = rtrim( rtrim( number_format( ( (int) ( $golden['bonus_basis_points'] ?? 0 ) ) / 100, 2, '.', '' ), '0' ), '.' );
+			$golden_eligible_minutes = (int) ( $golden['eligible_minutes'] ?? 0 );
+			$golden_duration_minutes = (int) ( $golden['duration_minutes'] ?? 0 );
+			if ( (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0 ) {
+				$golden_summary = 'ساعت طلایی · پاداش ' . dzn_theme_platform_persian_digits( $golden_percentage ) . '٪';
+				if ( $golden_duration_minutes > 0 ) {
+					$golden_summary .= ' · ' . dzn_theme_platform_persian_digits( $golden_eligible_minutes ) . ' از ' . dzn_theme_platform_persian_digits( $golden_duration_minutes ) . ' دقیقه';
+				}
+				if ( 'estimated' === (string) ( $golden['status'] ?? '' ) ) { $golden_summary .= ' · برآوردی'; }
+			} elseif ( '' !== (string) ( $golden['review_reason'] ?? '' ) ) {
+				$golden_summary = 'ساعت طلایی · نیازمند بررسی محدودهٔ خدمات';
+			}
+			$class['golden_hour_label'] = $golden_summary;
+			$class['golden_hour_badge'] = (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0 ? 'ساعت طلایی · پاداش ' . dzn_theme_platform_persian_digits( $golden_percentage ) . '٪' : ( '' !== $golden_summary ? 'ساعت طلایی' : '' );
+			$class['golden_hour_eligible'] = (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0;
 			$class['golden_hour_window_display'] = (string) ( $golden['teacher_window_display'] ?? '' );
 			$class['golden_hour_estimate_label'] = 'estimated' === ( $golden['status'] ?? '' ) ? 'estimated' : 'committed';
-			$class['golden_hour_review_text'] = ( $golden['review_reason'] ?? null ) !== null ? 'Golden-hour bonus requires service-area review.' : '';
+			$class['golden_hour_review_text'] = ( $golden['review_reason'] ?? null ) !== null ? 'پاداش ساعت طلایی نیازمند بررسی محدودهٔ خدمات است.' : '';
 			$golden_bonus_display = '';
 			if ( class_exists( '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Pricing\\PricingMoney' ) ) {
 				try {
@@ -1685,17 +1799,40 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				}
 			}
 			$class['golden_hour_bonus_display'] = $golden_bonus_display;
-			$class['golden_hour_percentage_display'] = rtrim( rtrim( number_format( ( (int) ( $golden['bonus_basis_points'] ?? 0 ) ) / 100, 2, '.', '' ), '0' ), '.' );
+			$class['golden_hour_percentage_display'] = $golden_percentage;
 		}
 		if ( function_exists( 'dzn_theme_teacher_portal_class_valid' ) && ! dzn_theme_teacher_portal_class_valid( $class ) ) {
 			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'class', $index, 'display_contract' );
 		}
 		$classes[] = $class;
+		$past_row = array(
+			'ref' => $class['ref'],
+			'date' => $class['date'],
+			'time' => $class['time'],
+			'student' => $class['student'],
+			'course' => $class['course'],
+			'term_reference' => $class['term_reference'],
+			'term_progress_label' => $class['term_progress_label'],
+			'outcome' => '' !== $class['completion_outcome'] ? $class['completion_outcome'] : $class['status'],
+			'tone' => $class['completion_tone'],
+			'starts_at_utc' => $class['starts_at_utc'],
+		);
+		if ( $class['completion_completed'] ) {
+			// A completed or recorded occurrence is history, never an actionable Today row.
+			$past_classes[] = $past_row;
+			continue;
+		}
 		if ( $is_today_row ) { $today_classes[] = $class; } else { $upcoming_classes[] = $class; }
 		$calendarRow = array(
 			'day' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'weekday_month_day' ),
 			'time' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'time' ),
 			'label' => $course_label . ' · ' . $student_label,
+			'instrument' => $course_label,
+			'student' => $student_label,
+			'term_reference' => (string) ( $lesson['term_reference'] ?? '' ),
+			'lesson_number' => (int) ( $lesson['canonical_sequence'] ?? ( $lesson['lesson_number'] ?? 0 ) ),
+			'golden_hour_label' => $golden_summary,
+			'golden_hour_eligible' => '' !== $golden_summary && (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0,
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 		);
@@ -1703,6 +1840,59 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'calendar', $index, 'display_contract' );
 		}
 		$calendar[] = $calendarRow;
+	}
+	if ( 'classes' === $screen ) {
+		// History is a separate, read-only canonical projection. It is included only when the
+		// Lesson lifecycle is completed or the delivery read recorded a real outcome; elapsed time
+		// on its own never marks a class as past.
+		$history_seen = array();
+		foreach ( $past_classes as $past_row_seen ) { $history_seen['ref:' . (string) $past_row_seen['ref']] = true; }
+		$history_read = dzn_theme_platform_teacher_read_state();
+		if ( 'ok' === (string) ( $history_read['state'] ?? '' ) ) {
+			$history_outcome_labels = array(
+				'completed' => 'برگزار شد', 'delivered' => 'برگزار شد', 'cancelled' => 'لغو شده',
+				'no_show' => 'حضور تأیید نشده', 'student_no_show' => 'غیبت هنرجو ثبت شده',
+				'teacher_no_show' => 'عدم برگزاری ثبت شده', 'not_delivered' => 'برگزار نشد',
+				'review_required' => 'در انتظار بررسی', 'presumed_completed' => 'پایان زمان‌بندی‌شده؛ حضور تأیید نشده',
+			);
+			foreach ( (array) ( $history_read['data']['lessons'] ?? array() ) as $history_lesson ) {
+				if ( ! is_array( $history_lesson ) ) { continue; }
+				$history_outcome = strtolower( trim( (string) ( $history_lesson['delivery_state_summary'] ?? 'not_recorded' ) ) );
+				$history_recorded = '' !== $history_outcome && ! in_array( $history_outcome, array( 'not_recorded', 'presumed_completed', 'review_required', 'pending_review', 'conflict', 'disputed' ), true );
+				$history_lifecycle = (string) ( $history_lesson['lifecycle_state'] ?? '' );
+				if ( 'completed' !== $history_lifecycle && ! $history_recorded ) { continue; }
+				$history_ref = trim( (string) ( $history_lesson['reference_code'] ?? '' ) );
+				if ( '' === $history_ref ) { $history_ref = trim( (string) ( $history_lesson['lesson_uid'] ?? '' ) ); }
+				if ( '' === $history_ref || isset( $history_seen[ 'ref:' . $history_ref ] ) ) { continue; }
+				$history_seen[ 'ref:' . $history_ref ] = true;
+				$history_timezone = (string) ( $history_lesson['schedule_timezone'] ?? '' ) ?: $teacher_timezone;
+				$history_student = trim( (string) ( $history_lesson['student_name'] ?? '' ) );
+				if ( '' === $history_student ) { $history_student = trim( (string) ( $history_lesson['student_display_reference'] ?? '' ) ); }
+				if ( '' === $history_student ) { $history_student = 'هنرجو'; }
+				$history_course = trim( (string) ( $history_lesson['instrument_name'] ?? '' ) );
+				if ( '' === $history_course ) { $history_course = trim( (string) ( $history_lesson['course_name'] ?? $history_lesson['course_reference'] ?? '' ) ); }
+				$history_completed = (int) ( $history_lesson['term_lesson_total'] ?? 0 );
+				$history_progress = $history_completed > 0
+					? dzn_theme_platform_persian_digits( (int) ( $history_lesson['term_lesson_completed'] ?? 0 ) ) . ' از ' . dzn_theme_platform_persian_digits( $history_completed ) . ' جلسه · ' . dzn_theme_platform_persian_digits( (int) ( $history_lesson['term_lesson_remaining'] ?? 0 ) ) . ' جلسه باقی‌مانده'
+					: '';
+				$past_classes[] = array(
+					'ref' => $history_ref,
+					'date' => dzn_theme_platform_calendar_time( (string) ( $history_lesson['starts_at_utc'] ?? '' ), $history_timezone, $teacher_calendar, $teacher_locale, 'weekday_month_day' ),
+					'time' => dzn_theme_platform_calendar_time( (string) ( $history_lesson['starts_at_utc'] ?? '' ), $history_timezone, $teacher_calendar, $teacher_locale, 'time' ),
+					'student' => $history_student,
+					'course' => $history_course,
+					'term_reference' => (string) ( $history_lesson['term_reference'] ?? '' ),
+					'term_progress_label' => $history_progress,
+					'outcome' => 'completed' === $history_lifecycle
+						? 'پایان‌یافته' . ( $history_recorded ? ' — ' . ( $history_outcome_labels[ $history_outcome ] ?? 'وضعیت برگزاری ثبت شده' ) : ' — گزارش برگزاری ثبت نشده' )
+						: ( $history_outcome_labels[ $history_outcome ] ?? 'وضعیت برگزاری ثبت شده' ),
+					'tone' => in_array( $history_outcome, array( 'completed', 'delivered' ), true ) ? 'success' : 'muted',
+					'starts_at_utc' => (string) ( $history_lesson['starts_at_utc'] ?? '' ),
+				);
+			}
+		}
+		usort( $past_classes, static fn( $a, $b ) => strcmp( (string) ( $b['starts_at_utc'] ?? '' ), (string) ( $a['starts_at_utc'] ?? '' ) ) );
+		$past_classes = array_slice( $past_classes, 0, 30 );
 	}
 	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_scheduled_classes,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=dzn_theme_platform_utc_timestamp($row['starts_at_utc']??'');$b=dzn_theme_platform_utc_timestamp($row['ends_at_utc']??'');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_name']??$row['student_display_reference']??''),$all_scheduled_classes)));
 	$bookingAttention=array_map(static function($request)use($teacher_timezone,$teacher_calendar,$teacher_locale){
@@ -1884,6 +2074,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'classes' => $classes,
 		'today_classes' => $today_classes,
 		'upcoming_classes' => $upcoming_classes,
+		'past_classes' => $past_classes,
 		'today_count' => count( $today_rows ),
 		'upcoming_count' => count( $upcoming_rows ),
 		'calendar' => $calendar,

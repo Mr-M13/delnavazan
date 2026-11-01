@@ -1,7 +1,7 @@
 # Finance hardening — 2026-11-01
 
 **Baseline:** `14855147572e6883f383b8d219c54b9a8789acd5` (PR #461)
-**Schema identity:** 57 (additive migrations 060, 061 and 062 remain inside the current 57 umbrella,
+**Schema identity:** 57 (additive migrations 060, 061, 062 and 063 remain inside the current 57 umbrella,
 following the existing 058/059 convention).
 
 ## Root causes closed
@@ -67,6 +67,18 @@ following the existing 058/059 convention).
 - `StudentReceiptController` verifies a nonce, the Student principal and settlement ownership before
   rendering a branded receipt.
 
+### Durable Student finance notifications (migration 063)
+
+- `finance_notification_intents` stores one idempotent, retryable intent per finance event.
+- Payment settlement and refund-review hooks enqueue notifications for accepted payments, recorded
+  refunds, review decisions, completed refunds and dismissed reviews.
+- Delivery reuses the existing branded `DelnavazanEmailRenderer` and records **transport accepted**,
+  never confirmed delivery. `delivered_at` stays NULL.
+- A notification failure is swallowed at the hook boundary and never reverses the financial fact.
+- The aggregate-based notification authority has no authoritative payment-receipt event or recipient
+  binding, so this finance outbox is the minimal durable seam; it does not create a second payment,
+  refund or financial authority.
+
 ### Exports
 
 - `FinanceExportService` provides read-only payments, refunds and statements CSV exports with stable
@@ -88,12 +100,8 @@ following the existing 058/059 convention).
 
 ## Known limitations / unresolved decisions
 
-- **Payment/refund Student notifications are not implemented in this pass.** The existing notification
-  authority has `REFUND_REVIEW_REQUIRED` and `REFUND_RESOLVED` intents, which remain available on the
-  explicit route/resolve actions, but there is no authoritative payment-receipt event or recipient
-  binding. Inventing one requires a notification contract decision; it is not silently fabricated here.
-- Statement email delivery is **transport-accepted**, not confirmed delivered. A downstream provider
-  delivery callback remains future work.
+- Statement and Student finance email delivery is **transport-accepted**, not confirmed delivered. A
+  downstream provider delivery callback remains future work.
 - The populated batch runtime is not added; the batch result state machine is source-contracted and the
   finance runtime executes the batch path with no candidates. A real multi-teacher fixture remains a
   follow-up.

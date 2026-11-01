@@ -36,7 +36,7 @@ final class TeacherStatementEmailRenderer {
         $version = (string) ($statement['statement_version'] ?? '');
         $timezone = trim((string) ($options['timezone'] ?? $statement['period_timezone'] ?? $statement['timezone'] ?? ''));
         $calendar = strtolower(trim((string) ($options['calendar'] ?? $statement['calendar_preference'] ?? 'auto')));
-        if (!in_array($calendar, array('persian', 'gregorian'), true)) $calendar = 'gregorian';
+        if (!in_array($calendar, array('persian', 'gregorian'), true)) $calendar = $english ? 'gregorian' : 'persian';
         $issuedAt = $this->displayInstant((string) ($statement['issued_at'] ?? ''), $english, $timezone, $calendar, true);
         $subject = $english
             ? 'Delnavazan teacher statement — ' . $period

@@ -38,6 +38,9 @@ $assert(str_contains($repo, 'assignPublicHandle') && str_contains($repo, "Identi
 $assert(str_contains($readService, "'payment_state'=>\$payment===null?'unpaid':'paid'") && str_contains($readService, "'paid_at'"), 'The Teacher statement read must expose settlement state and date.');
 $assert(str_contains($summary, 'paymentStatus') && str_contains($summary, "'overdue'"), 'The Teacher summary must derive pending/overdue/up-to-date status.');
 $assert(str_contains($migration, "'issued','paid','superseded'"), 'The statement verifier must accept the paid state.');
+$controller = $read('src/Admin/Controller/FinanceAdminController.php');
+$assert(str_contains($controller, "'record_payment'") && str_contains($controller, 'TeacherStatementPaymentService'), 'The administrator surface must expose the settlement command through the canonical service.');
+$assert(str_contains($controller, 'Mark paid') && str_contains($controller, 'payment_reference'), 'The administrator must provide an external settlement reference.');
 $assert(str_contains($template, 'وضعیت پرداخت') && str_contains($template, 'ماندهٔ پرداخت‌نشده'), 'The Teacher finance template must show payment status and unpaid balance.');
 
 echo "teacher-statement-payment-contract: OK\n";

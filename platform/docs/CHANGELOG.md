@@ -3,6 +3,19 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Consolidated Teachers administration — 2026-11-02
+
+Replaces the Teachers Overview / Onboarding submenu split with one management workspace:
+a complete non-paginated Teacher directory, an in-page Teacher management record, and one
+current-state invitation and onboarding table. Directory statistics derive from canonical
+enrolment, delivery, attendance, availability, introductory-outcome and finance records.
+Temporary unavailability is recorded as dated blocked availability exceptions with explicit
+future-lesson conflict review. Invitation-only removal and account reset are guarded canonical
+lifecycle operations that preserve unrelated WordPress roles and historical business records.
+The academy-wide golden-hour atlas moves to the Academy Overview; individual golden-hour coverage
+remains in each Teacher profile and definitions remain in Settings/Finance configuration. See
+`TEACHERS-ADMINISTRATION-WORKSPACE.md`.
+
 ## LiveKit canonical attendance adapter — source only, not activated
 
 Adds an opt-in, disabled-by-default adapter from signed LiveKit participant lifecycle evidence to

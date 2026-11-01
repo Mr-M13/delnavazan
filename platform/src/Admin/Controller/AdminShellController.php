@@ -11,8 +11,7 @@ final class AdminShellController {
             ['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
         ]],
         'teachers' => ['Teachers', [
-            ['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers'],
-            ['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']],
+            ['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP],
         ]],
         'students' => ['Students', [
             ['Directory', 'dzn-student', 'dzn_manage_students'],

@@ -15,7 +15,7 @@ $resolver = $read('src/Admin/RecordAction/RecordActionResolver.php');
 $registry = $read('src/Admin/RecordAction/RecordActionRegistry.php');
 $renderer = $read('src/Admin/RecordAction/RecordActionRenderer.php');
 $assets = $read('src/Admin/RecordAction/RecordActionAssets.php');
-$screen = $read('src/Admin/Controller/ScreenController.php');
+$screen = $read('src/Admin/Controller/ScreenController.php') . $read('src/Admin/View/TeacherWorkspaceView.php');
 $plugin = $read('delnavazan-platform.php');
 
 $contains($plugin, array('RecordActionController::register()'), 'The record-action endpoint must be registered by the platform bootstrap');
@@ -103,7 +103,7 @@ $expect(!str_contains($assets, 'margin-left') && !str_contains($assets, 'margin-
 
 $contains($screen, array(
     'RecordActionRenderer::renderNotices()',
-    "RecordActionRenderer::renderSelected('teacher', \$record, 'dzn-teachers-menu'",
+    "RecordActionRenderer::renderSelected('teacher', \$record, \$page",
     "if(\$entity==='teacher')throw new \\InvalidArgumentException('Use the authorised Teacher record action')",
 ), 'The teacher record must use the shared renderer and reject the legacy parallel mutation path');
 $expect(!str_contains($screen, 'teacherArchiveActions('), 'The teacher archive action must not remain a parallel form');

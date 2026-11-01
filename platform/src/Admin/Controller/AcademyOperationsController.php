@@ -40,6 +40,7 @@ final class AcademyOperationsController {
         if (AcademyDashboardScreen::shows('schedule') || AcademyDashboardScreen::shows('attention')) self::classOperationalState();
         if (AcademyDashboardScreen::shows('activity')) self::activityPanel($summary);
         if (AcademyDashboardScreen::shows('finance')) self::financePanel($summary);
+        if (AcademyDashboardScreen::shows('coverage')) self::coveragePanel();
         if (AcademyDashboardScreen::shows('queue')) self::journeyQueue($result, $query, $stage, $page, $view);
         if (AcademyDashboardScreen::shows('reschedules')) self::rescheduleQueue();
         echo '</div>';
@@ -271,6 +272,14 @@ final class AcademyOperationsController {
             echo '<div class="dzn-chart__day" title="' . esc_attr($title) . '"><div class="dzn-chart__bars"><span class="dzn-chart__bar" style="--h:' . $bh . 'px"></span>' . ($showLessons ? '<span class="dzn-chart__bar dzn-chart__bar--lessons" style="--h:' . $lh . 'px"></span>' : '') . '</div><span class="dzn-chart__label">' . esc_html((string) $day['label']) . '</span></div>';
         }
         echo '</div></section>';
+    }
+
+    /** Academy-wide golden-hour coverage now lives on Overview, not in Teachers. */
+    private static function coveragePanel(): void {
+        echo '<section class="dzn-panel" id="dzn-golden-hour-overview"><div class="dzn-panel__head"><div><h2>Golden-hour coverage</h2><p>Academy-wide coverage and gaps by instrument and area. Teacher-specific golden hours remain in each Teacher profile; definitions and rules remain in Settings.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#golden-hour-pay')) . '">Golden-hour settings →</a></div>';
+        if (current_user_can('dzn_view_booking_requests')) AcademyCoverageController::renderAtlas('dzn-academy-dashboard');
+        else echo '<p class="dzn-empty">Coverage requires booking-request visibility.</p>';
+        echo '</section>';
     }
 
     private static function financePanel(array $summary): void {

@@ -58,6 +58,18 @@ final class TeacherAvailabilityService {
         }
     }
     public function retireActiveOwnRecurringRule(int $ruleId):void { $teacher=$this->activeOwnTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();}catch(\Throwable $e){$this->repo->rollback();throw $e;} }
+    /** Administrator retirement of one recurring window; historical records are untouched. */
+    public function retireRule(int $teacherId, int $ruleId): void {
+        $this->admin(); $teacher = Normalizer::id($teacherId); $rule = Normalizer::id($ruleId); $now = current_time('mysql', true);
+        $this->repo->begin(); try { $this->repo->retireAdminRule($rule, $teacher, $now, get_current_user_id() ?: null); $this->repo->commit(); } catch (\Throwable $error) { $this->repo->rollback(); throw $error; }
+    }
+
+    /** Administrator retirement of one dated exception; historical records are untouched. */
+    public function retireException(int $teacherId, int $exceptionId): void {
+        $this->admin(); $teacher = Normalizer::id($teacherId); $exception = Normalizer::id($exceptionId); $now = current_time('mysql', true);
+        $this->repo->begin(); try { $this->repo->retireAdminException($exception, $teacher, $now, get_current_user_id() ?: null); $this->repo->commit(); } catch (\Throwable $error) { $this->repo->rollback(); throw $error; }
+    }
+
     public function setDatedException(array $input): int {
         $this->admin(); $d = $this->exception( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveException( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }

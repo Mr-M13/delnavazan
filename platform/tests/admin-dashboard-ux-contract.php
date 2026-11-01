@@ -14,7 +14,7 @@ $dashboard = $read('src/Admin/Controller/AcademyOperationsController.php');
 $readService = $read('src/Core/Application/AcademyDashboardReadService.php');
 $screenOptions = $read('src/Admin/AcademyDashboardScreen.php');
 $shell = $read('src/Admin/Controller/AdminShellController.php');
-$screen = $read('src/Admin/Controller/ScreenController.php');
+$screen = $read('src/Admin/Controller/ScreenController.php') . $read('src/Admin/View/TeacherWorkspaceView.php');
 $menu = $read('src/Admin/Controller/Menu.php');
 $routeSources = $menu;
 foreach (glob($root . '/src/Admin/Controller/*.php') ?: array() as $controllerFile) {
@@ -39,7 +39,10 @@ $contains($dashboard, array(
     'Quick actions',
     'classOperationalState',
     'pendingActions',
-), 'The Academy dashboard must expose the task-first sections.');
+    "AcademyDashboardScreen::shows('coverage')",
+    'AcademyCoverageController::renderAtlas',
+    'Golden-hour coverage',
+), 'The Academy dashboard must expose the task-first sections, including academy-wide golden-hour coverage.');
 $expect(!str_contains($dashboard, "'#'.(int)"), 'The dashboard must not show raw record identifiers as navigation labels.');
 $expect(!str_contains($dashboard, 'INSERT INTO') && !str_contains($dashboard, 'UPDATE '), 'The dashboard controller must remain read-only.');
 
@@ -71,6 +74,7 @@ $contains($screenOptions, array(
     'Learner pipeline',
     '14-day activity',
     'Finance snapshot',
+    'Golden-hour coverage',
     'Needs attention',
     'Learner journey queue',
     'Class time changes',

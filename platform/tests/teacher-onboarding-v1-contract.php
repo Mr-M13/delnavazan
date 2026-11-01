@@ -12,7 +12,8 @@ $files = array(
     'availability' => file_get_contents( $root . '/src/Core/Application/TeacherAvailabilityService.php' ),
     'controller' => file_get_contents( $root . '/src/Portals/TeacherOnboardingController.php' ),
     'claim_controller' => file_get_contents( $root . '/src/Portals/TeacherInvitationController.php' ),
-    'admin' => file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' ),
+    'admin' => file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' ) . file_get_contents( $root . '/src/Admin/View/TeacherWorkspaceView.php' ),
+    'registry' => file_get_contents( $root . '/src/Admin/RecordAction/RecordActionRegistry.php' ),
     'portal' => file_get_contents( $root . '/src/Portals/PortalAuthenticatedReadService.php' ),
     'theme_bridge' => file_get_contents( dirname( $root ) . '/theme/inc/platform-bridge.php' ),
     'theme_route' => file_get_contents( dirname( $root ) . '/theme/inc/routes.php' ),
@@ -48,8 +49,8 @@ foreach ( array( 'admin_post_dzn_teacher_onboarding_profile', 'admin_post_dzn_te
 foreach ( array( 'admin_post_dzn_teacher_invitation_claim', 'admin_post_nopriv_dzn_teacher_invitation_claim', 'beginExistingClaim', 'beginProvisioning', 'recordProvisioningResult', 'finalizeClaim', 'check_admin_referer' ) as $fragment )
     if ( strpos( $files['claim_controller'], $fragment ) === false ) throw new RuntimeException( 'Invitation claim boundary missing: ' . $fragment );
 if ( strpos( $files['claim_controller'], "\$_GET['invitation_code']" ) !== false ) throw new RuntimeException( 'Invitation secret must not be accepted from a URL.' );
-foreach ( array( 'dzn_manage_onboarding', 'Approve and activate', 'teacherReadinessPanel' ) as $fragment )
-    if ( strpos( $files['admin'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
+foreach ( array( 'dzn_manage_onboarding', 'Approve and activate', 'Onboarding and account' ) as $fragment )
+    if ( strpos( $files['admin'] . $files['registry'], $fragment ) === false ) throw new RuntimeException( 'Admin review boundary missing: ' . $fragment );
 
 if ( strpos( $files['portal'], 'hasActiveTeacherAuthority' ) === false || strpos( $files['portal'], 'teacher_onboarding_required' ) === false ) throw new RuntimeException( 'Normal Teacher portal readiness gate missing.' );
 foreach ( array( 'currentForUser', "'onboarding' === \$screen", 'dzn_teacher_onboarding_profile' ) as $fragment )

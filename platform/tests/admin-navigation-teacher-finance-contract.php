@@ -22,8 +22,7 @@ $contains($shell, array(
     "'academy' => ['Academy'",
     "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "'teachers' => ['Teachers'",
-    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
-    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
+    "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
     "'enrolment' => ['Enrolment'",
     "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
     "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
@@ -43,7 +42,7 @@ foreach (array("'courses' => ['Courses'", "'communications' => ['Communications'
     $expect(!str_contains($shell, $removedTab), 'redundant top-level tab must be consolidated, not duplicated: ' . $removedTab);
 }
 $expect(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
-$expect(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teachers must expose exactly Overview and Onboarding & Invitations');
+$expect(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'") && !str_contains($shell, "['Overview', 'dzn-teachers-menu'"), 'Teachers must expose one consolidated workspace without legacy sub-tabs');
 $contains($menu, array(
     'CORE_WORKFLOW_CAP',
     'mappedCoreWorkflowCaps',

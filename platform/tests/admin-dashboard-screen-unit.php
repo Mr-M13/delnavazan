@@ -12,8 +12,8 @@ require_once dirname(__DIR__) . '/src/Admin/AcademyDashboardScreen.php';
 
 $screen = 'Delnavazan\\Platform\\Admin\\AcademyDashboardScreen';
 $sections = $screen::sections();
-if (count($sections) !== 10) throw new RuntimeException('Screen Options must expose ten dashboard sections');
-foreach (array('quick', 'kpis', 'actions', 'schedule', 'pipeline', 'activity', 'finance', 'attention', 'queue', 'reschedules') as $key) {
+if (count($sections) !== 11) throw new RuntimeException('Screen Options must expose eleven dashboard sections');
+foreach (array('quick', 'kpis', 'actions', 'schedule', 'pipeline', 'activity', 'finance', 'coverage', 'attention', 'queue', 'reschedules') as $key) {
     if (!isset($sections[$key])) throw new RuntimeException('Missing dashboard section: ' . $key);
 }
 
@@ -22,7 +22,7 @@ if (!isset($saved['quick'], $saved['kpis']) || (int) $saved['quick'] !== 1 || (i
     throw new RuntimeException('Screen Options must persist known section values');
 }
 if (isset($saved['unknown'])) throw new RuntimeException('Screen Options must discard unknown section keys');
-if (count($saved) !== 10) throw new RuntimeException('Screen Options must persist every known section key');
+if (count($saved) !== 11) throw new RuntimeException('Screen Options must persist every known section key');
 
 $GLOBALS['dzn_screen_meta']['dzn_academy_sections'] = array('quick' => 0, 'kpis' => 1);
 $visible = $screen::visible();

@@ -106,7 +106,11 @@ final class TeacherOnboardingWorkspaceReadService {
             ? 'Google account connected'
             : ($connectionState === 'not_connected'
                 ? 'Google account not connected'
-                : ($connectionState === 'connected' ? 'Connection recorded; credential not ready' : ucfirst(str_replace('_', ' ', $connectionState))));
+                : ($connectionState === 'connected'
+                    ? 'Connection recorded; credential not ready'
+                    : ($connectionState === 'refresh_failed'
+                        ? 'Google authorisation expired; reconnection required'
+                        : ($connectionState === 'disconnected' ? 'Google account disconnected' : ucfirst(str_replace('_', ' ', $connectionState))))));
         return array(
             'connection_state' => $connectionState,
             'identity_state' => $identityState,

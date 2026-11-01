@@ -4,7 +4,7 @@ $root = dirname( __DIR__ );
 $availability = (string) file_get_contents( $root . '/src/Core/Application/TeacherAvailabilityService.php' );
 $onboarding = (string) file_get_contents( $root . '/src/Core/Application/TeacherOnboardingService.php' );
 $invitations = (string) file_get_contents( $root . '/src/Core/Infrastructure/Repository/PrincipalInvitationRepository.php' );
-$admin = (string) file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' );
+$admin = (string) file_get_contents( $root . '/src/Admin/Controller/ScreenController.php' ) . (string) file_get_contents( $root . '/src/Admin/View/TeacherWorkspaceView.php' );
 
 foreach ( array(
 	'(new TeacherOnboardingService())->refreshOwnProgress()',
@@ -29,7 +29,7 @@ foreach ( array(
 }
 foreach ( array( 'approve_teacher_onboarding', 'return_teacher_onboarding', 'reject_teacher_onboarding', 'reviewTeacherOnboarding' ) as $reviewAction )
     if ( ! str_contains( $admin, $reviewAction ) ) throw new RuntimeException( 'Admin review action is not reachable: ' . $reviewAction );
-foreach ( array( 'teacherInvitationPanel', 'teacherReadinessPanel', "current_user_can('dzn_manage_onboarding')", 'Onboarding readiness' ) as $needle ) {
+foreach ( array( 'Onboarding and invitations', 'Outstanding blockers', "current_user_can('dzn_manage_onboarding')", 'onboardingOverview' ) as $needle ) {
 	if ( ! str_contains( $admin, $needle ) ) throw new RuntimeException( 'Consolidated admin readiness UI is not reachable: ' . $needle );
 }
 echo "teacher-onboarding-readiness-gate-contract: pass\n";

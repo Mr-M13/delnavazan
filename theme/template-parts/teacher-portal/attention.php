@@ -9,6 +9,7 @@ $demo    = ! empty( $context['demo'] );
 if ( ! $items ) { return; }
 ?>
 <section class="dzn-tp-section" aria-labelledby="tp-attention"><div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">نیازمند توجه شما</p><h2 id="tp-attention">کارهای مهم</h2></div><span class="dzn-tp-count-badge"><?php echo esc_html( sprintf( '%d مورد', count( $items ) ) ); ?></span></div>
+<?php $has_absence = (bool) array_filter( $items, static fn( $item ) => is_array( $item ) && 'student_absence' === ( $item['state'] ?? '' ) ); if ( $has_absence ) { dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'استحقاق جبران به سهمیهٔ ترم بستگی دارد', 'text' => 'گزارش غیبت و استحقاق جبران دو چیز جدا هستند. کارت قابل اقدام فقط برای غیبتی ساخته می‌شود که سهمیهٔ ترم به آن اختصاص یافته باشد.', 'module' => 'absence-replacement' ) ); } ?>
 <?php if ( ! $items ) : ?>
 	<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3>اکنون کار فوری‌ای ندارید</h3><p>درخواست‌های تازهٔ کلاس و موارد نیازمند پاسخ شما همین‌جا نمایش داده می‌شوند.</p></div>
 <?php else : ?>

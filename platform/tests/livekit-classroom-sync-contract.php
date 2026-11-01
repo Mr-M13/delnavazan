@@ -39,9 +39,10 @@ $check('music messages identify their sender', str_contains($js, 'sender: room.l
 $check('music messages are reliable and topic-scoped', str_contains($js, 'publishData(') && str_contains($js, 'reliable: true') && str_contains($js, 'topic: MUSIC_TOPIC'));
 $check('the classroom subscribes to LiveKit data messages', str_contains($js, 'LK.RoomEvent.DataReceived'));
 $check('unsupported message versions are ignored', str_contains($js, 'message.version !== MUSIC_MESSAGE_VERSION'));
-$check('own and mismatched senders are ignored', str_contains($js, 'sender === localIdentity') && str_contains($js, 'String(participant.identity) !== sender'));
+$check('own and mismatched senders are ignored', str_contains($js, 'sender === ownIdentity') && str_contains($js, 'String(participant.identity) !== sender'));
 $check('a joining participant receives the current shared state', str_contains($js, 'RoomEvent.ParticipantConnected') && str_contains($js, 'broadcastMusicMode();'));
 $check('a reconnecting participant re-announces the shared state', str_contains($js, 'RoomEvent.Reconnected') && str_contains($js, 'broadcastMusicMode();'));
+$check('simultaneous announcements converge on one state', str_contains($js, 'state.musicStamp') && str_contains($js, 'at < previous.at'));
 
 $receive = $between($js, 'function handleMusicModeMessage', 'function encodeDataMessage');
 $check('the receive path is a distinct function', $receive !== '');

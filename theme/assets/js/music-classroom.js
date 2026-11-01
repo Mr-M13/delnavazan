@@ -65,6 +65,7 @@
     rotation: 0,
     rotationObserver: null,
     musicChangedBy: '',
+    musicStamp: { at: 0, sender: '' },
     musicApplyToken: 0,
     ending: false
   };
@@ -387,9 +388,15 @@
   async function changeMusicMode() {
     state.musicOn = !!music.checked;
     state.musicChangedBy = 'شما';
+    state.musicStamp = { at: Date.now(), sender: localIdentity() };
     updateMusicLabel();
     broadcastMusicMode();
     await reconfigureAudioForMusic();
+  }
+
+  function localIdentity() {
+    var room = state.room;
+    return room && room.localParticipant && room.localParticipant.identity ? String(room.localParticipant.identity) : '';
   }
 
   /**
@@ -403,6 +410,7 @@
     var message = {
       enabled: !!state.musicOn,
       sender: room.localParticipant.identity || '',
+      at: state.musicStamp && state.musicStamp.at ? state.musicStamp.at : Date.now(),
       version: MUSIC_MESSAGE_VERSION
     };
     try {
@@ -423,9 +431,15 @@
     var message = decodeDataMessage(payload);
     if (!message || message.version !== MUSIC_MESSAGE_VERSION || typeof message.enabled !== 'boolean') return;
     var sender = String(message.sender || (participant && participant.identity) || '');
-    var localIdentity = room.localParticipant && room.localParticipant.identity ? String(room.localParticipant.identity) : '';
-    if (sender && localIdentity && sender === localIdentity) return;
+    var ownIdentity = localIdentity();
+    if (sender && ownIdentity && sender === ownIdentity) return;
     if (participant && participant.identity && sender && String(participant.identity) !== sender) return;
+    // Both peers may announce at once on a simultaneous reconnect. The highest
+    // (timestamp, sender) tuple wins, so both converge on one shared state.
+    var at = Number(message.at) || 0;
+    var previous = state.musicStamp || { at: 0, sender: '' };
+    if (at < previous.at || (at === previous.at && sender <= String(previous.sender || ''))) return;
+    state.musicStamp = { at: at, sender: sender };
     var enabled = message.enabled === true;
     var changed = state.musicOn !== enabled;
     state.musicOn = enabled;

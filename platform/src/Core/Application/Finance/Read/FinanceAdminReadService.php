@@ -230,7 +230,9 @@ final class FinanceAdminReadService {
                     obligation.id obligation_id,obligation.obligation_sequence,obligation.sessions_from,obligation.sessions_to,
                     student.display_name student_name,student.reference_code student_reference,
                     COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
-                    COALESCE((SELECT SUM(refund.amount_minor) FROM {$this->p}commercial_payment_evidence refund WHERE refund.obligation_id=obligation.id AND refund.evidence_kind='refund' AND refund.processing_state='accepted'),0) refunded_minor
+                    COALESCE((SELECT SUM(refund.amount_minor) FROM {$this->p}commercial_payment_evidence refund WHERE refund.obligation_id=obligation.id AND refund.evidence_kind='refund' AND refund.processing_state='accepted'),0) refunded_minor,
+                    COALESCE((SELECT SUM(reservation.amount_minor) FROM {$this->p}finance_manual_refund_reservations reservation WHERE reservation.obligation_id=obligation.id AND reservation.state='reserved'),0) reserved_minor,
+                    GREATEST(0,settlement.amount_minor-COALESCE((SELECT SUM(refund.amount_minor) FROM {$this->p}commercial_payment_evidence refund WHERE refund.obligation_id=obligation.id AND refund.evidence_kind='refund' AND refund.processing_state='accepted'),0)-COALESCE((SELECT SUM(reservation.amount_minor) FROM {$this->p}finance_manual_refund_reservations reservation WHERE reservation.obligation_id=obligation.id AND reservation.state='reserved'),0)) remaining_minor
              FROM {$this->p}commercial_obligation_settlements settlement
              INNER JOIN {$this->p}commercial_offer_obligations obligation ON obligation.id=settlement.obligation_id
              INNER JOIN {$this->p}commercial_offers offer_row ON offer_row.id=obligation.offer_id
@@ -388,11 +390,28 @@ final class FinanceAdminReadService {
         return $rows ?: array();
     }
 
+    /** @return list<object> */
+    public function manualRefundReservations(int $limit = 100): array {
+        FinanceSupport::requireCapability('dzn_view_recurring_authority');
+        global $wpdb;
+        $limit = max(1, min(500, $limit));
+        return $wpdb->get_results(
+            "SELECT reservation.*,student.display_name student_name,student.reference_code student_reference,
+                    offer_row.uid offer_uid,offer_row.reference_code offer_reference,
+                    obligation.obligation_sequence
+             FROM {$this->p}finance_manual_refund_reservations reservation
+             LEFT JOIN {$this->p}students student ON student.id=reservation.student_id
+             LEFT JOIN {$this->p}commercial_offers offer_row ON offer_row.id=reservation.offer_id
+             LEFT JOIN {$this->p}commercial_offer_obligations obligation ON obligation.id=reservation.obligation_id
+             ORDER BY reservation.id DESC LIMIT {$limit}"
+        ) ?: array();
+    }
+
     public function statementEmailEvent(int $statementId): ?array {
         FinanceSupport::requireCapability('dzn_view_finance_authority');
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT event_type,occurred_at FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type IN ('emailed','email_failed') ORDER BY id DESC LIMIT 1",
+            "SELECT event_type,occurred_at FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type IN ('emailed','email_failed','email_queued','email_transport_accepted') ORDER BY id DESC LIMIT 1",
             $statementId
         ));
         return $row === null ? null : array('type' => (string) $row->event_type, 'occurred_at' => (string) $row->occurred_at);

@@ -15,6 +15,53 @@ $items = isset( $payments['items'] ) && is_array( $payments['items'] ) ? $paymen
 $checkout_enabled = ! empty( $payments['checkout_enabled'] );
 $disabled = 'disabled' === (string) ( $payments['state'] ?? '' );
 $unavailable = 'unavailable' === (string) ( $payments['state'] ?? ( $checkout_enabled ? 'ok' : 'unavailable' ) );
+$history = isset( $args['history'] ) && is_array( $args['history'] ) ? $args['history'] : array();
+$history_items = isset( $history['items'] ) && is_array( $history['items'] ) ? $history['items'] : array();
+$history_available = 'ok' === (string) ( $history['state'] ?? '' );
+$format_history_money = static function ( int $minor, string $currency ): string {
+	if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney' ) ) {
+		try { return \Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney::format( $minor, $currency, true ); } catch ( Throwable ) {}
+	}
+	return number_format( $minor ) . ( $currency !== '' ? ' ' . $currency : '' );
+};
+$history_labels = array(
+	'paid' => 'پرداخت شده',
+	'partially_refunded' => 'بازپرداخت جزئی',
+	'refunded' => 'بازپرداخت شده',
+	'outstanding' => 'در انتظار پرداخت',
+	'overdue' => 'سررسید گذشته',
+	'open' => 'بازپرداخت — در بررسی',
+	'review_required' => 'بازپرداخت — نیازمند تصمیم',
+	'resolved' => 'بازپرداخت — تکمیل شده',
+	'dismissed' => 'بازپرداخت — رد شده',
+	'accepted' => 'بازپرداخت ثبت شده',
+);
+$render_history = static function ( array $rows ) use ( $format_history_money, $history_labels ): void {
+	if ( ! $rows ) {
+		echo '<p class="dzn-portal-empty">' . esc_html__( 'سابقهٔ پرداختی برای نمایش ثبت نشده است.', 'delnavazan-theme' ) . '</p>';
+		return;
+	}
+	echo '<div class="dzn-payment-list dzn-payment-history">';
+	foreach ( $rows as $row ) {
+		$kind = (string) ( $row['kind'] ?? '' );
+		$status = (string) ( $row['status'] ?? '' );
+		$amount = $format_history_money( (int) ( $row['amount_minor'] ?? 0 ), (string) ( $row['currency'] ?? '' ) );
+		$title = 'refund' === $kind ? 'بازپرداخت' : ( 'outstanding' === $kind ? 'قسط در انتظار پرداخت' : 'پرداخت' );
+		$meta = array();
+		if ( '' !== (string) ( $row['course'] ?? '' ) ) { $meta[] = (string) $row['course']; }
+		if ( (int) ( $row['instalment'] ?? 0 ) > 0 ) { $meta[] = 'قسط ' . (int) $row['instalment']; }
+		if ( 'payment' === $kind ) { $meta[] = 'manual' === (string) ( $row['method'] ?? '' ) ? 'پرداخت دستی' : 'پرداخت آنلاین'; }
+		echo '<div class="dzn-payment-row">';
+		echo '<div><strong>' . esc_html( $title ) . '</strong><span>' . esc_html( implode( ' · ', $meta ) ) . '</span>';
+		if ( '' !== (string) ( $row['date'] ?? '' ) ) { echo '<span>' . esc_html( (string) $row['date'] ) . '</span>'; }
+		echo '</div>';
+		echo '<span>' . esc_html( $amount ) . '</span>';
+		if ( ! empty( $row['receipt_url'] ) ) { echo '<a href="' . esc_url( (string) $row['receipt_url'] ) . '">' . esc_html__( 'دریافت رسید', 'delnavazan-theme' ) . '</a>'; }
+		echo '<span class="dzn-status dzn-status--muted">' . esc_html( $history_labels[ $status ] ?? $status ) . '</span>';
+		echo '</div>';
+	}
+	echo '</div>';
+};
 $render_items = static function ( array $rows ): void {
 	if ( ! $rows ) {
 		echo '<p class="dzn-portal-empty">' . esc_html__( 'سابقهٔ پرداخت تازه‌ای برای نمایش ثبت نشده است.', 'delnavazan-theme' ) . '</p>';
@@ -44,6 +91,10 @@ $render_items = static function ( array $rows ): void {
 	</div>
 	<?php if ( $disabled || $unavailable ) : ?>
 		<p class="dzn-portal-empty"><?php echo esc_html( $disabled ? 'پرداخت آنلاین برای این حساب فعال نیست و مدیریت مالی از طریق دلنوازان انجام می‌شود. برای هر پرداخت یا صورتحساب با پشتیبانی تماس بگیرید.' : (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
+		<section class="dzn-payments__history" aria-labelledby="dzn-payment-history-title">
+			<h3 id="dzn-payment-history-title"><?php esc_html_e( 'سابقهٔ پرداخت', 'delnavazan-theme' ); ?></h3>
+			<?php $render_history( $history_available ? $history_items : array() ); ?>
+		</section>
 	<?php else : ?>
 	<div class="dzn-payments__summary">
 		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( (string) ( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ) ); ?></p></div>
@@ -112,6 +163,10 @@ $render_items = static function ( array $rows ): void {
 	<?php else : ?>
 		<?php $render_items( $items ); ?>
 	<?php endif; ?>
+	<section class="dzn-payments__history" aria-labelledby="dzn-payment-history-title">
+		<h3 id="dzn-payment-history-title"><?php esc_html_e( 'سابقهٔ پرداخت', 'delnavazan-theme' ); ?></h3>
+		<?php $render_history( $history_available ? $history_items : array() ); ?>
+	</section>
 	<div class="dzn-payments__boundary">
 		<p><strong><?php esc_html_e( 'لغو اشتراک، لغو ترم و لغو یک کلاس سه کار جدا هستند.', 'delnavazan-theme' ); ?></strong></p>
 		<p><?php esc_html_e( 'هیچ‌کدام در این پوسته اجرا نمی‌شود و دکمهٔ لغو فقط پس از اتصال به اختیار معتبر نمایش داده خواهد شد.', 'delnavazan-theme' ); ?></p>

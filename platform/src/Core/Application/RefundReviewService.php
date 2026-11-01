@@ -70,6 +70,14 @@ final class RefundReviewService {
             throw $e;
         }
     }
+    /** Recovery read: the existing review case for one evidence row, if any. */
+    public function existingForEvidence(int $evidenceId):?array{
+        RecurringSupport::requireCapability(self::CAPABILITY);
+        $case=$this->repository->forEvidence($evidenceId);
+        if(!$case)return null;
+        return array('refund_review_id'=>(int)$case->id,'state'=>(string)$case->state,'academic_consequence'=>null,'created'=>false,'idempotent'=>true);
+    }
+
     public function routeForReview(int $caseId,array $input,string $key):array{return $this->transition($caseId,array('open'),'review_required','route_for_review',$input,$key);}
     public function dismiss(int $caseId,array $input,string $key):array{return $this->transition($caseId,array('open','review_required'),'dismissed','dismiss',$input,$key);}
     public function resolve(int $caseId,array $input,string $key):array{

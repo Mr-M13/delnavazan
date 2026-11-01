@@ -75,6 +75,27 @@ $ruleId = $availability->setOwnRecurringRule( array(
 	'state' => 'requestable', 'timezone' => 'Australia/Brisbane',
 ) );
 $onboarding->refreshOwnProgress();
+// Runtime readiness requires a usable Google Calendar connection. Seed a disposable synthetic
+// connection/credential; no provider request is made and no real secret is stored.
+$now = current_time( 'mysql', true );
+$providerScope = \Delnavazan\Platform\Core\Application\ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE;
+$connectionUid = strtoupper( bin2hex( random_bytes( 13 ) ) );
+$wpdb->insert( $wpdb->prefix . 'dzn_integration_connections', array(
+	'uid' => $connectionUid, 'provider_code' => 'google_calendar', 'teacher_id' => (int) $issued['teacher_id'],
+	'lifecycle_sequence' => 1, 'connection_state' => 'connected', 'connection_version' => 1, 'active_slot' => 1,
+	'scope_snapshot' => $providerScope, 'consent_version' => 'acceptance_local', 'identity_digest' => hash( 'sha256', 'acceptance-google-' . $issued['teacher_id'] ),
+	'identity_state' => 'verified', 'authorized_at' => $now, 'connected_at' => $now, 'created_at' => $now,
+	'created_by' => $userId, 'updated_at' => $now, 'updated_by' => $userId,
+) );
+$connectionId = (int) $wpdb->insert_id;
+$expect( $connectionId > 0, 'synthetic Google connection was not created' );
+$wpdb->insert( $wpdb->prefix . 'dzn_integration_credentials', array(
+	'uid' => strtoupper( bin2hex( random_bytes( 13 ) ) ), 'connection_id' => $connectionId, 'credential_sequence' => 1,
+	'state' => 'active', 'key_version' => 'acceptance', 'cipher_version' => 'acceptance', 'nonce' => 'acceptance',
+	'ciphertext' => 'acceptance-local-not-a-real-credential', 'valid_until_utc' => gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS ),
+	'created_at' => $now, 'created_by' => $userId,
+) );
+$onboarding->refreshOwnProgress();
 $complete = $state( (int) $issued['teacher_id'] );
 $expect( $complete->state === 'in_progress' && $complete->profile_state === 'complete' && $complete->availability_state === 'complete', 'complete facts were not ready for submission' );
 $onboarding->submitOwn();
@@ -92,6 +113,20 @@ $expect( $ready->state === 'active' && $ready->readiness_state === 'ready', 'adm
 wp_set_current_user( $userId );
 $expect( ! $onboarding->requiresOnboarding(), 'active ready teacher was routed back to onboarding' );
 $expect( is_array( $portal->teacher() ), 'ready teacher portal did not open' );
+
+// Induction is separate from activation: progress never changes the canonical lifecycle.
+$induction = new \Delnavazan\Platform\Core\Application\Induction\TeacherInductionService();
+$inductionHub = $induction->hubForUser( $userId );
+$expect( count( $inductionHub['modules'] ) === 7 && $inductionHub['completed_count'] === 0, 'new induction progress was not empty' );
+$inductionFirst = $induction->completeForUser( 'portal', $userId );
+$expect( $inductionFirst['state'] === 'completed' && $inductionFirst['already_completed'] === false, 'induction completion was not recorded' );
+$inductionAgain = $induction->completeForUser( 'portal', $userId );
+$expect( $inductionAgain['already_completed'] === true && $inductionAgain['completed_at'] === $inductionFirst['completed_at'], 'repeated induction completion was not idempotent' );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_induction_progress WHERE teacher_id=%d AND module_id='portal'", (int) $issued['teacher_id'] ) ) === 1, 'induction completion created duplicate rows' );
+$expect( $state( (int) $issued['teacher_id'] )->state === 'active' && $state( (int) $issued['teacher_id'] )->readiness_state === 'ready', 'induction progress changed canonical activation' );
+wp_set_current_user( 1 );
+$refuse( static fn() => $induction->hubForUser( 1 ), 'unlinked account read induction progress' );
+wp_set_current_user( $userId );
 
 // Removing the final usable rule must revoke both projection readiness and portal access.
 $availability->retireActiveOwnRecurringRule( $ruleId );

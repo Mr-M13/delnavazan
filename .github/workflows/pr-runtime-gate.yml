@@ -207,6 +207,7 @@ jobs:
           php platform/tests/post-intro-enrolment-automation-contract.php
           php platform/tests/calendar-transport-retry-unit.php
           php platform/tests/interim-attendance-completion-contract.php
+          php platform/tests/teacher-delivery-confirmation-contract.php
           php platform/tests/payment-plan-choice-contract.php
           php platform/tests/instalment-deadline-policy-contract.php
           php platform/tests/post-intro-system-actor-unit.php
@@ -230,6 +231,9 @@ jobs:
             php platform/tests/teacher-onboarding-production-blockers-contract.php
             php platform/tests/teacher-portal-phase2-contract.php
           fi
+          php platform/tests/teacher-induction-unit.php
+          php platform/tests/teacher-induction-contract.php
+          php platform/tests/teacher-induction-presentation.php
           php platform/tests/teacher-portal-presentation-contract.php
           php platform/tests/admin-navigation-regression-contract.php
           php platform/tests/record-action-token-unit.php

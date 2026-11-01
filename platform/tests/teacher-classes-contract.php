@@ -192,7 +192,7 @@ namespace {
 	$check( 'reschedule no longer hides proposals behind a notice window', ! str_contains( $rescheduleService, 'MIN_NOTICE_MINUTES' ) && ! str_contains( $rescheduleService, 'reschedule_notice_too_short' ) );
 
 	$routes = (string) file_get_contents( ABSPATH . 'theme/inc/routes.php' );
-	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding' )" ) );
+	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' )" ) );
 	$finance = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/finance.php' );
 	$check( 'withdrawn statements map to a known label', str_contains( $finance, "'withdrawn' =>" ) && ! str_contains( $finance, "'void'" ) );
 

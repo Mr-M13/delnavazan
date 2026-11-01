@@ -1059,8 +1059,13 @@
 
 .dzn-tp-form-grid {
   display: grid;
+  align-items: start;
   gap: 1rem;
   min-inline-size: 0;
+}
+
+.dzn-tp-form-grid > .dzn-tp-help {
+  grid-column: 1 / -1;
 }
 
 .dzn-tp-form-grid > * {
@@ -2079,4 +2084,104 @@
 
 .dzn-tp-class-history__outcome {
   font-weight: 700;
+}
+
+/* Teacher induction: compact dashboard entry, dedicated hub and contextual tips. */
+.dzn-tp-induction__count{display:inline-block;padding:.2rem .65rem;border-radius:999px;background:color-mix(in srgb,var(--dzn-color-action-primary) 10%,transparent);color:var(--dzn-color-action-primary);font-size:.78rem;font-weight:800;white-space:nowrap}
+.dzn-tp-induction__progress{overflow:hidden;block-size:.7rem;margin-block:.35rem 1rem;border-radius:999px;background:color-mix(in srgb,var(--dzn-color-text-muted) 16%,transparent)}
+.dzn-tp-induction__progress span{display:block;block-size:100%;border-radius:inherit;background:linear-gradient(90deg,var(--dzn-color-action-primary),var(--dzn-color-accent));transition:inline-size .35s ease}
+.dzn-tp-induction-entry .dzn-tp-actions{margin-block-start:.85rem}
+.dzn-tp-induction__breadcrumb{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-block:.35rem 1rem;color:var(--dzn-color-text-muted);font-size:.85rem}
+.dzn-tp-induction__breadcrumb a{color:var(--dzn-color-action-primary)}
+.dzn-tp-induction-welcome{margin-block:1rem;padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-induction-welcome h3{margin-block-start:0}
+.dzn-tp-induction-list{display:grid;gap:.8rem;margin:1rem 0 0;padding:0;list-style:none}
+.dzn-tp-induction-card{display:grid;grid-template-columns:auto 1fr auto;gap:1rem;align-items:start;padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-induction-card.is-completed{border-color:color-mix(in srgb,var(--dzn-color-action-primary) 35%,var(--dzn-tp-border))}
+.dzn-tp-induction-card__number{display:grid;place-items:center;inline-size:2.4rem;block-size:2.4rem;border-radius:50%;background:color-mix(in srgb,var(--dzn-color-action-primary) 12%,transparent);color:var(--dzn-color-action-primary);font-weight:800}
+.dzn-tp-induction-card__body h3{margin:.1rem 0 .3rem;font-size:1.05rem}
+.dzn-tp-induction-card__body h3 a{color:inherit;text-decoration:none}
+.dzn-tp-induction-card__body h3 a:hover,.dzn-tp-induction-card__body h3 a:focus-visible{text-decoration:underline}
+.dzn-tp-induction-card__body p{margin-block:.25rem;color:var(--dzn-color-text-muted);line-height:1.9}
+.dzn-tp-induction-card__meta{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center}
+.dzn-tp-induction-card__action{align-self:center}
+.dzn-tp-induction-module{display:grid;gap:1rem;margin-block-start:1rem}
+.dzn-tp-induction-module__header{padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-induction-module__header h3{margin:.15rem 0 .4rem;font-size:1.35rem}
+.dzn-tp-induction-module__header p{margin-block:.35rem;line-height:1.9}
+.dzn-tp-induction-objectives,.dzn-tp-induction-policy,.dzn-tp-induction-section,.dzn-tp-induction-scenarios,.dzn-tp-induction-practice,.dzn-tp-induction-complete{padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-induction-objectives h4,.dzn-tp-induction-policy h4,.dzn-tp-induction-section h4,.dzn-tp-induction-scenarios h4,.dzn-tp-induction-practice h4,.dzn-tp-induction-complete h4{margin-block-start:0}
+.dzn-tp-induction-objectives ul,.dzn-tp-induction-policy ul,.dzn-tp-induction-points,.dzn-tp-induction-steps{padding-inline-start:1.25rem;line-height:2}
+.dzn-tp-induction-steps li,.dzn-tp-induction-points li{margin-block:.25rem}
+.dzn-tp-induction-tag{display:inline-block;margin-block:0 .5rem;padding:.12rem .55rem;border-radius:999px;font-size:.72rem;font-weight:800}
+.dzn-tp-induction-tag.is-required{background:color-mix(in srgb,var(--dzn-color-accent) 14%,transparent);color:var(--dzn-color-accent)}
+.dzn-tp-induction-tag.is-recommended{background:color-mix(in srgb,var(--dzn-color-text-muted) 12%,transparent);color:var(--dzn-color-text-muted)}
+.dzn-tp-induction-scenario-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr))}
+.dzn-tp-induction-scenario{padding:.9rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:color-mix(in srgb,var(--dzn-tp-card) 92%,var(--dzn-color-action-primary))}
+.dzn-tp-induction-scenario h5{margin:0 0 .5rem;font-size:1rem}
+.dzn-tp-induction-scenario dl{margin:0}
+.dzn-tp-induction-scenario dt{margin-block-start:.55rem;font-weight:800;font-size:.82rem;color:var(--dzn-color-action-primary)}
+.dzn-tp-induction-scenario dd{margin:.18rem 0 0;color:var(--dzn-color-text-muted);line-height:1.85;font-size:.88rem}
+.dzn-tp-induction-scenario dd ul{margin:0;padding-inline-start:1.1rem}
+.dzn-tp-induction-question{margin-block:1rem;padding:.9rem;border:1px solid var(--dzn-tp-border);border-radius:12px}
+.dzn-tp-induction-question legend{padding-inline:.35rem;font-weight:800;line-height:1.8}
+.dzn-tp-induction-question label{display:flex;gap:.5rem;align-items:flex-start;margin-block:.45rem;line-height:1.85}
+.dzn-tp-induction-answer{min-block-size:1.4rem;margin-block:.55rem 0;font-weight:700}
+.dzn-tp-induction-pager{display:flex;flex-wrap:wrap;gap:.6rem;margin-block:.5rem}
+.dzn-tp-induction-settings .dzn-tp-actions,.dzn-tp-induction-settings p{margin-block:.65rem}
+.dzn-tp-tip{margin-block:.75rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:color-mix(in srgb,var(--dzn-color-action-primary) 5%,var(--dzn-tp-card))}
+.dzn-tp-tip summary{display:flex;gap:.5rem;align-items:center;padding:.7rem .9rem;cursor:pointer;font-weight:800;line-height:1.6}
+.dzn-tp-tip summary:focus-visible{outline:2px solid var(--dzn-color-action-primary);outline-offset:2px}
+.dzn-tp-tip__icon{display:grid;place-items:center;inline-size:1.45rem;block-size:1.45rem;border-radius:50%;background:var(--dzn-color-action-primary);color:var(--dzn-color-on-action);font-size:.85rem;flex:none}
+.dzn-tp-tip__body{padding:0 .9rem .8rem 2.8rem}
+.dzn-tp-tip__body p{margin-block:.35rem;line-height:1.9;color:var(--dzn-color-text-muted)}
+.is-dzn-induction-highlight{outline:3px solid var(--dzn-color-accent)!important;outline-offset:4px;border-radius:6px}
+.dzn-tp-welcome-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));margin-block:1rem}
+.dzn-tp-welcome-card{padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-welcome-card h3{margin-block-start:0;font-size:1.02rem}
+.dzn-tp-welcome-card p{margin-block:0;color:var(--dzn-color-text-muted);line-height:1.95}
+.dzn-tp-summary-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr));margin-block:1rem}
+.dzn-tp-summary-card{padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-summary-card h3{margin-block-start:0;font-size:1.02rem}
+.dzn-tp-summary-card dl{display:grid;grid-template-columns:auto 1fr;gap:.3rem .75rem;margin:0}
+.dzn-tp-summary-card dt{font-weight:800;font-size:.82rem}
+.dzn-tp-summary-card dd{margin:0;color:var(--dzn-color-text-muted);overflow-wrap:anywhere}
+.dzn-tp-status-card{padding:1.1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
+.dzn-tp-status-card h3{margin-block-start:0}
+.dzn-tp-status-card.is-pending{border-inline-start:5px solid var(--dzn-color-accent)}
+.dzn-tp-status-card.is-returned{border-inline-start:5px solid var(--dzn-color-warning)}
+.dzn-tp-status-card.is-rejected{border-inline-start:5px solid var(--dzn-color-error)}
+.dzn-tp-status-card.is-approved{border-inline-start:5px solid var(--dzn-color-success)}
+.dzn-tp-step-nav{display:flex;flex-wrap:wrap;gap:.6rem;margin-block:.5rem 1.2rem}
+.dzn-tp-review-note.is-warning{border-inline-start:4px solid var(--dzn-color-warning)}
+.dzn-tp-review-note ul{margin-block:.5rem;padding-inline-start:1.2rem}
+.dzn-tp-link-button{background:none;border:0;padding:0;margin-block-start:.5rem;color:var(--dzn-color-action-primary);text-decoration:underline;cursor:pointer;font:inherit}
+@media (max-width:47.99rem){
+  .dzn-tp-induction-card{grid-template-columns:auto 1fr}
+  .dzn-tp-induction-card__action{grid-column:1/-1}
+  .dzn-tp-induction-card__action .dzn-button{inline-size:100%;min-block-size:44px}
+  .dzn-tp-induction-pager .dzn-button,.dzn-tp-step-nav .dzn-button{min-block-size:44px}
+  .dzn-tp-tip__body{padding-inline-start:.9rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .dzn-tp-induction__progress span{transition:none}
+}
+
+/* Primary action links must keep the on-action colour inside the authenticated teacher portal. */
+.dzn-teacher-portal a.dzn-button,
+.dzn-teacher-portal a.dzn-button:link,
+.dzn-teacher-portal a.dzn-button:visited,
+.dzn-teacher-portal a.dzn-button:hover,
+.dzn-teacher-portal a.dzn-button:focus-visible,
+.dzn-teacher-portal a.dzn-button:active {
+  color: var(--dzn-color-on-action);
+}
+
+.dzn-teacher-portal a.dzn-button--secondary,
+.dzn-teacher-portal a.dzn-button--secondary:link,
+.dzn-teacher-portal a.dzn-button--secondary:visited,
+.dzn-teacher-portal a.dzn-button--secondary:hover,
+.dzn-teacher-portal a.dzn-button--secondary:focus-visible,
+.dzn-teacher-portal a.dzn-button--secondary:active {
+  color: var(--dzn-color-action-secondary);
 }

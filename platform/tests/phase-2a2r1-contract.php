@@ -31,7 +31,9 @@ $continuationRule=file_get_contents($root.'/src/Core/Application/CanonicalContin
 $authorityRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CommercialAuthorityRepository.php');
 $paymentRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CommercialPaymentRepository.php');
 $capacityRepo=file_get_contents($root.'/src/Core/Infrastructure/Repository/CommercialCapacityRepository.php');
-$phaseR1=$rule.$money.$validator.$lineage.$commitment.$commandShape.$offer.$payment.$funding.$capacity.$capacityAuthority.$pattern.$policy.$catalogue.$promotion.$adjustment.$exceptions.$read.$support.$idempotency.$authorityRepo.$paymentRepo.$capacityRepo;
+// R1 core excludes the payment authority so the one later-sanctioned provider key can be isolated.
+$phaseR1Core=$rule.$money.$validator.$lineage.$commitment.$commandShape.$offer.$funding.$capacity.$capacityAuthority.$pattern.$policy.$catalogue.$promotion.$adjustment.$exceptions.$read.$support.$idempotency.$authorityRepo.$paymentRepo.$capacityRepo;
+$phaseR1=$phaseR1Core.$payment;
 $phaseR1Application=$rule.$money.$validator.$lineage.$commitment.$commandShape.$offer.$payment.$funding.$capacity.$capacityAuthority.$pattern.$policy.$catalogue.$promotion.$adjustment.$exceptions.$read.$support.$idempotency;
 
 if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$plugin,$schema)||(int)$schema[1]<25)throw new RuntimeException('Missing Phase R1 schema identity');
@@ -100,7 +102,14 @@ if(!str_contains($termAuthority,'assertTermClosable'))throw new RuntimeException
 // Provider neutrality and the exact-money invariant.
 if(preg_match('/\b(floatval|doubleval|float|round|number_format)\s*\(/',$phaseR1))throw new RuntimeException('Commercial authority must not use floating-point money handling');
 if(str_contains($money,'/ '))throw new RuntimeException('Commercial money arithmetic must be integer-only');
-foreach(array('stripe','Stripe','wp_remote_','wp_mail','curl_','webhook') as $forbidden) if(str_contains($phaseR1,$forbidden))throw new RuntimeException('Phase R1 must not acquire this authority: '.$forbidden);
+// Provider neutrality. Transport/network authority stays forbidden in every R1 source, and R1's
+// own core remains provider-silent. The later Phase-T integration sanctions exactly one Stripe
+// provider key inside CommercialPaymentService (evidence repair); no other R1 source may name a
+// provider, so the exception is pinned to that single assignment and excludes comments.
+foreach(array('wp_remote_','wp_mail','curl_','webhook') as $forbidden) if(str_contains($phaseR1,$forbidden))throw new RuntimeException('Phase R1 must not acquire this authority: '.$forbidden);
+if(substr_count($payment,"\$providerKey='stripe';")!==1)throw new RuntimeException('The payment authority must name exactly the one sanctioned provider key');
+$withoutComments=static function(string $source):string{return (string)preg_replace(array('~/\*.*?\*/~s','~//[^\n]*~'),'',$source);};
+if(stripos($withoutComments($phaseR1Core),'stripe')!==false)throw new RuntimeException('Phase R1 core must stay provider-neutral: stripe');
 foreach(array('INSERT INTO','UPDATE ','DELETE FROM') as $sql) if(str_contains($phaseR1Application,$sql))throw new RuntimeException('Phase R1 application services must not write storage with raw SQL: '.$sql);
 foreach(array('cron','wp_schedule_event','wp_schedule_single_event') as $forbidden) if(str_contains($phaseR1,$forbidden))throw new RuntimeException('Phase R1 must not become time-authoritative through scheduling: '.$forbidden);
 
@@ -114,7 +123,7 @@ if(!str_contains($funding,"min((int)\$plan['committed_sessions'],\$this->effecti
 
 // Correction Round 1 — accepted-purchase benefit consumption is the only consumption boundary.
 if(!str_contains($payment,'private function consumeBenefits'))throw new RuntimeException('Purchase acceptance must consume the accepted offer benefits');
-if(!str_contains($payment,'$this->consumeBenefits($offer,(string)$occurredAt,$now,$actor);'))throw new RuntimeException('Benefit consumption must run inside accepted purchase convergence');
+if(!str_contains($payment,'if($consumeBenefits)$this->consumeBenefits($offer,$occurredAt,$now,$actor);'))throw new RuntimeException('Benefit consumption must run inside accepted purchase convergence');
 if(!str_contains($payment,'insertRedemption')||!str_contains($payment,'updateAdjustmentState'))throw new RuntimeException('The payment authority must consume the promotion redemption and the account adjustment');
 if(!str_contains($payment,'promotion_usage_limit_reached')||!str_contains($payment,'promotion_beneficiary_limit_reached')||!str_contains($payment,'commercial_adjustment_already_consumed'))throw new RuntimeException('Benefit consumption must enforce both promotion limits and single adjustment consumption');
 foreach(array('insertRedemption','updateAdjustmentState') as $forbidden) if(str_contains($offer,$forbidden))throw new RuntimeException('Offer issuance must never consume a commercial benefit: '.$forbidden);
@@ -125,7 +134,7 @@ if(!str_contains($validator,'public static function intervalMatchesSchedule'))th
 foreach(array('starts_at_utc','ends_at_utc','occupied_ends_at_utc','schedule_timezone','local_wall_date','local_wall_time','teacher_id') as $field) if(!str_contains($validator,$field))throw new RuntimeException('Exact interval identity must include '.$field);
 foreach(array('protected_interval_mismatch','protected_interval_missing','protected_interval_teacher_mismatch') as $reason) if(!str_contains($capacityAuthority,$reason))throw new RuntimeException('Exact interval identity must fail closed with '.$reason);
 if(!str_contains($capacityAuthority,'$repository->claimsForTerm($termId,true)')||!str_contains($capacityAuthority,'$repository->intervals((int)$claim->id,true)'))throw new RuntimeException('The authorising interval must be locked inside the scheduling transaction');
-if(!str_contains($schedules,'CommercialCapacityAuthority::assertScheduleAllowed($lesson,$schedule??array())'))throw new RuntimeException('Phase N must authorise against the exact schedule identity');
+if(!str_contains($schedules,'CommercialCapacityAuthority::assertScheduleAllowed($lesson,$schedule??array(),null,$allowMoveIntervalId)'))throw new RuntimeException('Phase N must authorise against the exact schedule identity');
 if(!str_contains($schedules,'CommercialCapacityAuthority::satisfyForLesson($lesson,(int)$versionId,$schedule??array(),$actor,$now)'))throw new RuntimeException('Phase N must satisfy using the exact schedule identity');
 
 // Correction Round 1 — historical capacity rows are never blockers, and only the exact interval is excluded.
@@ -271,9 +280,12 @@ if(!str_contains($commitment,'STATES_PRE_CAPACITY')||!str_contains($commitment,'
 if(!str_contains($commitment,'CommercialLineageValidator::assertForOffer'))throw new RuntimeException('The commitment validator must delegate the upstream offer lineage proof');
 foreach(array('INSERT INTO','UPDATE ','DELETE FROM') as $sql) if(str_contains($commitment,$sql))throw new RuntimeException('The commitment validator must never write storage: '.$sql);
 // Both downstream mutation owners consume the one implementation, not their own comparisons.
-if(substr_count($capacity,'CommercialCommitmentValidator::assertForEntitlement')!==1||substr_count($funding,'CommercialCommitmentValidator::assertForEntitlement')!==1)throw new RuntimeException('Each downstream mutation owner must prove the commitment exactly once');
-// Once at the mutation boundary and once in the replay revalidation: exactly two canonical claim proofs.
-if(substr_count($capacity,'CommercialCommitmentValidator::assertClaimAggregateBelongsToCommitment')!==2||substr_count($funding,'CommercialCommitmentValidator::assertClaimAggregateBelongsToCommitment')!==2)throw new RuntimeException('Each downstream mutation owner must prove its existing claim aggregate at its boundary and on replay');
+// Capacity proves the commitment once at its handoff boundary; Term binding proves it at the
+// binding boundary and again when a recorded binding is replayed.
+if(substr_count($capacity,'CommercialCommitmentValidator::assertForEntitlement')!==1||substr_count($funding,'CommercialCommitmentValidator::assertForEntitlement')!==2)throw new RuntimeException('Each downstream mutation owner must prove the commitment at every mutation/replay boundary');
+// Once at the mutation boundary and again in the replay revalidation. The Term binding also
+// re-proves its claim through its boundary helper, so it must carry at least the two canonical proofs.
+if(substr_count($capacity,'CommercialCommitmentValidator::assertClaimAggregateBelongsToCommitment')<2||substr_count($funding,'CommercialCommitmentValidator::assertClaimAggregateBelongsToCommitment')<2)throw new RuntimeException('Each downstream mutation owner must prove its existing claim aggregate at its boundary and on replay');
 if(substr_count($commitment,'commercial_commitment_integrity_conflict')<1||substr_count($commitment,'$conflict')<8)throw new RuntimeException('The commitment ownership comparisons must fail closed with one controlled reason');
 if(str_contains($capacity.' '.$funding,'amount_due_minor'))throw new RuntimeException('Accepted-amount ownership must not be re-implemented outside the canonical commitment validator');
 if(str_contains($capacity.' '.$funding,'purchaseByOffer'))throw new RuntimeException('Purchase/offer ownership must not be re-implemented outside the canonical commitment validator');

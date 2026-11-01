@@ -89,6 +89,25 @@ $render_items = static function ( array $rows ): void {
 		</div>
 		<span class="dzn-status dzn-status--muted"><?php echo $disabled ? esc_html__( 'پرداخت آنلاین غیرفعال', 'delnavazan-theme' ) : ( $unavailable ? esc_html__( 'در دسترس نیست', 'delnavazan-theme' ) : esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ) ); ?></span>
 	</div>
+	<?php
+	/*
+	 * Advance payment is only a presentation of an already-issued future-Term obligation.
+	 * The existing secure checkout below remains the only payment surface; this block never
+	 * creates an invoice, booking or obligation.
+	 */
+	$future_term_available = ! empty( $payments['future_term_available'] );
+	$future_term_label = (string) ( $payments['future_term_label'] ?? '' );
+	$future_term_action = (string) ( $payments['future_term_action_url'] ?? '#dzn-payments-title' );
+	?>
+	<div class="dzn-payments__future-term">
+		<?php if ( $future_term_available ) : ?>
+			<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $future_term_action ); ?>"><?php echo esc_html( 'پرداخت پیشاپیش ترم آینده' . ( '' !== $future_term_label ? ' · ' . $future_term_label : '' ) ); ?></a>
+			<p id="dzn-future-term-note" class="dzn-portal-help"><?php esc_html_e( 'مبلغ و اقساط این پرداخت از تعهد معتبر ترم آینده خوانده می‌شود و در همان فهرست امن پرداخت زیر قابل پرداخت است.', 'delnavazan-theme' ); ?></p>
+		<?php else : ?>
+			<button class="dzn-button dzn-button--secondary" type="button" disabled aria-describedby="dzn-future-term-note"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده', 'delnavazan-theme' ); ?></button>
+			<p id="dzn-future-term-note" class="dzn-portal-help"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده زمانی فعال می‌شود که تعهد ترم آینده از سوی آموزشگاه در سامانه صادر شود. تا آن زمان این پرداخت در دسترس نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p>
+		<?php endif; ?>
+	</div>
 	<?php if ( $disabled || $unavailable ) : ?>
 		<p class="dzn-portal-empty"><?php echo esc_html( $disabled ? 'پرداخت آنلاین برای این حساب فعال نیست و مدیریت مالی از طریق دلنوازان انجام می‌شود. برای هر پرداخت یا صورتحساب با پشتیبانی تماس بگیرید.' : (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
 		<section class="dzn-payments__history" aria-labelledby="dzn-payment-history-title">

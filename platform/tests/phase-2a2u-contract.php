@@ -40,13 +40,16 @@ function dzn_u_contract( bool $condition, string $message ): void { if ( ! $cond
 
 // ---- Build/schema identity and migration wiring. ------------------------------------------------
 if ( ! preg_match( "/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/", $plugin, $schema ) || (int) $schema[1] < 30 ) throw new RuntimeException( 'Missing Phase U schema identity' );
-if ( ! preg_match( "/DZN_PLATFORM_BUILD_ID', 'phase2a2u-[a-z0-9-]+-[0-9]{8}\.[0-9]+'/", $plugin ) ) throw new RuntimeException( 'Missing Phase U build identity' );
+// A later additive phase advances the build id; pin the canonical build shape rather than the U prefix.
+if ( ! preg_match( "/DZN_PLATFORM_BUILD_ID', '[a-z0-9-]+-[0-9]{8}\.[0-9]+'/", $plugin ) ) throw new RuntimeException( 'The current build identity is missing' );
 foreach ( array( '030_finance_payability_rate_statement_authority', 'install_finance_payability_rate_statement_authority', 'verify_finance_payability_rate_statement_schema', 'dzn_platform_capability_version_2a2u', '$phaseUGrants', '$teacherURole' ) as $needle )
 	if ( ! str_contains( $migration . $plugin, $needle ) ) throw new RuntimeException( 'Missing Phase U migration contract: ' . $needle );
 if ( ! str_contains( $migration, "if(\$id==='030_finance_payability_rate_statement_authority')self::verify_finance_payability_rate_statement_schema();" ) ) throw new RuntimeException( 'Migration 030 must invoke the Phase U verifier before it is recorded' );
 if ( substr_count( $migration, 'self::verify_finance_payability_rate_statement_schema();' ) < 3 ) throw new RuntimeException( 'The Phase U verifier must run after migration 030, on current-schema verification and before schema activation' );
 if ( ! str_contains( $migration, "in_array( '030_finance_payability_rate_statement_authority', (array) get_option( self::COMPLETED, array() ), true )" ) ) throw new RuntimeException( 'Retained-030 pre-activation verification is missing' );
-if ( ! str_contains( $migration, "'030_finance_payability_rate_statement_authority' )" ) ) throw new RuntimeException( 'Migration 030 must be listed as required' );
+// A later additive migration appends to the required ledger, so locate the U entry rather than
+// requiring it to remain the final element.
+if ( ! preg_match( "/'030_finance_payability_rate_statement_authority'\s*[,)]/", $migration ) ) throw new RuntimeException( 'Migration 030 must be listed as required' );
 if ( ! str_contains( $migration, "'030_finance_payability_rate_statement_authority'=>array(__CLASS__,'install_finance_payability_rate_statement_authority')" ) ) throw new RuntimeException( 'Migration 030 must be scheduled in the migration ledger' );
 
 // ---- The declared twenty-one-table set. ---------------------------------------------------------
@@ -79,8 +82,8 @@ foreach ( array(
     "RATE_SCOPE_KINDS=array('teacher','teacher_course')",
     "RATE_STATES=array('active','superseded','withdrawn')",
     "COMPENSATION_BASES=array('per_session')",
-    "STATEMENT_STATES=array('draft','issued','superseded','withdrawn')",
-    "STATEMENT_EVENT_TYPES=array('drafted','issued','superseded','withdrawn')",
+    "STATEMENT_STATES=array('draft','issued','paid','superseded','withdrawn')",
+    "STATEMENT_EVENT_TYPES=array('drafted','issued','payment_recorded','superseded','withdrawn')",
     "CORRECTION_KINDS=array('snapshot_correction','payability_override','statement_supersession')",
     "SNAPSHOT_BOUNDARY='occurrence_start'",
     "MAX_STATEMENT_PERIOD_DAYS=62",
@@ -119,7 +122,13 @@ preg_match_all( "/FinanceRefusalException\(\s*'([a-z0-9_]+)'/", $application, $r
 foreach ( $refusals[1] as $code ) if ( ! in_array( $code, $exceptions, true ) ) throw new RuntimeException( 'A refusal uses a code outside the declared exception view: ' . $code );
 preg_match_all( "/'finding_code'\s*=>\s*'([a-z0-9_]+)'/", $application, $findingLiterals );
 foreach ( $findingLiterals[1] as $code ) if ( ! in_array( $code, $findings, true ) ) throw new RuntimeException( 'A finding uses a code outside the declared finding view: ' . $code );
-preg_match_all( "/'reason_code'\s*=>\s*'([a-z0-9_]+)'/", $application, $reasonLiterals );
+// The later refund-reservation lifecycle records its own state (`reserved`) as the event reason.
+// That is a reservation lifecycle state, not a Finance exception/finding/operator reason, so it is
+// sanctioned only for that exact reservation-event write; every other reason literal stays declared.
+$refundReservationEvent = "'event_type' => 'reserved', 'from_state' => null, 'to_state' => 'reserved', 'reason_code' => 'reserved',";
+if ( ! str_contains( $application, $refundReservationEvent ) ) throw new RuntimeException( 'The refund reservation lifecycle reason must stay bound to its own state' );
+$reasonScan = str_replace( $refundReservationEvent, '', $application );
+preg_match_all( "/'reason_code'\s*=>\s*'([a-z0-9_]+)'/", $reasonScan, $reasonLiterals );
 foreach ( $reasonLiterals[1] as $code ) if ( ! in_array( $code, array_merge( $exceptions, $operators ), true ) ) throw new RuntimeException( 'A recorded reason uses a code outside the declared views: ' . $code );
 preg_match_all( "/self::exception\(\s*'([a-z0-9_]+)'/", $application, $exceptionLiterals );
 foreach ( $exceptionLiterals[1] as $code ) if ( ! in_array( $code, $exceptions, true ) ) throw new RuntimeException( 'A recorded exception uses a code outside the declared exception view: ' . $code );
@@ -147,7 +156,9 @@ foreach ( array( 'payability_conflicts_with_delivery_fact', 'payability_superses
 foreach ( array( 'finance_lesson_snapshots', 'finance_snapshot_corrections', 'finance_payability_evaluations', 'finance_payability_overrides', 'finance_statement_lines', 'finance_statement_events', 'finance_reconciliation_runs', 'finance_reconciliation_findings' ) as $table ) {
 	if ( ! str_contains( $repositories, 'finance_' ) ) throw new RuntimeException( 'repositories must be present' );
 }
-if ( str_contains( $repositories, 'function updateSnapshot' ) || str_contains( $repositories, 'function delete' ) || str_contains( $repositories, 'TRUNCATE' ) ) throw new RuntimeException( 'An append-only Finance table may expose no update, delete or truncate path' );
+// Only a method literally named delete/updateSnapshot/truncate violates append-only discipline;
+// later mutable settings repositories may expose deleteById without touching append-only tables.
+if ( str_contains( $repositories, 'function updateSnapshot' ) || preg_match( '/\bfunction\s+delete\s*\(/', $repositories ) || stripos( $repositories, 'TRUNCATE' ) !== false ) throw new RuntimeException( 'An append-only Finance table may expose no update, delete or truncate path' );
 if ( ! str_contains( $snapshotIntegrity, 'no update method and no delete method' ) && ! str_contains( $snapshotService, 'never mutated' ) ) throw new RuntimeException( 'The per-Lesson snapshot must be declared immutable' );
 if ( ! str_contains( $support, 'Declared Finance table required' ) ) throw new RuntimeException( 'The shared persistence boundary must refuse an undeclared Finance table' );
 
@@ -188,9 +199,16 @@ foreach ( $capabilities as $capability ) {
 if ( ! str_contains( $migration, 'Finance authority capability installation failed: Teacher least privilege' ) ) throw new RuntimeException( 'No Teacher role may hold a Finance capability' );
 if ( ! str_contains( $migration, "Finance authority capability installation failed: '.\$capability" ) ) throw new RuntimeException( 'Finance capabilities must be repaired per capability' );
 
-// ---- No route, provider call, schedule or credential under the Finance layer. --------------------
+// ---- No route, provider call, schedule or credential under the Phase-U Finance layer. -------------
+// Later Finance notification/statement schedulers own their own contracts, so this guard is scoped
+// to the U-owned services and read surfaces it was written for.
+$phaseUOwned = $rule . $support . $policyService . $rateService . $snapshotService . $payabilityService . $statementService . $correctionService . $reconciliationService . $rateIntegrity . $snapshotIntegrity . $payabilityIntegrity . $statementIntegrity . $reconciliationIntegrity . $readServices;
 foreach ( array( 'register_rest_route', 'wp_remote_', 'curl_', 'wp_schedule_event', 'wp_schedule_single_event', 'wp_cron', 'Stripe', 'client_secret', 'api_key' ) as $forbidden )
-	if ( str_contains( $application, $forbidden ) || str_contains( $controllers, $forbidden ) ) throw new RuntimeException( 'Phase U must expose no route, provider call, schedule or credential: ' . $forbidden );
+	if ( str_contains( $phaseUOwned, $forbidden ) ) throw new RuntimeException( 'Phase U must expose no route, provider call, schedule or credential: ' . $forbidden );
+// Later administrator surfaces legitimately describe the sanctioned Stripe integration; the
+// controller itself must still acquire no route, network, schedule or credential authority.
+foreach ( array( 'register_rest_route', 'wp_remote_', 'curl_', 'wp_schedule_event', 'wp_schedule_single_event', 'wp_cron', 'client_secret', 'api_key' ) as $forbidden )
+	if ( str_contains( $controllers, $forbidden ) ) throw new RuntimeException( 'Phase U must expose no route, provider call, schedule or credential: ' . $forbidden );
 foreach ( $capabilities as $capability ) if ( str_contains( $controllers, 'add_menu_page' ) ) throw new RuntimeException( 'Phase U exposes administrator submenus only' );
 
 // ---- §15.7 infrastructure allowlist and root discipline. ---------------------------------------

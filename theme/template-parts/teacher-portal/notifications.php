@@ -18,6 +18,7 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 			<h2 id="dzn-tp-notifications-title">اعلان‌ها<?php if ( $unread > 0 ) : ?> <span class="dzn-notifications__count"><?php echo esc_html( number_format_i18n( $unread ) ); ?> تازه</span><?php endif; ?></h2>
 		</div>
 	</div>
+	<?php dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'خواندن اعلان، درخواست را حل نمی‌کند', 'text' => '«خوانده شد» فقط وضعیت خواندن را تغییر می‌دهد. برای تأیید یا پاسخ، از دکمهٔ همان کارت یا صفحهٔ کاری استفاده کنید.', 'module' => 'responsibilities' ) ); ?>
 	<?php if ( ! $available ) : ?>
 		<p class="dzn-tp-empty">این بخش هنوز به منبع اعلان معتبر متصل نشده است؛ بنابراین «بدون اعلان» به‌معنای نبودِ پیام نیست.</p>
 	<?php elseif ( ! $items ) : ?>

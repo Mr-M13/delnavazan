@@ -104,6 +104,8 @@ $portalEnrolmentRead = $read('src/Core/Application/CanonicalStudentEnrolmentPort
 $teacherAbsence = $read('src/Core/Application/TeacherAbsenceAttentionReadService.php');
 $assert(str_contains($allocationRepository, 'termReplacementAllocation') && str_contains($allocationRepository, 'lessonAbsenceAllocation'), 'Term replacement allocation must be derived once per eligible absence occurrence');
 $assert(str_contains($allocationRepository, 'SELECT replacement_allowance FROM') && ! str_contains($allocationRepository, 'replacement_allowance=2'), 'Allocation must use the configured Term allowance, not a hard-coded two');
+$termAssessment = $read('src/Core/Application/TermApplicabilityAssessment.php');
+$assert(! str_contains($termAssessment, 'replacement_allowance !== 2'), 'Term integrity must accept an audited allowance override rather than require exactly two');
 $assert(str_contains($allocationRepository, 'COUNT(DISTINCT') || str_contains($allocationRepository, 'if(isset($eligible[$key]))continue;'), 'An absence occurrence must be counted once per Term');
 $assert(str_contains($allocationRepository, 'consumedAbsenceOccurrences') && str_contains($allocationRepository, "l.lifecycle_state<>'cancelled'"), 'An accepted absence revision counts as used and a cancelled lesson releases the Student allowance');
 $assert(str_contains($allocationRepository, "state==='superseded'"), 'A superseded absence occurrence must not remain pending after the class is moved');

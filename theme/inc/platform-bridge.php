@@ -1601,14 +1601,15 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$ended = 'ended' === $temporal;
 		$delivery_outcome = strtolower( trim( (string) ( $lesson['delivery_state_summary'] ?? 'not_recorded' ) ) );
 		$attendance_summary = strtolower( trim( (string) ( $lesson['attendance_state_summary'] ?? 'not_recorded' ) ) );
+		$presumed_completion = 'presumed_completed' === $delivery_outcome;
 		$recorded_outcome = '' !== $delivery_outcome && ! in_array( $delivery_outcome, array( 'not_recorded', 'presumed_completed', 'review_required', 'pending_review', 'conflict', 'disputed' ), true );
 		$lifecycle_completed = 'completed' === (string) ( $lesson['lifecycle_state'] ?? '' );
-		// The canonical attendance/delivery read is authoritative. If the Platform read does not
-		// project the completion flags yet, derive only the plain outcome those fields already prove
-		// (a recorded delivery outcome or a completed lifecycle) and never infer completion from time.
+		// The canonical attendance/delivery read is authoritative. A lifecycle completion without
+		// an explicit outcome is a presumed completion: it is history, but the Teacher can still
+		// confirm the occurrence as delivered so Finance receives verified attendance.
 		$completion_completed = array_key_exists( 'completion_completed', $lesson )
 			? (bool) $lesson['completion_completed']
-			: ( $lifecycle_completed || $recorded_outcome );
+			: ( $recorded_outcome || ( $lifecycle_completed && ! $presumed_completion ) );
 		$completion_claimed = array_key_exists( 'completion_claimed', $lesson ) ? (bool) $lesson['completion_claimed'] : false;
 		$completion_review_pending = array_key_exists( 'completion_review_pending', $lesson )
 			? (bool) $lesson['completion_review_pending']
@@ -1617,7 +1618,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			? (bool) $lesson['completion_available']
 			: ( $ended
 				&& ! $is_booking
-				&& 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' )
+				&& ( 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' ) || $presumed_completion )
 				&& ! $completion_completed
 				&& ! $completion_claimed
 				&& ! $completion_review_pending

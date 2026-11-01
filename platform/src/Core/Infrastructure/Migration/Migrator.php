@@ -519,7 +519,7 @@ final class Migrator {
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -618,7 +618,11 @@ final class Migrator {
 				self::install_statement_email_outbox();self::verify_statement_email_outbox_schema();
 				$done[]='061_statement_email_outbox';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('062_statement_batch_runs',$done,true)){
+				self::install_statement_batch_runs();self::verify_statement_batch_runs_schema();
+				$done[]='062_statement_batch_runs';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -871,6 +875,7 @@ final class Migrator {
 		$required[] = '059_golden_hour_iran_global';
 		$required[] = '060_manual_refund_reservations';
 		$required[] = '061_statement_email_outbox';
+		$required[] = '062_statement_batch_runs';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
 		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();
@@ -2748,7 +2753,7 @@ final class Migrator {
 		}
 		// Rule 10: Phase 2A.2-U owns only its declared finance tables. Later migrations may add
 		// separately verified finance namespaces; do not make the older verifier reject them.
-		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations','finance_regional_prices','finance_settings','finance_golden_hour_details','finance_manual_refund_reservations','finance_manual_refund_events','finance_statement_email_intents','finance_statement_email_attempts');
+		$laterFinanceTables = array('finance_cash_accounts','finance_cash_transactions','finance_cash_transfers','finance_cash_commands','finance_cash_reconciliations','finance_regional_prices','finance_settings','finance_golden_hour_details','finance_manual_refund_reservations','finance_manual_refund_events','finance_statement_email_intents','finance_statement_email_attempts','finance_statement_batch_runs');
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $p . 'finance_%' ) ) as $table ) {
 			$short = substr( (string) $table, strlen( $p ) );
 			if ( ! isset( $spec[ $short ] ) && ! in_array( $short, $laterFinanceTables, true ) ) throw new \RuntimeException('Migration verification failed: table outside the declared Phase 2A.2-U set: '.$short);
@@ -3181,6 +3186,42 @@ final class Migrator {
 		foreach(array('uid','intent_id','attempt_sequence','state','lease_token_digest','started_at','finished_at','outcome_code','transport_accepted','created_at','created_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$attempts} LIKE '{$column}'"))throw new \RuntimeException('Statement email attempt schema verification failed: '.$column);
 		foreach(array(array($intents,'uid',true,array('uid')),array($intents,'statement_intent',true,array('statement_id')),array($attempts,'uid',true,array('uid')),array($attempts,'intent_sequence',true,array('intent_id','attempt_sequence')))as$spec){if(!self::has_index_columns($spec[0],$spec[1],$spec[2],$spec[3]))throw new \RuntimeException('Statement email outbox index missing: '.$spec[1]);}
 		if($wpdb->get_row("SHOW COLUMNS FROM {$attempts} LIKE 'updated_at'"))throw new \RuntimeException('Statement email attempts must be append-only');
+	}
+
+
+	/** Durable monthly statement-batch run history (062). */
+	private static function install_statement_batch_runs():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$table="CREATE TABLE IF NOT EXISTS {$p}finance_statement_batch_runs (
+			id bigint unsigned NOT NULL AUTO_INCREMENT,
+			uid char(26) NOT NULL,
+			run_key varchar(96) NOT NULL,
+			period_month char(7) NOT NULL,
+			mode varchar(24) NOT NULL,
+			state varchar(24) NOT NULL,
+			attempt_count int unsigned NOT NULL DEFAULT 0,
+			last_error_code varchar(64) NULL,
+			result_json mediumtext NULL,
+			started_at datetime NULL,
+			completed_at datetime NULL,
+			lease_expires_at datetime NULL,
+			run_version int unsigned NOT NULL DEFAULT 1,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			created_by bigint unsigned NOT NULL,
+			updated_by bigint unsigned NOT NULL,
+			PRIMARY KEY(id),
+			UNIQUE KEY uid(uid),
+			UNIQUE KEY run_key(run_key),
+			KEY month_mode(period_month,mode),
+			KEY state_lease(state,lease_expires_at)
+		) ENGINE=InnoDB $c";
+		if($wpdb->query($table)===false)throw new \RuntimeException('Statement batch run migration failed');
+	}
+	private static function verify_statement_batch_runs_schema():void{
+		global $wpdb; $p=$wpdb->prefix.'dzn_'; $table=$p.'finance_statement_batch_runs';
+		foreach(array('uid','run_key','period_month','mode','state','attempt_count','last_error_code','result_json','started_at','completed_at','lease_expires_at','run_version','created_at','updated_at','created_by','updated_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Statement batch run schema verification failed: '.$column);
+		foreach(array(array($table,'uid',true,array('uid')),array($table,'run_key',true,array('run_key')))as$spec){if(!self::has_index_columns($spec[0],$spec[1],$spec[2],$spec[3]))throw new \RuntimeException('Statement batch run index missing: '.$spec[1]);}
 	}
 
 }

@@ -6,6 +6,7 @@ use Delnavazan\Platform\Core\Application\CommercialPromotionService;
 use Delnavazan\Platform\Core\Application\CommercialRule;
 use Delnavazan\Platform\Core\Application\Finance\FinancePolicyService;
 use Delnavazan\Platform\Core\Application\Finance\FinanceRule;
+use Delnavazan\Platform\Core\Application\Finance\FinanceExportService;
 use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
 use Delnavazan\Platform\Core\Application\Finance\GoldenHourPolicyService;
 use Delnavazan\Platform\Core\Application\Finance\GoldenHourRule;
@@ -16,7 +17,7 @@ use Delnavazan\Platform\Core\Application\Finance\Pricing\{PricingMoney,RegionalP
 use Delnavazan\Platform\Core\Application\Finance\Read\FinanceAdminReadService;
 use Delnavazan\Platform\Core\Application\Finance\Read\TeacherRateReadService;
 use Delnavazan\Platform\Core\Application\Finance\Read\TeacherStatementReadService;
-use Delnavazan\Platform\Core\Application\Finance\Statements\{StatementTemplateRule,StatementTemplateService,TeacherStatementBatchService,TeacherStatementEmailService};
+use Delnavazan\Platform\Core\Application\Finance\Statements\{StatementTemplateRule,StatementTemplateService,TeacherStatementBatchService,TeacherStatementEmailService,TeacherStatementScheduleService};
 use Delnavazan\Platform\Core\Application\Finance\TeacherStatementService;
 use Delnavazan\Platform\Core\Application\RefundReviewService;
 
@@ -52,6 +53,8 @@ final class FinanceAdminController {
         add_action('admin_post_dzn_finance_refund', array(__CLASS__, 'handleRefund'));
         add_action('admin_post_dzn_finance_refund_review', array(__CLASS__, 'handleRefundReview'));
         add_action('admin_post_dzn_finance_refund_release', array(__CLASS__, 'handleRefundRelease'));
+        add_action('admin_post_dzn_finance_statement_schedule', array(__CLASS__, 'handleStatementSchedule'));
+        add_action('admin_post_dzn_finance_export', array(__CLASS__, 'handleExport'));
     }
 
     public static function menu(): void {
@@ -252,6 +255,31 @@ final class FinanceAdminController {
         $limit = (int) $value;
         if ($limit < 1 || $limit > $max) throw new \InvalidArgumentException($error);
         return $limit;
+    }
+
+    /** Read-only CSV export for payments, refunds or teacher statements. */
+    public static function handleExport(): void {
+        if (!is_user_logged_in()) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_export');
+        $_POST = wp_unslash($_POST);
+        $type = sanitize_key((string) ($_POST['export_type'] ?? ''));
+        try {
+            $service = new FinanceExportService();
+            $csv = match ($type) {
+                'payments' => $service->payments(),
+                'refunds' => $service->refunds(),
+                'statements' => $service->statements(),
+                default => throw new \InvalidArgumentException('export_type_invalid'),
+            };
+        } catch (\Throwable) {
+            wp_die('Export unavailable', 403);
+        }
+        $filename = 'delnavazan-' . $type . '-' . gmdate('Ymd-His') . '.csv';
+        nocache_headers();
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo "\xEF\xBB\xBF" . $csv;
+        exit;
     }
 
     /** Record an administrator-verified offline payment against one canonical obligation. */
@@ -484,6 +512,30 @@ final class FinanceAdminController {
         exit;
     }
 
+    /** Enable/disable monthly draft-only scheduling or run the previous month now. */
+    public static function handleStatementSchedule(): void {
+        if (!current_user_can('dzn_manage_finance_statements')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_statement_schedule');
+        $_POST = wp_unslash($_POST);
+        $operation = sanitize_key((string) ($_POST['schedule_operation'] ?? ''));
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_STATEMENTS);
+        try {
+            $schedule = new TeacherStatementScheduleService();
+            if ($operation === 'enable') { $schedule->setEnabled(true); $args['finance_result'] = 'statement_schedule_enabled'; }
+            elseif ($operation === 'disable') { $schedule->setEnabled(false); $args['finance_result'] = 'statement_schedule_disabled'; }
+            elseif ($operation === 'run') {
+                $result = $schedule->runPreviousMonth(false);
+                $args['finance_result'] = (string) ($result['state'] ?? '') === 'completed' ? 'statement_schedule_ran' : 'statement_schedule_failed';
+            } else throw new \InvalidArgumentException('statement_schedule_operation_invalid');
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'statement_schedule_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#statement-schedule');
+        exit;
+    }
+
     /** The statement period is a half-open UTC range: start date 00:00 to the day after the inclusive end. */
     private static function statementDate(string $date, bool $inclusiveEnd = false): string {
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) !== 1) throw new \InvalidArgumentException('statement_period_invalid');
@@ -590,7 +642,10 @@ final class FinanceAdminController {
         if (current_user_can('dzn_manage_payment_providers') || current_user_can(PaymentExecutionController::CAPABILITY)) {
             echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG . '&tab=' . self::TAB_SETTINGS . '#stripe')) . '">Open Stripe configuration and readiness</a></p>';
         }
-        echo '<p class="description">Failed or unmatched Stripe events are reconciled only through the existing guarded action in the payment execution service. No provider payload or secret is shown here.</p></section>';
+        echo '<p class="description">Failed or unmatched Stripe events are reconciled only through the existing guarded action in the payment execution service. No provider payload or secret is shown here.</p>';
+        self::exportButton('payments', 'Export payments CSV');
+        if (current_user_can(FinanceExportService::REFUNDS_CAPABILITY)) self::exportButton('refunds', 'Export refunds CSV');
+        echo '</section>';
         self::renderPromotionCodes();
     }
 
@@ -921,6 +976,7 @@ final class FinanceAdminController {
             echo '<div class="notice notice-warning inline"><p><strong>Statement timezone policy is unset.</strong> A draft records the timezone version in force at drafting. Until a timezone is recorded in Finance → Settings → Finance policies, a draft cannot be issued. <a href="' . esc_url(self::tabUrl(self::TAB_SETTINGS) . '#finance-policies') . '">Record the timezone policy</a>.</p></div>';
         }
         self::renderStatementBatch($read);
+        self::renderStatementSchedule();
         $statements = array();
         if ($canManage) {
             $defaultStart = gmdate('Y-m-01', strtotime('first day of last month UTC'));
@@ -998,8 +1054,43 @@ final class FinanceAdminController {
         } else {
             echo '<div class="dzn-finance-statement-preview"><h3>Sample preview</h3><p class="description">Choose a statement above to preview recorded facts. The sample below uses illustrative values only.</p><iframe class="dzn-finance-statement-frame" sandbox title="Sample teacher statement" srcdoc="' . esc_attr($renderer->renderSample($template, self::academyName())) . '"></iframe></div>';
         }
+        self::exportButton('statements', 'Export statements CSV');
         self::statementTemplateSettings($template, $renderer);
         echo '</section>';
+    }
+
+    /** Recoverable monthly draft-only schedule and job history. */
+    private static function renderStatementSchedule(): void {
+        $canManage = current_user_can('dzn_manage_finance_statements');
+        $schedule = new TeacherStatementScheduleService();
+        $enabled = $schedule->enabled();
+        $history = array();
+        try { $history = $schedule->history(10); } catch (\Throwable) { $history = array(); }
+        echo '<details class="dzn-finance-settings-section" id="statement-schedule"><summary><strong>Monthly draft-only schedule</strong></summary>';
+        echo '<p>When enabled, a daily worker drafts the previous completed UTC month. It never issues or emails a statement automatically; the administrator reviews and issues from the batch section. Disabled by default. A completed month is never drafted twice.</p>';
+        echo '<p><strong>Status:</strong> ' . ($enabled ? 'Enabled' : 'Disabled') . '</p>';
+        if ($canManage) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" style="display:inline">'
+                . '<input type="hidden" name="action" value="dzn_finance_statement_schedule"><input type="hidden" name="schedule_operation" value="' . ($enabled ? 'disable' : 'enable') . '">'
+                . wp_nonce_field('dzn_finance_statement_schedule', '_wpnonce', true, false)
+                . '<button class="button">' . ($enabled ? 'Disable monthly scheduling' : 'Enable monthly scheduling') . '</button></form> ';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" style="display:inline">'
+                . '<input type="hidden" name="action" value="dzn_finance_statement_schedule"><input type="hidden" name="schedule_operation" value="run">'
+                . wp_nonce_field('dzn_finance_statement_schedule', '_wpnonce', true, false)
+                . '<button class="button button-primary" onclick="return confirm(\'Draft the previous completed month now? This never issues or emails statements.\')">Draft previous month now</button></form>';
+        }
+        echo '<table class="widefat striped dzn-finance-table" style="margin-top:14px"><thead><tr><th>Run</th><th>Month</th><th>State</th><th>Attempts</th><th>Started</th><th>Completed</th><th>Error</th></tr></thead><tbody>';
+        if (!$history) echo '<tr><td colspan="7">No scheduled draft run has been recorded.</td></tr>';
+        foreach ($history as $run) {
+            echo '<tr><td>#' . (int) $run->id . '<br><small>' . esc_html((string) $run->run_key) . '</small></td>'
+                . '<td>' . esc_html((string) $run->period_month) . '</td>'
+                . '<td><span class="dzn-finance-pill">' . esc_html((string) $run->state) . '</span></td>'
+                . '<td>' . esc_html((string) (int) $run->attempt_count) . '</td>'
+                . '<td>' . esc_html((string) ($run->started_at ?? '—')) . '</td>'
+                . '<td>' . esc_html((string) ($run->completed_at ?? '—')) . '</td>'
+                . '<td>' . esc_html((string) ($run->last_error_code ?? '—')) . '</td></tr>';
+        }
+        echo '</tbody></table></details>';
     }
 
     /** Monthly batch generation, preview and per-Teacher results. */
@@ -1419,6 +1510,14 @@ final class FinanceAdminController {
         echo '<table class="form-table"><tbody><tr><th><label for="finance-ledger-account">Account</label></th><td><select id="finance-ledger-account" name="account_key"><option value="australia">Australia account (AUD)</option><option value="iran">Iran account (TOM)</option></select></td></tr><tr><th><label for="finance-ledger-kind">Type</label></th><td><select id="finance-ledger-kind" name="transaction_kind"><option value="income">Money received</option><option value="expense">Money spent</option><option value="opening_balance">Opening balance</option><option value="balance_adjustment">Balance adjustment</option></select></td></tr><tr><th><label for="finance-ledger-date">Date</label></th><td><input id="finance-ledger-date" type="date" name="transaction_date" required max="' . esc_attr(gmdate('Y-m-d')) . '" value="' . esc_attr(gmdate('Y-m-d')) . '"></td></tr><tr><th><label for="finance-ledger-amount">Amount</label></th><td><input id="finance-ledger-amount" name="amount" inputmode="decimal" required></td></tr><tr><th><label for="finance-ledger-category">Category</label></th><td><input id="finance-ledger-category" name="category" maxlength="100"></td></tr><tr><th><label for="finance-ledger-description">Description</label></th><td><input id="finance-ledger-description" class="large-text" name="description" required maxlength="500"></td></tr><tr><th><label for="finance-ledger-direction">Adjustment direction</label></th><td><select id="finance-ledger-direction" name="adjustment_direction"><option value="increase">Increase balance</option><option value="decrease">Decrease balance</option></select> <label for="finance-ledger-reason">Reason</label> <select id="finance-ledger-reason" name="reason_code"><option value="data_entry_correction">Data entry correction</option><option value="opening_balance">Opening balance correction</option><option value="balance_reconciliation">Statement review</option><option value="other_reviewed_correction">Other reviewed correction</option></select><p class="description">Used only for a balance adjustment.</p></td></tr><tr><th><label for="finance-ledger-evidence">Evidence reference</label></th><td><input id="finance-ledger-evidence" class="large-text" name="evidence_reference" required maxlength="191"><input type="hidden" name="evidence_channel" value="staff_record"></td></tr></tbody></table><button class="button button-primary">Record ledger entry</button></form></details>';
     }
 
+    private static function exportButton(string $type, string $label): void {
+        if (!current_user_can('dzn_view_finance_authority') && !current_user_can('dzn_view_payment_execution_authority') && !current_user_can('dzn_view_recurring_authority')) return;
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline;margin-inline-start:8px">'
+            . '<input type="hidden" name="action" value="dzn_finance_export"><input type="hidden" name="export_type" value="' . esc_attr($type) . '">'
+            . wp_nonce_field('dzn_finance_export', '_wpnonce', true, false)
+            . '<button class="button">' . esc_html($label) . '</button></form>';
+    }
+
     private static function filterForm(string $tab, array $fields, array $values): void {
         echo '<form method="get" class="dzn-finance-filter"><input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '"><input type="hidden" name="tab" value="' . esc_attr($tab) . '">';
         foreach ($fields as $name => $field) {
@@ -1513,6 +1612,10 @@ final class FinanceAdminController {
             'refund_review_resolved' => array('success', 'The refund review was resolved and the decision note was recorded.'),
             'refund_review_dismissed' => array('success', 'The refund review was dismissed and the decision was recorded.'),
             'refund_reservation_released' => array('success', 'The interrupted refund reservation was released. No evidence or review was changed.'),
+            'statement_schedule_enabled' => array('success', 'Monthly draft-only statement scheduling is enabled. It will never issue or email statements automatically.'),
+            'statement_schedule_disabled' => array('success', 'Monthly statement scheduling is disabled.'),
+            'statement_schedule_ran' => array('success', 'The previous completed month was drafted. Review the batch result before issuing.'),
+            'statement_schedule_failed' => array('error', 'The monthly draft run did not complete. Review the run history for the controlled error.'),
             'use_settings' => array('info', 'Student pricing is configured once per region in Finance → Settings. No technical catalogue fields were changed.'),
             'error' => array('error', 'The change was not saved. Review the highlighted values, permissions and effective dates, then try again.'),
         );
@@ -1622,6 +1725,7 @@ final class FinanceAdminController {
                     'invalid_refund_review_state' => 'The refund review state changed. Refresh before retrying.',
                     'refund_review_not_found' => 'The refund review case no longer exists.',
                     'refund_review_failed' => 'The refund review operation failed. No decision was recorded.',
+                    'statement_schedule_operation_invalid' => 'The statement schedule operation was not recognised.',
                     'manual_refund_ownership_conflict' => 'The offer, purchase and Student ownership do not match. No refund was reserved.',
                     'manual_refund_reservation_required' => 'The refund reservation no longer exists.',
                     'manual_refund_reservation_not_releasable' => 'Only a pre-evidence reservation can be released.',

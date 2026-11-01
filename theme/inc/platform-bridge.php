@@ -1056,6 +1056,55 @@ function dzn_theme_platform_student_payments_model( array $read, $timezone, $ena
 	);
 }
 
+/**
+ * Add the future-Term advance-payment presentation to the canonical checkout read.
+ *
+ * No obligation, invoice, booking or charge is created here. If the Platform has already
+ * issued a future-Term obligation, the existing secure checkout list is the payment surface;
+ * otherwise the Student sees an honest unavailable state.
+ */
+function dzn_theme_platform_student_payments_with_future_term( array $payments, int $current_term_sequence ) {
+	$payments['future_term_available'] = false;
+	$payments['future_term_obligations'] = array();
+	$payments['future_term_label'] = '';
+	$payments['future_term_action_url'] = '';
+	if ( 'ok' !== (string) ( $payments['state'] ?? '' ) || empty( $payments['checkout_enabled'] ) ) {
+		$payments['future_term_blocker'] = 'checkout_unavailable';
+		return $payments;
+	}
+	if ( $current_term_sequence < 1 ) {
+		$payments['future_term_blocker'] = 'current_term_unknown';
+		return $payments;
+	}
+	$future = array();
+	foreach ( (array) ( $payments['obligations'] ?? array() ) as $row ) {
+		if ( ! is_array( $row ) ) { continue; }
+		$term_sequence = (int) ( $row['term_sequence'] ?? 0 );
+		$payment_state = (string) ( $row['payment_state'] ?? '' );
+		if ( $term_sequence <= $current_term_sequence || in_array( $payment_state, array( 'paid', 'paid_prerequisite_pending' ), true ) ) { continue; }
+		$future[] = array(
+			'term_sequence' => $term_sequence,
+			'obligation_sequence' => (int) ( $row['obligation_sequence'] ?? 0 ),
+			'payment_state' => $payment_state,
+			'action' => (string) ( $row['action'] ?? '' ),
+		);
+	}
+	if ( ! $future ) {
+		$payments['future_term_blocker'] = 'no_future_term_obligation';
+		return $payments;
+	}
+	$payments['future_term_available'] = true;
+	$payments['future_term_obligations'] = $future;
+	$payments['future_term_label'] = sprintf(
+		'ترم %s · %s قسط آینده',
+		dzn_theme_platform_persian_digits( (string) (int) $future[0]['term_sequence'] ),
+		dzn_theme_platform_persian_digits( (string) count( $future ) )
+	);
+	$payments['future_term_action_url'] = '#dzn-payments-title';
+	$payments['future_term_blocker'] = '';
+	return $payments;
+}
+
 /** Read-only illustrative tuition allocations, independently fail-closed from checkout. */
 function dzn_theme_platform_tuition_allocations( $role ) {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TermTuitionAllocationReadService';
@@ -1219,7 +1268,11 @@ function dzn_theme_platform_student_model( $screen ) {
 		return $model;
 	}
 	if ( 'payments' === $screen ) {
-		$model['payments'] = $payments_model;
+		$current_term_sequence = 0;
+		foreach ( $enrolments as $candidate ) {
+			if ( is_array( $candidate ) && in_array( (string) ( $candidate['lifecycle_state'] ?? '' ), array( 'current', 'authorised' ), true ) ) { $current_term_sequence = (int) ( $candidate['term_sequence'] ?? 0 ); break; }
+		}
+		$model['payments'] = dzn_theme_platform_student_payments_with_future_term( $payments_model, $current_term_sequence );
 		$model['payment_history'] = $payment_history;
 		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
@@ -1303,7 +1356,7 @@ function dzn_theme_platform_student_model( $screen ) {
 				: 'درخواستی در انتظار پاسخ نیست.',
 		);
 		$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' );
-		$model['payments'] = $payments_model;
+		$model['payments'] = dzn_theme_platform_student_payments_with_future_term( $payments_model, (int) ( $current_enrolment['term_sequence'] ?? 0 ) );
 		$model['payment_history'] = $payment_history;
 		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;

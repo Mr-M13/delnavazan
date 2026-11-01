@@ -160,6 +160,7 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
             'teacher_name' => $teacherName,
             'student_name' => trim((string) ($student->display_name ?? '')) !== '' ? (string) $student->display_name : (string) $student->reference_code,
             'term_reference' => $termReference,
+            'term_sequence' => (int) ($currentTerm->sequence_number ?? 0),
             'assignment_state' => $assignment ? (string) $assignment->state : 'pending',
             'accepted_at' => $acceptedAt,
             'student_display_reference' => (string) $student->reference_code,

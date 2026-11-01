@@ -25,6 +25,7 @@ final class TeacherOnboardingService {
             'submitted_at' => $teacher->submitted_at,
             'reviewed_at' => $teacher->reviewed_at,
             'review_reason_code' => $teacher->review_reason_code,
+            'review_note' => $this->reviewNote( (string) ( $teacher->review_reason_code ?? '' ) ),
             'can_edit' => in_array( $state, self::EDITABLE, true ),
             'can_submit' => in_array( $state, self::COMPLETABLE, true ) && $progress['ready_for_activation'],
             'ready_for_activation' => $progress['ready_for_activation'],
@@ -185,6 +186,20 @@ final class TeacherOnboardingService {
         $availability = $profile && $this->repo->hasUsableAvailability( (int) $teacher->id, (string) $teacher->timezone );
         $google = $this->repo->hasUsableGoogleConnection( (int) $teacher->id );
         return array( 'profile_state' => $profile ? 'complete' : 'incomplete', 'availability_state' => $availability ? 'complete' : 'incomplete', 'google_state' => $google ? 'connected' : 'not_connected', 'ready_for_activation' => $profile && $availability && $google );
+    }
+
+    /** A safe teacher-facing correction note; raw internal reason codes are never echoed. */
+    private function reviewNote( string $reason ): string {
+        $notes = array(
+            'profile_incomplete' => 'اطلاعات پروفایل کامل نیست.',
+            'profile_invalid' => 'برخی اطلاعات پروفایل معتبر نیست.',
+            'availability_incomplete' => 'زمان‌های تدریس کامل یا قابل استفاده نیست.',
+            'timezone_mismatch' => 'منطقهٔ زمانی پروفایل و زمان‌های تدریس هماهنگ نیست.',
+            'google_not_connected' => 'اتصال Google Calendar کامل نشده است.',
+            'identity_mismatch' => 'اطلاعات هویتی با حساب متصل هماهنگ نیست.',
+            'other' => 'مدیر آموزشگاه درخواست اصلاح ثبت کرده است.',
+        );
+        return $notes[ $reason ] ?? 'مدیر آموزشگاه درخواست اصلاح ثبت کرده است.';
     }
 
     private function profileArray(?object $profile): ?array {

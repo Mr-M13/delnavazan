@@ -71,7 +71,7 @@ $logo = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
 			<label class="dzn-classroom__switch" for="dzn-classroom-music">
 				<input id="dzn-classroom-music" type="checkbox" disabled>
 				<span class="dzn-classroom__switch-track" aria-hidden="true"></span>
-				<span class="dzn-classroom__switch-copy"><strong>حالت موسیقی</strong><small>استریو و کیفیت بالاتر، در صورت پشتیبانی دستگاه</small></span>
+				<span class="dzn-classroom__switch-copy"><strong>حالت موسیقی (مشترک)</strong><small>حالت مشترک خاموش: کیفیت گفت‌وگو با حذف نویز و کنترل خودکار صدا.</small></span>
 			</label>
 		</div>
 		<div class="dzn-classroom__control-group dzn-classroom__devices">
@@ -79,9 +79,9 @@ $logo = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
 			<label>دوربین <select id="dzn-classroom-camera-device" disabled><option>در حال شناسایی…</option></select></label>
 		</div>
 		<div class="dzn-classroom__control-group">
-			<button type="button" id="dzn-classroom-rotate" class="dzn-classroom__control" aria-pressed="false" title="چرخش نمایش ویدئو" disabled>
+			<button type="button" id="dzn-classroom-rotate" class="dzn-classroom__control" aria-pressed="false" aria-label="چرخش نمایش ویدئو: بدون چرخش (فقط نمایش محلی)" title="چرخش نمایش ویدئو: بدون چرخش — جهت دوربین ارسالی تغییر نمی‌کند" disabled>
 				<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7.1 7.1A7 7 0 1 1 5.3 13H3.2A9 9 0 1 0 6 5.2V2H4v6h6V6H7.1v1.1Z"/></svg>
-				<span>چرخش نمایش</span>
+				<span>چرخش: ۰°</span>
 			</button>
 			<button type="button" id="dzn-classroom-fullscreen" class="dzn-classroom__control" aria-pressed="false" title="تمام‌صفحه" disabled>
 				<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 9V4h5v2H6v3H4Zm16 0h-2V6h-3V4h5v5ZM4 15h2v3h3v2H4v-5Zm14 3v-3h2v5h-5v-2h3Z"/></svg>
@@ -94,10 +94,13 @@ $logo = get_theme_file_uri( 'assets/images/delnavazan-logo.png' );
 				<input type="hidden" name="ticket" value="">
 				<button class="dzn-classroom__control dzn-classroom__control--backup" type="submit">ورود با گوگل میت</button>
 			</form>
+			<button type="button" id="dzn-classroom-finish" class="dzn-classroom__control dzn-classroom__control--finish" disabled hidden>پایان کلاس</button>
 			<button type="button" id="dzn-classroom-leave" class="dzn-classroom__control dzn-classroom__control--leave" disabled>خروج از کلاس</button>
 		</div>
 	</section>
 
-	<p class="dzn-classroom__notice">حالت موسیقی تلاش می‌کند حذف نویز، کنترل خودکار صدا و حذف پژواک را خاموش کند. مرورگر یا دستگاه شما ممکن است همهٔ این تنظیمات را نپذیرد؛ صدا همچنان با کدک فشردهٔ Opus منتقل می‌شود.</p>
+	<p id="dzn-classroom-music-status" class="dzn-classroom__music-status" role="status" aria-live="polite" hidden></p>
+
+	<p class="dzn-classroom__notice">حالت موسیقی بین هر دو شرکت‌کننده هماهنگ می‌شود و فقط یک درخواست است: تلاش می‌کند حذف نویز، کنترل خودکار صدا و حذف پژواک را خاموش کند. مرورگر یا دستگاه شما ممکن است همهٔ این تنظیمات را نپذیرد؛ صدا همچنان با کدک فشردهٔ Opus منتقل می‌شود. چرخش نمایش فقط تصویر را به‌صورت محلی می‌چرخاند و جهت دوربین ارسالی را تغییر نمی‌دهد.</p>
 	<noscript><p class="dzn-classroom__alert">برای ورود به کلاس زنده، جاوااسکریپت را در مرورگر خود فعال کنید.</p></noscript>
 </main>

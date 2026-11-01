@@ -67,7 +67,7 @@ $check('Student Exit never posts delivery evidence', !str_contains($exit, 'finis
 $finish = $between($js, 'async function finishClass()', 'async function endClassroom(');
 $check('teacher finish posts to the existing canonical delivery endpoint', str_contains($finish, 'config.finishActionUrl') && str_contains($routes, 'action=dzn_teacher_report_delivery'));
 $check('teacher finish sends the canonical nonce and identifiers', str_contains($finish, "body.append('_wpnonce'") && str_contains($finish, "body.append('lesson_uid'") && str_contains($finish, "body.append('schedule_version_uid'"));
-$check('teacher finish only cleans up after the server confirms the report', str_contains($finish, 'class_status=delivery_recorded') && str_contains($finish, 'throw new Error'));
+$check('teacher finish only cleans up after the server confirms the report', str_contains($finish, "classStatus === 'class_completed'") && str_contains($finish, "classStatus === 'delivery_recorded'") && str_contains($finish, 'throw new Error'));
 $check('a failed teacher finish keeps the call connected and shows an error', str_contains($finish, "setConnection('ثبت پایان کلاس انجام نشد.', 'error')") && str_contains($finish, 'showAlert(') && str_contains($finish, 'finishButton.disabled = false'));
 
 $check('the session response exposes canonical lesson identifiers', str_contains($session, "'lesson_uid'") && str_contains($session, "'schedule_version_uid'"));

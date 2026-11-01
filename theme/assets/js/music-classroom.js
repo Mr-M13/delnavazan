@@ -885,14 +885,23 @@
         redirect: 'follow'
       });
       var finalUrl = String(response.url || '');
-      var recorded = response.ok && /[?&]class_status=delivery_recorded(?:&|$)/.test(finalUrl);
-      if (!recorded) throw new Error('finish_not_recorded');
+      var statusMatch = finalUrl.match(/[?&]class_status=([a-z0-9_]+)(?:&|$)/);
+      var classStatus = statusMatch ? statusMatch[1] : '';
+      // `delivery_recorded` is the pre-confirmation claim status; `class_completed` is the
+      // canonical Teacher-confirmation outcome. Both are successful server acknowledgements.
+      var recorded = response.ok && (classStatus === 'delivery_recorded' || classStatus === 'class_completed');
+      if (!recorded) throw new Error(classStatus || 'finish_not_recorded');
       clearAlert();
-      await endClassroom(portalUrls.teacher, 'کلاس به پایان رسید و گزارش تحویل برای بررسی ثبت شد.');
+      await endClassroom(portalUrls.teacher, 'کلاس به پایان رسید و گزارش برگزاری ثبت شد.');
     } catch (error) {
       if (finishButton) finishButton.disabled = false;
       setConnection('ثبت پایان کلاس انجام نشد.', 'error');
-      showAlert('پایان کلاس ثبت نشد؛ اتصال و رسانهٔ کلاس قطع نشد. لطفاً دوباره تلاش کنید یا از پرتال مدرس وضعیت کلاس را بررسی کنید.');
+      var refusals = {
+        completion_too_early: 'زمان برنامه‌ریزی‌شدهٔ کلاس هنوز به پایان نرسیده است؛ پایان کلاس ثبت نشد.',
+        completion_not_allowed: 'این کلاس در وضعیت فعلی قابل تأیید نیست؛ ممکن است حضور آن قبلاً ثبت شده یا نیازمند بررسی مدیر باشد.',
+        completion_unavailable: 'ثبت پایان کلاس در این لحظه ممکن نشد؛ اتصال و رسانهٔ کلاس قطع نشد.'
+      };
+      showAlert(refusals[error && error.message] || 'پایان کلاس ثبت نشد؛ اتصال و رسانهٔ کلاس قطع نشد. لطفاً دوباره تلاش کنید یا از پرتال مدرس وضعیت کلاس را بررسی کنید.');
     }
   }
 

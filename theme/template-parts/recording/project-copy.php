@@ -37,7 +37,7 @@ return array(
 					'If recording is introduced, it may include your image, voice, playing, your teacher’s demonstrations and the conversation between you. Research preparation may produce transcripts, musical measurements and annotations linked to relevant passages.',
 					'Permission to record a lesson and permission to use eligible material for research or model training are separate decisions. Student research participation is optional. Reading this page, enrolling in lessons or accepting general website terms does not itself opt you into research. <a href="#project-source-6">[6]</a>',
 					'Our intended boundary is that private lesson recordings will not be published as advertisements, public teaching videos or entertainment. A research contribution does not guarantee you an AI companion, personalised feedback or another future product.',
-					'Before recording begins, the applicable notices must explain what is captured, who can access it, its uses, storage and retention, and how to change your choices or request deletion. The final retention period and detailed withdrawal/deletion rules remain to be settled. These details must be published before collection begins.',
+					'Before recording begins, the applicable notices must explain what is captured, who can access it, its uses, storage and retention, and how to change your choices or request deletion. The <a href="https://delnavazan.com/recording-and-ai-policy/">current published recording policy</a> specifies ten-year retention and explains withdrawal. A longer-term research approach is being considered. This explanation does not extend retention or remove existing rights; any change needs updated policies and applicable permissions before it takes effect.',
 				),
 			),
 			array(
@@ -130,7 +130,7 @@ return array(
 					'Our aim is to develop software, documentation and research methods openly, with a future public GitHub repository. Public research datasets would be released only where privacy, permissions and other rights allow. No dataset or repository is announced as available by this page.',
 					'Private source recordings and a public research resource are different things. Removing a name is not enough: faces, voices, personal conversation and combinations of details may identify someone. Even extracted measurements or model outputs need appropriate risk assessment. <a href="#project-source-4">[4]</a>',
 					'We intend suitable public resources to support both academic and commercial work, including products made by Delnavazan or others, with appropriate attribution. CC BY 4.0 is one licence under consideration for suitable dataset material; it allows commercial reuse and adaptation with attribution, but does not override privacy or third-party rights. The final licences have not been selected. <a href="#project-source-5">[5]</a>',
-					'Publicly distributed copies cannot reliably be recalled, and compliant recipients’ Creative Commons permissions cannot simply be revoked. Any proposed public contribution therefore needs a clear explanation of these limits before release. Keeping identifiable lessons confidential is an essential part of this distinction.',
+					'Any public release must first be reconciled with current retention and withdrawal commitments. Publicly distributed copies cannot reliably be recalled, and compliant recipients’ Creative Commons permissions cannot simply be revoked. Any proposed public contribution therefore needs a clear explanation of these limits before release. Keeping identifiable lessons confidential is an essential part of this distinction.',
 				),
 			),
 			array(
@@ -158,7 +158,7 @@ return array(
 					),
 					array(
 						'Can I change my mind?',
-						'Account Settings is the place for available recording and research controls. If a control is unavailable, contact Delnavazan so your request can be addressed. Stopping future capture, stopping further use of identifiable material and deleting existing material are separate actions. The applicable notices must explain the process and limits before collection begins.',
+						'Account Settings is the place for available recording and research controls. If a control is unavailable, contact Delnavazan so your request can be addressed. Stopping future capture, stopping further use of identifiable material and deleting existing material are separate actions. The current recording policy allows withdrawal through Delnavazan’s contact channels and says its effect on existing data will be explained when requested. Applicable notices must make the process and limits clear before collection begins.',
 					),
 					array(
 						'What about children?',
@@ -166,7 +166,7 @@ return array(
 					),
 					array(
 						'How long will recordings be kept?',
-						'The retention schedule is not finalised. Our research has a long horizon, but that is not a blanket justification for storing identifiable recordings forever. The schedule must address ongoing need, review, deletion and copies or backups. OAIC guidance explains these principles where Australian privacy law applies. [4]',
+						'The current published recording policy specifies ten years for recordings and related research assets, including datasets and backups. The Project’s longer horizon does not change that policy. A proposed longer-term approach must address ongoing need, review, deletion and existing commitments before adoption. See the recording policy and OAIC guidance. [4]',
 					),
 					array(
 						'Will my mistakes or my teacher’s lessons appear on GitHub?',
@@ -197,6 +197,7 @@ return array(
 		'policy' => 'Read the applicable policies',
 		'privacy' => 'Privacy policy',
 		'terms' => 'Terms and conditions',
+		'recording_policy' => 'Recording and AI policy',
 		'account' => 'Student Account Settings',
 		'onboarding' => 'Teacher onboarding',
 		'contact' => 'Ask a question or discuss contributing',
@@ -239,7 +240,7 @@ return array(
 					'اگر ضبط در آینده راه‌اندازی شود، ممکن است تصویر، صدا، نوازندگی شما، نمایش‌های استاد و گفت‌وگوی کلاس را در بر بگیرد. آماده‌سازی پژوهشی می‌تواند شامل پیاده‌سازی گفتار، اندازه‌گیری ویژگی‌های موسیقایی و توضیح‌گذاری بخش‌های مرتبط باشد.',
 					'اجازهٔ ضبط کلاس با اجازهٔ استفادهٔ پژوهشی یا آموزش مدل جداست. مشارکت پژوهشی هنرجو اختیاری است. خواندن این صفحه، ثبت‌نام در کلاس یا پذیرش شرایط عمومی سایت به‌خودی‌خود به معنای پیوستن به پژوهش نیست. <a href="#project-source-6">[۶]</a>',
 					'مرز موردنظر ما این است که ضبط خصوصی کلاس به‌عنوان تبلیغ، ویدیوی آموزشی عمومی یا سرگرمی منتشر نشود. مشارکت پژوهشی نیز تضمین دریافت همراه هوشمند، بازخورد شخصی یا محصول آینده نیست.',
-					'پیش از آغاز ضبط، اطلاعیه‌های مربوط باید محتوای ضبط، افراد دارای دسترسی، کاربردها، محل و مدت نگهداری و روش تغییر انتخاب یا درخواست حذف را روشن کنند. مدت نهایی نگهداری و جزئیات انصراف و حذف هنوز تعیین نشده است. این جزئیات باید پیش از آغاز گردآوری منتشر شوند.',
+					'پیش از آغاز ضبط، اطلاعیه‌های مربوط باید محتوای ضبط، افراد دارای دسترسی، کاربردها، محل و مدت نگهداری و روش تغییر انتخاب یا درخواست حذف را روشن کنند. <a href="https://delnavazan.com/recording-and-ai-policy/">سیاست منتشرشدهٔ فعلی ضبط</a> مدت نگهداری ده‌ساله و امکان پس‌گرفتن رضایت را بیان می‌کند. رویکرد پژوهشی بلندمدت‌تر در دست بررسی است. این توضیح مدت نگهداری را افزایش نمی‌دهد و حقوق فعلی را حذف نمی‌کند؛ هر تغییر پیش از اجرا به اصلاح سیاست‌ها و مجوزهای لازم نیاز دارد.',
 				),
 			),
 			array(
@@ -332,7 +333,7 @@ return array(
 					'هدف ما توسعهٔ باز نرم‌افزار، مستندات و روش‌های پژوهش و ایجاد مخزن عمومی گیت‌هاب در آینده است. انتشار عمومی مجموعه‌داده تنها در صورت سازگاری با حریم خصوصی، مجوزها و سایر حقوق انجام می‌شود. این صفحه اعلام آماده‌بودن مخزن یا مجموعه‌داده نیست.',
 					'ضبط خصوصی با منبع پژوهشی عمومی فرق دارد. حذف نام کافی نیست؛ چهره، صدا، گفت‌وگوی شخصی یا ترکیب جزئیات ممکن است فرد را قابل‌شناسایی کند. حتی ویژگی‌های استخراج‌شده و خروجی مدل نیازمند ارزیابی مناسب خطر هستند. <a href="#project-source-4">[۴]</a>',
 					'قصد داریم منابع عمومیِ مناسب با ذکر منبع، هم برای پژوهش و هم برای کاربرد تجاری، از جمله محصولات دلنوازان یا دیگران، قابل‌استفاده باشند. CC BY 4.0 یکی از گزینه‌های بررسی‌شده برای محتوای مناسب است؛ استفادهٔ تجاری و تغییر را با ذکر منبع مجاز می‌کند، اما حقوق حریم خصوصی و اشخاص ثالث را کنار نمی‌زند. مجوزهای نهایی هنوز انتخاب نشده‌اند. <a href="#project-source-5">[۵]</a>',
-					'بازپس‌گیری همهٔ نسخه‌های عمومی قابل‌تضمین نیست و مجوز کریتیو کامنزِ استفاده‌کنندهٔ پایبند به شرایط را نمی‌توان به‌سادگی لغو کرد. این محدودیت باید پیش از هر انتشار توضیح داده شود. محرمانه‌ماندن درس‌های قابل‌شناسایی بخش اساسی این تفکیک است.',
+					'هر انتشار عمومی باید ابتدا با تعهدهای فعلی نگهداری و انصراف سازگار شود. بازپس‌گیری همهٔ نسخه‌های عمومی قابل‌تضمین نیست و مجوز کریتیو کامنزِ استفاده‌کنندهٔ پایبند به شرایط را نمی‌توان به‌سادگی لغو کرد. این محدودیت باید پیش از هر انتشار توضیح داده شود. محرمانه‌ماندن درس‌های قابل‌شناسایی بخش اساسی این تفکیک است.',
 				),
 			),
 			array(
@@ -360,7 +361,7 @@ return array(
 					),
 					array(
 						'آیا می‌توانم نظرم را تغییر دهم؟',
-						'کنترل‌های در دسترس ضبط و پژوهش در تنظیمات حساب قرار دارند. اگر کنترلی در دسترس نبود، با دلنوازان تماس بگیرید تا درخواستتان بررسی شود. توقف ضبط آینده، توقف استفادهٔ بعدی از اطلاعات قابل‌شناسایی و حذف اطلاعات قبلی اقدام‌های جداگانه‌اند. روند و محدودیت‌ها باید پیش از گردآوری توضیح داده شوند.',
+						'کنترل‌های در دسترس ضبط و پژوهش در تنظیمات حساب قرار دارند. اگر کنترلی در دسترس نبود، با دلنوازان تماس بگیرید تا درخواستتان بررسی شود. توقف ضبط آینده، توقف استفادهٔ بعدی از اطلاعات قابل‌شناسایی و حذف اطلاعات قبلی اقدام‌های جداگانه‌اند. سیاست فعلی، پس‌گرفتن رضایت از راه‌های تماس دلنوازان را پیش‌بینی کرده و می‌گوید اثر آن بر داده‌های قبلی هنگام درخواست توضیح داده می‌شود. روند و محدودیت‌ها باید پیش از گردآوری روشن باشند.',
 					),
 					array(
 						'وضعیت کودکان چیست؟',
@@ -368,7 +369,7 @@ return array(
 					),
 					array(
 						'ضبط‌ها چه مدت نگهداری می‌شوند؟',
-						'برنامهٔ نهایی نگهداری تعیین نشده است. افق بلند پژوهش مجوز همیشگی برای نگهداری اطلاعات قابل‌شناسایی نیست. نیاز مستمر، بازبینی، حذف و نسخه‌های پشتیبان باید در برنامه مشخص باشند. راهنمای OAIC اصول مربوط را در صورت شمول قانون حریم خصوصی استرالیا توضیح می‌دهد. [۴]',
+						'سیاست منتشرشدهٔ فعلی برای ضبط‌ها و دارایی‌های پژوهشی مرتبط، از جمله مجموعه‌داده و نسخه‌های پشتیبان، مدت ده سال را تعیین می‌کند. افق بلند پروژه این سیاست را تغییر نمی‌دهد. هر پیشنهاد بلندمدت‌تر باید پیش از پذیرش، نیاز مستمر، بازبینی، حذف و تعهدهای موجود را مشخص کند. سیاست ضبط و راهنمای OAIC را ببینید. [۴]',
 					),
 					array(
 						'آیا اشتباه من یا کلاس استادم در گیت‌هاب منتشر می‌شود؟',
@@ -399,6 +400,7 @@ return array(
 		'policy' => 'سیاست‌های مرتبط را بخوانید',
 		'privacy' => 'حریم خصوصی',
 		'terms' => 'شرایط و ضوابط',
+		'recording_policy' => 'سیاست ضبط و هوش مصنوعی',
 		'account' => 'تنظیمات حساب هنرجو',
 		'onboarding' => 'آغاز همکاری مدرس',
 		'contact' => 'پرسش یا پیشنهاد همکاری',

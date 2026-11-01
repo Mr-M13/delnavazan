@@ -45,6 +45,18 @@ final class TeacherAvailabilityService {
         $teacher=$this->activeOwnTeacher();$input['teacher_id']=$teacher;$input['status']='active';$input['reason_code']='teacher_self_service';$input['state']='preferred';$d=$this->rule($input);$now=current_time('mysql',true);
         $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$this->rejectOverlap($d);$id=$this->repo->saveRule($d,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();return $id;}catch(\Throwable $e){$this->repo->rollback();throw $e;}
     }
+    /** Invitation-linked teachers may retire only their own onboarding availability. */
+    public function retireOwnRecurringRule(int $ruleId): void {
+        $teacher=$this->ownTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);
+        $this->repo->begin();
+        try {
+            $this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());
+            $this->repo->commit();
+            (new TeacherOnboardingService())->refreshOwnProgress();
+        } catch (\Throwable $e) {
+            $this->repo->rollback();throw $e;
+        }
+    }
     public function retireActiveOwnRecurringRule(int $ruleId):void { $teacher=$this->activeOwnTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();}catch(\Throwable $e){$this->repo->rollback();throw $e;} }
     public function setDatedException(array $input): int {
         $this->admin(); $d = $this->exception( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveException( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }

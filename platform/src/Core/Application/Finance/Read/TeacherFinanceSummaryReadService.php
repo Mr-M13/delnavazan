@@ -237,24 +237,32 @@ final class TeacherFinanceSummaryReadService {
      * @param list<array<string,mixed>|object> $goldenRows
      * @return array<string,mixed>
      */
-    public static function remunerationModel(array $activeRates,array $issuedStatements,array $goldenRows):array{
+    public static function remunerationModel(array $activeRates,array $statements,array $goldenRows,?string $nowUtc=null):array{
         $rate=self::rateModel($activeRates);
-        $statements=array();
-        foreach($issuedStatements as $statement){
-            $statement=(array)$statement;
-            if((string)($statement['state']??'')==='issued')$statements[]=$statement;
-        }
-        $currency='';$currencies=array();$earned=0;
+        $nowUtc=$nowUtc!==null&&self::isUtc($nowUtc)?$nowUtc:gmdate('Y-m-d H:i:s');
+        $issued=array();$paid=array();
         foreach($statements as $statement){
+            $statement=(array)$statement;
+            $state=(string)($statement['state']??'');
+            if($state==='issued')$issued[]=$statement;
+            elseif($state==='paid')$paid[]=$statement;
+        }
+        $all=array_merge($issued,$paid);
+        $currency='';$currencies=array();$earned=0;$paidTotal=0;$unpaid=0;$oldestUnpaid=null;
+        foreach($all as $statement){
             $statementCurrency=strtoupper(trim((string)($statement['currency']??'')));
             if(preg_match('/^[A-Z]{3}$/D',$statementCurrency)!==1)continue;
             $currencies[$statementCurrency]=true;
-            $earned+=(int)($statement['payable_amount_minor']??0);
+            $amount=(int)($statement['payable_amount_minor']??0);
+            $earned+=$amount;
+            if((string)($statement['state']??'')==='paid'){$paidTotal+=$amount;}
+            else{$unpaid+=$amount;$end=trim((string)($statement['period_end_utc']??''));if($end!==''&&($oldestUnpaid===null||$end<$oldestUnpaid))$oldestUnpaid=$end;}
         }
         if(count($currencies)===1)$currency=(string)array_key_first($currencies);
+        $paymentStatus=self::paymentStatus($unpaid,$oldestUnpaid,$nowUtc);
         $earnedModel=count($currencies)===1
-            ?array('state'=>'available','amount_minor'=>$earned,'currency'=>$currency,'statement_count'=>count($statements),'basis'=>'issued_statements')
-            :array('state'=>'unavailable','reason'=>$currencies===array()?'no_issued_statement':'multiple_currencies','amount_minor'=>null,'currency'=>null,'statement_count'=>count($statements),'basis'=>'issued_statements');
+            ?array('state'=>'available','amount_minor'=>$earned,'currency'=>$currency,'statement_count'=>count($all),'paid_amount_minor'=>$paidTotal,'unpaid_amount_minor'=>$unpaid,'paid_statement_count'=>count($paid),'unpaid_statement_count'=>count($issued),'payment_status'=>$paymentStatus,'oldest_unpaid_period_end'=>$oldestUnpaid,'basis'=>'issued_and_paid_statements')
+            :array('state'=>'unavailable','reason'=>$currencies===array()?'no_issued_statement':'multiple_currencies','amount_minor'=>null,'currency'=>null,'statement_count'=>count($all),'paid_amount_minor'=>null,'unpaid_amount_minor'=>null,'payment_status'=>$currencies===array()?'not_due':'unavailable','basis'=>'issued_and_paid_statements');
 
         $goldenMinutes=0;$goldenBonus=0;$goldenCurrencies=array();$goldenLessons=array();$basisPoints=array();$goldenDetails=0;
         foreach($goldenRows as $row){
@@ -292,15 +300,19 @@ final class TeacherFinanceSummaryReadService {
         $expected=$earnedModel['state']==='available'
             ?array('state'=>'available','amount_minor'=>(int)$earnedModel['amount_minor'],'currency'=>$earnedModel['currency'],'includes_golden_hour_bonus'=>true)
             :array('state'=>'unavailable','reason'=>$earnedModel['reason'],'amount_minor'=>null,'currency'=>null,'includes_golden_hour_bonus'=>null);
-        $payout=array(
-            'state'=>'unavailable',
-            'status'=>'unavailable',
-            'reason'=>'payout_ledger_unavailable',
-            'paid_minor'=>null,
-            'unpaid_minor'=>null,
-            'actual_payments'=>null,
-            'currency'=>$currency!==''?$currency:($rate['currency']??null),
-        );
+        $payout=$earnedModel['state']==='available'
+            ?array(
+                'state'=>'available','status'=>$paymentStatus,'reason'=>null,
+                'paid_minor'=>$paidTotal,'unpaid_minor'=>$unpaid,'actual_payments'=>$paidTotal,
+                'currency'=>$currency,'oldest_unpaid_period_end'=>$oldestUnpaid,
+                'paid_statement_count'=>count($paid),'unpaid_statement_count'=>count($issued),
+            )
+            :array(
+                'state'=>'unavailable','status'=>'unavailable','reason'=>$earnedModel['reason'],
+                'paid_minor'=>null,'unpaid_minor'=>null,'actual_payments'=>null,
+                'currency'=>$currency!==''?$currency:($rate['currency']??null),'oldest_unpaid_period_end'=>null,
+                'paid_statement_count'=>null,'unpaid_statement_count'=>null,
+            );
 
         return array(
             'state'=>($rate['state']==='available'||$earnedModel['state']==='available')?'partial':'unavailable',
@@ -311,6 +323,25 @@ final class TeacherFinanceSummaryReadService {
             'expected_total'=>$expected,
             'payout'=>$payout,
         );
+    }
+
+    /**
+     * Pure payment status: settled, pending or overdue.
+     *
+     * A statement is paid only when its append-only `payment_recorded` event exists; an
+     * unpaid issued statement older than the 30-day settlement window is overdue.
+     */
+    public static function paymentStatus(int $unpaidMinor,?string $oldestUnpaidPeriodEndUtc,string $nowUtc):string{
+        if($unpaidMinor<=0)return 'up_to_date';
+        if($oldestUnpaidPeriodEndUtc===null||!self::isUtc($oldestUnpaidPeriodEndUtc))return 'pending';
+        $oldest=strtotime($oldestUnpaidPeriodEndUtc.' UTC');
+        $now=strtotime($nowUtc.' UTC');
+        if($oldest===false||$now===false)return 'pending';
+        return ($now-$oldest)>(30*86400)?'overdue':'pending';
+    }
+
+    private static function isUtc(string $value):bool{
+        return preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D',$value)===1&&strtotime($value.' UTC')!==false;
     }
 
     /** @param list<array<string,mixed>|object> $rates @return array<string,mixed> */
@@ -359,7 +390,7 @@ final class TeacherFinanceSummaryReadService {
             $statements=$wpdb->get_results($wpdb->prepare(
                 "SELECT id,currency,period_end_utc,payable_amount_minor,payable_line_count,state
                  FROM {$p}finance_statements
-                 WHERE teacher_id=%d AND state='issued' AND period_end_utc<=%s
+                 WHERE teacher_id=%d AND state IN ('issued','paid') AND period_end_utc<=%s
                  ORDER BY period_end_utc DESC,id DESC",
                 $teacherId,$nowUtc
             ),ARRAY_A);
@@ -382,7 +413,7 @@ final class TeacherFinanceSummaryReadService {
                 $goldenRows=is_array($goldenRows)?$goldenRows:array();
             }
         }
-        return self::remunerationModel($rates,$statements,$goldenRows);
+        return self::remunerationModel($rates,$statements,$goldenRows,$nowUtc);
     }
 
     private static function resolveTimezone(?string $timezone):string{

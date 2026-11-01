@@ -14,8 +14,15 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{FinancePayabilityReposit
  */
 final class FinanceStatementIntegrity {
     public static function lineDigest(object $line):string{
+        // Capture builds the line digest from typed values; a stored row returns strings. Normalise
+        // the integer fields so a recorded line can be re-proved from its own storage.
+        $integerFields=array('lesson_id','snapshot_id','snapshot_correction_id','payability_evaluation_id','rate_id','rate_version','line_amount_minor');
         $values=array();
-        foreach(FinanceRule::STATEMENT_LINE_DIGEST_FIELDS as $field)$values[$field]=$line->{$field}??null;
+        foreach(FinanceRule::STATEMENT_LINE_DIGEST_FIELDS as $field){
+            $value=$line->{$field}??null;
+            if($value!==null&&in_array($field,$integerFields,true))$value=(int)$value;
+            $values[$field]=$value;
+        }
         return FinanceSupport::digest(FinanceRule::STATEMENT_LINE_DIGEST_FIELDS,$values);
     }
     /** §10.2: the statement's derivation digest over its recorded period, currency and ordered lines. */
@@ -67,7 +74,7 @@ final class FinanceStatementIntegrity {
         if(count($currencies)>1)throw new \RuntimeException('currency_mismatch_for_statement');
         if($currencies!==array()&&!isset($currencies[(string)$statement->currency]))throw new \RuntimeException('currency_mismatch_for_statement');
         // §10.5 rule 5: an `issued` statement can never carry a pending line.
-        if((string)$statement->state==='issued'&&(int)$statement->pending_line_count>0)throw new \RuntimeException('statement_derivation_mismatch');
+        if(in_array((string)$statement->state,array('issued','paid'),true)&&(int)$statement->pending_line_count>0)throw new \RuntimeException('statement_derivation_mismatch');
         $recomputed=array('total_line_count'=>$total,'payable_line_count'=>$payable,'payable_amount_minor'=>$amount,'non_payable_line_count'=>$nonPayable,'pending_line_count'=>$pending);
         foreach($recomputed as $key=>$value)if((int)$statement->{$key}!==(int)$value)throw new \RuntimeException('statement_totals_mismatch');
         if(!hash_equals((string)$statement->derivation_digest,self::derivationDigest($statement,$lines)))throw new \RuntimeException('statement_derivation_mismatch');

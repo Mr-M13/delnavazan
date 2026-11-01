@@ -92,6 +92,7 @@ $issued = array(
     // A real completed-period issued statement, exactly as the existing TeacherStatementReadService exposes it.
     array('id' => 21, 'state' => 'issued', 'currency' => 'AUD', 'period_end_utc' => '2026-09-30 23:59:59', 'payable_amount_minor' => 10000, 'payable_line_count' => 2),
     array('id' => 22, 'state' => 'draft', 'currency' => 'AUD', 'period_end_utc' => '2026-10-31 23:59:59', 'payable_amount_minor' => 5000, 'payable_line_count' => 1),
+    array('id' => 23, 'state' => 'paid', 'currency' => 'AUD', 'period_end_utc' => '2026-08-31 23:59:59', 'payable_amount_minor' => 5000, 'payable_line_count' => 1),
 );
 $golden = array(
     array('statement_id' => 21, 'lesson_id' => 1, 'currency' => 'AUD', 'disposition' => 'payable', 'eligible_minutes' => 60, 'total_bonus_minor' => 800, 'window_definitions' => '[{"bonus_basis_points":2000}]'),
@@ -100,26 +101,30 @@ $golden = array(
 $remuneration = TeacherFinanceSummaryReadService::remunerationModel(array($rate), $issued, $golden);
 $assert($remuneration['rate']['state'] === 'available' && $remuneration['rate']['amount_minor'] === 4000 && $remuneration['rate']['currency'] === 'AUD', 'The single active rate must be returned with its exact unit and currency.');
 $assert($remuneration['rate']['unit_label'] === 'هر جلسه', 'The per-session rate unit must be labelled for the Persian portal.');
-$assert($remuneration['earned']['state'] === 'available' && $remuneration['earned']['amount_minor'] === 10000 && $remuneration['earned']['statement_count'] === 1, 'Only issued statements may contribute to earned pay; a draft must not.');
+$assert($remuneration['earned']['state'] === 'available' && $remuneration['earned']['amount_minor'] === 15000 && $remuneration['earned']['statement_count'] === 2, 'Issued and paid statements contribute to earned pay; a draft must not.');
 $assert($remuneration['golden_hour']['eligible_minutes'] === 90 && $remuneration['golden_hour']['bonus_minor'] === 1100, 'Golden-hour duration and bonus must come from recorded details.');
 $assert($remuneration['golden_hour']['bonus_basis_points_mixed'] === true && $remuneration['golden_hour']['bonus_basis_points_min'] === 1000 && $remuneration['golden_hour']['bonus_basis_points_max'] === 2000, 'Different recorded bonus percentages must be reported honestly instead of guessed.');
-$assert($remuneration['expected_total']['amount_minor'] === 10000 && $remuneration['expected_total']['includes_golden_hour_bonus'] === true, 'Expected earnings are the issued statement total, explicitly including recorded bonuses.');
-$assert($remuneration['payout']['state'] === 'unavailable' && $remuneration['payout']['reason'] === 'payout_ledger_unavailable', 'With no payout ledger the payment status must be unavailable.');
-$assert($remuneration['payout']['paid_minor'] === null && $remuneration['payout']['unpaid_minor'] === null && $remuneration['payout']['actual_payments'] === null, 'No amount may be fabricated as paid or unpaid.');
+$assert($remuneration['expected_total']['amount_minor'] === 15000 && $remuneration['expected_total']['includes_golden_hour_bonus'] === true, 'Expected earnings are the issued and paid statement total, explicitly including recorded bonuses.');
+$assert($remuneration['payout']['state'] === 'available' && $remuneration['payout']['paid_minor'] === 5000 && $remuneration['payout']['unpaid_minor'] === 10000, 'The settlement ledger must expose actual paid and unpaid amounts.');
+$assert($remuneration['payout']['status'] === 'overdue', 'An unpaid statement older than the settlement window must be overdue.');
+$assert(TeacherFinanceSummaryReadService::paymentStatus(0, null, '2026-11-01 00:00:00') === 'up_to_date', 'Nothing unpaid must be up to date.');
+$assert(TeacherFinanceSummaryReadService::paymentStatus(1000, '2026-10-20 00:00:00', '2026-11-01 00:00:00') === 'pending', 'A recent unpaid statement must be pending.');
+$assert(TeacherFinanceSummaryReadService::paymentStatus(1000, '2026-09-01 00:00:00', '2026-11-01 00:00:00') === 'overdue', 'An old unpaid statement must be overdue.');
 
 $ambiguous = TeacherFinanceSummaryReadService::remunerationModel(array($rate, array_merge($rate, array('id' => 12, 'amount_minor' => 5000))), $issued, $golden);
 $assert($ambiguous['rate']['state'] === 'unavailable' && $ambiguous['rate']['reason'] === 'rate_ambiguous', 'Multiple active rates must resolve to unavailable, never a guessed rate.');
 $noStatements = TeacherFinanceSummaryReadService::remunerationModel(array($rate), array(), array());
 $assert($noStatements['earned']['state'] === 'unavailable' && $noStatements['earned']['reason'] === 'no_issued_statement', 'Without a completed issued statement, earned pay must be unavailable.');
 $assert($noStatements['golden_hour']['state'] === 'unavailable' && $noStatements['golden_hour']['reason'] === 'no_golden_hour_record', 'Without recorded golden-hour details, bonus must be unavailable.');
-$assert($noStatements['payout']['state'] === 'unavailable' && $noStatements['payout']['paid_minor'] === null, 'Missing payout records must never be reported as paid.');
+$assert($noStatements['earned']['state'] === 'unavailable' && $noStatements['earned']['reason'] === 'no_issued_statement', 'Without a statement, earned pay must be unavailable.');
+$assert($noStatements['payout']['status'] === 'unavailable', 'Without a statement, payout status must be unavailable rather than fabricated.');
 
 $service = (string) file_get_contents($servicePath);
 $assert(str_contains($service, 'canonical_lesson_delivery_outcomes') && str_contains($service, 'delivery_state'), 'The monthly reconciliation must read canonical delivery outcomes.');
 $assert(str_contains($service, 'COALESCE(o.occurrence_starts_at_utc,v.starts_at_utc)'), 'The month boundary must follow the same occurrence anchor Finance uses.');
 $assert(str_contains($service, "'minutes_month'=>\$month['completed_minutes']") && str_contains($service, "'scheduled_minutes_month'=>\$month['scheduled_minutes']"), 'Taught minutes must come from completed facts while scheduled minutes stay separate.');
-$assert(str_contains($service, "state='issued' AND period_end_utc<=%s"), 'Only issued statements for completed periods may feed the remuneration read.');
-$assert(str_contains($service, 'payout_ledger_unavailable') && !str_contains($service, 'finance_teacher_payouts'), 'The payout state must be honest and must not invent a payout table.');
+$assert(str_contains($service, "state IN ('issued','paid') AND period_end_utc<=%s"), 'Only issued or settled statements for completed periods may feed the remuneration read.');
+$assert(str_contains($service, "state IN ('issued','paid')") && str_contains($service, 'paymentStatus'), 'The summary must read statement settlement states and derive payment status.');
 $assert(substr_count($service, '$wpdb->prepare(') >= 6, 'Every Finance fact query must remain parameterized.');
 $assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i', $service), 'The Teacher summary read service must remain read-only.');
 

@@ -13,19 +13,23 @@ final class FinanceStatementRepository extends FinanceRepository {
     }
     /** The live (`draft`/`issued`) statements of one Teacher. */
     public function liveStatements(int $teacherId,bool $lock=false):array{
-        return $this->many("SELECT * FROM {$this->p}finance_statements WHERE teacher_id=%d AND state IN ('draft','issued') ORDER BY period_start_utc".($lock?' FOR UPDATE':''),$teacherId);
+        return $this->many("SELECT * FROM {$this->p}finance_statements WHERE teacher_id=%d AND state IN ('draft','issued','paid') ORDER BY period_start_utc".($lock?' FOR UPDATE':''),$teacherId);
     }
     /** Whether an issued statement was already successfully emailed. */
     public function hasEmailEvent(int $statementId):bool{
         return (int)$this->value("SELECT COUNT(*) FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type='emailed'",$statementId)>0;
     }
     public function liveInPeriod(int $teacherId,string $startUtc,string $endUtc,int $excludeId=0,bool $lock=false):array{
-        return $this->many("SELECT * FROM {$this->p}finance_statements WHERE teacher_id=%d AND state IN ('draft','issued') AND id<>%d AND period_start_utc<%s AND period_end_utc>%s".($lock?' FOR UPDATE':''),$teacherId,$excludeId,$endUtc,$startUtc);
+        return $this->many("SELECT * FROM {$this->p}finance_statements WHERE teacher_id=%d AND state IN ('draft','issued','paid') AND id<>%d AND period_start_utc<%s AND period_end_utc>%s".($lock?' FOR UPDATE':''),$teacherId,$excludeId,$endUtc,$startUtc);
     }
     public function nextVersion(int $teacherId,string $startUtc,string $endUtc):int{
         return (int)$this->value("SELECT COALESCE(MAX(statement_version),0)+1 FROM {$this->p}finance_statements WHERE teacher_id=%d AND period_start_utc=%s AND period_end_utc=%s",$teacherId,$startUtc,$endUtc);
     }
     public function insertStatement(array $data):int{return $this->insert('finance_statements',$data,'Statement persistence failed');}
+    /** Assign the stable public statement handle once, immediately after its first insert. */
+    public function assignPublicHandle(int $statementId):void{
+        $this->assignReference('finance_statements',$statementId,\Delnavazan\Platform\Core\Support\Identifier::reference('FINST',$statementId));
+    }
     public function lines(int $statementId,bool $lock=false):array{
         return $this->many("SELECT * FROM {$this->p}finance_statement_lines WHERE statement_id=%d ORDER BY line_sequence,id".($lock?' FOR UPDATE':''),$statementId);
     }
@@ -52,6 +56,16 @@ final class FinanceStatementRepository extends FinanceRepository {
         return (int)$changed;
     }
     /** §10.6: the one conditional `issued → superseded` transition, naming its successor. */
+    public function markPaid(int $statementId,int $actor,string $now):int{
+        global $wpdb;$table=$this->declared('finance_statements');
+        $changed=$wpdb->query($wpdb->prepare("UPDATE {$table} SET state='paid',updated_at=%s,updated_by=%d WHERE id=%d AND state='issued'",$now,$actor,$statementId));
+        if($changed===false)throw new \RuntimeException('Statement payment persistence failed: '.$wpdb->last_error);
+        return (int)$changed;
+    }
+    /** The append-only payment settlement event of one statement, if recorded. */
+    public function paymentFor(int $statementId):?object{
+        return $this->one("SELECT * FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type='payment_recorded' ORDER BY event_sequence DESC,id DESC LIMIT 1",$statementId);
+    }
     public function supersede(int $statementId,int $successorId,int $actor,string $now):int{
         global $wpdb;$table=$this->declared('finance_statements');
         $changed=$wpdb->query($wpdb->prepare("UPDATE {$table} SET state='superseded',superseded_at=%s,superseded_by_statement_id=%d,updated_at=%s,updated_by=%d WHERE id=%d AND state='issued'",$now,$successorId,$now,$actor,$statementId));
@@ -105,6 +119,6 @@ final class FinanceStatementRepository extends FinanceRepository {
         $lessonIds=array_values(array_filter(array_map('intval',$lessonIds),static fn($id)=>$id>0));
         if($lessonIds===array())return array();
         $marks=implode(',',$lessonIds);
-        return $this->many("SELECT DISTINCT line.lesson_id FROM {$this->p}finance_statement_lines line INNER JOIN {$this->p}finance_statements statement ON statement.id=line.statement_id WHERE statement.teacher_id=%d AND statement.state IN ('draft','issued') AND statement.id<>%d AND line.lesson_id IN ({$marks})",$teacherId,$excludeStatementId);
+        return $this->many("SELECT DISTINCT line.lesson_id FROM {$this->p}finance_statement_lines line INNER JOIN {$this->p}finance_statements statement ON statement.id=line.statement_id WHERE statement.teacher_id=%d AND statement.state IN ('draft','issued','paid') AND statement.id<>%d AND line.lesson_id IN ({$marks})",$teacherId,$excludeStatementId);
     }
 }

@@ -137,7 +137,15 @@ final class LessonRescheduleService {
             if((int)$context->teacher_id!==$teacherId)throw new \InvalidArgumentException('portal_object_not_owned');
             if((string)$context->schedule_version_uid!==$scheduleVersionUid)throw new \InvalidArgumentException('stale_schedule_version');
             $kind=$this->classifyRequest($context,$now);
-            if($kind==='replacement')$this->assertReplacementEligible($context);
+            $facts=$this->store->replacementFacts((int)$context->lesson_id,(int)$context->term_id);
+            // An eligible Student absence must own a Term allocation before either lifecycle may
+            // proceed. This includes an advance absence that revises a future occurrence, not only
+            // a linked replacement for a completed occurrence.
+            if($kind==='replacement'){
+                $this->assertReplacementEligible($context,$facts);
+            }elseif(!empty($facts['absence_eligible'])&&empty($facts['absence_allocated'])){
+                throw new \InvalidArgumentException('replacement_entitlement_exhausted');
+            }
 
             try{$wall=AvailabilityLocalTime::wall($localDate,$localTime,$timezone);}catch(\Throwable){throw new \InvalidArgumentException('reschedule_local_time_invalid');}
             $duration=max(1,(int)$context->duration_minutes);
@@ -214,8 +222,8 @@ final class LessonRescheduleService {
      * Disputed, delivered and academy-owed outcomes are genuine exceptions and are surfaced to the
      * administrator instead of being silently converted into a Student replacement.
      */
-    private function assertReplacementEligible(object $context):void{
-        $facts=$this->store->replacementFacts((int)$context->lesson_id,(int)$context->term_id);
+    private function assertReplacementEligible(object $context,?array $facts=null):void{
+        $facts=$facts??$this->store->replacementFacts((int)$context->lesson_id,(int)$context->term_id);
         if(($facts['replacement_lesson_id']??null)!==null)throw new \InvalidArgumentException('replacement_already_issued');
         if(in_array((string)($facts['replacement_proposal_state']??''),array(self::STATE_ACCEPTED,self::STATE_COMMITTING),true))throw new \InvalidArgumentException('replacement_already_confirmed');
         $outcome=(string)($facts['delivery_outcome']??'');
@@ -228,9 +236,13 @@ final class LessonRescheduleService {
         if(!in_array($reason,array('student_advance_absence','student_reports_missed_class'),true))throw new \InvalidArgumentException('replacement_attendance_unresolved');
         if((int)($facts['attendance_schedule_version_id']??0)!==(int)$context->schedule_version_id)throw new \InvalidArgumentException('replacement_attendance_unresolved');
         if(in_array((string)($facts['attendance_state']??''),array('settled','adjudicated','closed_no_change','superseded'),true))throw new \InvalidArgumentException('attendance_outcome_final');
-        $allowance=(int)($facts['replacement_allowance']??0);
-        $used=(int)($facts['replacement_used']??0);
-        if($allowance<1||$used>=$allowance)throw new \InvalidArgumentException('replacement_entitlement_exhausted');
+        if(array_key_exists('absence_allocated',$facts)){
+            if(empty($facts['absence_allocated']))throw new \InvalidArgumentException('replacement_entitlement_exhausted');
+        }else{
+            $allowance=(int)($facts['replacement_allowance']??0);
+            $used=(int)($facts['replacement_used']??0);
+            if($allowance<1||$used>=$allowance)throw new \InvalidArgumentException('replacement_entitlement_exhausted');
+        }
     }
 
     private function exception(string $type,string $code,string $summary,int $lessonId):void{

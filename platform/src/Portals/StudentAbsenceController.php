@@ -3,6 +3,8 @@ namespace Delnavazan\Platform\Portals;
 
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService;
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceNotificationService;
+use Delnavazan\Platform\Core\Application\ExceptionService;
+use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
 
 /**
  * Student-owned attendance reports.
@@ -59,22 +61,37 @@ final class StudentAbsenceController {
                 'observed_at'=>$anchoredAt,
                 'evidence_reference'=>'authenticated-student:'.get_current_user_id().':'.$lesson.':'.(int)$schedule->id.':'.$reasonCode,
             ),'student-claim:'.get_current_user_id().':'.$lesson.':'.(int)$schedule->id.':'.$reasonCode);
-            // The Teacher owns the replacement conversation. Email is best-effort; the durable
-            // pending task is the Teacher portal absence read.
-            try{(new CanonicalAttendanceNotificationService())->notifyTeacher($lesson,(int)$schedule->id,$claimKind);}catch(\Throwable){}
-            // A post-occurrence report consumes the Student's bounded replacement allowance. When
-            // that allowance is already spent and no replacement exists for this origin, tell the
-            // Student now instead of waiting for a Teacher refusal.
-            $status=$success;
-            if($claimKind==='attendance_claim'){
-                $termId=(int)$wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}lessons WHERE id=%d LIMIT 1",$lesson));
-                $term=$termId>0?$wpdb->get_row($wpdb->prepare("SELECT replacement_allowance FROM {$p}terms WHERE id=%d LIMIT 1",$termId)):null;
-                $replacement=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}lessons WHERE canonical_replacement_origin_lesson_id=%d AND lesson_type='replacement' AND archived_at IS NULL LIMIT 1",$lesson));
-                $used=$termId>0?(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",$termId)):0;
-                if($term&&$replacement<1&&$used>=(int)$term->replacement_allowance)$status='absence_recorded_no_replacement';
+            // Attendance evidence is recorded even when the Term allowance is exhausted. The
+            // allocation decides whether this occurrence owns a replacement slot; an excess report
+            // must not create a Teacher task or a replacement-request notification.
+            $termId=(int)$wpdb->get_var($wpdb->prepare("SELECT term_id FROM {$p}lessons WHERE id=%d LIMIT 1",$lesson));
+            $allocation=$termId>0?(new LessonRescheduleRepository())->lessonAbsenceAllocation($lesson,(int)$schedule->id,$termId):array('eligible'=>false,'allocated'=>false);
+            $excess=!empty($allocation['eligible'])&&empty($allocation['allocated']);
+            if(!$excess){
+                // The Teacher owns the replacement conversation. Email is best-effort; the durable
+                // pending task is the Teacher portal absence read.
+                try{(new CanonicalAttendanceNotificationService())->notifyTeacher($lesson,(int)$schedule->id,$claimKind);}catch(\Throwable){}
+            }else{
+                self::recordExcessException($lesson);
             }
-            self::back($status);
+            self::back($excess?'absence_recorded_no_replacement':$success);
         }catch(\Throwable){self::back($failure);}
+    }
+
+    /** Durable administrator visibility for an absence the Term allowance cannot fund. */
+    private static function recordExcessException(int $lesson):void{
+        if(!class_exists(ExceptionService::class)||!isset($GLOBALS['wpdb']))return;
+        try{
+            (new ExceptionService())->recordTrusted(array(
+                'exception_type'=>'lesson_replacement_exception','severity'=>'warning',
+                'entity_type'=>'lesson','entity_id'=>$lesson,
+                'fingerprint_key'=>'replacement_entitlement_exhausted:'.$lesson,
+                'summary'=>'A Student absence was recorded after the Term replacement allowance was fully allocated; no replacement task was created.',
+                'error_code'=>'replacement_entitlement_exhausted','retry_available'=>false,
+            ));
+        }catch(\Throwable){
+            // The absence evidence is already durable; exception visibility must not reverse it.
+        }
     }
 
     private static function back(string $status):never{

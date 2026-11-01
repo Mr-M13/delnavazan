@@ -161,7 +161,7 @@ final class AcademyOperationsController {
             $items[] = array('label' => 'Operational exceptions', 'count' => $count, 'page' => 'dzn-exception', 'action' => 'Review exceptions', 'args' => array(), 'description' => 'Catalogue, booking or workflow exceptions need acknowledgement or resolution.', 'urgent' => $count > 0);
         }
         if (current_user_can('dzn_manage_lessons')) {
-            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending'");
+            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending' AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP())");
             $items[] = array('label' => 'Class time changes awaiting student response', 'count' => $count, 'page' => self::PAGE, 'action' => 'Review time changes', 'args' => array(), 'description' => 'A negotiated time change is waiting for the other party.', 'urgent' => false);
             $escalated = (int) $wpdb->get_var("SELECT COUNT(*) FROM (SELECT lesson_id FROM {$p}lesson_reschedule_proposals WHERE state='rejected' GROUP BY lesson_id HAVING COUNT(*)>=3) escalated");
             $items[] = array('label' => 'Reschedule negotiations needing admin intervention', 'count' => $escalated, 'page' => self::PAGE, 'action' => 'Open reschedule queue', 'args' => array(), 'description' => 'Three or more rejected proposals need a manual schedule decision.', 'urgent' => $escalated > 0);
@@ -362,7 +362,7 @@ final class AcademyOperationsController {
              INNER JOIN {$p}teachers t ON t.id=r.teacher_id
              LEFT JOIN {$p}courses c ON c.id=l.course_id
              LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
-             WHERE r.state='pending'
+             WHERE r.state='pending' AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())
              ORDER BY r.proposed_starts_at_utc,r.id LIMIT 50"
         );
         $escalated = $wpdb->get_results(

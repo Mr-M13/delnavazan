@@ -99,6 +99,12 @@ Normal schedule history uses append-only Lesson Schedule Versions with:
   used within that Term.
 - Unused replacement entitlement expires when the Term closes; it does not
   automatically carry into the next Term.
+- An eligible Student absence occurrence consumes one allowance slot when it
+  enters the replacement workflow, even before a replacement Lesson is issued.
+  The allocation is one per distinct occurrence; pending proposals, rejected
+  proposed times and expired proposed times retain it. Only an explicit,
+  audited resolution that the absence is ineligible, withdrawn or no longer
+  owed releases it. Teacher/academy non-delivery remedies remain separate.
 - These are policy defaults, not immutable database constants. An exceptional
   administrator override is explicit and audited.
 

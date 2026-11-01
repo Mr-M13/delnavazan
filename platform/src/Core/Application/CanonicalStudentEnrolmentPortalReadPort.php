@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Portals\{AuthenticatedPortalReadSubject,StudentEnrolmentPortalReadPort};
-use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,CourseRepository,EnrolmentRepository,InstrumentRepository,StudentRepository,TeacherAssignmentRepository,TeacherRepository};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,CourseRepository,EnrolmentRepository,InstrumentRepository,LessonRescheduleRepository,StudentRepository,TeacherAssignmentRepository,TeacherRepository};
 
 /**
  * Student-owned Enrolment read that is usable before Term/Teacher Assignment provisioning.
@@ -114,8 +114,16 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
                 );
             }
         }
-        $replacementAllowance = $currentTerm ? (int) ($currentTerm->replacement_allowance ?? 0) : 0;
-        $replacementUsed = count($replacementLessons);
+        // The allowance is shared by confirmed replacement Lessons and eligible Student absences
+        // that are still awaiting discussion, proposal or acceptance. The allocation service keeps
+        // one distinct occurrence per slot so several pending reports cannot claim the same slot.
+        $allocation = $currentTerm
+            ? (new LessonRescheduleRepository())->termReplacementAllocation((int) $currentTerm->id)
+            : array('allowance' => 0, 'used' => 0, 'pending' => 0, 'available' => 0);
+        $replacementAllowance = (int) ($allocation['allowance'] ?? 0);
+        $replacementUsed = (int) ($allocation['used'] ?? 0);
+        $replacementPending = (int) ($allocation['pending'] ?? 0);
+        $replacementAvailable = (int) ($allocation['available'] ?? 0);
 
         $source = $this->assignments->initialSource($enrolmentId);
         $frequency = 0;
@@ -165,7 +173,10 @@ final class CanonicalStudentEnrolmentPortalReadPort implements StudentEnrolmentP
             'term_state' => $termState,
             'replacement_allowance' => $replacementAllowance,
             'replacement_used' => $replacementUsed,
-            'replacement_remaining' => max(0, $replacementAllowance - $replacementUsed),
+            'replacement_pending_allocated' => $replacementPending,
+            'replacement_allocated_total' => $replacementUsed + $replacementPending,
+            'replacement_available' => $replacementAvailable,
+            'replacement_remaining' => $replacementAvailable,
             'replacement_lessons' => $replacementLessons,
         );
     }

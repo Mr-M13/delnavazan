@@ -15,6 +15,8 @@ use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
  */
 final class IntroPaymentService {
     public const PROVIDER_KEY = 'stripe';
+    /** Administrator-recorded offline evidence uses a distinct, non-Stripe provider key. */
+    public const MANUAL_PROVIDER_KEY = 'manual';
     public const STATE_PENDING = 'pending';
     public const STATE_PAID = 'paid';
     public const STATE_FAILED = 'failed';
@@ -196,6 +198,93 @@ final class IntroPaymentService {
         }
         if ($dispatch !== null) $this->confirmPaidBooking($dispatch);
         return array('accepted' => $resultState === 'accepted', 'reason' => $reason, 'obligation_id' => (int) $obligation->id, 'idempotent' => false);
+    }
+
+    /**
+     * Record one administrator-verified offline payment for this introductory obligation.
+     *
+     * The amount and currency are taken from the stored obligation, never from the browser. The
+     * existing paid transition and booking projection are reused so a manual settlement converges
+     * with the verified Stripe path. The provider event is recorded as `manual` evidence and can
+     * never be mistaken for a Stripe signature.
+     *
+     * @param array{evidence_reference?:string,provider_occurred_at?:string} $input
+     * @return array{accepted:bool,reason:?string,obligation_id:int,idempotent:bool,manual:bool}
+     */
+    public function recordManualSettlement(string $obligationUid, array $input, string $commandKey): array {
+        if (!current_user_can('dzn_manage_payment_execution')) throw new \RuntimeException('Unauthorized');
+        $obligationUid = trim($obligationUid);
+        $commandKey = trim($commandKey);
+        if (preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D', $obligationUid) !== 1 || $commandKey === '') {
+            throw new \InvalidArgumentException('intro_payment_manual_command_required');
+        }
+        $evidenceReference = trim((string) ($input['evidence_reference'] ?? ''));
+        if ($evidenceReference === '' || strlen($evidenceReference) > 191 || preg_match('/[\x00-\x1F\x7F]/', $evidenceReference) === 1) {
+            throw new \InvalidArgumentException('intro_payment_manual_evidence_required');
+        }
+        $occurredAt = trim((string) ($input['provider_occurred_at'] ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $occurredAt) === 1) $occurredAt .= ' 00:00:00';
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $occurredAt) !== 1 || strtotime($occurredAt . ' UTC') === false) {
+            throw new \InvalidArgumentException('intro_payment_manual_occurred_at_invalid');
+        }
+        $now = gmdate('Y-m-d H:i:s');
+        if ($occurredAt > $now) throw new \InvalidArgumentException('intro_payment_manual_occurred_at_invalid');
+        $actor = max(0, (int) get_current_user_id());
+        $keyDigest = hash('sha256', 'dzn-intro-manual-settlement:' . $commandKey);
+        $payloadDigest = hash('sha256', json_encode(array($obligationUid, $evidenceReference, $occurredAt, self::MANUAL_PROVIDER_KEY)));
+        $this->repository->begin();
+        try {
+            if ($command = $this->repository->command($keyDigest)) {
+                $obligation = $this->repository->obligation((int) $command->result_id);
+                if (!$obligation) throw new \RuntimeException('intro_payment_obligation_required');
+                if ((string) $command->command_payload_digest !== $payloadDigest) throw new \RuntimeException('intro_payment_manual_replay_conflict');
+                $this->repository->commit();
+                return array('accepted' => (string) $obligation->state === self::STATE_PAID, 'reason' => null, 'obligation_id' => (int) $obligation->id, 'idempotent' => true, 'manual' => true);
+            }
+            $obligation = $this->repository->obligationByUid($obligationUid, true);
+            if (!$obligation) throw new \InvalidArgumentException('intro_payment_obligation_required');
+            if (!in_array((string) $obligation->state, array(self::STATE_PENDING, self::STATE_FAILED), true)) {
+                throw new \InvalidArgumentException('intro_payment_state_conflict');
+            }
+            $createdDate = substr(trim((string) $obligation->created_at), 0, 10);
+            if ($createdDate !== '' && substr($occurredAt, 0, 10) < $createdDate) {
+                throw new \InvalidArgumentException('intro_payment_manual_occurred_at_invalid');
+            }
+            $eventDigest = PaymentExecutionIdempotency::eventReference('manual:' . $obligationUid . ':' . $keyDigest);
+            $this->repository->insertEvent(array(
+                'uid' => Identifier::uid(), 'intro_obligation_id' => (int) $obligation->id,
+                'provider_key' => self::MANUAL_PROVIDER_KEY, 'provider_event_reference_digest' => $eventDigest,
+                'event_kind' => 'payment_succeeded', 'amount_minor' => (int) $obligation->amount_minor,
+                'currency' => (string) $obligation->currency, 'provider_occurred_at' => $occurredAt,
+                'result_state' => 'accepted', 'reason_code' => null, 'recorded_at' => $now, 'created_at' => $now,
+            ));
+            $this->repository->updateObligation((int) $obligation->id, (int) $obligation->version, array(
+                'state' => self::STATE_PAID, 'paid_at' => $now, 'failed_at' => null,
+                'failure_reason_code' => null, 'updated_at' => $now, 'updated_by' => $actor,
+            ));
+            $session = $this->repository->activeSession((int) $obligation->id, true);
+            if ($session) $this->repository->closeSession((int) $session->id, 'completed', 'manual_payment_recorded', $now);
+            $this->repository->insertCommand(array(
+                'uid' => Identifier::uid(), 'command_domain' => 'intro_payment_v1', 'operation' => 'manual_settlement',
+                'command_key_digest' => $keyDigest, 'command_payload_digest' => $payloadDigest,
+                'intro_obligation_id' => (int) $obligation->id, 'result_state' => self::STATE_PAID,
+                'result_id' => (int) $obligation->id, 'created_at' => $now, 'created_by' => $actor,
+            ));
+            $confirmationId = (int) $obligation->confirmation_id;
+            $this->repository->commit();
+        } catch (\Throwable $error) {
+            $this->repository->rollback();
+            throw $error;
+        }
+        $projectionPending = false;
+        try {
+            $this->confirmPaidBooking($confirmationId);
+        } catch (\Throwable) {
+            // The payment and its paid obligation are already committed. A projection failure is
+            // retried by the existing booking worker; it must never be reported as a lost payment.
+            $projectionPending = true;
+        }
+        return array('accepted' => true, 'reason' => null, 'obligation_id' => (int) $obligation->id, 'idempotent' => false, 'manual' => true, 'projection_pending' => $projectionPending);
     }
 
     private function confirmPaidBooking(int $confirmationId): void {

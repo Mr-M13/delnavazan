@@ -22,15 +22,16 @@ final class FinanceAdminReadService {
         FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
         global $wpdb;
         $rows = $wpdb->get_results("SELECT state,COUNT(*) total FROM {$this->p}checkout_sessions GROUP BY state") ?: array();
-        $counts = array('all' => 0, 'pending' => 0, 'successful' => 0, 'failed' => 0, 'refunded' => 0);
+        $counts = array('all' => 0, 'pending' => 0, 'checkout_completed' => 0, 'failed' => 0, 'refunded' => 0, 'settled' => 0);
         foreach ($rows as $row) {
             $state = (string) $row->state;
             $counts['all'] += (int) $row->total;
             if (in_array($state, array('creating', 'open'), true)) $counts['pending'] += (int) $row->total;
-            elseif ($state === 'completed') $counts['successful'] += (int) $row->total;
+            elseif ($state === 'completed') $counts['checkout_completed'] += (int) $row->total;
             elseif ($state === 'failed') $counts['failed'] += (int) $row->total;
         }
         $counts['refunded'] = (int) $wpdb->get_var("SELECT COUNT(DISTINCT offer_id) FROM {$this->p}commercial_payment_evidence WHERE evidence_kind='refund' AND offer_id IS NOT NULL");
+        $counts['settled'] = (int) $wpdb->get_var("SELECT COUNT(DISTINCT obligation_id) FROM {$this->p}commercial_obligation_settlements WHERE obligation_id IS NOT NULL");
         return $counts;
     }
 
@@ -44,7 +45,8 @@ final class FinanceAdminReadService {
         $args = array();
         $state = (string) ($filters['state'] ?? '');
         if ($state === 'pending') { $where[] = "cs.state IN ('creating','open')"; }
-        elseif ($state === 'successful') { $where[] = "cs.state='completed'"; }
+        elseif ($state === 'successful' || $state === 'settled') { $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_payment_evidence se WHERE se.obligation_id=cs.obligation_id AND se.evidence_kind='success' AND se.processing_state='accepted')"; }
+        elseif ($state === 'checkout_completed') { $where[] = "cs.state='completed'"; }
         elseif ($state === 'failed') { $where[] = "cs.state='failed'"; }
         elseif ($state === 'refunded') { $where[] = "EXISTS (SELECT 1 FROM {$this->p}commercial_payment_evidence re WHERE re.offer_id=cs.offer_id AND re.evidence_kind='refund')"; }
         elseif ($state !== '' && $state !== 'all') { $where[] = 'cs.state=%s'; $args[] = $state; }
@@ -152,6 +154,104 @@ final class FinanceAdminReadService {
         return "(offer_row.state='accepted' OR (offer_row.state='issued' AND (offer_row.expires_at IS NULL OR offer_row.expires_at>UTC_TIMESTAMP())))";
     }
 
+    /**
+     * Outstanding, collectable standard-course obligations for administrator settlement.
+     *
+     * Read-only. The amount and currency are the stored obligation values; the administrator
+     * settles the exact obligation rather than entering a new amount.
+     *
+     * @return array{rows:list<object>,total:int,page:int,pages:int}
+     */
+    public function outstandingObligations(array $filters = array(), int $page = 1, int $perPage = 25): array {
+        FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
+        global $wpdb;
+        $where = array(self::actionableOfferSql(), 'settlement.id IS NULL', 'obligation.amount_minor>0');
+        $args = array();
+        $state = (string) ($filters['state'] ?? '');
+        if ($state === 'overdue') {
+            $where[] = 'obligation.due_at IS NOT NULL AND obligation.due_at<UTC_TIMESTAMP()';
+        } elseif ($state === 'instalment') {
+            $where[] = "offer_row.plan_kind='two_instalments'";
+        }
+        $query = trim((string) ($filters['q'] ?? ''));
+        if ($query !== '') {
+            $like = '%' . $wpdb->esc_like($query) . '%';
+            $where[] = '(offer_row.uid LIKE %s OR offer_row.reference_code LIKE %s OR student.display_name LIKE %s OR student.reference_code LIKE %s OR obligation.uid LIKE %s)';
+            array_push($args, $like, $like, $like, $like, $like);
+        }
+        $from = (string) ($filters['from'] ?? '');
+        $through = (string) ($filters['through'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $from) === 1) { $where[] = 'offer_row.issued_at>=%s'; $args[] = $from . ' 00:00:00'; }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $through) === 1) { $where[] = 'offer_row.issued_at<=%s'; $args[] = $through . ' 23:59:59'; }
+        $joins = "INNER JOIN {$this->p}commercial_offer_obligations obligation ON obligation.offer_id=offer_row.id
+                  LEFT JOIN {$this->p}commercial_obligation_settlements settlement ON settlement.obligation_id=obligation.id
+                  LEFT JOIN {$this->p}students student ON student.id=offer_row.beneficiary_student_id
+                  LEFT JOIN {$this->p}courses course ON course.id=offer_row.course_id";
+        $whereSql = implode(' AND ', $where);
+        $countSql = "SELECT COUNT(*) FROM {$this->p}commercial_offers offer_row {$joins} WHERE {$whereSql}";
+        $total = (int) ($args ? $wpdb->get_var($wpdb->prepare($countSql, ...$args)) : $wpdb->get_var($countSql));
+        $perPage = max(1, min(100, $perPage));
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($pages, $page));
+        $offset = ($page - 1) * $perPage;
+        $sql = "SELECT offer_row.uid offer_uid,offer_row.reference_code offer_reference,offer_row.state offer_state,
+                       offer_row.plan_kind,offer_row.committed_sessions,offer_row.expires_at,
+                       obligation.id obligation_id,obligation.uid obligation_uid,obligation.obligation_sequence,
+                       obligation.sessions_from,obligation.sessions_to,obligation.amount_minor,obligation.currency,obligation.due_at,
+                       student.display_name student_name,student.reference_code student_reference,
+                       COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
+                       EXISTS (SELECT 1 FROM {$this->p}commercial_offer_obligations predecessor
+                               LEFT JOIN {$this->p}commercial_obligation_settlements predecessor_settlement ON predecessor_settlement.obligation_id=predecessor.id
+                               WHERE predecessor.offer_id=offer_row.id AND predecessor.obligation_sequence<obligation.obligation_sequence AND predecessor_settlement.id IS NULL) predecessor_outstanding
+                FROM {$this->p}commercial_offers offer_row {$joins}
+                WHERE {$whereSql}
+                ORDER BY (obligation.due_at IS NULL),obligation.due_at,offer_row.id DESC,obligation.obligation_sequence
+                LIMIT {$perPage} OFFSET {$offset}";
+        $rows = $args ? $wpdb->get_results($wpdb->prepare($sql, ...$args)) : $wpdb->get_results($sql);
+        return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages);
+    }
+
+    /**
+     * Recently recorded settlements, including administrator-recorded manual payments.
+     *
+     * A checkout attempt is not required for an offline payment, so this projection is the
+     * authoritative recent-payment view. Provider references remain digests and are never shown.
+     *
+     * @return list<object>
+     */
+    public function recentSettlements(int $limit = 25): array {
+        FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
+        global $wpdb;
+        $limit = max(1, min(100, $limit));
+        $rows = $wpdb->get_results(
+            "SELECT settlement.id,settlement.settled_at,settlement.amount_minor,settlement.currency,
+                    evidence.provider_key,evidence.evidence_kind,evidence.processing_state,evidence.reason_code,
+                    offer_row.uid offer_uid,offer_row.reference_code offer_reference,
+                    obligation.id obligation_id,obligation.obligation_sequence,obligation.sessions_from,obligation.sessions_to,
+                    student.display_name student_name,student.reference_code student_reference,
+                    COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
+                    COALESCE((SELECT SUM(refund.amount_minor) FROM {$this->p}commercial_payment_evidence refund WHERE refund.obligation_id=obligation.id AND refund.evidence_kind='refund' AND refund.processing_state='accepted'),0) refunded_minor
+             FROM {$this->p}commercial_obligation_settlements settlement
+             INNER JOIN {$this->p}commercial_offer_obligations obligation ON obligation.id=settlement.obligation_id
+             INNER JOIN {$this->p}commercial_offers offer_row ON offer_row.id=obligation.offer_id
+             INNER JOIN {$this->p}commercial_payment_evidence evidence ON evidence.id=settlement.evidence_id
+             LEFT JOIN {$this->p}students student ON student.id=offer_row.beneficiary_student_id
+             LEFT JOIN {$this->p}courses course ON course.id=offer_row.course_id
+             ORDER BY settlement.id DESC LIMIT {$limit}"
+        );
+        return $rows ?: array();
+    }
+
+    /** @return array{set:bool,value:?string,version:?int} */
+    public function statementTimezone(): array {
+        FinanceSupport::requireCapability('dzn_view_finance_authority');
+        $resolved = (new \Delnavazan\Platform\Core\Application\Finance\FinancePolicyService())->resolve(
+            \Delnavazan\Platform\Core\Application\Finance\FinanceRule::UNSET_POLICY_KEY,
+            gmdate('Y-m-d H:i:s')
+        );
+        return array('set' => (bool) ($resolved['set'] ?? false), 'value' => $resolved['value'] ?? null, 'version' => isset($resolved['version']) ? (int) $resolved['version'] : null);
+    }
+
     /** @return array<string,int> */
     public function introPaymentCounts(): array {
         FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
@@ -244,7 +344,8 @@ final class FinanceAdminReadService {
         $page = max(1, min($pages, $page));
         $offset = ($page - 1) * $perPage;
         $sql = "SELECT tx.*,account.currency account_currency,account.display_name account_label,
-                       (SELECT MAX(reconciliation.as_of_date) FROM {$this->p}finance_cash_reconciliations reconciliation WHERE reconciliation.account_id=tx.account_id) latest_reconciliation
+                       (SELECT MAX(reconciliation.as_of_date) FROM {$this->p}finance_cash_reconciliations reconciliation WHERE reconciliation.account_id=tx.account_id) latest_reconciliation,
+                       (SELECT reconciliation.difference_minor FROM {$this->p}finance_cash_reconciliations reconciliation WHERE reconciliation.account_id=tx.account_id ORDER BY reconciliation.as_of_date DESC,reconciliation.id DESC LIMIT 1) latest_reconciliation_difference
                 FROM {$this->p}finance_cash_transactions tx
                 INNER JOIN {$this->p}finance_cash_accounts account ON account.id=tx.account_id
                 WHERE {$whereSql}
@@ -260,26 +361,81 @@ final class FinanceAdminReadService {
         return array('rows' => $rows ?: array(), 'total' => $total, 'page' => $page, 'pages' => $pages, 'balances' => $balances);
     }
 
+    /** @return array{type:string,occurred_at:string}|null */
+    /**
+     * Refund review cases for the administrator-only refund workspace.
+     *
+     * @return list<object>
+     */
+    public function refundReviews(int $limit = 50): array {
+        FinanceSupport::requireCapability('dzn_view_recurring_authority');
+        global $wpdb;
+        $limit = max(1, min(100, $limit));
+        $rows = $wpdb->get_results(
+            "SELECT review.*,purchase.reference_code purchase_reference,
+                    offer_row.uid offer_uid,offer_row.reference_code offer_reference,
+                    obligation.obligation_sequence,obligation.sessions_from,obligation.sessions_to,
+                    student.display_name student_name,student.reference_code student_reference,
+                    evidence.provider_occurred_at refunded_at,evidence.provider_key,evidence.processing_state
+             FROM {$this->p}refund_review_cases review
+             INNER JOIN {$this->p}commercial_purchases purchase ON purchase.id=review.purchase_id
+             INNER JOIN {$this->p}commercial_offers offer_row ON offer_row.id=purchase.offer_id
+             INNER JOIN {$this->p}commercial_offer_obligations obligation ON obligation.id=review.obligation_id
+             INNER JOIN {$this->p}commercial_payment_evidence evidence ON evidence.id=review.evidence_id
+             LEFT JOIN {$this->p}students student ON student.id=offer_row.beneficiary_student_id
+             ORDER BY review.id DESC LIMIT {$limit}"
+        );
+        return $rows ?: array();
+    }
+
+    public function statementEmailEvent(int $statementId): ?array {
+        FinanceSupport::requireCapability('dzn_view_finance_authority');
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT event_type,occurred_at FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type IN ('emailed','email_failed') ORDER BY id DESC LIMIT 1",
+            $statementId
+        ));
+        return $row === null ? null : array('type' => (string) $row->event_type, 'occurred_at' => (string) $row->occurred_at);
+    }
+
     /** @return list<array<string,mixed>> */
     public function statementLines(int $statementId): array {
         FinanceSupport::requireCapability('dzn_view_finance_authority');
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT line.*,COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name
+            "SELECT line.*,COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,lesson.reference_code lesson_reference
              FROM {$this->p}finance_statement_lines line
              LEFT JOIN {$this->p}courses course ON course.id=line.course_id
+             LEFT JOIN {$this->p}lessons lesson ON lesson.id=line.lesson_id
              WHERE line.statement_id=%d ORDER BY line.line_sequence",
             $statementId
         )) ?: array();
+        $golden = new \Delnavazan\Platform\Core\Application\Finance\GoldenHourPayService();
         $out = array();
         foreach ($rows as $row) {
+            $bonus = 0;
+            if ((string) $row->disposition === 'payable') {
+                try {
+                    $details = $golden->detailsForVersion((int) $row->snapshot_id, $row->snapshot_correction_id === null ? 0 : (int) $row->snapshot_correction_id);
+                    $bonus = $details === null ? 0 : (int) ($details['total_bonus_minor'] ?? 0);
+                } catch (\Throwable) {
+                    $bonus = 0;
+                }
+            }
+            $lineAmount = (int) $row->line_amount_minor;
             $out[] = array(
                 'lesson_id' => (string) $row->lesson_id,
+                'lesson_reference' => (string) ($row->lesson_reference ?? ''),
                 'occurrence_starts_at_utc' => (string) $row->occurrence_starts_at_utc,
                 'course' => (string) ($row->course_name ?? ''),
+                'duration_minutes' => (int) $row->duration_minutes,
+                'rate_amount_minor' => (int) $row->rate_amount_minor,
+                'compensation_basis' => (string) $row->compensation_basis,
+                'base_amount_minor' => max(0, $lineAmount - $bonus),
+                'bonus_amount_minor' => max(0, $bonus),
                 'disposition' => (string) $row->disposition,
                 'basis_code' => (string) $row->basis_code,
-                'line_amount_minor' => (int) $row->line_amount_minor,
+                'line_amount_minor' => $lineAmount,
                 'currency' => (string) $row->currency,
                 'status' => (string) $row->disposition,
             );
@@ -287,13 +443,19 @@ final class FinanceAdminReadService {
         return $out;
     }
 
-    /** @return array{name:string,reference:string}|null */
+    /** @return array{name:string,reference:string,email:string,locale:string,timezone:string}|null */
     public function teacherIdentity(int $teacherId): ?array {
         FinanceSupport::requireCapability('dzn_view_finance_authority');
         global $wpdb;
-        $row = $wpdb->get_row($wpdb->prepare("SELECT display_name,reference_code FROM {$this->p}teachers WHERE id=%d", $teacherId));
+        $row = $wpdb->get_row($wpdb->prepare("SELECT display_name,reference_code,email,locale,timezone FROM {$this->p}teachers WHERE id=%d", $teacherId));
         if (!$row) return null;
-        return array('name' => (string) ($row->display_name ?? ''), 'reference' => (string) ($row->reference_code ?? ''));
+        return array(
+            'name' => (string) ($row->display_name ?? ''),
+            'reference' => (string) ($row->reference_code ?? ''),
+            'email' => (string) ($row->email ?? ''),
+            'locale' => (string) ($row->locale ?? ''),
+            'timezone' => (string) ($row->timezone ?? ''),
+        );
     }
 
     /** @return list<object> */

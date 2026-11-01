@@ -68,4 +68,14 @@ $assert(($statement['payable_amount_minor'] + 0) === 4500000, 'Renderer must not
 $sample = (new StatementTemplateService())->renderSample($template);
 $assert(str_contains($sample, '۴,۵۰۰,۰۰۰ تومان'), 'Sample preview must use illustrative recorded-style totals and render safely');
 
+// The delivered default is the branded Delnavazan statement and shows the pay detail per lesson.
+$default = StatementTemplateRule::defaultTemplate();
+$assert(str_contains($default['css'], '#104A4D') && str_contains($default['css'], '#A33E48') && str_contains($default['css'], '#FBF8F2'), 'Default statement CSS must use the Delnavazan palette');
+$assert(str_contains($default['css'], 'Vazirmatn'), 'Default statement CSS must use the brand font with a fallback');
+$assert(isset(StatementTemplateRule::LESSON_PLACEHOLDERS['duration_minutes'], StatementTemplateRule::LESSON_PLACEHOLDERS['base_amount'], StatementTemplateRule::LESSON_PLACEHOLDERS['bonus_amount']), 'Statement placeholders must expose duration, base pay and bonus');
+$defaultHtml = (new StatementTemplateService())->renderSample($default);
+$assert(str_contains($defaultHtml, 'ریز حقوق جلسات') && str_contains($defaultHtml, '۶۰ دقیقه'), 'Default statement must show the lesson pay detail');
+$assert(str_contains($defaultHtml, '۴,۰۰۰,۰۰۰ تومان') && str_contains($defaultHtml, '۵۰۰,۰۰۰ تومان'), 'Default statement must show base pay and golden-hour bonus separately');
+$assert(!str_contains($defaultHtml, '{{'), 'Default statement rendering must leave no unresolved placeholder');
+
 echo "finance-statement-template-unit: OK\n";

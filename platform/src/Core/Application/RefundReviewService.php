@@ -45,9 +45,10 @@ final class RefundReviewService {
             if($winner=$this->repository->command($digest)){$result=$this->replay($winner,$payload);$this->repository->commit();return $result;}
             if($this->repository->forEvidence($evidenceId))throw new \InvalidArgumentException('refund_review_already_exists');
             $now=RecurringSupport::now();
+            $note=trim((string)($input['note'] ?? ''));
             $id=$this->repository->insertCase(array(
                 'uid'=>Identifier::uid(),'purchase_id'=>$purchaseId,'obligation_id'=>$obligationId,'evidence_id'=>$evidenceId,
-                'kind'=>$kind,'amount_minor'=>$settled['amount_minor'],'currency'=>$settled['currency'],'state'=>'open','academic_consequence'=>null,'resolution_note'=>null,
+                'kind'=>$kind,'amount_minor'=>$settled['amount_minor'],'currency'=>$settled['currency'],'state'=>'open','academic_consequence'=>null,'resolution_note'=>$note === '' ? null : $note,
                 'refund_review_version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>$actor,'updated_by'=>$actor,
             ));
             $this->repository->insertEvent(array(

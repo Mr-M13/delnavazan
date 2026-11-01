@@ -23,9 +23,9 @@ final class AcademyDashboardReadService {
      *   availability: array<string, bool>
      * }
      */
-    public function summary(int $days = 14): array {
+    public function summary(int $days = 30): array {
         if (!current_user_can('dzn_view_booking_requests')) throw new \RuntimeException('Unauthorized');
-        $days = max(7, min(30, $days));
+        $days = max(7, min(90, $days));
         $pipeline = (new AcademyJourneyReadService())->stageCounts();
         return array(
             'counts' => $this->counts(),

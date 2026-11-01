@@ -27,7 +27,7 @@ final class TeacherWorkspaceView {
         }
         self::directoryPage($read, $page);
         $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
-        if ($view === 'onboarding') echo '<script>(function(){var section=document.getElementById("teacher-onboarding");if(section){section.scrollIntoView({block:"start"});section.setAttribute("tabindex","-1");section.focus({preventScroll:true});}})();</script>';
+        if ($view === 'onboarding') echo '<script>(function(){var section=document.getElementById("teacher-onboarding");if(section){section.scrollIntoView({block:"start"});section.setAttribute("tabindex","-1");section.focus({preventScroll:true});}var invite=document.getElementById("dzn-teacher-invite-email");if(invite){invite.focus({preventScroll:true});}})();</script>';
     }
 
     private static function directoryPage(TeacherWorkspaceReadService $read, string $page): void {

@@ -4,7 +4,7 @@ Date: 2026-11-02
 
 ## What changed
 
-The Academy Overview keeps its existing seven-category task-first structure and now
+The Overview keeps its task-first structure and now
 shows the two financial sources explicitly, side by side:
 
 - **Manual bookkeeping** — the existing two-account cashbook. `Iran Balance` and
@@ -90,9 +90,9 @@ Disposable WordPress/MariaDB evidence:
 
 ## Screenshots
 
-- `evidence/admin-overview-2026-11-02.png` — full Overview.
-- `evidence/admin-overview-finance-2026-11-02.png` — the two finance sources.
-- `evidence/admin-overview-classroom-2026-11-02.png` — administrator classroom
+- `evidence/admin-overview-combined-desktop-2026-11-02.png` — full Overview.
+- `evidence/admin-overview-combined-mobile-2026-11-02.png` — mobile Overview.
+- `evidence/admin-overview-classroom-actions-2026-11-02.png` — administrator classroom
   actions on a provisioned class.
 
 ## Rollback
@@ -100,3 +100,5 @@ Disposable WordPress/MariaDB evidence:
 No migration. Revert the changed controllers, read service, LiveKit administrator
 service/controller, assets and tests. Existing finance and classroom records are
 untouched by rollback.
+
+See `ADMIN-OVERVIEW-COMPLETION-2026-11-02.md` for the complete reconciled checklist and final evidence.

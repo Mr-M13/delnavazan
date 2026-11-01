@@ -7,8 +7,8 @@ use Delnavazan\Platform\Admin\AcademyDashboardScreen;
 final class AdminShellController {
     /** The visible primary navigation follows academy work, never table layout. */
     private const TABS = [
-        'academy' => ['Academy', [
-            ['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
+        'overview' => ['Overview', [
+            ['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
         ]],
         'teachers' => ['Teachers', [
             ['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP],
@@ -17,11 +17,13 @@ final class AdminShellController {
             ['Directory', 'dzn-student', 'dzn_manage_students'],
             ['Identity & accounts', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
         ]],
-        'enrolment' => ['Enrolment', [
+        'classes' => ['Classes', [
             ['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons'],
+            ['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP],
+        ]],
+        'enrolment' => ['Enrolment', [
             ['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP],
             ['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
-            ['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP],
         ]],
         'finance' => ['Finance', [
             ['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']],
@@ -67,14 +69,15 @@ final class AdminShellController {
 
     /** Pages share their tab while retaining their original, protected callback. */
     private const PAGE_TABS = [
-        'dzn-platform' => 'academy', 'dzn-academy-dashboard' => 'academy',
+        'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
-        'dzn-lesson' => 'enrolment', 'dzn-enrolment-workspace' => 'enrolment',
-        'dzn-catalogue-workspace' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
+        'dzn-lesson' => 'classes', 'dzn-attendance-workspace' => 'classes',
+        'dzn-attendance-review' => 'classes', 'dzn-post-intro' => 'classes',
+        'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'enrolment',
         'dzn-booking-requests' => 'enrolment', 'dzn-booking-request-coordination' => 'enrolment',
         'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'enrolment', 'dzn-instrument' => 'enrolment',
-        'dzn-attendance-review' => 'enrolment', 'dzn-exception' => 'enrolment', 'dzn-post-intro' => 'enrolment',
+        'dzn-exception' => 'enrolment',
         'dzn-commercial-catalogue' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
         'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
@@ -82,6 +85,7 @@ final class AdminShellController {
         'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
         'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
+        'dzn-recording-notices' => 'settings',
     ];
 
     public static function register(): void {
@@ -92,7 +96,7 @@ final class AdminShellController {
         AcademyDashboardScreen::register();
     }
 
-    /** The top-level click is the Academy dashboard whenever that authority is available. */
+    /** The top-level click is the Overview dashboard whenever that authority is available. */
     public static function screen(): void {
         if (current_user_can('dzn_view_booking_requests')) { AcademyOperationsController::screen(); return; }
         if (!self::hasVisibleTab()) wp_die('Forbidden', 403);
@@ -136,7 +140,10 @@ final class AdminShellController {
         $active = self::PAGE_TABS[$page] ?? '';
         $today = function_exists('wp_date') ? wp_date('l, j F Y') : gmdate('l, j F Y');
         echo '<div class="dzn-admin-shell" aria-label="Delnavazan"><div class="dzn-admin-shell__brand">';
-        echo '<span class="dzn-admin-shell__mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 17c3.2-6.4 5.4-9.6 7.6-9.6S15 10.6 15.8 14.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 14.4c.8 3.8 2 5.6 3.8 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6.1" cy="5.9" r="1.4" fill="currentColor"/><path d="M18.6 4.2v6.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>';
+        $logo = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/images/delnavazan-logo.png') : '';
+        if ($logo !== '') {
+            echo '<span class="dzn-admin-shell__mark" aria-hidden="true"><img src="' . esc_url($logo) . '" alt=""></span>';
+        }
         echo '<span class="dzn-admin-shell__brand-copy"><strong>Delnavazan</strong><span>Academy operations</span></span>';
         $siteUrl = function_exists('home_url') ? home_url('/') : '#';
         echo '<span class="dzn-admin-shell__context"><span>' . esc_html($today) . '</span><a href="' . esc_url($siteUrl) . '">View site</a></span></div>';
@@ -169,7 +176,7 @@ final class AdminShellController {
             $seen[$key] = true;
             $visible[] = [$routeLabel, $slug, $args];
         }
-        // A single destination needs no second navigation row (Academy is one page).
+        // A single destination needs no second navigation row (Overview is one page).
         if (count($visible) <= 1) return;
         echo '<nav class="dzn-admin-shell__subtabs" aria-label="' . esc_attr(self::TABS[$active][0]) . ' pages">';
         foreach ($visible as [$routeLabel, $slug, $args]) {

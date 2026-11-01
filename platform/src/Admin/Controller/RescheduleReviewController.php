@@ -37,7 +37,7 @@ final class RescheduleReviewController {
         }catch(\Throwable $e){
             $status='error';
         }
-        $url=add_query_arg(array('page'=>'dzn-academy-dashboard','reschedule_status'=>$status),admin_url('admin.php'));
+        $url=add_query_arg(array('page'=>'dzn-academy-dashboard','reschedule_status'=>$status),admin_url('admin.php')).'#dzn-pending-reschedules';
         wp_safe_redirect($url);exit;
     }
 }

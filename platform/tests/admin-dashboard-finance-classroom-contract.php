@@ -36,6 +36,8 @@ $contains($dashboard, array(
     'Teacher Payments',
     'OperationalCashRule::format',
     'Join Class',
+    'Mark attended',
+    'Change class time',
     'Copy student link',
     'Copy teacher link',
     'Open Google Meet',
@@ -47,7 +49,7 @@ $contains($dashboard, array(
     "'Activity'",
     "'Finance'",
     "'Journeys'",
-    "'Time changes'",
+    "'Coverage'",
 ), 'The Overview must expose both finance sources, seven overview categories and the full classroom action set.');
 $contains($dashboardRead, array(
     'OperationalCashReadService',

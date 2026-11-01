@@ -257,8 +257,22 @@ final class ScreenController {
         if ($entity === 'student') { self::studentList(); return; }
         if($entity==='lesson'){
             $records=(new CoreReadService())->classOperatorRows();
+            $queue=isset($_GET['class_queue'])&&is_scalar($_GET['class_queue'])?sanitize_key(wp_unslash((string)$_GET['class_queue'])):'';
+            if(in_array($queue,array('resolutions','ready','review'),true)){
+                $records=array_values(array_filter($records,static function(object $row)use($queue):bool{
+                    $status=(string)($row->class_status??'');
+                    if($queue==='ready')return $status==='Ready to schedule';
+                    if($queue==='review')return in_array($status,array('Integrity review needed','Schedule needs review'),true);
+                    return in_array($status,array('Integrity review needed','Schedule needs review','Ready to schedule'),true);
+                }));
+            }
             echo '<h2>Classes and schedule</h2><p>Review each learner, teacher, class state and next scheduling handoff. Schedule changes stay with the authorised schedule workflow. Confirmed introductory bookings are shown from their booking confirmation until the post-intro workflow creates the canonical Lesson.</p>';
-            if(!$records){echo '<p>No classes to review.</p>';return;}
+            $allUrl=add_query_arg(array('page'=>'dzn-lesson'),admin_url('admin.php'));
+            $resolutionUrl=add_query_arg(array('page'=>'dzn-lesson','class_queue'=>'resolutions'),admin_url('admin.php'));
+            $readyUrl=add_query_arg(array('page'=>'dzn-lesson','class_queue'=>'ready'),admin_url('admin.php'));
+            $reviewUrl=add_query_arg(array('page'=>'dzn-lesson','class_queue'=>'review'),admin_url('admin.php'));
+            echo '<p><a class="button'.($queue===''?' button-primary':'').'" href="'.esc_url($allUrl).'">All classes</a> <a class="button'.($queue==='resolutions'?' button-primary':'').'" href="'.esc_url($resolutionUrl).'">Class resolutions</a> <a class="button'.($queue==='ready'?' button-primary':'').'" href="'.esc_url($readyUrl).'">Ready to schedule</a> <a class="button'.($queue==='review'?' button-primary':'').'" href="'.esc_url($reviewUrl).'">Integrity review</a></p>';
+            if(!$records){echo '<p>No classes match this class resolution queue.</p>';return;}
             echo '<table class="widefat striped"><thead><tr><th>Class</th><th>Student / course</th><th>Teacher</th><th>Class status</th><th>Schedule</th><th>Next step</th></tr></thead><tbody>';
             foreach($records as$row){
                 $intro=($row->record_model??'')==='confirmed_intro_booking_v1';

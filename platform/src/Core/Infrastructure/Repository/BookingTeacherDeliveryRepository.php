@@ -186,6 +186,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                        r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
                        COALESCE(NULLIF(s.display_name,''),NULLIF(snap.full_name,'')) student_display_reference,
                        COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_display_reference,
+                       COALESCE(NULLIF(i.name_fa,''),i.name_en,'') instrument_reference,
                        COALESCE(NULLIF(course.name_fa,''),NULLIF(course.name_en,''),NULLIF(i.name_fa,''),i.name_en) course_reference,
                        secret.id projection_secret_id
                 FROM {$this->prefix}booking_request_confirmations c

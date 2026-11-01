@@ -21,17 +21,18 @@ $enrolment = $controller('EnrolmentWorkspaceController.php');
 $catalogue = $controller('CatalogueWorkspaceController.php');
 $attendance = $controller('AttendanceWorkspaceController.php');
 
-// Exactly one Academy destination and no replacement sub-tabs.
-$test(1 === substr_count($shell, "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']"), 'Academy must have exactly one visible destination');
-$test(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
+// Exactly one Overview destination and no replacement sub-tabs.
+$test(1 === substr_count($shell, "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']"), 'Overview must have exactly one visible destination');
+$test(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Overview must not expose replacement sub-tabs');
 $contains($academy, array(
-    'classOperationalState(): void',
-    'id="dzn-academy-attention"',
+    'todayClasses(): void',
     'id="dzn-academy-today-upcoming"',
-    '>Today and upcoming lessons<',
-    '>Attention needed<',
+    'id="dzn-pending-work"',
+    '>Today’s classes',
     'pendingActions()',
-), 'Academy must render the combined dashboard content');
+    'dzn_academy_mark_attended',
+    'dzn_academy_reschedule_class',
+), 'Overview must render today’s classes and the combined pending-work content');
 
 // Teachers is one consolidated destination with no finance or legacy sub-tabs.
 $test(1 === preg_match_all("/\\['Teachers', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly one consolidated destination');
@@ -118,7 +119,7 @@ $contains($shell, array(
     "'system' => ['System'",
 ), 'Settings must be grouped into General, Messaging, Integrations, Access and System without removing protected routes');
 
-// Legacy Academy deep links must keep resolving without restoring the tabs.
-$contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-academy-attention'"), 'Legacy Academy view URLs must focus the combined page without restoring sub-tabs');
+// Legacy Academy deep links must keep resolving without restoring removed panels.
+$contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-pending-work'"), 'Legacy Overview view URLs must focus the combined page without restoring sub-tabs');
 
 echo "Admin navigation target contract passed\n";

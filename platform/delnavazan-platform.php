@@ -100,6 +100,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\CoreDatasetReadinessController::register();
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
 	Delnavazan\Platform\Admin\Controller\RescheduleReviewController::register();
+	Delnavazan\Platform\Admin\Controller\AcademyClassOperationsController::register();
 	Delnavazan\Platform\Portals\StudentProfileController::register();
 	Delnavazan\Platform\Portals\RecordingDecisionController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();

@@ -7590,3 +7590,6 @@ a.dzn-nav-action:focus-visible {
 @media(max-width:35rem){.dzn-project__language>summary span{display:block;margin-inline-start:0}.dzn-project__document{padding:1rem}.dzn-project__section{padding-block:2rem}}
 @media(prefers-reduced-motion:reduce){html:has(.dzn-project){scroll-behavior:auto}}
 @media print{.dzn-project__nav,.dzn-project__language-hint{display:none}.dzn-project__language{border:0}.dzn-project__section{break-inside:avoid}.dzn-project a{color:inherit}}
+
+/* Keep Project fragment targets visible below the site’s sticky header. */
+.dzn-project [id]{scroll-margin-block-start:7rem}

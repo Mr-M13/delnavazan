@@ -1720,20 +1720,48 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$onboarding_calendar = dzn_theme_platform_calendar_preference( $onboarding['profile']['calendar_preference'] ?? '', $onboarding_locale );
 		$onboarding_golden = dzn_theme_platform_teacher_golden_bonus( $onboarding_timezone, $onboarding_calendar, $onboarding_locale );
 		$onboarding_rules = array_values( array_filter( (array) ( $onboarding['availability_rules'] ?? array() ), static fn( $rule ) => is_array( $rule ) && in_array( (string) ( $rule['state'] ?? '' ), array( 'preferred', 'requestable' ), true ) ) );
+		$onboarding_summary = array( 'weekly_minutes' => 0, 'golden_minutes' => 0, 'golden' => $onboarding_golden );
 		$availability_summary_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilitySummary';
 		if ( class_exists( $availability_summary_class ) ) {
 			try { $onboarding_summary = $availability_summary_class::build( $onboarding_rules, $onboarding_golden ); $onboarding_golden = (array) ( $onboarding_summary['golden'] ?? $onboarding_golden ); } catch ( Throwable ) {}
 		}
+		$onboarding_availability = array_map( static function ( $rule ) {
+			$days = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' );
+			return array(
+				'id' => (int) $rule['id'], 'day' => $days[ (int) $rule['weekday'] ] ?? '', 'weekday' => (int) $rule['weekday'],
+				'blocks' => array( substr( (string) $rule['local_start_time'], 0, 5 ) . '–' . substr( (string) $rule['local_end_time'], 0, 5 ) ),
+				'start' => substr( (string) $rule['local_start_time'], 0, 5 ), 'end' => substr( (string) $rule['local_end_time'], 0, 5 ),
+				'state' => (string) $rule['state'], 'booked' => '',
+			);
+		}, $onboarding_rules );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
 			'navigation' => $nav, 'current_step' => $step, 'max_step' => $server_step, 'onboarding' => $onboarding,
 			'golden_bonus' => $onboarding_golden,
+			'availability_summary' => $onboarding_summary,
+			'profile' => array(
+				'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ),
+				'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ),
+				'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ),
+				'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ),
+				'locale' => $onboarding_locale, 'timezone' => $onboarding_timezone, 'timezone_label' => dzn_theme_platform_timezone_label( $onboarding_timezone ),
+				'calendar' => $onboarding_calendar,
+			),
+			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'google_state' => dzn_theme_platform_google_state( (int) $onboarding['teacher_id'] ),
 			'google_action_url' => admin_url( 'admin-post.php?action=dzn_google_connect' ),
 			'google_nonce' => wp_create_nonce( 'dzn_google_connect' ), 'google_notice' => $google_notice,
 			'google_disconnect_url' => admin_url( 'admin-post.php?action=dzn_google_disconnect' ),
 			'google_disconnect_nonce' => wp_create_nonce( 'dzn_google_disconnect' ),
+			'google_sync_url' => admin_url( 'admin-post.php?action=dzn_google_calendar_sync' ),
+			'google_sync_nonce' => wp_create_nonce( 'dzn_google_calendar_sync' ),
+			'availability_available' => true,
+			'availability' => $onboarding_availability,
+			'availability_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_availability_rule' ),
+			'availability_retire_url' => admin_url( 'admin-post.php?action=dzn_teacher_availability_retire' ),
+			'availability_retire_nonce' => wp_create_nonce( 'dzn_teacher_availability_retire' ),
+			'availability_nonce' => wp_create_nonce( 'dzn_teacher_availability_rule' ),
 			'actions' => array(
 				'profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 				'availability_profile' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_availability_profile' ),
@@ -1744,6 +1772,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			),
 			'instruments' => dzn_theme_platform_teacher_catalogue(),
 			'day_offs' => dzn_theme_platform_teacher_day_offs(),
+			'accepting_state' => dzn_theme_platform_teacher_accepting( (int) ( $onboarding['teacher_id'] ?? 0 ) ),
 			'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' ),
 		);
 	}

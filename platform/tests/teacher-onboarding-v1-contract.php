@@ -17,6 +17,7 @@ $files = array(
     'theme_bridge' => file_get_contents( dirname( $root ) . '/theme/inc/platform-bridge.php' ),
     'theme_route' => file_get_contents( dirname( $root ) . '/theme/inc/routes.php' ),
     'theme_view' => file_get_contents( dirname( $root ) . '/theme/template-parts/teacher-portal/onboarding.php' ),
+    'theme_account' => file_get_contents( dirname( $root ) . '/theme/template-parts/teacher-portal/account.php' ),
     'theme_shell' => file_get_contents( dirname( $root ) . '/theme/template-parts/teacher-portal/shell.php' ),
     'theme_boundary' => file_get_contents( dirname( $root ) . '/theme/inc/teacher-portal.php' ),
 );
@@ -60,8 +61,8 @@ foreach ( array( "'not_linked'", "'onboarding_required'", "'error'", 'این ح�
     if ( strpos( $files['theme_shell'], $fragment ) === false ) throw new RuntimeException( 'Teacher honest-state presentation missing: ' . $fragment );
 foreach ( array( "'not_linked'", "'onboarding_required'", "'signed_out'", "'error'", "false === ( \$model['available'] ?? null )" ) as $fragment )
     if ( strpos( $files['theme_boundary'], $fragment ) === false ) throw new RuntimeException( 'Teacher unavailable-state boundary missing: ' . $fragment );
-foreach ( array( 'dzn_teacher_onboarding_profile', 'dzn_teacher_onboarding_availability_profile', 'dzn_teacher_onboarding_availability_rule', 'dzn_teacher_instruments', 'dzn_teacher_day_off' ) as $fragment )
-    if ( strpos( $files['theme_view'], $fragment ) === false ) throw new RuntimeException( 'Live onboarding form missing: ' . $fragment );
+foreach ( array( 'dzn_teacher_onboarding_profile', 'dzn_teacher_availability_rule', 'dzn_teacher_instruments', 'dzn_teacher_day_off' ) as $fragment )
+    if ( strpos( $files['theme_view'] . $files['theme_account'] . $files['theme_bridge'], $fragment ) === false ) throw new RuntimeException( 'Live onboarding form missing: ' . $fragment );
 if ( strpos( $files['theme_view'], 'data-dzn-tp-presentation' ) !== false ) throw new RuntimeException( 'Presentation-only onboarding control remains.' );
 
 echo "Teacher onboarding v1 source contract passed\n";

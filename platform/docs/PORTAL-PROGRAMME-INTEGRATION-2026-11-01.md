@@ -150,3 +150,27 @@ No merge, deployment, financial activation or production record change was perfo
 **Release decision:** the code is ready for owner review. Merge and production deployment remain
 blocked until the two remaining BLOCKED items are explicitly accepted or completed: a physical
 audible LiveKit check, and a canonical future-term offer/collection path for a true advance payment.
+
+## Merge record (2026-11-01)
+
+Owner approved merging after the release-readiness verification. Component PRs were merged into `main`
+in the documented order, each after being updated onto the then-current `main` and re-running all 11
+required gates:
+
+| Order | PR | Merge commit |
+| --- | --- | --- |
+| 1 | #471 test contracts | `deda1110` |
+| 2 | #464 canonical Teacher delivery confirmation | `f57c8156` |
+| 3 | #465 finance accuracy | `c0f0d62c` |
+| 4 | #473 Teacher statement settlements | `4b221261` |
+| 5 | #468 Student classes and account | `092a8970` |
+| 6 | #472 future-term payments | `3bdbc85d` |
+| 7 | #474 cancelled replacement release | `db6dbc31` |
+| 8 | #466 Teacher Today/Classes/Settings | `72899db1` |
+| 9 | #469 LiveKit classroom sync | `ff4451dc` |
+| 10 | #467 portal navigation accessibility | `8e50c1ba` |
+
+This integration branch then merged the resulting `main` and re-ran the full source sweep (0 failures)
+and the portal CSS/presentation contracts before the final merge.
+
+No deployment, charge, payout, financial activation or production-data change was performed.

@@ -2352,3 +2352,11 @@
 @media (max-width: 47.99rem) {
   .dzn-tp-highlight-banner { inset-inline: 1rem; max-inline-size: none; inset-block-end: 5.5rem; }
 }
+
+/* Anchor returns after availability forms must clear the sticky phone app bar. */
+@media (max-width: 47.99rem) {
+  .dzn-tp-section h2[id],
+  .dzn-tp-section[id] {
+    scroll-margin-block-start: calc(56px + env(safe-area-inset-top) + 1rem);
+  }
+}

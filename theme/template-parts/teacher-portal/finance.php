@@ -55,6 +55,7 @@ $format_percentage = static function ( int $basis_points ): string {
 		</div>
 		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
+	<?php dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'توزیع توضیحی درآمد قطعی نیست', 'text' => 'مبلغ توضیحی شهریه با مبلغ تعلق‌گرفته، صورت‌حساب صادرشده و پرداخت واقعی تفاوت دارد. اختلاف را از مسیر پشتیبانی گزارش کنید.', 'module' => 'finance' ) ); ?>
 	<?php if ( 'available' === $summary_state ) : ?>
 		<div class="dzn-tp-stats dzn-tp-stats--finance">
 			<div><span>هنرجویان فعال</span><strong><?php echo esc_html( number_format_i18n( (int) ( $summary['active_students'] ?? 0 ) ) ); ?></strong></div>

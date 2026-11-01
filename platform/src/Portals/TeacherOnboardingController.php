@@ -25,8 +25,9 @@ final class TeacherOnboardingController {
                 'timezone' => $post['timezone'] ?? '', 'locale' => $post['locale'] ?? '',
                 'calendar_preference' => $post['calendar_preference'] ?? '',
             ) );
-            self::redirect( 'اطلاعات مدرس ذخیره شد.', false, 2 );
-        } catch ( \Throwable ) { self::redirect( 'اطلاعات واردشده معتبر نیست یا در حال حاضر قابل ویرایش نیست.', true ); }
+            $continue = ! empty( $post['onboarding_continue'] );
+            self::redirect( $continue ? 'اطلاعات ذخیره شد. گام بعدی را تکمیل کنید.' : 'اطلاعات مدرس ذخیره شد.', false, $continue ? self::nextIncompleteStep() : 2 );
+        } catch ( \Throwable ) { self::redirect( 'اطلاعات واردشده معتبر نیست یا در حال حاضر قابل ویرایش نیست.', true, 2 ); }
     }
 
     public static function availabilityProfile(): never {
@@ -61,8 +62,18 @@ final class TeacherOnboardingController {
 
     public static function submit(): never {
         self::guard( 'dzn_teacher_onboarding_submit' );
-        try { ( new TeacherOnboardingService() )->submitOwn(); self::redirect( 'اطلاعات شما برای بررسی مدیر ارسال شد.', false, 4 ); }
-        catch ( \Throwable ) { self::redirect( 'ارسال انجام نشد. ابتدا پروفایل و دسترسی هفتگی را کامل کنید.', true, 4 ); }
+        try { ( new TeacherOnboardingService() )->submitOwn(); self::redirect( 'درخواست شما برای بررسی مدیر ارسال شد. تا اعلام نتیجه نیازی به ارسال دوباره نیست.', false, 5 ); }
+        catch ( \Throwable ) { self::redirect( 'ارسال انجام نشد. ابتدا پروفایل، زمان‌های در دسترس و اتصال Google را کامل کنید.', true, 4 ); }
+    }
+
+    /** Continue to the first server-authoritative incomplete step; never skip requirements. */
+    private static function nextIncompleteStep(): int {
+        try {
+            $onboarding = ( new TeacherOnboardingService() )->currentForUser();
+            if ( 'complete' !== (string) ( $onboarding['profile_state'] ?? '' ) ) return 2;
+            if ( 'complete' !== (string) ( $onboarding['availability_state'] ?? '' ) ) return 3;
+            return 4;
+        } catch ( \Throwable ) { return 2; }
     }
 
     private static function guard(string $nonce): void {

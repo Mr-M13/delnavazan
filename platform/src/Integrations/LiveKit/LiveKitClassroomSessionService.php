@@ -11,7 +11,8 @@ final class LiveKitClassroomSessionService {
         private ?LiveKitJwtIssuer $issuer = null,
         private ?LiveKitLaunchTicket $tickets = null,
         private $clock = null,
-        private ?LiveKitAttendanceIntegration $attendance = null
+        private ?LiveKitAttendanceIntegration $attendance = null,
+        private ?LiveKitAdministratorClassroomService $administrator = null
     ) {
         $this->authorizer ??= new LiveKitClassroomAuthorizer();
         $this->configuration ??= new LiveKitConfiguration();
@@ -19,6 +20,7 @@ final class LiveKitClassroomSessionService {
         $this->issuer ??= new LiveKitJwtIssuer();
         $this->tickets ??= new LiveKitLaunchTicket();
         $this->attendance ??= new LiveKitAttendanceIntegration();
+        $this->administrator ??= new LiveKitAdministratorClassroomService();
     }
 
     public function session(string $ticket): array {
@@ -28,7 +30,11 @@ final class LiveKitClassroomSessionService {
         $input = $kind === 'booking'
             ? array('kind' => 'booking', 'confirmation_uid' => (string)$claims['confirmation_uid'])
             : array('kind' => 'lesson', 'lesson_uid' => (string)$claims['lesson_uid'], 'schedule_version_uid' => (string)$claims['schedule_version_uid']);
-        $grant = $this->authorizer->authorize($role, $input);
+        $grant = $role === 'administrator'
+            ? ($kind === 'booking'
+                ? $this->administrator->grantForBooking((string)$claims['confirmation_uid'])
+                : $this->administrator->grantForLessonUid((string)$claims['lesson_uid']))
+            : $this->authorizer->authorize($role, $input);
         $config = $this->configuration->values();
         $this->rooms ??= new LiveKitRoomServiceClient($config, $this->issuer, null, $this->clock);
         $this->rooms->ensureRoom((string)$grant['room']);
@@ -42,6 +48,8 @@ final class LiveKitClassroomSessionService {
             'student_id' => (int)$grant['student_id'],
             'teacher_identity' => (string)$grant['teacher_identity'],
             'student_identity' => (string)$grant['student_identity'],
+            'administrator_identity' => $role === 'administrator' ? (string)$grant['identity'] : '',
+            'administrator' => $role === 'administrator',
             'expires_at' => gmdate('Y-m-d H:i:s', $this->now() + LiveKitRoomRegistry::TTL_SECONDS),
         ));
         // Attendance binding is server-owned and additive. A binding failure must never prevent a

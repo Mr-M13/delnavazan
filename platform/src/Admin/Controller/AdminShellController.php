@@ -115,6 +115,10 @@ final class AdminShellController {
         $path = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.css' : '';
         $version = $path !== '' && file_exists($path) ? (string) filemtime($path) : (defined('DZN_PLATFORM_VERSION') ? DZN_PLATFORM_VERSION : null);
         wp_enqueue_style('dzn-admin', $url, [], $version);
+        $scriptUrl = plugins_url('src/Admin/Assets/admin.js', DZN_PLATFORM_FILE);
+        $scriptPath = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.js' : '';
+        $scriptVersion = $scriptPath !== '' && file_exists($scriptPath) ? (string) filemtime($scriptPath) : $version;
+        wp_enqueue_script('dzn-admin', $scriptUrl, array(), $scriptVersion, true);
         $font = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/fonts/Vazirmatn-Variable.woff2') : '';
         if ($font !== '') {
             wp_add_inline_style('dzn-admin', "@font-face{font-family:Vazirmatn;src:url('" . esc_url_raw($font) . "') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}");

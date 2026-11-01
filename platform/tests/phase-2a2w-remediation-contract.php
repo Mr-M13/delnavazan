@@ -32,5 +32,17 @@ $refusal=substr($action,$refusalStart,$refusalEnd-$refusalStart);
 if(strpos($refusal,'portal_access_denials')===false)throw new RuntimeException('Public-action refusal evidence must append its denial row inside the root-serialized transaction');
 if(strpos($refusal,"false===\$wpdb->insert(\$p.'portal_access_denials'")===false)throw new RuntimeException('Public-action refusal evidence must fail closed when the denial row cannot be persisted');
 if(strpos($action,"\$state==='refused'&&false===\$wpdb->insert(\$p.'portal_access_denials'")===false)throw new RuntimeException('A refused public-action outcome must append its denial row inside the same transaction');
-$theme=array_merge(glob($root.'/src/Portals/*.php')?:array(),glob($root.'/src/Core/Application/Portal*.php')?:array(),glob($root.'/src/Admin/Controller/PortalCapabilityController.php')?:array());foreach($theme as $path)if(stripos((string)file_get_contents($path),'wp_set_current_user')!==false)throw new RuntimeException('Portal source fabricates a session');
+// Portal application sources must never fabricate a session. The one exception is the Teacher
+// invitation claim boundary, which authenticates the freshly claimed account only after
+// finalizeClaim; every other portal source stays session-isolated.
+$sessionBoundary=realpath($root.'/src/Portals/TeacherInvitationController.php');
+if($sessionBoundary===false)throw new RuntimeException('Missing the Teacher invitation claim boundary');
+$theme=array_merge(glob($root.'/src/Portals/*.php')?:array(),glob($root.'/src/Core/Application/Portal*.php')?:array(),glob($root.'/src/Admin/Controller/PortalCapabilityController.php')?:array());
+foreach($theme as $path){if(realpath($path)===$sessionBoundary)continue;foreach(array('wp_set_current_user','wp_set_auth_cookie') as $needle)if(stripos((string)file_get_contents($path),$needle)!==false)throw new RuntimeException('Portal source fabricates a session: '.$needle.' in '.$path);}
+$invitationController=file_get_contents($sessionBoundary);
+$finalizeClaim=strrpos($invitationController,'finalizeClaim(');
+foreach(array('wp_set_current_user','wp_set_auth_cookie') as $needle){
+    $authenticate=strpos($invitationController,$needle.'(');
+    if($finalizeClaim===false||$authenticate===false||$authenticate<$finalizeClaim)throw new RuntimeException('Teacher invitation must authenticate only after finalizeClaim: '.$needle);
+}
 echo "Phase-W remediation contract passed\n";

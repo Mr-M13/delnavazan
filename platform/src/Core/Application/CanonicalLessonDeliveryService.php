@@ -77,12 +77,27 @@ final class CanonicalLessonDeliveryService {
         return $this->apply('dispute_completion',$lessonId,0,$this->intent(array_merge($input,array('outcome_code'=>'review_required')))+array('expected_lesson_state'=>null),$rawKey);
     }
 
-    private function apply(string $operation,int $lessonId,int $expectedOutcomeId,array $intent,string $rawKey):array{
-        $this->capability();
+    /**
+     * Teacher-owned confirmation of an ended occurrence.
+     *
+     * This is a narrow authority path: the caller must hold the Teacher claim capability, the
+     * authenticated principal must own the exact canonical Lesson, and the occurrence must already
+     * have ended. It records the same controlled `delivered` fact and append-only evidence as the
+     * administrator path; it does not create a second delivery authority.
+     */
+    public function recordTeacherConfirmedDelivery(int $lessonId,int $teacherId,array $input,string $rawKey):array{
+        if(!current_user_can('dzn_submit_own_delivery_claim'))throw new \RuntimeException('Unauthorized');
+        if($teacherId<1)throw new \InvalidArgumentException('Teacher identity required');
+        return $this->apply('record_outcome',$lessonId,0,$this->intent(array_merge($input,array('outcome_code'=>'delivered')))+array('expected_lesson_state'=>(string)($input['expected_lesson_state']??'authorised')),$rawKey,$teacherId);
+    }
+
+    private function apply(string $operation,int $lessonId,int $expectedOutcomeId,array $intent,string $rawKey,?int $teacherId=null):array{
+        if(null===$teacherId)$this->capability();elseif(!current_user_can('dzn_submit_own_delivery_claim'))throw new \RuntimeException('Unauthorized');
         $actor=$this->actor();
         if($lessonId<1)throw new \InvalidArgumentException('Canonical Lesson identity required');
-        return $this->execute($operation,$lessonId,$intent,$rawKey,function(string $digest,?array &$facts,?string &$payload)use($operation,$lessonId,$expectedOutcomeId,$intent,$actor):array{
+        return $this->execute($operation,$lessonId,$intent,$rawKey,function(string $digest,?array &$facts,?string &$payload)use($operation,$lessonId,$expectedOutcomeId,$intent,$actor,$teacherId):array{
             [$lesson,$enrolment,$term,$versions,$outcomes,$lifecycle,$assignment]=$this->lockAggregate($lessonId,$operation);
+            if(null!==$teacherId&&(int)$lesson->teacher_id!==$teacherId)throw new \InvalidArgumentException('portal_object_not_owned');
             $facts=$this->facts($operation,$lesson,$expectedOutcomeId,$intent);
             $payload=CanonicalLessonDeliveryIdempotency::payload($facts);
             if($winner=$this->repository->command($digest))return $this->replay($winner,$payload,$operation,$lessonId,$facts,$intent);

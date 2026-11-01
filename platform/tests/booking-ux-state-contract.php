@@ -10,7 +10,12 @@ $expect( strpos( $view, 'data-step="contact"' ) !== false && strpos( $view, 'dat
 $expect( strpos( $view, 'data-next="review"' ) !== false && strpos( $view, 'data-edit-details' ) !== false, 'Review must have explicit forward and edit transitions.' );
 $expect( strpos( $js, "currentStep() === 'contact'" ) !== false && strpos( $js, 'buildReview();' ) !== false, 'Details must validate and commit into read-only review content.' );
 $expect( strpos( $js, "root.querySelector('[data-edit-details]').addEventListener('click', () => goTo('contact'))") !== false, 'Edit must intentionally reopen details.' );
-$expect( strpos( $view, 'data-timezone required' ) !== false && strpos( $js, "timezone.value = detectedZone" ) !== false, 'Student timezone selector must default from browser timezone when supported.' );
+// The selector may carry the optional data-prefilled marker (a PHP expression in the source)
+// between data-timezone and required, so assert both attributes on the same opening tag.
+$timezoneSelectorStart = strpos( $view, '<select id="dzn-booking-timezone"' );
+$timezoneSelectorEnd = $timezoneSelectorStart === false ? false : strpos( $view, '<option', $timezoneSelectorStart );
+$timezoneSelector = ( $timezoneSelectorStart !== false && $timezoneSelectorEnd !== false ) ? substr( $view, $timezoneSelectorStart, $timezoneSelectorEnd - $timezoneSelectorStart ) : '';
+$expect( $timezoneSelector !== '' && strpos( $timezoneSelector, 'data-timezone' ) !== false && strpos( $timezoneSelector, 'required' ) !== false && strpos( $js, "timezone.value = detectedZone" ) !== false, 'Student timezone selector must default from browser timezone when supported.' );
 $expect( strpos( $js, "requested_times: slots.map((slot) => ({ local_date: slot.local_date, local_start_time: slot.local_start_time, timezone: timezone.value }))" ) !== false, 'Selected timezone must control submitted booking times.' );
 $countryChange = substr( $js, strpos( $js, "country.addEventListener('change'" ), 180 );
 $expect( strpos( $countryChange, 'timezone' ) === false, 'Country changes must not assign timezone.' );

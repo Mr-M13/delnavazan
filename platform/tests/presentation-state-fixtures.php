@@ -173,7 +173,7 @@ return array(
 			'profile_state'      => 'complete',
 			'availability_state' => 'complete',
 			'google_state'       => 'connected',
-			'expected_step'      => 5,
+			'expected_step'      => 4,
 		),
 		'query_may_not_skip_ahead' => array(
 			'profile_state'      => 'complete',

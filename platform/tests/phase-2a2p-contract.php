@@ -129,7 +129,14 @@ $assessBody=substr($intake,strpos($intake,'private function assessAndDecide'),st
 if(str_contains($assessBody,"'review_required'"))throw new RuntimeException('Phase P must not auto-publish Phase-O review_required');
 if(str_contains($assessBody,"'teacher_non_delivery'"))throw new RuntimeException('Failed assessment must never identify Teacher responsibility automatically');
 if(!str_contains($assessBody,"'ready_for_review'"))throw new RuntimeException('Phase P anomalies must surface as its own review state');
-if(str_contains($settlement,"review_required")||str_contains($settlement,"teacher_non_delivery"))throw new RuntimeException('Automatic settlement must only ever publish delivered truth');
+// Automatic settlement publishes delivered truth only. It may recognise an existing
+// `review_required` outcome as the single state a verified late report can correct, but it must
+// never mint `review_required` or assign `teacher_non_delivery` as a new outcome.
+if(!str_contains($settlement,"'outcome_code'=>'delivered'"))throw new RuntimeException('Automatic settlement must publish delivered truth');
+if(substr_count($settlement,"'outcome_code'=>'delivered'")<2)throw new RuntimeException('Both the initial record and any append-only correction must publish delivered truth');
+foreach(array("'outcome_code'=>'review_required'","'outcome_code'=>'teacher_non_delivery'","'teacher_non_delivery'")as$forbidden)if(str_contains($settlement,$forbidden))throw new RuntimeException('Automatic settlement must never mint a non-delivery outcome: '.$forbidden);
+if(!str_contains($settlement,"if((string)\$effective->outcome_code!=='review_required')throw new \\InvalidArgumentException('canonical_truth_conflict');"))throw new RuntimeException('Settlement may correct only an existing review_required outcome');
+if(substr_count($settlement,"'review_required'")!==1)throw new RuntimeException('review_required must appear only as the guarded correction precondition, never as a written outcome');
 if(!str_contains($intake,'lesson_not_delivery_recordable'))throw new RuntimeException('Administrative publishing must respect Lesson lifecycle recordability');
 if(!str_contains($settlement,'lesson_cancelled'))throw new RuntimeException('Settlement must refuse cancelled Lessons');
 

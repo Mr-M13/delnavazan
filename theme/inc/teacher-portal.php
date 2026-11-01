@@ -24,7 +24,7 @@ function dzn_theme_enqueue_teacher_portal_assets() {
 add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 );
 
 function dzn_theme_teacher_portal_view_model( $screen ) {
-	$allowed = array( 'home', 'classes', 'finance', 'settings', 'onboarding' );
+	$allowed = array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' );
 	$screen = in_array( $screen, $allowed, true ) ? $screen : 'home';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
 	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
@@ -50,6 +50,24 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 			&& dzn_theme_teacher_portal_statistics_valid( $model['statistics'] ?? null )
 			&& in_array( $model['google_state'] ?? null, array( 'not_connected', 'connected', 'needs_attention', 'unavailable' ), true )
 			&& in_array( $model['payment_state'] ?? null, array( 'pending_verification', 'confirmed', 'paid', 'unavailable' ), true );
+	}
+	if ( 'induction' === $screen ) {
+		$induction = $model['induction'] ?? null;
+		$actions = $model['induction_actions'] ?? null;
+		if ( ! is_array( $induction ) || ! is_array( $actions ) || ! is_array( $induction['modules'] ?? null ) || ! $induction['modules'] ) { return false; }
+		if ( ! is_int( $induction['completed_count'] ?? null ) || ! is_int( $induction['total_count'] ?? null ) || $induction['total_count'] < 1 || $induction['completed_count'] < 0 || $induction['completed_count'] > $induction['total_count'] ) { return false; }
+		if ( ! in_array( $induction['state'] ?? null, array( 'not_started', 'in_progress', 'completed' ), true ) ) { return false; }
+		foreach ( $induction['modules'] as $module ) {
+			if ( ! is_array( $module ) || ! dzn_theme_teacher_portal_text( $module['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $module['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $module['description'] ?? null ) || ! dzn_theme_teacher_portal_text( $module['url'] ?? null ) || ! in_array( $module['state'] ?? null, array( 'not_started', 'in_progress', 'completed' ), true ) ) { return false; }
+		}
+		$module = $model['induction_module'] ?? null;
+		if ( null !== $module ) {
+			if ( ! is_array( $module ) || ! dzn_theme_teacher_portal_text( $module['id'] ?? null ) || ! is_array( $module['sections'] ?? null ) || ! $module['sections'] ) { return false; }
+			foreach ( $module['sections'] as $section ) { if ( ! is_array( $section ) || ! dzn_theme_teacher_portal_text( $section['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $section['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $section['body'] ?? null ) ) { return false; } }
+		}
+		return dzn_theme_teacher_portal_text( $model['induction_continue_url'] ?? null )
+			&& dzn_theme_teacher_portal_text( $actions['complete_url'] ?? null )
+			&& dzn_theme_teacher_portal_text( $actions['complete_nonce'] ?? null );
 	}
 	if ( 'onboarding' !== $screen || ! is_int( $model['current_step'] ?? null ) || $model['current_step'] < 1 || $model['current_step'] > 5 ) { return false; }
 	$onboarding = $model['onboarding'] ?? null; $actions = $model['actions'] ?? null;
@@ -219,6 +237,10 @@ function dzn_theme_teacher_portal_notices( $screen ) {
 		'delivery_recorded'          => array( 'success', 'گزارش برگزاری کلاس ثبت شد و برای بررسی مدیر در دسترس است.' ),
 		'delivery_issue_recorded'    => array( 'success', 'گزارش مشکل برگزاری کلاس ثبت شد.' ),
 		'delivery_issue_unavailable' => array( 'error', 'ثبت گزارش برای این کلاس در حال حاضر امکان‌پذیر نیست.' ),
+		'class_completed'            => array( 'success', 'کلاس به‌عنوان برگزارشده ثبت شد و از فهرست کلاس‌های امروز خارج شد.' ),
+		'completion_too_early'       => array( 'error', 'ثبت برگزاری پیش از پایان زمان برنامه‌ریزی‌شدهٔ کلاس امکان‌پذیر نیست.' ),
+		'completion_not_allowed'     => array( 'error', 'این کلاس در وضعیت فعلی قابل تأیید نیست؛ ممکن است حضور آن قبلاً ثبت شده یا نیازمند بررسی مدیر باشد.' ),
+		'completion_unavailable'     => array( 'error', 'تأیید برگزاری کلاس ثبت نشد. صفحه را تازه کنید و دوباره تلاش کنید.' ),
 		'join_unavailable'           => array( 'error', 'پیوند امن Meet در دسترس نیست یا زمان ورود به کلاس نرسیده است. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.' ),
 		'livekit_unavailable'        => array( 'error', 'کلاس زندهٔ دلنوازان در این لحظه در دسترس نیست. زمان ورود یا وضعیت کلاس را بررسی کنید؛ گزینهٔ پشتیبان گوگل میت نیز در کارت کلاس نمایش داده می‌شود.' ),
 		'meet_unavailable'           => array( 'error', 'گزینهٔ پشتیبان گوگل میت برای این جلسه در دسترس نیست. لطفاً زمان ورود را بررسی کنید یا با پشتیبانی دلنوازان تماس بگیرید.' ),

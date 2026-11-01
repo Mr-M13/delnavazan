@@ -1,1 +1,13 @@
-<section class="dzn-tp-section" aria-labelledby="tp-help"><div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">راهنما و رفع اشکال</p><h2 id="tp-help">وقتی چیزی درست کار نمی‌کند</h2></div></div><div class="dzn-tp-help-grid"><details><summary>نمی‌توانم کلاس را شروع کنم</summary><p>پیوند کلاس را دوباره باز کنید و سپس راهنمای وضعیت فنی را ببینید.</p></details><details><summary>هنرجوی من نمی‌تواند وارد شود</summary><p>از او بخواهید پیوند اصلی و حساب درست را دوباره بررسی کند.</p></details><details><summary>صدای ساز درست شنیده نمی‌شود</summary><p>ورودی صدای Google Meet را روی میکروفون یا کارت صدای اصلی بگذارید و حذف نویز خودکار را برای ساز بررسی کنید. اگر مشکل ادامه داشت، آن را از کارت همان کلاس گزارش دهید.</p></details><details><summary>مشکل اتصال دارم</summary><p>اتصال شبکه و ورودی صدا را بررسی کنید.</p></details><details><summary>هنرجو رمز را فراموش کرده</summary><p>هنرجو باید از مسیر بازیابی امن حساب استفاده کند؛ مدرس رمز را تغییر نمی‌دهد.</p></details><details><summary>روش اضطراری کلاس</summary><ol><li>پیوند عادی کلاس را دوباره امتحان کنید.</li><li>در صورت نیاز، یک Google Meet فوری را دستی بسازید.</li><li>پیوند را از طریق WhatsApp برای هنرجو بفرستید.</li><li>تدریس را ادامه دهید.</li><li>مشکل فنی را بعداً گزارش کنید.</li></ol></details></div><?php if ( ! empty( dzn_theme_teacher_portal_context()['demo'] ) ) : ?><button class="dzn-button dzn-button--secondary" type="button" data-dzn-tp-presentation>راهنمای «تنظیم Google Meet برای موسیقی»</button><p class="dzn-tp-action-status" role="status" aria-live="polite"></p><?php endif; ?></section>
+<section class="dzn-tp-section" aria-labelledby="tp-help">
+	<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">راهنما و رفع اشکال</p><h2 id="tp-help">وقتی چیزی درست کار نمی‌کند</h2></div></div>
+	<div class="dzn-tp-help-grid">
+		<details>
+			<summary>نمی‌توانم کلاس را شروع کنم</summary>
+			<p>صفحه را تازه کنید و دوباره تلاش کنید. اگر مشکل ادامه داشت، از پیوند پشتیبان گوگل میت استفاده کنید و از هنرجو بخواهید با همان پیوند وارد شود.</p>
+		</details>
+		<details>
+			<summary>صدای ساز به‌خوبی شنیده نمی‌شود</summary>
+			<p>در کلاس خصوصی دلنوازان حالت موسیقی را فعال کنید. اگر از گوگل میت استفاده می‌کنید، تنظیمات صدا را بررسی کنید و پردازش صدا یا حذف نویز را که صدای ساز را ضعیف می‌کند خاموش کنید.</p>
+		</details>
+	</div>
+</section>

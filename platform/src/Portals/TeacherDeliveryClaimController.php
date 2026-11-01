@@ -21,7 +21,7 @@ final class TeacherDeliveryClaimController {
     public static function submitDelivered():never{
         if(!is_user_logged_in())auth_redirect();
         $nonce=sanitize_text_field((string)($_POST['_wpnonce']??''));
-        if(!wp_verify_nonce($nonce,'teacher_reports_delivered'))wp_die('Forbidden',403);
+        if(!wp_verify_nonce($nonce,'dzn_teacher_report_delivery'))wp_die('Forbidden',403);
         if(($_SERVER['REQUEST_METHOD']??'')!=='POST')self::back('completion_unavailable');
         $lessonUid=trim((string)($_POST['lesson_uid']??''));
         $scheduleUid=trim((string)($_POST['schedule_version_uid']??''));

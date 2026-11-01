@@ -45,6 +45,7 @@ $assert(str_contains($authority, 'portal_object_not_owned'), 'Lesson authority m
 $assert(str_contains($controller, "'class_completed'"), 'A successful confirmation must return its own outcome status');
 $assert(str_contains($controller, 'completion_too_early'), 'A too-early confirmation must return a meaningful error');
 $assert(str_contains($controller, 'completion_not_allowed'), 'A refused confirmation must return a meaningful error');
+$assert(str_contains($controller, "wp_verify_nonce(\$nonce,'dzn_teacher_report_delivery')"), 'The controller must verify the Theme-issued delivery nonce action');
 $assert(str_contains($controller, 'completion_unavailable'), 'A failed confirmation must return a meaningful error');
 $assert(substr_count($controller, 'TeacherDeliveryConfirmationService') === 1, 'Delivered confirmation must use the canonical teacher-confirmation seam');
 

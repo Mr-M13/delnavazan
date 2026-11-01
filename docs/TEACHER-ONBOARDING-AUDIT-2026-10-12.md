@@ -1,5 +1,10 @@
 # Teacher onboarding audit — 2026-10-12
 
+> Historical note (2026-11-01): current runtime does expose capability-gated administrator
+> approve/return/reject actions through `TeacherOnboardingService::review()`. The statement below
+> that those actions were retired describes an earlier branch and is superseded by
+> `platform/docs/TEACHER-ONBOARDING-AUDIT-2026-11-01.md`.
+
 Scope: the isolated local acceptance environment only. This audit created no production records, used only `@example.invalid` identities, made no external transport calls, and never exposes an invitation secret in output.
 
 ## Result

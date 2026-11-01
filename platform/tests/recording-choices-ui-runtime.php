@@ -36,7 +36,7 @@ dzn_rda_ui_assert($enrolment['capture_eligible']===false,'unanswered recording m
 dzn_rda_ui_assert($enrolment['forms']['recording']['notice_uid']===$recordingNotice['uid'],'recording form must cite the published notice');
 dzn_rda_ui_assert($enrolment['forms']['research']['notice_uid']===$researchNotice['uid'],'research form must cite the separate published notice');
 $html=dzn_rda_ui_render_student($enrolment);
-foreach(array('Recording and research choices','Allow lesson recording','Do not allow lesson recording','I want to participate in research','No, thanks')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
+foreach(array('ضبط کلاس و پژوهش','اجازهٔ ضبط کلاس','بدون ضبط کلاس','می‌خواهم در پژوهش مشارکت کنم','نه، ممنون')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
 dzn_rda_ui_assert(!preg_match('/name="choice" value="allow"[^>]*checked/',$html),'enrolment must not preselect allow');
 dzn_rda_ui_assert(!preg_match('/name="choice" value="decline"[^>]*checked/',$html),'enrolment must not preselect decline');
 dzn_rda_ui_assert(!str_contains($html,'guardian'),'no guardian form may be exposed');
@@ -46,7 +46,7 @@ $allow=$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNot
 $account=$ui->student('account','en');
 dzn_rda_ui_assert($account['recording']['decision']==='allow'&&!empty($account['recording']['decided_at']),'account must show the recording decision and date');
 $accountHtml=dzn_rda_ui_render_student($account);
-dzn_rda_ui_assert(str_contains($accountHtml,'Lesson recording allowed'),'account must show the current recording decision');
+dzn_rda_ui_assert(str_contains($accountHtml,'ضبط کلاس مجاز است'),'account must show the current recording decision');
 dzn_rda_ui_assert((bool)preg_match('/name="choice" value="allow"[^>]*checked/',$accountHtml),'account must reflect the current allow choice');
 dzn_rda_ui_assert(str_contains($accountHtml,'value="decline"'),'account must offer a decline change control');
 $service->recordOwnStudentChoice('lesson_recording','decline',$recordingNotice['uid'],'en','ui-runtime-decline-01');
@@ -55,16 +55,16 @@ dzn_rda_ui_assert((bool)preg_match('/name="choice" value="decline"[^>]*checked/'
 dzn_rda_ui_assert(str_contains($declinedHtml,'value="allow"'),'account must still offer the allow change control');
 $service->recordOwnStudentChoice('research_model_training','opt_in',$researchNotice['uid'],'en','ui-runtime-research-01');
 $accountHtml=dzn_rda_ui_render_student($ui->student('account','en'));
-dzn_rda_ui_assert(str_contains($accountHtml,'Withdraw participation'),'opted-in research must expose withdrawal');
+dzn_rda_ui_assert(str_contains($accountHtml,'پس گرفتن مشارکت'),'opted-in research must expose withdrawal');
 $service->recordOwnStudentChoice('research_model_training','withdraw',$researchNotice['uid'],'en','ui-runtime-research-02');
 $accountHtml=dzn_rda_ui_render_student($ui->student('account','en'));
-dzn_rda_ui_assert(str_contains($accountHtml,'I want to participate in research')&&str_contains($accountHtml,'No, thanks'),'withdrawn research must expose the approved opt-in control again');
+dzn_rda_ui_assert(str_contains($accountHtml,'می‌خواهم در پژوهش مشارکت کنم')&&str_contains($accountHtml,'نه، ممنون'),'withdrawn research must expose the approved opt-in control again');
 dzn_rda_ui_assert(!str_contains($accountHtml,'consent'),'the disabled default-on path must not be described as consent');
 
 // Minor and unlinked accounts get a neutral unavailable state and no writable form.
 wp_set_current_user($minorUser);$minorModel=$ui->student('enrolment','en');$minorHtml=dzn_rda_ui_render_student($minorModel);
 dzn_rda_ui_assert($minorModel['available']===false&&$minorModel['capture_eligible']===false,'minor must be unavailable');
-dzn_rda_ui_assert(str_contains($minorHtml,'Self-service recording and research choices are not available')&&!str_contains($minorHtml,'<form'),'minor must not receive a writable form');
+dzn_rda_ui_assert(str_contains($minorHtml,'انتخاب ضبط و پژوهش برای این حساب در دسترس نیست')&&!str_contains($minorHtml,'<form'),'minor must not receive a writable form');
 wp_set_current_user($unlinkedUser);$unlinkedModel=$ui->student('enrolment','en');
 dzn_rda_ui_assert($unlinkedModel['available']===false,'unlinked account must be unavailable');
 
@@ -87,7 +87,7 @@ dzn_rda_ui_assert($noTerms['available']===false&&str_contains($noTermsHtml,'Acce
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS));
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 wp_set_current_user($adultUser);$noRecording=$ui->student('enrolment','en');$noRecordingHtml=dzn_rda_ui_render_student($noRecording);
-dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'A current approved recording notice is not published'),'missing recording publication must not render a recording form');
+dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'اطلاعیهٔ تأییدشدهٔ ضبط در دسترس نیست'),'missing recording publication must not render a recording form');
 dzn_rda_ui_assert(!str_contains($noRecordingHtml,'name="purpose" value="lesson_recording"'),'missing recording publication must not write a decision');
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 
@@ -114,7 +114,8 @@ dzn_rda_ui_assert($statusModel['status']==='','the confirmation status must be c
 $_SERVER['REQUEST_URI']='/recording-and-research/';
 dzn_rda_ui_assert(dzn_theme_route()==='recording-and-research','the canonical information URL must resolve as a public route');
 ob_start();dzn_theme_render_recording_information_route();$infoHtml=(string)ob_get_clean();
-foreach(array('Recording and research information','Mbox local processing','currently disabled','link pending approval','lang="fa"','lang="en"')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+foreach(array('Recording and research information','Learning riz: the journey matters','currently disabled','lang="fa"','lang="en"','project-source-1','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+dzn_rda_ui_assert(!str_contains($infoHtml,'<form'),'Project explanation must not collect permission or activate capture');
 $pageId=wp_insert_post(array('post_type'=>'page','post_name'=>'recording-and-research','post_status'=>'publish','post_title'=>'Recording and research information'));
 dzn_rda_ui_assert(!is_wp_error($pageId)&&$pageId>0,'fixture information page failed');
 dzn_rda_ui_assert(dzn_theme_route()==='','a published editor-managed page must take over the canonical slug');

@@ -43,19 +43,19 @@ $need(str_contains($readService,"'default_research_choice'=>null"),'research mus
 $need(str_contains($readService,"'information_url'"),'the UI must link the public information page');
 $need(str_contains($readService,'wp_generate_uuid4()'),'each rendered action must carry a fresh idempotency key');
 
-$need(str_contains($student,'Recording and research choices'),'the Account Settings section title is required');
-$need(str_contains($student,'Allow lesson recording'),'the allow recording label is required');
-$need(str_contains($student,'Do not allow lesson recording'),'the decline recording label is required');
-$need(str_contains($student,'I want to participate in research'),'the research opt-in label is required');
-$need(str_contains($student,'No, thanks'),'the research decline label is required');
-$need(str_contains($student,'Withdraw participation'),'the research withdrawal control is required');
+$need(str_contains($student,'ضبط کلاس و پژوهش'),'the Account Settings section title is required');
+$need(str_contains($student,'اجازهٔ ضبط کلاس'),'the allow recording label is required');
+$need(str_contains($student,'بدون ضبط کلاس'),'the decline recording label is required');
+$need(str_contains($student,'می‌خواهم در پژوهش مشارکت کنم'),'the research opt-in label is required');
+$need(str_contains($student,'نه، ممنون'),'the research decline label is required');
+$need(str_contains($student,'پس گرفتن مشارکت'),'the research withdrawal control is required');
 $need(str_contains($student,"'account' === \$context && 'allow' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current recording choice');
 $need(str_contains($student,"'account' === \$context && 'decline' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current decline');
 $need(!preg_match('/name="choice" value="allow"\s+checked/',$student),'enrolment must not preselect allow');
 $need(!preg_match('/name="choice" value="decline"\s+checked/',$student),'enrolment must not preselect decline');
 $need(!str_contains($student,'guardian'),'no guardian form may be exposed');
-$need(str_contains($student,'not legally approved yet'),'provisional copy must be visibly marked as draft');
-$need(str_contains($student,'No recording decision has been saved'),'unavailable accounts must show a neutral state');
+$need(str_contains($student,'تأیید حقوقی نشده'),'provisional copy must be visibly marked as draft');
+$need(str_contains($student,'هیچ تصمیمی دربارهٔ ضبط ثبت نشده'),'unavailable accounts must show a neutral state');
 
 $need(str_contains($teacher,'Acceptance is unavailable'),'teacher acceptance must show an explicit unavailable state');
 $need(str_contains($teacher,'version '),'teacher acceptance must show the publication version');
@@ -76,13 +76,14 @@ $need(str_contains($booking,'Recording and research'),'online enrolment must lin
 $need(str_contains($booking,'currently disabled'),'the public enrolment notice must state the disabled status');
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
-foreach(array('What future lesson recording may involve','Why Delnavazan collects data','Separate optional research','How choices can be changed','Mbox local processing','currently disabled','Project information page')as$text)$need(str_contains($infoBody,$text),'the public information page must explain '.$text);
-$need(str_contains($infoBody,'lang="fa"')&&str_contains($infoBody,'lang="en"'),'the information page must be bilingual');
-$need(str_contains($infoBody,'link pending approval'),'the information page must include a project-link placeholder');
-$need(!str_contains($infoBody,'legal basis is'),'the information page must not hard-code an unapproved legal basis');
-$need(!str_contains($infoBody,'retention period of'),'the information page must not hard-code an unapproved retention period');
-$need(!str_contains($infoBody,'provider guarantee'),'the information page must not hard-code an unapproved provider guarantee');
-$need(!str_contains($infoBody,'consent'),'the disabled default-on path must not be described as consent');
+$projectCopy=$read('../theme/template-parts/recording/project-copy.php');
+foreach(array('Your learning deserves care','Your explanation is part of the knowledge','Learning riz: the journey matters','A dataset is the first step','Share the foundations responsibly','currently disabled')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
+$need(str_contains($infoBody,"'fa'")&&str_contains($infoBody,"'en'"),'the information page must support both languages');
+$need(!str_contains($infoBody,'<form'),'the explanation must not collect decisions');
+$need(!str_contains($infoBody,'link pending approval'),'the Project must replace the old placeholder');
+$need(str_contains($projectCopy,'specifies ten-year retention')&&str_contains($projectCopy,'does not extend retention or remove existing rights'),'the Project must distinguish current policy from proposed changes');
+$need(str_contains($projectCopy,'does not itself opt you into research'),'enrolment must not imply research participation');
+$need(str_contains($infoBody,'publishedNotice'),'the page must preserve the current notice readout');
 $need(str_contains($info,"get_template_part( 'template-parts/recording/research-information' )"),'the Page Template must use the shared information body');
 $need(str_contains($routes,"'recording-and-research'"),'the canonical information URL must resolve without manual page creation');
 $need(str_contains($routes,'dzn_theme_render_recording_information_route'),'the virtual information route must render the shared body');

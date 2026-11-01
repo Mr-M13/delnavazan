@@ -20,4 +20,6 @@ $assert(substr_count($bridge,"dzn_theme_platform_tuition_allocations( 'student' 
 $assert(str_contains($termRead,"resolve('student')")&&str_contains($termRead,"resolve('teacher')")&&str_contains($termRead,'hasActiveTeacherAuthority'),'Allocation reads must be scoped to authenticated portal principals.');
 $assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i',$termRead),'The illustrative allocation reader must remain read-only.');
 $assert(!str_contains($termRead,'Stripe')&&!str_contains($termRead,'TeacherStatementService')&&!str_contains($termRead,'CommercialPaymentService'),'The illustrative read must not become payment or settlement authority.');
+require __DIR__.'/tuition-allocation-transparency-contract.php';
+require __DIR__.'/teacher-finance-summary-reconciliation-unit.php';
 echo "teacher-portal-ux-finance-contract: OK\n";

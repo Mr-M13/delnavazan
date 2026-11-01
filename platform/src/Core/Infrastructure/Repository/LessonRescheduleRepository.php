@@ -113,8 +113,11 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     public function termReplacementAllocation(int $termId):array{
         $term=$this->one("SELECT replacement_allowance FROM {$this->p}terms WHERE id=%d LIMIT 1",$termId);
         $allowance=$term?max(0,(int)$term->replacement_allowance):0;
+        // A cancelled replacement Lesson does not consume the Student's bounded Term allowance:
+        // the occurrence it was meant to remedy is unresolved again and must be re-allocated by the
+        // canonical rule. A delivered/authorised replacement remains consumed.
         $replacementLessonCount=(int)$this->scalar(
-            "SELECT COUNT(*) FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",
+            "SELECT COUNT(*) FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND lifecycle_state<>'cancelled' AND archived_at IS NULL",
             $termId
         );
         $eligible=array();

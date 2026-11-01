@@ -46,14 +46,14 @@ final class FinanceRule {
     public const COMMAND_SUCCESS_STATES=array(
         'record'=>'recorded','capture'=>'recorded','correct_snapshot'=>'recorded','evaluate'=>'recorded',
         'override'=>'recorded','draft'=>'recorded','resolve_exception'=>'recorded','run'=>'completed',
-        'close'=>'closed','issue'=>'issued','supersede'=>'superseded','withdraw'=>'withdrawn',
+        'close'=>'closed','issue'=>'issued','supersede'=>'superseded','withdraw'=>'withdrawn','record_payment'=>'paid',
     );
     /** §15.8: the one declared state of a refused command row, with its `NULL` typed result and reason. */
     public const COMMAND_REFUSAL_STATE='refused';
     /** §15.8: a run that cannot hydrate its scope is recorded `failed` rather than silently skipped. */
     public const COMMAND_FAILED_STATE='failed';
     /** Every state a command table row may carry: the declared successes plus the two terminal states. */
-    public const COMMAND_RESULT_STATES=array('recorded','completed','closed','issued','superseded','withdrawn','failed','refused');
+    public const COMMAND_RESULT_STATES=array('recorded','completed','closed','issued','paid','superseded','withdrawn','failed','refused');
 
     /** §15.3: the declared success state of one mutating Finance operation. */
     public static function commandSuccessState(string $operation):string{
@@ -120,7 +120,7 @@ final class FinanceRule {
         ),
         'finance_statement_commands'=>array(
             'draft'=>array('result_statement_id'),'issue'=>array('result_statement_id'),
-            'withdraw'=>array('result_statement_id'),'supersede'=>array('result_statement_id'),
+            'withdraw'=>array('result_statement_id'),'supersede'=>array('result_statement_id'),'record_payment'=>array('result_statement_id'),
         ),
         'finance_reconciliation_commands'=>array(
             'run'=>array('result_run_id'),
@@ -159,9 +159,9 @@ final class FinanceRule {
     /** §5.2 compensation basis: `per_session` is the only member this phase may record. */
     public const COMPENSATION_BASES=array('per_session');
     /** §5.2 statement state. */
-    public const STATEMENT_STATES=array('draft','issued','superseded','withdrawn');
+    public const STATEMENT_STATES=array('draft','issued','paid','superseded','withdrawn');
     /** §5.2 statement event type. */
-    public const STATEMENT_EVENT_TYPES=array('drafted','issued','superseded','withdrawn');
+    public const STATEMENT_EVENT_TYPES=array('drafted','issued','payment_recorded','superseded','withdrawn');
     /** §5.2 correction kind. */
     public const CORRECTION_KINDS=array('snapshot_correction','payability_override','statement_supersession');
     /** §7.2 teacher-rate event type. */
@@ -228,7 +228,7 @@ final class FinanceRule {
         'payability_conflicts_with_delivery_fact','payability_supersession_conflict','payability_override_target_invalid',
         'statement_period_too_long','statement_period_not_elapsed','statement_period_overlap','statement_state_transition_conflict',
         'statement_supersession_required','statement_totals_mismatch','statement_derivation_mismatch',
-        'statement_timezone_representation_invalid','lesson_stated_twice','lesson_not_finalised_in_period',
+        'statement_timezone_representation_invalid','statement_payment_instant_invalid','statement_payment_evidence_invalid','lesson_stated_twice','lesson_not_finalised_in_period',
         'currency_mismatch_for_statement','upstream_aggregate_invalid',
     );
 

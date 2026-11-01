@@ -109,7 +109,7 @@ preg_match_all( "/'([a-z0-9_]+)'/", $findingSet[1], $findings );
 preg_match_all( "/'([a-z0-9_]+)'/", $operatorSet[1], $operators );
 preg_match_all( "/'([a-z0-9_]+)'/", $sharedSet[1], $shared );
 $exceptions = array_values( array_unique( $exceptions[1] ) ); $findings = array_values( array_unique( $findings[1] ) ); $operators = array_values( array_unique( $operators[1] ) ); $shared = array_values( array_unique( $shared[1] ) );
-if ( count( $exceptions ) !== 43 ) throw new RuntimeException( 'The declared durable exception/refusal vocabulary must have exactly 43 members' );
+if ( count( $exceptions ) !== 45 ) throw new RuntimeException( 'The declared durable exception/refusal vocabulary must have exactly 45 members' );
 if ( count( $findings ) !== 21 ) throw new RuntimeException( 'The declared reconciliation finding vocabulary must have exactly 21 members' );
 if ( count( $operators ) !== 4 ) throw new RuntimeException( 'The declared operator reason vocabulary must have exactly 4 members' );
 $intersection = array_values( array_intersect( $exceptions, $findings ) ); sort( $intersection ); sort( $shared );

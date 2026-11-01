@@ -1095,13 +1095,8 @@
 
 .dzn-tp-form-grid {
   display: grid;
-  align-items: start;
   gap: 1rem;
   min-inline-size: 0;
-}
-
-.dzn-tp-form-grid > .dzn-tp-help {
-  grid-column: 1 / -1;
 }
 
 .dzn-tp-form-grid > * {

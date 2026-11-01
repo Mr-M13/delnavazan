@@ -14,9 +14,7 @@ dzn_assert_runtime_paths
 dzn_wp_env DZN_PHASE_2A2J_RUNTIME_TEST=fixture -- eval-file "$DZN_PLUGIN_SOURCE/tests/phase-2a2j-fixture.php" --user=1
 dzn_wp_env DZN_FINANCE_REFUND_CONCURRENCY_TEST=setup -- eval-file "$DZN_PLUGIN_SOURCE/tests/finance-refund-concurrency-setup.php" --user=1
 
-results="$DZN_WP_DIR/refund-results"
-mkdir -p "$results"
-rm -f "$results"/*.json "$results/start"
+dzn_wp_env DZN_FINANCE_REFUND_CONCURRENCY_TEST=prepare -- eval-file "$DZN_PLUGIN_SOURCE/tests/finance-refund-concurrency-prepare.php" --user=1
 same_key="refund-same-$(date +%s)-$$"
 same_evidence="CONC-SAME-$(date +%s)-$$"
 
@@ -62,8 +60,9 @@ dzn_wp_env \
   -- eval-file "$DZN_PLUGIN_SOURCE/tests/finance-refund-concurrency-worker.php" --user=1 >/tmp/dzn-refund-diff-b.log 2>&1 &
 pid_d=$!
 
-# Release all four workers from the same barrier.
-touch "$results/start"
+# Release all four workers from the same container-side barrier. The host runner may not own the
+# bind-mounted WordPress directory, so the barrier and results are created inside the container.
+dzn_wp_env DZN_FINANCE_REFUND_CONCURRENCY_TEST=start -- eval-file "$DZN_PLUGIN_SOURCE/tests/finance-refund-concurrency-start.php" --user=1
 set +e
 wait "$pid_a"; rc_a=$?
 wait "$pid_b"; rc_b=$?

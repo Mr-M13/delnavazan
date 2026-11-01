@@ -11,6 +11,7 @@ require_once $root.'/src/Integrations/Notifications/SmsTransport.php';
 require_once $root.'/src/Integrations/Notifications/WhatsAppTransport.php';
 require_once $root.'/src/Integrations/Notifications/TelnyxConfiguration.php';
 require_once $root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+require_once $root.'/src/Integrations/Notifications/TelnyxTemplateAuthority.php';
 require_once $root.'/src/Integrations/Notifications/NotificationProviderBindings.php';
 require_once $root.'/src/Integrations/TelnyxSmsAdapter.php';
 require_once $root.'/src/Integrations/TelnyxWhatsAppAdapter.php';

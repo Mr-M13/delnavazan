@@ -10,6 +10,8 @@ $root = dirname(__DIR__);
 $controller = (string) file_get_contents($root . '/src/Admin/Controller/NotificationManagementController.php');
 $library = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationTemplateLibrary.php');
 $catalogue = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php');
+$authority = (string) file_get_contents($root . '/src/Integrations/Notifications/TelnyxTemplateAuthority.php');
+$adapter = (string) file_get_contents($root . '/src/Integrations/TelnyxWhatsAppAdapter.php');
 $inbox = (string) file_get_contents($root . '/src/Portals/PortalNotificationInbox.php');
 $migration = (string) file_get_contents($root . '/src/Core/Infrastructure/Migration/Migrator.php');
 $studentShell = (string) file_get_contents($root . '/../theme/template-parts/portal/shell.php');
@@ -46,6 +48,8 @@ $fail('templates is the default workspace', str_contains($controller, "'template
 $fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'settings'") && str_contains($controller, "'monitoring'=>'diagnostics'"));
 $fail('channel settings are ordered WhatsApp, Email, SMS', strpos($controller, "self::renderChannelCard('whatsapp'") < strpos($controller, "self::renderChannelCard('email'") && strpos($controller, "self::renderChannelCard('email'") < strpos($controller, "self::renderChannelCard('sms'"));
 $fail('provider mapping lives with the WhatsApp template editor', str_contains($controller, 'private static function renderProviderMapping') && str_contains($controller, "if(\$channel!=='whatsapp')return;"));
+$fail('admin and transport share one provider mapping authority', str_contains($library, 'TelnyxTemplateAuthority') && str_contains($adapter, 'TelnyxTemplateAuthority') && str_contains($authority, "count(\$approved)>1") && str_contains($authority, 'CONTRACT_MISMATCH'));
+$fail('discovered mappings do not expose a duplicate manual editor', str_contains($controller, "(\$mapping['source']??'')==='discovery'") && str_contains($controller, 'verified Telnyx template discovery record'));
 $fail('Twilio is not presented as implemented', str_contains($controller, 'Twilio WhatsApp is not implemented') && str_contains((string) file_get_contents($root . '/src/Admin/Controller/IntegrationControlPlaneController.php'), 'Twilio WhatsApp is not implemented'));
 
 /* 1d. Booking and class records show the shared delivery status vocabulary. */

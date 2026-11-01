@@ -1152,8 +1152,12 @@ function dzn_theme_platform_student_model( $screen ) {
 	// History is evidence-led: a row belongs there because the Platform recorded a
 	// delivery, attendance, cancellation or absence fact, not merely because its
 	// clock time has passed.
-	$history_lessons = array_values( array_filter( $lessons, static function ( $lesson ) {
+	$history_lessons = array_values( array_filter( $lessons, static function ( $lesson ) use ( $now ) {
 		if ( ! is_array( $lesson ) ) { return false; }
+		$end = dzn_theme_platform_utc_timestamp( $lesson['ends_at_utc'] ?? '' );
+		// History is the past: an advance absence report for a future occurrence belongs to the
+		// upcoming timeline, never to the archive.
+		if ( ! $end || $end > $now ) { return false; }
 		return in_array( (string) ( $lesson['delivery_state_summary'] ?? '' ), array( 'completed', 'delivered', 'presumed_completed', 'cancelled' ), true )
 			|| in_array( (string) ( $lesson['lifecycle_state'] ?? '' ), array( 'completed', 'cancelled' ), true )
 			|| ! empty( $lesson['absence_reported'] )

@@ -230,6 +230,9 @@ jobs:
             php platform/tests/teacher-onboarding-production-blockers-contract.php
             php platform/tests/teacher-portal-phase2-contract.php
           fi
+          php platform/tests/teacher-induction-unit.php
+          php platform/tests/teacher-induction-contract.php
+          php platform/tests/teacher-induction-presentation.php
           php platform/tests/teacher-portal-presentation-contract.php
           php platform/tests/admin-navigation-regression-contract.php
           php platform/tests/record-action-token-unit.php

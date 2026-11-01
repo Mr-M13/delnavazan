@@ -8,4 +8,16 @@ Recurring times are entered as 24-hour `HHMM`. `0000` is midnight at the start o
 
 Golden-hour examples convert student-region windows into the teacher's selected timezone using PHP IANA timezone data. They show the upcoming Monday as a DST-aware guide. Availability writes and readiness remain authoritative in the Platform services.
 
-Validation contract: `platform/tests/teacher-onboarding-v2-contract.php`. PHP lint and that contract should run in the repository CI/runtime because the local workspace may not provide PHP.
+The Theme presents five honest steps: welcome, personal/professional details, availability, review/submission, and staff-decision status. The review step lists missing requirements with direct links and states Google’s mandatory status from the authoritative readiness policy. The status step distinguishes pending, returned, rejected and approved without weakening access or lifecycle transitions.
+
+Readiness is complete only when profile, matching weekly availability and a usable Google Calendar connection are all present. Google is required by the current runtime policy; a connected account still does not prove that Google Meet is operational.
+
+Teacher induction is a separate, non-blocking educational experience documented in
+`platform/docs/TEACHER-INDUCTION-V2.md`. Its progress never appears in
+`teacher_onboarding_states` and never activates, blocks or offboards a Teacher.
+
+Validation contract: `platform/tests/teacher-onboarding-v2-contract.php` plus
+`platform/tests/teacher-onboarding-presentation-contract.php`,
+`platform/tests/teacher-induction-unit.php` and
+`platform/tests/teacher-induction-contract.php`. PHP lint and those contracts should run in the
+repository CI/runtime because the local workspace may not provide PHP.

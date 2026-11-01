@@ -2,8 +2,8 @@
 
 ## Release 2026-11-01 — Teacher induction v2
 
-Adds progressive Teacher induction separate from account activation, a dedicated induction hub,
-contextual guidance, and a five-step onboarding presentation. The only schema change is the
+Adds a one-page progressive Teacher quick-start separate from account activation, jump/highlight
+targets, contextual guidance, and a five-step onboarding presentation. The only schema change is the
 additive, idempotent `064_teacher_induction_progress` table; schema identity remains 57. No teacher,
 lesson, attendance, finance or notification authority changed. See
 `platform/docs/RELEASE-2026-11-01-TEACHER-INDUCTION-V2.md`. After deployment verify the migration

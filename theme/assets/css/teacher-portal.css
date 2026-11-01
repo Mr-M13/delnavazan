@@ -2297,3 +2297,58 @@
 .dzn-teacher-portal a.dzn-button--secondary:active {
   color: var(--dzn-color-action-secondary);
 }
+
+/* One-page Teacher quick-start. */
+.dzn-tp-quickstart-list{display:grid;gap:.65rem;margin:1rem 0 0;padding:0;list-style:none}
+.dzn-tp-quickstart-card{display:grid;grid-template-columns:auto 1fr auto;gap:.85rem;align-items:start;padding:.9rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card)}
+.dzn-tp-quickstart-card.is-completed{border-color:color-mix(in srgb,var(--dzn-color-action-primary) 35%,var(--dzn-tp-border))}
+.dzn-tp-quickstart-card__number{display:grid;place-items:center;inline-size:2rem;block-size:2rem;border-radius:50%;background:color-mix(in srgb,var(--dzn-color-action-primary) 12%,transparent);color:var(--dzn-color-action-primary);font-weight:800;font-size:.85rem}
+.dzn-tp-quickstart-card__title-row{display:flex;flex-wrap:wrap;gap:.45rem .75rem;align-items:center}
+.dzn-tp-quickstart-card__title-row h3{margin:0;font-size:1rem;line-height:1.6}
+.dzn-tp-quickstart-card__body p{margin:.3rem 0 0;color:var(--dzn-color-text-muted);line-height:1.85;font-size:.9rem}
+.dzn-tp-quickstart-card__body ul{margin:.35rem 0 0;padding-inline-start:1.1rem;color:var(--dzn-color-text-muted);font-size:.82rem;line-height:1.8}
+.dzn-tp-quickstart-card__action{align-self:center}
+.dzn-tp-quickstart-card__action form{margin:0}
+.dzn-tp-quickstart-footer{display:flex;flex-wrap:wrap;gap:.6rem;margin-block-start:1rem}
+.dzn-tp-highlight-banner{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between;border-color:color-mix(in srgb,var(--dzn-color-accent) 38%,var(--dzn-tp-border))}
+.dzn-tp-highlight-banner h2{margin:.2rem 0 .35rem;font-size:1.1rem}
+.dzn-tp-highlight-banner p{margin:0;line-height:1.85}
+.dzn-tp-highlight-banner ul{margin:.35rem 0 0;padding-inline-start:1.1rem;font-size:.85rem;line-height:1.8}
+.dzn-tp-highlight-banner .dzn-button{flex:none}
+@media (max-width:47.99rem){
+  .dzn-tp-quickstart-card{grid-template-columns:auto 1fr}
+  .dzn-tp-quickstart-card__action{grid-column:1/-1}
+  .dzn-tp-quickstart-card__action .dzn-button{inline-size:100%;min-block-size:44px}
+  .dzn-tp-highlight-banner .dzn-button{inline-size:100%;min-block-size:44px}
+}
+
+/* Keep the quick-start explanation visible while the target section is highlighted. */
+.dzn-tp-highlight-banner {
+  position: fixed;
+  inset-block-end: 1rem;
+  inset-inline-start: 1rem;
+  inset-inline-end: auto;
+  z-index: 100;
+  max-inline-size: 40rem;
+  padding: .8rem 1rem;
+  background: var(--dzn-tp-card);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--dzn-color-text-primary) 22%, transparent);
+}
+
+.dzn-tp-highlight-banner .dzn-tp-highlight-close {
+  position: absolute;
+  inset-block-start: .35rem;
+  inset-inline-end: .45rem;
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dzn-color-text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+@media (max-width: 47.99rem) {
+  .dzn-tp-highlight-banner { inset-inline: 1rem; max-inline-size: none; inset-block-end: 5.5rem; }
+}

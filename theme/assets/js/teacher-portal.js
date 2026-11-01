@@ -87,42 +87,25 @@
     const status = scope.querySelector('.dzn-tp-action-status');
     if (status) status.textContent = 'این کنترل نمایشی است؛ هیچ اطلاعات یا حقیقتی ثبت نشد.';
   }));
-  // Safe induction knowledge checks. Nothing is submitted or persisted; the server remains the
-  // only authority for real scheduling, absence and finance actions.
-  document.querySelectorAll('[data-dzn-induction-check]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const fieldset = button.closest('[data-dzn-induction-question]');
-      if (!fieldset) return;
-      const answer = parseInt(fieldset.dataset.answer || '', 10);
-      const selected = fieldset.querySelector('input[type="radio"]:checked');
-      const output = fieldset.querySelector('.dzn-tp-induction-answer');
-      if (!output) return;
-      if (!selected) {
-        output.textContent = 'یک گزینه را انتخاب کنید.';
-        return;
-      }
-      const correct = parseInt(selected.value, 10) === answer;
-      output.textContent = (correct ? 'درست است. ' : 'پاسخ درست نیست. ') + (fieldset.dataset.explanation || '');
-    });
+  // After a quick-start step jumps to the real portal screen, highlight the exact section and
+  // keep the compact explanation banner visible. This never fabricates a section.
+  document.querySelectorAll('[data-dzn-auto-highlight]').forEach((banner) => {
+    const selector = banner.dataset.dznAutoHighlight || '';
+    let candidates = [];
+    try { candidates = selector ? Array.from(document.querySelectorAll(selector)) : []; } catch (e) { candidates = []; }
+    let target = candidates.find((element) => element.getClientRects().length > 0) || candidates[0] || null;
+    // A Teacher may have no class or attention card today; still highlight the relevant section
+    // so the explanation has a visible anchor.
+    if (!target) { target = document.querySelector('#tp-classes'); }
+    if (!target) return;
+    target.classList.add('is-dzn-induction-highlight');
+    if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    window.setTimeout(() => target.classList.remove('is-dzn-induction-highlight'), 6000);
   });
-  // The induction module highlights an existing navigation element. It never fabricates a tab.
-  document.querySelectorAll('[data-dzn-induction-highlight]').forEach((button) => {
+  document.querySelectorAll('[data-dzn-tp-highlight-close]').forEach((button) => {
     button.addEventListener('click', () => {
-      const selector = button.dataset.dznInductionHighlight || '';
-      let candidates = [];
-      try { candidates = selector ? Array.from(document.querySelectorAll(selector)) : []; } catch (e) { candidates = []; }
-      // Prefer the visible copy of a navigation target: desktop and mobile navigation can both
-      // carry the same selector, and only one is rendered at a time.
-      const target = candidates.find((element) => element.getClientRects().length > 0) || candidates[0] || null;
-      const status = button.parentElement?.querySelector('.dzn-tp-induction-highlight-status');
-      if (!target) {
-        if (status) status.textContent = 'این بخش در صفحهٔ فعلی قابل نمایش نیست؛ از فهرست بخش‌ها باز کنید.';
-        return;
-      }
-      target.classList.add('is-dzn-induction-highlight');
-      if (status) status.textContent = 'بخش مرتبط در ناوبری مشخص شد.';
-      if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      window.setTimeout(() => target.classList.remove('is-dzn-induction-highlight'), 4000);
+      const banner = button.closest('.dzn-tp-highlight-banner');
+      if (banner) banner.hidden = true;
     });
   });
   // The compact dashboard card is optional after the first days. The full induction screen stays

@@ -42,54 +42,45 @@ namespace {
         array( 'screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/?teacher-view=finance', 'current' => false ),
         array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/?teacher-view=settings', 'current' => false ),
     );
-    $modules = array();
-    $ids = array( 'portal' => 'آشنایی با پرتال', 'availability' => 'زمان‌های تدریس', 'responsibilities' => 'مسئولیت‌ها', 'schedule-changes' => 'تغییر زمان', 'absence-replacement' => 'غیبت و جبران', 'finance' => 'مالی', 'escalation' => 'حل مشکلات' );
+    $steps = array();
+    $ids = array( 'today' => 'کلاس‌های امروز', 'join' => 'ورود به کلاس', 'attendance' => 'حضور و پایان کلاس', 'absence' => 'هنرجو غیبت کرد', 'reschedule' => 'تغییر زمان کلاس', 'settings' => 'تغییر اطلاعات', 'finance' => 'مالی و ساعت‌ها', 'golden-hour' => 'ساعت طلایی', 'new-enrolment' => 'درخواست کلاس آشنایی' );
     $order = 0;
     foreach ( $ids as $id => $title ) {
         ++$order;
-        $modules[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه دربارهٔ ' . $title, 'url' => 'https://example.invalid/?teacher-view=induction&induction-module=' . $id, 'state' => 'portal' === $id ? 'completed' : 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null );
+        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'today' === $id ? 'home' : 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'today' === $id ? 'completed' : 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
     }
-    $hub = array( 'modules' => $modules, 'completed_count' => 1, 'started_count' => 0, 'total_count' => 7, 'percent' => 14, 'state' => 'in_progress', 'next_module_id' => 'availability' );
+    $hub = array( 'modules' => $steps, 'completed_count' => 1, 'started_count' => 0, 'total_count' => 9, 'percent' => 11, 'state' => 'in_progress', 'next_module_id' => 'join' );
     $base = array(
         'available' => true, 'screen' => 'induction', 'source' => 'platform',
         'teacher' => array( 'first_name' => 'سارا', 'full_name' => 'سارا نمونه' ), 'navigation' => $nav,
-        'induction' => $hub, 'induction_module' => null,
+        'induction' => $hub,
         'induction_hub_url' => 'https://example.invalid/?teacher-view=induction',
-        'induction_continue_url' => 'https://example.invalid/?teacher-view=induction&induction-module=availability',
+        'induction_continue_url' => 'https://example.invalid/?teacher-view=induction',
         'induction_actions' => array( 'complete_url' => 'https://example.invalid/admin-post.php?action=dzn_teacher_induction_complete', 'complete_nonce' => 'nonce-induction' ),
         'induction_support_url' => 'https://wa.me/000',
     );
     $hub_html = $render( 'induction', $base );
-    $fail( 'hub renders the Persian heading', str_contains( $hub_html, 'راهنمای شروع تدریس در دلنوازان' ) );
-    $fail( 'hub shows the 1 of 7 progress copy', str_contains( $hub_html, '1 از 7 بخش تکمیل شده' ) );
-    $fail( 'hub renders all seven module links', substr_count( $hub_html, 'induction-module=' ) >= 7 );
-    $fail( 'hub offers continue and skip while listing every module', str_contains( $hub_html, 'ادامهٔ یادگیری' ) && str_contains( $hub_html, 'فعلاً رد کن؛ بعداً ادامه می‌دهم' ) && substr_count( $hub_html, 'dzn-tp-induction-card is-' ) === 7 );
-    $fail( 'hub does not leak the full curriculum', ! str_contains( $hub_html, 'تمرین کوتاه' ) && ! str_contains( $hub_html, 'سناریوهای عملیاتی' ) );
+    $fail( 'quick-start renders the short Persian heading', str_contains( $hub_html, '۹ نکته برای شروع تدریس' ) );
+    $fail( 'quick-start shows the 1 of 9 progress copy', str_contains( $hub_html, '1 از 9 دیده شده' ) );
+    $fail( 'quick-start renders all nine steps as one page', substr_count( $hub_html, 'dzn-tp-quickstart-card is-' ) === 9 );
+    $fail( 'every step posts its own nonce-protected action', substr_count( $hub_html, 'name="module_id"' ) === 9 && substr_count( $hub_html, 'dzn_teacher_induction_complete' ) === 9 );
+    $fail( 'steps use short purpose copy and action labels', str_contains( $hub_html, 'کلاس‌های امروز' ) && str_contains( $hub_html, 'نمایش ورود به کلاس' ) );
+    $fail( 'hub does not render long sections or quizzes', ! str_contains( $hub_html, 'سناریوهای عملیاتی' ) && ! str_contains( $hub_html, 'تمرین کوتاه' ) && ! str_contains( $hub_html, 'در این بخش یاد می‌گیرید' ) );
     $fail( 'shell is RTL and exposes real navigation targets', str_contains( $hub_html, 'dir="rtl"' ) && str_contains( $hub_html, 'data-dzn-nav-screen="home"' ) && str_contains( $hub_html, 'dzn-tp-tabs' ) );
-    $fail( 'progress is an accessible progressbar', str_contains( $hub_html, 'role="progressbar"' ) && str_contains( $hub_html, 'aria-valuenow="1"' ) && str_contains( $hub_html, 'aria-valuemax="7"' ) );
-
-    $module = array(
-        'id' => 'absence-replacement', 'order' => 5, 'version' => 1, 'state' => 'in_progress', 'needs_reacknowledgement' => false,
-        'title' => 'غیبت هنرجو و جلسهٔ جبرانی', 'short_title' => 'غیبت و جلسهٔ جبرانی', 'description' => 'توضیح', 'portal_screen' => 'home',
-        'objectives' => array( 'فهمیدن سهمیهٔ ترم' ), 'completion_criteria' => 'بخش‌ها را بخوانید.',
-        'policy' => array( 'title' => 'قاعدهٔ اصلی', 'body' => 'سهمیهٔ پیش‌فرض هر هنرجو در هر ترم دو جبران است.', 'points' => array( 'غیبت مازاد درخواست جبران قابل اقدام نمی‌سازد.' ) ),
-        'sections' => array( array( 'id' => 'first', 'title' => 'نخستین غیبت', 'body' => 'هنرجو غیبت را گزارش می‌کند.', 'points' => array( 'سهمیه بررسی می‌شود.' ) ) ),
-        'scenarios' => array( array( 'id' => 'q1', 'prompt' => 'غیبت مازاد چه می‌شود؟', 'options' => array( 'ثبت می‌شود اما جبران خودکار ندارد.', 'جبران دستی می‌شود.' ), 'answer' => 0, 'explanation' => 'استحقاق جدا از گزارش است.' ) ),
-    );
-    $module_model = $base;
-    $module_model['induction_module'] = $module;
-    $module_html = $render( 'induction', $module_model );
-    $fail( 'module renders objectives and sections', str_contains( $module_html, 'در این بخش یاد می‌گیرید' ) && str_contains( $module_html, 'نخستین غیبت' ) );
-    $fail( 'module renders the authoritative policy and excess-absence rule', str_contains( $module_html, 'سهمیهٔ پیش‌فرض' ) && str_contains( $module_html, 'غیبت مازاد' ) );
-    $fail( 'module renders a safe knowledge check', str_contains( $module_html, 'data-dzn-induction-question' ) && str_contains( $module_html, 'data-dzn-induction-check' ) && str_contains( $module_html, 'تمرین کوتاه (اختیاری)' ) );
-    $fail( 'completion is nonce-protected and names only the module', str_contains( $module_html, 'name="module_id" value="absence-replacement"' ) && str_contains( $module_html, 'dzn_teacher_induction_complete' ) && ! str_contains( $module_html, 'name="teacher_id"' ) );
-    $fail( 'module links back to the hub and related portal screen', str_contains( $module_html, 'همهٔ بخش‌ها' ) && str_contains( $module_html, 'رفتن به بخش مرتبط پرتال' ) );
+    $fail( 'progress is an accessible progressbar', str_contains( $hub_html, 'role="progressbar"' ) && str_contains( $hub_html, 'aria-valuenow="1"' ) && str_contains( $hub_html, 'aria-valuemax="9"' ) );
 
     ob_start();
-    dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'راهنمای کوتاه', 'text' => 'توضیح کوتاه.', 'module' => 'absence-replacement' ) );
+    dzn_theme_teacher_portal_component( 'induction-highlight', array( 'step' => array( 'title' => 'ورود به کلاس', 'description' => 'دکمهٔ ورود و گزینهٔ پشتیبان Google Meet.', 'highlight_selector' => '[data-dzn-highlight="join"]', 'points' => array( 'ورود فقط با دسترسی معتبر فعال می‌شود.' ), 'back_url' => 'https://example.invalid/?teacher-view=induction' ) ) );
+    $highlight_html = (string) ob_get_clean();
+    $fail( 'highlight banner is short and explains the purpose', str_contains( $highlight_html, 'ورود به کلاس' ) && str_contains( $highlight_html, 'Google Meet' ) );
+    $fail( 'highlight banner marks an existing selector for the jump', str_contains( $highlight_html, 'data-dzn-auto-highlight="[data-dzn-highlight=&quot;join&quot;]"' ) );
+    $fail( 'highlight banner can return to the quick-start', str_contains( $highlight_html, 'بازگشت به راهنمای سریع' ) );
+
+    ob_start();
+    dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'راهنمای کوتاه', 'text' => 'توضیح کوتاه.', 'module' => 'absence' ) );
     $tip_html = (string) ob_get_clean();
     $fail( 'contextual help is a native dismissible disclosure', str_contains( $tip_html, '<details' ) && str_contains( $tip_html, '<summary' ) );
-    $fail( 'contextual help links to the full induction module', str_contains( $tip_html, 'induction-module=absence-replacement' ) );
+    $fail( 'contextual help links to the quick-start step', str_contains( $tip_html, 'tp-step-absence' ) );
 
     echo "Teacher induction presentation passed\n";
 }

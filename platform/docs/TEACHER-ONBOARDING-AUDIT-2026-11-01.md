@@ -94,13 +94,13 @@ append-only `teacher_onboarding_events` ledger:
 ## Implementation response
 
 - Added `TeacherInductionService`, `TeacherInductionRepository`, code-owned
-  `TeacherInductionCurriculum` and seven versioned content files.
+  `TeacherInductionCurriculum` and nine short quick-start steps in versioned content files.
 - Added additive migration `064_teacher_induction_progress` with a unique
   `(teacher_id,module_id)` key and no change to onboarding tables.
 - Added nonce-protected completion controller; the Teacher is resolved from the authenticated
   principal and the same live readiness proof as the portal.
-- Added a dedicated `teacher-view=induction` hub, compact home card, settings link and inline
-  contextual `<details>` guidance.
+- Added a dedicated one-page `teacher-view=induction` quick-start, compact home card, settings
+  link, jump/highlight targets and inline contextual `<details>` guidance.
 - Reworked onboarding into five honest steps: welcome, profile, availability, review, status.
 - Corrected labels, added a safe review note, made Google’s mandatory runtime status explicit and
   preserved every existing readiness and access restriction.

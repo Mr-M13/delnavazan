@@ -57,13 +57,8 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 		if ( ! is_array( $induction ) || ! is_array( $actions ) || ! is_array( $induction['modules'] ?? null ) || ! $induction['modules'] ) { return false; }
 		if ( ! is_int( $induction['completed_count'] ?? null ) || ! is_int( $induction['total_count'] ?? null ) || $induction['total_count'] < 1 || $induction['completed_count'] < 0 || $induction['completed_count'] > $induction['total_count'] ) { return false; }
 		if ( ! in_array( $induction['state'] ?? null, array( 'not_started', 'in_progress', 'completed' ), true ) ) { return false; }
-		foreach ( $induction['modules'] as $module ) {
-			if ( ! is_array( $module ) || ! dzn_theme_teacher_portal_text( $module['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $module['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $module['description'] ?? null ) || ! dzn_theme_teacher_portal_text( $module['url'] ?? null ) || ! in_array( $module['state'] ?? null, array( 'not_started', 'in_progress', 'completed' ), true ) ) { return false; }
-		}
-		$module = $model['induction_module'] ?? null;
-		if ( null !== $module ) {
-			if ( ! is_array( $module ) || ! dzn_theme_teacher_portal_text( $module['id'] ?? null ) || ! is_array( $module['sections'] ?? null ) || ! $module['sections'] ) { return false; }
-			foreach ( $module['sections'] as $section ) { if ( ! is_array( $section ) || ! dzn_theme_teacher_portal_text( $section['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $section['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $section['body'] ?? null ) ) { return false; } }
+		foreach ( $induction['modules'] as $step ) {
+			if ( ! is_array( $step ) || ! dzn_theme_teacher_portal_text( $step['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['description'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['highlight_selector'] ?? null ) || ! in_array( $step['portal_screen'] ?? null, array( 'home', 'classes', 'finance', 'settings' ), true ) || ! in_array( $step['state'] ?? null, array( 'not_started', 'in_progress', 'completed' ), true ) ) { return false; }
 		}
 		return dzn_theme_teacher_portal_text( $model['induction_continue_url'] ?? null )
 			&& dzn_theme_teacher_portal_text( $actions['complete_url'] ?? null )
@@ -226,6 +221,10 @@ function dzn_theme_teacher_portal_response_notice_allowlist() {
 		'تغییر زمان برای این نوع کلاس از پرتال فعال نیست.',
 		'برای این کلاس یک درخواست تغییر زمان در انتظار پاسخ هنرجو است.',
 		'درخواست تغییر زمان ثبت نشد. زمان و سیاست‌های کلاس را بررسی کنید.',
+		'بخش بعدی راهنما در پرتال مشخص شد.',
+		'این بخش را قبلاً دیده‌اید. همان بخش در پرتال مشخص شده است.',
+		'این بخش در راهنمای سریع وجود ندارد.',
+		'ثبت پیشرفت انجام نشد. اگر حساب شما هنوز آماده نیست، ابتدا راه‌اندازی حساب را کامل کنید.',
 	);
 }
 /** Outcome notices for the home screen: array of array( 'success'|'error', message ). Only allowlisted, server-issued text is rendered. */

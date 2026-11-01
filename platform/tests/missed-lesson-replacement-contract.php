@@ -105,6 +105,8 @@ $teacherAbsence = $read('src/Core/Application/TeacherAbsenceAttentionReadService
 $assert(str_contains($allocationRepository, 'termReplacementAllocation') && str_contains($allocationRepository, 'lessonAbsenceAllocation'), 'Term replacement allocation must be derived once per eligible absence occurrence');
 $assert(str_contains($allocationRepository, 'SELECT replacement_allowance FROM') && ! str_contains($allocationRepository, 'replacement_allowance=2'), 'Allocation must use the configured Term allowance, not a hard-coded two');
 $assert(str_contains($allocationRepository, 'COUNT(DISTINCT') || str_contains($allocationRepository, 'if(isset($eligible[$key]))continue;'), 'An absence occurrence must be counted once per Term');
+$assert(str_contains($allocationRepository, 'consumedAbsenceOccurrences') && str_contains($allocationRepository, "l.lifecycle_state<>'cancelled'"), 'An accepted absence revision counts as used and a cancelled lesson releases the Student allowance');
+$assert(str_contains($allocationRepository, "state==='superseded'"), 'A superseded absence occurrence must not remain pending after the class is moved');
 $assert(str_contains($service, "absence_eligible") && str_contains($service, "absence_allocated"), 'A Teacher proposal must require an allocated absence before either lifecycle');
 $assert(str_contains($absenceController, 'lessonAbsenceAllocation') && str_contains($absenceController, '$excess'), 'The absence controller must allocate before notifying the Teacher');
 $assert(str_contains($teacherAbsence, 'termReplacementAllocation') && str_contains($teacherAbsence, 'allocated_occurrence_keys'), 'Teacher absence cards must respect the Term allocation');

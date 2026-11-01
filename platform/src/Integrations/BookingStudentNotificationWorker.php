@@ -31,6 +31,8 @@ final class BookingStudentNotificationWorker {
         try{
             [$subject,$body,$variables]=self::message($row);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
+            if((string)$row->notification_kind==='requested_student')$eventKey='booking.requested.student';
+            if((string)$row->notification_kind==='requested_teacher')$eventKey='booking.new.teacher';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
             $copy=array('subject'=>$subject,'body'=>$body);
@@ -39,8 +41,8 @@ final class BookingStudentNotificationWorker {
                 self::recordInbox($row,$eventKey,$variables);
             }
             $accepted=class_exists(DelnavazanEmailRenderer::class)
-                ?DelnavazanEmailRenderer::send((string)$row->email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>'رفتن به حساب کاربری')),self::headers($row))
-                :wp_mail((string)$row->email,$copy['subject'],$copy['body'],self::headers($row));
+                ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
+                :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
         }catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{
@@ -55,9 +57,13 @@ final class BookingStudentNotificationWorker {
 
     /** The student inbox is recorded even when the mail transport refuses the hand-off. */
     private static function recordInbox(object $row,string $eventKey,array $variables):void{
+        if(!class_exists(PortalNotificationRecorder::class))return;
+        if((string)$row->notification_kind==='requested_teacher'){
+            PortalNotificationRecorder::teacher((int)$row->teacher_id,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['teacher_portal_url']??''));
+            return;
+        }
         $studentId=(int)($row->student_id??0);
-        if($studentId<1||!class_exists(PortalNotificationRecorder::class))return;
-        PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+        if($studentId>0)PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
     }
 
     private static function headers(object $row):array{
@@ -67,10 +73,23 @@ final class BookingStudentNotificationWorker {
         return array('Content-Type: text/plain; charset=UTF-8','Message-ID: <'.$identity.'>','X-Delnavazan-Notification-ID: '.(string)$row->uid);
     }
 
+    private static function recipientEmail(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?($row->teacher_email??''):($row->student_email??$row->email??''));}
+    private static function portalLabel(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
+
     private static function message(object $row):array{
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
-        $portal=home_url('/student-portal/');
-        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal);
+        $portal=home_url('/student-portal/');$teacherPortal=home_url('/teacher-portal/');
+        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal,'teacher_portal_url'=>$teacherPortal,'student'=>$name);
+        if((string)$row->notification_kind==='requested_student'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('Delnavazan booking request received',"Hello {$name},\n\nYour introductory {$course} lesson request for {$when} was received. We will send the final class details after the Teacher confirms.\n\nOpen your account: {$portal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='requested_teacher'){
+            $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
+            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
         if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your account.\n\nOpen your account: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your account.\n\nOpen your account: {$portal}\n\nDelnavazan",$base);

@@ -34,7 +34,7 @@ final class CompositeNotificationTransport implements NotificationTransportPort 
   // These fields are transport-bound facts. Array union would retain an
   // accidentally supplied command value, allowing an upstream caller to
   // redirect a resolved recipient or replace reviewed copy.
-  $transportCommand=array_merge($command,array('channel'=>$channel,'to'=>(string)($contact[$channel]??''),'subject'=>(string)($rendered['subject']??''),'body'=>(string)$rendered['body']));
+  $transportCommand=array_merge($command,array('channel'=>$channel,'to'=>(string)($contact[$channel]??''),'subject'=>(string)($rendered['subject']??''),'body'=>(string)$rendered['body'],'locale'=>(string)($contact['locale']??'')));
   $result=$binding['port']->handoff($transportCommand);
   return $result+array('acknowledged'=>(bool)($result['acknowledged']??false),'permanent_failure'=>$result['permanent_failure']??null,'channel'=>$channel);
  }

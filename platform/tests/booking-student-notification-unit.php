@@ -1,6 +1,11 @@
 <?php
 namespace Delnavazan\Platform\Core\Application {
     final class ProviderReferenceVault { public function open(string $kind,int $mappingId,object|array $row): array { return array(); } }
+    final class PortalNotificationRecorder {
+        public static array $calls=array();
+        public static function student(int $id,string $event,string $kind,int $source,array $variables=array(),?string $link=null):?int{self::$calls[]=compact('id','event','kind','source','variables','link')+array('audience'=>'student');return 1;}
+        public static function teacher(int $id,string $event,string $kind,int $source,array $variables=array(),?string $link=null):?int{self::$calls[]=compact('id','event','kind','source','variables','link')+array('audience'=>'teacher');return 1;}
+    }
 }
 namespace Delnavazan\Platform\Core\Infrastructure\Repository {
     final class BookingTeacherResponseRepository {
@@ -73,5 +78,11 @@ namespace {
     $assert(str_contains($mailCalls[2]['subject'],'کلاس معارفه')&&str_contains($mailCalls[2]['body'],'آبان')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar and account wording.');
     $assert(!str_contains($mailCalls[2]['body'],'meet.google.com')&&!str_contains($mailCalls[2]['body'],'Google Meet'),'The confirmation email must not expose the Google Meet backup link.');
 
+    $teacher=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $teacher->row->notification_kind='requested_teacher';$teacher->row->teacher_id=12;$teacher->row->teacher_email='teacher@example.test';$teacher->row->teacher_timezone='Australia/Brisbane';$teacher->row->starts_at_utc='2026-11-04 08:00:00';$teacher->row->ends_at_utc='2026-11-04 08:30:00';
+    $teacherResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$teacher);
+    $assert($teacherResult['state']==='handed_off'&&end($mailCalls)['to']==='teacher@example.test','A requested booking must hand off the teacher alert to the Teacher address.');
+    $portal=\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls;
+    $assert(count($portal)===1&&$portal[0]['audience']==='teacher'&&$portal[0]['event']==='booking.new.teacher'&&$portal[0]['id']===12,'A teacher booking alert must create a separate portal notification before email handoff is recorded.');
     echo "Booking student notification unit passed\n";
 }

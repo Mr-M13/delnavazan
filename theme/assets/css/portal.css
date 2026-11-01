@@ -1463,3 +1463,134 @@
 .dzn-schedule-row__actions .dzn-classroom-actions{justify-content:flex-end}
 .dzn-tp-actions .dzn-classroom-actions{justify-content:flex-end}
 @media(max-width:700px){.dzn-classroom-actions,.dzn-schedule-row__actions .dzn-classroom-actions,.dzn-tp-actions .dzn-classroom-actions{justify-content:stretch}.dzn-classroom-actions__form{flex:1 1 100%}.dzn-classroom-actions .dzn-button{width:100%}}
+
+/* =========================================================
+   COMPACT TERM SUMMARY AND CLASS TIMELINE
+   ========================================================= */
+
+.dzn-term--compact {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-term__heading { margin-block-end: .65rem; }
+.dzn-term__progress--compact { inline-size: 100%; block-size: .45rem; margin-block: .35rem .8rem; }
+.dzn-term__compact-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: .5rem .9rem;
+  margin: 0;
+}
+.dzn-term__compact-fact {
+  display: grid;
+  gap: .15rem;
+  padding: .5rem .65rem;
+  border-radius: calc(var(--dzn-portal-card-radius) - 6px);
+  background: var(--dzn-color-surface-sunken);
+}
+.dzn-term__compact-fact dt { color: var(--dzn-color-text-muted); font-size: var(--dzn-text-xs); }
+.dzn-term__compact-fact dd { margin: 0; font-weight: 800; }
+.dzn-term__compact-fact--replacement dd { color: var(--dzn-color-action-primary); }
+.dzn-term__replacements--compact { margin-block-start: .65rem; }
+.dzn-term__replacements--compact summary { cursor: pointer; font-weight: 700; color: var(--dzn-color-text-secondary); }
+
+.dzn-schedule-period--today {
+  padding: .9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, var(--dzn-color-border));
+  border-inline-start: 5px solid var(--dzn-color-action-primary);
+  border-radius: var(--dzn-portal-card-radius);
+  background: color-mix(in srgb, var(--dzn-color-action-primary) 4%, var(--dzn-color-surface-elevated));
+}
+.dzn-schedule-period--future {
+  margin-block-start: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-schedule-period__heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.dzn-schedule-period__heading h3 { margin: 0 0 .55rem; }
+.dzn-schedule-period__count {
+  color: var(--dzn-color-text-muted);
+  font-size: var(--dzn-text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.dzn-schedule-archive summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  min-block-size: 44px;
+  padding: .65rem .8rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius);
+  background: var(--dzn-color-surface-sunken);
+  cursor: pointer;
+}
+.dzn-schedule-archive__title { font-size: 1rem; font-weight: 800; color: var(--dzn-color-text-secondary); }
+.dzn-schedule-row__join { min-block-size: 48px; min-inline-size: 10.5rem; font-weight: 800; }
+.dzn-classroom-actions__backup-button {
+  background: transparent;
+  color: var(--dzn-color-text-secondary);
+  border-color: var(--dzn-color-border);
+  box-shadow: none;
+  font-size: var(--dzn-text-xs);
+  font-weight: 600;
+}
+.dzn-schedule-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem .9rem;
+  margin-block-start: .35rem;
+  color: var(--dzn-color-text-muted);
+  font-size: var(--dzn-text-xs);
+}
+.dzn-schedule-row__meta .dzn-portal-help { flex-basis: 100%; margin: 0; }
+.dzn-schedule-row__calendar { color: var(--dzn-color-text-secondary); font-size: var(--dzn-text-xs); }
+.dzn-schedule-row__absence summary { color: var(--dzn-color-text-secondary); font-size: var(--dzn-text-xs); }
+.dzn-schedule-row__absence-submit { font-size: var(--dzn-text-xs); }
+
+.dzn-account-status__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: .5rem .9rem;
+  margin: .35rem 0 0;
+}
+.dzn-account-status__facts > div {
+  padding: .55rem .7rem;
+  border-radius: calc(var(--dzn-portal-card-radius) - 6px);
+  background: var(--dzn-color-surface-sunken);
+}
+.dzn-account-status__facts dt { color: var(--dzn-color-text-muted); font-size: var(--dzn-text-xs); }
+.dzn-account-status__facts dd { margin: .12rem 0 0; font-weight: 400; }
+.dzn-account-status__note { display: block; margin-block-start: .25rem; color: var(--dzn-color-text-muted); font-size: var(--dzn-text-xs); }
+
+.dzn-payments__future-term {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .55rem .9rem;
+  margin-block: .75rem 0;
+}
+.dzn-payments__future-term .dzn-portal-help { flex: 1 1 18rem; margin: 0; }
+
+.dzn-recording-choices--compact {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-portal-card-radius);
+  background: var(--dzn-color-surface-elevated);
+}
+.dzn-recording-choices--compact .dzn-recording-choices__current,
+.dzn-recording-choices--compact .dzn-recording-choices__notice,
+.dzn-recording-choices--compact .dzn-recording-choices__form fieldset { background: transparent; }
+.dzn-recording-choices__english { display: block; margin-block-start: .18rem; font-size: var(--dzn-text-xs); font-weight: 400; color: var(--dzn-color-text-muted); }
+.dzn-recording-choices__subhead { margin-block: .9rem .35rem; font-size: 1rem; }
+.dzn-recording-choices--compact hr { margin-block: 1rem; }
+
+@media (max-width: 47.99rem) {
+  .dzn-schedule-row__join { inline-size: 100%; min-inline-size: 0; }
+  .dzn-term__compact-summary { grid-template-columns: 1fr 1fr; }
+}

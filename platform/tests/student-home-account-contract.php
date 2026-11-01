@@ -28,9 +28,9 @@ $position = static function ( string $haystack, string $needle ): int {
 	return false === $at ? PHP_INT_MAX : $at;
 };
 
-/* 1. Home is task-first: next class, term, requests/invitations, announcement, history. */
+/* 1. Home is task-first: next class, term, schedule, inbox, requests/invitations, announcement, history. */
 $home = substr( $shell, (string) strpos( $shell, "<?php else : ?>") );
-$order = array( 'reschedule', 'term-timeline', 'schedule', 'booking-requests', 'post-intro', 'announcement' );
+$order = array( 'reschedule', 'term-timeline', 'schedule', 'notifications', 'booking-requests', 'post-intro', 'announcement' );
 $previous = -1;
 $ordered = true;
 foreach ( $order as $component ) {
@@ -53,20 +53,21 @@ $check( 'replacement classes are labelled in the schedule', str_contains( (strin
 $check( 'rescheduled classes are labelled as a new time in the schedule', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/schedule.php' ), 'زمان جدید' ) && str_contains( $bridge, 'schedule_revision_count' ) );
 $check( 'replacement classes appear in the term timeline with confirmation state', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/term-timeline.php' ), "replacement_item['confirmed']" ) );
 
-/* 2. Account puts profile, payments and notifications before history. */
+/* 2. Account puts profile first, status directly beneath it, then finance, then consent last. */
 $account_at = strpos( $shell, "elseif ( 'account' === \$screen ) : ?>" );
 $account = false === $account_at ? '' : substr( $shell, $account_at );
 $account = substr( $account, 0, (int) strpos( $account, '<?php else : ?>' ) );
 $account_previous = -1;
 $account_ordered = true;
-foreach ( array( 'profile', 'payments', 'notifications', 'account-status' ) as $component ) {
+foreach ( array( 'profile', 'account-status', 'payments', 'recording-choices' ) as $component ) {
 	$at = $position( $account, "'" . $component . "'" );
 	if ( $at === PHP_INT_MAX || $at < $account_previous ) {
 		$account_ordered = false;
 	}
 	$account_previous = $at;
 }
-$check( 'account puts account status at the bottom after profile and notifications', $account_ordered );
+$check( 'account puts status directly beneath profile and consent at the very bottom', $account_ordered );
+$check( 'notifications moved from Settings to the Classes timeline', ! str_contains( $account, "'notifications'" ) && str_contains( $home, "'notifications'" ) );
 $check( 'the always-rendered future-orders placeholder is gone', ! str_contains( $shell, "'future-orders'" ) );
 
 /* 3. History dates are machine-readable instants. */
@@ -81,8 +82,9 @@ $check( 'the mobile primary action is 48px', (bool) preg_match( '/\.dzn-upcoming
 $profile = (string) file_get_contents( $theme . '/template-parts/portal/profile.php' );
 $statusCard = (string) file_get_contents( $theme . '/template-parts/portal/account-status.php' );
 $check( 'student may edit phone, WhatsApp, timezone and calendar but not email', str_contains( $profile, 'name="phone"' ) && str_contains( $profile, 'name="whatsapp_phone"' ) && str_contains( $profile, 'name="timezone"' ) && str_contains( $profile, 'name="calendar_preference"' ) && str_contains( $profile, 'id="dzn-profile-email"' ) && str_contains( $profile, 'readonly' ) );
-$check( 'account status offers continuation and a support-backed discontinuation request', str_contains( $statusCard, 'ادامهٔ کلاس‌ها' ) && str_contains( $statusCard, 'درخواست توقف ثبت‌نام' ) );
-$check( 'account status shows replacement usage and pending replacement time', str_contains( $statusCard, 'replacement_used' ) && str_contains( $statusCard, 'در انتظار تعیین زمان' ) );
+$check( 'account status keeps the support-backed discontinuation request and drops the redundant continuation action', str_contains( $statusCard, 'درخواست توقف ثبت‌نام' ) && ! str_contains( $statusCard, 'ادامهٔ کلاس‌ها' ) );
+$check( 'account status shows the canonical replacement balance and an honest missing-value state', str_contains( $statusCard, 'replacement_label' ) && str_contains( $statusCard, 'جبرانی' ) );
+$check( 'account status shows instalments, lesson progress, cancellation and rescheduling facts', str_contains( $statusCard, 'instalment_label' ) && str_contains( $statusCard, 'progress_label' ) && str_contains( $statusCard, 'cancelled_label' ) && str_contains( $statusCard, 'reschedule_label' ) );
 $check( 'the student join boundary is registered for canonical term lessons', str_contains( (string) file_get_contents( $root . '/platform/delnavazan-platform.php' ), 'StudentClassJoinController::register' ) );
 $joinService = (string) file_get_contents( $root . '/platform/src/Integrations/StudentClassJoinService.php' );
 $check( 'student join re-proves ownership, exact schedule, window and vaulted provider reference', str_contains( $joinService, "resolve('student')" ) && str_contains( $joinService, 'PortalAccessPolicy::assertObject' ) && str_contains( $joinService, 'activeCalendarMapping' ) && str_contains( $joinService, "open('calendar_event'" ) );

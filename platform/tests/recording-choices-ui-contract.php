@@ -43,19 +43,19 @@ $need(str_contains($readService,"'default_research_choice'=>null"),'research mus
 $need(str_contains($readService,"'information_url'"),'the UI must link the public information page');
 $need(str_contains($readService,'wp_generate_uuid4()'),'each rendered action must carry a fresh idempotency key');
 
-$need(str_contains($student,'Recording and research choices'),'the Account Settings section title is required');
-$need(str_contains($student,'Allow lesson recording'),'the allow recording label is required');
-$need(str_contains($student,'Do not allow lesson recording'),'the decline recording label is required');
-$need(str_contains($student,'I want to participate in research'),'the research opt-in label is required');
-$need(str_contains($student,'No, thanks'),'the research decline label is required');
-$need(str_contains($student,'Withdraw participation'),'the research withdrawal control is required');
+$need(str_contains($student,'ضبط کلاس و پژوهش'),'the Account Settings section title is required');
+$need(str_contains($student,'اجازهٔ ضبط کلاس'),'the allow recording label is required');
+$need(str_contains($student,'بدون ضبط کلاس'),'the decline recording label is required');
+$need(str_contains($student,'می‌خواهم در پژوهش مشارکت کنم'),'the research opt-in label is required');
+$need(str_contains($student,'نه، ممنون'),'the research decline label is required');
+$need(str_contains($student,'پس گرفتن مشارکت'),'the research withdrawal control is required');
 $need(str_contains($student,"'account' === \$context && 'allow' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current recording choice');
 $need(str_contains($student,"'account' === \$context && 'decline' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current decline');
 $need(!preg_match('/name="choice" value="allow"\s+checked/',$student),'enrolment must not preselect allow');
 $need(!preg_match('/name="choice" value="decline"\s+checked/',$student),'enrolment must not preselect decline');
 $need(!str_contains($student,'guardian'),'no guardian form may be exposed');
-$need(str_contains($student,'not legally approved yet'),'provisional copy must be visibly marked as draft');
-$need(str_contains($student,'No recording decision has been saved'),'unavailable accounts must show a neutral state');
+$need(str_contains($student,'تأیید حقوقی نشده'),'provisional copy must be visibly marked as draft');
+$need(str_contains($student,'هیچ تصمیمی دربارهٔ ضبط ثبت نشده'),'unavailable accounts must show a neutral state');
 
 $need(str_contains($teacher,'Acceptance is unavailable'),'teacher acceptance must show an explicit unavailable state');
 $need(str_contains($teacher,'version '),'teacher acceptance must show the publication version');

@@ -42,7 +42,7 @@ final class LiveKitClassroomAuthorizer {
     }
 
     /** Lifecycle revalidation used by the signed LiveKit webhook. */
-    public function grantStillActive(array $grant): bool {
+    public function grantStillActive(array $grant, bool $allowOutsideWindow = false): bool {
         $now = $this->now();
         if ((string)($grant['kind'] ?? '') === 'booking') {
             $role = (string)($grant['role'] ?? '');
@@ -51,7 +51,7 @@ final class LiveKitClassroomAuthorizer {
             if (!in_array($role, array('teacher', 'student'), true) || $participantId < 1) return false;
             $row = $this->bookings->confirmedParticipantContext((string)($grant['resource_uid'] ?? ''), $role, $participantId);
             if (!$row) return false;
-            return $this->insideWindow((string)$row->starts_at_utc, (string)$row->ends_at_utc, $now);
+            return $allowOutsideWindow || $this->insideWindow((string)$row->starts_at_utc, (string)$row->ends_at_utc, $now);
         }
         $lesson = (new CanonicalLessonAuthorityRepository())->lesson((int)($grant['resource_id'] ?? 0));
         if (!$lesson || (string)$lesson->record_model !== 'canonical_term_lesson_v1' || (string)$lesson->lifecycle_state !== 'authorised') return false;
@@ -60,7 +60,7 @@ final class LiveKitClassroomAuthorizer {
         if (!CanonicalLessonScheduleValidator::validForLesson((int)$lesson->id, $schedules, $lessons)) return false;
         $active = $schedules->applicableVersion((int)$lesson->id);
         if (!$active || (string)$active->uid !== (string)($grant['schedule_key'] ?? '')) return false;
-        return $this->insideWindow((string)$active->starts_at_utc, (string)$active->ends_at_utc, $now);
+        return $allowOutsideWindow || $this->insideWindow((string)$active->starts_at_utc, (string)$active->ends_at_utc, $now);
     }
 
     private function lessonFacts(string $role, array $principal, string $lessonUid, string $scheduleUid): array {

@@ -91,38 +91,24 @@ if ( ! str_contains( $academyHtml, 'page=dzn-academy-dashboard' )
     throw new RuntimeException( 'Academy must render one primary destination without replacement sub-tabs.' );
 }
 
-// A teacher-maintenance operator gets Overview only; an onboarding operator gets
-// the onboarding view directly; holding both reveals exactly two tabs.
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_manage_teachers' );
-$_GET['page'] = 'dzn-teachers-menu';
-ob_start();
-\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
-$teacherOverviewHtml = ob_get_clean();
-if ( ! str_contains( $teacherOverviewHtml, 'page=dzn-teachers-menu' )
-    || str_contains( $teacherOverviewHtml, 'view=onboarding' )
-    || str_contains( $teacherOverviewHtml, 'dzn-admin-shell__subtabs' ) ) {
-    throw new RuntimeException( 'Teacher overview must not expose onboarding or a redundant sub-tab row.' );
-}
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_teacher_onboarding' );
-$_GET['page'] = 'dzn-teachers-menu';
-$_GET['view'] = 'onboarding';
-ob_start();
-\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
-$teacherOnboardingHtml = ob_get_clean();
-if ( ! str_contains( $teacherOnboardingHtml, 'view=onboarding' )
-    || str_contains( $teacherOnboardingHtml, 'dzn-admin-shell__subtabs' ) ) {
-    throw new RuntimeException( 'Onboarding-only operators must land directly on the onboarding view.' );
-}
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_manage_teachers', 'dzn_access_teacher_onboarding' );
-$_GET['page'] = 'dzn-teachers-menu';
-unset( $_GET['view'] );
-ob_start();
-\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
-$teacherBothHtml = ob_get_clean();
-if ( ! str_contains( $teacherBothHtml, 'dzn-admin-shell__subtabs' )
-    || ! str_contains( $teacherBothHtml, 'Overview' )
-    || ! str_contains( $teacherBothHtml, 'Onboarding & Invitations' ) ) {
-    throw new RuntimeException( 'Teachers must expose exactly Overview and Onboarding & Invitations when both authorities are held.' );
+// Teachers is one destination for both maintenance and onboarding authorities.
+// The consolidated page itself decides which sections the operator may see.
+foreach ( array(
+    array( 'dzn_manage_teachers', 'dzn_access_teacher_operations' ),
+    array( 'dzn_access_teacher_onboarding', 'dzn_access_teacher_operations' ),
+    array( 'dzn_manage_teachers', 'dzn_access_teacher_onboarding', 'dzn_access_teacher_operations' ),
+) as $teacherCaps ) {
+    $GLOBALS['dzn_shell_test_caps'] = $teacherCaps;
+    $_GET['page'] = 'dzn-teachers-menu';
+    unset( $_GET['view'] );
+    ob_start();
+    \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+    $teacherHtml = ob_get_clean();
+    if ( ! str_contains( $teacherHtml, 'page=dzn-teachers-menu' )
+        || str_contains( $teacherHtml, 'view=onboarding' )
+        || str_contains( $teacherHtml, 'dzn-admin-shell__subtabs' ) ) {
+        throw new RuntimeException( 'Teachers must expose one primary destination without a redundant sub-tab row.' );
+    }
 }
 
 // Settings is one area with five work groups. The active group exposes only its

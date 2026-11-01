@@ -691,7 +691,7 @@
     if (student) student.textContent = session.student_name || 'هنرجو';
     if (localLabel) localLabel.textContent = 'شما · ' + (session.display_name || '');
     if (roleBadge) {
-      roleBadge.textContent = session.role === 'teacher' ? 'مدرس' : 'هنرجو';
+      roleBadge.textContent = session.role === 'teacher' ? 'مدرس' : (session.role === 'administrator' ? 'مدیر' : 'هنرجو');
       roleBadge.hidden = false;
     }
     if (remotePlaceholder) {
@@ -732,6 +732,7 @@
   }
 
   function waitingMessage() {
+    if (state.session && state.session.role === 'administrator') return 'در حال بررسی اتاق کلاس…';
     return state.session && state.session.role === 'teacher' ? 'در انتظار ورود هنرجو…' : 'در انتظار ورود مدرس…';
   }
 

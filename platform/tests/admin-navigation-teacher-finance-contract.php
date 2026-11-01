@@ -19,16 +19,16 @@ $coreRead = (string) file_get_contents($root . '/src/Core/Application/CoreReadSe
 $operations = (string) file_get_contents($root . '/../theme/inc/operations.php');
 
 $contains($shell, array(
-    "'academy' => ['Academy'",
-    "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
+    "'overview' => ['Overview'",
+    "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "'teachers' => ['Teachers'",
-    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
-    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
-    "'enrolment' => ['Enrolment'",
+    "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
+    "'classes' => ['Classes'",
     "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
+    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
+    "'enrolment' => ['Enrolment'",
     "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
     "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
-    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
     "'finance' => ['Finance'",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
@@ -37,13 +37,13 @@ $contains($shell, array(
     "['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP]",
     'http_build_query',
     'Menu::CORE_WORKFLOW_CAP',
-), 'navigation must consolidate into Academy, Teachers, Students, Enrolment, Finance and Settings while retaining protected routes');
+), 'navigation must consolidate into Overview, Teachers, Students, Classes, Enrolment, Finance and Settings while retaining protected routes');
 $contains((string)file_get_contents($root.'/src/Admin/Controller/FinanceAdminController.php'),array('Teacher Statements','Teacher compensation','Statement Template Settings','Global regional pricing'),'the single Finance page must contain the four consolidated tabs and settings');
 foreach (array("'courses' => ['Courses'", "'communications' => ['Communications'", "'enrolments_classes' => ['Enrolments / Classes'") as $removedTab) {
     $expect(!str_contains($shell, $removedTab), 'redundant top-level tab must be consolidated, not duplicated: ' . $removedTab);
 }
-$expect(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
-$expect(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teachers must expose exactly Overview and Onboarding & Invitations');
+$expect(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Overview must not expose replacement sub-tabs');
+$expect(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'") && !str_contains($shell, "['Overview', 'dzn-teachers-menu'"), 'Teachers must expose one consolidated workspace without legacy sub-tabs');
 $contains($menu, array(
     'CORE_WORKFLOW_CAP',
     'mappedCoreWorkflowCaps',
@@ -65,25 +65,26 @@ $contains($enrolmentWorkspace, array('dzn-booking-requests', 'dzn-booking-reques
 $contains($catalogueWorkspace, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must preserve catalogue, instrument, finance-settings and exception workflows');
 $contains($attendanceWorkspace, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must preserve attendance, post-intro and class-outcome workflows');
 $contains($academy, array(
-    "private static function classOperationalState(): void",
-    '>Today and upcoming lessons<',
-    '>Attention needed<',
-    "'dzn-academy-attention'",
+    'todayClasses(): void',
+    '>Today’s classes',
+    'id="dzn-pending-work"',
     "'dzn-academy-today-upcoming'",
+    'dzn_academy_mark_attended',
+    'dzn_academy_reschedule_class',
     '(new CoreReadService())->classOperatorRows()',
     'self::classUrl($row)',
     "'confirmed_intro_booking_v1'",
     "'Open booking'",
     'schedule_starts_at_utc',
     'scheduleUtcInstant',
-    'setTimezone(new \\DateTimeZone($timezone))',
-), 'Academy must render the combined dashboard with confirmed-intro visibility, booking links, chronological UTC ordering and timezone-aware classification');
+    'setTimezone(self::academyTimezone())',
+), 'Overview must render today’s classes and pending work with confirmed-intro visibility, booking links, chronological UTC ordering and timezone-aware classification');
 $contains($coreRead, array(
     'private function sortClassRows(array $rows): array',
     'schedule_starts_at_utc',
     'classRowTieBreak',
     'utcScheduleTimestamp',
-), 'the new Academy navigation must reuse the chronological composite Classes read seam');
+), 'the new Classes navigation must reuse the chronological composite Classes read seam');
 $contains($general, array('class GeneralSettingsController', "CAPABILITY = 'manage_options'", 'Read-only platform identity', 'DiagnosticsService'), 'General must be a read-only administrator page');
 
 $contains($options, array(

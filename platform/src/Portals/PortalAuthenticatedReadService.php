@@ -63,12 +63,27 @@ final class PortalAuthenticatedReadService {
                 $total = (int) ( $row->total ?? 0 );
                 $completed = (int) ( $row->completed ?? 0 );
                 $cancelled = (int) ( $row->cancelled ?? 0 );
-                $cache[ $termId ] = array( 'total' => $total, 'completed' => $completed, 'cancelled' => $cancelled, 'remaining' => max( 0, $total - $completed - $cancelled ) );
+                $cache[ $termId ] = array( 'total' => $total, 'completed' => $completed, 'cancelled' => $cancelled, 'remaining' => max( 0, $total - $completed - $cancelled ), 'replacement' => null );
+                // The Student-visible replacement allowance is owned by the Term allocation
+                // authority. The Teacher needs the same authoritative balance to avoid showing a
+                // static or stale entitlement in the class detail.
+                try {
+                    $cache[ $termId ]['replacement'] = ( new \Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository() )->termReplacementAllocation( $termId );
+                } catch ( \Throwable $error ) {
+                    $cache[ $termId ]['replacement'] = null;
+                }
             }
             $lesson['term_lesson_total'] = $cache[ $termId ]['total'];
             $lesson['term_lesson_completed'] = $cache[ $termId ]['completed'];
             $lesson['term_lesson_cancelled'] = $cache[ $termId ]['cancelled'];
             $lesson['term_lesson_remaining'] = $cache[ $termId ]['remaining'];
+            if ( is_array( $cache[ $termId ]['replacement'] ) ) {
+                $allocation = $cache[ $termId ]['replacement'];
+                $lesson['replacement_allowance'] = max( 0, (int) ( $allocation['allowance'] ?? 0 ) );
+                $lesson['replacement_used'] = max( 0, (int) ( $allocation['used'] ?? 0 ) );
+                $lesson['replacement_pending_allocated'] = max( 0, (int) ( $allocation['pending'] ?? 0 ) );
+                $lesson['replacement_available'] = max( 0, (int) ( $allocation['available'] ?? 0 ) );
+            }
         }
         unset( $lesson );
         return $lessons;

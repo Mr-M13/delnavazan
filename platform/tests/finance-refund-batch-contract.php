@@ -24,11 +24,11 @@ $readService = $read('src/Core/Application/Finance/Read/FinanceAdminReadService.
 $contains($batch, array(
     'preview(', 'run(', 'teachersWithWork(', 'periodLessons(', 'draft(', 'issue(',
     "':draft:'", "':issue:'", 'statement_batch_month_invalid', 'statement_period_not_elapsed',
-    'statement_already_issued', 'One Teacher', 'Email', 'hasEmailEvent',
+    'statement_already_issued', 'One Teacher', 'Email', 'draft_state', 'issue_state', 'email_state', 'enqueue(',
 ), 'The batch must use the recorded statement authority per Teacher and report isolated results');
 $contains($repository, array('teachersWithWork', 'hasEmailEvent', 'canonical_lesson_delivery_outcomes', 'canonical_lesson_schedule_versions'), 'The batch candidate read must use canonical occurrence anchors');
 
-$contains($email, array('TeacherStatementEmailService', 'TeacherStatementEmailRenderer', 'send(', 'statement_not_issued', 'email_failed', 'emailed'), 'Statement email must be issued-only, branded and recorded');
+$contains($email, array('TeacherStatementEmailService', 'TeacherStatementEmailRenderer', 'enqueue(', 'processDue(', 'statement_not_issued', 'transport_accepted', 'retryable', 'lease_expires_at', 'delivered_at'), 'Statement email must be issued-only, branded and recorded');
 $contains($emailRenderer, array(
     "IVORY = '#FBF8F2'", "TEAL = '#104A4D'", "POMEGRANATE = '#A33E48'", "SAFFRON = '#D4AB4F'",
     'Vazirmatn', 'Tahoma', 'teacher statement', 'Golden hour', 'Total payable', 'AltBody',
@@ -44,7 +44,7 @@ $contains($finance, array(
     "add_action('admin_post_dzn_finance_refund'", "add_action('admin_post_dzn_finance_refund_review'",
     "check_admin_referer('dzn_finance_statement_batch')", "check_admin_referer('dzn_finance_statement_email')",
     "check_admin_referer('dzn_finance_refund')", "check_admin_referer('dzn_finance_refund_review')",
-    'Generate monthly statements', 'Email to teacher', 'Record refund', 'Refund review cases',
+    'Generate monthly statements', 'Queue statement email', 'Record refund', 'Refund review cases',
 ), 'Finance must expose batching, email and refund actions behind their own nonces');
 
 $contains($refund, array(
@@ -54,7 +54,13 @@ $contains($refund, array(
     'RefundReviewService', 'recordRefundEvidence', 'refundedMinor',
     'manual_refund_exceeds_remaining', 'manual_refund_already_complete', 'manual_refund_before_settlement',
     'manual_refund_settlement_required', 'manual_refund_amount_required',
-), 'Manual refunds must be administrator-only, capped by settled balance and routed to review evidence');
+    'ManualRefundReservationRepository', 'request_key_digest', 'evidence_key_digest', 'payload_digest',
+    'lockAccountRoot', 'sumReserved', 'dzn_manual_refund_before_review', 'existingForEvidence',
+    'manual_refund_request_conflict', 'evidence_recorded', 'review_open', 'release(',
+), 'Manual refunds must reserve the balance atomically, persist idempotency fingerprints and recover evidence-to-review failures');
+$contains($read('src/Core/Infrastructure/Migration/Migrator.php'), array('060_manual_refund_reservations','finance_manual_refund_reservations','finance_manual_refund_events'), 'Schema 060 must persist the refund reservation and append-only event history');
+$contains($read('src/Core/Infrastructure/Migration/Migrator.php'), array('061_statement_email_outbox','finance_statement_email_intents','finance_statement_email_attempts'), 'Schema 061 must persist durable statement-email intents and attempts');
+$contains($repository, array('teachersWithWork', 'hasEmailEvent'), 'The batch candidate read must remain present');
 $contains($refundReview, array("resolution_note'=>\$note === '' ? null : \$note"), 'A manual refund note must be retained on the review case');
 $assert(!str_contains($staff, 'dzn_manage_refund_reviews'), 'Refund authority must remain administrator-only, not part of the Finance staff bundle');
 $contains($readService, array('refundReviews', 'refunded_minor', 'dzn_view_recurring_authority'), 'Refund reads must be raised only for the recurring authority');

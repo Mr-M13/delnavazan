@@ -96,7 +96,7 @@ final class TeacherStatementBatchService {
         }
         $preview = $this->preview($month, $selected);
         $results = array();
-        $counts = array('teachers' => 0, 'drafted' => 0, 'issued' => 0, 'skipped' => 0, 'failed' => 0, 'emailed' => 0);
+        $counts = array('teachers' => 0, 'drafted' => 0, 'issued' => 0, 'skipped' => 0, 'failed' => 0, 'email_queued' => 0, 'email_failed' => 0);
         foreach ((array) $preview['teachers'] as $candidate) {
             $counts['teachers']++;
             $teacherId = (int) $candidate['teacher_id'];
@@ -108,73 +108,89 @@ final class TeacherStatementBatchService {
                 'active_lessons' => (int) $candidate['active_lessons'],
                 'statement_id' => null,
                 'state' => 'skipped',
+                'draft_state' => 'not_attempted',
+                'issue_state' => $issue ? 'not_attempted' : 'not_requested',
+                'email_state' => $sendEmail ? 'not_attempted' : 'not_requested',
                 'reason' => null,
                 'emailed' => false,
                 'email_reason' => null,
             );
             if ((string) ($candidate['reason'] ?? '') !== '') {
                 $result['state'] = 'failed';
+                $result['draft_state'] = 'failed';
+                $result['issue_state'] = 'not_attempted';
                 $result['reason'] = (string) $candidate['reason'];
                 $counts['failed']++;
                 $results[] = $result;
                 continue;
             }
+            $statementId = null;
             try {
-                $statementId = null;
-                $state = 'draft';
                 $existingId = (int) ($candidate['existing_statement_id'] ?? 0);
                 $existingState = (string) ($candidate['existing_state'] ?? '');
                 $exactExisting = $existingId > 0
                     && (string) ($candidate['existing_period']['start'] ?? '') === (string) $preview['period_start']
                     && (string) ($candidate['existing_period']['end'] ?? '') === (string) $preview['period_end'];
-                if ($existingId > 0) {
-                    if ($exactExisting && $existingState === 'draft' && $issue) {
-                        $this->statements->issue($existingId, $batchKey . ':issue:' . $teacherId);
-                        $statementId = $existingId;
-                        $state = 'issued';
+
+                if ($exactExisting && $existingState === 'issued') {
+                    $statementId = $existingId;
+                    $result['statement_id'] = $statementId;
+                    $result['state'] = 'skipped';
+                    $result['reason'] = 'statement_already_issued';
+                    $result['draft_state'] = 'existing';
+                    $result['issue_state'] = 'already_issued';
+                    $counts['skipped']++;
+                } elseif ($exactExisting && $existingState === 'draft') {
+                    $statementId = $existingId;
+                    $result['statement_id'] = $statementId;
+                    $result['draft_state'] = 'existing';
+                    if ($issue) {
+                        $this->statements->issue($statementId, $batchKey . ':issue:' . $teacherId);
+                        $result['state'] = 'issued';
+                        $result['issue_state'] = 'issued';
                         $counts['issued']++;
-                    } elseif ($exactExisting && $existingState === 'issued') {
-                        $result['state'] = 'skipped';
-                        $result['reason'] = 'statement_already_issued';
-                        $result['statement_id'] = $existingId;
-                        if ($sendEmail && !$this->repository->hasEmailEvent($existingId)) {
-                            $mail = $this->email->send($existingId);
-                            $result['emailed'] = (bool) ($mail['emailed'] ?? false);
-                            $result['email_reason'] = $mail['reason'] ?? null;
-                            if ($result['emailed']) $counts['emailed']++;
-                        }
-                        $counts['skipped']++;
-                        $results[] = $result;
-                        continue;
                     } else {
                         $result['state'] = 'skipped';
-                        $result['reason'] = $exactExisting ? 'statement_already_exists' : 'statement_period_overlap';
-                        $result['statement_id'] = $existingId;
+                        $result['reason'] = 'statement_already_exists';
+                        $result['issue_state'] = 'not_requested';
                         $counts['skipped']++;
-                        $results[] = $result;
-                        continue;
                     }
+                } elseif ($existingId > 0) {
+                    $result['statement_id'] = $existingId;
+                    $result['state'] = 'skipped';
+                    $result['reason'] = 'statement_period_overlap';
+                    $result['draft_state'] = 'existing';
+                    $result['issue_state'] = 'not_attempted';
+                    $counts['skipped']++;
                 } else {
                     $draft = $this->statements->draft($teacherId, (string) $preview['period_start'], (string) $preview['period_end'], $batchKey . ':draft:' . $teacherId);
                     $statementId = (int) $draft['statement_id'];
+                    $result['statement_id'] = $statementId;
+                    $result['draft_state'] = 'created';
                     $counts['drafted']++;
                     if ($issue) {
                         $this->statements->issue($statementId, $batchKey . ':issue:' . $teacherId);
-                        $state = 'issued';
+                        $result['state'] = 'issued';
+                        $result['issue_state'] = 'issued';
                         $counts['issued']++;
+                    } else {
+                        $result['state'] = 'drafted';
+                        $result['issue_state'] = 'not_requested';
                     }
                 }
-                $result['statement_id'] = $statementId;
-                $result['state'] = $state;
-                if ($sendEmail && $state === 'issued' && $statementId !== null) {
-                    $mail = $this->email->send($statementId);
-                    $result['emailed'] = (bool) ($mail['emailed'] ?? false);
+
+                if ($sendEmail && $result['state'] === 'issued' && $statementId !== null) {
+                    $mail = $this->email->enqueue($statementId);
+                    $result['emailed'] = (string) ($mail['state'] ?? '') === 'transport_accepted';
+                    $result['email_state'] = (string) ($mail['state'] ?? '') === 'transport_accepted' ? 'transport_accepted' : ((string) ($mail['reason'] ?? '') === 'already_transport_accepted' ? 'transport_accepted' : (!empty($mail['queued']) ? 'queued' : 'failed'));
                     $result['email_reason'] = $mail['reason'] ?? null;
-                    if ($result['emailed']) $counts['emailed']++;
+                    if ($result['email_state'] === 'failed') $counts['email_failed']++; else $counts['email_queued']++;
                 }
             } catch (\Throwable $error) {
                 $result['state'] = 'failed';
                 $result['reason'] = $this->reason($error);
+                if ($result['draft_state'] === 'not_attempted' && $statementId === null) $result['draft_state'] = 'failed';
+                if ($issue && $result['issue_state'] === 'not_attempted' && $statementId !== null) $result['issue_state'] = 'failed';
                 $counts['failed']++;
             }
             $results[] = $result;

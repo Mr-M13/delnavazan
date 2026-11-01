@@ -130,14 +130,14 @@ No merge, deployment, financial activation or production record change was perfo
 
 | Requirement | Result | Evidence |
 | --- | --- | --- |
-| All component PR checks complete successfully | **PASS** | #471, #472, #474 and #464–#469 are 11/11; #473 was pending only on the last push at report time and passed source/finance checks before it |
-| #470 includes every final component commit | **PASS** | Verified each PR head is an ancestor of `integration/portal-programme-20261101` |
+| All component PR checks complete successfully | **PASS** | #464–#469 and #471–#474 are all 11/11 with no failures |
+| #470 includes every final component commit and current main | **PASS** | Every PR head is an ancestor of `integration/portal-programme-20261101`; current `main` (#475 teacher induction) merged before the final sweep |
 | Full integrated source suite | **PASS** | `platform/tests/*.php` source sweep: 0 failures |
 | Full integrated runtime suite | **PASS** | finance admin/schedule/notification, statement+settlement, Teacher confirmation, replacement release, recording choices, LiveKit authorizer |
 | Two-participant LiveKit: audio, music, reconnect, exit | **PASS** | live local LiveKit session: 2/2 participants, remote audio subscribed both sides, music propagated, reconnect preserved state, Student Exit left Lesson authorised, Teacher Finish completed it |
 | LiveKit token permits shared data | **PASS** | `canPublishData=true` defect fixed in #469 |
 | Audible speaker-output check on physical device | **BLOCKED** | headless fake media proves track publication/subscription, not audible output |
-| Valid synthetic obligation checkout + webhook + idempotency | **PASS** | `stripe-checkout-test-mode-e2e-runtime.php`: PASS (signed webhook, wrong-signature refusal, duplicate convergence, one settlement) |
+| Valid synthetic obligation checkout + webhook + idempotency | **PASS** | `stripe-checkout-test-mode-e2e-runtime.php`: PASS (local sandbox checkout, signed webhook, wrong-signature refusal, duplicate convergence, one settlement) |
 | Future-term obligation creation and checkout end-to-end | **BLOCKED** | #472 safely exposes existing future-term obligations and its selection is unit-proven; the current commercial authority has no staging-valid path to issue an unbound future-term offer while a current Term is applicable. This is a product/authority gap, not a checkout defect |
 | Statement generation and settlement on latest code | **PASS** | real completed-period statement drafted/issued, settled, replayed once, Teacher read `paid`/`up_to_date` |
 | Replacement cancellation releases allowance | **PASS** | runtime: one cancelled + one active replacement → used 1, available restored |

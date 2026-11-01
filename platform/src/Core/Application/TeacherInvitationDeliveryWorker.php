@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
+use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\TeacherInvitationPresentation;
 
 /**
@@ -46,7 +47,11 @@ final class TeacherInvitationDeliveryWorker {
             $copy=TeacherInvitationPresentation::values();
             $subject=TeacherInvitationPresentation::render($copy['subject'],$claimUrl,(string)$payload['secret']);
             $message=TeacherInvitationPresentation::render($copy['body'],$claimUrl,(string)$payload['secret']);
-            $sent=wp_mail((string)$payload['recipient'],$subject,$message);
+            $sent=DelnavazanEmailRenderer::send((string)$payload['recipient'],$subject,$message,array(
+                'locale'=>'fa-IR',
+                'cta'=>array('label'=>'باز کردن صفحهٔ دعوت','url'=>$claimUrl),
+                'footer_note'=>'این دعوت‌نامه فقط برای شما صادر شده است. کد یک‌بارمصرف را با دیگران به اشتراک نگذارید.',
+            ));
             unset($message,$payload['secret']);
             $repository->finishPreparedDelivery($generationId,$sent?'delivered':'failed',$sent?null:'mail_transport_rejected');
             return $sent?'accepted_by_transport':'failed';

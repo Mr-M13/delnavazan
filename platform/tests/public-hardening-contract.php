@@ -53,7 +53,7 @@ $check( 'term summary CSS is a compact responsive grid', str_contains( $portal_c
 
 /* 5. Readable public type and horizontal-overflow containment. */
 $check( 'body text targets 16px', (bool) preg_match( '/--dzn-text-body:\s*1rem;/', $css ) );
-$check( 'small text is at least 13px', (bool) preg_match( '/--dzn-text-small:\s*\.8125rem;/', $css ) );
+$check( 'small text is at least 14px', (bool) preg_match( '/--dzn-text-small:\s*\.875rem;/', $css ) );
 $check( 'the hero lead starts at 14.4px or larger', (bool) preg_match( '/\.dzn-home-hero__lead\s*\{[^}]*font-size:\s*clamp\(\s*\.9rem/s', $css ) );
 $check( 'the story copy starts at 14.4px or larger', (bool) preg_match( '/\.dzn-story__copy\s*\{[^}]*font-size:\s*clamp\(\s*\.9rem/s', $css ) );
 $check( 'decorative story ornaments are clipped at their component boundary', (bool) preg_match( '/\.dzn-story\s*\{[^}]*overflow:\s*clip/s', $css ) );

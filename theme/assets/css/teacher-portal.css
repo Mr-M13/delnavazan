@@ -2045,7 +2045,7 @@
 .dzn-notifications__item time{color:var(--dzn-color-accent);font-size:.76rem;font-weight:800}
 .dzn-notifications__body h3{margin:0 0 .25rem;font-size:1rem}
 .dzn-notifications__body p{margin:0;color:var(--dzn-color-text-muted);line-height:1.9}
-.dzn-notifications__dot{display:inline-block;inline-size:.5rem;block-size:.5rem;margin-inline-start:.45rem;border-radius:50%;background:var(--dzn-color-accent);vertical-align:middle}
+.dzn-notifications__badge{display:inline-block;margin-inline-start:.5rem;padding:.1rem .5rem;border:1px solid var(--dzn-color-information-border);border-radius:var(--dzn-radius-pill);background:var(--dzn-color-information-surface);color:var(--dzn-color-information);font-size:var(--dzn-text-xs);font-weight:700;line-height:1.6;vertical-align:middle}.dzn-notifications__dot{display:inline-block;inline-size:.5rem;block-size:.5rem;margin-inline-start:.35rem;border-radius:50%;background:var(--dzn-color-accent);vertical-align:middle}
 .dzn-notifications__actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block-start:.5rem}
 .dzn-notifications__actions form{margin:0}
 .dzn-notifications__actions button{background:none;border:0;padding:0;font:inherit;color:var(--dzn-color-action-primary);text-decoration:underline;cursor:pointer}

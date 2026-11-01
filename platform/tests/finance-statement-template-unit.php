@@ -1,6 +1,8 @@
 <?php
 /** Pure unit coverage for safe statement-template rendering. */
 $root = dirname(__DIR__);
+require_once $root . '/src/Core/Support/BrandIdentity.php';
+require_once $root . '/src/Core/Support/CommunicationDesignTokens.php';
 require_once $root . '/src/Core/Application/Finance/Pricing/PricingMoney.php';
 require_once $root . '/src/Core/Application/Finance/Statements/StatementTemplateRule.php';
 require_once $root . '/src/Core/Application/Finance/Statements/StatementTemplateService.php';
@@ -54,7 +56,7 @@ $assert(!str_contains($html, '<script'), 'Rendered output must remain script-fre
 $assert(str_contains($html, 'Delnavazan &lt;Academy&gt;'), 'Substituted values must be HTML-escaped');
 $assert(str_contains($html, '101') && str_contains($html, '102'), 'Lesson loop must render every line');
 $assert(str_contains($html, '۴,۵۰۰,۰۰۰ تومان'), 'Formatted payable amount must come from the recorded total');
-$assert(str_contains($html, '2026-10-01') && str_contains($html, '2026-10-31'), 'Recorded period must be displayed');
+$assert(str_contains($html, '۱۴۰۵/۰۷/۰۹') && str_contains($html, '۱۴۰۵/۰۸/۰۹'), 'Recorded period must be displayed in the recipient calendar');
 
 $malformed = StatementTemplateRule::sanitizeTemplate(array('body_html' => '<p>{{unknown_placeholder}}</p><p>{{lessons}}</p>', 'locale' => 'en'));
 $malformedHtml = (new StatementTemplateService())->render($statement, array(), $malformed, 'Delnavazan');

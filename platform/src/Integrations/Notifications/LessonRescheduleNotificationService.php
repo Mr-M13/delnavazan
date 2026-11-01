@@ -83,7 +83,7 @@ final class LessonRescheduleNotificationService {
         if('admin'===$audience){
             $messages=$replacement?array(
                 'proposed'=>'درخواست جلسهٔ جبرانی از سوی مدرس برای یک جلسهٔ ازدست‌رفته ثبت شد. زمان پیشنهادی: '.$when.' ('.$timezone.'). این پیشنهاد تا پاسخ هنرجو قطعی نیست.',
-                'accepted'=>'هنرجو جلسهٔ جبرانی را پذیرفت و جلسهٔ جایگزین قطعی شد. زمان: '.$when.' ('.$timezone.').',
+                'accepted'=>'هنرجو جلسهٔ جبرانی را پذیرفت و جلسهٔ جبرانی قطعی شد. زمان: '.$when.' ('.$timezone.').',
                 'rejected'=>'هنرجو پیشنهاد جلسهٔ جبرانی را رد کرد. جلسهٔ اصلی بدون تغییر باقی ماند.',
                 'failed'=>'جلسهٔ جبرانی ثبت نشد و پیشنهاد بسته شد؛ مورد برای بررسی در صف مدیر قرار گرفت.',
                 'cancelled'=>'درخواست جلسهٔ جبرانی توسط مدیر لغو شد.',
@@ -109,7 +109,7 @@ final class LessonRescheduleNotificationService {
                 'cancelled'=>'درخواست تغییر زمان کلاس توسط مدیر لغو شد. زمان فعلی بدون تغییر باقی می‌ماند.',
             );
         }
-        $body='سلام'.(''!==trim($name)?' '.trim($name):'')."،\n\n".($messages[$eventType]??$messages['failed'])."\n\nدلنوازان";
+        $body=\Delnavazan\Platform\Core\Support\BrandIdentity::GREETING.(''!==trim($name)?' '.trim($name):'')."،\n\n".($messages[$eventType]??$messages['failed'])."\n\nدلنوازان";
         $portal='admin'===$audience?'':(function_exists('home_url')?home_url('student'===$audience?'/student-portal/':'/teacher-portal/'):'');
         $variables=array('name'=>trim($name),'teacher'=>trim($name),'student'=>trim($name),'when'=>$when,'timezone'=>$timezone,'portal_url'=>$portal,'teacher_portal_url'=>$portal);
         $eventKey=$this->eventKey($proposal,$eventType,$audience);

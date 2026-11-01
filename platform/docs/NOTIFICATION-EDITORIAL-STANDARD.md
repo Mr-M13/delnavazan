@@ -8,13 +8,21 @@ Warm, respectful, concise and professional — the voice of a Persian music acad
 in Iran and internationally. Write to one person. Prefer a calm sentence over an administrative formula,
 and never mix a friendly opening with a bureaucratic body.
 
+- Open with «درود». Do not use «سلام» in new customer-facing copy.
 - Address the recipient directly: «شما».
 - Use «هنرجو»، «مدرس»، «کلاس» — not «دانشجو»، «استاد کلاس» or «معلم» in student-facing copy.
 - Do not use honorific stacks («جنابعالی»، «به استحضار میرساند») in operational messages.
 - Never blame the recipient. Describe the fact, the next step and the deadline.
 - Do not use marketing urgency for an operational event.
 
-## 2. Mandatory structure
+## 2. Canonical identity
+
+Public identity comes from `platform/src/Core/Support/BrandIdentity.php`: دلنوازان · `+61 413 413 004` ·
+WhatsApp `+61413413004` · `admin@delnavazan.com` · `https://delnavazan.com`. The authenticated sender
+(`no-reply@delnavazan.com` by default) is separate from this public contact identity and must not be
+changed by copy edits.
+
+## 3. Mandatory structure
 
 Every message answers, in this order:
 
@@ -25,7 +33,7 @@ Every message answers, in this order:
 
 If a message does not need action, say so explicitly instead of inventing a button.
 
-## 3. Terminology
+## 4. Terminology
 
 | Use | Avoid |
 |---|---|
@@ -41,7 +49,7 @@ If a message does not need action, say so explicitly instead of inventing a butt
 | تمدید دوره | شارژ مجدد، خرید دوباره |
 | پرتال هنرجو / پرتال مدرس | پنل، داشبورد (in student/teacher copy) |
 
-## 4. Time, date and timezone
+## 5. Time, date and timezone
 
 - Use the recipient's configured timezone; never the server timezone.
 - Respect the configured calendar preference (Persian or Gregorian).
@@ -51,7 +59,7 @@ If a message does not need action, say so explicitly instead of inventing a butt
 - Never write a bare «فردا» or «این هفته»; state the date.
 - A deadline is a date plus a time, or explicitly «پایان روز».
 
-## 5. Channel rules
+## 6. Channel rules
 
 ### Email
 
@@ -82,7 +90,7 @@ If a message does not need action, say so explicitly instead of inventing a butt
 - Read/unread state is presentation only: clicking a notification never approves anything.
 - No one-time secret is ever stored in the inbox.
 
-## 6. Category rules
+## 7. Category rules
 
 | Category | Tone | Opt-out |
 |---|---|---|
@@ -96,7 +104,7 @@ If a message does not need action, say so explicitly instead of inventing a butt
 Operational authority comes from the teaching relationship, not from marketing consent. Marketing consent
 is never used to justify a booking, class, payment or security message.
 
-## 7. Examples
+## 8. Examples
 
 **Class confirmed (email, student)**
 
@@ -130,7 +138,7 @@ is never used to justify a booking, class, payment or security message.
 > کد یک‌بارمصرف زیر را در صفحهٔ دعوت‌نامه وارد کنید: …
 > این کد فقط یک‌بار قابل استفاده است و برای دیگران قابل بازگویی نیست.
 
-## 8. Review rules
+## 9. Review rules
 
 - Financial, refund and renewal copy must be reviewed by the academy's finance/legal owner before the
   category is activated. The dashboard labels this explicitly.

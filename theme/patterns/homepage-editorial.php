@@ -125,7 +125,7 @@
         <div class="dzn-story__stream">
           <article class="dzn-story__item">
             <div class="dzn-story__beat dzn-story__step">
-              <h3 class="dzn-story__title">جلسهٔ معارفه، بدون هزینه</h3>
+              <h3 class="dzn-story__title">کلاس آشنایی، بدون هزینه</h3>
               <p class="dzn-story__copy">برای هنرجویان جدید، نخستین جلسه رایگان است؛ فرصتی برای آشنایی با استاد، بررسی سطح هنرجو و شناخت مسیر آموزشی مناسب.</p>
             </div>
           </article>
@@ -133,7 +133,7 @@
           <article class="dzn-story__item">
             <div class="dzn-story__beat dzn-story__step">
               <h3 class="dzn-story__title">احترام به  انتخاب شما</h3>
-              <p class="dzn-story__copy">پس از جلسهٔ معارفه، فقط اگر تصمیم به ادامهٔ کلاس‌ها بگیرید، شهریهٔ ترم را پرداخت می‌کنید. اگر به هر دلیل نخواهید ادامه دهید، هزینه‌ای پرداخت نمی‌کنید.</p>
+              <p class="dzn-story__copy">پس از کلاس آشنایی، فقط اگر تصمیم به ادامهٔ کلاس‌ها بگیرید، شهریهٔ ترم را پرداخت می‌کنید. اگر به هر دلیل نخواهید ادامه دهید، هزینه‌ای پرداخت نمی‌کنید.</p>
             </div>
           </article>
 
@@ -266,7 +266,7 @@
 
 <!-- wp:details -->
 <details class="wp-block-details"><summary><strong>استادان شما چه کسانی هستند؟ می‌توانیم نمونه کار استادها را ببینیم؟</strong></summary><!-- wp:paragraph -->
-<p>برای حفظ کیفیت و روند آموزشی، معرفی استاد و برگزاری جلسه آشنایی پس از ثبت‌نام انجام می‌شود. <?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?> و شما پیش از ادامه، با استاد خود آشنا می‌شوید و می‌توانید درباره شیوه تدریس و برنامه آموزشی گفت‌وگو کنید. در صورت عدم تمایل به ادامه کلاس، امکان لغو بدون هزینهٔ ترم وجود دارد.</p>
+<p>برای حفظ کیفیت و روند آموزشی، معرفی استاد و برگزاری کلاس آشنایی پس از ثبت‌نام انجام می‌شود. <?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'کلاس آشنایی' ); ?> و شما پیش از ادامه، با استاد خود آشنا می‌شوید و می‌توانید درباره شیوه تدریس و برنامه آموزشی گفت‌وگو کنید. در صورت عدم تمایل به ادامه کلاس، امکان لغو بدون هزینهٔ ترم وجود دارد.</p>
 <!-- /wp:paragraph --></details>
 <!-- /wp:details -->
 
@@ -284,7 +284,7 @@
 
 <!-- wp:details -->
 <details class="wp-block-details"><summary><strong>هزینهٔ ترم چه زمانی پرداخت می‌شود؟</strong></summary><!-- wp:paragraph -->
-<p><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?> و جدا از ترم است. اگر پس از آن تصمیم به ادامه بگیرید، هزینهٔ ترم پیش از آغاز ۱۲ جلسهٔ آموزشی پرداخت می‌شود.</p>
+<p><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'کلاس آشنایی' ); ?> و جدا از ترم است. اگر پس از آن تصمیم به ادامه بگیرید، هزینهٔ ترم پیش از آغاز ۱۲ جلسهٔ آموزشی پرداخت می‌شود.</p>
 <!-- /wp:paragraph --></details>
 <!-- /wp:details -->
 

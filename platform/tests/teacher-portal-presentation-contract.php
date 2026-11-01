@@ -36,6 +36,7 @@ namespace {
         (static function () use ($file, $args) { include $file; })();
     }
 
+    require_once $theme . '/inc/brand.php';
     require_once $theme . '/inc/teacher-portal.php';
 
     $failures = array();

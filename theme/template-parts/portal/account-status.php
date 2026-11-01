@@ -13,7 +13,7 @@ $status = isset( $args['status'] ) && is_array( $args['status'] ) ? $args['statu
 if ( empty( $status['active'] ) ) {
 	return;
 }
-$support_message = rawurlencode( 'سلام، درخواست بررسی توقف ثبت‌نام و ادامهٔ کلاس را دارم.' );
+$support_message = 'درود، درخواست بررسی توقف ثبت‌نام و ادامهٔ کلاس را دارم.';
 $enrolment_label = (string) ( $status['enrolment_label'] ?? 'فعال' );
 $payment_label = (string) ( $status['payment_label'] ?? '' );
 $instalment_label = (string) ( $status['instalment_label'] ?? '' );
@@ -70,7 +70,7 @@ $reschedule_label = (string) ( $status['reschedule_label'] ?? '' );
 		<p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php echo esc_html( (string) $status['replacement_limit_message'] ); ?></p>
 	<?php endif; ?>
 	<div class="dzn-account-status__actions">
-		<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( 'https://wa.me/61413413004?text=' . $support_message ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'درخواست توقف ثبت‌نام', 'delnavazan-theme' ); ?></a>
+		<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( dzn_theme_whatsapp_link( $support_message ) ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'درخواست توقف ثبت‌نام', 'delnavazan-theme' ); ?></a>
 		<p class="dzn-portal-help"><?php esc_html_e( 'درخواست توقف از طریق پشتیبانی بررسی می‌شود تا سابقهٔ کلاس‌ها و پرداخت‌ها سالم بماند.', 'delnavazan-theme' ); ?></p>
 	</div>
 </section>

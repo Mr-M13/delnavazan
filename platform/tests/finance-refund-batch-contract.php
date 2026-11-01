@@ -30,13 +30,13 @@ $contains($repository, array('teachersWithWork', 'hasEmailEvent', 'canonical_les
 
 $contains($email, array('TeacherStatementEmailService', 'TeacherStatementEmailRenderer', 'enqueue(', 'processDue(', 'statement_not_issued', 'transport_accepted', 'retryable', 'lease_expires_at', 'delivered_at'), 'Statement email must be issued-only, branded and recorded');
 $contains($emailRenderer, array(
-    "IVORY = '#FBF8F2'", "TEAL = '#104A4D'", "POMEGRANATE = '#A33E48'", "SAFFRON = '#D4AB4F'",
-    'Vazirmatn', 'Tahoma', 'teacher statement', 'Golden hour', 'Total payable', 'AltBody',
-), 'The email must use the Delnavazan palette and typography');
+    'CommunicationDesignTokens', 'DelnavazanEmailRenderer::renderTrustedHtml', 'BrandIdentity',
+    'teacher statement', 'Golden hour', 'Total payable', 'sendRendered',
+), 'The email must use the shared Delnavazan shell, palette and typography');
 $assert(!str_contains($emailRenderer, 'fonts.googleapis') && !str_contains($emailRenderer, '@import'), 'Statement email must not rely on remote fonts or CSS');
 $contains($templateRule, array(
     "DEFAULT_CSS", "#FBF8F2", "#104A4D", "#A33E48", "#D4AB4F", "Vazirmatn, Tahoma, Arial, sans-serif",
-    'duration_minutes', 'base_amount', 'bonus_amount', 'Teacher compensation', 'ریز حقوق جلسات',
+    'duration_minutes', 'base_amount', 'bonus_amount', 'صورت‌حساب حقوق مدرس', 'ریز حقوق جلسات',
 ), 'The web statement template must share the same brand and pay-detail language');
 $contains($finance, array(
     'handleStatementBatch', 'handleStatementEmail', 'renderStatementBatch', 'renderRefundWorkspace',

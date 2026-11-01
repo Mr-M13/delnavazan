@@ -36,7 +36,7 @@ dzn_rda_ui_assert($enrolment['capture_eligible']===false,'unanswered recording m
 dzn_rda_ui_assert($enrolment['forms']['recording']['notice_uid']===$recordingNotice['uid'],'recording form must cite the published notice');
 dzn_rda_ui_assert($enrolment['forms']['research']['notice_uid']===$researchNotice['uid'],'research form must cite the separate published notice');
 $html=dzn_rda_ui_render_student($enrolment);
-foreach(array('Recording and research choices','Allow lesson recording','Do not allow lesson recording','I want to participate in research','No, thanks')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
+foreach(array('ضبط کلاس و پژوهش','اجازهٔ ضبط کلاس','بدون ضبط کلاس','می‌خواهم در پژوهش مشارکت کنم','نه، ممنون')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
 dzn_rda_ui_assert(!preg_match('/name="choice" value="allow"[^>]*checked/',$html),'enrolment must not preselect allow');
 dzn_rda_ui_assert(!preg_match('/name="choice" value="decline"[^>]*checked/',$html),'enrolment must not preselect decline');
 dzn_rda_ui_assert(!str_contains($html,'guardian'),'no guardian form may be exposed');

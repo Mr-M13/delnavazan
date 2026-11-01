@@ -78,7 +78,7 @@ $format_percentage = static function ( int $basis_points ): string {
 					<?php endif; ?>
 				</li>
 				<li>
-					<strong>مبلغ صورت‌حساب‌های صادرشده</strong>
+					<strong>درآمد ثبت‌شده در صورت‌حساب‌ها</strong>
 					<?php if ( 'available' === (string) ( $earned['state'] ?? '' ) ) : ?>
 						<span> · <bdi dir="ltr"><?php echo esc_html( $format_money( (int) $earned['amount_minor'], (string) $earned['currency'] ) ); ?></bdi> از <?php echo esc_html( number_format_i18n( (int) ( $earned['statement_count'] ?? 0 ) ) ); ?> صورت‌حساب دورهٔ تکمیل‌شده</span>
 					<?php elseif ( 'no_issued_statement' === (string) ( $earned['reason'] ?? '' ) ) : ?>
@@ -111,11 +111,27 @@ $format_percentage = static function ( int $basis_points ): string {
 				</li>
 				<li>
 					<strong>وضعیت پرداخت</strong>
-					<span> · سابقهٔ پرداخت به مدرس در این نسخه ثبت نمی‌شود؛ بنابراین مبلغ پرداخت‌شده یا ماندهٔ پرداخت‌نشده به‌صورت قطعی نمایش داده نمی‌شود.</span>
+					<?php
+					$payout_labels = array( 'up_to_date' => 'تسویه‌شده', 'pending' => 'در انتظار پرداخت', 'overdue' => 'پرداخت معوق', 'not_due' => 'موردی برای پرداخت نیست', 'unavailable' => 'در دسترس نیست' );
+					$payout_status = (string) ( $payout['status'] ?? 'unavailable' );
+					?>
+					<span> · <?php echo esc_html( $payout_labels[ $payout_status ] ?? 'در دسترس نیست' ); ?></span>
 				</li>
 				<li>
 					<strong>پرداخت‌های واقعی</strong>
-					<span> · <?php echo esc_html( 'payout_ledger_unavailable' === (string) ( $payout['reason'] ?? '' ) ? 'دفتر پرداخت در دسترس نیست؛ هیچ مبلغی در این نما به‌عنوان پرداخت‌شده علامت‌گذاری نشده است.' : 'در دسترس نیست.' ); ?></span>
+					<?php if ( 'available' === (string) ( $payout['state'] ?? '' ) ) : ?>
+						<span> · <bdi dir="ltr"><?php echo esc_html( $format_money( (int) ( $payout['paid_minor'] ?? 0 ), (string) ( $payout['currency'] ?? $rate['currency'] ?? '' ) ) ); ?></bdi></span>
+					<?php else : ?>
+						<span> · در دسترس نیست.</span>
+					<?php endif; ?>
+				</li>
+				<li>
+					<strong>ماندهٔ پرداخت‌نشده</strong>
+					<?php if ( 'available' === (string) ( $payout['state'] ?? '' ) ) : ?>
+						<span> · <bdi dir="ltr"><?php echo esc_html( $format_money( (int) ( $payout['unpaid_minor'] ?? 0 ), (string) ( $payout['currency'] ?? $rate['currency'] ?? '' ) ) ); ?></bdi></span>
+					<?php else : ?>
+						<span> · در دسترس نیست.</span>
+					<?php endif; ?>
 				</li>
 			</ul>
 		</section>

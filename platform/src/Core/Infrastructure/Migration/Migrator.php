@@ -2808,16 +2808,16 @@ final class Migrator {
 		if ( $rateOverlaps ) throw new \RuntimeException('Migration verification failed: two teacher rate intervals overlap');
 		// Rule 7: statement, line, correction and evaluation shapes.
 		foreach ( (array) $wpdb->get_results( "SELECT state,issued_at,issued_by,pending_line_count,period_timezone,period_label,timezone_policy_version,period_start_utc,period_end_utc FROM {$p}finance_statements" ) as $statement ) {
-			if ( ! in_array( (string) $statement->state, array('draft','issued','superseded','withdrawn'), true ) ) throw new \RuntimeException('Migration verification failed: a statement state outside the declared vocabulary');
-			$issued = (string) $statement->state === 'issued' || (string) $statement->state === 'superseded';
+			if ( ! in_array( (string) $statement->state, array('draft','issued','paid','superseded','withdrawn'), true ) ) throw new \RuntimeException('Migration verification failed: a statement state outside the declared vocabulary');
+			$issued = in_array((string) $statement->state, array('issued','paid','superseded'), true);
 			if ( $issued !== ( $statement->issued_at !== null && $statement->issued_by !== null ) ) throw new \RuntimeException('Migration verification failed: a statement state and its issuance evidence disagree');
-			if ( (string) $statement->state === 'issued' && (int) $statement->pending_line_count !== 0 ) throw new \RuntimeException('Migration verification failed: an issued statement carries a pending line');
+			if ( in_array((string) $statement->state, array('issued','paid'), true) && (int) $statement->pending_line_count !== 0 ) throw new \RuntimeException('Migration verification failed: an issued statement carries a pending line');
 			$triple = array( $statement->period_timezone !== null, $statement->period_label !== null, $statement->timezone_policy_version !== null );
 			if ( count( array_unique( $triple ) ) !== 1 ) throw new \RuntimeException('Migration verification failed: a statement timezone triple is partially recorded');
-			if ( (string) $statement->state === 'issued' && $statement->period_timezone === null ) throw new \RuntimeException('Migration verification failed: an issued statement records its timezone triple');
+			if ( in_array((string) $statement->state, array('issued','paid'), true) && $statement->period_timezone === null ) throw new \RuntimeException('Migration verification failed: an issued statement records its timezone triple');
 			if ( (string) $statement->period_end_utc <= (string) $statement->period_start_utc ) throw new \RuntimeException('Migration verification failed: a statement period is not a half-open range');
 		}
-		$overlappingLive = $wpdb->get_results( "SELECT a.id AS left_id,b.id AS right_id FROM {$p}finance_statements a INNER JOIN {$p}finance_statements b ON a.teacher_id=b.teacher_id AND a.id<b.id AND a.state IN ('draft','issued') AND b.state IN ('draft','issued') WHERE a.period_start_utc<b.period_end_utc AND b.period_start_utc<a.period_end_utc LIMIT 1" );
+		$overlappingLive = $wpdb->get_results( "SELECT a.id AS left_id,b.id AS right_id FROM {$p}finance_statements a INNER JOIN {$p}finance_statements b ON a.teacher_id=b.teacher_id AND a.id<b.id AND a.state IN ('draft','issued','paid') AND b.state IN ('draft','issued','paid') WHERE a.period_start_utc<b.period_end_utc AND b.period_start_utc<a.period_end_utc LIMIT 1" );
 		if ( $overlappingLive ) throw new \RuntimeException('Migration verification failed: two live statements of one Teacher overlap');
 		foreach ( (array) $wpdb->get_results( "SELECT line.id AS line_id,line.lesson_id AS line_lesson,snapshot.lesson_id AS snapshot_lesson,evaluation.snapshot_id AS evaluation_snapshot,line.snapshot_id AS line_snapshot FROM {$p}finance_statement_lines line LEFT JOIN {$p}finance_lesson_snapshots snapshot ON snapshot.id=line.snapshot_id LEFT JOIN {$p}finance_payability_evaluations evaluation ON evaluation.id=line.payability_evaluation_id" ) as $line ) {
 			if ( $line->snapshot_lesson === null || (int) $line->line_lesson !== (int) $line->snapshot_lesson ) throw new \RuntimeException('Migration verification failed: a statement line names a snapshot of another Lesson');

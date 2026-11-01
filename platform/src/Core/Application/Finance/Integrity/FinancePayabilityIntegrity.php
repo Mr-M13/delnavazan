@@ -35,8 +35,13 @@ final class FinancePayabilityIntegrity {
                 if($row->superseded_at===null||$row->superseded_by_evaluation_id===null)throw new \RuntimeException('payability_supersession_conflict');
             }
             if($previous!==null&&$previous->superseded_by_evaluation_id!==null&&(int)$previous->superseded_by_evaluation_id!==(int)$row->id)throw new \RuntimeException('payability_supersession_conflict');
+            $integerFields=array('lesson_id','delivery_outcome_id','academy_obligation_id','schedule_version_id','snapshot_id','override_id','policy_version');
             $values=array();
-            foreach(FinanceRule::EVALUATION_DIGEST_FIELDS as $field)$values[$field]=$row->{$field}??null;
+            foreach(FinanceRule::EVALUATION_DIGEST_FIELDS as $field){
+                $value=$row->{$field}??null;
+                if($value!==null&&in_array($field,$integerFields,true))$value=(int)$value;
+                $values[$field]=$value;
+            }
             if(!hash_equals((string)$row->derivation_digest,self::digest($values)))throw new \RuntimeException('upstream_aggregate_invalid');
             if(!FinanceRule::member((string)$row->disposition,FinanceRule::DISPOSITIONS)||!FinanceRule::member((string)$row->basis_code,FinanceRule::BASIS_CODES)||!FinanceRule::member((string)$row->lesson_kind,array('standard','replacement','introductory')))throw new \RuntimeException('upstream_aggregate_invalid');
             $previous=$row;

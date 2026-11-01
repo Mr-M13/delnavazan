@@ -3,7 +3,7 @@ $fixture = file_get_contents( __DIR__ . '/synthetic-dataset.php' );
 $policy = file_get_contents( __DIR__ . '/synthetic-dataset-policy.php' );
 if ( ! is_string( $fixture ) ) throw new RuntimeException( 'Synthetic dataset fixture is missing.' );
 if ( ! is_string( $policy ) ) throw new RuntimeException( 'Synthetic dataset environment policy is missing.' );
-foreach ( array( 'DZN_SYNTHETIC_DATASET_STAGING', 'I_UNDERSTAND_STAGING_TEST_DATA', "'staging'", "'production'", 'staging.delnavazan.com', 'dzn_synthetic_dataset_policy_allows' ) as $policyNeedle ) {
+foreach ( array( 'DZN_SYNTHETIC_DATASET_STAGING', 'I_UNDERSTAND_STAGING_TEST_DATA', "'staging'", "'production'", 'staging.delnavazan.com', 'dzn_synthetic_dataset_is_production_host', 'dzn_synthetic_dataset_policy_allows' ) as $policyNeedle ) {
 	if ( strpos( $fixture . $policy, $policyNeedle ) === false ) throw new RuntimeException( 'Synthetic dataset staging safety policy missing: ' . $policyNeedle );
 }
 if ( strpos( $policy, "array( 'local', 'development' )" ) === false ) throw new RuntimeException( 'Synthetic dataset local/development allowlist missing from policy.' );

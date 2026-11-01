@@ -125,7 +125,7 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
                     (SELECT d.outcome_code FROM {$this->p}canonical_lesson_delivery_outcomes d WHERE d.lesson_id=c.lesson_id AND d.applicable_slot=1 LIMIT 1) delivery_outcome,
                     (SELECT dd.decision_basis FROM {$this->p}canonical_attendance_decisions dd WHERE dd.case_id=c.id ORDER BY dd.decision_sequence DESC,dd.id DESC LIMIT 1) latest_basis
              FROM {$this->p}canonical_attendance_cases c
-             INNER JOIN {$this->p}lessons l ON l.id=c.lesson_id AND l.term_id=%d AND l.record_model='canonical_term_lesson_v1' AND l.archived_at IS NULL
+             INNER JOIN {$this->p}lessons l ON l.id=c.lesson_id AND l.term_id=%d AND l.record_model='canonical_term_lesson_v1' AND l.archived_at IS NULL AND l.lifecycle_state<>'cancelled'
              INNER JOIN (
                  SELECT case_id,MAX(id) evidence_id
                  FROM {$this->p}canonical_attendance_evidence

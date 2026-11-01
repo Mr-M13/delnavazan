@@ -111,60 +111,50 @@ namespace {
     };
 
     $all = TeacherInductionCurriculum::all();
-    $fail( 'seven canonical modules are declared', count( $all ) === 7 );
-    $fail( 'canonical order is stable', array_column( $all, 'id' ) === array( 'portal', 'availability', 'responsibilities', 'schedule-changes', 'absence-replacement', 'finance', 'escalation' ) );
-    foreach ( $all as $module ) {
-        $fail( 'module ' . $module['id'] . ' has a positive version', (int) $module['version'] >= 1 );
-        $fail( 'module ' . $module['id'] . ' has objectives and sections', ! empty( $module['objectives'] ) && ! empty( $module['sections'] ) );
-        $fail( 'module ' . $module['id'] . ' targets an existing portal screen', in_array( $module['portal_screen'], array( 'home', 'classes', 'finance', 'settings' ), true ) );
-        $fail( 'module ' . $module['id'] . ' is not empty copy', strlen( $module['description'] ) > 20 );
+    $fail( 'nine quick-start steps are declared', count( $all ) === 9 );
+    $fail( 'quick-start order is stable', array_column( $all, 'id' ) === array( 'today', 'join', 'attendance', 'absence', 'reschedule', 'settings', 'finance', 'golden-hour', 'new-enrolment' ) );
+    foreach ( $all as $step ) {
+        $fail( 'step ' . $step['id'] . ' has a positive version', (int) $step['version'] >= 1 );
+        $fail( 'step ' . $step['id'] . ' has a target screen and highlight', in_array( $step['portal_screen'], array( 'home', 'classes', 'finance', 'settings' ), true ) && $step['highlight_selector'] !== '' && $step['action_label'] !== '' );
+        $fail( 'step ' . $step['id'] . ' has short teacher-facing copy', strlen( $step['description'] ) > 30 && strlen( $step['description'] ) < 500 );
     }
-    $absence = TeacherInductionCurriculum::module( 'absence-replacement' );
-    $absence_text = json_encode( $absence, JSON_UNESCAPED_UNICODE );
-    foreach ( array( 'دو', 'غیبت مازاد', 'سهمیه', 'کوتاهی مدرس', 'مورد اعتراض', 'نخستین غیبت', 'دومین غیبت', 'سومین غیبت', 'دو درخواست در انتظار', 'زمان پیشنهادی رد شد', 'اختلاف در حضور', 'جلسهٔ جبرانی برای کلاس برگزارشده' ) as $token ) {
-        $fail( 'absence module teaches ' . $token, str_contains( $absence_text, $token ) );
-    }
-    $schedule = TeacherInductionCurriculum::module( 'schedule-changes' );
-    $schedule_text = json_encode( $schedule, JSON_UNESCAPED_UNICODE );
-    foreach ( array( 'پذیرش هنرجو', 'سه', 'تداخل', 'جلسهٔ جبرانی' ) as $token ) {
-        $fail( 'schedule module teaches ' . $token, str_contains( $schedule_text, $token ) );
-    }
-    $finance = TeacherInductionCurriculum::module( 'finance' );
-    $finance_text = json_encode( $finance, JSON_UNESCAPED_UNICODE );
-    foreach ( array( 'توضیحی', 'صادر شده', 'پرداخت', 'اختلاف' ) as $token ) {
-        $fail( 'finance module teaches ' . $token, str_contains( $finance_text, $token ) );
-    }
-    $escalation = TeacherInductionCurriculum::module( 'escalation' );
-    $fail( 'escalation module contains the twelve required scenarios', count( $escalation['scenario_cards'] ) === 12 );
+    $text = static fn( string $id ): string => json_encode( TeacherInductionCurriculum::module( $id ), JSON_UNESCAPED_UNICODE );
+    foreach ( array( 'Google Meet', 'کلاس زنده' ) as $token ) { $fail( 'join step explains ' . $token, str_contains( $text( 'join' ), $token ) ); }
+    foreach ( array( 'فرض تکمیل‌شده', 'حضور' ) as $token ) { $fail( 'attendance step explains ' . $token, str_contains( $text( 'attendance' ), $token ) ); }
+    foreach ( array( 'دو جبران', 'غیبت مازاد', 'کارت', 'پشتیبانی' ) as $token ) { $fail( 'absence step explains ' . $token, str_contains( $text( 'absence' ), $token ) ); }
+    foreach ( array( 'هنرجو قبول', 'سه رد', 'تغییر زمان' ) as $token ) { $fail( 'reschedule step explains ' . $token, str_contains( $text( 'reschedule' ), $token ) ); }
+    foreach ( array( 'توضیحی', 'درآمد قطعی', 'ساعت تدریس' ) as $token ) { $fail( 'finance step explains ' . $token, str_contains( $text( 'finance' ), $token ) ); }
+    foreach ( array( 'پاداش', 'قطعی نیست' ) as $token ) { $fail( 'golden-hour step explains ' . $token, str_contains( $text( 'golden-hour' ), $token ) ); }
+    foreach ( array( 'کلاس آشنایی', 'تأییدشده', 'تقویم' ) as $token ) { $fail( 'new-enrolment step explains ' . $token, str_contains( $text( 'new-enrolment' ), $token ) ); }
 
     $service = new TeacherInductionService();
     $hub = $service->hubForUser( 7 );
-    $fail( 'a fresh teacher starts at zero progress', $hub['completed_count'] === 0 && $hub['state'] === 'not_started' && $hub['next_module_id'] === 'portal' );
-    $visited = $service->moduleForUser( 'portal', 7 );
-    $fail( 'opening a module records an in-progress visit', $visited['module']['state'] === 'in_progress' && $visited['module']['last_visited_at'] !== null );
-    $first = $service->completeForUser( 'portal', 7 );
-    $fail( 'completion is recorded', $first['state'] === 'completed' && $first['already_completed'] === false );
+    $fail( 'a fresh teacher starts at zero progress', $hub['completed_count'] === 0 && $hub['state'] === 'not_started' && $hub['next_module_id'] === 'today' );
+    $visited = $service->moduleForUser( 'today', 7 );
+    $fail( 'opening a step records an in-progress visit', $visited['module']['state'] === 'in_progress' && $visited['module']['last_visited_at'] !== null );
+    $first = $service->completeForUser( 'today', 7 );
+    $fail( 'step completion is recorded', $first['state'] === 'completed' && $first['already_completed'] === false );
     $completedAt = $first['completed_at'];
-    $again = $service->completeForUser( 'portal', 7 );
-    $fail( 'repeated completion is idempotent', $again['already_completed'] === true && $again['completed_at'] === $completedAt );
-    $fail( 'repeated completion keeps exactly one row', count( $GLOBALS['wpdb']->rows ) === 1 );
-    foreach ( array( 'availability', 'responsibilities', 'schedule-changes', 'absence-replacement', 'finance', 'escalation' ) as $id ) {
+    $again = $service->completeForUser( 'today', 7 );
+    $fail( 'repeated step completion is idempotent', $again['already_completed'] === true && $again['completed_at'] === $completedAt );
+    $fail( 'repeated step completion keeps exactly one row', count( $GLOBALS['wpdb']->rows ) === 1 );
+    foreach ( array( 'join', 'attendance', 'absence', 'reschedule', 'settings', 'finance', 'golden-hour', 'new-enrolment' ) as $id ) {
         $service->completeForUser( $id, 7 );
     }
     $done = $service->hubForUser( 7 );
-    $fail( 'all modules complete the hub', $done['completed_count'] === 7 && $done['state'] === 'completed' );
+    $fail( 'all steps complete the quick-start', $done['completed_count'] === 9 && $done['state'] === 'completed' );
     $fail( 'completed guidance remains reachable', $done['next_module_id'] !== null );
     $fail( 'completion does not invent a canonical teacher state', ! isset( $done['onboarding_state'] ) && ! isset( $done['readiness_state'] ) );
     // A material policy acknowledgement is explicit and does not subtract completed progress.
-    $GLOBALS['wpdb']->rows['absence-replacement']->acknowledged_version = 0;
+    $GLOBALS['wpdb']->rows['absence']->acknowledged_version = 0;
     $reackHub = $service->hubForUser( 7 );
     $absenceProjection = null;
-    foreach ( $reackHub['modules'] as $projectedModule ) { if ( 'absence-replacement' === $projectedModule['id'] ) { $absenceProjection = $projectedModule; } }
+    foreach ( $reackHub['modules'] as $projectedStep ) { if ( 'absence' === $projectedStep['id'] ) { $absenceProjection = $projectedStep; } }
     $fail( 'old acknowledgement is surfaced for an updated policy', $absenceProjection && $absenceProjection['needs_reacknowledgement'] === true && $absenceProjection['state'] === 'completed' );
-    $service->completeForUser( 'absence-replacement', 7 );
+    $service->completeForUser( 'absence', 7 );
     $reackHub = $service->hubForUser( 7 );
-    foreach ( $reackHub['modules'] as $projectedModule ) { if ( 'absence-replacement' === $projectedModule['id'] ) { $absenceProjection = $projectedModule; } }
-    $fail( 're-acknowledgement clears the flag without removing completion', $absenceProjection['needs_reacknowledgement'] === false && $absenceProjection['state'] === 'completed' && $reackHub['completed_count'] === 7 );
+    foreach ( $reackHub['modules'] as $projectedStep ) { if ( 'absence' === $projectedStep['id'] ) { $absenceProjection = $projectedStep; } }
+    $fail( 're-acknowledgement clears the flag without removing completion', $absenceProjection['needs_reacknowledgement'] === false && $absenceProjection['state'] === 'completed' && $reackHub['completed_count'] === 9 );
 
     $refused = false;
     try { $service->hubForUser( 999 ); } catch ( Throwable $error ) { $refused = true; }

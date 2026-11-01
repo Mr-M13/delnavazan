@@ -117,12 +117,12 @@ $expect( is_array( $portal->teacher() ), 'ready teacher portal did not open' );
 // Induction is separate from activation: progress never changes the canonical lifecycle.
 $induction = new \Delnavazan\Platform\Core\Application\Induction\TeacherInductionService();
 $inductionHub = $induction->hubForUser( $userId );
-$expect( count( $inductionHub['modules'] ) === 7 && $inductionHub['completed_count'] === 0, 'new induction progress was not empty' );
-$inductionFirst = $induction->completeForUser( 'portal', $userId );
+$expect( count( $inductionHub['modules'] ) === 9 && $inductionHub['completed_count'] === 0, 'new induction progress was not empty' );
+$inductionFirst = $induction->completeForUser( 'today', $userId );
 $expect( $inductionFirst['state'] === 'completed' && $inductionFirst['already_completed'] === false, 'induction completion was not recorded' );
-$inductionAgain = $induction->completeForUser( 'portal', $userId );
+$inductionAgain = $induction->completeForUser( 'today', $userId );
 $expect( $inductionAgain['already_completed'] === true && $inductionAgain['completed_at'] === $inductionFirst['completed_at'], 'repeated induction completion was not idempotent' );
-$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_induction_progress WHERE teacher_id=%d AND module_id='portal'", (int) $issued['teacher_id'] ) ) === 1, 'induction completion created duplicate rows' );
+$expect( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_teacher_induction_progress WHERE teacher_id=%d AND module_id='today'", (int) $issued['teacher_id'] ) ) === 1, 'induction completion created duplicate rows' );
 $expect( $state( (int) $issued['teacher_id'] )->state === 'active' && $state( (int) $issued['teacher_id'] )->readiness_state === 'ready', 'induction progress changed canonical activation' );
 wp_set_current_user( 1 );
 $refuse( static fn() => $induction->hubForUser( 1 ), 'unlinked account read induction progress' );

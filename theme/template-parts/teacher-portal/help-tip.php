@@ -12,7 +12,7 @@ $title = trim( (string) ( $args['title'] ?? 'راهنما' ) );
 $text = trim( (string) ( $args['text'] ?? '' ) );
 if ( '' === $title || '' === $text ) { return; }
 $module = sanitize_key( (string) ( $args['module'] ?? '' ) );
-$induction_url = add_query_arg( 'teacher-view', 'induction', add_query_arg( 'induction-module', $module, home_url( '/teacher-portal/' ) ) );
+$induction_url = add_query_arg( 'teacher-view', 'induction', home_url( '/teacher-portal/' ) ) . ( '' !== $module ? '#tp-step-' . $module : '' );
 ?>
 <details class="dzn-tp-tip">
 	<summary><span class="dzn-tp-tip__icon" aria-hidden="true">؟</span><span><?php echo esc_html( $title ); ?></span></summary>

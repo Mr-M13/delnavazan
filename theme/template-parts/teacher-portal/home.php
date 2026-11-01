@@ -1,7 +1,6 @@
 <?php
 $model = $args['model'] ?? array();
 $teacher_tz = $model['teacher_timezone'] ?? ( $model['profile']['timezone'] ?? '' );
-dzn_theme_teacher_portal_component( 'tour', array( 'auto' => empty( $model['is_demo'] ) && empty( $model['induction'] ) ) );
 $announcement = $model['announcement'] ?? array();
 $announcement_states = array( 'general', 'technical', 'reminder', 'none' );
 $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_states, true );

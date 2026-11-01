@@ -87,7 +87,7 @@ dzn_rda_ui_assert($noTerms['available']===false&&str_contains($noTermsHtml,'Acce
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS));
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 wp_set_current_user($adultUser);$noRecording=$ui->student('enrolment','en');$noRecordingHtml=dzn_rda_ui_render_student($noRecording);
-dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'A current approved recording notice is not published'),'missing recording publication must not render a recording form');
+dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'اطلاعیهٔ تأییدشدهٔ ضبط در دسترس نیست'),'missing recording publication must not render a recording form');
 dzn_rda_ui_assert(!str_contains($noRecordingHtml,'name="purpose" value="lesson_recording"'),'missing recording publication must not write a decision');
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 

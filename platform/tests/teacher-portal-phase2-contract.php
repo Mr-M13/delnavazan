@@ -29,6 +29,7 @@ $checks=[
  'teacher-local golden windows and course lesson-plus-buffer estimates'=>str_contains($files['onboarding'],"golden-hours")&&str_contains($files['settings'],"golden-hours")&&str_contains($files['onboarding'],'default_duration_minutes')&&str_contains($files['onboarding'],'default_buffer_minutes'),
  'onboarding exposes nonce-protected submit-for-review route'=>str_contains($files['onboarding_controller'],"admin_post_dzn_teacher_onboarding_submit")&&str_contains($files['onboarding_controller'],'dzn_teacher_onboarding_submit')&&str_contains($files['onboarding'],'ارسال برای بررسی مدیر'),
  'automatic readiness redirects to Your Account'=>str_contains($files['onboarding_controller'],'$ready ?')&&str_contains($files['routes'],'dzn_theme_teacher_requires_onboarding'),
+ 'settings mutations return to their edited section'=>str_contains($files['controller'],"'tp-availability'")&&str_contains($files['controller'],"'tp-exceptions'")&&str_contains($files['controller'],"'tp-instruments'")&&str_contains($files['onboarding_controller'],"'tp-availability'")&&str_contains($files['onboarding_controller'],"'tp-profile'"),
 ];
 foreach($checks as$name=>$ok)if(!$ok)throw new RuntimeException('Teacher portal phase 2 contract failed: '.$name);
 echo 'Teacher portal phase 2 contracts passed ('.count($checks).").\n";

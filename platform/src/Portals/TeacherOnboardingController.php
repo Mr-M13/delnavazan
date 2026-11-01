@@ -83,6 +83,8 @@ final class TeacherOnboardingController {
     private static function time(mixed $value): string { $value = trim( (string) $value ); if (preg_match('/^(?:[01][0-9]|2[0-3])[0-5][0-9]$/',$value)) return substr($value,0,2).':'.substr($value,2,2).':00'; if($value==='2400') return '2400'; return $value; }
     private static function redirect(string $notice, bool $error = false, int $step = 1): never {
         $ready=false;try{$ready=!(new TeacherOnboardingService())->requiresOnboarding();}catch(\Throwable){}$url = add_query_arg( array( 'teacher-view' => $ready ? 'home' : 'onboarding', 'onboarding-step' => $step, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0' ), home_url( '/teacher-portal/' ) );
+        $anchors = array( 1 => 'tp-welcome', 2 => 'tp-profile', 3 => 'tp-availability', 4 => 'tp-review', 5 => 'tp-status' );
+        if ( ! $ready && isset( $anchors[ $step ] ) ) { $url .= '#' . $anchors[ $step ]; }
         nocache_headers(); if ( wp_safe_redirect( $url ) ) exit;
         wp_die( esc_html( $notice ), 'Delnavazan', array( 'response' => $error ? 400 : 200 ) );
     }

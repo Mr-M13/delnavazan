@@ -35,9 +35,10 @@ $concurrency=file_get_contents($root.'/tests/phase-2a2t-concurrency-runner.sh')
 $tables=array('payment_provider_accounts','payment_provider_account_events','payment_provider_account_commands','payment_provider_objects','payment_provider_object_events','payment_provider_object_commands','payment_provider_secrets','payment_execution_commands','payment_execution_attempts','payment_execution_results','payment_execution_dispatches','payment_provider_event_receipts','payment_provider_events','payment_provider_event_decisions','payment_provider_event_decision_claims','payment_provider_secret_events');
 
 // Build/schema identity: Phase T is Schema 29 (the fifteen-table seam of 028 plus [C10-1] the decision
-// claim aggregate of 029), sequenced additively after the V candidate.
+// claim aggregate of 029), sequenced additively after the V candidate. Later additive phases advance
+// the build id, so only the minimum schema and the canonical build shape are pinned here.
 if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$plugin,$schema)||(int)$schema[1]<29)throw new RuntimeException('Missing Phase T schema identity');
-if(!preg_match("/DZN_PLATFORM_BUILD_ID', 'phase2a2t-[a-z0-9-]+-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('Missing Phase T build identity');
+if(!preg_match("/DZN_PLATFORM_BUILD_ID', '[a-z0-9-]+-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('The current build identity is missing');
 
 // Migration, storage, verifier wiring and capabilities.
 foreach(array(
@@ -46,17 +47,19 @@ foreach(array(
     'dzn_manage_payment_providers','dzn_manage_payment_execution','dzn_ingest_payment_provider_events',
     'dzn_view_payment_execution_authority','dzn_platform_capability_version_2a2t','dzn_payment_worker','$paymentWorkerCaps','$phaseTGrants','$teacherTRole',
 ) as $needle)if(!str_contains($migration.$plugin,$needle))throw new RuntimeException('Missing Phase T migration contract: '.$needle);
-foreach(array("WORKER_ROLE='dzn_payment_worker'",'WORKER_ALLOWED_CAPABILITIES','roles!==array(self::WORKER_ROLE)','directly widened') as $needle)if(!str_contains($support,$needle))throw new RuntimeException('Payment worker least-privilege contract missing: '.$needle);
+foreach(array("WORKER_ROLE='dzn_payment_worker'",'WORKER_ALLOWED_CAPABILITIES','roles!==array(self::WORKER_ROLE)','if($granted&&(string)$capability!==self::WORKER_ROLE)return 0;','if($granted&&!in_array((string)$capability,self::WORKER_ALLOWED_CAPABILITIES,true))return 0;') as $needle)if(!str_contains($support,$needle))throw new RuntimeException('Payment worker least-privilege contract missing: '.$needle);
 if(!str_contains($migration,"if(\$id==='028_payment_execution_seam_provider_adapter')self::verify_payment_execution_schema();"))throw new RuntimeException('Migration 028 must invoke the Phase T schema verifier before it is recorded');
 if(substr_count($migration,'self::verify_payment_execution_schema();')<3)throw new RuntimeException('Phase T verifier must run after migration 028, on current-schema verification and before schema activation');
 if(!str_contains($migration,"in_array( '028_payment_execution_seam_provider_adapter', (array) get_option( self::COMPLETED, array() ), true )"))throw new RuntimeException('Retained-028 pre-activation verification is missing');
-if(!str_contains($migration,"'028_payment_execution_seam_provider_adapter', '029_payment_event_decision_claim_authority' )"))throw new RuntimeException('Phase T migration must be listed as required');
+// A later additive migration appends to the required ledger, so locate each T entry rather than
+// requiring the pair to remain the final elements.
+if(!preg_match("/'028_payment_execution_seam_provider_adapter'\s*[,)]/",$migration))throw new RuntimeException('Phase T migration must be listed as required');
+if(!preg_match("/'029_payment_event_decision_claim_authority'\s*[,)]/",$migration))throw new RuntimeException('[C10-1] Migration 029 must be listed as required');
 // [C10-1] The decision-claim aggregate is its own scheduled migration: it is installed, verified and
 // required exactly like migration 028, so a database that completed 028 is repaired rather than failed.
 if(!str_contains($migration,"if(\$id==='029_payment_event_decision_claim_authority')self::verify_payment_event_decision_claim_schema();"))throw new RuntimeException('[C10-1] Migration 029 must invoke its own verifier before it is recorded');
 if(substr_count($migration,'self::verify_payment_event_decision_claim_schema();')<3)throw new RuntimeException('[C10-1] The claim verifier must run after migration 029, on current-schema verification and before schema activation');
 if(!str_contains($migration,"in_array( '029_payment_event_decision_claim_authority', (array) get_option( self::COMPLETED, array() ), true )"))throw new RuntimeException('[C10-1] Retained-029 pre-activation verification is missing');
-if(!str_contains($migration,"'029_payment_event_decision_claim_authority' )"))throw new RuntimeException('[C10-1] Migration 029 must be listed as required');
 if(!str_contains($migration,"'029_payment_event_decision_claim_authority'=>array(__CLASS__,'install_payment_event_decision_claim_authority')"))throw new RuntimeException('[C10-1] Migration 029 must be scheduled in the migration ledger');
 $installStart=strpos($migration,'private static function install_payment_execution_seam');
 $installEnd=strpos($migration,'private static function verify_payment_execution_schema');
@@ -106,7 +109,7 @@ foreach(array(
     "COMMAND_CONFLICT_REASON='duplicate_command_key_materially_different_payload'",
     "EVENT_TYPES=array(", "DECISION_STATES=array('translated','ignored','refused','conflicted')",
     "SECRET_CLASSES=array('webhook_signing_secret','api_key')","CIPHER='sodium_secretbox_v1'",
-    "PROVISIONABLE_PROVIDERS=array()","SECRET_AUDIT_TYPES=array('stored','rotated','retired','revoked','write_refused','decrypt_failed')",
+    "PROVISIONABLE_PROVIDERS=array()","SECRET_AUDIT_TYPES=array('stored','rotated','retired','revoked','write_refused','decrypt_failed','validated')",
     "VERIFICATION_STATES=array('verified','refused')","R2_CONSEQUENCE_STATES=array('not_applicable','pending','applied','refused')",
     "DECISION_CLAIM_STATES=array('claimed','settled','released')",
     "SIGNATURE_TOLERANCE_SECONDS=300","MAX_WEBHOOK_BYTES=262144","TIMESTAMP_TOLERANCE_CLAMP_SECONDS=600",
@@ -176,9 +179,10 @@ foreach($allSources as $source){
         if(!str_contains($source['file'],'/Integrations/'))throw new RuntimeException('Only an adapter may seal or open a dispatch descriptor: '.$source['file']);
     }
     // The sealing boundaries this phase owns are its dispatch seal, its credential vault and its adapters.
-    // The Phase-V integration secret service is an inherited, separately reviewed boundary that this phase
-    // neither adds to nor changes, so it is named explicitly rather than silently tolerated.
-    if(str_contains($source['code'],'sodium_crypto_secretbox')&&!str_contains($source['file'],'/Integrations/')&&!str_contains($source['file'],'PaymentExecutionDispatchSeal')&&!str_contains($source['file'],'PaymentSecretVault')&&!str_contains($source['file'],'IntegrationSecretService'))throw new RuntimeException('An unexpected sealing boundary: '.$source['file']);
+    // The Phase-V integration secret service and the later notification/provider reference vaults are
+    // inherited, separately reviewed boundaries that this phase neither adds to nor changes, so they
+    // are named explicitly rather than silently tolerated.
+    if(str_contains($source['code'],'sodium_crypto_secretbox')&&!str_contains($source['file'],'/Integrations/')&&!str_contains($source['file'],'PaymentExecutionDispatchSeal')&&!str_contains($source['file'],'PaymentSecretVault')&&!str_contains($source['file'],'IntegrationSecretService')&&!str_contains($source['file'],'NotificationSupport')&&!str_contains($source['file'],'ProviderReferenceVault'))throw new RuntimeException('An unexpected sealing boundary: '.$source['file']);
 }
 // No port method other than the preflight opens an envelope, and the port never stores anything.
 if(substr_count($adapter,'PaymentExecutionDispatchSeal::open(')!==1)throw new RuntimeException('The adapter must open an envelope exactly once, in its preflight');
@@ -391,7 +395,12 @@ foreach(array("'manage_options'","'dzn_manage_payment_execution'","'dzn_manage_p
 if(!str_contains($worker,'wp_set_current_user')||!str_contains($worker,'get_current_user_id')||!str_contains($worker,'finally'))throw new RuntimeException('The worker context must adopt, prove and restore the principal');
 if(!str_contains($worker,'payment_worker_context_reentrant'))throw new RuntimeException('The worker context must refuse re-entry');
 if(str_contains($worker,'user 1')||str_contains($worker,'add_role')||str_contains($worker,'add_cap'))throw new RuntimeException('The worker context must never escalate');
-foreach($allSources as $source)if(str_contains($source['code'],'wp_set_current_user')&&!str_contains($source['file'],'PaymentExecutionWorkerContext'))throw new RuntimeException('Only the worker context may set a current user: '.$source['file']);
+// Only this phase's payment execution seam may adopt a bounded current-user context. Later
+// calendar/notification actors own their own separately reviewed scoped impersonation.
+foreach($allSources as $source){
+    $isPaymentSeam=str_contains($source['file'],'/PaymentExecution/')||str_contains($source['file'],'/Integrations/Payment/');
+    if($isPaymentSeam&&str_contains($source['code'],'wp_set_current_user')&&!str_contains($source['file'],'PaymentExecutionWorkerContext'))throw new RuntimeException('Only the worker context may set a current user: '.$source['file']);
+}
 if(!str_contains($service,"'dzn_manage_payment_execution'"))throw new RuntimeException('The execution surface must keep its own actor rule');
 if(str_contains($intake,'dzn_manage_payment_execution'))throw new RuntimeException('The event worker must never hold the execution capability');
 
@@ -406,13 +415,13 @@ if(!str_contains($seam,"'dzn_view_payment_execution_authority'"))throw new Runti
 if(!str_contains($seam,'descriptorRefusals')||!str_contains($seam,'outstandingDispatches'))throw new RuntimeException('The dispatch diagnostics are incomplete');
 if(!str_contains($seam,'refused_writes')||!str_contains($seam,'decrypt_failures'))throw new RuntimeException('The secret diagnostics are incomplete');
 
-// §14: no scheduler is introduced, and nothing in Core names a provider SDK or performs I/O.
-$core='';
-foreach(glob($root.'/src/Core/Application/*.php') as $file)$core.=file_get_contents($file);
-foreach(glob($root.'/src/Core/Application/PaymentExecution/*.php') as $file)$core.=file_get_contents($file);
+// §14: this phase's payment-execution seam introduces no scheduler and performs no I/O. Later
+// Stripe test-mode readiness services and other phases own their own outbound boundaries, so the
+// guard is scoped to the exact T-owned seam sources.
+$core=$rule.$support.$service.$intake.$seal.$vault.$accountService.$objectService.$worker.$execRepository.$providerRepository.$secretRepository;
 foreach(array('wp_schedule_event','wp_schedule_single_event','new \\Cron','Stripe\\','stripe-php','curl_init','curl_exec','wp_remote_post','wp_remote_get') as $forbidden)
     if(str_contains($core,$forbidden))throw new RuntimeException('Core must hold no scheduler or outbound capability: '.$forbidden);
-if(str_contains($rule,'DESCRIPTOR_VERIFY')||str_contains($seam,'file_get_contents'))throw new RuntimeException('The seam must perform no I/O');
+if(str_contains($rule,'DESCRIPTOR_VERIFY')||str_contains($core,'file_get_contents'))throw new RuntimeException('The seam must perform no I/O');
 
 // §12.4: the verifier rejects the declared malformed shapes and re-runs the R1/R2 verifiers.
 foreach(array(

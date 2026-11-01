@@ -26,6 +26,7 @@ if ( 'persian' === $calendar && function_exists( 'dzn_theme_platform_jalali_part
 <section class="dzn-tp-reschedule" aria-labelledby="tp-reschedule-<?php echo esc_attr( $index ); ?>">
 	<h4 id="tp-reschedule-<?php echo esc_attr( $index ); ?>"><?php echo $replacement ? 'ثبت جلسهٔ جبرانی' : 'تغییر زمان کلاس'; ?></h4>
 	<p class="dzn-tp-detail-help"><?php echo $replacement ? 'این جلسه برگزار نشده است؛ زمان جلسهٔ جبرانی را انتخاب کنید. جلسهٔ اصلی و شاهد غیبت حفظ می‌شوند و یک جلسهٔ جایگزین به پروندهٔ ترم اضافه می‌شود.' : 'زمان فعلی:'; ?> <strong><?php echo esc_html( (string) ( $item['reschedule_current'] ?? $item['schedule_summary'] ?? '' ) ); ?></strong></p>
+	<?php dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'زمان فقط پس از پذیرش هنرجو تغییر می‌کند', 'text' => 'ارسال این فرم پیشنهاد است، نه تغییر قطعی. اگر هنرجو رد کند، زمان فعلی حفظ می‌شود و می‌توانید زمان تازه پیشنهاد دهید.', 'module' => 'schedule-changes' ) ); ?>
 	<form method="post" action="<?php echo esc_url( (string) ( $item['reschedule_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit>
 		<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['reschedule_nonce'] ?? '' ) ); ?>">
 		<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>">

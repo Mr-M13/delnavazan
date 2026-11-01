@@ -10,6 +10,12 @@
  * 80rem (wide). Every state variant sits beside its owning component.
  */
 
+.dzn-teacher-portal input[type="email"],
+.dzn-teacher-portal input[type="tel"] {
+  direction: ltr;
+  text-align: start;
+}
+
 .dzn-teacher-portal {
   --dzn-tp-surface: var(--dzn-color-surface);
   --dzn-tp-card: var(--dzn-color-surface-elevated);
@@ -55,14 +61,20 @@
 .dzn-tp-masthead nav ul {
   display: flex;
   flex-wrap: wrap;
+  min-inline-size: 0;
   gap: .35rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.dzn-tp-masthead nav li {
+  min-inline-size: 0;
+}
+
 .dzn-tp-masthead nav a {
   display: block;
+  max-inline-size: 100%;
   min-block-size: 2.35rem;
   border: 1px solid var(--dzn-tp-border);
   border-radius: var(--dzn-radius-pill);
@@ -70,19 +82,43 @@
   color: var(--dzn-color-text-secondary);
   font-size: .88rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: center;
   text-decoration: none;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease;
 }
 
-.dzn-tp-masthead nav a:hover,
-.dzn-tp-masthead nav a:focus-visible {
+.dzn-teacher-portal .dzn-tp-nav-desktop a:link,
+.dzn-teacher-portal .dzn-tp-nav-desktop a:visited {
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-teacher-portal .dzn-tp-nav-desktop a:hover,
+.dzn-teacher-portal .dzn-tp-nav-desktop a:focus-visible {
   border-color: var(--dzn-color-action-primary);
   background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
 }
 
-.dzn-tp-masthead nav a[aria-current="page"] {
+.dzn-teacher-portal .dzn-tp-nav-desktop a:focus-visible {
+  outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+  outline-offset: 2px;
+}
+
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"],
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:link,
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:visited,
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:hover,
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:focus-visible {
   border-color: var(--dzn-color-action-primary);
   background: var(--dzn-color-action-primary);
   color: var(--dzn-color-on-action);
+}
+
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:hover,
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:focus-visible,
+.dzn-teacher-portal .dzn-tp-nav-desktop a[aria-current="page"]:active {
+  background: var(--dzn-color-action-primary-hover);
 }
 
 .dzn-tp-account {
@@ -1139,8 +1175,14 @@
   min-block-size: var(--dzn-control-height);
 }
 
-.dzn-teacher-portal button:disabled {
+.dzn-teacher-portal button:disabled,
+.dzn-teacher-portal .dzn-button:disabled,
+.dzn-teacher-portal [aria-disabled="true"] {
+  border-color: var(--dzn-tp-border);
+  background: var(--dzn-color-surface-muted);
+  color: var(--dzn-color-text-muted);
   cursor: not-allowed;
+  opacity: 1;
 }
 
 .dzn-teacher-portal [aria-busy="true"] {
@@ -1627,6 +1669,41 @@
   font-weight: 700;
 }
 
+/* One disclosure affordance for every native <details> in the portal. */
+.dzn-teacher-portal details > summary {
+  display: flex;
+  min-block-size: 2.75rem;
+  align-items: center;
+  gap: .5rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dzn-teacher-portal details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dzn-teacher-portal details > summary::after {
+  flex: 0 0 auto;
+  inline-size: .5rem;
+  block-size: .5rem;
+  margin-inline-start: auto;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  content: "";
+  transform: rotate(45deg);
+  transition: transform .18s ease;
+}
+
+.dzn-teacher-portal details[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.dzn-teacher-portal details > summary:focus-visible {
+  outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+  outline-offset: 2px;
+}
+
 .dzn-tp-action-status {
   margin-block: .5rem 0;
   color: var(--dzn-color-text-secondary);
@@ -1774,13 +1851,19 @@
   .dzn-tp-tabs ul {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-inline-size: 0;
     margin: 0;
     padding: .25rem;
     list-style: none;
   }
 
+  .dzn-tp-tabs ul > li {
+    min-inline-size: 0;
+  }
+
   .dzn-tp-tabs__link {
     display: flex;
+    max-inline-size: 100%;
     min-inline-size: 0;
     min-block-size: 54px;
     align-items: center;
@@ -1790,12 +1873,45 @@
     color: var(--dzn-color-text-primary);
     font-size: .82rem;
     font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    text-align: center;
     text-decoration: none;
+    transition: background-color .18s ease, color .18s ease;
   }
 
-  .dzn-tp-tabs__link.is-current {
+  .dzn-teacher-portal .dzn-tp-tabs__link:link,
+  .dzn-teacher-portal .dzn-tp-tabs__link:visited {
+    color: var(--dzn-color-text-primary);
+  }
+
+  .dzn-teacher-portal .dzn-tp-tabs__link:hover,
+  .dzn-teacher-portal .dzn-tp-tabs__link:focus-visible {
+    background: var(--dzn-color-surface-muted);
+    color: var(--dzn-color-text-secondary);
+  }
+
+  .dzn-teacher-portal .dzn-tp-tabs__link:focus-visible {
+    outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+    outline-offset: 2px;
+  }
+
+  .dzn-teacher-portal .dzn-tp-tabs__link.is-current,
+  .dzn-teacher-portal .dzn-tp-tabs__link.is-current:link,
+  .dzn-teacher-portal .dzn-tp-tabs__link.is-current:visited {
     background: var(--dzn-color-action-primary);
     color: var(--dzn-color-on-action);
+  }
+
+  .dzn-teacher-portal .dzn-tp-tabs__link.is-current:hover,
+  .dzn-teacher-portal .dzn-tp-tabs__link.is-current:focus-visible,
+  .dzn-teacher-portal .dzn-tp-tabs__link.is-current:active {
+    background: var(--dzn-color-action-primary-hover);
+    color: var(--dzn-color-on-action);
+  }
+
+  .dzn-tp-tabs__label {
+    color: inherit;
   }
 
   .dzn-teacher-portal ~ .site-footer {
@@ -1896,7 +2012,8 @@
     transition: none !important;
   }
 
-  .dzn-tp-chevron__icon {
+  .dzn-tp-chevron__icon,
+  .dzn-teacher-portal details > summary::after {
     transition: none;
   }
 }

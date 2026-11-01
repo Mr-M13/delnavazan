@@ -21,6 +21,12 @@
     font-size: 1rem;
   }
 
+  .dzn-portal input[type="email"],
+  .dzn-portal input[type="tel"] {
+    direction: ltr;
+    text-align: start;
+  }
+
   .dzn-portal__content {
     min-inline-size: 0;
   }
@@ -139,8 +145,11 @@
 
   .dzn-portal-nav__list {
     display: flex;
+    flex-wrap: wrap;
     inline-size: fit-content;
     max-inline-size: 100%;
+    min-inline-size: 0;
+    justify-content: center;
     margin: 0;
     border: 1px solid var(--dzn-color-border);
     border-radius: 999px;
@@ -149,28 +158,59 @@
     padding: var(--dzn-space-1);
   }
 
+  .dzn-portal-nav__list > li {
+    min-inline-size: 0;
+  }
+
   .dzn-portal-nav__link {
     display: inline-flex;
+    max-inline-size: 100%;
     min-block-size: var(--dzn-tap);
     align-items: center;
+    justify-content: center;
     border-radius: 999px;
     color: var(--dzn-color-text-secondary);
     font-weight: 750;
-    padding: .55rem 1rem;
+    padding: .5rem .9rem;
+    text-align: center;
     text-decoration: none;
+    transition: background-color .18s ease, color .18s ease;
   }
 
-  .dzn-portal-nav__link:hover {
+  .dzn-portal-nav__link:hover,
+  .dzn-portal-nav__link:focus-visible {
+    background: var(--dzn-color-surface-muted);
+    color: var(--dzn-color-text-primary);
+  }
+
+  .dzn-portal-nav__link:active {
     background: var(--dzn-color-surface);
+    color: var(--dzn-color-text-primary);
   }
 
   .dzn-portal-nav__link.is-current {
-    background: var(--dzn-color-text-secondary);
+    background: var(--dzn-color-action-primary);
+    color: var(--dzn-color-on-action);
+  }
+
+  .dzn-portal-nav__link.is-current:hover,
+  .dzn-portal-nav__link.is-current:focus-visible,
+  .dzn-portal-nav__link.is-current:active {
+    background: var(--dzn-color-action-primary-hover);
     color: var(--dzn-color-on-action);
   }
 
   .dzn-portal-nav__link.is-disabled {
-    cursor: default;
+    background: transparent;
+    color: var(--dzn-color-text-muted);
+    cursor: not-allowed;
+    opacity: 1;
+  }
+
+  .dzn-portal-nav__link:focus-visible,
+  .dzn-portal-tabs__link:focus-visible {
+    outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+    outline-offset: 2px;
   }
 
   .dzn-portal-section {
@@ -191,10 +231,11 @@
   }
 
   .dzn-booking-requests__item {
+    min-inline-size: 0;
     border: 1px solid var(--dzn-color-border);
     border-radius: var(--dzn-radius-sm);
     background: var(--dzn-color-surface);
-    padding: var(--dzn-space-4);
+    padding: var(--dzn-space-3) var(--dzn-space-4);
   }
 
   .dzn-booking-requests__item > div {
@@ -279,11 +320,12 @@
 
   .dzn-upcoming {
     position: relative;
+    min-inline-size: 0;
     margin-block-start: var(--dzn-space-6);
     border: 1px solid var(--dzn-color-border);
     border-block-start: .3rem solid var(--dzn-color-text-secondary);
     background: var(--dzn-color-surface-elevated);
-    padding: clamp(1.25rem, 4vw, 2.5rem);
+    padding: clamp(1rem, 3vw, 1.75rem);
   }
 
   .dzn-timezone-label {
@@ -386,18 +428,20 @@
   }
 
   .dzn-button:disabled,
+  .dzn-button[aria-disabled="true"],
   .dzn-portal-text-action:disabled {
+    border-color: var(--dzn-color-border);
+    background: var(--dzn-color-surface-muted);
+    color: var(--dzn-color-text-muted);
     cursor: not-allowed;
-    opacity: .58;
+    opacity: 1;
   }
 
-  .dzn-button:disabled:hover {
-    background: var(--dzn-color-action-primary);
-  }
-
+  .dzn-button:disabled:hover,
+  .dzn-button[aria-disabled="true"]:hover,
   .dzn-button--secondary:disabled:hover {
-    background: var(--dzn-color-surface);
-    color: var(--dzn-color-action-secondary);
+    background: var(--dzn-color-surface-muted);
+    color: var(--dzn-color-text-muted);
   }
 
   .dzn-portal-text-action {
@@ -413,6 +457,12 @@
     font-weight: 750;
     padding: .5rem .25rem;
     text-underline-offset: .2em;
+  }
+
+  .dzn-portal-text-action:hover,
+  .dzn-portal-text-action:focus-visible,
+  .dzn-portal-text-action:active {
+    color: var(--dzn-color-action-primary-hover);
   }
 
   a.dzn-portal-text-action,
@@ -574,6 +624,7 @@
 
   .dzn-history-row {
     display: grid;
+    min-inline-size: 0;
     gap: var(--dzn-space-3);
     border-block-end: 1px solid var(--dzn-color-border);
     padding-block: var(--dzn-space-4);
@@ -660,6 +711,7 @@
 
   .dzn-payment-row {
     display: grid;
+    min-inline-size: 0;
     gap: var(--dzn-space-2);
     border-block-end: 1px solid var(--dzn-color-border);
     padding-block: var(--dzn-space-3);
@@ -1120,13 +1172,19 @@
   .dzn-portal-tabs ul {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-inline-size: 0;
     margin: 0;
     padding: .25rem;
     list-style: none;
   }
 
+  .dzn-portal-tabs ul > li {
+    min-inline-size: 0;
+  }
+
   .dzn-portal-tabs__link {
     display: flex;
+    max-inline-size: 100%;
     min-inline-size: 0;
     min-block-size: 54px;
     align-items: center;
@@ -1136,7 +1194,22 @@
     color: var(--dzn-color-text-primary);
     font-size: .82rem;
     font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    text-align: center;
     text-decoration: none;
+    transition: background-color .18s ease, color .18s ease;
+  }
+
+  .dzn-portal-tabs__link:hover,
+  .dzn-portal-tabs__link:focus-visible {
+    background: var(--dzn-color-surface-muted);
+    color: var(--dzn-color-text-secondary);
+  }
+
+  .dzn-portal-tabs__link:active {
+    background: var(--dzn-color-surface);
+    color: var(--dzn-color-text-secondary);
   }
 
   .dzn-portal-tabs__link.is-current {
@@ -1145,8 +1218,19 @@
     box-shadow: none;
   }
 
-  .dzn-portal-tabs__link.is-current .dzn-portal-tabs__label {
+  .dzn-portal-tabs__link.is-current:hover,
+  .dzn-portal-tabs__link.is-current:focus-visible,
+  .dzn-portal-tabs__link.is-current:active {
+    background: var(--dzn-color-action-primary-hover);
     color: var(--dzn-color-on-action);
+  }
+
+  .dzn-portal-tabs__label {
+    color: inherit;
+  }
+
+  .dzn-portal-tabs__link.is-current .dzn-portal-tabs__label {
+    color: inherit;
   }
 
   /* The fixed tab bar overlays the document footer; reserve its height so the
@@ -1207,7 +1291,7 @@
   .dzn-upcoming {
     border: 1px solid var(--dzn-color-border);
     background: var(--dzn-color-surface-elevated);
-    padding: var(--dzn-space-5);
+    padding: var(--dzn-space-4);
   }
 
   .dzn-upcoming__actions {
@@ -1263,11 +1347,20 @@
 
 .dzn-schedule-row {
   display: grid;
+  min-inline-size: 0;
   gap: var(--dzn-space-3);
   border: 1px solid var(--dzn-color-border);
   border-radius: var(--dzn-portal-card-radius, 16px);
   background: var(--dzn-color-surface-elevated);
-  padding: var(--dzn-space-4);
+  padding: var(--dzn-space-3) var(--dzn-space-4);
+}
+
+.dzn-schedule-row > *,
+.dzn-history-row > *,
+.dzn-payment-row > *,
+.dzn-booking-requests__item > *,
+.dzn-reschedule-card > * {
+  min-inline-size: 0;
 }
 
 .dzn-schedule-row.is-in_progress {
@@ -1314,6 +1407,41 @@
   font-weight: 700;
 }
 
+/* One disclosure affordance for every native <details> in the portal. */
+.dzn-portal details > summary {
+  display: flex;
+  min-block-size: 2.75rem;
+  align-items: center;
+  gap: var(--dzn-space-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.dzn-portal details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dzn-portal details > summary::after {
+  flex: 0 0 auto;
+  inline-size: .5rem;
+  block-size: .5rem;
+  margin-inline-start: auto;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  content: "";
+  transform: rotate(45deg);
+  transition: transform .18s ease;
+}
+
+.dzn-portal details[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.dzn-portal details > summary:focus-visible {
+  outline: var(--dzn-focus-width) solid var(--dzn-color-focus);
+  outline-offset: 2px;
+}
+
 @media (min-width: 48rem) {
   .dzn-schedule-row {
     grid-template-columns: 7rem minmax(0, 1fr) auto;
@@ -1323,7 +1451,7 @@
 
 /* Pending teacher-initiated reschedule proposals. */
 .dzn-reschedule-list{display:grid;gap:.75rem;list-style:none;margin:0;padding:0}
-.dzn-reschedule-card{display:grid;gap:1rem;border:1px solid var(--dzn-color-border);border-inline-start:5px solid var(--dzn-color-warning);border-radius:1rem;padding:1rem}
+.dzn-reschedule-card{display:grid;min-inline-size:0;gap:.85rem;border:1px solid var(--dzn-color-border);border-inline-start:5px solid var(--dzn-color-warning);border-radius:1rem;padding:.85rem 1rem}
 .dzn-reschedule-card__facts h3{margin:0 0 .25rem}
 .dzn-reschedule-card__facts p{margin:.15rem 0}
 .dzn-reschedule-card__actions{display:flex;flex-wrap:wrap;gap:.5rem}
@@ -1423,6 +1551,10 @@
   .dzn-portal-dialog {
     scroll-behavior: auto;
   }
+
+  .dzn-portal details > summary::after {
+    transition: none;
+  }
 }
 
 /* Website notifications: bell, unread badge and the persistent inbox. */
@@ -1463,6 +1595,70 @@
 .dzn-schedule-row__actions .dzn-classroom-actions{justify-content:flex-end}
 .dzn-tp-actions .dzn-classroom-actions{justify-content:flex-end}
 @media(max-width:700px){.dzn-classroom-actions,.dzn-schedule-row__actions .dzn-classroom-actions,.dzn-tp-actions .dzn-classroom-actions{justify-content:stretch}.dzn-classroom-actions__form{flex:1 1 100%}.dzn-classroom-actions .dzn-button{width:100%}}
+
+/* =========================================================
+   NAVIGATION STATE OWNERSHIP
+   WordPress prints its link palette unlayered, so colour states
+   for navigational links must be unlayered too. Otherwise a
+   visited/current tab inherits the global blue link colour over
+   its action background. Structure stays in the component layer.
+   ========================================================= */
+.dzn-portal .dzn-portal-nav__link:link,
+.dzn-portal .dzn-portal-nav__link:visited {
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-portal .dzn-portal-nav__link:hover,
+.dzn-portal .dzn-portal-nav__link:focus-visible,
+.dzn-portal .dzn-portal-nav__link:active {
+  color: var(--dzn-color-text-primary);
+}
+
+.dzn-portal .dzn-portal-nav__link.is-current:link,
+.dzn-portal .dzn-portal-nav__link.is-current:visited,
+.dzn-portal .dzn-portal-nav__link.is-current:hover,
+.dzn-portal .dzn-portal-nav__link.is-current:focus-visible,
+.dzn-portal .dzn-portal-nav__link.is-current:active {
+  color: var(--dzn-color-on-action);
+}
+
+.dzn-portal .dzn-portal-nav__link.is-disabled {
+  color: var(--dzn-color-text-muted);
+}
+
+.dzn-portal .dzn-portal-tabs__link:link,
+.dzn-portal .dzn-portal-tabs__link:visited {
+  color: var(--dzn-color-text-primary);
+}
+
+.dzn-portal .dzn-portal-tabs__link:hover,
+.dzn-portal .dzn-portal-tabs__link:focus-visible,
+.dzn-portal .dzn-portal-tabs__link:active {
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-portal .dzn-portal-tabs__link.is-current:link,
+.dzn-portal .dzn-portal-tabs__link.is-current:visited,
+.dzn-portal .dzn-portal-tabs__link.is-current:hover,
+.dzn-portal .dzn-portal-tabs__link.is-current:focus-visible,
+.dzn-portal .dzn-portal-tabs__link.is-current:active {
+  color: var(--dzn-color-on-action);
+}
+
+.dzn-portal .dzn-portal-text-action:link,
+.dzn-portal .dzn-portal-text-action:visited {
+  color: var(--dzn-color-action-secondary);
+}
+
+.dzn-portal .dzn-portal-text-action:hover,
+.dzn-portal .dzn-portal-text-action:focus-visible,
+.dzn-portal .dzn-portal-text-action:active {
+  color: var(--dzn-color-action-primary-hover);
+}
+
+.dzn-portal .dzn-portal-text-action:disabled {
+  color: var(--dzn-color-text-muted);
+}
 
 /* =========================================================
    COMPACT TERM SUMMARY AND CLASS TIMELINE

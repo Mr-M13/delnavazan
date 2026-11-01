@@ -7000,6 +7000,87 @@ a.dzn-nav-action:focus-visible {
     var(--dzn-color-on-action);
 }
 
+/*
+ * Action links keep their canonical label colour above the unlayered
+ * WordPress link palette. Without this, an anchor-based primary button can
+ * receive the global blue link colour on top of its green surface.
+ */
+a.dzn-button:not([aria-disabled="true"]):link,
+a.dzn-button:not([aria-disabled="true"]):visited,
+a.dzn-button:not([aria-disabled="true"]):hover,
+a.dzn-button:not([aria-disabled="true"]):focus-visible,
+a.dzn-button:not([aria-disabled="true"]):active {
+  color:
+    var(--dzn-color-on-action);
+}
+
+.dzn-button:focus-visible {
+  outline:
+    var(--dzn-focus-width) solid
+    var(--dzn-color-focus);
+
+  outline-offset:
+    var(--dzn-focus-offset);
+}
+
+a.dzn-button--secondary:not([aria-disabled="true"]):link,
+a.dzn-button--secondary:not([aria-disabled="true"]):visited,
+a.dzn-button--secondary:not([aria-disabled="true"]):hover,
+a.dzn-button--secondary:not([aria-disabled="true"]):focus-visible,
+a.dzn-button--secondary:not([aria-disabled="true"]):active {
+  border-color:
+    var(--dzn-color-action-secondary);
+
+  background:
+    var(--dzn-color-surface);
+
+  color:
+    var(--dzn-color-action-secondary);
+}
+
+a.dzn-button--danger:not([aria-disabled="true"]):link,
+a.dzn-button--danger:not([aria-disabled="true"]):visited,
+a.dzn-button--danger:not([aria-disabled="true"]):hover,
+a.dzn-button--danger:not([aria-disabled="true"]):focus-visible,
+a.dzn-button--danger:not([aria-disabled="true"]):active {
+  border-color:
+    var(--dzn-color-error);
+
+  background:
+    color-mix(
+      in srgb,
+      var(--dzn-color-error) 14%,
+      var(--dzn-color-error-surface)
+    );
+
+  color:
+    var(--dzn-color-error);
+}
+
+/* Disabled actions never inherit the vivid hover palette. */
+a.dzn-button[aria-disabled="true"]:link,
+a.dzn-button[aria-disabled="true"]:visited,
+a.dzn-button[aria-disabled="true"]:hover,
+a.dzn-button[aria-disabled="true"]:focus-visible,
+a.dzn-button[aria-disabled="true"]:active,
+a.dzn-button--secondary[aria-disabled="true"]:link,
+a.dzn-button--secondary[aria-disabled="true"]:visited,
+a.dzn-button--secondary[aria-disabled="true"]:hover,
+a.dzn-button--danger[aria-disabled="true"]:link,
+a.dzn-button--danger[aria-disabled="true"]:visited,
+a.dzn-button--danger[aria-disabled="true"]:hover,
+button.dzn-button:disabled,
+button.dzn-button:disabled:hover {
+  border-color:
+    var(--dzn-color-border);
+
+  background:
+    var(--dzn-color-surface-muted);
+
+  color:
+    var(--dzn-color-text-muted);
+}
+
 .site-footer
 :where(
   a,

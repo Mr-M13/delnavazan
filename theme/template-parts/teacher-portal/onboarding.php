@@ -28,12 +28,14 @@ if ( ! $google_connected ) { $missing[] = 'اتصال Google Calendar'; }
 		<a class="<?php echo $availability_complete ? 'is-complete' : ( $profile_complete ? 'is-current' : 'is-pending' ); ?>" href="#tp-availability" role="listitem"><span aria-hidden="true"><?php echo $availability_complete ? '✓' : '۲'; ?></span><strong>زمان‌های تدریس</strong><small><?php echo $availability_complete ? 'کامل' : 'نیازمند تکمیل'; ?></small></a>
 		<a class="<?php echo $google_connected ? 'is-complete' : ( $profile_complete && $availability_complete ? 'is-current' : 'is-pending' ); ?>" href="#tp-google" role="listitem"><span aria-hidden="true"><?php echo $google_connected ? '✓' : '۳'; ?></span><strong>تقویم Google</strong><small><?php echo $google_connected ? 'متصل' : 'متصل نیست'; ?></small></a>
 	</div>
+	<p class="dzn-tp-help">اتصال Google Calendar بخشی از سیاست آمادگی فعلی است و پیش از ارسال حساب برای بررسی باید کامل شود.</p>
 	<?php if ( isset( $_GET['dzn_notice'] ) ) : ?><p class="dzn-tp-notice <?php echo ( $_GET['dzn_error'] ?? '' ) === '1' ? 'is-error' : 'is-success'; ?>" role="status"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ); ?></p><?php endif; ?>
 	<?php if ( in_array( $state, array( 'returned', 'rejected' ), true ) ) : ?><div class="dzn-tp-review-note is-warning"><strong>یادداشت بررسی</strong><p><?php echo esc_html( (string) ( $onboarding['review_note'] ?? 'اطلاعات برای اصلاح برگردانده شده است.' ) ); ?></p></div><?php endif; ?>
 </section>
 
 <?php if ( ! $ready ) : ?>
-	<?php dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) ); ?>
+	<?php dzn_theme_teacher_portal_component( 'account', array( 'model' => $model, 'show_recording_terms' => false ) ); ?>
+	<?php dzn_theme_teacher_portal_component( 'recording-terms', array( 'recording' => $model['recording_terms'] ?? array() ) ); ?>
 	<?php if ( $availability_complete ) : ?>
 	<section class="dzn-tp-section" aria-labelledby="tp-copy-day">
 		<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">میان‌بر برنامهٔ هفتگی</p><h2 id="tp-copy-day">کپی زمان‌های یک روز</h2></div></div>

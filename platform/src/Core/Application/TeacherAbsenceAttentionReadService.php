@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
@@ -18,7 +19,7 @@ final class TeacherAbsenceAttentionReadService {
         if(!(new PrincipalInvitationRepository())->hasActiveTeacherAuthority((int)get_current_user_id(),$teacherId))throw new \InvalidArgumentException('teacher_onboarding_required');
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $rows=$wpdb->get_results($wpdb->prepare(
-            "SELECT c.id case_id,c.lesson_id,c.schedule_version_id origin_schedule_version_id,c.occurrence_start_utc,c.occurrence_end_utc,c.state case_state,
+            "SELECT c.id case_id,c.lesson_id,c.term_id,c.schedule_version_id origin_schedule_version_id,c.occurrence_start_utc,c.occurrence_end_utc,c.state case_state,
                     l.uid lesson_uid,l.reference_code lesson_reference,l.lifecycle_state,
                     v.uid schedule_version_uid,v.starts_at_utc current_start_utc,v.ends_at_utc current_end_utc,
                     COALESCE(NULLIF(s.display_name,''),NULLIF(s.reference_code,''),'هنرجو') student_name,
@@ -51,14 +52,24 @@ final class TeacherAbsenceAttentionReadService {
         if($wpdb->last_error!=='')throw new \RuntimeException('teacher_absence_attention_unavailable');
         $now=time();
         $result=array();
+        $allocations=array();
         foreach((array)$rows as $row){
             $lifecycle=(string)$row->lifecycle_state;
             $outcome=(string)($row->delivery_outcome??'');
+            $reason=(string)$row->reason_code;
             $ended=strtotime((string)$row->current_end_utc.' UTC')<=$now;
+            $termId=(int)$row->term_id;
+            if(!isset($allocations[$termId]))$allocations[$termId]=(new LessonRescheduleRepository())->termReplacementAllocation($termId);
+            // Only an eligible occurrence that owns one of the Term's replacement slots is an
+            // actionable Teacher task. Excess reports, disputes and already-issued replacements
+            // remain visible to the administrator instead.
+            $occurrenceKey=(int)$row->lesson_id.':'.(int)$row->schedule_version_id;
+            if(!in_array($occurrenceKey,$allocations[$termId]['allocated_occurrence_keys'],true))continue;
             // A reported absence is actionable only while the occurrence still has a canonical
             // self-service path. Disputed/delivered/academy-owed outcomes remain visible to the
             // administrator, not as a Teacher reschedule action.
             $canRequest=in_array($lifecycle,array('authorised','completed'),true)
+                && in_array($reason,array('student_advance_absence','student_reports_missed_class'),true)
                 && !in_array($outcome,array('delivered','teacher_non_delivery','review_required'),true)
                 && (string)$row->schedule_version_uid!=='';
             $result[]=array(

@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Portals\{AuthenticatedPortalReadSubject,PublicCapabilityReadSubject,TeacherAssignmentPortalReadPort,CanonicalLessonSchedulePortalReadPort,CanonicalLessonDeliveryPortalReadPort,CanonicalAttendancePortalReadPort};
-use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,CanonicalLessonScheduleRepository,CanonicalLessonDeliveryRepository,CanonicalAttendanceRepository,CanonicalTermAuthorityRepository,TeacherAssignmentRepository,EnrolmentRepository,TeacherRepository,StudentRepository,CourseRepository,InstrumentRepository};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,CanonicalLessonScheduleRepository,CanonicalLessonDeliveryRepository,CanonicalAttendanceRepository,CanonicalTermAuthorityRepository,LessonRescheduleRepository,TeacherAssignmentRepository,EnrolmentRepository,TeacherRepository,StudentRepository,CourseRepository,InstrumentRepository};
 
 /** Core-owned, read-only portal seams. They deliberately return projections, never repository rows. */
 final class CanonicalTeacherAssignmentPortalReadPort implements TeacherAssignmentPortalReadPort {
@@ -70,12 +70,15 @@ final class CanonicalAttendancePortalReadPortImpl implements CanonicalAttendance
         $state=$case?(string)$case->state:'not_recorded';
         $resolved=$case&&in_array($state,array('settled','adjudicated','closed_no_change','superseded'),true);
         $reported=$claim!==null;
+        $allocation=$case&&$reported?(new LessonRescheduleRepository())->lessonAbsenceAllocation($lessonId,$scheduleVersionId,(int)$case->term_id):array('eligible'=>false,'allocated'=>false);
         return array(
             'lesson_id'=>$lessonId,
             'schedule_version_id'=>$scheduleVersionId,
             'attendance_state_summary'=>$state,
             'absence_available'=>!$reported&&!$resolved,
             'absence_reported'=>$reported,
+            'absence_allocated'=>!empty($allocation['allocated']),
+            'absence_excess'=>$reported&&!empty($allocation['eligible'])&&empty($allocation['allocated']),
             'absence_reason'=>$claim?(string)$claim->reason_code:null,
             'absence_observed_at'=>$claim?(string)$claim->observed_at:null,
             'absence_resolved'=>$resolved,

@@ -316,8 +316,14 @@ function dzn_theme_platform_history_item( array $lesson, $calendar = 'gregorian'
 	if ( $absence_reported ) {
 		if ( 'student_disputes_class' === (string) ( $lesson['absence_reason'] ?? '' ) ) {
 			$outcome_label = 'اعتراض هنرجو ثبت شده است';
+		} elseif ( $replacement_recorded ) {
+			$outcome_label = 'غیبت اعلام‌شده — جلسهٔ جبرانی ثبت شد';
+		} elseif ( 'cancelled' === (string) ( $lesson['lifecycle_state'] ?? '' ) ) {
+			$outcome_label = 'غیبت اعلام‌شده — کلاس لغو شده';
+		} elseif ( empty( $lesson['absence_allocated'] ) ) {
+			$outcome_label = 'غیبت اعلام‌شده — ظرفیت جبرانی ترم تکمیل است';
 		} else {
-			$outcome_label = $replacement_recorded ? 'غیبت اعلام‌شده — جلسهٔ جبرانی ثبت شد' : 'غیبت اعلام‌شده توسط هنرجو';
+			$outcome_label = 'غیبت اعلام‌شده توسط هنرجو';
 		}
 		$outcome_tone = $replacement_recorded ? 'success' : 'warning';
 	}
@@ -466,21 +472,23 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 	if ( '' === $instrument ) { $instrument = trim( (string) ( $enrolment['course_name'] ?? '' ) ); }
 	$replacement_allowance = max( 0, (int) ( $enrolment['replacement_allowance'] ?? 0 ) );
 	$replacement_used = max( 0, (int) ( $enrolment['replacement_used'] ?? 0 ) );
-	$replacement_remaining = max( 0, (int) ( $enrolment['replacement_remaining'] ?? 0 ) );
+	$replacement_pending_allocated = max( 0, (int) ( $enrolment['replacement_pending_allocated'] ?? 0 ) );
+	$replacement_available = max( 0, (int) ( $enrolment['replacement_available'] ?? $enrolment['replacement_remaining'] ?? 0 ) );
 	// A reported absence is unresolved until a replacement Lesson exists for that origin. The
-	// Student must learn before the Teacher attempts a proposal that the Term allowance is spent.
+	// allocation service decides which occurrences own a slot; anything beyond it is an excess
+	// report the Student must not be told is a schedulable replacement.
 	$unresolved_absences = count( array_filter( $related, static function ( $row ) {
 		return ! empty( $row['absence_reported'] )
+			&& empty( $row['absence_resolved'] )
+			&& 'cancelled' !== (string) ( $row['lifecycle_state'] ?? '' )
 			&& (string) ( $row['absence_reason'] ?? '' ) !== 'student_disputes_class'
 			&& (string) ( $row['lesson_kind'] ?? '' ) !== 'replacement'
 			&& (string) ( $row['replacement_lesson_uid'] ?? '' ) === '';
 	} ) );
-	$replacement_shortfall = max( 0, $unresolved_absences - $replacement_remaining );
+	$replacement_shortfall = max( 0, $unresolved_absences - $replacement_pending_allocated );
 	$replacement_limit_message = '';
-	if ( $unresolved_absences > 0 && $replacement_remaining < 1 ) {
-		$replacement_limit_message = 'سهمیهٔ جلسات جبرانی این ترم تمام شده است. برای جلسه(های) غیبت‌شدهٔ باقی‌مانده امکان ثبت جلسهٔ جبرانی از پرتال وجود ندارد و مورد برای بررسی مدیر ثبت می‌شود.';
-	} elseif ( $replacement_shortfall > 0 ) {
-		$replacement_limit_message = sprintf( 'برای %d جلسهٔ غیبت‌شده جلسهٔ جبرانی باقی نمانده است. این مورد برای بررسی مدیر ثبت می‌شود.', $replacement_shortfall );
+	if ( $replacement_shortfall > 0 ) {
+		$replacement_limit_message = sprintf( 'برای %d جلسهٔ غیبت‌شده ظرفیت جلسهٔ جبرانی این ترم باقی نمانده است. این مورد برای بررسی مدیر ثبت شده است.', $replacement_shortfall );
 	}
 	return array(
 		'title' => '' !== $instrument ? 'ترم جاری · ' . $instrument : 'ترم جاری',
@@ -489,7 +497,10 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 		'current_label' => count( $related ) ? sprintf( '%d جلسه ثبت‌شده', count( $related ) ) : '',
 		'replacement_allowance' => $replacement_allowance,
 		'replacement_used' => $replacement_used,
-		'replacement_remaining' => $replacement_remaining,
+		'replacement_pending_allocated' => $replacement_pending_allocated,
+		'replacement_allocated_total' => $replacement_used + $replacement_pending_allocated,
+		'replacement_available' => $replacement_available,
+		'replacement_remaining' => $replacement_available,
 		'replacement_lessons' => is_array( $enrolment['replacement_lessons'] ?? null ) ? $enrolment['replacement_lessons'] : array(),
 		'replacement_unresolved_absences' => $unresolved_absences,
 		'replacement_shortfall' => $replacement_shortfall,
@@ -501,7 +512,8 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 function dzn_theme_platform_student_replacement_summary( array $term, $timezone, $calendar = 'gregorian', $locale = '' ) {
 	$allowance = max( 0, (int) ( $term['replacement_allowance'] ?? 0 ) );
 	$used = max( 0, (int) ( $term['replacement_used'] ?? 0 ) );
-	$remaining = max( 0, (int) ( $term['replacement_remaining'] ?? 0 ) );
+	$pending = max( 0, (int) ( $term['replacement_pending_allocated'] ?? 0 ) );
+	$available = max( 0, (int) ( $term['replacement_available'] ?? $term['replacement_remaining'] ?? 0 ) );
 	if ( $allowance < 1 ) {
 		return array( 'normal_replacement' => '', 'replacement_items' => array() );
 	}
@@ -518,7 +530,7 @@ function dzn_theme_platform_student_replacement_summary( array $term, $timezone,
 		);
 	}
 	return array(
-		'normal_replacement' => sprintf( '%d از %d جایگزین استفاده شده · %d باقی‌مانده', $used, $allowance, $remaining ),
+		'normal_replacement' => sprintf( 'جایگزین‌های ترم: %d از %d استفاده شده · %d در انتظار · %d قابل استفاده', $used, $allowance, $pending, $available ),
 		'replacement_items' => $items,
 	);
 }
@@ -689,6 +701,8 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	// not hide the action only because the occurrence is no longer in the future.
 	$absence_reported = ! $is_booking && ! empty( $row['absence_reported'] );
 	$absence_resolved = ! $is_booking && ! empty( $row['absence_resolved'] );
+	$absence_allocated = ! $is_booking && ! empty( $row['absence_allocated'] );
+	$absence_excess = ! $is_booking && ! empty( $row['absence_excess'] );
 	$replacement_lesson_uid = ! $is_booking ? (string) ( $row['replacement_lesson_uid'] ?? '' ) : '';
 	$replacement_starts_at_utc = ! $is_booking ? (string) ( $row['replacement_starts_at_utc'] ?? '' ) : '';
 	$absence_available = ! $is_booking
@@ -704,10 +718,16 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	if ( $absence_reported ) {
 		if ( 'student_disputes_class' === $absence_reason ) {
 			$absence_label = $absence_resolved ? 'اعتراض ثبت‌شده · بررسی‌شده' : 'اعتراض ثبت‌شده · در انتظار بررسی';
+		} elseif ( '' !== $replacement_lesson_uid ) {
+			$absence_label = 'غیبت اعلام‌شده · جلسهٔ جبرانی ثبت شد';
+		} elseif ( $absence_resolved ) {
+			$absence_label = 'غیبت اعلام‌شده · بررسی‌شده';
+		} elseif ( $absence_excess ) {
+			$absence_label = 'غیبت اعلام‌شده · ظرفیت جبرانی ترم تکمیل است · بررسی مدیر';
+		} elseif ( 'cancelled' === (string) ( $row['lifecycle_state'] ?? '' ) ) {
+			$absence_label = 'غیبت اعلام‌شده · کلاس لغو شده · بررسی آموزشگاه';
 		} else {
-			$absence_label = '' !== $replacement_lesson_uid
-				? 'غیبت اعلام‌شده · جلسهٔ جبرانی ثبت شد'
-				: ( $absence_resolved ? 'غیبت اعلام‌شده · بررسی‌شده' : 'غیبت اعلام‌شده · در انتظار هماهنگی جلسهٔ جبرانی' );
+			$absence_label = 'غیبت اعلام‌شده · در انتظار هماهنگی جلسهٔ جبرانی';
 		}
 	}
 	$day_key = dzn_theme_platform_local_date_key( (string) ( $row['starts_at_utc'] ?? '' ), $timezone );
@@ -747,13 +767,19 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'absence_available' => $absence_available,
 		'absence_reported' => $absence_reported,
 		'absence_resolved' => $absence_resolved,
+		'absence_allocated' => $absence_allocated,
+		'absence_excess' => $absence_excess,
 		'absence_state' => (string) ( $row['absence_state'] ?? '' ),
 		'absence_reason' => (string) ( $row['absence_reason'] ?? '' ),
 		'absence_label' => $absence_label,
 		'absence_message' => $absence_reported
 			? ( '' !== $replacement_lesson_uid
 				? 'اطلاع غیبت شما برای این جلسه ثبت شده و جلسهٔ جبرانی آن نیز ثبت شده است.'
-				: 'اطلاع غیبت شما برای این جلسه ثبت شده است. پس از هماهنگی با مدرس، جلسهٔ جبرانی در برنامه نمایش داده می‌شود.' )
+				: ( $absence_excess
+					? 'اطلاع غیبت شما ثبت شد؛ اما ظرفیت جلسات جبرانی این ترم تکمیل است و برای این غیبت جلسهٔ جبرانی صادر نمی‌شود. مورد برای بررسی مدیر ثبت شد.'
+					: ( 'cancelled' === (string) ( $row['lifecycle_state'] ?? '' )
+						? 'این کلاس لغو شده است و جبران آن از مسیر بدهی آموزشگاه بررسی می‌شود.'
+						: 'اطلاع غیبت شما برای این جلسه ثبت شده است. پس از هماهنگی با مدرس، جلسهٔ جبرانی در برنامه نمایش داده می‌شود.' ) ) )
 			: '',
 		'replacement_lesson_uid' => $replacement_lesson_uid,
 		'replacement_starts_at_utc' => $replacement_starts_at_utc,
@@ -1078,6 +1104,8 @@ function dzn_theme_platform_student_model( $screen ) {
 			'teacher' => (string) ( $current_enrolment['teacher_name'] ?? $current_enrolment['assigned_teacher_display_reference'] ?? '' ),
 			'replacement_allowance' => max( 0, (int) ( $current_enrolment['replacement_allowance'] ?? 0 ) ),
 			'replacement_used' => max( 0, (int) ( $current_enrolment['replacement_used'] ?? 0 ) ),
+			'replacement_pending_allocated' => max( 0, (int) ( $current_enrolment['replacement_pending_allocated'] ?? 0 ) ),
+			'replacement_available' => max( 0, (int) ( $current_enrolment['replacement_available'] ?? $current_enrolment['replacement_remaining'] ?? 0 ) ),
 			'replacement_remaining' => max( 0, (int) ( $current_enrolment['replacement_remaining'] ?? 0 ) ),
 			'replacement_pending' => count( array_filter( $replacement_lessons, static fn( $row ) => is_array( $row ) && empty( $row['scheduled'] ) ) ),
 			'replacement_limit_message' => (string) ( $term_progress['replacement_limit_message'] ?? '' ),
@@ -1119,14 +1147,24 @@ function dzn_theme_platform_student_model( $screen ) {
 	$upcoming_livekit_message = $next ? dzn_theme_platform_livekit_message( $next, $is_booking, $within_join_window, $upcoming_livekit_available, $upcoming_join_available ) : '';
 	$next_absence_reported = ! $is_booking && $next && ! empty( $next['absence_reported'] );
 	$next_absence_resolved = ! $is_booking && $next && ! empty( $next['absence_resolved'] );
+	$next_absence_allocated = ! $is_booking && $next && ! empty( $next['absence_allocated'] );
+	$next_absence_excess = ! $is_booking && $next && ! empty( $next['absence_excess'] );
 	$next_replacement_uid = ! $is_booking && $next ? (string) ( $next['replacement_lesson_uid'] ?? '' ) : '';
 	$next_replacement_start = ! $is_booking && $next ? (string) ( $next['replacement_starts_at_utc'] ?? '' ) : '';
 	$next_absence_reason = ! $is_booking && $next ? (string) ( $next['absence_reason'] ?? '' ) : '';
 	$next_absence_label = '';
 	if ( $next_absence_reported ) {
-		$next_absence_label = 'student_disputes_class' === $next_absence_reason
-			? ( $next_absence_resolved ? 'اعتراض ثبت‌شده · بررسی‌شده' : 'اعتراض ثبت‌شده · در انتظار بررسی' )
-			: ( '' !== $next_replacement_uid ? 'غیبت اعلام‌شده · جلسهٔ جبرانی ثبت شد' : 'غیبت اعلام‌شده · در انتظار هماهنگی جلسهٔ جبرانی' );
+		if ( 'student_disputes_class' === $next_absence_reason ) {
+			$next_absence_label = $next_absence_resolved ? 'اعتراض ثبت‌شده · بررسی‌شده' : 'اعتراض ثبت‌شده · در انتظار بررسی';
+		} elseif ( '' !== $next_replacement_uid ) {
+			$next_absence_label = 'غیبت اعلام‌شده · جلسهٔ جبرانی ثبت شد';
+		} elseif ( $next_absence_excess ) {
+			$next_absence_label = 'غیبت اعلام‌شده · ظرفیت جبرانی ترم تکمیل است · بررسی مدیر';
+		} elseif ( 'cancelled' === (string) ( $next['lifecycle_state'] ?? '' ) ) {
+			$next_absence_label = 'غیبت اعلام‌شده · کلاس لغو شده · بررسی آموزشگاه';
+		} else {
+			$next_absence_label = 'غیبت اعلام‌شده · در انتظار هماهنگی جلسهٔ جبرانی';
+		}
 	}
 	$model['upcoming_lesson'] = $next ? array(
 		'presentation_state' => $is_booking
@@ -1161,12 +1199,18 @@ function dzn_theme_platform_student_model( $screen ) {
 		'absence_available' => ! $is_booking && in_array( (string) ( $next['lifecycle_state'] ?? '' ), array( 'authorised', 'completed' ), true ) && 'settled' !== (string) ( $next['attendance_state_summary'] ?? '' ) && empty( $next['absence_final'] ) && ! $next_absence_reported && ! $next_absence_resolved,
 		'absence_reported' => $next_absence_reported,
 		'absence_resolved' => $next_absence_resolved,
+		'absence_allocated' => $next_absence_allocated,
+		'absence_excess' => $next_absence_excess,
 		'absence_state' => (string) ( $next['absence_state'] ?? '' ),
 		'absence_label' => $next_absence_label,
 		'absence_message' => $next_absence_reported
 			? ( '' !== $next_replacement_uid
 				? 'اطلاع غیبت شما برای این جلسه ثبت شده و جلسهٔ جبرانی آن نیز ثبت شده است.'
-				: 'اطلاع غیبت شما برای این جلسه ثبت شده است. پس از هماهنگی با مدرس، جلسهٔ جبرانی در برنامه نمایش داده می‌شود.' )
+				: ( $next_absence_excess
+					? 'اطلاع غیبت شما ثبت شد؛ اما ظرفیت جلسات جبرانی این ترم تکمیل است و برای این غیبت جلسهٔ جبرانی صادر نمی‌شود. مورد برای بررسی مدیر ثبت شد.'
+					: ( 'cancelled' === (string) ( $next['lifecycle_state'] ?? '' )
+						? 'این کلاس لغو شده است و جبران آن از مسیر بدهی آموزشگاه بررسی می‌شود.'
+						: 'اطلاع غیبت شما برای این جلسه ثبت شده است. پس از هماهنگی با مدرس، جلسهٔ جبرانی در برنامه نمایش داده می‌شود.' ) ) )
 			: '',
 		'replacement_lesson_uid' => $next_replacement_uid,
 		'replacement_starts_at_utc' => $next_replacement_start,

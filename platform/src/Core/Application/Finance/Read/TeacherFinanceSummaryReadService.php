@@ -99,7 +99,7 @@ final class TeacherFinanceSummaryReadService {
 
         $pendingReschedules=0;
         if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$p.'lesson_reschedule_proposals'))===$p.'lesson_reschedule_proposals'){
-            $pendingReschedules=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE teacher_id=%d AND state='pending'",$teacherId));
+            $pendingReschedules=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE teacher_id=%d AND state='pending' AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP())",$teacherId));
             if($wpdb->last_error!=='')throw new \RuntimeException('teacher_finance_summary_unavailable');
         }
 

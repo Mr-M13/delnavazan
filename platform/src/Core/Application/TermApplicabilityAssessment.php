@@ -97,7 +97,7 @@ final class TermApplicabilityAssessment {
         if ($row->status !== 'canonical' || !in_array($state, self::STATES, true)
             || (($row->applicable_slot === null ? null : (int) $row->applicable_slot) !== $expectedSlot)
             || $row->archived_at !== null || $row->archived_by !== null
-            || (int) $row->lesson_allocation !== 12 || (int) $row->replacement_allowance !== 2
+            || (int) $row->lesson_allocation !== 12 || (int) $row->replacement_allowance < 0
             || $row->payment_state !== 'not_applicable'
             || $row->starts_at !== null || $row->ends_at !== null || $row->activated_at !== null || $row->completed_at !== null
             || preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D', (string) $row->uid) !== 1

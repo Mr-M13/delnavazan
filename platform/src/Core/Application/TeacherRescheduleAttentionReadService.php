@@ -92,7 +92,7 @@ final class TeacherRescheduleAttentionReadService {
              INNER JOIN {$p}students s ON s.id=r.student_id
              LEFT JOIN {$p}courses c ON c.id=l.course_id
              LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
-             WHERE r.teacher_id=%d AND r.state='pending'
+             WHERE r.teacher_id=%d AND r.state='pending' AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())
              ORDER BY r.proposed_starts_at_utc,r.id LIMIT 20",
             $teacherId
         ));

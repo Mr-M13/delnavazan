@@ -214,6 +214,31 @@ namespace {
     $future = $futureService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-replacement-0060');
     $fail('a future authorised occurrence remains a reschedule', ($future['kind'] ?? '') === 'reschedule' && $futureStore->events[0]->reason_code === 'teacher_reschedule_proposed');
 
+    // An advance Student absence that owns a Term allocation may revise the future occurrence.
+    $absenceFutureStore = new ReplacementFakeStore(); $absenceFutureStore->context = $context('authorised');
+    $absenceFutureStore->context->starts_at_utc = gmdate('Y-m-d H:i:s', time() + 3 * 86400);
+    $absenceFutureStore->context->ends_at_utc = gmdate('Y-m-d H:i:s', time() + 3 * 86400 + 1800);
+    $absenceFutureStore->facts['absence_eligible'] = true; $absenceFutureStore->facts['absence_allocated'] = true;
+    $absenceFutureService = new LessonRescheduleService($absenceFutureStore, static fn() => array(), $rescheduleCommit, static fn() => time(), static fn() => true, $replacementCommit, $exception);
+    $absenceFuture = $absenceFutureService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-absence-future-01');
+    $fail('an allocated advance absence may revise the future occurrence', ($absenceFuture['kind'] ?? '') === 'reschedule');
+
+    // The same advance absence without an allocation is excess and must never create a proposal.
+    $excessFutureStore = new ReplacementFakeStore(); $excessFutureStore->context = $context('authorised');
+    $excessFutureStore->context->starts_at_utc = gmdate('Y-m-d H:i:s', time() + 3 * 86400);
+    $excessFutureStore->context->ends_at_utc = gmdate('Y-m-d H:i:s', time() + 3 * 86400 + 1800);
+    $excessFutureStore->facts['absence_eligible'] = true; $excessFutureStore->facts['absence_allocated'] = false;
+    $excessFutureService = new LessonRescheduleService($excessFutureStore, static fn() => array(), $rescheduleCommit, static fn() => time(), static fn() => true, $replacementCommit, $exception);
+    $threw = false; try { $excessFutureService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-absence-future-02'); } catch (Throwable $e) { $threw = $e->getMessage() === 'replacement_entitlement_exhausted'; }
+    $fail('an excess advance absence is refused before a proposal is created', $threw && !$excessFutureStore->proposals);
+
+    // A completed replacement also requires an allocation, not only a remaining Lesson count.
+    $excessCompleted = new ReplacementFakeStore(); $excessCompleted->context = $context('completed');
+    $excessCompleted->facts['absence_eligible'] = true; $excessCompleted->facts['absence_allocated'] = false;
+    $excessCompletedService = new LessonRescheduleService($excessCompleted, static fn() => array(), $rescheduleCommit, static fn() => time(), static fn() => true, $replacementCommit, $exception);
+    $threw = false; try { $excessCompletedService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-absence-completed-01'); } catch (Throwable $e) { $threw = $e->getMessage() === 'replacement_entitlement_exhausted'; }
+    $fail('a completed absence without an allocation is refused', $threw && !$excessCompleted->proposals);
+
     // A lesson that is currently in progress is neither a reschedule nor a replacement.
     $progressStore = new ReplacementFakeStore(); $progressStore->context = $context('authorised');
     $progressStore->context->starts_at_utc = gmdate('Y-m-d H:i:s', time() - 300);

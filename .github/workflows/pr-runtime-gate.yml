@@ -254,6 +254,7 @@ jobs:
           php platform/tests/lesson-reschedule-notification-unit.php
           php platform/tests/lesson-reschedule-system-actors-unit.php
           php platform/tests/lesson-replacement-service-unit.php
+          php platform/tests/term-replacement-allocation-unit.php
           php platform/tests/google-calendar-transport-unit.php
           php platform/tests/google-credential-refresher-unit.php
           php platform/tests/missed-lesson-replacement-contract.php

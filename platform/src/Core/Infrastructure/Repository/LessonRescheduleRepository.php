@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 
 use Delnavazan\Platform\Core\Application\LessonRescheduleStore;
+use Delnavazan\Platform\Core\Application\TermReplacementAllocationRule;
 
 /**
  * Persistence boundary for teacher-initiated reschedule proposals.
@@ -20,9 +21,9 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     public function proposalByCommandDigest(string $digest):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE command_key_digest=%s LIMIT 1",$digest);}
     public function proposalByDecisionDigest(string $digest):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE decision_key_digest=%s LIMIT 1",$digest);}
     public function proposal(int $id,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE id=%d LIMIT 1".($lock?' FOR UPDATE':''),$id);}
-    public function pendingForStudent(int $studentId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE student_id=%d AND state='pending' ORDER BY created_at,id",$studentId);}
+    public function pendingForStudent(int $studentId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE student_id=%d AND state='pending' AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP()) ORDER BY created_at,id",$studentId);}
     public function pendingForLesson(int $lessonId,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE lesson_id=%d AND state='pending' ORDER BY id DESC LIMIT 1".($lock?' FOR UPDATE':''),$lessonId);}
-    public function pendingForTeacher(int $teacherId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE teacher_id=%d AND state='pending' ORDER BY created_at,id",$teacherId);}
+    public function pendingForTeacher(int $teacherId):array{return $this->rows("SELECT * FROM {$this->p}lesson_reschedule_proposals WHERE teacher_id=%d AND state='pending' AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP()) ORDER BY created_at,id",$teacherId);}
     public function proposalRejectionCount(int $lessonId):int{return(int)$this->scalar("SELECT COUNT(*) FROM {$this->p}lesson_reschedule_proposals WHERE lesson_id=%d AND state='rejected'",$lessonId);}
 
     /**
@@ -45,12 +46,15 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
             'attendance_case_id'=>null,'attendance_state'=>null,'attendance_reason'=>null,
             'attendance_schedule_version_id'=>null,'delivery_outcome'=>null,'replacement_proposal_state'=>null,
         );
-        $term=$this->one("SELECT replacement_allowance FROM {$this->p}terms WHERE id=%d LIMIT 1",$termId);
-        $facts['replacement_allowance']=$term?(int)$term->replacement_allowance:0;
-        $facts['replacement_used']=(int)$this->scalar(
-            "SELECT COUNT(*) FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",
-            $termId
-        );
+        $allocation=$this->termReplacementAllocation($termId);
+        $versionId=(int)$this->scalar("SELECT id FROM {$this->p}canonical_lesson_schedule_versions WHERE lesson_id=%d AND applicable_slot=1 LIMIT 1",$lessonId);
+        $occurrenceKey=$lessonId.':'.$versionId;
+        $facts['replacement_allowance']=$allocation['allowance'];
+        $facts['replacement_used']=$allocation['used'];
+        $facts['replacement_pending_allocated']=$allocation['pending'];
+        $facts['replacement_available']=$allocation['available'];
+        $facts['absence_eligible']=isset($allocation['eligible_occurrences'][$occurrenceKey]);
+        $facts['absence_allocated']=in_array($occurrenceKey,$allocation['allocated_occurrence_keys'],true);
         $replacement=$this->one(
             "SELECT id FROM {$this->p}lessons WHERE canonical_replacement_origin_lesson_id=%d AND record_model='canonical_term_lesson_v1' AND archived_at IS NULL LIMIT 1",
             $lessonId
@@ -91,6 +95,95 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
         );
         if($proposal)$facts['replacement_proposal_state']=(string)$proposal->state;
         return $facts;
+    }
+
+    /**
+     * Term-level Student absence allocation.
+     *
+     * Every distinct Student absence occurrence (Lesson + canonical schedule version) is eligible
+     * when its latest Student evidence is an advance notice or missed-class report and no
+     * authoritative outcome or administrative closure has released it. A replacement Lesson
+     * already issued consumes a slot directly; remaining slots are allocated to eligible
+     * occurrences awaiting discussion/proposal/acceptance in first-entered order. This prevents
+     * several pending reports from all appearing to own the same remaining slot, while
+     * rejection/expiry of a proposed time keeps the allocation.
+     *
+     * @return array{allowance:int,used:int,pending:int,available:int,eligible_occurrences:array<string,array<string,mixed>>,allocated_occurrence_keys:array<int,string>}
+     */
+    public function termReplacementAllocation(int $termId):array{
+        $term=$this->one("SELECT replacement_allowance FROM {$this->p}terms WHERE id=%d LIMIT 1",$termId);
+        $allowance=$term?max(0,(int)$term->replacement_allowance):0;
+        $replacementLessonCount=(int)$this->scalar(
+            "SELECT COUNT(*) FROM {$this->p}lessons WHERE term_id=%d AND record_model='canonical_term_lesson_v1' AND lesson_type='replacement' AND archived_at IS NULL",
+            $termId
+        );
+        $eligible=array();
+        $consumedAbsenceOccurrences=0;
+        $rows=$this->rows(
+            "SELECT c.id case_id,c.lesson_id,c.schedule_version_id,c.occurrence_start_utc,c.state case_state,c.created_at,e.reason_code,
+                    (SELECT r.id FROM {$this->p}lessons r WHERE r.canonical_replacement_origin_lesson_id=c.lesson_id AND r.record_model='canonical_term_lesson_v1' AND r.lesson_type='replacement' AND r.archived_at IS NULL ORDER BY r.id ASC LIMIT 1) replacement_lesson_id,
+                    (SELECT d.outcome_code FROM {$this->p}canonical_lesson_delivery_outcomes d WHERE d.lesson_id=c.lesson_id AND d.applicable_slot=1 LIMIT 1) delivery_outcome,
+                    (SELECT dd.decision_basis FROM {$this->p}canonical_attendance_decisions dd WHERE dd.case_id=c.id ORDER BY dd.decision_sequence DESC,dd.id DESC LIMIT 1) latest_basis
+             FROM {$this->p}canonical_attendance_cases c
+             INNER JOIN {$this->p}lessons l ON l.id=c.lesson_id AND l.term_id=%d AND l.record_model='canonical_term_lesson_v1' AND l.archived_at IS NULL AND l.lifecycle_state<>'cancelled'
+             INNER JOIN (
+                 SELECT case_id,MAX(id) evidence_id
+                 FROM {$this->p}canonical_attendance_evidence
+                 WHERE source_kind='student' AND reason_code IN ('student_advance_absence','student_reports_missed_class')
+                 GROUP BY case_id
+             ) latest ON latest.case_id=c.id
+             INNER JOIN {$this->p}canonical_attendance_evidence e ON e.id=latest.evidence_id
+             WHERE c.id=(
+                 SELECT MAX(c2.id) FROM {$this->p}canonical_attendance_cases c2
+                 INNER JOIN {$this->p}canonical_attendance_evidence e2 ON e2.case_id=c2.id AND e2.source_kind='student' AND e2.reason_code IN ('student_advance_absence','student_reports_missed_class')
+                 WHERE c2.lesson_id=c.lesson_id AND c2.schedule_version_id=c.schedule_version_id
+             )
+             ORDER BY c.created_at ASC,c.id ASC",
+            $termId
+        );
+        foreach($rows as$row){
+            $state=(string)$row->case_state;
+            $outcome=(string)($row->delivery_outcome??'');
+            $basis=(string)($row->latest_basis??'');
+            if(in_array($outcome,array('delivered','teacher_non_delivery','review_required'),true))continue;
+            if(in_array($state,array('settled','adjudicated'),true))continue;
+            if($state==='closed_no_change'&&in_array($basis,array('administrative_no_change','administrative_settle_delivered','administrative_teacher_non_delivery','administrative_review_required'),true))continue;
+            // An accepted absence-driven schedule revision closes the original occurrence as
+            // superseded. It is a confirmed use of the allowance, not a still-pending allocation.
+            if($row->replacement_lesson_id===null&&($state==='superseded'||($state==='closed_no_change'&&$basis==='superseded'))){
+                $consumedAbsenceOccurrences++;
+                continue;
+            }
+            $key=(int)$row->lesson_id.':'.(int)$row->schedule_version_id;
+            if(isset($eligible[$key]))continue;
+            $eligible[$key]=array(
+                'occurrence_key'=>$key,'lesson_id'=>(int)$row->lesson_id,'schedule_version_id'=>(int)$row->schedule_version_id,
+                'case_id'=>(int)$row->case_id,'occurrence_start_utc'=>(string)$row->occurrence_start_utc,
+                'reason_code'=>(string)$row->reason_code,'case_state'=>$state,'created_at'=>(string)$row->created_at,
+                'replacement_lesson_id'=>$row->replacement_lesson_id===null?null:(int)$row->replacement_lesson_id,
+            );
+        }
+        $used=$replacementLessonCount+$consumedAbsenceOccurrences;
+        $pending=array_filter($eligible,static fn(array $row):bool=>$row['replacement_lesson_id']===null);
+        $orderedKeys=array_keys($pending);
+        $allocation=TermReplacementAllocationRule::allocate($allowance,$used,$orderedKeys);
+        return array(
+            'allowance'=>$allowance,'used'=>$used,'pending'=>(int)$allocation['pending'],
+            'available'=>(int)$allocation['available'],
+            'eligible_occurrences'=>$eligible,'allocated_occurrence_keys'=>$allocation['allocated_occurrence_keys'],
+        );
+    }
+
+    /** Allocation facts for one exact Lesson occurrence. */
+    public function lessonAbsenceAllocation(int $lessonId,int $scheduleVersionId,int $termId):array{
+        $allocation=$this->termReplacementAllocation($termId);
+        $key=$lessonId.':'.$scheduleVersionId;
+        return array(
+            'eligible'=>isset($allocation['eligible_occurrences'][$key]),
+            'allocated'=>in_array($key,$allocation['allocated_occurrence_keys'],true),
+            'allowance'=>$allocation['allowance'],'used'=>$allocation['used'],
+            'pending'=>$allocation['pending'],'available'=>$allocation['available'],
+        );
     }
 
     /** One canonical Lesson and its current applicable schedule version, or null if not eligible. */

@@ -29,7 +29,7 @@ $support_message = rawurlencode( 'سلام، درخواست بررسی توقف 
 	<?php endif; ?>
 	<?php if ( (int) ( $status['replacement_allowance'] ?? 0 ) > 0 ) : ?>
 		<p class="dzn-account-status__replacement">
-			<?php echo esc_html( sprintf( 'جایگزین‌های ترم: %d از %d استفاده شده · %d باقی‌مانده', (int) ( $status['replacement_used'] ?? 0 ), (int) $status['replacement_allowance'], (int) ( $status['replacement_remaining'] ?? 0 ) ) ); ?>
+			<?php echo esc_html( sprintf( 'جایگزین‌های ترم: %d از %d استفاده شده · %d در انتظار · %d قابل استفاده', (int) ( $status['replacement_used'] ?? 0 ), (int) $status['replacement_allowance'], (int) ( $status['replacement_pending_allocated'] ?? 0 ), (int) ( $status['replacement_available'] ?? $status['replacement_remaining'] ?? 0 ) ) ); ?>
 			<?php if ( ! empty( $status['replacement_pending'] ) ) : ?>
 				· <?php echo esc_html( sprintf( '%d جایگزین در انتظار تعیین زمان', (int) $status['replacement_pending'] ) ); ?>
 			<?php endif; ?>

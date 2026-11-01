@@ -119,6 +119,13 @@ $service=new LessonRescheduleService(null,null,null,null,static fn(int $teacherI
 wp_set_current_user($studentUserId);
 $studentBefore=(new PortalAuthenticatedReadService())->student();
 dzn_rr_assert(empty(array_filter($studentBefore['reschedule_proposals'],static fn($row)=>(string)($row['lesson_uid']??'')===(string)$origin->lesson_uid)),'the Student must not see a proposal before the Teacher sends one');
+// The reported absence allocates one slot before any replacement Lesson exists.
+$originEnrolmentUid=(string)$wpdb->get_var($wpdb->prepare("SELECT uid FROM {$p}enrolments WHERE id=%d LIMIT 1",(int)$origin->enrolment_id));
+$beforeEnrolment=null;foreach($studentBefore['enrolments'] as$row)if((string)($row['enrolment_uid']??'')===$originEnrolmentUid)$beforeEnrolment=$row;
+dzn_rr_assert($beforeEnrolment!==null,'the Term projection must be available before acceptance');
+dzn_rr_assert((int)$beforeEnrolment['replacement_pending_allocated']>=1,'a pending eligible absence must consume a visible slot');
+$beforeExpectedAvailable=max(0,(int)$beforeEnrolment['replacement_allowance']-(int)$beforeEnrolment['replacement_used']-(int)$beforeEnrolment['replacement_pending_allocated']);
+dzn_rr_assert((int)$beforeEnrolment['replacement_available']===$beforeExpectedAvailable,'the truly available count must exclude used and pending allocations');
 
 wp_set_current_user($teacherUserId);
 $proposal=$service->propose((string)$origin->lesson_uid,(string)$origin->version_uid,array(
@@ -174,7 +181,9 @@ dzn_rr_assert($originAfter!==null&&!empty($originAfter['absence_reported']),'the
 dzn_rr_assert((string)($originAfter['replacement_lesson_uid']??'')===(string)$newLesson->uid,'the notified absence must expose its replacement Lesson');
 $replacementEnrolment=null;foreach($studentAfter['enrolments'] as$row){foreach((array)($row['replacement_lessons']??array())as$replacementRow)if((string)($replacementRow['lesson_uid']??'')===(string)$newLesson->uid)$replacementEnrolment=$row;}
 dzn_rr_assert($replacementEnrolment!==null,'the Term projection must include the accepted replacement');
-dzn_rr_assert((int)$replacementEnrolment['replacement_used']===1&&(int)$replacementEnrolment['replacement_remaining']===(int)$replacementEnrolment['replacement_allowance']-1,'accepting a replacement must consume exactly one Term allowance');
+dzn_rr_assert((int)$replacementEnrolment['replacement_pending_allocated']===0,'the confirmed replacement must replace, not duplicate, the pending allocation');
+$afterExpectedAvailable=max(0,(int)$replacementEnrolment['replacement_allowance']-(int)$replacementEnrolment['replacement_used']);
+dzn_rr_assert((int)$replacementEnrolment['replacement_available']===$afterExpectedAvailable,'the confirmed replacement must consume exactly one Term allowance');
 $reviewQueue=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository())->reviewQueue(250);
 dzn_rr_assert(empty(array_filter($reviewQueue,static fn($row)=>(int)$row->id===(int)$claim['case_id'])),'an accepted replacement must not remain an administrator review item');
 wp_set_current_user($teacherUserId);

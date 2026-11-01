@@ -16,7 +16,6 @@ final class AdminShellController {
         ]],
         'students' => ['Students', [
             ['Directory', 'dzn-student', 'dzn_manage_students'],
-            ['Identity & accounts', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
         ]],
         'enrolment' => ['Enrolment', [
             ['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons'],
@@ -90,7 +89,21 @@ final class AdminShellController {
         add_action('admin_head', [__CLASS__, 'styles']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueueAssets']);
         add_filter('admin_body_class', [__CLASS__, 'bodyClass']);
+        add_filter('wp_redirect', [__CLASS__, 'preserveReturnContext'], 10, 2);
         AcademyDashboardScreen::register();
+    }
+
+    /**
+     * Keep a validated in-admin return destination across POST/redirect/GET.
+     * Central record workflows use this to return staff to the originating
+     * student profile without accepting an open redirect.
+     */
+    public static function preserveReturnContext($location, $status) {
+        $raw = $_REQUEST['dzn_return_to'] ?? '';
+        if (!is_string($raw) || $raw === '') return $location;
+        $safe = function_exists('wp_validate_redirect') ? wp_validate_redirect($raw, '') : '';
+        if ($safe === '' || !is_string($location) || str_contains($location, 'dzn_return_to=')) return $location;
+        return add_query_arg('dzn_return_to', $safe, $location);
     }
 
     /** The top-level click is the Academy dashboard whenever that authority is available. */
@@ -137,6 +150,7 @@ final class AdminShellController {
         echo '<span class="dzn-admin-shell__brand-copy"><strong>Delnavazan</strong><span>Academy operations</span></span>';
         $siteUrl = function_exists('home_url') ? home_url('/') : '#';
         echo '<span class="dzn-admin-shell__context"><span>' . esc_html($today) . '</span><a href="' . esc_url($siteUrl) . '">View site</a></span></div>';
+        self::renderReturnBar($page);
         echo '<nav class="dzn-admin-shell__tabs" aria-label="Delnavazan primary navigation">';
         foreach (self::TABS as $key => [$label, $destinations]) {
             $url = self::firstAvailableDestinationUrl($destinations);
@@ -152,6 +166,15 @@ final class AdminShellController {
             self::renderAreaNavigation($active, $page);
         }
         echo '</div>';
+    }
+
+    private static function renderReturnBar(string $page): void {
+        if ($page === 'dzn-student') return;
+        $raw = $_GET['dzn_return_to'] ?? '';
+        if (!is_string($raw) || $raw === '') return;
+        $safe = function_exists('wp_validate_redirect') ? wp_validate_redirect($raw, '') : '';
+        if ($safe === '') return;
+        echo '<div class="dzn-admin-return"><a href="' . esc_url($safe) . '">← Back to student profile</a><span>The action below belongs to a central workflow and will return here when completed.</span></div>';
     }
 
     private static function renderAreaNavigation(string $active, string $page): void {

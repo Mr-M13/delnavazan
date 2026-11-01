@@ -238,6 +238,12 @@ jobs:
           php platform/tests/teacher-induction-presentation.php
           php platform/tests/teacher-portal-presentation-contract.php
           php platform/tests/admin-navigation-regression-contract.php
+          php platform/tests/attendance-runtime-midnight-guard-contract.php
+          php platform/tests/student-workspace-filters-unit.php
+          php platform/tests/student-admin-ux-contract.php
+          php platform/tests/student-workspaces-contract.php
+          php platform/tests/record-action-registry-unit.php
+          php platform/tests/record-action-foundation-contract.php
           php platform/tests/record-action-token-unit.php
           php platform/tests/record-action-request-unit.php
           php platform/tests/record-action-registry-unit.php
@@ -471,6 +477,35 @@ jobs:
           DZN_RUNTIME_STATE_DIR: /tmp/dzn-attendance-runtime
           DZN_COMPOSE_PROJECT: dzn-attendance-runtime
           DZN_WP_PORT: 18086
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  students-workspace-runtime:
+    name: Students workspace runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run disposable Students workspace journeys
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-students-workspace-runtime
+          DZN_COMPOSE_PROJECT: dzn-students-workspace-runtime
+          DZN_WP_PORT: 18093
+        run: platform/runtime/bin/run-student-workspace-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-students-workspace-runtime
+          DZN_COMPOSE_PROJECT: dzn-students-workspace-runtime
+          DZN_WP_PORT: 18093
         run: platform/runtime/bin/destroy.sh YES || true
 
   catalogue-runtime:

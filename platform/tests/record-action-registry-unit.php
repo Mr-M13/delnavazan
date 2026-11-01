@@ -24,7 +24,13 @@ $pendingActions = RecordActionRegistry::forRecord('teacher', $pending);
 foreach (array('teacher-approve-onboarding', 'teacher-return-onboarding', 'teacher-reject-onboarding') as $key) {
     $assert(isset($pendingActions[$key]), 'Pending-review actions missing: ' . $key);
 }
-$assert(RecordActionRegistry::forRecord('student', $active) === array(), 'A record type without registered actions must return no actions.');
+$studentActions = RecordActionRegistry::forRecord('student', $active);
+foreach (array('student-profile', 'student-deactivate', 'student-archive', 'student-classify-capacity', 'student-guardian-grant') as $key) {
+    $assert(isset($studentActions[$key]), 'Active student actions missing: ' . $key);
+}
+$studentArchived = RecordActionRegistry::forRecord('student', $archived);
+$assert(array_keys($studentArchived) === array('student-restore'), 'Archived students must expose restore only.');
+$assert(!isset($studentActions['student-restore']), 'An active student must not expose restore.');
 
 $profileFields = RecordActionRegistry::fieldsFor('teacher-profile', $active);
 $profileNames = array_column($profileFields, 'name');

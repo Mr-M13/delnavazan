@@ -124,6 +124,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitLaunchController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackController::register();
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomRevocationListener::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();

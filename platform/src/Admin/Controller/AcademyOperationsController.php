@@ -5,6 +5,9 @@ use Delnavazan\Platform\Admin\AcademyDashboardScreen;
 use Delnavazan\Platform\Core\Application\AcademyDashboardReadService;
 use Delnavazan\Platform\Core\Application\AcademyJourneyReadService;
 use Delnavazan\Platform\Core\Application\CoreReadService;
+use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
+use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
+use Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomService;
 
 /**
  * Read-only academy operations dashboard. It joins canonical/authoritative
@@ -21,6 +24,9 @@ final class AcademyOperationsController {
     /** @var list<array<string,mixed>>|null */
     private static ?array $pendingCache = null;
 
+    /** @var array<string,array<string,mixed>> */
+    private static array $classroomCache = array();
+
     public static function screen(): void {
         if (!current_user_can(self::CAP)) wp_die('Forbidden', 403);
         $query = isset($_GET['q']) && is_scalar($_GET['q']) ? sanitize_text_field(wp_unslash((string) $_GET['q'])) : '';
@@ -33,6 +39,7 @@ final class AcademyOperationsController {
 
         echo '<div class="wrap dzn-academy-dashboard">';
         self::hero();
+        self::overviewCategories();
         if (AcademyDashboardScreen::shows('quick')) self::quickActions();
         if (AcademyDashboardScreen::shows('kpis')) self::kpiCards($summary);
         if (AcademyDashboardScreen::shows('actions')) self::pendingActions();
@@ -55,6 +62,32 @@ final class AcademyOperationsController {
         if (current_user_can('dzn_manage_lessons')) echo '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open classes</a>';
         echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-requests')) . '">Review bookings</a>';
         echo '</div></header>';
+    }
+
+    /**
+     * Seven-category overview navigation. Each category is an existing dashboard section or
+     * authority; this strip is a table of contents, never a second navigation authority.
+     */
+    private static function overviewCategories(): void {
+        $categories = array(
+            'actions' => array('Today', 'Decisions waiting now', '#dzn-action-centre'),
+            'schedule' => array('Classes', 'Today and next classes', '#dzn-academy-today-upcoming'),
+            'pipeline' => array('Learners', 'Open learner journeys', '#dzn-pipeline'),
+            'activity' => array('Activity', 'Bookings and completed classes', '#dzn-activity'),
+            'finance' => array('Finance', 'Manual balances and monthly payments', '#dzn-finance'),
+            'queue' => array('Journeys', 'Search the learner queue', '#dzn-journey-queue'),
+            'reschedules' => array('Time changes', 'Class time decisions', '#dzn-academy-reschedules'),
+        );
+        $visible = array();
+        foreach ($categories as $key => [$label, $description, $anchor]) {
+            if (AcademyDashboardScreen::shows($key)) $visible[] = array($label, $description, $anchor);
+        }
+        if (!$visible) return;
+        echo '<nav class="dzn-dash-categories" aria-label="Overview categories"><span class="dzn-dash-categories__label">Overview</span>';
+        foreach ($visible as [$label, $description, $anchor]) {
+            echo '<a class="dzn-dash-category" href="' . esc_url($anchor) . '"><strong>' . esc_html($label) . '</strong><span>' . esc_html($description) . '</span></a>';
+        }
+        echo '</nav>';
     }
 
     private static function quickActions(): void {
@@ -181,20 +214,25 @@ final class AcademyOperationsController {
         $showSchedule = AcademyDashboardScreen::shows('schedule');
         $showAttention = AcademyDashboardScreen::shows('attention');
         if (!$showSchedule && !$showAttention) return;
+        if (!empty($_GET['classroom_status'])) self::classroomNotice((string) $_GET['classroom_status']);
         echo '<div class="dzn-dash-grid' . ($showSchedule && $showAttention ? '' : ' dzn-dash-grid--single') . '">';
         if ($showSchedule) {
-            echo '<section class="dzn-panel" id="dzn-academy-today-upcoming"><div class="dzn-panel__head"><div><h2>Today and upcoming lessons</h2><p>Live class state from the existing Classes read model. Times remain in each class’s scheduled time zone.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open Classes →</a></div>';
+            echo '<section class="dzn-panel" id="dzn-academy-today-upcoming"><div class="dzn-panel__head"><div><h2>Today’s classes</h2><p>Today and upcoming lessons from the existing Classes read model. Administrators can test LiveKit and the backup Google Meet before the participant joining window opens.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open Classes →</a></div>';
             if (!$state['today'] && !$state['upcoming']) {
                 echo '<p class="dzn-empty">No scheduled classes are currently visible in the Classes workflow.</p>';
             } else {
-                echo '<ul class="dzn-list">';
-                foreach (array_slice(array_merge($state['today'], $state['upcoming']), 0, 10) as $row) {
-                    $url = self::classUrl($row);
-                    $action = ($row->record_model ?? '') === 'confirmed_intro_booking_v1' ? 'Open booking' : 'Open class';
-                    $time = self::classTimeLabel($row);
-                    echo '<li class="dzn-list__item"><span class="dzn-list__time">' . esc_html($time) . '</span><span class="dzn-list__body"><a class="dzn-list__title" href="' . esc_url($url) . '">' . esc_html((string) ($row->student_name ?: $row->course_name ?: 'Class')) . '</a><span class="dzn-list__meta">' . esc_html((string) ($row->course_name ?: 'Course')) . ' · ' . esc_html((string) ($row->teacher_name ?: 'Teacher')) . '</span></span><span class="dzn-list__action"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a></span></li>';
+                if ($state['today']) {
+                    echo '<h3 class="dzn-subheading">Today</h3><ul class="dzn-list dzn-class-list">';
+                    foreach (array_slice($state['today'], 0, 10) as $row) self::classRow($row);
+                    echo '</ul>';
+                } else {
+                    echo '<p class="dzn-empty">No classes are scheduled for today.</p>';
                 }
-                echo '</ul>';
+                if ($state['upcoming']) {
+                    echo '<h3 class="dzn-subheading">Next classes</h3><ul class="dzn-list dzn-class-list">';
+                    foreach (array_slice($state['upcoming'], 0, 5) as $row) self::classRow($row);
+                    echo '</ul>';
+                }
             }
             echo '</section>';
         }
@@ -214,6 +252,113 @@ final class AcademyOperationsController {
             echo '</section>';
         }
         echo '</div>';
+    }
+
+    private static function classroomNotice(string $status): void {
+        $status = sanitize_key($status);
+        if (!in_array($status, array('livekit_unavailable', 'meet_unavailable'), true)) return;
+        $message = $status === 'livekit_unavailable'
+            ? 'The LiveKit classroom could not be opened. Its provisioning state is shown below; no link was invented.'
+            : 'The backup Google Meet link is not available. Its provisioning state is shown below; no link was invented.';
+        echo '<div class="notice notice-error inline"><p>' . esc_html($message) . '</p></div>';
+    }
+
+    /** One compact class row with contextual administrator classroom actions. */
+    private static function classRow(object $row): void {
+        $url = self::classUrl($row);
+        $action = ($row->record_model ?? '') === 'confirmed_intro_booking_v1' ? 'Open booking' : 'Open class';
+        $time = self::classTimeLabel($row);
+        $classroom = self::classroomContext($row);
+        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time">' . esc_html($time) . '</span><span class="dzn-list__body"><a class="dzn-list__title" href="' . esc_url($url) . '">' . esc_html((string) ($row->student_name ?: $row->course_name ?: 'Class')) . '</a><span class="dzn-list__meta">' . esc_html((string) ($row->course_name ?: 'Course')) . ' · ' . esc_html((string) ($row->teacher_name ?: 'Teacher')) . '</span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">LiveKit: ' . esc_html(self::livekitStateLabel($classroom)) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
+        echo '<details class="dzn-class-actions"><summary class="button button-small">Classroom links</summary><div class="dzn-class-actions__panel">';
+        if (!empty($classroom['livekit_available'])) {
+            echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-class-actions__form">';
+            wp_nonce_field('dzn_admin_livekit_class');
+            echo '<input type="hidden" name="action" value="dzn_admin_livekit_class"><input type="hidden" name="kind" value="' . esc_attr((string) $classroom['kind']) . '">';
+            if (($classroom['kind'] ?? '') === 'booking') echo '<input type="hidden" name="confirmation_uid" value="' . esc_attr((string) $classroom['confirmation_uid']) . '">';
+            else echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $classroom['lesson_id']) . '">';
+            echo '<button class="button button-primary button-small" type="submit">Join Class</button></form>';
+        } else {
+            echo '<p class="dzn-class-actions__unavailable">' . esc_html(self::livekitUnavailableMessage($classroom)) . '</p>';
+        }
+        if (!empty($classroom['student_entry_url'])) {
+            echo '<button type="button" class="button button-small" data-dzn-copy="' . esc_attr((string) $classroom['student_entry_url']) . '">Copy student link</button>';
+        }
+        if (!empty($classroom['teacher_entry_url'])) {
+            echo '<button type="button" class="button button-small" data-dzn-copy="' . esc_attr((string) $classroom['teacher_entry_url']) . '">Copy teacher link</button>';
+        }
+        if (!empty($classroom['student_entry_url']) || !empty($classroom['teacher_entry_url'])) {
+            echo '<p class="dzn-class-actions__unavailable">Copied participant links open the normal portal and still require sign-in, identity checks and the participant joining window.</p>';
+        }
+        if (!empty($classroom['meet_available'])) {
+            echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-class-actions__form">';
+            wp_nonce_field('dzn_admin_classroom_meet');
+            echo '<input type="hidden" name="action" value="dzn_admin_classroom_meet"><input type="hidden" name="meet_kind" value="' . esc_attr((string) $classroom['kind']) . '">';
+            if (($classroom['kind'] ?? '') === 'booking') echo '<input type="hidden" name="confirmation_uid" value="' . esc_attr((string) $classroom['confirmation_uid']) . '">';
+            else echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $classroom['lesson_id']) . '">';
+            echo '<button class="button button-small" type="submit">Open Google Meet</button></form>';
+            echo '<button type="button" class="button button-small" data-dzn-meet-copy data-kind="' . esc_attr((string) $classroom['kind']) . '"' . (($classroom['kind'] ?? '') === 'booking' ? ' data-confirmation-uid="' . esc_attr((string) $classroom['confirmation_uid']) . '"' : ' data-lesson-id="' . esc_attr((string) $classroom['lesson_id']) . '"') . ' data-endpoint="' . esc_url(rest_url('delnavazan-platform/v1/admin/classroom/meet-link')) . '" data-nonce="' . esc_attr(wp_create_nonce('wp_rest')) . '">Copy Meet link</button>';
+        }
+        echo '<a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
+        echo '<p class="dzn-class-actions__status" role="status" aria-live="polite"></p>';
+        echo '</div></details></div></li>';
+    }
+
+    /** @return array<string,mixed> */
+    private static function classroomContext(object $row): array {
+        $model = (string) ($row->record_model ?? '');
+        $key = $model === 'confirmed_intro_booking_v1'
+            ? 'booking:' . (string) ($row->confirmation_uid ?? '')
+            : 'lesson:' . (int) ($row->id ?? 0);
+        if (isset(self::$classroomCache[$key])) return self::$classroomCache[$key];
+        $service = new LiveKitAdministratorClassroomService();
+        try {
+            if ($model === 'confirmed_intro_booking_v1') {
+                $context = $service->forBooking((string) ($row->confirmation_uid ?? ''));
+            } elseif ($model === 'canonical_term_lesson_v1') {
+                $context = $service->forLesson((int) ($row->id ?? 0));
+            } else {
+                $context = array(
+                    'kind' => 'lesson',
+                    'state' => 'not_supported',
+                    'available' => false,
+                    'livekit_available' => false,
+                    'meet_available' => false,
+                    'lesson_id' => (int) ($row->id ?? 0),
+                    'confirmation_uid' => '',
+                );
+            }
+        } catch (\Throwable) {
+            $context = array('state' => 'unavailable', 'livekit_available' => false, 'meet_available' => false, 'kind' => $model === 'confirmed_intro_booking_v1' ? 'booking' : 'lesson', 'lesson_id' => (int) ($row->id ?? 0), 'confirmation_uid' => (string) ($row->confirmation_uid ?? ''));
+        }
+        self::$classroomCache[$key] = $context;
+        return $context;
+    }
+
+    private static function classroomStateTone(array $context): string {
+        if (!empty($context['livekit_available'])) return 'ready';
+        return in_array((string) ($context['state'] ?? ''), array('missing_schedule', 'not_joinable', 'not_supported', 'unavailable', 'not_found'), true) ? 'missing' : 'pending';
+    }
+
+    private static function livekitStateLabel(array $context): string {
+        if (!empty($context['livekit_available'])) return 'ready';
+        return match ((string) ($context['state'] ?? 'unavailable')) {
+            'missing_schedule' => 'schedule required',
+            'not_joinable' => 'not joinable',
+            'not_supported' => 'not available for this class type',
+            'not_found' => 'not provisioned',
+            default => 'unavailable',
+        };
+    }
+
+    private static function livekitUnavailableMessage(array $context): string {
+        return match ((string) ($context['state'] ?? 'unavailable')) {
+            'missing_schedule' => 'LiveKit needs a current class schedule before an administrator can test it. Open the class to schedule it.',
+            'not_joinable' => 'This class is not in an authorised state, so a LiveKit room cannot be opened.',
+            'not_supported' => 'LiveKit is available for canonical term lessons and confirmed introductory bookings only.',
+            'not_found' => 'No classroom resource is provisioned yet. Use the existing class or booking workflow to provision it.',
+            default => 'The classroom provisioning state could not be read. No link was invented.',
+        };
     }
 
     /** @return array{available:bool,today:list<object>,upcoming:list<object>,attention:list<object>,rows:list<object>} */
@@ -275,27 +420,124 @@ final class AcademyOperationsController {
 
     private static function financePanel(array $summary): void {
         $finance = $summary['finance'];
-        if (empty($finance['available']) && empty($finance['payments_available'])) return;
+        if (empty($finance['available']) && empty($finance['payments_available']) && empty($finance['cashbook_available']) && $finance['manual_accounts'] === null && empty($finance['monthly_available'])) return;
         $payments = (int) ($finance['payments_pending'] ?? 0);
         $statements = (int) ($finance['statements_open'] ?? 0);
         $payability = (int) ($finance['payability_pending'] ?? 0);
         $exceptions = (int) ($finance['exceptions_open'] ?? 0);
         $openWork = (!empty($finance['payments_available']) ? $payments : 0) + $statements + $payability + $exceptions;
-        echo '<section class="dzn-panel" id="dzn-finance"><div class="dzn-panel__head"><div><h2>Finance snapshot</h2><p>Only recorded finance facts are shown. Open the Finance workspace to review or act.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=payments')) . '">Open Finance →</a></div>';
-        if ($openWork < 1) {
-            echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No payment, statement, payability or finance-exception work is waiting.</p></section>';
+        echo '<section class="dzn-panel" id="dzn-finance"><div class="dzn-panel__head"><div><h2>Finance snapshot</h2><p>Two independent records: the manually maintained bookkeeping ledger and Stripe/Teacher payment activity. They are shown side by side and never combined into one balance.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=payments')) . '">Open Finance →</a></div>';
+        echo '<div class="dzn-finance-sources">';
+        self::manualFinanceSource($finance);
+        self::monthlyFinanceSource($finance);
+        echo '</div>';
+        if ($openWork > 0) {
+            echo '<details class="dzn-finance-work"><summary>Open finance work <span class="dzn-badge dzn-badge--gold">' . esc_html(number_format_i18n($openWork)) . '</span></summary><div class="dzn-finance-cards">';
+            if (!empty($finance['payments_available']) && $payments > 0) {
+                echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=payments')) . '"><strong>' . esc_html(number_format_i18n($payments)) . '</strong><span>Checkout sessions awaiting an outcome</span></a>';
+            }
+            if (!empty($finance['available'])) {
+                if ($statements > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=statements')) . '"><strong>' . esc_html(number_format_i18n($statements)) . '</strong><span>Open Teacher statements</span></a>';
+                if ($payability > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance-payability')) . '"><strong>' . esc_html(number_format_i18n($payability)) . '</strong><span>Lessons with pending payability</span></a>';
+                if ($exceptions > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance-reconciliation')) . '"><strong>' . esc_html(number_format_i18n($exceptions)) . '</strong><span>Open finance exceptions</span></a>';
+            }
+            echo '</div></details>';
+        } else {
+            echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No payment, statement, payability or finance-exception work is waiting.</p>';
+        }
+        echo '</section>';
+    }
+
+    /** Manual bookkeeping is displayed exactly as recorded by the existing cashbook authority. */
+    private static function manualFinanceSource(array $finance): void {
+        echo '<section class="dzn-finance-source dzn-finance-source--manual" aria-labelledby="dzn-manual-finance-title"><div class="dzn-finance-source__head"><div><h3 id="dzn-manual-finance-title">Manual bookkeeping</h3><p>Existing ledger in Iran and Australia. This source is not derived from Stripe.</p></div><span class="dzn-badge dzn-badge--teal">Manual</span></div>';
+        $accounts = $finance['manual_accounts'];
+        if ($accounts === null) {
+            echo '<p class="dzn-empty">Manual bookkeeping access is restricted for this account.</p></section>';
             return;
         }
-        echo '<div class="dzn-finance-cards">';
-        if (!empty($finance['payments_available']) && $payments > 0) {
-            echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=payments')) . '"><strong>' . esc_html(number_format_i18n($payments)) . '</strong><span>Payment sessions awaiting outcome</span></a>';
+        if (empty($finance['cashbook_available'])) {
+            echo '<p class="dzn-empty">The manual bookkeeping ledger is not available. No balance is shown rather than an invented zero.</p></section>';
+            return;
         }
-        if (!empty($finance['available'])) {
-            if ($statements > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=statements')) . '"><strong>' . esc_html(number_format_i18n($statements)) . '</strong><span>Open teacher statements</span></a>';
-            if ($payability > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance-payability')) . '"><strong>' . esc_html(number_format_i18n($payability)) . '</strong><span>Lessons with pending payability</span></a>';
-            if ($exceptions > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance-reconciliation')) . '"><strong>' . esc_html(number_format_i18n($exceptions)) . '</strong><span>Open finance exceptions</span></a>';
+        if (!$accounts) {
+            echo '<p class="dzn-empty">No manual bookkeeping accounts are available.</p></section>';
+            return;
         }
-        echo '</div></section>';
+        echo '<div class="dzn-finance-cards dzn-finance-cards--balances">';
+        foreach ($accounts as $account) {
+            $key = (string) ($account['key'] ?? '');
+            $currency = (string) ($account['currency'] ?? '');
+            $balance = (int) ($account['balance_minor'] ?? 0);
+            $label = $key === 'iran' ? 'Iran Balance' : ($key === 'australia' ? 'Australia Balance' : (string) ($account['label'] ?? 'Balance'));
+            $url = add_query_arg(array('page' => 'dzn-finance', 'tab' => 'ledger', 'account' => $key), admin_url('admin.php'));
+            echo '<a class="dzn-finance-card dzn-finance-card--balance" href="' . esc_url($url) . '"><span>' . esc_html($label) . '</span><strong>' . esc_html(OperationalCashRule::format($balance, $currency)) . '</strong><small>' . esc_html((string) ($account['currency_label'] ?? $currency)) . ' · Open ledger →</small></a>';
+        }
+        echo '</div><p class="dzn-finance-source__note">Click a balance to open the corresponding manual ledger. These figures update from the bookkeeping records only.</p></section>';
+    }
+
+    /** Stripe student activity and recorded Teacher payments, grouped by explicit currency. */
+    private static function monthlyFinanceSource(array $finance): void {
+        $monthly = $finance['monthly'];
+        echo '<section class="dzn-finance-source dzn-finance-source--payments" aria-labelledby="dzn-monthly-finance-title"><div class="dzn-finance-source__head"><div><h3 id="dzn-monthly-finance-title">Monthly payment activity</h3><p>';
+        if (is_array($monthly) && !empty($monthly['period_label'])) {
+            echo esc_html((string) $monthly['period_label']) . ' · ' . esc_html((string) ($monthly['timezone'] ?? 'UTC')) . ' · Stripe student payments and recorded Teacher payments.';
+        } else {
+            echo 'Current calendar month · Stripe student payments and recorded Teacher payments.';
+        }
+        echo '</p></div><span class="dzn-badge dzn-badge--gold">Stripe</span></div>';
+        if (empty($finance['monthly_available']) || !is_array($monthly)) {
+            echo '<p class="dzn-empty">' . (!empty($finance['monthly_error']) ? 'Monthly payment activity could not be read. No amount is shown rather than an incomplete total.' : 'Payment activity access is restricted for this account.') . '</p></section>';
+            return;
+        }
+        echo '<div class="dzn-finance-cards dzn-finance-cards--activity">';
+        $studentsPaid = $monthly['students_paid'] ?? null;
+        if ($studentsPaid !== null) {
+            echo '<div class="dzn-finance-card dzn-finance-card--activity"><span>Students Paid</span><strong>' . esc_html(number_format_i18n((int) $studentsPaid)) . '</strong><small>Distinct students with a confirmed Stripe payment this month</small></div>';
+        } else {
+            echo '<div class="dzn-finance-card dzn-finance-card--restricted"><span>Students Paid</span><strong>—</strong><small>Payment-activity access is required</small></div>';
+        }
+
+        $receipts = $monthly['student_receipts'] ?? null;
+        if ($receipts === null) {
+            echo '<div class="dzn-finance-card dzn-finance-card--restricted"><span>Student Receipts</span><strong>—</strong><small>Payment-activity access is required</small></div>';
+        } elseif (!$receipts) {
+            echo '<div class="dzn-finance-card dzn-finance-card--activity"><span>Student Receipts</span><strong>0</strong><small>No confirmed student receipts this month; no currency total is shown.</small></div>';
+        } else {
+            foreach ($receipts as $receipt) {
+                $currency = (string) ($receipt['currency'] ?? '');
+                $net = (int) ($receipt['net_minor'] ?? 0);
+                $gross = (int) ($receipt['gross_minor'] ?? 0);
+                $refunds = (int) ($receipt['refunds_minor'] ?? 0);
+                $detail = $refunds > 0
+                    ? self::money($gross, $currency) . ' gross − ' . self::money($refunds, $currency) . ' refunds'
+                    : 'Confirmed student charges recorded this month';
+                echo '<div class="dzn-finance-card dzn-finance-card--activity"><span>Student Receipts · ' . esc_html($currency) . '</span><strong>' . esc_html(self::money($net, $currency)) . '</strong><small>' . esc_html($detail) . '</small></div>';
+            }
+        }
+
+        $teacherAvailable = ($monthly['teacher_payments_available'] ?? true) !== false;
+        $teacherPayments = (array) ($monthly['teacher_payments'] ?? array());
+        if (!$teacherAvailable) {
+            echo '<div class="dzn-finance-card dzn-finance-card--restricted"><span>Teacher Payments</span><strong>—</strong><small>Finance authority is required</small></div>';
+        } elseif (!$teacherPayments) {
+            echo '<div class="dzn-finance-card dzn-finance-card--activity"><span>Teacher Payments</span><strong>0</strong><small>No statement settlement was recorded as paid this month; no currency total is shown.</small></div>';
+        } else {
+            foreach ($teacherPayments as $payment) {
+                $currency = (string) ($payment['currency'] ?? '');
+                $teachers = (int) ($payment['teachers'] ?? 0);
+                echo '<div class="dzn-finance-card dzn-finance-card--activity"><span>Teacher Payments · ' . esc_html($currency) . '</span><strong>' . esc_html(self::money((int) ($payment['amount_minor'] ?? 0), $currency)) . '</strong><small>' . esc_html(number_format_i18n($teachers)) . ' Teacher statement' . ($teachers === 1 ? '' : 's') . ' recorded paid</small></div>';
+            }
+        }
+        echo '</div><p class="dzn-finance-source__note">Student Receipts is confirmed Stripe student charges less accepted Stripe refunds recorded in the month; failed, pending, cancelled and checkout-only records are excluded. Teacher Payments counts only statements with a recorded settlement, not issued statements.</p></section>';
+    }
+
+    private static function money(int $minor, string $currency): string {
+        try {
+            return PricingMoney::format($minor, $currency);
+        } catch (\Throwable) {
+            return number_format($minor / 100, 2) . ' ' . strtoupper($currency);
+        }
     }
 
     private static function journeyQueue(array $result, string $query, string $stage, int $page, string $view): void {

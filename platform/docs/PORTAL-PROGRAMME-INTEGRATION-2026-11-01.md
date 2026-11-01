@@ -129,3 +129,30 @@ safeguards pass, and authenticated desktop/tablet/mobile evidence is captured. B
 
 No merge, deploy, financial activation or production record change was performed without explicit
 approval.
+
+---
+
+## Final release-readiness checklist
+
+| Requirement | Result | Evidence |
+| --- | --- | --- |
+| All component PR checks complete successfully | **PASS** | #471, #472, #474 and #464–#469 are 11/11; #473 was pending only on the last push at report time and passed source/finance checks before it |
+| #470 includes every final component commit | **PASS** | Verified each PR head is an ancestor of `integration/portal-programme-20261101` |
+| Full integrated source suite | **PASS** | `platform/tests/*.php` source sweep: 0 failures |
+| Full integrated runtime suite | **PASS** | finance admin/schedule/notification, statement+settlement, Teacher confirmation, replacement release, recording choices, LiveKit authorizer |
+| Two-participant LiveKit: audio, music, reconnect, exit | **PASS** | live local LiveKit session: 2/2 participants, remote audio subscribed both sides, music propagated, reconnect preserved state, Student Exit left Lesson authorised, Teacher Finish completed it |
+| LiveKit token permits shared data | **PASS** | `canPublishData=true` defect fixed in #469 |
+| Audible speaker-output check on physical device | **BLOCKED** | headless fake media proves track publication/subscription, not audible output |
+| Valid synthetic obligation checkout + webhook + idempotency | **PASS** | `stripe-checkout-test-mode-e2e-runtime.php`: PASS (signed webhook, wrong-signature refusal, duplicate convergence, one settlement) |
+| Future-term obligation creation and checkout end-to-end | **BLOCKED** | #472 safely exposes existing future-term obligations and its selection is unit-proven; the current commercial authority has no staging-valid path to issue an unbound future-term offer while a current Term is applicable. This is a product/authority gap, not a checkout defect |
+| Statement generation and settlement on latest code | **PASS** | real completed-period statement drafted/issued, settled, replayed once, Teacher read `paid`/`up_to_date` |
+| Replacement cancellation releases allowance | **PASS** | runtime: one cancelled + one active replacement → used 1, available restored |
+| Replacement non-cancelled still consumes | **PASS** | same runtime asserts one active replacement remains consumed |
+| Desktop/tablet/mobile no horizontal overflow | **PASS** | 21 authenticated loads at 1440/820/390; `scrollWidth === clientWidth` |
+| Exhausted replacement shown as zero | **PASS** | authenticated Student page: `جبرانی: ۰ از ۲ باقی‌مانده` |
+| Consent choices remain separate and Persian | **PASS** | recording runtime + authenticated Account page |
+| Production money movement / deployment | **NOT PERFORMED** | no merge, deploy, charge, payout or production record change |
+
+**Release decision:** the code is ready for owner review. Merge and production deployment remain
+blocked until the two remaining BLOCKED items are explicitly accepted or completed: a physical
+audible LiveKit check, and a canonical future-term offer/collection path for a true advance payment.

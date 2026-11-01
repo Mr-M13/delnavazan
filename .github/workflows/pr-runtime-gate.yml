@@ -522,6 +522,24 @@ jobs:
           DZN_COMPOSE_PROJECT: dzn-finance-runtime
           DZN_WP_PORT: 18085
         run: platform/runtime/bin/run-finance-manual-payment-runtime.sh
+      - name: Run refund concurrency and recovery lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-finance-runtime
+          DZN_COMPOSE_PROJECT: dzn-finance-runtime
+          DZN_WP_PORT: 18085
+        run: platform/runtime/bin/run-finance-refund-concurrency.sh
+      - name: Run statement email outbox lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-finance-runtime
+          DZN_COMPOSE_PROJECT: dzn-finance-runtime
+          DZN_WP_PORT: 18085
+        run: platform/runtime/bin/run-finance-statement-email-runtime.sh
+      - name: Run monthly statement schedule lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-finance-runtime
+          DZN_COMPOSE_PROJECT: dzn-finance-runtime
+          DZN_WP_PORT: 18085
+        run: platform/runtime/bin/run-finance-schedule-runtime.sh
       - name: Dispose runtime
         if: always()
         env:

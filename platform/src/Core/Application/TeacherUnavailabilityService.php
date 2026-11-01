@@ -19,6 +19,8 @@ final class TeacherUnavailabilityService {
     private const CAPABILITY = 'dzn_manage_teacher_availability';
     private const REASON = 'temporary_unavailability';
     private const MAX_DAYS = 366;
+    private const OPEN_CONFLICT_HORIZON_DAYS = 730;
+    private const OPEN_REASON = 'temporary_unavailability_open';
 
     public function __construct(
         private ?TeacherAvailabilityRepository $availability = null,
@@ -28,7 +30,7 @@ final class TeacherUnavailabilityService {
         $this->audit ??= new PrincipalInvitationRepository();
     }
 
-    /** @return array{teacher:object,profile:object,timezone:string,from:string,to:string,start_utc:string,end_utc:string,conflicts:list<array<string,mixed>>} */
+    /** @return array{teacher:object,profile:object,timezone:string,from:string,to:string,open_ended:bool,start_utc:string,end_utc:string,conflict_horizon:string,conflicts:list<array<string,mixed>>} */
     public function preview(int $teacherId, string $from, string $to = ''): array {
         $this->authorize();
         $teacher = $this->teacher($teacherId);
@@ -38,10 +40,11 @@ final class TeacherUnavailabilityService {
         $zone = new \DateTimeZone($timezone);
         $today = new \DateTimeImmutable('today', $zone);
         $start = $this->localDate($from, $zone);
-        $end = $to === '' ? $start->modify('+' . (90 - 1) . ' days') : $this->localDate($to, $zone);
+        $openEnded = trim($to) === '';
+        $end = $openEnded ? $start->modify('+' . (self::OPEN_CONFLICT_HORIZON_DAYS - 1) . ' days') : $this->localDate($to, $zone);
         if ($end < $start) throw new \InvalidArgumentException('The unavailable period must end on or after its start date');
         if ($start < $today) throw new \InvalidArgumentException('A temporary unavailable period cannot begin in the past');
-        if ($start->diff($end)->days + 1 > self::MAX_DAYS) throw new \InvalidArgumentException('A temporary unavailable period cannot exceed ' . self::MAX_DAYS . ' days');
+        if (!$openEnded && $start->diff($end)->days + 1 > self::MAX_DAYS) throw new \InvalidArgumentException('A bounded temporary unavailable period cannot exceed ' . self::MAX_DAYS . ' days');
         $startUtc = $start->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $endUtc = $end->modify('+1 day')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         return array(
@@ -49,9 +52,11 @@ final class TeacherUnavailabilityService {
             'profile' => $profile,
             'timezone' => $timezone,
             'from' => $start->format('Y-m-d'),
-            'to' => $end->format('Y-m-d'),
+            'to' => $openEnded ? '' : $end->format('Y-m-d'),
+            'open_ended' => $openEnded,
             'start_utc' => $startUtc,
             'end_utc' => $endUtc,
+            'conflict_horizon' => $end->format('Y-m-d'),
             'conflicts' => $this->conflicts($teacherId, $startUtc, $endUtc),
         );
     }
@@ -70,30 +75,47 @@ final class TeacherUnavailabilityService {
         $days = 0;
         $this->availability->begin();
         try {
-            $start = new \DateTimeImmutable($preview['from'], $zone);
-            $end = new \DateTimeImmutable($preview['to'], $zone);
-            for ($date = $start; $date <= $end; $date = $date->modify('+1 day')) {
+            $this->deactivateTemporaryExceptions($teacherId, $now, $actor);
+            if ($preview['open_ended']) {
                 $this->availability->saveException(array(
                     'teacher_id' => $teacherId,
                     'profile_id' => (int) $profile->id,
-                    'local_date' => $date->format('Y-m-d'),
+                    'local_date' => $preview['from'],
                     'all_day' => 1,
                     'local_start_time' => '00:00:00',
                     'local_end_time' => '00:00:00',
                     'state' => 'blocked',
                     'timezone' => $timezone,
                     'status' => 'active',
-                    'reason_code' => self::REASON,
+                    'reason_code' => self::OPEN_REASON,
                 ), $now, $actor);
-                $days++;
+            } else {
+                $start = new \DateTimeImmutable($preview['from'], $zone);
+                $end = new \DateTimeImmutable($preview['to'], $zone);
+                for ($date = $start; $date <= $end; $date = $date->modify('+1 day')) {
+                    $this->availability->saveException(array(
+                        'teacher_id' => $teacherId,
+                        'profile_id' => (int) $profile->id,
+                        'local_date' => $date->format('Y-m-d'),
+                        'all_day' => 1,
+                        'local_start_time' => '00:00:00',
+                        'local_end_time' => '00:00:00',
+                        'state' => 'blocked',
+                        'timezone' => $timezone,
+                        'status' => 'active',
+                        'reason_code' => self::REASON,
+                    ), $now, $actor);
+                    $days++;
+                }
             }
-            $this->audit->audit('teacher', $teacherId, 'teacher.unavailability_scheduled', $actor, hash('sha256', 'teacher-unavailability:' . $teacherId . ':' . $preview['from'] . ':' . $preview['to'] . ':' . wp_generate_uuid4()), substr('reason=' . $reason . ';days=' . $days, 0, 191));
+            $mode = $preview['open_ended'] ? 'open_ended' : 'bounded';
+            $this->audit->audit('teacher', $teacherId, 'teacher.unavailability_scheduled', $actor, hash('sha256', 'teacher-unavailability:' . $teacherId . ':' . $preview['from'] . ':' . $preview['to'] . ':' . $mode . ':' . wp_generate_uuid4()), substr('reason=' . $reason . ';mode=' . $mode . ';days=' . $days . ';conflict_horizon=' . $preview['conflict_horizon'], 0, 191));
             $this->availability->commit();
         } catch (\Throwable $error) {
             $this->availability->rollback();
             throw $error;
         }
-        return array('days' => $days, 'from' => $preview['from'], 'to' => $preview['to'], 'conflicts' => $preview['conflicts']);
+        return array('days' => $days, 'from' => $preview['from'], 'to' => $preview['to'], 'open_ended' => $preview['open_ended'], 'conflicts' => $preview['conflicts']);
     }
 
     /** Reactivation removes only future temporary-unavailability exceptions; it never rewrites history. */
@@ -110,12 +132,12 @@ final class TeacherUnavailabilityService {
         $this->availability->begin();
         try {
             $count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table} WHERE teacher_id=%d AND status='active' AND state='blocked' AND reason_code=%s AND local_date>=%s",
-                $teacherId, self::REASON, $today
+                "SELECT COUNT(*) FROM {$table} WHERE teacher_id=%d AND status='active' AND state='blocked' AND reason_code IN (%s,%s) AND (local_date>=%s OR reason_code=%s)",
+                $teacherId, self::REASON, self::OPEN_REASON, $today, self::OPEN_REASON
             ));
             $changed = $wpdb->query($wpdb->prepare(
-                "UPDATE {$table} SET status='inactive',reason_code='teacher_reactivated',version=version+1,updated_at=%s,updated_by=%d WHERE teacher_id=%d AND status='active' AND state='blocked' AND reason_code=%s AND local_date>=%s",
-                $now, (int) $actor, $teacherId, self::REASON, $today
+                "UPDATE {$table} SET status='inactive',reason_code='teacher_reactivated',version=version+1,updated_at=%s,updated_by=%d WHERE teacher_id=%d AND status='active' AND state='blocked' AND reason_code IN (%s,%s) AND (local_date>=%s OR reason_code=%s)",
+                $now, (int) $actor, $teacherId, self::REASON, self::OPEN_REASON, $today, self::OPEN_REASON
             ));
             if ($changed === false) throw new \RuntimeException('Temporary availability could not be cleared.');
             $this->audit->audit('teacher', $teacherId, 'teacher.unavailability_cleared', $actor, hash('sha256', 'teacher-unavailability-clear:' . $teacherId . ':' . $now . ':' . wp_generate_uuid4()), 'reason=teacher_reactivated;exceptions=' . $count);
@@ -125,6 +147,16 @@ final class TeacherUnavailabilityService {
             throw $error;
         }
         return max(0, $count);
+    }
+
+    private function deactivateTemporaryExceptions(int $teacherId, string $now, ?int $actor): void {
+        global $wpdb;
+        $table = $wpdb->prefix . 'dzn_teacher_availability_exceptions';
+        $changed = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET status='inactive',reason_code='teacher_unavailability_replaced',version=version+1,updated_at=%s,updated_by=%d WHERE teacher_id=%d AND status='active' AND state='blocked' AND reason_code IN (%s,%s)",
+            $now, (int) $actor, $teacherId, self::REASON, self::OPEN_REASON
+        ));
+        if ($changed === false) throw new \RuntimeException('Existing temporary availability could not be replaced.');
     }
 
     /** @return list<array<string,mixed>> */

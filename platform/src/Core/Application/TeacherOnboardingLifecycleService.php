@@ -179,7 +179,9 @@ final class TeacherOnboardingLifecycleService {
     }
 
     private function isExclusiveOnboardingAccount(int $userId, object $user): bool {
-        $roles = array_values(array_diff((array) $user->roles, array('dzn_teacher', 'subscriber')));
+        // Any additional role — including WordPress's default subscriber role — is
+        // an unrelated relationship and forbids account deletion.
+        $roles = array_values(array_diff((array) $user->roles, array('dzn_teacher')));
         if ($roles !== array()) return false;
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';

@@ -118,6 +118,9 @@ final class ScreenController {
             'reset_teacher_onboarding' => 'dzn_manage_onboarding',
             'save_teacher_rate' => 'dzn_manage_teacher_rates',
             'draft_teacher_statement', 'issue_teacher_statement', 'record_teacher_statement_payment' => 'dzn_manage_finance_statements',
+            'resolve_teacher_attendance' => 'dzn_manage_canonical_attendance_review',
+            'confirm_teacher_reschedule', 'cancel_teacher_reschedule' => 'dzn_manage_lessons',
+            'pause_teacher_student', 'resume_teacher_student' => 'dzn_manage_canonical_enrolment_lifecycle',
             default => '',
         };
     }
@@ -164,6 +167,11 @@ final class ScreenController {
                 'draft_teacher_statement' => self::draftTeacherStatement($post),
                 'issue_teacher_statement' => self::issueTeacherStatement($post),
                 'record_teacher_statement_payment' => self::recordTeacherStatementPayment($post),
+                'resolve_teacher_attendance' => self::resolveTeacherAttendance($post),
+                'confirm_teacher_reschedule' => self::teacherRescheduleDecision($post, 'confirm'),
+                'cancel_teacher_reschedule' => self::teacherRescheduleDecision($post, 'cancel'),
+                'pause_teacher_student' => self::teacherStudentLifecycle($post, 'pause'),
+                'resume_teacher_student' => self::teacherStudentLifecycle($post, 'resume'),
                 'create_student' => (new StudentService())->create(self::createPayload('student', $post)),
                 'create_instrument' => (new CatalogueService())->setupInstrument(self::createPayload('instrument', $post))['instrument_id'],
                 'create_course' => (new CatalogueService())->course(self::createPayload('course', $post)),
@@ -196,7 +204,7 @@ final class ScreenController {
                 default => throw new \InvalidArgumentException('Unsupported action'),
             };
             NonceLifecycleDiagnostic::logStage('mutation_complete');
-            $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','remove_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule','set_availability_exception','retire_teacher_availability_rule','retire_teacher_availability_exception','apply_teacher_unavailability','clear_teacher_unavailability','revoke_remove_teacher_invitation','reset_teacher_onboarding','save_teacher_rate','draft_teacher_statement','issue_teacher_statement','record_teacher_statement_payment'];
+            $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','remove_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule','set_availability_exception','retire_teacher_availability_rule','retire_teacher_availability_exception','apply_teacher_unavailability','clear_teacher_unavailability','revoke_remove_teacher_invitation','reset_teacher_onboarding','save_teacher_rate','draft_teacher_statement','issue_teacher_statement','record_teacher_statement_payment','resolve_teacher_attendance','confirm_teacher_reschedule','cancel_teacher_reschedule','pause_teacher_student','resume_teacher_student'];
             $teacherLifecycleAction=in_array($action,['archive','restore'],true)&&sanitize_key($post['entity']??'')==='teacher';
             $currentPage=sanitize_key(wp_unslash($_GET['page']??''));
             $teacherRemoved=$action==='revoke_remove_teacher_invitation';
@@ -340,6 +348,45 @@ final class ScreenController {
     private static function linkTeacherPrincipal(array $post): int { $teacherId=absint($post['teacher_id']??0); (new \Delnavazan\Platform\Core\Application\PrincipalInvitationService())->linkExistingPrincipal($teacherId,absint($post['wordpress_user_id']??0)); return $teacherId; }
     private static function offboardTeacherPrincipal(array $post): int { (new \Delnavazan\Platform\Core\Application\PrincipalInvitationService())->offboard(absint($post['teacher_id']??0),'admin_offboarded'); return absint($post['teacher_id']??0); }
     private static function reviewTeacherOnboarding(array $post,string $decision):int{$teacherId=absint($post['teacher_id']??0);(new \Delnavazan\Platform\Core\Application\TeacherOnboardingService())->review($teacherId,$decision,sanitize_key($post['reason_code']??''));return$teacherId;}
+
+    private static function resolveTeacherAttendance(array $post): int {
+        $teacherId = absint($post['teacher_id'] ?? 0);
+        $caseId = absint($post['case_id'] ?? 0);
+        $version = absint($post['expected_case_version'] ?? 0);
+        $operation = sanitize_key((string) ($post['review_operation'] ?? ''));
+        $key = sanitize_text_field((string) ($post['operator_key'] ?? ''));
+        if ($key === '') $key = wp_generate_uuid4();
+        $service = new \Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService();
+        if ($operation === 'reassess') $service->reassess($caseId, array('expected_case_version' => $version), $key);
+        else $service->adjudicate($caseId, array('expected_case_version' => $version, 'adjudication' => $operation), $key);
+        return $teacherId;
+    }
+
+    private static function teacherRescheduleDecision(array $post, string $operation): int {
+        $teacherId = absint($post['teacher_id'] ?? 0);
+        $proposalUid = sanitize_text_field((string) ($post['proposal_uid'] ?? ''));
+        $key = sanitize_text_field((string) ($post['decision_key'] ?? ''));
+        if (strlen($key) < 16) $key = wp_generate_uuid4();
+        $service = new \Delnavazan\Platform\Core\Application\LessonRescheduleService();
+        if ($operation === 'confirm') $service->confirmAsAdministrator($proposalUid, $key);
+        else $service->cancelAsAdministrator($proposalUid, $key);
+        return $teacherId;
+    }
+
+    private static function teacherStudentLifecycle(array $post, string $operation): int {
+        $teacherId = absint($post['teacher_id'] ?? 0);
+        $enrolmentId = absint($post['enrolment_id'] ?? 0);
+        $expected = sanitize_key((string) ($post['expected_state'] ?? ''));
+        $service = new \Delnavazan\Platform\Core\Application\CanonicalEnrolmentLifecycleService();
+        $evidence = array(
+            'evidence_channel' => 'authenticated_platform',
+            'evidence_reference' => 'teacher-workspace-' . $operation . ':' . $enrolmentId . ':' . wp_generate_uuid4(),
+            'evidence_at' => gmdate('Y-m-d H:i:s'),
+        );
+        if ($operation === 'pause') $service->pause($enrolmentId, $expected, $evidence, 'teacher-workspace-pause-' . wp_generate_uuid4());
+        else $service->resume($enrolmentId, $expected, $evidence, 'teacher-workspace-resume-' . wp_generate_uuid4());
+        return $teacherId;
+    }
 
     private static function removeTeacherCourseEligibility(array $post): int {
         (new \Delnavazan\Platform\Core\Application\TeachingEligibilityService())->setEligibility(array_merge($post, array(

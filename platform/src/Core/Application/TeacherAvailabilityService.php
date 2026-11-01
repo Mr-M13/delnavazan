@@ -105,6 +105,14 @@ final class TeacherAvailabilityService {
             }
         }
         foreach ( $exceptions as $exception ) { $exceptionTimezone = $this->authorityTimezone( $exception->timezone ?? null ); $interval = (int) $exception->all_day === 1 ? AvailabilityLocalTime::fullDay( (string) $exception->local_date, $exceptionTimezone ) : AvailabilityLocalTime::interval( (string) $exception->local_date, (string) $exception->local_start_time, (string) $exception->local_end_time, $exceptionTimezone ); $this->append( $facts, $interval, (string) $exception->state, 'exception', (int) $exception->id ); }
+        // An open-ended temporary unavailability is one durable sentinel row. It blocks every
+        // future occurrence from its local start date until an administrator reactivates the
+        // Teacher; it never rewrites weekly rules or historical facts.
+        foreach ( $this->repo->openEndedExceptions( $teacher ) as $exception ) {
+            $exceptionTimezone = $this->authorityTimezone( $exception->timezone ?? null );
+            $start = AvailabilityLocalTime::fullDay( (string) $exception->local_date, $exceptionTimezone );
+            $this->append( $facts, array( 'starts_at_utc' => $start['starts_at_utc'], 'ends_at_utc' => '9999-12-31 00:00:00' ), 'blocked', 'exception', (int) $exception->id );
+        }
         return $this->resolve( $facts, $from, $until );
     }
 

@@ -217,7 +217,7 @@ final class AcademyOperationsController {
         if (!empty($_GET['classroom_status'])) self::classroomNotice((string) $_GET['classroom_status']);
         echo '<div class="dzn-dash-grid' . ($showSchedule && $showAttention ? '' : ' dzn-dash-grid--single') . '">';
         if ($showSchedule) {
-            echo '<section class="dzn-panel" id="dzn-academy-today-upcoming"><div class="dzn-panel__head"><div><h2>Today’s classes</h2><p>Today and upcoming lessons from the existing Classes read model. Administrators can test LiveKit and the backup Google Meet before the participant joining window opens.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open Classes →</a></div>';
+            echo '<section class="dzn-panel" id="dzn-academy-today-upcoming"><div class="dzn-panel__head"><div><h2>Today’s classes <span class="screen-reader-text">Today and upcoming lessons</span></h2><p>Today and upcoming lessons from the existing Classes read model. Administrators can test LiveKit and the backup Google Meet before the participant joining window opens.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open Classes →</a></div>';
             if (!$state['today'] && !$state['upcoming']) {
                 echo '<p class="dzn-empty">No scheduled classes are currently visible in the Classes workflow.</p>';
             } else {

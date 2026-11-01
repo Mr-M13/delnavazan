@@ -2360,3 +2360,15 @@
     scroll-margin-block-start: calc(56px + env(safe-area-inset-top) + 1rem);
   }
 }
+
+/* First-time setup uses the same account workspace as the active Teacher portal. */
+.dzn-tp-account-setup{background:linear-gradient(135deg,color-mix(in srgb,var(--dzn-color-action-primary) 8%,var(--dzn-tp-card)),var(--dzn-tp-card))}
+.dzn-tp-setup-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-block-start:1rem}
+.dzn-tp-setup-progress a{display:grid;grid-template-columns:auto 1fr;gap:.15rem .65rem;align-items:center;padding:.85rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card);color:var(--dzn-color-text-primary);text-decoration:none}
+.dzn-tp-setup-progress a>span{grid-row:1/3;display:grid;place-items:center;inline-size:2rem;block-size:2rem;border-radius:50%;background:var(--dzn-color-surface-sunken);font-weight:800}
+.dzn-tp-setup-progress a>small{color:var(--dzn-color-text-muted)}
+.dzn-tp-setup-progress a.is-current{border-color:var(--dzn-color-action-primary)}
+.dzn-tp-setup-progress a.is-current>span{background:var(--dzn-color-action-primary);color:var(--dzn-color-on-action)}
+.dzn-tp-setup-progress a.is-complete>span{background:color-mix(in srgb,var(--dzn-color-action-primary) 14%,transparent);color:var(--dzn-color-action-primary)}
+.dzn-tp-setup-progress a.is-pending{opacity:.72}
+@media (max-width:47.99rem){.dzn-tp-setup-progress{grid-template-columns:1fr}}

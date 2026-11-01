@@ -278,6 +278,7 @@ jobs:
           php platform/tests/teacher-statement-email-unit.php
           php platform/tests/student-payment-history-contract.php
           php platform/tests/finance-schedule-export-contract.php
+          php platform/tests/finance-notification-contract.php
           php platform/tests/post-intro-fulfilment-unit.php
           php platform/tests/post-payment-fulfilment-contract.php
           php platform/tests/presentation-contract-inventory-contract.php
@@ -540,6 +541,12 @@ jobs:
           DZN_COMPOSE_PROJECT: dzn-finance-runtime
           DZN_WP_PORT: 18085
         run: platform/runtime/bin/run-finance-schedule-runtime.sh
+      - name: Run finance notification outbox lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-finance-runtime
+          DZN_COMPOSE_PROJECT: dzn-finance-runtime
+          DZN_WP_PORT: 18085
+        run: platform/runtime/bin/run-finance-notification-runtime.sh
       - name: Dispose runtime
         if: always()
         env:

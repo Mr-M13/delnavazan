@@ -114,7 +114,8 @@ dzn_rda_ui_assert($statusModel['status']==='','the confirmation status must be c
 $_SERVER['REQUEST_URI']='/recording-and-research/';
 dzn_rda_ui_assert(dzn_theme_route()==='recording-and-research','the canonical information URL must resolve as a public route');
 ob_start();dzn_theme_render_recording_information_route();$infoHtml=(string)ob_get_clean();
-foreach(array('Recording and research information','Mbox local processing','currently disabled','link pending approval','lang="fa"','lang="en"')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+foreach(array('Recording and research information','Learning riz: the journey matters','currently disabled','lang="fa"','lang="en"','project-source-1','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+dzn_rda_ui_assert(!str_contains($infoHtml,'<form'),'Project explanation must not collect permission or activate capture');
 $pageId=wp_insert_post(array('post_type'=>'page','post_name'=>'recording-and-research','post_status'=>'publish','post_title'=>'Recording and research information'));
 dzn_rda_ui_assert(!is_wp_error($pageId)&&$pageId>0,'fixture information page failed');
 dzn_rda_ui_assert(dzn_theme_route()==='','a published editor-managed page must take over the canonical slug');

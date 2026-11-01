@@ -54,6 +54,8 @@ button sends the same canonical endpoint and accepts the new `class_completed` s
   `phase-2a2w-theme-isolation-contract`, `teacher-maintenance-invitation-honesty-contract`.
 - Disposable WordPress/MariaDB acceptance:
   - `acceptance/make smoke` authenticated login/routing smoke: **pass**.
+  - Authenticated GET of `/teacher-portal/` and `/student-portal/` with the seeded synthetic
+    identities: HTTP 200, no PHP fatal/critical error.
   - Phase-J fixture + `platform/tests/teacher-delivery-confirmation-runtime.php`: **pass**.
     Proves real locks, delivered outcome, Lesson completion, replay convergence and non-owner refusal.
 - Targeted contracts: teacher Today/Classes/Settings, portal identity, finance reconciliation,

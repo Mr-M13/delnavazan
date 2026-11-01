@@ -11,7 +11,7 @@ ledger contains `064_teacher_induction_progress` and `{prefix}dzn_teacher_induct
 
 ## Release 2026-10-31 — Teacher availability and finance transparency
 
-The Teacher Portal now records positive teaching availability only, integrates Teacher-local Golden Hours with a consolidated capacity summary, reuses public booking instrument artwork, and removes redundant presentation cards. Both authenticated portals share a read-only illustrative paid-term allocation component with exact minor-unit reconciliation and an explicit 1% unallocated row. Payment execution, invoices, receipts, teacher statements and settlements are unchanged. See `platform/docs/RELEASE-2026-10-31-TEACHER-AVAILABILITY-FINANCE-TRANSPARENCY.md`.
+The Teacher Portal now records positive teaching availability only, integrates Teacher-local Golden Hours with a consolidated capacity summary, reuses public booking instrument artwork, and removes redundant presentation cards. Both authenticated portals share a read-only, percentages-only illustrative tuition allocation component; its approved categories total 100% and it no longer exposes term amounts. Payment execution, invoices, receipts, teacher statements and settlements are unchanged. See `platform/docs/RELEASE-2026-10-31-TEACHER-AVAILABILITY-FINANCE-TRANSPARENCY.md`.
 
 The private `Mr-M13/delnavazan` monorepo is the canonical source of truth.
 

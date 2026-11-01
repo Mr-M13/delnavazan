@@ -89,16 +89,6 @@ $render_items = static function ( array $rows ): void {
 		</div>
 		<span class="dzn-status dzn-status--muted"><?php echo $disabled ? esc_html__( 'پرداخت آنلاین غیرفعال', 'delnavazan-theme' ) : ( $unavailable ? esc_html__( 'در دسترس نیست', 'delnavazan-theme' ) : esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ) ); ?></span>
 	</div>
-	<?php if ( $disabled || $unavailable ) : ?>
-		<p class="dzn-portal-empty"><?php echo esc_html( $disabled ? 'پرداخت آنلاین برای این حساب فعال نیست و مدیریت مالی از طریق دلنوازان انجام می‌شود. برای هر پرداخت یا صورتحساب با پشتیبانی تماس بگیرید.' : (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
-		<section class="dzn-payments__history" aria-labelledby="dzn-payment-history-title">
-			<h3 id="dzn-payment-history-title"><?php esc_html_e( 'سابقهٔ پرداخت', 'delnavazan-theme' ); ?></h3>
-			<?php $render_history( $history_available ? $history_items : array() ); ?>
-		</section>
-	<?php else : ?>
-	<div class="dzn-payments__summary">
-		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( (string) ( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ) ); ?></p></div>
-	</div>
 	<?php
 	/*
 	 * Advance payment is only a presentation of an already-issued future-Term obligation.
@@ -117,6 +107,16 @@ $render_items = static function ( array $rows ): void {
 			<button class="dzn-button dzn-button--secondary" type="button" disabled aria-describedby="dzn-future-term-note"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده', 'delnavazan-theme' ); ?></button>
 			<p id="dzn-future-term-note" class="dzn-portal-help"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده زمانی فعال می‌شود که تعهد ترم آینده از سوی آموزشگاه در سامانه صادر شود. تا آن زمان این پرداخت در دسترس نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p>
 		<?php endif; ?>
+	</div>
+	<?php if ( $disabled || $unavailable ) : ?>
+		<p class="dzn-portal-empty"><?php echo esc_html( $disabled ? 'پرداخت آنلاین برای این حساب فعال نیست و مدیریت مالی از طریق دلنوازان انجام می‌شود. برای هر پرداخت یا صورتحساب با پشتیبانی تماس بگیرید.' : (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
+		<section class="dzn-payments__history" aria-labelledby="dzn-payment-history-title">
+			<h3 id="dzn-payment-history-title"><?php esc_html_e( 'سابقهٔ پرداخت', 'delnavazan-theme' ); ?></h3>
+			<?php $render_history( $history_available ? $history_items : array() ); ?>
+		</section>
+	<?php else : ?>
+	<div class="dzn-payments__summary">
+		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( (string) ( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ) ); ?></p></div>
 	</div>
 	<?php if ( $checkout_enabled ) : ?>
 		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">

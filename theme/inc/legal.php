@@ -245,8 +245,9 @@ function dzn_theme_render_legal_pending_page( $slug ) {
 		return;
 	}
 
-	$contact_email = 'delnavazan@mail.com';
-	$contact_phone = '+61 413 413 004';
+	$brand         = dzn_theme_brand_identity();
+	$contact_email = (string) $brand['support_email'];
+	$contact_phone = (string) $brand['phone_display'];
 	?>
 	<main id="main-content" class="site-main dzn-container dzn-route dzn-legal-pending" tabindex="-1">
 		<section class="dzn-legal-pending__card" aria-labelledby="dzn-legal-pending-title">
@@ -255,7 +256,8 @@ function dzn_theme_render_legal_pending_page( $slug ) {
 			<p class="dzn-legal-pending__lead">این سند برای بازبینی حقوقی آماده شده است، اما متن نهایی آن هنوز منتشر نشده است. تا زمان تأیید هویت اپراتور، شرایط مصرف‌کننده و الزامات قانونی، هیچ شرایط حقوقی الزام‌آوری در این صفحه نمایش داده نمی‌شود.</p>
 			<p>اگر برای ثبت‌نام، پرداخت یا درخواست حقوق خود به این سند نیاز دارید، لطفاً پیش از هر اقدام با دلنوازان تماس بگیرید تا نسخهٔ تأییدشده در اختیار شما قرار گیرد.</p>
 			<ul class="dzn-legal-pending__contacts">
-				<li>واتساپ: <a href="https://wa.me/61413413004" target="_blank" rel="noopener noreferrer" dir="ltr"><?php echo esc_html( $contact_phone ); ?></a></li>
+				<li>واتساپ: <a href="<?php echo esc_url( $brand['whatsapp_url'] ); ?>" target="_blank" rel="noopener noreferrer" dir="ltr"><?php echo esc_html( $contact_phone ); ?></a></li>
+				<li>تلفن: <a href="<?php echo esc_url( $brand['phone_href'] ); ?>" dir="ltr"><?php echo esc_html( $contact_phone ); ?></a></li>
 				<li>ایمیل: <a href="mailto:<?php echo esc_attr( $contact_email ); ?>" dir="ltr"><?php echo esc_html( $contact_email ); ?></a></li>
 			</ul>
 			<nav class="dzn-legal-pending__nav" aria-label="<?php esc_attr_e( 'سایر اسناد حقوقی', 'delnavazan-theme' ); ?>">

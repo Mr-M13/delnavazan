@@ -179,14 +179,14 @@ function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 		array( 'ref'=>'CLS-01','start_available'=>true,'details_available'=>true,'student_summary'=>'هنرجوی ترم نخست','schedule_summary'=>'امروز ۱۰:۰۰، زمان تهران','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'upcoming', 'time' => '۱۰:۰۰', 'date' => 'امروز', 'student' => 'هلیا', 'course' => 'سه‌تار', 'progress' => 'ترم ۱ · جلسهٔ ۲/۱۲', 'status' => 'پیش رو' ),
 		array( 'ref'=>'CLS-02','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'starting_soon', 'time' => '۱۱:۳۰', 'date' => 'امروز', 'student' => 'پارسا', 'course' => 'پیانو', 'progress' => 'ترم ۲ · جلسهٔ ۷/۱۲', 'status' => 'به‌زودی شروع می‌شود' ),
 		array( 'ref'=>'CLS-03','start_available'=>false,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'student_absence', 'time' => '۱۴:۰۰', 'date' => 'امروز', 'student' => 'مهتاب', 'course' => 'سنتور', 'progress' => 'ترم ۱ · جلسهٔ ۵/۱۲', 'status' => 'غیبت اطلاع داده شده' ),
-		array( 'ref'=>'CLS-04','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'replacement', 'time' => '۱۶:۳۰', 'date' => 'فردا', 'student' => 'نوید', 'course' => 'تار', 'progress' => 'جلسهٔ جایگزین مجاز', 'status' => 'جایگزین' ),
+		array( 'ref'=>'CLS-04','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'replacement', 'time' => '۱۶:۳۰', 'date' => 'فردا', 'student' => 'نوید', 'course' => 'تار', 'progress' => 'جلسهٔ جبرانی مجاز', 'status' => 'جایگزین' ),
 		array( 'ref'=>'CLS-05','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'intro', 'time' => '۱۸:۰۰', 'date' => 'دوشنبه', 'student' => 'ساغر', 'course' => 'کمانچه', 'progress' => 'کلاس آشنایی', 'status' => 'آشنایی' ),
 		array( 'ref'=>'CLS-06','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'flexible', 'time' => '۲۰:۰۰', 'date' => 'سه‌شنبه', 'student' => 'آوا', 'course' => 'دف', 'progress' => 'ترم انعطاف‌پذیر', 'status' => 'زمان هماهنگ‌شده' ),
 	);
 	return array_merge( $base, array(
 		'announcement' => array( 'state' => 'technical', 'title' => 'یادآوری فنی', 'message' => 'پیش از نخستین کلاس، صدا و تنظیمات موسیقی را بررسی کنید.' ),
 		'attention' => $attention, 'classes' => $classes,
-		'calendar' => array( array( 'day' => 'فردا', 'time' => '۱۷:۰۰', 'label' => 'کلاس معمول · سه‌تار', 'state' => 'regular' ), array( 'day' => 'دوشنبه', 'time' => '۱۸:۳۰', 'label' => 'کلاس آشنایی · پیانو', 'state' => 'intro' ), array( 'day' => 'سه‌شنبه', 'time' => '۲۰:۰۰', 'label' => 'جلسهٔ جایگزین · تار', 'state' => 'replacement' ), array( 'day' => 'چهارشنبه', 'time' => '۱۶:۰۰', 'label' => 'غیبت اطلاع‌داده‌شده · سنتور', 'state' => 'student_absence' ) ),
+		'calendar' => array( array( 'day' => 'فردا', 'time' => '۱۷:۰۰', 'label' => 'کلاس معمول · سه‌تار', 'state' => 'regular' ), array( 'day' => 'دوشنبه', 'time' => '۱۸:۳۰', 'label' => 'کلاس آشنایی · پیانو', 'state' => 'intro' ), array( 'day' => 'سه‌شنبه', 'time' => '۲۰:۰۰', 'label' => 'جلسهٔ جبرانی · تار', 'state' => 'replacement' ), array( 'day' => 'چهارشنبه', 'time' => '۱۶:۰۰', 'label' => 'غیبت اطلاع‌داده‌شده · سنتور', 'state' => 'student_absence' ) ),
 	) );
 }
 function dzn_theme_render_teacher_portal( $screen, array $model ) { dzn_theme_teacher_portal_context( $model ); get_template_part( 'template-parts/teacher-portal/shell', null, array( 'screen' => $screen, 'model' => $model ) ); }
@@ -214,7 +214,7 @@ function dzn_theme_teacher_portal_response_notice_allowlist() {
 		'درخواست رد شد و اطلاع‌رسانی هنرجو در صف قرار گرفت.',
 		'ساخت تقویم کامل نشد؛ درخواست دوباره برای تلاش پس از بررسی اتصال Google باز شد.',
 		'پذیرش ثبت شد؛ کلاس تا ساخته‌شدن تقویم و پیوند Meet تأیید نمی‌شود.',
-		'پذیرش ثبت شد. این جلسهٔ معارفه پرداختی است؛ رویداد تقویم و پیوند Meet پس از پرداخت موفق هنرجو ساخته می‌شود.',
+		'پذیرش ثبت شد. این کلاس آشنایی پرداختی است؛ رویداد تقویم و پیوند Meet پس از پرداخت موفق هنرجو ساخته می‌شود.',
 		'برای پذیرش کلاس، ابتدا اتصال Google Calendar را کامل کنید.',
 		'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.',
 		'درخواست تغییر زمان ثبت شد و برای پذیرش هنرجو ارسال می‌شود.',

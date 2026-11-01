@@ -34,6 +34,7 @@ final class StatementTemplateRule {
         'generated_at' => 'Render instant',
         'direction' => 'rtl or ltr',
         'locale' => 'fa or en',
+        'timezone' => 'IANA timezone label',
     );
 
     public const LESSON_PLACEHOLDERS = array(
@@ -68,13 +69,13 @@ h1 { margin: 0; font-size: 26px; line-height: 1.35; color: #104A4D; }
 .summary-card { border: 1px solid #DDD6CA; border-radius: 12px; background: #FBF8F2; padding: 14px 16px; }
 .summary-card span { display: block; color: #5F625F; font-size: 12px; font-weight: 700; }
 .summary-card strong { display: block; margin-top: 4px; color: #104A4D; font-size: 22px; line-height: 1.3; }
-.teacher { margin: 18px 32px 0; padding: 12px 16px; border-inline-start: 4px solid #D4AB4F; background: #FFFBF1; border-radius: 8px; font-size: 14px; }
+.teacher { margin: 18px 32px 0; padding: 12px 16px; border-inline-start: 4px solid #D4AB4F; background: #FBF3E4; border-radius: 8px; font-size: 14px; }
 h2 { margin: 28px 32px 0; font-size: 18px; color: #104A4D; }
 table { width: calc(100% - 64px); margin: 12px 32px 0; border-collapse: collapse; font-size: 13px; }
 th { background: #104A4D; color: #FFFFFF; text-align: start; padding: 10px 8px; font-weight: 700; }
 td { border-bottom: 1px solid #DDD6CA; padding: 10px 8px; vertical-align: top; }
-tbody tr:nth-child(even) td { background: #FCFAF6; }
-.totals { margin: 18px 32px 0; padding: 16px 18px; border-radius: 12px; background: #104A4D; color: #FFFFFF; display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 18px; }
+tbody tr:nth-child(even) td { background: #F6F1E8; }
+.totals { margin: 18px 32px 0; padding: 16px 18px; border-radius: 12px; background: #104A4D; color: #FFFFFF; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; font-weight: 800; font-size: 18px; }
 .totals strong { font-size: 24px; }
 .note { margin: 16px 32px 0; color: #5F625F; font-size: 12px; line-height: 1.9; }
 footer { margin-top: 28px; padding: 18px 32px 24px; border-top: 1px solid #DDD6CA; background: #FBF8F2; color: #5F625F; font-size: 12px; line-height: 1.9; }
@@ -88,7 +89,7 @@ CSS;
   <div class="brand">
     {{#logo_url}}<img src="{{logo_url}}" alt="{{academy_name}}">{{/logo_url}}
     <div>
-      <p class="eyebrow">{{academy_name}} · Teacher compensation</p>
+      <p class="eyebrow">{{academy_name}} · صورت‌حساب حقوق مدرس</p>
       <h1>صورت‌حساب حقوق مدرس</h1>
       <p class="period">{{period_label}} · {{period_start}} → {{period_end}}</p>
     </div>
@@ -97,6 +98,7 @@ CSS;
     <p>شماره صورت‌حساب: <strong>{{statement_id}}</strong></p>
     <p>نسخه: <strong>{{statement_version}}</strong> · وضعیت: <strong>{{statement_state}}</strong></p>
     <p>تاریخ صدور: <strong>{{issued_at}}</strong></p>
+    {{#timezone}}<p>منطقهٔ زمانی: <strong dir="ltr">{{timezone}}</strong></p>{{/timezone}}
   </div>
 </header>
 <div class="summary">
@@ -133,7 +135,7 @@ HTML;
 <footer>
   <p><strong>{{academy_name}}</strong> · صورت‌حساب حقوق مدرس · دوره {{period_label}}</p>
   <p>شناسه: {{statement_id}} · نسخه {{statement_version}} · تولید: {{generated_at}}</p>
-  <p>پشتیبانی: support@delnavazan.com · https://delnavazan.com</p>
+  <p>پشتیبانی: <span dir="ltr">admin@delnavazan.com</span> · واتساپ و تلفن: <span dir="ltr">+61 413 413 004</span> · <span dir="ltr">https://delnavazan.com</span></p>
 </footer>
 HTML;
 

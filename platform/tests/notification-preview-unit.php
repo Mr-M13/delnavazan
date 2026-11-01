@@ -35,6 +35,8 @@ namespace {
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationCopyPort.php';
     require_once dirname(__DIR__) . '/src/Core/Infrastructure/Repository/NotificationTemplateRepository.php';
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationTemplateService.php';
+    require_once dirname(__DIR__) . '/src/Core/Support/BrandIdentity.php';
+    require_once dirname(__DIR__) . '/src/Core/Support/CommunicationDesignTokens.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationCatalogue.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateValidationException.php';

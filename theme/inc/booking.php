@@ -98,13 +98,13 @@ function dzn_theme_render_booking_route(): void {
         <div class="dzn-container dzn-booking__container">
             <header class="dzn-booking__heading">
                 <p class="dzn-eyebrow">شروع مسیر موسیقی شما</p>
-                <h1>درخواست جلسهٔ معارفه</h1>
+                <h1>درخواست کلاس آشنایی</h1>
                 <p>پس از انتخاب دورهٔ آموزشی و زمان‌های پیشنهادی، تیم دلنوازان درخواست شما را بررسی می‌کند، مدرس کلاس را هماهنگ می‌کند و نتیجه را به شما اطلاع می‌دهد.</p>
             </header>
             <?php if ( ! $options ) : ?>
                 <section class="dzn-booking__notice" role="status">
                     <h2>ثبت درخواست موقتاً در دسترس نیست</h2>
-                    <p>گزینه‌های فعال جلسهٔ معارفه از سامانهٔ آموزشی دریافت نشد. لطفاً کمی بعد دوباره تلاش کنید یا با دلنوازان تماس بگیرید.</p>
+                    <p>گزینه‌های فعال کلاس آشنایی از سامانهٔ آموزشی دریافت نشد. لطفاً کمی بعد دوباره تلاش کنید یا با دلنوازان تماس بگیرید.</p>
                     <a href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                 </section>
             <?php else : ?>
@@ -137,7 +137,7 @@ function dzn_theme_render_booking_route(): void {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <p class="dzn-booking__help"><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?>؛ انتخاب ساز هنوز زمان کلاس را رزرو نمی‌کند.</p>
+                        <p class="dzn-booking__help"><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'کلاس آشنایی' ); ?>؛ انتخاب ساز هنوز زمان کلاس را رزرو نمی‌کند.</p>
                         <div class="dzn-booking__actions">
                             <a class="dzn-booking__back" href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                             <button class="dzn-booking__button" type="button" data-next="availability">انتخاب زمان</button>
@@ -155,7 +155,7 @@ function dzn_theme_render_booking_route(): void {
                             <div class="dzn-booking__calendar-grid" data-calendar-weekdays aria-hidden="true"></div>
                             <div class="dzn-booking__calendar-grid" data-calendar role="group" aria-label="انتخاب روز" tabindex="-1"></div>
                         </div>
-                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفه انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. هیچ پرداختی در این مرحله انجام نمی‌شود.</p>
+                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای کلاس آشنایی انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. هیچ پرداختی در این مرحله انجام نمی‌شود.</p>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
                                                         <div class="dzn-booking__time-options" data-time-options></div>
@@ -228,12 +228,12 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
                             <aside class="dzn-booking__notice dzn-booking__summary-note">
-                                <h4><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'جلسهٔ معارفه' ); ?></h4>
+                                <h4><?php echo esc_html( function_exists( 'dzn_theme_introductory_pricing_note' ) ? dzn_theme_introductory_pricing_note() : 'کلاس آشنایی' ); ?></h4>
                                 <ul>
                                     <li>در این مرحله پرداختی انجام نمی‌شود؛ جزئیات پرداخت پس از تأیید استاد اعلام می‌شود.</li>
                                     <li>زمان‌های انتخابی اولویت شما هستند و پس از بررسی استاد تأیید می‌شوند.</li>
                                     <li>نتیجهٔ هماهنگی از طریق اطلاعات تماسی که وارد کرده‌اید با شما در میان گذاشته می‌شود.</li>
-                                    <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از جلسهٔ معارفه هماهنگ می‌شود.</li>
+                                    <li>در صورت ادامهٔ دوره، برنامه و شهریهٔ کلاس‌های منظم پس از کلاس آشنایی هماهنگ می‌شود.</li>
                                 </ul>
                                 <p class="dzn-booking__help">اسناد مرتبط: <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط و ضوابط</a> · <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">حریم خصوصی</a> · <a href="<?php echo esc_url( home_url( '/cancellation-and-refunds/' ) ); ?>">لغو و بازپرداخت</a> · <a href="<?php echo esc_url( home_url( '/recording-and-ai-policy/' ) ); ?>">ضبط و هوش مصنوعی</a></p>
                             </aside>
@@ -246,7 +246,7 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-edit-details>ویرایش اطلاعات</button>
-                            <button class="dzn-booking__button" type="button" data-submit>ثبت درخواست جلسهٔ معارفه</button>
+                            <button class="dzn-booking__button" type="button" data-submit>ثبت درخواست کلاس آشنایی</button>
                         </div>
                     </section>
                     <section class="dzn-booking__step dzn-booking__success" data-step="success" aria-labelledby="dzn-booking-success-title" hidden>

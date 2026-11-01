@@ -115,6 +115,7 @@ namespace {
 		( static function () use ( $file, $args ) { include $file; } )();
 	}
 
+	require_once dirname( __DIR__, 2 ) . '/theme/inc/brand.php';
 	require_once dirname( __DIR__, 2 ) . '/theme/inc/platform-bridge.php';
 	require_once dirname( __DIR__, 2 ) . '/theme/inc/template-tags.php';
 	require_once dirname( __DIR__, 2 ) . '/theme/inc/teacher-portal.php';
@@ -161,7 +162,7 @@ namespace {
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
-	$check( 'teacher first tab ends with WhatsApp support', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/home.php' ), "'support'" ) && str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/support.php' ), 'https://wa.me/61413413004' ) );
+	$check( 'teacher first tab ends with WhatsApp support', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/home.php' ), "'support'" ) && str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/support.php' ), 'dzn_theme_whatsapp_link' ) );
 	$check( 'teacher pending tasks query student absence reports', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'TeacherAbsenceAttentionReadService' ) );
 	$check( 'teacher absence prompt explains the replacement conversation', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان تازه را پیشنهاد دهید' ) || str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان جلسهٔ جبرانی را پیشنهاد دهید' ) );
 	$check( 'teacher absence task exposes the reschedule form', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/attention.php' ), "'reschedule-form'" ) );

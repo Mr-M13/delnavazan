@@ -41,10 +41,10 @@ final class CanonicalAttendanceNotificationService {
         $name=trim((string)$row->teacher_name);
         $past='attendance_claim'===$claimKind;
         $message=$past
-            ? 'هنرجو '.$row->student_name.' اعلام کرده است که جلسهٔ «'.$row->course_name.'» در '.$when.' (' . $timezone . ') را از دست داده است. لطفاً برای جلسهٔ جایگزین با هنرجو هماهنگ کنید و زمان تازه را در پرتال مدرس ثبت کنید.'
+            ? 'هنرجو '.$row->student_name.' اعلام کرده است که جلسهٔ «'.$row->course_name.'» در '.$when.' (' . $timezone . ') را از دست داده است. لطفاً برای جلسهٔ جبرانی با هنرجو هماهنگ کنید و زمان تازه را در پرتال مدرس ثبت کنید.'
             : 'هنرجو '.$row->student_name.' برای جلسهٔ «'.$row->course_name.'» در '.$when.' (' . $timezone . ') اطلاع غیبت فرستاده است. لطفاً با هنرجو هماهنگ کنید و در صورت توافق، زمان همین جلسه را در پرتال مدرس به زمان جایگزین تغییر دهید.';
         $subject='دلنوازان · اطلاع غیبت هنرجو';
-        $body='سلام'.(''!==$name?' '.$name:'')."،\n\n".$message."\n\nاین درخواست در «کارهای مهم» پرتال مدرس نیز نمایش داده می‌شود.\n\nدلنوازان";
+        $body=\Delnavazan\Platform\Core\Support\BrandIdentity::GREETING.(''!==$name?' '.$name:'')."،\n\n".$message."\n\nاین درخواست در «کارهای مهم» پرتال مدرس نیز نمایش داده می‌شود.\n\nدلنوازان";
         $teacherId=(int)($row->teacher_id??0);
         $eventKey=$past?'attendance.missed_class_claim.teacher':'attendance.absence_reported.teacher';
         $portal=home_url('/teacher-portal/');

@@ -812,7 +812,7 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'kind' => $is_booking ? 'intro' : 'term',
 		'lesson_kind' => (string) ( $row['lesson_kind'] ?? '' ),
 		'rescheduled' => ! $is_booking && (int) ( $row['schedule_revision_count'] ?? 1 ) > 1,
-		'kind_label' => $is_booking ? 'جلسهٔ معارفه' : ( 'replacement' === (string) ( $row['lesson_kind'] ?? '' ) ? 'جلسهٔ جایگزین' : ( (int) ( $row['schedule_revision_count'] ?? 1 ) > 1 ? 'زمان جدید' : '' ) ),
+		'kind_label' => $is_booking ? 'کلاس آشنایی' : ( 'replacement' === (string) ( $row['lesson_kind'] ?? '' ) ? 'جلسهٔ جبرانی' : ( (int) ( $row['schedule_revision_count'] ?? 1 ) > 1 ? 'زمان جدید' : '' ) ),
 		'state' => $state,
 		'temporal_state' => $temporal,
 		'delivery_state' => $delivery_state,
@@ -1465,7 +1465,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		'lesson_uid' => (string) ( $next['lesson_uid'] ?? '' ),
 		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
 		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $next ),
-		'notice' => $is_booking ? 'جلسهٔ معارفهٔ رایگان شما تأیید شده است.' : ( 'in_progress' === dzn_theme_platform_lesson_temporal_state( $next, $now ) ? 'این کلاس همین حالا در جریان است.' : ( ( $upcoming_livekit_available || $upcoming_join_available ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ) ),
+		'notice' => $is_booking ? 'کلاس آشناییٔ رایگان شما تأیید شده است.' : ( 'in_progress' === dzn_theme_platform_lesson_temporal_state( $next, $now ) ? 'این کلاس همین حالا در جریان است.' : ( ( $upcoming_livekit_available || $upcoming_join_available ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ) ),
 		'owed_session_label' => '',
 	) : array( 'presentation_state' => 'none' );
 	$term_progress = $is_booking ? array() : dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
@@ -1780,7 +1780,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'complete_url' => admin_url( 'admin-post.php?action=dzn_teacher_induction_complete' ),
 				'complete_nonce' => wp_create_nonce( 'dzn_teacher_induction_complete' ),
 			),
-			'induction_support_url' => 'https://wa.me/61413413004?text=' . rawurlencode( 'سلام، از راهنمای تدریس پرتال مدرس دلنوازان پیام می‌دهم و به راهنمایی نیاز دارم.' ),
+			'induction_support_url' => dzn_theme_whatsapp_link( 'درود، از راهنمای تدریس پرتال مدرس دلنوازان پیام می‌دهم و به راهنمایی نیاز دارم.' ),
 		);
 	}
 	$teacher_timezone = (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
@@ -2266,7 +2266,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 					&& '' !== (string) ( $absence_row['schedule_version_uid'] ?? '' );
 				$when = dzn_theme_platform_calendar_time( $current_time, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
 				$message = 'replacement' === $request_kind
-					? 'هنرجو اعلام کرده جلسهٔ ' . dzn_theme_platform_calendar_time( $occurrence, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ) . ' را از دست داده است. زمان جلسهٔ جبرانی را پیشنهاد دهید؛ پس از پذیرش هنرجو، جلسهٔ جایگزین قطعی و در تقویم ثبت می‌شود. جلسهٔ اصلی و شاهد غیبت حفظ می‌شوند.'
+					? 'هنرجو اعلام کرده جلسهٔ ' . dzn_theme_platform_calendar_time( $occurrence, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ) . ' را از دست داده است. زمان جلسهٔ جبرانی را پیشنهاد دهید؛ پس از پذیرش هنرجو، جلسهٔ جبرانی قطعی و در تقویم ثبت می‌شود. جلسهٔ اصلی و شاهد غیبت حفظ می‌شوند.'
 					: 'هنرجو برای جلسهٔ ' . $when . ' اطلاع غیبت ثبت کرده است. زمان تازه را پیشنهاد دهید؛ پس از پذیرش هنرجو، زمان همین جلسه به‌روز می‌شود.';
 				if ( ! $can_reschedule ) { $message .= ' این مورد نیازمند بررسی مدیر آموزشگاه است و از پرتال مدرس قابل تغییر نیست.'; }
 				$absenceAttention[] = array(

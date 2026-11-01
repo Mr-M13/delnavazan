@@ -134,7 +134,7 @@
     --dzn-rgb-brand: 16 74 77;
     --dzn-rgb-ink: 37 39 38;
     --dzn-rgb-paper: 251 248 242;
-    --dzn-rgb-gold: 185 142 55;
+    --dzn-rgb-gold: 212 171 79;
     --dzn-rgb-on-dark: 255 253 248;
 
 
@@ -155,9 +155,12 @@
       sans-serif;
 
     --dzn-text-body: 1rem;
-    --dzn-text-small: .8125rem;
+    --dzn-text-small: .875rem;
     --dzn-text-xs: .75rem;
     --dzn-text-nav: .9375rem;
+    --dzn-text-button: .9375rem;
+    --dzn-text-financial: 1.25rem;
+    --dzn-text-financial-total: 1.5rem;
 
     --dzn-leading-body: 1.8;
     --dzn-leading-tight: 1.45;
@@ -165,15 +168,15 @@
 
     --dzn-heading-page:
       clamp(
-        1.5rem,
-        1rem + 1.5vw,
+        1.75rem,
+        1.2rem + 1.6vw,
         2rem
       );
 
     --dzn-heading-section:
       clamp(
-        1rem,
-        .94rem + .5vw,
+        1.25rem,
+        1.1rem + .5vw,
         1.5rem
       );
 
@@ -186,16 +189,16 @@
 
     --dzn-heading-story:
       clamp(
-        1.3rem,
+        1.15rem,
         .96rem + .28vw,
-        1.2rem
+        1.3rem
       );
 
     --dzn-heading-story-chapter:
       clamp(
-        2rem,
+        1.2rem,
         .94rem + .35vw,
-        1.2rem
+        2rem
       );
 
 
@@ -996,6 +999,52 @@
 
   .site-footer__description {
     display: none;
+  }
+
+  .site-footer__contact {
+    margin: 0;
+
+    color:
+      var(--dzn-color-on-dark);
+
+    font-size:
+      var(--dzn-text-small);
+
+    line-height:
+      var(--dzn-leading-ui);
+
+    text-align: center;
+  }
+
+  .site-footer__contact a {
+    color:
+      var(--dzn-color-on-action);
+
+    text-decoration:
+      underline;
+
+    text-decoration-color:
+      rgb(255 255 255 / .45);
+
+    text-underline-offset:
+      .18em;
+  }
+
+  .site-footer__contact a:hover,
+  .site-footer__contact a:focus-visible {
+    color:
+      var(--dzn-color-highlight);
+
+    text-decoration-color:
+      currentColor;
+  }
+
+  .site-footer__contact span {
+    margin-inline:
+      .35rem;
+
+    color:
+      rgb(255 255 255 / .55);
   }
 
   .site-footer__actions {
@@ -1896,6 +1945,9 @@
 
     font-family:
       var(--dzn-font-body);
+
+    font-size:
+      var(--dzn-text-button);
 
     font-weight:
       750;
@@ -5258,7 +5310,7 @@
 
     box-shadow:
       0 .55rem 1.45rem
-      rgb(185 142 55 / .2);
+      rgb(var(--dzn-rgb-gold) / .2);
 
     color:
       var(--dzn-color-accent);
@@ -7601,7 +7653,7 @@ button.dzn-button:disabled:hover {
     1.5rem;
 
   color:
-    var(--dzn-color-text-muted, #5d6b6b);
+    var(--dzn-color-text-muted, #5f625f);
 
   font-size:
     .85rem;

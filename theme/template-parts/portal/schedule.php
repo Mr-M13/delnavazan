@@ -55,12 +55,12 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 		<li class="dzn-schedule-row is-<?php echo esc_attr( $state ); ?><?php echo $archive ? ' is-archive' : ''; ?>">
 			<div class="dzn-schedule-row__time"><time datetime="<?php echo esc_attr( (string) ( $item['starts_at_iso'] ?? '' ) ); ?>"><?php echo esc_html( (string) ( $item['time'] ?? '' ) ); ?></time></div>
 			<div class="dzn-schedule-row__main">
-				<h4><?php echo esc_html( (string) ( $item['course'] ?? '' ) ); ?><?php if ( 'replacement' === ( $item['lesson_kind'] ?? '' ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'جلسهٔ جایگزین', 'delnavazan-theme' ); ?></span><?php elseif ( ! empty( $item['rescheduled'] ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'زمان جدید', 'delnavazan-theme' ); ?></span><?php endif; ?></h4>
+				<h4><?php echo esc_html( (string) ( $item['course'] ?? '' ) ); ?><?php if ( 'replacement' === ( $item['lesson_kind'] ?? '' ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'جلسهٔ جبرانی', 'delnavazan-theme' ); ?></span><?php elseif ( ! empty( $item['rescheduled'] ) ) : ?> <span class="dzn-status dzn-status--information"><?php esc_html_e( 'زمان جدید', 'delnavazan-theme' ); ?></span><?php endif; ?></h4>
 				<?php if ( ! empty( $item['teacher'] ) ) : ?><p class="dzn-schedule-row__teacher"><?php echo esc_html( sprintf( 'با %s', $item['teacher'] ) ); ?></p><?php endif; ?>
 				<p class="dzn-status dzn-status--<?php echo esc_attr( $status_tone ); ?>"><?php echo esc_html( $status_label ); ?></p>
 				<?php if ( ! empty( $item['absence_label'] ) ) : ?><p class="dzn-status dzn-status--warning"><?php echo esc_html( (string) $item['absence_label'] ); ?></p><?php endif; ?>
 				<?php if ( ! empty( $item['replacement_time'] ) ) : ?><p class="dzn-portal-help"><?php echo esc_html( sprintf( 'جلسهٔ جبرانی: %s', (string) $item['replacement_time'] ) ); ?></p><?php endif; ?>
-				<?php if ( $is_intro ) : ?><p class="dzn-portal-help"><?php esc_html_e( 'جلسهٔ معارفه؛ شرایط آن از منبع معتبر خوانده شده است.', 'delnavazan-theme' ); ?></p><?php endif; ?>
+				<?php if ( $is_intro ) : ?><p class="dzn-portal-help"><?php esc_html_e( 'کلاس آشنایی؛ شرایط آن از منبع معتبر خوانده شده است.', 'delnavazan-theme' ); ?></p><?php endif; ?>
 			</div>
 			<div class="dzn-schedule-row__actions">
 				<?php

@@ -4,6 +4,7 @@ namespace {
     define('ABSPATH', dirname(__DIR__, 2) . '/');
     function wp_date(string $format, ?int $timestamp = null, ?DateTimeZone $timezone = null): string { return (new DateTimeImmutable('@' . ($timestamp ?? time())))->setTimezone($timezone ?? new DateTimeZone('UTC'))->format($format); }
     function wp_mail(...$args): bool { return false; }
+    require_once dirname(__DIR__, 2) . '/platform/src/Core/Support/BrandIdentity.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/LessonRescheduleStore.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/LessonRescheduleNotificationService.php';
 

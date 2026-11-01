@@ -7544,3 +7544,49 @@ a.dzn-nav-action:focus-visible {
 .dzn-allocation__notice{border-inline-start:4px solid var(--dzn-color-warning);border-radius:.5rem;background:var(--dzn-color-warning-surface);padding:.8rem 1rem;color:var(--dzn-color-text-primary);line-height:1.8}.dzn-allocation__terms{display:grid;gap:1rem}.dzn-allocation__term{border:1px solid var(--dzn-color-border);border-radius:.8rem;background:var(--dzn-color-surface);padding:1rem}.dzn-allocation__term h3,.dzn-allocation__term p{margin:.15rem 0}.dzn-allocation__bar{display:flex;overflow:hidden;height:.75rem;margin-block:.9rem;border-radius:999px;background:var(--dzn-color-surface-sunken)}.dzn-allocation__bar span{flex:var(--dzn-share) 0 0;background:var(--dzn-share-color)}
 .dzn-allocation__table-wrap{overflow-x:auto}.dzn-allocation__table{width:100%;border-collapse:collapse;font-size:.88rem}.dzn-allocation__table th,.dzn-allocation__table td{border-block-end:1px solid var(--dzn-color-border);padding:.55rem;text-align:start;white-space:nowrap}.dzn-allocation__table th i{display:inline-block;inline-size:.7rem;block-size:.7rem;margin-inline-end:.45rem;border-radius:50%;background:var(--dzn-share-color)}.dzn-allocation__table td:last-child,.dzn-allocation__table th:last-child{text-align:end}.dzn-allocation__table tfoot{font-weight:900}.dzn-allocation__empty{margin-block-end:0;color:var(--dzn-color-text-secondary)}
 @media(max-width:600px){.dzn-allocation{padding:.85rem}.dzn-allocation__table{font-size:.8rem}.dzn-allocation__table th,.dzn-allocation__table td{padding:.45rem .35rem}}
+
+/* The Project: bilingual editorial explanation, scoped to the existing information route. */
+.dzn-project{max-inline-size:1180px;padding-block:clamp(1.5rem,5vw,4rem);line-height:1.85}
+.dzn-project a{text-underline-offset:.22em}
+.dzn-project a:focus-visible,.dzn-project summary:focus-visible{outline:3px solid var(--dzn-color-action-primary);outline-offset:5px}
+.dzn-project__masthead{padding-block:1rem 2.5rem;border-block-end:1px solid var(--dzn-color-border-strong)}
+.dzn-project__label{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;color:var(--dzn-color-text-secondary);margin-block:.25rem}
+.dzn-project__descriptor{color:var(--dzn-color-text-muted);margin-block:.25rem 1rem}
+.dzn-project__language-hint{display:flex;flex-wrap:wrap;gap:.7rem}
+.dzn-project__language{margin-block-start:1.25rem;border:1px solid var(--dzn-color-border-strong);border-radius:12px;overflow:clip;background:var(--dzn-color-background)}
+.dzn-project__language>summary{cursor:pointer;padding:1rem 1.4rem;font-weight:750;background:var(--dzn-color-surface)}
+.dzn-project__language>summary span{font-weight:400;color:var(--dzn-color-text-muted);margin-inline-start:1rem;font-size:.9rem}
+.dzn-project__document{padding:clamp(1.1rem,4vw,3rem)}
+.dzn-project__hero{padding-block:1rem 2rem;max-inline-size:830px}
+.dzn-project__hero h1{font-size:clamp(2rem,4.5vw,3.6rem);line-height:1.25;letter-spacing:-.025em;margin-block:.6rem 1.4rem;color:var(--dzn-color-text-secondary);text-wrap:balance}
+.dzn-project__lead{font-size:clamp(1.08rem,2vw,1.3rem);line-height:1.85}
+.dzn-project__status{padding:1rem 1.25rem;border-inline-start:4px solid var(--dzn-color-highlight);background:var(--dzn-color-surface);font-size:.95rem;border-radius:4px}
+.dzn-project__nav{display:flex;flex-wrap:wrap;gap:.65rem 1.4rem;padding-block:1rem 1.5rem;border-block-end:1px solid var(--dzn-color-border)}
+.dzn-project__nav a{font-size:.95rem;font-weight:650}
+.dzn-project__section{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;padding-block:2.75rem;border-block-end:1px solid var(--dzn-color-border);scroll-margin-block-start:2rem}
+.dzn-project__section h2{font-size:clamp(1.5rem,2.5vw,2rem);line-height:1.4;margin-block:.3rem 0;color:var(--dzn-color-text-secondary);text-wrap:balance}
+.dzn-project__section-body{min-inline-size:0;max-inline-size:70ch}
+.dzn-project__section-body>p:first-child{margin-block-start:0}
+.dzn-project__section-body>p:last-child{margin-block-end:0}
+.dzn-project__steps{list-style:none;counter-reset:project-step;padding:0;margin-block:1.5rem 0}
+.dzn-project__steps>li{counter-increment:project-step;position:relative;padding-inline-start:3rem;padding-block-end:1.3rem;border-inline-start:1px solid var(--dzn-color-border-strong);margin-inline-start:1rem}
+.dzn-project__steps>li:last-child{padding-block-end:0;border-color:transparent}
+.dzn-project__steps>li::before{content:counter(project-step,decimal-leading-zero);position:absolute;inset-inline-start:-1rem;inset-block-start:0;inline-size:2rem;block-size:2rem;border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:750;background:var(--dzn-color-text-secondary);color:white;line-height:1}
+.dzn-project__steps h3{font-size:1.05rem;margin:0 0 .3rem;line-height:1.6}
+.dzn-project__steps p{margin:0;color:var(--dzn-color-text-muted)}
+.dzn-project__faq{border-block-end:1px solid var(--dzn-color-border);padding-block:1rem}
+.dzn-project__faq:first-child{padding-block-start:0}
+.dzn-project__faq>summary{cursor:pointer;font-weight:700;line-height:1.65}
+.dzn-project__faq p{margin-block:.8rem .25rem}
+.dzn-project__policy{padding:1.5rem;margin-block:2rem;background:var(--dzn-color-surface);border-radius:10px}
+.dzn-project__policy h2{font-size:1.2rem;margin-block:0 .75rem}
+.dzn-project__policy .dzn-recording-info__actions{margin-block:0;gap:.75rem 1.5rem}
+.dzn-project__sources{padding-block:2.5rem;font-size:.95rem;overflow-wrap:anywhere}
+.dzn-project__sources h2{font-size:1.5rem}
+.dzn-project__sources li{padding-inline-start:.4rem;margin-block:1rem;scroll-margin-block-start:2rem}
+.dzn-project__sources li p{color:var(--dzn-color-text-muted);font-size:.85rem;margin-block:.2rem}
+.dzn-project__footer-note{color:var(--dzn-color-text-muted);font-size:.8rem;border-block-start:1px solid var(--dzn-color-border);padding-block-start:1rem}
+@media(min-width:58rem){.dzn-project__section{grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:2.5rem}}
+@media(max-width:35rem){.dzn-project__language>summary span{display:block;margin-inline-start:0}.dzn-project__document{padding:1rem}.dzn-project__section{padding-block:2rem}}
+@media(prefers-reduced-motion:reduce){html:has(.dzn-project){scroll-behavior:auto}}
+@media print{.dzn-project__nav,.dzn-project__language-hint{display:none}.dzn-project__language{border:0}.dzn-project__section{break-inside:avoid}.dzn-project a{color:inherit}}

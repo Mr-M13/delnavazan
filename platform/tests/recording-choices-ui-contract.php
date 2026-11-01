@@ -76,13 +76,14 @@ $need(str_contains($booking,'Recording and research'),'online enrolment must lin
 $need(str_contains($booking,'currently disabled'),'the public enrolment notice must state the disabled status');
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
-foreach(array('What future lesson recording may involve','Why Delnavazan collects data','Separate optional research','How choices can be changed','Mbox local processing','currently disabled','Project information page')as$text)$need(str_contains($infoBody,$text),'the public information page must explain '.$text);
-$need(str_contains($infoBody,'lang="fa"')&&str_contains($infoBody,'lang="en"'),'the information page must be bilingual');
-$need(str_contains($infoBody,'link pending approval'),'the information page must include a project-link placeholder');
-$need(!str_contains($infoBody,'legal basis is'),'the information page must not hard-code an unapproved legal basis');
-$need(!str_contains($infoBody,'retention period of'),'the information page must not hard-code an unapproved retention period');
-$need(!str_contains($infoBody,'provider guarantee'),'the information page must not hard-code an unapproved provider guarantee');
-$need(!str_contains($infoBody,'consent'),'the disabled default-on path must not be described as consent');
+$projectCopy=$read('../theme/template-parts/recording/project-copy.php');
+foreach(array('Your learning deserves care','Your explanation is part of the knowledge','Learning riz: the journey matters','A dataset is the first step','Share the foundations responsibly','currently disabled')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
+$need(str_contains($infoBody,"'fa'")&&str_contains($infoBody,"'en'"),'the information page must support both languages');
+$need(!str_contains($infoBody,'<form'),'the explanation must not collect decisions');
+$need(!str_contains($infoBody,'link pending approval'),'the Project must replace the old placeholder');
+$need(str_contains($projectCopy,'remain to be settled'),'unsettled retention and withdrawal terms must remain explicit');
+$need(str_contains($projectCopy,'does not itself opt you into research'),'enrolment must not imply research participation');
+$need(str_contains($infoBody,'publishedNotice'),'the page must preserve the current notice readout');
 $need(str_contains($info,"get_template_part( 'template-parts/recording/research-information' )"),'the Page Template must use the shared information body');
 $need(str_contains($routes,"'recording-and-research'"),'the canonical information URL must resolve without manual page creation');
 $need(str_contains($routes,'dzn_theme_render_recording_information_route'),'the virtual information route must render the shared body');

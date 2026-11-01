@@ -1715,7 +1715,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'is_today' => ! $is_booking && $is_today_row,
 			'details_available' => ! $is_booking && $is_today_row,
 			'student_whatsapp' => (string) ( $lesson['student_whatsapp'] ?? $lesson['student_phone'] ?? '' ),
-			'term_reference' => (string) ( $lesson['term_reference'] ?? '' ),
+			'term_sequence' => (int) ( $lesson['term_sequence'] ?? 0 ),
+			'term_label' => (int) ( $lesson['term_sequence'] ?? 0 ) > 0 ? 'ترم ' . dzn_theme_platform_persian_digits( (int) $lesson['term_sequence'] ) : '',
 			'term_total' => (int) ( $lesson['term_lesson_total'] ?? 0 ),
 			'term_completed' => (int) ( $lesson['term_lesson_completed'] ?? 0 ),
 			'term_remaining' => (int) ( $lesson['term_lesson_remaining'] ?? 0 ),
@@ -1810,7 +1811,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$past_classes[] = array(
 				'ref' => $class['ref'], 'date' => $class['date'], 'time' => $class['time'],
 				'student' => $class['student'], 'course' => $class['course'],
-				'term_reference' => $class['term_reference'], 'term_progress_label' => $class['term_progress_label'],
+				'term_label' => $class['term_label'], 'term_progress_label' => $class['term_progress_label'],
 				'outcome' => 'لغو شده', 'tone' => 'muted', 'starts_at_utc' => $class['starts_at_utc'],
 			);
 			continue;
@@ -1822,7 +1823,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'time' => $class['time'],
 			'student' => $class['student'],
 			'course' => $class['course'],
-			'term_reference' => $class['term_reference'],
+			'term_label' => $class['term_label'],
 			'term_progress_label' => $class['term_progress_label'],
 			'outcome' => '' !== $class['completion_outcome'] ? $class['completion_outcome'] : $class['status'],
 			'tone' => $class['completion_tone'],
@@ -1840,7 +1841,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'label' => $course_label . ' · ' . $student_label,
 			'instrument' => $course_label,
 			'student' => $student_label,
-			'term_reference' => (string) ( $lesson['term_reference'] ?? '' ),
+			'term_label' => $class['term_label'],
 			'lesson_number' => (int) ( $lesson['canonical_sequence'] ?? ( $lesson['lesson_number'] ?? 0 ) ),
 			'golden_hour_label' => $golden_summary,
 			'golden_hour_eligible' => '' !== $golden_summary && (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0,
@@ -1892,7 +1893,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 					'time' => dzn_theme_platform_calendar_time( (string) ( $history_lesson['starts_at_utc'] ?? '' ), $history_timezone, $teacher_calendar, $teacher_locale, 'time' ),
 					'student' => $history_student,
 					'course' => $history_course,
-					'term_reference' => (string) ( $history_lesson['term_reference'] ?? '' ),
+					'term_label' => (int) ( $history_lesson['term_sequence'] ?? 0 ) > 0 ? 'ترم ' . dzn_theme_platform_persian_digits( (int) $history_lesson['term_sequence'] ) : '',
 					'term_progress_label' => $history_progress,
 					'outcome' => 'completed' === $history_lifecycle
 						? 'پایان‌یافته' . ( $history_recorded ? ' — ' . ( $history_outcome_labels[ $history_outcome ] ?? 'وضعیت برگزاری ثبت شده' ) : ' — گزارش برگزاری ثبت نشده' )

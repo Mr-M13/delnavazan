@@ -63,7 +63,9 @@ final class PortalAuthenticatedReadService {
                 $total = (int) ( $row->total ?? 0 );
                 $completed = (int) ( $row->completed ?? 0 );
                 $cancelled = (int) ( $row->cancelled ?? 0 );
-                $cache[ $termId ] = array( 'total' => $total, 'completed' => $completed, 'cancelled' => $cancelled, 'remaining' => max( 0, $total - $completed - $cancelled ), 'replacement' => null );
+                $termRow = $wpdb->get_row( $wpdb->prepare( "SELECT sequence_number FROM {$p}terms WHERE id=%d", $termId ) );
+                if ( $wpdb->last_error !== '' ) throw new \InvalidArgumentException( 'portal_upstream_aggregate_invalid' );
+                $cache[ $termId ] = array( 'total' => $total, 'completed' => $completed, 'cancelled' => $cancelled, 'remaining' => max( 0, $total - $completed - $cancelled ), 'sequence' => (int) ( $termRow->sequence_number ?? 0 ), 'replacement' => null );
                 // The Student-visible replacement allowance is owned by the Term allocation
                 // authority. The Teacher needs the same authoritative balance to avoid showing a
                 // static or stale entitlement in the class detail.
@@ -77,6 +79,7 @@ final class PortalAuthenticatedReadService {
             $lesson['term_lesson_completed'] = $cache[ $termId ]['completed'];
             $lesson['term_lesson_cancelled'] = $cache[ $termId ]['cancelled'];
             $lesson['term_lesson_remaining'] = $cache[ $termId ]['remaining'];
+            $lesson['term_sequence'] = $cache[ $termId ]['sequence'];
             if ( is_array( $cache[ $termId ]['replacement'] ) ) {
                 $allocation = $cache[ $termId ]['replacement'];
                 $lesson['replacement_allowance'] = max( 0, (int) ( $allocation['allowance'] ?? 0 ) );

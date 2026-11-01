@@ -24,7 +24,7 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 	$student = $valid ? trim( (string) ( $item['student'] ?? '' ) ) : '';
 	$label = $valid ? (string) ( $item['label'] ?? '' ) : '';
 	if ( '' === $instrument && '' === $student ) { $label_parts = array_filter( array_map( 'trim', explode( '·', $label ) ) ); $instrument = (string) ( $label_parts[0] ?? $label ); $student = (string) ( $label_parts[1] ?? '' ); }
-	$term_reference = $valid ? trim( (string) ( $item['term_reference'] ?? '' ) ) : '';
+	$term_label = $valid ? trim( (string) ( $item['term_label'] ?? '' ) ) : '';
 	$lesson_number = $valid ? (int) ( $item['lesson_number'] ?? 0 ) : 0;
 	$golden_label = $valid ? trim( (string) ( $item['golden_hour_label'] ?? '' ) ) : '';
 	$golden_eligible = $valid && ! empty( $item['golden_hour_eligible'] );
@@ -39,9 +39,9 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 			<summary>
 				<span class="dzn-tp-calendar__when"><span class="dzn-tp-calendar__day"><?php echo esc_html( (string) $item['day'] ); ?></span><span class="dzn-tp-calendar__time"><span class="dzn-tp-sr">ساعت </span><?php echo esc_html( (string) $item['time'] ); ?></span></span>
 				<span class="dzn-tp-calendar__compact"><strong class="dzn-tp-calendar__label"><?php echo esc_html( '' !== $instrument ? $instrument : $label ); ?></strong><?php if ( '' !== $student ) : ?><span class="dzn-tp-calendar__student"><?php echo esc_html( $student ); ?></span><?php endif; ?></span>
-				<?php if ( '' !== $term_reference || $lesson_number > 0 || '' !== $golden_label ) : ?>
+				<?php if ( '' !== $term_label || $lesson_number > 0 || '' !== $golden_label ) : ?>
 					<span class="dzn-tp-calendar__meta">
-						<?php if ( '' !== $term_reference ) : ?><span>ترم <?php echo esc_html( $term_reference ); ?></span><?php endif; ?>
+						<?php if ( '' !== $term_label ) : ?><span><?php echo esc_html( $term_label ); ?></span><?php endif; ?>
 						<?php if ( $lesson_number > 0 ) : ?><span>جلسهٔ <?php echo esc_html( (string) $lesson_number ); ?></span><?php endif; ?>
 						<?php if ( '' !== $golden_label ) : ?><span class="dzn-tp-golden-badge<?php echo $golden_eligible ? ' is-eligible' : ''; ?>"><?php echo esc_html( $golden_label ); ?></span><?php endif; ?>
 					</span>

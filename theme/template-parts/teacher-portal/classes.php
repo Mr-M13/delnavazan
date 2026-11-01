@@ -154,7 +154,7 @@ $card_index = 0;
 				?>
 				<li class="dzn-tp-class-history__item is-<?php echo esc_attr( (string) ( $past['tone'] ?? 'muted' ) ); ?>">
 					<p class="dzn-tp-class-history__when"><time><?php echo esc_html( (string) $past['date'] ); ?> · <?php echo esc_html( (string) $past['time'] ); ?></time></p>
-					<p class="dzn-tp-class-history__who"><strong><?php echo esc_html( (string) $past['student'] ); ?></strong><?php if ( '' !== trim( (string) ( $past['course'] ?? '' ) ) ) : ?> · <?php echo esc_html( (string) $past['course'] ); ?><?php endif; ?><?php if ( '' !== trim( (string) ( $past['term_reference'] ?? '' ) ) ) : ?> · ترم <?php echo esc_html( (string) $past['term_reference'] ); ?><?php endif; ?></p>
+					<p class="dzn-tp-class-history__who"><strong><?php echo esc_html( (string) $past['student'] ); ?></strong><?php if ( '' !== trim( (string) ( $past['course'] ?? '' ) ) ) : ?> · <?php echo esc_html( (string) $past['course'] ); ?><?php endif; ?><?php if ( '' !== trim( (string) ( $past['term_label'] ?? '' ) ) ) : ?> · <?php echo esc_html( (string) $past['term_label'] ); ?><?php endif; ?></p>
 					<p class="dzn-tp-class-history__outcome"><?php echo esc_html( (string) $past['outcome'] ); ?></p>
 					<?php if ( '' !== trim( (string) ( $past['term_progress_label'] ?? '' ) ) ) : ?><p class="dzn-tp-help"><?php echo esc_html( (string) $past['term_progress_label'] ); ?></p><?php endif; ?>
 				</li>

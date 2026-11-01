@@ -111,6 +111,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\TeacherDeliveryClaimController::register();
 	Delnavazan\Platform\Portals\StudentAbsenceController::register();
 	Delnavazan\Platform\Portals\PortalCalendarExportController::register();
+	Delnavazan\Platform\Portals\StudentReceiptController::register();
 	Delnavazan\Platform\Integrations\GoogleOAuthController::register();
 	Delnavazan\Platform\Portals\TeacherBookingResponseController::register();
 	Delnavazan\Platform\Portals\LessonRescheduleController::register();
@@ -127,6 +128,9 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
 	Delnavazan\Platform\Integrations\LessonCompletionAutomationWorker::register();
+	Delnavazan\Platform\Integrations\TeacherStatementEmailWorker::register();
+	Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementScheduleService::register();
+	Delnavazan\Platform\Core\Application\Finance\FinanceNotificationService::register();
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
 	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();

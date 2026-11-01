@@ -272,6 +272,9 @@ jobs:
           php platform/tests/finance-statement-template-unit.php
           php platform/tests/intro-payment-unit.php
           php platform/tests/finance-administration-contract.php
+          php platform/tests/finance-payment-completion-contract.php
+          php platform/tests/finance-refund-batch-contract.php
+          php platform/tests/teacher-statement-email-unit.php
           php platform/tests/post-intro-fulfilment-unit.php
           php platform/tests/post-payment-fulfilment-contract.php
           php platform/tests/presentation-contract-inventory-contract.php
@@ -510,6 +513,12 @@ jobs:
           DZN_COMPOSE_PROJECT: dzn-finance-runtime
           DZN_WP_PORT: 18085
         run: platform/runtime/bin/run-finance-runtime.sh
+      - name: Run offline payment completion lifecycle
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-finance-runtime
+          DZN_COMPOSE_PROJECT: dzn-finance-runtime
+          DZN_WP_PORT: 18085
+        run: platform/runtime/bin/run-finance-manual-payment-runtime.sh
       - name: Dispose runtime
         if: always()
         env:

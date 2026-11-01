@@ -40,66 +40,100 @@ final class StatementTemplateRule {
         'lesson_id' => 'Lesson identifier',
         'lesson_date' => 'Lesson occurrence date',
         'course' => 'Course name',
+        'duration_minutes' => 'Recorded lesson duration in minutes',
+        'rate_amount' => 'Snapshotted base rate for the lesson',
+        'base_amount' => 'Base pay before any golden-hour bonus',
+        'bonus_amount' => 'Golden-hour bonus for the lesson',
         'disposition' => 'Payability disposition',
         'basis' => 'Payability basis code',
-        'amount' => 'Formatted line amount',
-        'amount_minor' => 'Exact line amount in minor units',
+        'amount' => 'Formatted total line amount',
+        'amount_minor' => 'Exact total line amount in minor units',
         'status' => 'Line presentation status',
     );
 
     public const DEFAULT_CSS = <<<'CSS'
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 32px; font-family: Tahoma, "Vazirmatn", Arial, sans-serif; color: #1d2327; background: #fff; line-height: 1.7; }
-.statement { max-width: 920px; margin: 0 auto; }
-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #1d2327; padding-bottom: 16px; }
-header img { max-height: 64px; max-width: 180px; }
-h1 { margin: 0; font-size: 26px; }
-h2 { margin-top: 28px; font-size: 18px; }
-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
-th, td { border-bottom: 1px solid #dcdcde; padding: 7px 6px; text-align: start; }
-th { background: #f6f7f7; }
-.meta { color: #50575e; font-size: 13px; }
-.totals { margin-top: 18px; font-weight: 700; font-size: 16px; }
-footer { margin-top: 32px; border-top: 1px solid #dcdcde; padding-top: 14px; color: #50575e; font-size: 12px; }
-@media print { body { padding: 0; } header { break-inside: avoid; } }
+body { margin: 0; padding: 28px 18px; font-family: Vazirmatn, Tahoma, Arial, sans-serif; color: #252726; background: #FBF8F2; line-height: 1.8; }
+.statement { max-width: 920px; margin: 0 auto; background: #FFFFFF; border: 1px solid #DDD6CA; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 45px rgba(37,39,38,.08); }
+.statement-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 28px 32px 22px; border-bottom: 4px solid #A33E48; background: linear-gradient(135deg, #FFFFFF 0%, #FBF8F2 100%); }
+.brand { display: flex; gap: 16px; align-items: flex-start; }
+.brand img { max-height: 58px; max-width: 160px; }
+.eyebrow { margin: 0 0 4px; color: #1E7B70; font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+h1 { margin: 0; font-size: 26px; line-height: 1.35; color: #104A4D; }
+.period { margin: 6px 0 0; color: #5F625F; font-size: 14px; }
+.meta { min-width: 190px; text-align: end; font-size: 12px; color: #5F625F; }
+.meta strong { color: #252726; }
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 32px 0; }
+.summary-card { border: 1px solid #DDD6CA; border-radius: 12px; background: #FBF8F2; padding: 14px 16px; }
+.summary-card span { display: block; color: #5F625F; font-size: 12px; font-weight: 700; }
+.summary-card strong { display: block; margin-top: 4px; color: #104A4D; font-size: 22px; line-height: 1.3; }
+.teacher { margin: 18px 32px 0; padding: 12px 16px; border-inline-start: 4px solid #D4AB4F; background: #FFFBF1; border-radius: 8px; font-size: 14px; }
+h2 { margin: 28px 32px 0; font-size: 18px; color: #104A4D; }
+table { width: calc(100% - 64px); margin: 12px 32px 0; border-collapse: collapse; font-size: 13px; }
+th { background: #104A4D; color: #FFFFFF; text-align: start; padding: 10px 8px; font-weight: 700; }
+td { border-bottom: 1px solid #DDD6CA; padding: 10px 8px; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #FCFAF6; }
+.totals { margin: 18px 32px 0; padding: 16px 18px; border-radius: 12px; background: #104A4D; color: #FFFFFF; display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 18px; }
+.totals strong { font-size: 24px; }
+.note { margin: 16px 32px 0; color: #5F625F; font-size: 12px; line-height: 1.9; }
+footer { margin-top: 28px; padding: 18px 32px 24px; border-top: 1px solid #DDD6CA; background: #FBF8F2; color: #5F625F; font-size: 12px; line-height: 1.9; }
+footer p { margin: 0 0 4px; }
+@media print { body { padding: 0; background: #FFFFFF; } .statement { border: 0; box-shadow: none; border-radius: 0; } thead { display: table-header-group; } tr { break-inside: avoid; } }
+@media (max-width: 720px) { .summary { grid-template-columns: 1fr; margin: 18px 18px 0; } .statement-header { flex-direction: column; padding: 20px 18px; } .meta { text-align: start; } h2, table, .totals, .note { margin-inline: 18px; } table { width: calc(100% - 36px); } footer { padding-inline: 18px; } }
 CSS;
 
     public const DEFAULT_HEADER = <<<'HTML'
-<header>
-  <div>
-    <h1>{{academy_name}}</h1>
-    <p class="meta">{{period_label}} · {{period_start}} → {{period_end}}</p>
-    <p class="meta">{{teacher_name}} · {{teacher_reference}}</p>
+<header class="statement-header">
+  <div class="brand">
+    {{#logo_url}}<img src="{{logo_url}}" alt="{{academy_name}}">{{/logo_url}}
+    <div>
+      <p class="eyebrow">{{academy_name}} · Teacher compensation</p>
+      <h1>صورت‌حساب حقوق مدرس</h1>
+      <p class="period">{{period_label}} · {{period_start}} → {{period_end}}</p>
+    </div>
   </div>
-  {{#logo_url}}<img src="{{logo_url}}" alt="{{academy_name}}">{{/logo_url}}
+  <div class="meta">
+    <p>شماره صورت‌حساب: <strong>{{statement_id}}</strong></p>
+    <p>نسخه: <strong>{{statement_version}}</strong> · وضعیت: <strong>{{statement_state}}</strong></p>
+    <p>تاریخ صدور: <strong>{{issued_at}}</strong></p>
+  </div>
 </header>
+<div class="summary">
+  <div class="summary-card"><span>مبلغ قابل پرداخت</span><strong>{{payable_amount}}</strong></div>
+  <div class="summary-card"><span>جلسات قابل پرداخت</span><strong>{{payable_lines}}</strong></div>
+  <div class="summary-card"><span>کل جلسات دوره</span><strong>{{total_lines}}</strong></div>
+</div>
+<div class="teacher"><strong>{{teacher_name}}</strong> · {{teacher_reference}} · {{currency}}</div>
 HTML;
 
     public const DEFAULT_BODY = <<<'HTML'
-<h2>Lesson earnings</h2>
+<h2>ریز حقوق جلسات</h2>
 <table>
-  <thead><tr><th>Lesson</th><th>Date</th><th>Course</th><th>Status</th><th>Amount</th></tr></thead>
+  <thead><tr><th>تاریخ</th><th>دوره</th><th>مدت</th><th>نرخ پایه</th><th>فوق‌العاده</th><th>مبلغ نهایی</th><th>وضعیت</th></tr></thead>
   <tbody>
   {{#lessons}}
     <tr>
-      <td>{{lesson_id}}</td>
       <td>{{lesson_date}}</td>
       <td>{{course}}</td>
-      <td>{{disposition}} · {{basis}}</td>
+      <td>{{duration_minutes}} دقیقه</td>
+      <td>{{base_amount}}</td>
+      <td>{{bonus_amount}}</td>
       <td>{{amount}}</td>
+      <td>{{status}}</td>
     </tr>
   {{/lessons}}
   </tbody>
 </table>
-<p class="totals">Payable: {{payable_amount}}</p>
-<p class="meta">Statement {{statement_id}} · version {{statement_version}} · {{statement_state}}</p>
+<div class="totals"><span>جمع قابل پرداخت</span><strong>{{payable_amount}}</strong></div>
+<p class="note">این صورت‌حساب فقط حقوق جلسات را ثبت می‌کند و رسید واریز، فاکتور رسمی یا دستور بانکی نیست. مبلغ و ردیف‌ها از سوابق مالی تأییدشدهٔ کلاس‌ها محاسبه شده‌اند.</p>
 HTML;
 
     public const DEFAULT_FOOTER = <<<'HTML'
 <footer>
-  <p>{{academy_name}} · Teacher compensation statement · Generated {{generated_at}}</p>
-  <p>This statement records lesson compensation only. It is not a payout receipt.</p>
+  <p><strong>{{academy_name}}</strong> · صورت‌حساب حقوق مدرس · دوره {{period_label}}</p>
+  <p>شناسه: {{statement_id}} · نسخه {{statement_version}} · تولید: {{generated_at}}</p>
+  <p>پشتیبانی: support@delnavazan.com · https://delnavazan.com</p>
 </footer>
 HTML;
 

@@ -44,6 +44,10 @@ final class StatementTemplateService {
                 'lesson_id' => (string) ($line['lesson_id'] ?? ''),
                 'lesson_date' => (string) ($line['occurrence_starts_at_utc'] ?? $line['lesson_date'] ?? ''),
                 'course' => (string) ($line['course'] ?? ''),
+                'duration_minutes' => $this->digits((string) (int) ($line['duration_minutes'] ?? 0), $persian),
+                'rate_amount' => PricingMoney::format((int) ($line['rate_amount_minor'] ?? 0), $currency, $persian),
+                'base_amount' => PricingMoney::format((int) ($line['base_amount_minor'] ?? $line['line_amount_minor'] ?? $line['amount_minor'] ?? 0), $currency, $persian),
+                'bonus_amount' => PricingMoney::format((int) ($line['bonus_amount_minor'] ?? 0), $currency, $persian),
                 'disposition' => (string) ($line['disposition'] ?? ''),
                 'basis' => (string) ($line['basis_code'] ?? $line['basis'] ?? ''),
                 'amount' => PricingMoney::format((int) ($line['line_amount_minor'] ?? $line['amount_minor'] ?? 0), $currency, $persian),
@@ -61,7 +65,7 @@ final class StatementTemplateService {
 
         return '<!doctype html><html lang="' . ($persian ? 'fa' : 'en') . '" dir="' . $direction . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             . '<title>' . $this->e($academyName) . ' — ' . $this->e($values['period_label']) . '</title>'
-            . '<style>' . $css . '</style></head><body><main class="statement" dir="' . $direction . '">'
+            . '<style>' . $this->fontFaceCss() . $css . '</style></head><body><main class="statement" dir="' . $direction . '">'
             . $header . $body . $footer . '</main></body></html>';
     }
 
@@ -75,8 +79,8 @@ final class StatementTemplateService {
             'teacher_name' => 'نمونه استاد', 'teacher_reference' => 'DZN-TCH-0001',
         );
         $lines = array(
-            array('lesson_id' => 'DZN-LSN-001', 'occurrence_starts_at_utc' => '2026-10-05 15:00:00', 'course' => 'کلاس تار', 'disposition' => 'payable', 'basis_code' => 'delivered_occurrence', 'line_amount_minor' => 4500000),
-            array('lesson_id' => 'DZN-LSN-002', 'occurrence_starts_at_utc' => '2026-10-12 15:00:00', 'course' => 'کلاس تار', 'disposition' => 'non_payable', 'basis_code' => 'academy_obligation', 'line_amount_minor' => 0),
+            array('lesson_id' => 'DZN-LSN-001', 'occurrence_starts_at_utc' => '2026-10-05 15:00:00', 'course' => 'کلاس تار', 'duration_minutes' => 60, 'rate_amount_minor' => 4000000, 'base_amount_minor' => 4000000, 'bonus_amount_minor' => 500000, 'disposition' => 'payable', 'basis_code' => 'delivered_occurrence', 'line_amount_minor' => 4500000),
+            array('lesson_id' => 'DZN-LSN-002', 'occurrence_starts_at_utc' => '2026-10-12 15:00:00', 'course' => 'کلاس تار', 'duration_minutes' => 60, 'rate_amount_minor' => 4000000, 'base_amount_minor' => 0, 'bonus_amount_minor' => 0, 'disposition' => 'non_payable', 'basis_code' => 'academy_obligation', 'line_amount_minor' => 0),
         );
         return $this->render($statement, $lines, $template, $academyName);
     }
@@ -105,6 +109,19 @@ final class StatementTemplateService {
 
     private function e(string $value): string {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private function digits(string $value, bool $persian): string {
+        if (!$persian) return $value;
+        return strtr($value, array('0' => '۰', '1' => '۱', '2' => '۲', '3' => '۳', '4' => '۴', '5' => '۵', '6' => '۶', '7' => '۷', '8' => '۸', '9' => '۹'));
+    }
+
+    /** Trusted, theme-local brand font. This is never part of the editable template CSS. */
+    private function fontFaceCss(): string {
+        if (!function_exists('get_theme_file_uri')) return '';
+        $url = (string) get_theme_file_uri('assets/fonts/Vazirmatn-Variable.woff2');
+        if ($url === '') return '';
+        return '@font-face{font-family:Vazirmatn;src:url("' . $this->e($url) . '") format("woff2-variations");font-style:normal;font-weight:400 900;font-display:swap;}';
     }
 
     private function symbol(string $currency): string {

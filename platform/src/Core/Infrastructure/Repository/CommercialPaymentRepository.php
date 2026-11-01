@@ -38,6 +38,7 @@ final class CommercialPaymentRepository {
     }
     public function insertFact(array $data):int{return $this->insert('commercial_payment_facts',$data,'Payment fact persistence failed');}
 
+    public function settlementByUid(string $uid,bool $lock=false):?object{return $this->one("SELECT * FROM {$this->p}commercial_obligation_settlements WHERE uid=%s".($lock?' FOR UPDATE':''),$uid);}
     public function settlementForObligation(int $obligationId,bool $lock=false):?object{
         return $this->one("SELECT * FROM {$this->p}commercial_obligation_settlements WHERE obligation_id=%d".($lock?' FOR UPDATE':''),$obligationId);
     }

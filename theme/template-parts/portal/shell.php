@@ -118,13 +118,13 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
 		<?php elseif ( 'payments' === $screen ) : ?>
-			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array(), 'history' => $model['payment_history'] ?? array() ) ); ?>
 			<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $model['tuition_allocations'] ?? array(), 'id' => 'student-tuition-allocation-payments' ) ); ?>
 		<?php elseif ( 'account' === $screen ) : ?>
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 			<?php if ( ! in_array( (string) ( $model['payments']['state'] ?? '' ), array( 'disabled', 'unavailable' ), true ) ) : ?>
-				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
+				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array(), 'history' => $model['payment_history'] ?? array() ) ); ?>
 			<?php endif; ?>
 			<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $model['tuition_allocations'] ?? array(), 'id' => 'student-settings-finances' ) ); ?>
 			<?php

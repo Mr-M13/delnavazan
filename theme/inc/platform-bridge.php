@@ -653,6 +653,23 @@ function dzn_theme_platform_provisioning_notice( array $enrolments ) {
  *
  * @return array{state:string,obligations:array<int,array>}
  */
+/**
+ * Owner-bound payment history, independent of the online-checkout release flag.
+ *
+ * The Platform principal is the only identity key; a failed or unavailable read is reported as such.
+ */
+function dzn_theme_platform_student_payment_history_read() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\Checkout\\StudentPaymentHistoryReadService';
+	if ( ! class_exists( $class ) ) { return array( 'state' => 'unavailable', 'items' => array(), 'settled_minor' => 0, 'outstanding_minor' => 0, 'refunded_minor' => 0 ); }
+	try {
+		$read = ( new $class() )->read();
+		if ( ! is_array( $read ) || 'ok' !== ( $read['state'] ?? '' ) || ! is_array( $read['items'] ?? null ) ) { throw new RuntimeException( 'payment_history_unavailable' ); }
+		return $read;
+	} catch ( Throwable $error ) {
+		return array( 'state' => 'unavailable', 'items' => array(), 'settled_minor' => 0, 'outstanding_minor' => 0, 'refunded_minor' => 0 );
+	}
+}
+
 function dzn_theme_platform_student_commercial_read() {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\Checkout\\StudentCommercialCheckoutReadService';
 	if ( ! class_exists( $class ) ) { return array( 'state' => 'unavailable', 'obligations' => array() ); }
@@ -1013,9 +1030,10 @@ function dzn_theme_platform_student_model( $screen ) {
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$payments_enabled = dzn_theme_student_payments_enabled();
+	$payment_history = dzn_theme_platform_student_payment_history_read();
 	$commercial = $payments_enabled ? dzn_theme_platform_student_commercial_read() : array( 'state' => 'unavailable', 'obligations' => array() );
 	$payments_model = dzn_theme_platform_student_payments_model( $commercial, $student_timezone, $payments_enabled );
-	$payments_available = ! empty( $payments_model['checkout_enabled'] );
+	$payments_available = ! empty( $payments_model['checkout_enabled'] ) || ( 'ok' === ( $payment_history['state'] ?? '' ) && ! empty( $payment_history['items'] ) );
 	$schedule_available = (bool) ( $lessons || $booking_classes );
 	$navigation = dzn_theme_platform_student_navigation( $screen, $schedule_available, $payments_available );
 	$active = array();
@@ -1069,6 +1087,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	}
 	if ( 'payments' === $screen ) {
 		$model['payments'] = $payments_model;
+		$model['payment_history'] = $payment_history;
 		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
 	}
@@ -1112,6 +1131,7 @@ function dzn_theme_platform_student_model( $screen ) {
 		);
 		$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' );
 		$model['payments'] = $payments_model;
+		$model['payment_history'] = $payment_history;
 		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
 	}

@@ -155,6 +155,35 @@ try {
 }
 dzn_manual_runtime_assert($overRefund, 'A fully refunded obligation must refuse another manual refund');
 
+/* Evidence committed, review creation interrupted: the same request must recover exactly one review. */
+$recoveryKey = dzn_r1_fix_key('refund-recovery');
+$recoveryInput = array(
+    'offer_uid' => (string) $offer['offer_uid'],
+    'obligation_sequence' => 2,
+    'amount' => '10.00',
+    'evidence_reference' => 'REFUND-MANUAL-RECOVERY',
+    'refunded_on' => gmdate('Y-m-d'),
+    'note' => 'Recovery proof',
+);
+$failedOnce = false;
+$failureHook = static function () use (&$failedOnce): void {
+    if (!$failedOnce) { $failedOnce = true; throw new RuntimeException('injected_review_failure'); }
+};
+add_action('dzn_manual_refund_before_review', $failureHook, 10, 2);
+$interrupted = false;
+try {
+    $refunds->record($recoveryInput, $recoveryKey);
+} catch (\Throwable $error) {
+    $interrupted = $error->getMessage() === 'injected_review_failure';
+}
+remove_action('dzn_manual_refund_before_review', $failureHook, 10);
+dzn_manual_runtime_assert($interrupted, 'The injected review failure must interrupt after evidence exists');
+$recovered = $refunds->record($recoveryInput, $recoveryKey);
+dzn_manual_runtime_assert((int) ($recovered['refund_review_id'] ?? 0) > 0 && (string) $recovered['state'] === 'review_open', 'A retry must recover the missing review case');
+$recoveryEvidence = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_payment_evidence WHERE obligation_id=%d AND evidence_kind='refund' AND processing_state='accepted'", (int) dzn_r1_fix_obligation($offer, 2)['obligation_id']));
+$recoveryReservations = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_manual_refund_reservations WHERE obligation_id=%d", (int) dzn_r1_fix_obligation($offer, 2)['obligation_id']));
+dzn_manual_runtime_assert($recoveryEvidence === 1 && $recoveryReservations === 1, 'Recovery must create one evidence row and one reservation, never a duplicate refund');
+
 $review = new RefundReviewService();
 $now = gmdate('Y-m-d H:i:s');
 $review->routeForReview((int) $refund['refund_review_id'], array('evidence_channel' => 'staff_record', 'evidence_reference' => 'REFUND-ROUTE', 'evidence_at' => $now), dzn_r1_fix_key('refund-route'));

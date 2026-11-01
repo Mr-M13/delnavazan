@@ -358,9 +358,13 @@ final class FinanceAdminController {
         if ($statementId > 0) $args['statement_id'] = $statementId;
         try {
             if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
-            $result = (new TeacherStatementEmailService())->send($statementId);
-            $args['finance_result'] = !empty($result['emailed']) ? 'statement_emailed' : 'statement_email_failed';
-            if (empty($result['emailed']) && !empty($result['reason'])) $args['finance_error'] = (string) $result['reason'];
+            $result = (new TeacherStatementEmailService())->enqueue($statementId, isset($_POST['retry_email']));
+            if (!empty($result['queued'])) {
+                $args['finance_result'] = (string) ($result['reason'] ?? '') === 'already_transport_accepted' ? 'statement_email_already_accepted' : 'statement_email_queued';
+            } else {
+                $args['finance_result'] = 'statement_email_failed';
+                if (!empty($result['reason'])) $args['finance_error'] = (string) $result['reason'];
+            }
         } catch (\Throwable $error) {
             $args['finance_result'] = 'error';
             $message = trim($error->getMessage());
@@ -969,15 +973,26 @@ final class FinanceAdminController {
             echo '<div class="dzn-finance-statement-preview"><div class="dzn-finance-statement-preview__head"><h3>Preview · statement ' . esc_html((string) $statementId) . '</h3><div>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" target="_blank" style="display:inline">' . self::exportFields($statementId, false) . '<button class="button">Print / open</button></form> ';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">' . self::exportFields($statementId, true) . '<button class="button">Download HTML</button></form>';
+            $emailIntent = null;
+            try { $emailIntent = (new TeacherStatementEmailService())->intent($statementId); } catch (\Throwable) { $emailIntent = null; }
             if ($canManage && (string) $selected['state'] === 'issued') {
-                echo ' <form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
-                    . '<input type="hidden" name="action" value="dzn_finance_statement_email"><input type="hidden" name="statement_id" value="' . (int) $statementId . '"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '">'
-                    . wp_nonce_field('dzn_finance_statement_email', '_wpnonce', true, false)
-                    . '<button class="button">Email to teacher</button></form>';
+                $retry = $emailIntent !== null && in_array((string) ($emailIntent['state'] ?? ''), array('failed', 'retryable'), true);
+                $alreadyAccepted = $emailIntent !== null && (string) ($emailIntent['state'] ?? '') === 'transport_accepted';
+                if (!$alreadyAccepted) {
+                    echo ' <form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">'
+                        . '<input type="hidden" name="action" value="dzn_finance_statement_email"><input type="hidden" name="statement_id" value="' . (int) $statementId . '"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '">'
+                        . ($retry ? '<input type="hidden" name="retry_email" value="1">' : '')
+                        . wp_nonce_field('dzn_finance_statement_email', '_wpnonce', true, false)
+                        . '<button class="button">' . ($retry ? 'Retry statement email' : 'Queue statement email') . '</button></form>';
+                }
             }
-            $emailEvent = $read->statementEmailEvent($statementId);
-            if ($emailEvent !== null) {
-                echo '<p class="description">Last email attempt: ' . esc_html($emailEvent['type'] === 'emailed' ? 'sent' : 'failed') . ' at ' . esc_html($emailEvent['occurred_at']) . ' UTC.</p>';
+            if ($emailIntent !== null) {
+                $delivery = (string) $emailIntent['state'] === 'transport_accepted'
+                    ? 'transport accepted at ' . esc_html((string) ($emailIntent['transport_accepted_at'] ?? '—')) . ' UTC; delivery is not confirmed'
+                    : 'state ' . esc_html((string) $emailIntent['state']) . '; ' . esc_html((string) ($emailIntent['attempt_count'] ?? 0)) . '/' . esc_html((string) ($emailIntent['max_attempts'] ?? 0)) . ' attempts';
+                echo '<p class="description">Email intent #' . (int) $emailIntent['intent_id'] . ': ' . $delivery . '.';
+                if (!empty($emailIntent['last_error_code'])) echo ' Last error: ' . esc_html((string) $emailIntent['last_error_code']) . '.';
+                echo '</p>';
             }
             echo '</div></div><iframe class="dzn-finance-statement-frame" sandbox title="Teacher statement preview" srcdoc="' . esc_attr($html) . '"></iframe></div>';
         } else {
@@ -1039,19 +1054,20 @@ final class FinanceAdminController {
             delete_transient('dzn_finance_statement_batch_' . get_current_user_id());
             $summary = (array) ($result['summary'] ?? array());
             echo '<h4>Batch result · ' . esc_html((string) ($result['month'] ?? $month)) . '</h4>';
-            echo '<p><strong>' . esc_html((string) ($summary['teachers'] ?? 0)) . '</strong> Teacher(s) · drafted ' . esc_html((string) ($summary['drafted'] ?? 0)) . ' · issued ' . esc_html((string) ($summary['issued'] ?? 0)) . ' · skipped ' . esc_html((string) ($summary['skipped'] ?? 0)) . ' · failed ' . esc_html((string) ($summary['failed'] ?? 0)) . ' · emailed ' . esc_html((string) ($summary['emailed'] ?? 0)) . '.</p>';
-            echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Teacher</th><th>Result</th><th>Statement</th><th>Reason</th><th>Email</th></tr></thead><tbody>';
+            echo '<p><strong>' . esc_html((string) ($summary['teachers'] ?? 0)) . '</strong> Teacher(s) · drafted ' . esc_html((string) ($summary['drafted'] ?? 0)) . ' · issued ' . esc_html((string) ($summary['issued'] ?? 0)) . ' · skipped ' . esc_html((string) ($summary['skipped'] ?? 0)) . ' · failed ' . esc_html((string) ($summary['failed'] ?? 0)) . ' · email queued ' . esc_html((string) ($summary['email_queued'] ?? 0)) . ' · email failed ' . esc_html((string) ($summary['email_failed'] ?? 0)) . '.</p>';
+            echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Teacher</th><th>Draft</th><th>Issue</th><th>Statement</th><th>Email</th><th>Reason</th></tr></thead><tbody>';
             foreach ((array) ($result['teachers'] ?? array()) as $row) {
                 $state = (string) ($row['state'] ?? '');
                 $reason = (string) ($row['reason'] ?? '');
-                $email = !empty($row['emailed']) ? 'Sent' : ($reason !== '' ? '—' : 'Not requested');
+                $email = (string) ($row['email_state'] ?? 'not_requested');
                 $sid = (int) ($row['statement_id'] ?? 0);
                 $statementCell = $sid > 0 ? '#' . $sid : '—';
                 echo '<tr><td>' . esc_html((string) ($row['teacher_name'] ?? '')) . '<br><small>' . esc_html((string) ($row['teacher_reference'] ?? '')) . '</small></td>'
-                    . '<td><span class="dzn-finance-pill">' . esc_html(ucfirst($state)) . '</span></td>'
+                    . '<td><span class="dzn-finance-pill">' . esc_html((string) ($row['draft_state'] ?? '—')) . '</span></td>'
+                    . '<td><span class="dzn-finance-pill">' . esc_html((string) ($row['issue_state'] ?? '—')) . '</span></td>'
                     . '<td>' . esc_html($statementCell) . '</td>'
-                    . '<td>' . esc_html($reason !== '' ? $reason : '—') . '</td>'
-                    . '<td>' . esc_html($email) . ((string) ($row['email_reason'] ?? '') !== '' ? '<br><small>' . esc_html((string) $row['email_reason']) . '</small>' : '') . '</td></tr>';
+                    . '<td><span class="dzn-finance-pill">' . esc_html($email) . '</span>' . ((string) ($row['email_reason'] ?? '') !== '' ? '<br><small>' . esc_html((string) $row['email_reason']) . '</small>' : '') . '</td>'
+                    . '<td>' . esc_html($reason !== '' ? $reason : '—') . '</td></tr>';
             }
             echo '</tbody></table>';
         }
@@ -1488,6 +1504,8 @@ final class FinanceAdminController {
             'statement_withdrawn' => array('success', 'The draft statement was withdrawn. Its lines remain recorded and cannot be reused.'),
             'statement_superseded' => array('success', 'A new statement draft version was created and the previous issued version was superseded.'),
             'statement_emailed' => array('success', 'The issued statement was emailed to the Teacher\'s recorded address.'),
+            'statement_email_queued' => array('success', 'A durable statement-email intent was queued. The worker will record transport acceptance or a retryable failure; delivery is not yet confirmed.'),
+            'statement_email_already_accepted' => array('info', 'This statement already has a transport-accepted email intent. No duplicate email was queued.'),
             'statement_email_failed' => array('error', 'The statement email was not sent. The statement itself was not changed.'),
             'statement_batch_complete' => array('success', 'The monthly batch finished. Review each Teacher\'s result below; no failed Teacher blocked another.'),
             'refund_recorded' => array('success', 'The manual refund evidence and review case were recorded. No settlement, funding, Lesson or statement was changed; complete the money movement outside this page.'),
@@ -1579,6 +1597,8 @@ final class FinanceAdminController {
                     'statement_batch_failed' => 'The batch could not start. No statement was changed.',
                     'statement_email_missing' => 'The Teacher has no recorded email address. Update the Teacher profile and try again.',
                     'statement_email_transport_failed' => 'The email transport did not accept the message. The statement remains issued and unchanged.',
+                    'already_queued' => 'A statement-email intent is already queued. No duplicate intent was created.',
+                    'statement_email_processing_failed' => 'The email worker could not prepare the statement. The intent remains retryable.',
                     'statement_not_issued' => 'Only an issued statement can be emailed. Issue the draft first.',
                     'manual_refund_command_required' => 'The refund command key was missing. Retry the refund.',
                     'manual_refund_offer_required' => 'The selected offer no longer exists. Refresh the settlements list.',

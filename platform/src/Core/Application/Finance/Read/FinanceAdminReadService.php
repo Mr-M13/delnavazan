@@ -411,7 +411,7 @@ final class FinanceAdminReadService {
         FinanceSupport::requireCapability('dzn_view_finance_authority');
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT event_type,occurred_at FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type IN ('emailed','email_failed') ORDER BY id DESC LIMIT 1",
+            "SELECT event_type,occurred_at FROM {$this->p}finance_statement_events WHERE statement_id=%d AND event_type IN ('emailed','email_failed','email_queued','email_transport_accepted') ORDER BY id DESC LIMIT 1",
             $statementId
         ));
         return $row === null ? null : array('type' => (string) $row->event_type, 'occurred_at' => (string) $row->occurred_at);

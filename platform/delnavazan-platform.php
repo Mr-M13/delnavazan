@@ -127,6 +127,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
 	Delnavazan\Platform\Integrations\LessonCompletionAutomationWorker::register();
+	Delnavazan\Platform\Integrations\TeacherStatementEmailWorker::register();
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
 	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();

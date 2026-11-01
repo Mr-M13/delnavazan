@@ -311,7 +311,7 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				'total'                   => 12,
 				'current_label'           => 'جلسهٔ ۸ از ۱۲',
 				'next_label'              => 'جلسهٔ بعد: شنبه ۴ مهر',
-				'normal_replacement'      => 'یک جلسهٔ جایگزین برنامه‌ریزی شده',
+				'normal_replacement'      => 'یک جلسهٔ جبرانی برنامه‌ریزی شده',
 				'academy_owed_remedial'   => 'جلسهٔ بدهکارِ آموزشگاه وجود ندارد',
 				'academy_owed_tone'       => 'success',
 			),

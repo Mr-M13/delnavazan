@@ -5,7 +5,7 @@ if ( ! $requests ) { return; }
 ?>
 <section class="dzn-portal-section dzn-booking-requests" aria-labelledby="dzn-booking-requests-title">
 	<div class="dzn-portal-section__heading">
-		<div><p class="dzn-portal-kicker">درخواست‌های جلسهٔ معارفه</p><h2 id="dzn-booking-requests-title">در انتظار هماهنگی</h2></div>
+		<div><p class="dzn-portal-kicker">درخواست‌های کلاس آشنایی</p><h2 id="dzn-booking-requests-title">در انتظار هماهنگی</h2></div>
 	</div>
 	<ul class="dzn-booking-requests__list">
 		<?php
@@ -32,9 +32,9 @@ if ( ! $requests ) { return; }
 				$payment_label = $payment_state === 'paid' ? 'پرداخت شده' : ( $payment_state === 'refunded' ? 'بازپرداخت شده' : ( $failure === 'payment_failed' ? 'پرداخت ناموفق — امکان تلاش دوباره' : 'در انتظار پرداخت' ) );
 				?>
 				<div class="dzn-booking-requests__payment" data-dzn-intro-payment>
-					<p><strong>هزینهٔ جلسهٔ معارفه:</strong> <?php echo esc_html( $formatted ); ?> — <span><?php echo esc_html( $payment_label ); ?></span></p>
+					<p><strong>هزینهٔ کلاس آشنایی:</strong> <?php echo esc_html( $formatted ); ?> — <span><?php echo esc_html( $payment_label ); ?></span></p>
 					<?php if ( ! empty( $intro_payment['payment_required'] ) && in_array( $payment_state, array( 'pending', 'failed' ), true ) ) : ?>
-						<button type="button" class="dzn-button" data-dzn-intro-checkout data-obligation="<?php echo esc_attr( (string) $intro_payment['obligation_uid'] ); ?>">پرداخت جلسهٔ معارفه</button>
+						<button type="button" class="dzn-button" data-dzn-intro-checkout data-obligation="<?php echo esc_attr( (string) $intro_payment['obligation_uid'] ); ?>">پرداخت کلاس آشنایی</button>
 					<?php endif; ?>
 					<p class="dzn-portal-help" data-dzn-intro-status aria-live="polite"></p>
 				</div>

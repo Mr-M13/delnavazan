@@ -86,8 +86,8 @@ final class RegionalPricingRule {
     }
 
     public static function introLabel(string $mode, ?int $amountMinor, string $currency, bool $persian = false): string {
-        if ($mode !== self::INTRO_PAID) return $persian ? 'جلسهٔ معارفه رایگان' : 'Free introductory lesson';
+        if ($mode !== self::INTRO_PAID) return $persian ? 'کلاس آشنایی رایگان' : 'Free introductory lesson';
         $amount = PricingMoney::format((int) $amountMinor, $currency, $persian);
-        return $persian ? 'جلسهٔ معارفه ' . $amount : 'Introductory lesson ' . $amount;
+        return $persian ? 'کلاس آشنایی ' . $amount : 'Introductory lesson ' . $amount;
     }
 }

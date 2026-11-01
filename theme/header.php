@@ -36,9 +36,10 @@
 						<img class="custom-logo" src="<?php echo esc_url( get_theme_file_uri( 'assets/images/delnavazan-logo.png' ) ); ?>" alt="<?php esc_attr_e( 'دلنوازان', 'delnavazan-theme' ); ?>">
 					</a>
 				<?php else : ?>
-					<a class="site-branding__name" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home" aria-label="<?php esc_attr_e( 'خانهٔ دلنوازان', 'delnavazan-theme' ); ?>">
-						<span class="site-branding__title">دلنوازان</span>
-						<span class="site-branding__tagline">آکادمی آموزش موسیقی ایران</span>
+					<?php $dzn_brand = dzn_theme_brand_identity(); ?>
+					<a class="site-branding__name" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home" aria-label="<?php echo esc_attr( sprintf( __( 'خانهٔ %s', 'delnavazan-theme' ), $dzn_brand['name'] ) ); ?>">
+						<span class="site-branding__title"><?php echo esc_html( $dzn_brand['name'] ); ?></span>
+						<span class="site-branding__tagline"><?php echo esc_html( $dzn_brand['tagline'] ); ?></span>
 					</a>
 				<?php endif; ?>
 			</div>

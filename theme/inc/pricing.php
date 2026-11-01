@@ -50,8 +50,8 @@ function dzn_theme_introductory_pricing_note( $region_code = '' ) {
 	if ( $configured !== array() ) {
 		$modes = array_unique( array_map( static fn( $item ) => (string) ( $item['introductoryMode'] ?? 'free' ), $configured ) );
 		if ( $modes === array( 'free' ) ) {
-			return 'جلسهٔ معارفه رایگان است.';
+			return 'کلاس آشنایی رایگان است.';
 		}
 	}
-	return 'جلسهٔ معارفه — هزینهٔ آن بر اساس منطقهٔ شما نمایش داده می‌شود.';
+	return 'کلاس آشنایی — هزینهٔ آن بر اساس منطقهٔ شما نمایش داده می‌شود.';
 }

@@ -70,7 +70,7 @@ $sources = array(
 					<?php foreach ( $section['faq'] ?? array() as $faq ) : ?>
 					<details class="dzn-project__faq"><summary><?php echo esc_html( $faq[0] ); ?></summary><p><?php echo esc_html( $faq[1] ); ?></p></details>
 					<?php endforeach; ?>
-					<?php if ( 'join' === $section['id'] ) : ?><p><a class="dzn-button" href="mailto:delnavazan@mail.com"><?php echo esc_html( $copy['contact'] ); ?></a></p><?php endif; ?>
+					<?php if ( 'join' === $section['id'] ) : ?><p><a class="dzn-button" href="<?php echo esc_url( dzn_theme_brand_identity()['support_mailto'] ); ?>"><?php echo esc_html( $copy['contact'] ); ?></a></p><?php endif; ?>
 				</div>
 			</section>
 			<?php endforeach; ?>

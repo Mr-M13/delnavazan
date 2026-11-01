@@ -54,7 +54,12 @@ $contains($refund, array(
     'RefundReviewService', 'recordRefundEvidence', 'refundedMinor',
     'manual_refund_exceeds_remaining', 'manual_refund_already_complete', 'manual_refund_before_settlement',
     'manual_refund_settlement_required', 'manual_refund_amount_required',
-), 'Manual refunds must be administrator-only, capped by settled balance and routed to review evidence');
+    'ManualRefundReservationRepository', 'request_key_digest', 'evidence_key_digest', 'payload_digest',
+    'lockAccountRoot', 'sumReserved', 'dzn_manual_refund_before_review', 'existingForEvidence',
+    'manual_refund_request_conflict', 'evidence_recorded', 'review_open', 'release(',
+), 'Manual refunds must reserve the balance atomically, persist idempotency fingerprints and recover evidence-to-review failures');
+$contains($read('src/Core/Infrastructure/Migration/Migrator.php'), array('060_manual_refund_reservations','finance_manual_refund_reservations','finance_manual_refund_events'), 'Schema 060 must persist the refund reservation and append-only event history');
+$contains($repository, array('teachersWithWork', 'hasEmailEvent'), 'The batch candidate read must remain present');
 $contains($refundReview, array("resolution_note'=>\$note === '' ? null : \$note"), 'A manual refund note must be retained on the review case');
 $assert(!str_contains($staff, 'dzn_manage_refund_reviews'), 'Refund authority must remain administrator-only, not part of the Finance staff bundle');
 $contains($readService, array('refundReviews', 'refunded_minor', 'dzn_view_recurring_authority'), 'Refund reads must be raised only for the recurring authority');

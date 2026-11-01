@@ -30,9 +30,11 @@ function dzn_fin_runtime_count(string $table): int { global $wpdb; return (int) 
 
 dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '57', 'Finance runtime requires Schema 57');
 dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '57', 'Schema 57 must be installed');
+dzn_fin_runtime_assert(in_array('060_manual_refund_reservations', (array) get_option('dzn_platform_completed_migrations', array()), true), 'Migration 060 must be recorded');
+dzn_fin_runtime_assert((int) $wpdb->get_var("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='{$p}finance_manual_refund_reservations'") === 1, 'The manual refund reservation table must exist');
 
 /* ---------------------------------------------------------------- regional price authority + conflicts */
-foreach (array('finance_regional_prices','finance_golden_hour_details','finance_settings','intro_payment_events','intro_checkout_sessions','intro_payment_obligations','intro_payment_commands') as $table) $wpdb->query("DELETE FROM {$p}{$table}");
+foreach (array('finance_regional_prices','finance_golden_hour_details','finance_settings','finance_manual_refund_events','finance_manual_refund_reservations','intro_payment_events','intro_checkout_sessions','intro_payment_obligations','intro_payment_commands') as $table) $wpdb->query("DELETE FROM {$p}{$table}");
 
 $pricingEmpty = new RegionalPricingService();
 dzn_fin_runtime_assert($pricingEmpty->activeAll() === array() && $pricingEmpty->conflicts() === array(), 'An empty catalogue must have no invented regional price or conflict');

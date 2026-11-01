@@ -51,6 +51,7 @@ final class FinanceAdminController {
         add_action('admin_post_dzn_finance_statement_batch', array(__CLASS__, 'handleStatementBatch'));
         add_action('admin_post_dzn_finance_refund', array(__CLASS__, 'handleRefund'));
         add_action('admin_post_dzn_finance_refund_review', array(__CLASS__, 'handleRefundReview'));
+        add_action('admin_post_dzn_finance_refund_release', array(__CLASS__, 'handleRefundRelease'));
     }
 
     public static function menu(): void {
@@ -418,6 +419,28 @@ final class FinanceAdminController {
         exit;
     }
 
+    /** Release a pre-evidence reservation that was interrupted before evidence existed. */
+    public static function handleRefundRelease(): void {
+        if (!current_user_can('dzn_manage_refund_reviews')) wp_die('Forbidden', 403);
+        check_admin_referer('dzn_finance_refund_release');
+        $_POST = wp_unslash($_POST);
+        $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS);
+        try {
+            (new ManualRefundService())->release(
+                absint($_POST['reservation_id'] ?? 0),
+                sanitize_key((string) ($_POST['reason_code'] ?? 'operator_released')),
+                sanitize_text_field((string) ($_POST['command_key'] ?? ''))
+            );
+            $args['finance_result'] = 'refund_reservation_released';
+        } catch (\Throwable $error) {
+            $args['finance_result'] = 'error';
+            $message = trim($error->getMessage());
+            $args['finance_error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'refund_reservation_release_failed';
+        }
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')) . '#refund-reviews');
+        exit;
+    }
+
     /** Route, resolve or dismiss one manual refund review. */
     public static function handleRefundReview(): void {
         if (!current_user_can('dzn_manage_refund_reviews')) wp_die('Forbidden', 403);
@@ -649,6 +672,7 @@ final class FinanceAdminController {
         if (!current_user_can('dzn_view_recurring_authority')) return;
         $canManage = current_user_can('dzn_manage_refund_reviews');
         $settlements = $read->recentSettlements(25);
+        $reservations = $read->manualRefundReservations(50);
         $reviews = $read->refundReviews(50);
         echo '<section class="dzn-finance-settings-section" id="refund-reviews"><h3>Manual refunds</h3>';
         echo '<p>Refunds are recorded and reviewed by an administrator only. Recording a refund creates accepted manual refund evidence and a review case. It does not move money, rewrite the settlement, reduce academic funding, cancel a Lesson or change a statement. Complete the actual bank/card refund outside this page, then route and resolve the case here.</p>';
@@ -658,7 +682,8 @@ final class FinanceAdminController {
         foreach ($settlements as $row) {
             $settledMinor = (int) $row->amount_minor;
             $refundedMinor = (int) ($row->refunded_minor ?? 0);
-            $remaining = max(0, $settledMinor - $refundedMinor);
+            $reservedMinor = (int) ($row->reserved_minor ?? 0);
+            $remaining = (int) ($row->remaining_minor ?? max(0, $settledMinor - $refundedMinor - $reservedMinor));
             $action = $remaining > 0 ? 'Available' : 'Fully refunded';
             if ($canManage && $remaining > 0) {
                 $action = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-manual-pay">'
@@ -677,6 +702,30 @@ final class FinanceAdminController {
                 . '<td>' . esc_html(PricingMoney::format($settledMinor, (string) $row->currency)) . '</td>'
                 . '<td>' . esc_html(PricingMoney::format($refundedMinor, (string) $row->currency)) . '</td>'
                 . '<td><strong>' . esc_html(PricingMoney::format($remaining, (string) $row->currency)) . '</strong></td>'
+                . '<td>' . $action . '</td></tr>';
+        }
+        echo '</tbody></table>';
+        echo '<h4>Refund reservations</h4>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>Reservation</th><th>Student</th><th>Offer / instalment</th><th>Amount</th><th>State</th><th>Evidence / review</th><th>Action</th></tr></thead><tbody>';
+        if (!$reservations) echo '<tr><td colspan="7">No manual refund reservation has been recorded.</td></tr>';
+        foreach ($reservations as $reservation) {
+            $reservationId = (int) $reservation->id;
+            $reservationState = (string) $reservation->state;
+            $action = '—';
+            if ($canManage && $reservationState === 'reserved' && $reservation->evidence_id === null) {
+                $action = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline" onsubmit="return confirm(\'Release this reservation? Only do this when no refund evidence exists.\')">'
+                    . '<input type="hidden" name="action" value="dzn_finance_refund_release"><input type="hidden" name="reservation_id" value="' . $reservationId . '"><input type="hidden" name="reason_code" value="operator_released"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                    . wp_nonce_field('dzn_finance_refund_release', '_wpnonce', true, false)
+                    . '<button class="button button-small">Release reservation</button></form>';
+            }
+            $evidence = $reservation->evidence_id === null ? '—' : 'Evidence #' . (int) $reservation->evidence_id;
+            if ($reservation->refund_review_id !== null) $evidence .= ' · Review #' . (int) $reservation->refund_review_id;
+            echo '<tr><td>#' . $reservationId . '<br><small>' . esc_html((string) $reservation->uid) . '</small></td>'
+                . '<td>' . esc_html((string) ($reservation->student_name ?: '—')) . '<br><small>' . esc_html((string) ($reservation->student_reference ?: '')) . '</small></td>'
+                . '<td>' . esc_html((string) ($reservation->offer_reference ?: $reservation->offer_uid)) . '<br><small>#' . esc_html((string) (int) $reservation->obligation_sequence) . '</small></td>'
+                . '<td>' . esc_html(PricingMoney::format((int) $reservation->amount_minor, (string) $reservation->currency)) . '</td>'
+                . '<td><span class="dzn-finance-pill">' . esc_html($reservationState) . '</span>' . ($reservation->failure_reason_code ? '<br><small>' . esc_html((string) $reservation->failure_reason_code) . '</small>' : '') . '</td>'
+                . '<td>' . esc_html($evidence) . '</td>'
                 . '<td>' . $action . '</td></tr>';
         }
         echo '</tbody></table>';
@@ -1445,6 +1494,7 @@ final class FinanceAdminController {
             'refund_review_routed' => array('success', 'The refund review was routed for a human decision.'),
             'refund_review_resolved' => array('success', 'The refund review was resolved and the decision note was recorded.'),
             'refund_review_dismissed' => array('success', 'The refund review was dismissed and the decision was recorded.'),
+            'refund_reservation_released' => array('success', 'The interrupted refund reservation was released. No evidence or review was changed.'),
             'use_settings' => array('info', 'Student pricing is configured once per region in Finance → Settings. No technical catalogue fields were changed.'),
             'error' => array('error', 'The change was not saved. Review the highlighted values, permissions and effective dates, then try again.'),
         );
@@ -1552,6 +1602,12 @@ final class FinanceAdminController {
                     'invalid_refund_review_state' => 'The refund review state changed. Refresh before retrying.',
                     'refund_review_not_found' => 'The refund review case no longer exists.',
                     'refund_review_failed' => 'The refund review operation failed. No decision was recorded.',
+                    'manual_refund_ownership_conflict' => 'The offer, purchase and Student ownership do not match. No refund was reserved.',
+                    'manual_refund_reservation_required' => 'The refund reservation no longer exists.',
+                    'manual_refund_reservation_not_releasable' => 'Only a pre-evidence reservation can be released.',
+                    'manual_refund_reservation_released' => 'This reservation was released; use a new evidence reference to request another refund.',
+                    'manual_refund_request_conflict' => 'This idempotency key or evidence reference was already used with a different refund payload.',
+                    'manual_refund_reservation_release_failed' => 'The reservation was not released. No evidence, review or balance was changed.',
                 );
                 $detail = $detailMap[self::query('finance_error')] ?? '';
             }

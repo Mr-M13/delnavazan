@@ -208,7 +208,7 @@ final class TeacherStatementEmailService {
             $transportAccepted = $this->renderer->send((string) $intent->recipient_email, $statement, $lines, array(
                 'name' => (string) ($teacher['name'] ?? ''), 'reference' => (string) ($teacher['reference'] ?? ''),
                 'email' => (string) $intent->recipient_email, 'locale' => (string) $intent->locale,
-            ), array('locale' => (string) $intent->locale, 'logo_url' => (string) ($template['logo_url'] ?? ''), 'academy_name' => $academy));
+            ), array('locale' => (string) $intent->locale, 'logo_url' => (string) ($template['logo_url'] ?? ''), 'academy_name' => $academy, 'timezone' => (string) ($teacher['timezone'] ?? ''), 'calendar' => (string) ($teacher['calendar_preference'] ?? '')));
             if (!$transportAccepted) $reason = 'statement_email_transport_failed';
         } catch (\Throwable $error) {
             $message = trim($error->getMessage());

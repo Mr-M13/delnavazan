@@ -38,7 +38,7 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 				<li class="dzn-notifications__item<?php echo $is_unread ? ' is-unread' : ''; ?>">
 					<time<?php if ( ! empty( $item['created_at'] ) ) : ?> datetime="<?php echo esc_attr( (string) $item['created_at'] ); ?>"<?php endif; ?>><?php echo esc_html( (string) ( $item['date'] ?? '' ) ); ?></time>
 					<div class="dzn-notifications__body">
-						<h3><?php echo esc_html( (string) ( $item['title'] ?? '' ) ); ?><?php if ( $is_unread ) : ?><span class="dzn-notifications__dot" aria-label="خوانده‌نشده"></span><?php endif; ?></h3>
+						<h3><?php echo esc_html( (string) ( $item['title'] ?? '' ) ); ?><?php if ( $is_unread ) : ?><span class="dzn-notifications__badge">تازه</span><span class="dzn-notifications__dot" aria-hidden="true"></span><?php endif; ?></h3>
 						<p><?php echo esc_html( (string) ( $item['message'] ?? '' ) ); ?></p>
 						<?php if ( ! empty( $item['link_url'] ) || ( $is_unread && $read_url !== '' && $nonce !== '' ) ) : ?>
 							<div class="dzn-notifications__actions">

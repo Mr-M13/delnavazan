@@ -466,7 +466,7 @@ final class FinanceAdminReadService {
     public function teacherIdentity(int $teacherId): ?array {
         FinanceSupport::requireCapability('dzn_view_finance_authority');
         global $wpdb;
-        $row = $wpdb->get_row($wpdb->prepare("SELECT display_name,reference_code,email,locale,timezone FROM {$this->p}teachers WHERE id=%d", $teacherId));
+        $row = $wpdb->get_row($wpdb->prepare("SELECT display_name,reference_code,email,locale,timezone,calendar_preference FROM {$this->p}teachers WHERE id=%d", $teacherId));
         if (!$row) return null;
         return array(
             'name' => (string) ($row->display_name ?? ''),
@@ -474,6 +474,7 @@ final class FinanceAdminReadService {
             'email' => (string) ($row->email ?? ''),
             'locale' => (string) ($row->locale ?? ''),
             'timezone' => (string) ($row->timezone ?? ''),
+            'calendar_preference' => (string) ($row->calendar_preference ?? ''),
         );
     }
 

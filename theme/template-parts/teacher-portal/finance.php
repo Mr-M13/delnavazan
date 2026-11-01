@@ -88,7 +88,7 @@ $format_percentage = static function ( int $basis_points ): string {
 					<?php endif; ?>
 				</li>
 				<li>
-					<strong>پاداش Golden Hour</strong>
+					<strong>پاداش ساعت طلایی</strong>
 					<?php if ( 'available' === (string) ( $golden['state'] ?? '' ) ) : ?>
 						<span> · <?php echo esc_html( number_format_i18n( (int) ( $golden['eligible_minutes'] ?? 0 ) ) ); ?> دقیقهٔ واجد شرایط</span>
 						<?php if ( ! empty( $golden['bonus_basis_points_mixed'] ) ) : ?>
@@ -98,7 +98,7 @@ $format_percentage = static function ( int $basis_points ): string {
 						<?php endif; ?>
 						<span> · پاداش برآوردی <bdi dir="ltr"><?php echo esc_html( $format_money( (int) $golden['bonus_minor'], (string) ( $golden['currency'] ?? $rate['currency'] ?? '' ) ) ); ?></bdi></span>
 					<?php else : ?>
-						<span> · سابقهٔ قابل اتکایی از پاداش Golden Hour برای این دوره‌ها در دسترس نیست.</span>
+						<span> · سابقهٔ قابل اتکایی از پاداش ساعت طلایی برای این دوره‌ها در دسترس نیست.</span>
 					<?php endif; ?>
 				</li>
 				<li>
@@ -167,7 +167,7 @@ $format_percentage = static function ( int $basis_points ): string {
 					<span> · <?php echo esc_html( (string) (int) ( $statement['payable_line_count'] ?? 0 ) ); ?> ردیف قابل پرداخت</span>
 					<span> · <?php echo esc_html( $format_money( (int) ( $statement['payable_amount_minor'] ?? 0 ), $currency ) ); ?></span>
 					<?php if ( (int) ( $statement['golden_hour_bonus_minor'] ?? 0 ) > 0 ) : ?>
-						<span class="dzn-tp-golden-badge"><?php echo esc_html( sprintf( 'Golden hour +%s', $format_money( (int) $statement['golden_hour_bonus_minor'], $currency ) ) ); ?></span>
+						<span class="dzn-tp-golden-badge"><?php echo esc_html( sprintf( 'ساعت طلایی +%s', $format_money( (int) $statement['golden_hour_bonus_minor'], $currency ) ) ); ?></span>
 					<?php endif; ?>
 				</li>
 			<?php endforeach; ?>

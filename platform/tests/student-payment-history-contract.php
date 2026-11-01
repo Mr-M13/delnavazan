@@ -23,6 +23,6 @@ $contains($bridge, array('dzn_theme_platform_student_payment_history_read', 'Stu
 $contains($template, array('$history_items', '$render_history', 'سابقهٔ پرداخت', 'receipt_url', 'پرداخت دستی', 'بازپرداخت'), 'Payment template must render history and receipts while checkout is disabled');
 $contains($shell, array("'history' => \$model['payment_history']"), 'Portal shell must pass the history model');
 $contains($receipt, array("wp_verify_nonce(\$nonce, 'dzn_student_receipt')", "resolve('student')", 'beneficiary_student_id', 'settlementByUid', 'StudentReceiptRenderer'), 'Receipt must verify nonce, principal ownership and settlement identity');
-$contains($renderer, array('#FBF8F2', '#104A4D', '#A33E48', 'Vazirmatn', 'فاکتور رسمی مالیاتی نیست'), 'Receipt must use the Delnavazan palette and an explicit non-tax-invoice boundary');
+$contains($renderer, array('CommunicationDesignTokens', 'BrandIdentity', 'FONT_BODY', 'فاکتور رسمی مالیاتی نیست'), 'Receipt must use the shared palette and an explicit non-tax-invoice boundary');
 
 echo "student-payment-history-contract: OK\n";

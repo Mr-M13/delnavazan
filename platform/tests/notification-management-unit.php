@@ -242,6 +242,8 @@ namespace {
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationCopyPort.php';
     require_once dirname(__DIR__) . '/src/Core/Infrastructure/Repository/NotificationTemplateRepository.php';
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationTemplateService.php';
+    require_once dirname(__DIR__) . '/src/Core/Support/BrandIdentity.php';
+    require_once dirname(__DIR__) . '/src/Core/Support/CommunicationDesignTokens.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationCatalogue.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateValidationException.php';
@@ -308,7 +310,7 @@ namespace {
     /* 3. Branded email: RTL, brand colours, escaped content, plain-text alternative, safe CTA. */
     $rendered = DelnavazanEmailRenderer::render('عنوان <تست>', "سلام {{x}} <script>alert(1)</script>\n\nخط دوم", array('locale' => 'fa-IR', 'cta' => array('label' => 'رفتن', 'url' => 'https://delnavazan.com/student-portal/')));
     $fail('email is RTL Persian', str_contains($rendered['html'], 'dir="rtl"') && str_contains($rendered['html'], 'lang="fa"'));
-    $fail('email uses the brand palette', str_contains($rendered['html'], '#FBF7EE') && str_contains($rendered['html'], '#0E8C8C') && str_contains($rendered['html'], '#B23A48'));
+    $fail('email uses the brand palette', str_contains($rendered['html'], '#FBF8F2') && str_contains($rendered['html'], '#1E7B70') && str_contains($rendered['html'], '#A33E48') && str_contains($rendered['html'], 'Vazirmatn'));
     $fail('email has no script or injected tag', !str_contains($rendered['html'], '<script') && !str_contains($rendered['html'], '<تست>'));
     $fail('plain-text alternative exists', str_contains($rendered['text'], 'خط دوم'));
     $unsafe = DelnavazanEmailRenderer::render('t', 'body', array('cta' => array('label' => 'x', 'url' => 'javascript:alert(1)')));
@@ -317,7 +319,7 @@ namespace {
     $fail('English shell is LTR', str_contains($english['html'], 'dir="ltr"'));
 
     $sent = DelnavazanEmailRenderer::send('student@example.invalid', 'عنوان', "خط اول\n\nخط دوم", array('locale' => 'fa-IR', 'cta' => array('label' => 'رفتن', 'url' => 'https://delnavazan.com/student-portal/')));
-    $fail('branded mail is sent as HTML', $sent && str_contains((string) $GLOBALS['dzn_test_mail'][0]['body'], '#FBF7EE') && str_contains(implode("\n", (array) $GLOBALS['dzn_test_mail'][0]['headers']), 'text/html'));
+    $fail('branded mail is sent as HTML', $sent && str_contains((string) $GLOBALS['dzn_test_mail'][0]['body'], '#FBF8F2') && str_contains(implode("\n", (array) $GLOBALS['dzn_test_mail'][0]['headers']), 'text/html'));
     $mailer = (object) array('AltBody' => '');
     foreach ((array) ($GLOBALS['dzn_test_hooks']['phpmailer_init'] ?? array()) as $callback) $callback($mailer);
     $fail('branded mail carries a plain-text alternative', $mailer->AltBody === "خط اول\n\nخط دوم");

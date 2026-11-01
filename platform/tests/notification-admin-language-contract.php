@@ -38,6 +38,8 @@ foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore De
 
 /* 3. Catalogue identifiers stay stable while display labels are English. */
 $fail('event keys are unchanged', str_contains($catalogueSource, "'booking.confirmed.student'") && str_contains($catalogueSource, "'attendance.absence_reported.teacher'"));
+require_once $root . '/src/Core/Support/BrandIdentity.php';
+require_once $root . '/src/Core/Support/CommunicationDesignTokens.php';
 require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';
 require_once $root . '/src/Integrations/Notifications/DelnavazanEmailRenderer.php';
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
@@ -57,7 +59,7 @@ foreach (NotificationCatalogue::IMPLEMENTATION as $key => $label) $fail('impleme
 foreach (array('booking.confirmed.student', 'account.claim_issued.student', 'attendance.absence_reported.teacher', 'reschedule.change.proposed.student', 'post_intro.activated.student') as $eventKey) {
     $copy = NotificationCatalogue::defaultCopy($eventKey, 'email', 'fa-IR');
     $fail('Persian email copy exists: ' . $eventKey, is_array($copy) && $persian((string) $copy['body']));
-    $fail('Persian greeting preserved: ' . $eventKey, str_contains((string) $copy['body'], 'سلام'));
+    $fail('Persian greeting preserved: ' . $eventKey, str_contains((string) $copy['body'], 'درود'));
 }
 $fail('English copy remains available for the booking event', !$persian((string) NotificationCatalogue::defaultCopy('booking.confirmed.student', 'email', 'en')['body']));
 $fail('preview notice is Persian content', $persian(NotificationCatalogue::previewNotice()));

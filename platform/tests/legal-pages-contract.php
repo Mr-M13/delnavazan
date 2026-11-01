@@ -20,7 +20,7 @@ $assert = static function ( bool $condition, string $message ) use ( &$fail ): v
 $documents = array(
     'privacy-policy' => array( 'file' => 'platform/content/legal/privacy-policy.html', 'title' => 'سیاست حفظ حریم خصوصی', 'markers' => array( 'اطلاعات کودکان', 'Google Calendar', 'Stripe', 'LiveKit', 'Australian Privacy Principles', 'GDPR' ) ),
     'terms-and-conditions' => array( 'file' => 'platform/content/legal/terms-and-conditions.html', 'title' => 'شرایط و ضوابط استفاده', 'markers' => array( 'حداقل سن ثبت‌نام ۷ سال', '۱۲ جلسه', 'یک هفته پیش از آغاز ترم بعد', 'مالکیت فکری', 'Australian Consumer Law' ) ),
-    'cancellation-and-refunds' => array( 'file' => 'platform/content/legal/cancellation-and-refunds.html', 'title' => 'سیاست لغو و بازپرداخت', 'markers' => array( 'جلسهٔ معارفهٔ رایگان', '۱۲ جلسهٔ پرداختی', 'یک هفته پیش از آغاز ترم بعد', 'Australian Consumer Law', 'دو جلسهٔ جایگزین', 'غیرقابل بازپرداخت بودن مطلق' ) ),
+    'cancellation-and-refunds' => array( 'file' => 'platform/content/legal/cancellation-and-refunds.html', 'title' => 'سیاست لغو و بازپرداخت', 'markers' => array( 'کلاس آشناییٔ رایگان', '۱۲ جلسهٔ پرداختی', 'یک هفته پیش از آغاز ترم بعد', 'Australian Consumer Law', 'دو جلسهٔ جبرانی', 'غیرقابل بازپرداخت بودن مطلق' ) ),
     'recording-and-ai-policy' => array( 'file' => 'platform/content/legal/recording-and-ai-policy.html', 'title' => 'سیاست ضبط کلاس‌ها و استفاده از هوش مصنوعی', 'markers' => array( 'خروجی پژوهش غیرفعال', 'رضایت صریح', 'ولی یا سرپرست', 'پس گرفتن رضایت', 'هیچ پژوهش' ) ),
     'cookie-policy' => array( 'file' => 'platform/content/legal/cookie-policy.html', 'title' => 'سیاست کوکی‌ها', 'markers' => array( 'dzn_booking_csrf', 'wordpress_logged_in_*', 'Stripe', 'Google', 'هیچ ارائه‌دهندهٔ تحلیل', 'مدیریت کوکی‌ها' ) ),
 );

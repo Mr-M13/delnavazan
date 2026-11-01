@@ -1,6 +1,10 @@
 <?php
 /** Pure unit coverage for the brand-aligned, email-safe teacher statement. */
 $root = dirname(__DIR__);
+require_once $root . '/src/Core/Support/BrandIdentity.php';
+require_once $root . '/src/Core/Support/CommunicationDesignTokens.php';
+require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';
+require_once $root . '/src/Integrations/Notifications/DelnavazanEmailRenderer.php';
 require_once $root . '/src/Core/Application/Finance/Pricing/PricingMoney.php';
 require_once $root . '/src/Core/Application/Finance/Statements/TeacherStatementEmailRenderer.php';
 

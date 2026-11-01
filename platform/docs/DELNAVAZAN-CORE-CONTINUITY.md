@@ -725,9 +725,10 @@ The future authority flow is: location signal → suggested region → visitor s
 
 ### Public contact
 
-- Customer phone: **0413 413 004**
-- Email: **delnavazan@mail.com**
+- Customer phone and WhatsApp: **+61 413 413 004** (`tel:+61413413004`, `https://wa.me/61413413004`)
+- Email: **admin@delnavazan.com**
 - Instagram: **@insta.delnavazan**
+- Canonical public identity: `platform/src/Core/Support/BrandIdentity.php`
 - `+61 431 364 200` is separate WhatsApp notification infrastructure and must not be exposed as customer-facing contact.
 
 ## 8. Execution posture

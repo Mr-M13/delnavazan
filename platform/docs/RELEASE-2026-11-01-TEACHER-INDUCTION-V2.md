@@ -23,19 +23,22 @@ replacement, finance or notification authority.
   receive a safe, mapped correction note; raw internal reason codes are never echoed.
 - All lifecycle transitions, capability checks and audit events remain unchanged.
 
-## Teacher induction
+## Teacher quick-start
 
-Seven versioned modules: portal, availability, everyday responsibilities, schedule changes,
-absence/replacement, finance and escalation. Content lives in `platform/content/induction/*.php`;
-rendering is separate. A compact dashboard card links to a dedicated `teacher-view=induction` hub.
-Completion, skipping and revisiting never affect activation or access. Completed modules stay
-available. Material policy changes can raise an explicit `acknowledgement_version` without
-changing canonical Teacher activation.
+A single one-page quick-start replaces the long module list. It has nine short steps: today's
+classes, joining a class and the Google Meet backup, attendance/presumed completion, student
+absence, changing a class time, changing profile/availability, finance and hours, Golden Hours, and
+new intro requests. Each step explains the purpose in one or two sentences.
 
-Progress is stored in additive table `{prefix}dzn_teacher_induction_progress` with a unique
-`(teacher_id,module_id)` key, content version, acknowledged version, completion time, last-visited
-time and standard audit columns. Submission is nonce-protected; the Teacher is resolved from the
-authenticated principal; cross-teacher access fails closed; repeated completion is idempotent.
+Clicking a step is a nonce-protected POST. It records the step as seen and jumps to the real portal
+screen with `induction-highlight=<step>`. The target page shows a compact banner and highlights the
+matching existing element. If the element is not present on that visit, the banner still explains
+it; no fake section or dead tab is created.
+
+Content lives in `platform/content/induction/*.php`; rendering is separate. Progress is stored in
+additive table `{prefix}dzn_teacher_induction_progress` with a unique `(teacher_id,module_id)` key,
+content version, acknowledged version, completion time and last-visited time. Completion is
+idempotent. The dashboard shows only a compact progress card, never the full guide.
 
 ## Contextual guidance
 

@@ -5,10 +5,11 @@ use Delnavazan\Platform\Core\Application\Induction\TeacherInductionCurriculum;
 use Delnavazan\Platform\Core\Application\Induction\TeacherInductionService;
 
 /**
- * Authenticated, nonce-protected boundary for Teacher induction completion.
+ * Nonce-protected boundary for the one-page Teacher quick-start.
  *
- * The request may name a curriculum module only. The Teacher is resolved from the authenticated
- * principal link and the module is validated against the code-owned curriculum before any write.
+ * A step click records that the Teacher has seen the step and then jumps to the real portal
+ * screen with a highlight marker. The request may name only a canonical step; the Teacher is
+ * resolved from the authenticated principal and the live readiness authority.
  */
 final class TeacherInductionController {
     public const ACTION = 'dzn_teacher_induction_complete';
@@ -22,29 +23,31 @@ final class TeacherInductionController {
             wp_die( 'Access denied.', 'Delnavazan', array( 'response' => 403 ) );
         }
         check_admin_referer( self::ACTION );
-        $moduleId = TeacherInductionCurriculum::moduleId( (string) wp_unslash( $_POST['module_id'] ?? '' ) );
-        if ( '' === $moduleId ) {
-            self::redirect( 'بخش درخواستی در راهنمای تدریس وجود ندارد.', true, '' );
+        $stepId = TeacherInductionCurriculum::moduleId( (string) wp_unslash( $_POST['module_id'] ?? '' ) );
+        $step = '' !== $stepId ? TeacherInductionCurriculum::module( $stepId ) : null;
+        if ( ! $step ) {
+            self::redirect( home_url( '/teacher-portal/' ), 'این بخش در راهنمای سریع وجود ندارد.', true, '' );
         }
         try {
-            $result = ( new TeacherInductionService() )->completeForUser( $moduleId );
+            $result = ( new TeacherInductionService() )->completeForUser( $stepId );
             $notice = ! empty( $result['already_completed'] )
-                ? 'این بخش پیش‌تر تکمیل شده بود؛ پیشرفت شما بدون تغییر ماند.'
-                : 'این بخش از راهنمای تدریس تکمیل شد.';
-            self::redirect( $notice, false, $moduleId );
+                ? 'این بخش را قبلاً دیده‌اید. همان بخش در پرتال مشخص شده است.'
+                : 'بخش بعدی راهنما در پرتال مشخص شد.';
+            self::redirect( self::screen_url( (string) $step['portal_screen'] ), $notice, false, $stepId );
         } catch ( \Throwable $error ) {
-            self::redirect( 'ثبت پیشرفت انجام نشد. اگر حساب شما هنوز آماده نیست، ابتدا راه‌اندازی حساب را کامل کنید.', true, $moduleId );
+            self::redirect( home_url( '/teacher-portal/' ), 'ثبت پیشرفت انجام نشد. اگر حساب شما هنوز آماده نیست، ابتدا راه‌اندازی حساب را کامل کنید.', true, '' );
         }
     }
 
-    private static function redirect( string $notice, bool $error, string $moduleId ): never {
-        $args = array(
-            'teacher-view' => 'induction',
-            'dzn_notice' => $notice,
-            'dzn_error' => $error ? '1' : '0',
-        );
-        if ( '' !== $moduleId ) { $args['induction-module'] = $moduleId; }
-        $url = add_query_arg( $args, home_url( '/teacher-portal/' ) );
+    private static function screen_url( string $screen ): string {
+        $screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings' ), true ) ? $screen : 'home';
+        return add_query_arg( 'teacher-view', $screen, home_url( '/teacher-portal/' ) );
+    }
+
+    private static function redirect( string $base, string $notice, bool $error, string $stepId ): never {
+        $args = array( 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0' );
+        if ( '' !== $stepId ) { $args['induction-highlight'] = $stepId; }
+        $url = add_query_arg( $args, $base );
         nocache_headers();
         if ( wp_safe_redirect( $url ) ) { exit; }
         wp_die( esc_html( $notice ), 'Delnavazan', array( 'response' => $error ? 400 : 200 ) );

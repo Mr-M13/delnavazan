@@ -1,94 +1,69 @@
-# Teacher induction v2
+# Teacher quick-start (induction v2)
 
-Teacher induction v2 is the educational companion to invitation-led onboarding. It teaches an
-approved Teacher how to use the existing portal; it is not a second identity, activation, access,
-scheduling, absence, finance or notification authority.
+Teacher induction is a **one page** progress-style quick-start, not a course. It gives an approved
+Teacher nine short, practical steps. Each step explains one thing in plain Persian, records that the
+Teacher has seen it, then jumps to the real portal section and highlights it for a few seconds.
 
-## Two separate experiences
+It is not a second identity, activation, access, scheduling, absence, finance or notification
+authority. Completing or skipping it never changes the canonical onboarding lifecycle or portal
+access.
 
-| Experience | Authority | Purpose |
-| --- | --- | --- |
-| Account onboarding | `TeacherOnboardingService` + `TeacherAvailabilityService` | identity, profile, availability, Google readiness and administrator review |
-| Teacher induction | `TeacherInductionService` | progressive education and versioned acknowledgement |
+## The nine steps
 
-The canonical onboarding lifecycle remains exactly:
+1. **کلاس‌های امروز** — start on Today; today's classes and urgent tasks are there.
+2. **ورود به کلاس** — the join button, and Google Meet as the available backup.
+3. **حضور و پایان کلاس** — when to record delivery/attendance and what presumed completion means.
+4. **هنرجو غیبت کرد** — the absence card, replacement proposal, term allowance and when to escalate.
+5. **تغییر زمان کلاس** — propose a new time; nothing changes until the Student accepts; three
+   rejections escalate.
+6. **تغییر اطلاعات و زمان‌های تدریس** — Settings, weekly availability and date-specific leave.
+7. **مالی و ساعت‌ها** — teaching hours, statements and the illustrative-only tuition wording.
+8. **ساعت طلایی** — potential bonus, not guaranteed income.
+9. **درخواست کلاس آشنایی** — accept or decline an intro request; acceptance alone is not a
+   confirmed class.
 
-`linked_pending` → `in_progress` → `pending_review` → `returned` / `rejected` → `active` → `offboarded`
+Content is code-owned in `platform/content/induction/*.php`. Each step declares a stable id, title,
+short description, target screen, highlight selector, action label, optional short points, content
+version and acknowledgement version. Rendering never defines policy.
 
-Induction uses a separate progress model with three presentation states:
+## Progress and highlighting
 
-- `not_started`
-- `in_progress`
-- `completed`
+- Step click is a nonce-protected POST. The request may name only a canonical step id.
+- The Teacher is resolved from the authenticated principal and the same live readiness proof used by
+  the Teacher Portal; cross-teacher access fails closed.
+- A click records `completed` in `{prefix}dzn_teacher_induction_progress`, then redirects to the real
+  target screen with `induction-highlight=<step>`.
+- The target page shows one compact banner explaining the purpose and highlights the matching
+  element (`#tp-classes`, the join area, attendance panel, absence/intro card, reschedule form,
+  Settings availability, finance summary or Golden Hours panel).
+- If the target element is not present on that visit, the banner still explains the step and the
+  Teacher can return to the guide. No fake element or dead tab is created.
+- The dashboard card is compact and only links to the one-page guide. The full guide is never
+  repeated on every dashboard visit.
+- Progress is idempotent at the unique `(teacher_id,module_id)` key. Minor copy edits reuse the same
+  version. A material policy change can raise `acknowledgement_version` and show an explicit review
+  state without changing canonical activation.
 
-Completing or skipping induction never changes `teacher_onboarding_states`, Teacher readiness,
-principal authority or portal access. An active, ready Teacher keeps normal portal access with
-unfinished induction. Completed induction stays available for review.
-
-## Canonical modules
-
-Content is code-owned and versioned in `platform/content/induction/*.php`; the loader is
-`TeacherInductionCurriculum`. Rendering never defines policy.
-
-1. `portal` — actual tabs, notifications and where actions live.
-2. `availability` — positive-only weekly availability, exceptions, timezone and Golden Hours.
-3. `responsibilities` — daily checks, joining, connection issues and outcome evidence.
-4. `schedule-changes` — proposal, student acceptance/rejection, three-rejection escalation,
-   completed occurrences and canonical scheduling conflicts.
-5. `absence-replacement` — the Term replacement allowance, excess absence, allocation, rejected
-   proposals, teacher non-delivery, disputes and linked replacement Lessons.
-6. `finance` — summary, statements, Golden Hours, illustrative tuition and discrepancy reporting.
-7. `escalation` — twelve operational scenarios and the administrator/support route.
-
-Each module declares a stable id, title, description, objectives, portal screen, sections,
-scenario cards, optional safe knowledge checks, completion criteria and a content version.
-`acknowledgement_version` is zero unless a material policy change requires an explicit versioned
-re-acknowledgement. Minor copy edits should reuse the same content version and never invalidate
-prior completion.
-
-## Persistence
+## Persistence and security
 
 Additive migration `064_teacher_induction_progress` creates
-`{prefix}dzn_teacher_induction_progress`:
+`{prefix}dzn_teacher_induction_progress` with `teacher_id`, `module_id`, `state`,
+`content_version`, `acknowledged_version`, `completed_at`, `last_visited_at`, standard audit
+columns and a unique `(teacher_id,module_id)` key.
 
-- `teacher_id`, `module_id`, `state`
-- `content_version`, `acknowledged_version`
-- `completed_at`, `last_visited_at`
-- `version`, `created_at`, `updated_at`, `created_by`, `updated_by`
-- unique `teacher_module(teacher_id,module_id)`
+The existing onboarding tables were insufficient because they describe one lifecycle state and
+coarse readiness, not per-step educational progress and versioned acknowledgement.
 
-One row per Teacher/module makes completion idempotent. The repository writes through
-`ON DUPLICATE KEY UPDATE`; completion time is preserved across repeated requests. No invitation
-secret, provider credential, finance value or free-text Teacher content is stored.
-
-The existing onboarding tables were not sufficient because they describe one lifecycle state and
-three coarse readiness facts, not per-module educational progress and versioned acknowledgement.
-
-## Security
-
-- The controller requires an authenticated WordPress user and `check_admin_referer`.
-- The request may name only a canonical curriculum module; it cannot name a Teacher.
-- The service resolves the linked Teacher from the authenticated principal and re-proves the same
-  live readiness authority used by `PortalAuthenticatedReadService`.
-- Rejected, offboarded, unlinked or no-longer-ready Teachers fail closed before any read or write.
-- Progress rows are read and written only for the resolved Teacher; there is no cross-teacher id.
-- The induction screen and hub use `nocache_headers()` through the existing protected portal route.
-
-## Presentation
-
-- Compact dashboard card `راهنمای شروع تدریس در دلنوازان` with progress
-  `۲ از ۷ بخش تکمیل شده`, continue, view-all, skip and help links.
-- Dedicated `teacher-view=induction` screen with module list and module reader.
-- Inline, dismissible `<details>` guidance on availability, rescheduling, absence, notifications
-  and finance. It links to the full module and never replaces the existing portal tour.
-- The existing tour no longer auto-opens when the induction card is present.
-- Desktop/mobile layout, RTL, native controls, visible focus and reduced-motion support.
-- Knowledge checks are local-only and never submit a scheduling or finance mutation.
+The controller requires authentication and `check_admin_referer`. The service re-proves the live
+readiness authority. No invitation secret, provider credential, finance value or free-text Teacher
+content is stored. The protected portal route sends no-store/private headers.
 
 ## Tests
 
-- `platform/tests/teacher-induction-unit.php` — curriculum, progress, idempotency and refusal.
-- `platform/tests/teacher-induction-contract.php` — authority, migration, presentation and
-  no-duplicate-authority guards.
+- `platform/tests/teacher-induction-unit.php` — nine steps, content accuracy, idempotency,
+  re-acknowledgement and cross-teacher refusal.
+- `platform/tests/teacher-induction-contract.php` — authority, additive migration, jump targets and
+  one-page presentation.
+- `platform/tests/teacher-induction-presentation.php` — rendered one-page guide and banner.
 - Existing onboarding, portal, reschedule, replacement, finance and notification contracts remain
   the runtime authority for operational behaviour.

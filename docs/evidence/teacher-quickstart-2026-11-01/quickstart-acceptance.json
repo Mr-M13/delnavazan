@@ -1,0 +1,14 @@
+{
+  "heading": "۹ نکته برای شروع تدریس",
+  "cards": 9,
+  "progress0": "0 از 9 دیده شده",
+  "jump_url": "http://127.0.0.1:18081/teacher-portal/?teacher-view=home&dzn_notice=%D8%A8%D8%AE%D8%B4%20%D8%A8%D8%B9%D8%AF%DB%8C%20%D8%B1%D8%A7%D9%87%D9%86%D9%85%D8%A7%20%D8%AF%D8%B1%20%D9%BE%D8%B1%D8%AA%D8%A7%D9%84%20%D9%85%D8%B4%D8%AE%D8%B5%20%D8%B4%D8%AF.&dzn_error=0&induction-highlight=today",
+  "banner": 1,
+  "banner_title": "کلاس‌های امروز",
+  "highlight": 1,
+  "progress1": "1 از 9 دیده شده",
+  "first_done": 1,
+  "join_banner": true,
+  "join_selector": "[data-dzn-highlight=\"join\"]",
+  "mobile_tabs": 1
+}

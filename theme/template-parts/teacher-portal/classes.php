@@ -70,7 +70,7 @@ $card_index = 0;
 				<?php endif; ?>
 			</div>
 			<?php if ( $valid ) : ?>
-			<div class="dzn-tp-actions">
+			<div class="dzn-tp-actions"<?php echo $is_today ? ' data-dzn-highlight="join"' : ''; ?>>
 				<?php if ( $is_today ) : ?>
 					<?php
 					get_template_part(
@@ -102,7 +102,7 @@ $card_index = 0;
 						<?php endif; ?>
 						<?php if ( '' !== (string) ( $item['term_progress_label'] ?? '' ) ) : ?><p><strong>پیشرفت ترم:</strong> <?php echo esc_html( (string) $item['term_progress_label'] ); ?><?php if ( '' !== (string) ( $item['replacement_label'] ?? '' ) ) : ?> · <?php echo esc_html( (string) $item['replacement_label'] ); ?><?php endif; ?></p><?php endif; ?>
 						<?php if ( isset( $item['previous_private_note'] ) && '' !== trim( (string) $item['previous_private_note'] ) ) : ?><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( (string) $item['previous_private_note'] ); ?></p><?php endif; ?></section>
-					<section class="dzn-tp-detail-card"><h4>تأیید برگزاری و حضور</h4>
+					<section class="dzn-tp-detail-card" data-dzn-highlight="attendance"><h4>تأیید برگزاری و حضور</h4>
 						<?php if ( true === ( $item['completion_available'] ?? false ) ) : ?>
 							<p class="dzn-tp-detail-help">پس از پایان کلاس، اگر جلسه برگزار شد برگزاری و حضور را تأیید کنید.</p>
 							<form method="post" action="<?php echo esc_url( (string) ( $item['completion_action_url'] ?? $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['completion_nonce'] ?? $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">تأیید برگزاری و حضور</button></form>
@@ -126,7 +126,7 @@ $card_index = 0;
 			</div>
 			<?php endif; ?>
 			<?php if ( ! $is_today && true === ( $item['reschedule_available'] ?? false ) ) : ?>
-			<details class="dzn-tp-class__reschedule">
+			<details class="dzn-tp-class__reschedule" data-dzn-highlight="reschedule">
 				<summary>تغییر زمان کلاس</summary>
 				<?php dzn_theme_teacher_portal_component( 'reschedule-form', array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo ) ); ?>
 			</details>

@@ -241,10 +241,13 @@ namespace {
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationIntegrity.php';
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationCopyPort.php';
     require_once dirname(__DIR__) . '/src/Core/Infrastructure/Repository/NotificationTemplateRepository.php';
+    require_once dirname(__DIR__) . '/src/Core/Infrastructure/Repository/NotificationProviderRepository.php';
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationTemplateService.php';
     require_once dirname(__DIR__) . '/src/Core/Support/BrandIdentity.php';
     require_once dirname(__DIR__) . '/src/Core/Support/CommunicationDesignTokens.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationCatalogue.php';
+    require_once dirname(__DIR__) . '/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+    require_once dirname(__DIR__) . '/src/Integrations/Notifications/TelnyxTemplateAuthority.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateValidationException.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationTemplateLibrary.php';
@@ -260,6 +263,8 @@ namespace {
     use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
     use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
     use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateValidationException;
+    use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateAuthority;
+    use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
     use Delnavazan\Platform\Portals\PortalNotificationInbox;
 
     $GLOBALS['wpdb'] = new \Delnavazan\Platform\Tests\FakeWpdb();
@@ -369,6 +374,21 @@ namespace {
     $invalidMap = false;
     try { $library->saveProviderMapping($event, 'whatsapp', 'fa-IR', 'Bad Name!', 'fa'); } catch (InvalidArgumentException $error) { $invalidMap = true; }
     $fail('invalid provider name is refused', $invalidMap);
+
+    $provider = new NotificationProviderRepository();
+    $provider->upsertTemplate(array(
+        'uid'=>'01TESTPROVIDERTEMPLATE0001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
+        'provider_template_id'=>'meta-1','category'=>'UTILITY','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
+        'variable_order'=>'teacher,course,student,when','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+    ));
+    $discoveredLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
+    $discoveredStatus = $discoveredLibrary->status('booking.new.teacher','whatsapp','fa-IR');
+    $discoveredMapping = $discoveredLibrary->providerMapping('booking.new.teacher.whatsapp.fa-IR');
+    $fail('approved discovery is the administration mapping authority', $discoveredStatus['provider_state']==='mapped'&&$discoveredMapping['source']==='discovery'&&$discoveredMapping['name']==='delnavazan_teacher_new_booking_fa');
+    $fail('approved discovery does not require a duplicate manual option', !isset(($GLOBALS['dzn_test_options'][NotificationTemplateLibrary::OPTION_WHATSAPP]??array())['booking.new.teacher.whatsapp.fa-IR']));
+    $conflictingMap=false;
+    try{$discoveredLibrary->saveProviderMapping('booking.new.teacher','whatsapp','fa-IR','legacy_teacher_booking_fa','fa');}catch(InvalidArgumentException){$conflictingMap=true;}
+    $fail('manual mapping cannot contradict approved discovery', $conflictingMap);
 
     $library->publish($event, 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', "سلام {{name}} {{when}} {{join_url}} {{portal_url}}\nمتن تازهٔ واتس‌اپ");
     $fail('whatsapp copy requires provider approval after publication', $library->status($event, 'whatsapp', 'fa-IR')['provider_state'] === 'approval_required');

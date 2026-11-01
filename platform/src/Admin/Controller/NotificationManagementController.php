@@ -220,6 +220,10 @@ final class NotificationManagementController {
         echo '<p>Mapping status: <strong>'.esc_html(self::providerStateLabel((string)$status['provider_state'])).'</strong>';
         if($mapping['name']!=='')echo ' · <code dir="ltr">'.esc_html($mapping['name'].' · '.$mapping['language']).'</code>';
         echo '</p>';
+        if(($mapping['source']??'')==='discovery'){
+            echo '<p class="dzn-notif-meta">This mapping comes from the verified Telnyx template discovery record. Refresh or correct provider discovery instead of maintaining a duplicate manual mapping here.</p>';
+            return;
+        }
         if(!self::canEdit())return;
         if(!$ready){
             echo '<div class="notice notice-warning inline"><p>The WhatsApp provider is not configured. <a href="'.esc_url(admin_url('admin.php?page=dzn-integration-whatsapp')).'">Configure Telnyx WhatsApp and Meta WABA settings</a> before recording a provider mapping. No send is enabled by this page.</p></div>';
@@ -609,6 +613,7 @@ final class NotificationManagementController {
     public static function channelLabel(string $channel):string{return array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal')[$channel]??$channel;}
     private static function providerStateLabel(string $state):string{return array(
         'not_mapped'=>'Not mapped','approval_required'=>'Meta re-approval required','mapped'=>'Mapped',
+        'not_approved'=>'Provider template not approved','ambiguous'=>'Ambiguous provider mapping','contract_mismatch'=>'Provider contract mismatch',
         'restricted_fallback'=>'Restricted fallback','not_applicable'=>'Not applicable','unsupported'=>'Unsupported',
         'not_permitted'=>'Not offered by category policy',
     )[$state]??$state;}

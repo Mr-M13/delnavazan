@@ -20,6 +20,10 @@ class NotificationProviderRepository {
     public function templateForEvent(string $provider,string $eventKey,string $language):?object{
         return $this->one("SELECT * FROM {$this->p}telnyx_templates WHERE provider=%s AND event_key=%s AND language=%s AND status='APPROVED' ORDER BY id DESC LIMIT 1",$provider,$eventKey,$language);
     }
+    /** @return object[] */
+    public function templatesForEvent(string $provider,string $eventKey,string $language):array{
+        return $this->rows("SELECT * FROM {$this->p}telnyx_templates WHERE provider=%s AND event_key=%s AND language=%s ORDER BY id DESC",$provider,$eventKey,$language);
+    }
     public function templateByName(string $provider,string $name,string $language):?object{
         return $this->one("SELECT * FROM {$this->p}telnyx_templates WHERE provider=%s AND template_name=%s AND language=%s LIMIT 1",$provider,$name,$language);
     }

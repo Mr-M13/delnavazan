@@ -14,6 +14,7 @@ $sms=$read($root.'/src/Integrations/TelnyxSmsAdapter.php');
 $whatsapp=$read($root.'/src/Integrations/TelnyxWhatsAppAdapter.php');
 $discovery=$read($root.'/src/Integrations/Notifications/TelnyxTemplateDiscoveryService.php');
 $registry=$read($root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php');
+$authority=$read($root.'/src/Integrations/Notifications/TelnyxTemplateAuthority.php');
 $admin=$read($root.'/src/Admin/Controller/IntegrationControlPlaneController.php');
 $readService=$read($root.'/src/Core/Application/IntegrationControlPlaneReadService.php');
 $settings=$read($root.'/src/Core/Application/IntegrationSettingsService.php');
@@ -40,7 +41,7 @@ $fail('WhatsApp payload supplies the required messaging profile',str_contains($w
 $fail('explicit WhatsApp test resolves a deterministic approved template',str_contains($read('platform/src/Integrations/IntegrationTestRunner.php'),'TelnyxWhatsAppTestTemplate::resolve')&&str_contains($read('platform/src/Integrations/Notifications/TelnyxWhatsAppTestTemplate.php'),'APPROVED'));
 $fail('explicit WhatsApp test surfaces safe provider errors',str_contains($whatsapp,'providerError')&&str_contains($whatsapp,'safeProviderText')&&str_contains($admin,'Safe provider test detail'));
 $fail('WhatsApp adapter never invents variables',str_contains($whatsapp,'variable_contract_mismatch')&&str_contains($whatsapp,'template_not_mapped'));
-$fail('WhatsApp locale maps to the approved fa language',str_contains($whatsapp,"str_starts_with(strtolower(\$locale),'fa')"));
+$fail('WhatsApp locale maps to the approved fa language through the shared authority',str_contains($whatsapp,'TelnyxTemplateAuthority::providerLanguage')&&str_contains($authority,"str_starts_with(strtolower(\$locale),'fa')"));
 $fail('stored phone numbers are normalised to E.164',str_contains($sms,'PhoneNumberNormalizer')&&str_contains($whatsapp,'PhoneNumberNormalizer'));
 $fail('shared-number STOP suppresses every matching subject',str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'studentIdsForPhone')&&str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'teacherIdsForPhone')&&str_contains($service,'studentIdsForPhone')&&str_contains($service,'teacherIdsForPhone'));
 $fail('provider STOP is scoped to the mobile route',str_contains($read('platform/src/Core/Application/NotificationRule.php'),'providerStopApplies')&&str_contains($read('platform/src/Core/Application/NotificationDispatchService.php'),'providerStopApplies')&&str_contains($suppressionRepo,'allowWildcard'));

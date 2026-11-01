@@ -164,6 +164,7 @@ jobs:
           php platform/tests/telnyx-webhook-intake-unit.php
           php platform/tests/telnyx-provider-binding-unit.php
           php platform/tests/telnyx-template-discovery-unit.php
+          php platform/tests/telnyx-template-authority-unit.php
           php platform/tests/telnyx-configuration-unit.php
           php platform/tests/telnyx-phone-normalizer-unit.php
           php platform/tests/telnyx-whatsapp-test-template-unit.php

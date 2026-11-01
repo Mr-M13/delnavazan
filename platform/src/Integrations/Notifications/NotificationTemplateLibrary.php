@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
 
 use Delnavazan\Platform\Core\Application\NotificationSupport;
 use Delnavazan\Platform\Core\Application\NotificationTemplateService;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository;
 
 /**
@@ -29,10 +30,14 @@ final class NotificationTemplateLibrary {
 
     public function __construct(
         private ?NotificationTemplateService $service=null,
-        private ?NotificationTemplateRepository $repository=null
+        private ?NotificationTemplateRepository $repository=null,
+        private ?TelnyxTemplateAuthority $providerAuthority=null
     ){
         $this->service??=new NotificationTemplateService();
         $this->repository??=new NotificationTemplateRepository();
+        if($this->providerAuthority===null&&class_exists(NotificationProviderRepository::class)){
+            $this->providerAuthority=new TelnyxTemplateAuthority(new NotificationProviderRepository());
+        }
     }
 
     /** The active copy of one event/channel/locale, or the catalogue default when none is published. */
@@ -146,8 +151,10 @@ final class NotificationTemplateLibrary {
         $mapping=$this->providerMapping($templateKey);
         $providerState='not_applicable';
         if($channel==='whatsapp'){
-            if($mapping['name']===''){$providerState='not_mapped';$issues[]='No Meta-approved template is mapped. Business-initiated sending will not start.';}
-            elseif($activeBody!==null&&!hash_equals((string)$mapping['body_digest'],$this->copyDigest((string)$activeBody['body']))){
+            if($mapping['name']===''){
+                $providerState=in_array((string)$mapping['authority_state'],array(TelnyxTemplateAuthority::NOT_APPROVED,TelnyxTemplateAuthority::AMBIGUOUS,TelnyxTemplateAuthority::CONTRACT_MISMATCH),true)?(string)$mapping['authority_state']:'not_mapped';
+                $issues[]=(string)($mapping['reason']!==''?$mapping['reason']:'No Meta-approved template is mapped.').' Business-initiated sending will not start.';
+            }elseif($mapping['source']==='manual'&&$activeBody!==null&&!hash_equals((string)$mapping['body_digest'],$this->copyDigest((string)$activeBody['body']))){
                 $providerState='approval_required';
                 $issues[]='Local copy changed after the last mapping; the template must be reviewed and approved again in Meta.';
             }else{$providerState='mapped';}
@@ -350,12 +357,27 @@ final class NotificationTemplateLibrary {
     // ------------------------------------------------------------------ provider mapping
 
     public function providerMapping(string $templateKey):array{
+        $identity=$this->providerIdentity($templateKey);
+        if($identity!==null&&$this->providerAuthority!==null){
+            $resolved=$this->providerAuthority->resolve($identity['event_key'],$identity['locale']);
+            if($resolved['state']===TelnyxTemplateAuthority::MAPPED){
+                $row=$resolved['row'];
+                return array(
+                    'name'=>$resolved['name'],'language'=>$resolved['language'],'body_digest'=>'',
+                    'mapped_at'=>$row->last_verified_at??null,'mapped_by'=>null,'source'=>'discovery',
+                    'authority_state'=>$resolved['state'],'reason'=>'',
+                );
+            }
+            if($resolved['state']!==TelnyxTemplateAuthority::NOT_MAPPED){
+                return array('name'=>'','language'=>'','body_digest'=>'','mapped_at'=>null,'mapped_by'=>null,'source'=>'discovery','authority_state'=>$resolved['state'],'reason'=>$resolved['reason']);
+            }
+        }
         $map=$this->option(self::OPTION_WHATSAPP);
         $row=is_array($map[$templateKey]??null)?$map[$templateKey]:array();
         return array(
             'name'=>(string)($row['name']??''),'language'=>(string)($row['language']??''),
             'body_digest'=>(string)($row['body_digest']??''),'mapped_at'=>$row['mapped_at']??null,
-            'mapped_by'=>$row['mapped_by']??null,
+            'mapped_by'=>$row['mapped_by']??null,'source'=>'manual','authority_state'=>'not_mapped','reason'=>'',
         );
     }
 
@@ -365,6 +387,19 @@ final class NotificationTemplateLibrary {
         if($name==='')throw new \InvalidArgumentException('A provider template ID is required.');
         if(preg_match('/^[a-z0-9_]{1,191}$/',$name)!==1)throw new \InvalidArgumentException('The template ID may contain lowercase Latin letters, digits and underscores only.');
         if(preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/',$language)!==1)throw new \InvalidArgumentException('The template language code is invalid; examples: fa or en_US.');
+        $definition=TelnyxTemplateRegistry::definitionForName($name);
+        // Preserve a legacy manual identifier when discovery has no evidence for it. Registered
+        // names, however, may never be rebound to a different event.
+        if($definition!==null&&(string)$definition['event_key']!==$eventKey)throw new \InvalidArgumentException('The provider template is not registered for this notification event.');
+        if($language!==TelnyxTemplateAuthority::providerLanguage($locale))throw new \InvalidArgumentException('The provider template language does not match this notification locale.');
+        if($this->providerAuthority!==null){
+            $resolved=$this->providerAuthority->resolve($eventKey,$locale);
+            if($resolved['state']===TelnyxTemplateAuthority::MAPPED){
+                if($resolved['name']!==$name||$resolved['language']!==$language)throw new \InvalidArgumentException('Approved provider discovery is authoritative for this notification event.');
+                return array('ok'=>true,'mapping'=>$this->providerMapping(NotificationCatalogue::templateKey($eventKey,$channel,$locale)));
+            }
+            if($resolved['state']!==TelnyxTemplateAuthority::NOT_MAPPED)throw new \InvalidArgumentException((string)$resolved['reason']);
+        }
         $templateKey=NotificationCatalogue::templateKey($eventKey,$channel,$locale);
         $active=$this->activeCopy($eventKey,$channel,$locale);
         $map=$this->option(self::OPTION_WHATSAPP);
@@ -376,6 +411,14 @@ final class NotificationTemplateLibrary {
         $this->putOption(self::OPTION_WHATSAPP,$map);
         $this->audit('map_provider_template',$eventKey,$channel,NotificationCatalogue::normaliseLocale($locale),null,'WhatsApp template mapping saved; Meta approval is still required separately');
         return array('ok'=>true,'mapping'=>$map[$templateKey]);
+    }
+
+    /** @return array{event_key:string,channel:string,locale:string}|null */
+    private function providerIdentity(string $templateKey):?array{
+        $parts=explode('.',$templateKey);
+        if(count($parts)<3)return null;
+        $locale=(string)array_pop($parts);$channel=(string)array_pop($parts);$eventKey=implode('.',$parts);
+        return $channel==='whatsapp'&&NotificationCatalogue::get($eventKey)!==null?array('event_key'=>$eventKey,'channel'=>$channel,'locale'=>$locale):null;
     }
 
     // ------------------------------------------------------------------ channel policy

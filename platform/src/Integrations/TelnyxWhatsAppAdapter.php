@@ -8,6 +8,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateAuthority;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 
 /**
@@ -24,12 +25,14 @@ final class TelnyxWhatsAppAdapter {
         private ?NotificationProviderRepository $provider=null,
         private ?NotificationRepository $notifications=null,
         private ?NotificationAttemptRepository $attempts=null,
-        private ?NotificationTemplateRepository $templates=null
+        private ?NotificationTemplateRepository $templates=null,
+        private ?TelnyxTemplateAuthority $templateAuthority=null
     ){
         $this->provider??=new NotificationProviderRepository();
         $this->notifications??=new NotificationRepository();
         $this->attempts??=new NotificationAttemptRepository();
         $this->templates??=new NotificationTemplateRepository();
+        $this->templateAuthority??=new TelnyxTemplateAuthority($this->provider);
     }
 
     /**
@@ -173,21 +176,24 @@ final class TelnyxWhatsAppAdapter {
         if(count($parts)<3)return null;
         $locale=array_pop($parts);$channel=array_pop($parts);$eventKey=implode('.',$parts);
         if($channel!=='whatsapp')return null;
-        $providerLanguage=str_starts_with(strtolower($locale),'fa')?TelnyxTemplateRegistry::LANGUAGE:$locale;
-        $approved=$this->provider->templateForEvent('telnyx',$eventKey,$providerLanguage);
-        if($approved){
-            $order=array_values(array_filter(array_map('trim',explode(',',(string)$approved->variable_order))));
-            if($order===array())$order=TelnyxTemplateRegistry::variableOrderForName((string)$approved->template_name);
-            return array('name'=>(string)$approved->template_name,'language'=>(string)$approved->language,'variable_order'=>$order);
+        $providerLanguage=TelnyxTemplateAuthority::providerLanguage($locale);
+        $approved=$this->templateAuthority->resolve($eventKey,$locale);
+        if($approved['state']===TelnyxTemplateAuthority::MAPPED){
+            return array('name'=>$approved['name'],'language'=>$approved['language'],'variable_order'=>$approved['variable_order']);
         }
-        $manual=(new NotificationTemplateLibrary())->providerMapping((string)$template->template_key);
+        // Provider evidence that exists but is ambiguous, unapproved or contract-invalid must fail
+        // closed.  A legacy manual option is considered only when discovery has no event mapping.
+        if($approved['state']!==TelnyxTemplateAuthority::NOT_MAPPED)return null;
+        $manual=(new NotificationTemplateLibrary(null,null,$this->templateAuthority))->providerMapping((string)$template->template_key);
         $name=(string)($manual['name']??'');
         if($name==='')return null;
         $language=(string)($manual['language']??TelnyxTemplateRegistry::LANGUAGE);
         $known=$this->provider->templateByName('telnyx',$name,$language);
-        if($known&&strtoupper((string)$known->status)!=='APPROVED')return null;
-        $order=$known?array_values(array_filter(array_map('trim',explode(',',(string)$known->variable_order)))):TelnyxTemplateRegistry::variableOrderForName($name);
-        if($order===array())$order=TelnyxTemplateRegistry::variableOrderForName($name);
+        $definition=TelnyxTemplateRegistry::definitionForName($name);
+        if($definition===null||(string)$definition['event_key']!==$eventKey)return null;
+        if($known&&(strtoupper((string)$known->status)!=='APPROVED'||(string)$known->event_key!==$eventKey||(string)$known->audience!==(string)$definition['audience']))return null;
+        $order=$known?array_values(array_filter(array_map('trim',explode(',',(string)$known->variable_order)))):array_values((array)$definition['variable_order']);
+        if($order!==array_values((array)$definition['variable_order']))return null;
         return $order===array()?null:array('name'=>$name,'language'=>$language,'variable_order'=>$order);
     }
     private function notification(array $command):?object{

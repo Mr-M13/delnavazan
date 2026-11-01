@@ -77,6 +77,7 @@ $sources = array(
 			<aside class="dzn-project__policy" aria-label="<?php echo esc_attr( $copy['policy'] ); ?>">
 				<h2><?php echo esc_html( $copy['policy'] ); ?></h2>
 				<div class="dzn-recording-info__actions">
+					<a href="<?php echo esc_url( home_url( '/recording-and-ai-policy/' ) ); ?>"><?php echo esc_html( $copy['recording_policy'] ); ?></a>
 					<a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>"><?php echo esc_html( $copy['privacy'] ); ?></a>
 					<a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>"><?php echo esc_html( $copy['terms'] ); ?></a>
 					<a href="<?php echo esc_url( home_url( '/student-portal/?portal-view=account' ) ); ?>"><?php echo esc_html( $copy['account'] ); ?></a>

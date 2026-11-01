@@ -81,7 +81,7 @@ foreach(array('Your learning deserves care','Your explanation is part of the kno
 $need(str_contains($infoBody,"'fa'")&&str_contains($infoBody,"'en'"),'the information page must support both languages');
 $need(!str_contains($infoBody,'<form'),'the explanation must not collect decisions');
 $need(!str_contains($infoBody,'link pending approval'),'the Project must replace the old placeholder');
-$need(str_contains($projectCopy,'remain to be settled'),'unsettled retention and withdrawal terms must remain explicit');
+$need(str_contains($projectCopy,'specifies ten-year retention')&&str_contains($projectCopy,'does not extend retention or remove existing rights'),'the Project must distinguish current policy from proposed changes');
 $need(str_contains($projectCopy,'does not itself opt you into research'),'enrolment must not imply research participation');
 $need(str_contains($infoBody,'publishedNotice'),'the page must preserve the current notice readout');
 $need(str_contains($info,"get_template_part( 'template-parts/recording/research-information' )"),'the Page Template must use the shared information body');

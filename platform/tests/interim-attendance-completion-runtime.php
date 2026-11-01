@@ -84,17 +84,10 @@ foreach(array('presumed','outcome','claim','reconcile','dispute')as$label)$occur
 $occurrences['future']=$occurrence($chains['future'],'future',1,$futureWall);
 $occurrences['released']=$occurrence($chains['released'],'released',1,$startWall);
 $schedules->release((int)$occurrences['released']['lesson_id'],array('expected_schedule_version_id'=>(int)$occurrences['released']['version_id'],'reason_code'=>'synthetic_release')+dzn_ic_evidence('release-released'),dzn_ic_key('release-released'));
-// A real fall-back boundary: the first Sunday of November in America/New_York spans 60 real
-// minutes over the 02:00 local fall-back and must persist two hours of UTC difference. The date is
-// derived from the clock so this runtime stays valid after the current year's boundary has passed.
-$dstDate=null;
-for($dstYear=(int)gmdate('Y');$dstYear<=(int)gmdate('Y')+2;$dstYear++){
-    $candidate=gmdate('Y-m-d',strtotime("first sunday of november {$dstYear} UTC"));
-    // Keep the boundary at least three days ahead so the occurrence is a genuinely future lesson.
-    if(strtotime($candidate.' 04:30:00 UTC')>time()+3*86400){$dstDate=$candidate;break;}
-}
-dzn_ic_assert($dstDate!==null,'a future fall-back boundary must be available');
-$dstPresumeAt=$dstDate.' 18:00:00';
+// Exercise both sides of a future New York fall-back boundary. Scheduling
+// deliberately rejects past starts, so a fixed calendar date eventually expires.
+$dstYear=(int)gmdate('Y')+1;
+$dstDate=(new DateTimeImmutable('first sunday of november '.$dstYear,new DateTimeZone('America/New_York')))->format('Y-m-d');
 $occurrences['dst_before']=$occurrence($chains['dst'],'dst-before',30,$dstDate.' 00:30:00','America/New_York');
 $occurrences['dst_after']=$occurrence($chains['dst'],'dst-after',30,$dstDate.' 12:00:00','America/New_York');
 dzn_ic_assert($occurrences['dst_before']['start']===$dstDate.' 04:30:00','A local time before the fall-back must store its daylight-saving UTC instant');
@@ -217,7 +210,7 @@ $dstBefore=$occurrences['dst_before'];$dstAfter=$occurrences['dst_after'];
 foreach(array($dstBefore,$dstAfter)as$dstOccurrence){
     $dstLesson=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lessons WHERE id=%d",(int)$dstOccurrence['lesson_id']));
     $dstHistory=$events((int)$dstOccurrence['lesson_id']);
-    (new CanonicalLessonCompletionPolicy())->assertPresumable((int)$dstOccurrence['lesson_id'],$dstLesson,$dstHistory,$dstPresumeAt);
+    (new CanonicalLessonCompletionPolicy())->assertPresumable((int)$dstOccurrence['lesson_id'],$dstLesson,$dstHistory,$dstDate.' 18:00:00');
     dzn_ic_rejected(fn()=>LessonCompletionAutomationWorker::runLesson((int)$dstOccurrence['lesson_id']),'occurrence_not_ended','a future DST-boundary occurrence');
 }
 

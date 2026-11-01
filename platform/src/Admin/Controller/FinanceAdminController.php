@@ -362,6 +362,21 @@ final class FinanceAdminController {
                 ), $key);
                 $args['statement_id'] = (int) ($result['statement_id'] ?? $statementId);
                 $args['finance_result'] = 'statement_superseded';
+            } elseif ($operation === 'record_payment') {
+                if ($statementId < 1) throw new \InvalidArgumentException('statement_required');
+                $paymentDate = trim((string) ($_POST['payment_date'] ?? ''));
+                $paidAt = $now;
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $paymentDate) === 1) {
+                    $paidAt = $paymentDate === gmdate('Y-m-d') ? $now : $paymentDate . ' 23:59:59';
+                }
+                (new \Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementPaymentService())->record($statementId, array(
+                    'paid_at' => $paidAt,
+                    'method_code' => sanitize_key((string) ($_POST['payment_method'] ?? 'manual_bank_transfer')),
+                    'evidence_channel' => 'authenticated_platform',
+                    'evidence_reference' => sanitize_text_field((string) ($_POST['payment_reference'] ?? '')),
+                    'reason' => 'operator_decision',
+                ), $key);
+                $args['finance_result'] = 'statement_paid';
             } else {
                 throw new \InvalidArgumentException('statement_operation_invalid');
             }
@@ -1010,7 +1025,15 @@ final class FinanceAdminController {
                         . wp_nonce_field('dzn_finance_statement', '_wpnonce', true, false)
                         . '<input type="hidden" name="statement_operation" value="withdraw"><button class="button button-small" onclick="return confirm(\'Withdraw this draft? It becomes terminal and cannot be issued later.\')">Withdraw</button></form>';
                 } else {
-                    $action .= '<input type="hidden" name="statement_operation" value="supersede"><button class="button button-small" onclick="return confirm(\'Supersede this issued statement? A new draft version is created from current recorded facts.\')">Supersede</button></form>';
+                    $action .= '<input type="hidden" name="statement_operation" value="supersede"><button class="button button-small" onclick="return confirm(\'Supersede this issued statement? A new draft version is created from current recorded facts.\')">Supersede</button></form>'
+                        . '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" style="margin-top:6px">'
+                        . '<input type="hidden" name="action" value="dzn_finance_statement"><input type="hidden" name="teacher_id" value="' . (int) $teacherId . '"><input type="hidden" name="statement_id" value="' . (int) $statement['statement_id'] . '"><input type="hidden" name="command_key" value="' . esc_attr(wp_generate_uuid4()) . '">'
+                        . wp_nonce_field('dzn_finance_statement', '_wpnonce', true, false)
+                        . '<input type="hidden" name="statement_operation" value="record_payment">'
+                        . '<label>Paid on <input type="date" name="payment_date" value="' . esc_attr(gmdate('Y-m-d')) . '" required></label>'
+                        . '<label>Method <select name="payment_method"><option value="manual_bank_transfer">Bank transfer</option><option value="cash">Cash</option><option value="other">Other</option></select></label>'
+                        . '<label>Reference <input type="text" name="payment_reference" maxlength="191" required></label>'
+                        . '<button class="button button-small" onclick="return confirm(\'Mark this statement as paid? This records an append-only settlement event.\')">Mark paid</button></form>';
                 }
             }
             echo '<tr><td><a href="' . esc_url($url) . '">' . esc_html((string) $statement['statement_id']) . '</a></td><td>' . esc_html((string) $statement['period_start_utc'] . ' → ' . (string) $statement['period_end_utc']) . '</td><td>' . esc_html($state) . '</td><td>' . esc_html((string) $statement['currency']) . '</td><td>' . esc_html(PricingMoney::format((int) $statement['payable_amount_minor'], (string) $statement['currency'])) . '</td><td>' . esc_html((string) $statement['total_line_count']) . '</td><td>' . esc_html((string) ($statement['issued_at'] ?? '—')) . '</td><td>' . $action . '</td></tr>';
@@ -1602,6 +1625,7 @@ final class FinanceAdminController {
             'statement_issued' => array('success', 'The statement passed its issuance gate and is now issued.'),
             'statement_withdrawn' => array('success', 'The draft statement was withdrawn. Its lines remain recorded and cannot be reused.'),
             'statement_superseded' => array('success', 'A new statement draft version was created and the previous issued version was superseded.'),
+            'statement_paid' => array('success', 'The statement was recorded as paid. The append-only settlement event is now visible to the Teacher and the statement remains immutable.'),
             'statement_emailed' => array('success', 'The issued statement was emailed to the Teacher\'s recorded address.'),
             'statement_email_queued' => array('success', 'A durable statement-email intent was queued. The worker will record transport acceptance or a retryable failure; delivery is not yet confirmed.'),
             'statement_email_already_accepted' => array('info', 'This statement already has a transport-accepted email intent. No duplicate email was queued.'),

@@ -18,7 +18,38 @@ final class TeacherDeliveryClaimController {
     }
 
     public static function submit():never{self::handle(self::ACTION_ISSUE,'teacher_delivery_issue','delivery_issue_recorded');}
-    public static function submitDelivered():never{self::handle(self::ACTION_DELIVERED,'teacher_reports_delivered','delivery_recorded');}
+    public static function submitDelivered():never{
+        if(!is_user_logged_in())auth_redirect();
+        $nonce=sanitize_text_field((string)($_POST['_wpnonce']??''));
+        if(!wp_verify_nonce($nonce,'dzn_teacher_report_delivery'))wp_die('Forbidden',403);
+        if(($_SERVER['REQUEST_METHOD']??'')!=='POST')self::back('completion_unavailable');
+        $lessonUid=trim((string)($_POST['lesson_uid']??''));
+        $scheduleUid=trim((string)($_POST['schedule_version_uid']??''));
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $lesson=max(0,(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}lessons WHERE uid=%s AND archived_at IS NULL LIMIT 1",$lessonUid)));
+        if($lesson<1||$scheduleUid==='')self::back('completion_unavailable');
+        try{
+            (new \Delnavazan\Platform\Core\Application\TeacherDeliveryConfirmationService())->confirm(
+                $lesson,
+                $scheduleUid,
+                'teacher-confirmation:'.get_current_user_id().':'.$lesson.':'.$scheduleUid
+            );
+            self::back('class_completed');
+        }catch(\InvalidArgumentException $error){
+            self::back(self::deliveryError((string)$error->getMessage()));
+        }catch(\Throwable){
+            self::back('completion_unavailable');
+        }
+    }
+
+    /** Map a controlled refusal to the Teacher-facing status without leaking internals. */
+    private static function deliveryError(string $reason):string{
+        return match($reason){
+            'occurrence_not_ended'=>'completion_too_early',
+            'attendance_review_pending','attendance_outcome_final','lesson_cancelled','schedule_version_conflict','portal_object_not_owned'=>'completion_not_allowed',
+            default=>'completion_unavailable',
+        };
+    }
 
     private static function handle(string $nonceAction,string $reasonCode,string $success):never{
         if(!is_user_logged_in())auth_redirect();

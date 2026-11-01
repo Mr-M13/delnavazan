@@ -20,6 +20,11 @@ final class CanonicalLessonAuthorityService {
      */
     public function createReplacementWithinTransaction(int $termId,int $expectedAssignment,int $originId,array $evidence,string $key):array{return $this->create('replacement',$termId,$expectedAssignment,$originId,$evidence,$key,false);}
     public function complete(int $lessonId,string $expectedState,array $evidence,string $key):array{return $this->transition('complete',$lessonId,$expectedState,$evidence,$key,'canonical_lesson_completed');}
+    /** Teacher-owned completion after an authenticated delivered-confirmation fact. */
+    public function completeTeacherConfirmedDelivery(int $lessonId,int $teacherId,string $expectedState,array $evidence,string $key):array{
+        if(!current_user_can('dzn_submit_own_delivery_claim'))throw new \RuntimeException('Unauthorized');
+        return $this->transition('complete',$lessonId,$expectedState,$evidence,$key,'canonical_lesson_completed',null,$teacherId);
+    }
     /**
      * Interim completion policy: complete an ended occurrence from silence only after the policy
      * guard has proved that no outcome, review, conflict or unresolved report exists.
@@ -38,12 +43,13 @@ final class CanonicalLessonAuthorityService {
         return $this->execute('create_'.$type,(int)$hint->enrolment_id,$termId,$facts,$rawKey,function($digest,$payload)use($type,$termId,$expectedAssignment,$originId,$proof,$actor,$facts){$termHint=$this->repository->term($termId);if(!$termHint)throw new \InvalidArgumentException('canonical_term_required');$enrolmentId=(int)$termHint->enrolment_id;$enrolmentHint=$this->repository->enrolment($enrolmentId);if(!$enrolmentHint)throw new \InvalidArgumentException('canonical_enrolment_required');$this->repository->lockRoot($enrolmentHint);$e=$this->repository->enrolment($enrolmentId,true);$term=$this->repository->term($termId,true);$lessons=$this->repository->lessons($termId,true);$this->validLessons($lessons);do_action('dzn_phase_2a2m_lesson_locks_held','create_'.$type,$enrolmentId,$termId);if($winner=$this->repository->command($digest))return $this->replay($winner,$payload,'create_'.$type,$enrolmentId,$termId,$facts);$this->valid($e,$term);$assignmentHint=$this->repository->assignment($enrolmentId,false);if(!$assignmentHint||(int)$assignmentHint->id!==$expectedAssignment||(string)$assignmentHint->state!=='assigned')throw new \InvalidArgumentException('stale_teacher_assignment');$teacher=$this->repository->teacher((int)$assignmentHint->teacher_id);if(!$teacher||$teacher->archived_at!==null)throw new \InvalidArgumentException('teacher_not_available');$assignment=$this->repository->assignment($enrolmentId,true);if(!$assignment||(int)$assignment->id!==$expectedAssignment||(int)$assignment->teacher_id!==(int)$assignmentHint->teacher_id||(string)$assignment->state!=='assigned')throw new \InvalidArgumentException('stale_teacher_assignment');do_action('dzn_phase_2a2m_lesson_authority_locks_held','create_'.$type,$enrolmentId,$termId,(int)$assignment->id,(int)$assignment->teacher_id);$allocation=(int)$term->lesson_allocation;$funded=CommercialTermFundingService::standardAllowance((int)$term->id);$maximum=$funded===null?$allocation:min($allocation,$funded);if($type==='standard'&&count(array_filter($lessons,fn($l)=>$l->lesson_type==='standard'))>=$maximum)throw new \InvalidArgumentException(($funded!==null&&$funded<$allocation)?'standard_funding_exhausted':'standard_allocation_exhausted');if($type==='replacement'){$origin=$this->repository->lesson($originId,true);if(!$origin||$origin->record_model!=='canonical_term_lesson_v1'||$origin->lesson_type!=='standard'||(int)$origin->term_id!==$termId||!$this->eligible($origin))throw new \InvalidArgumentException('replacement_origin_not_eligible');foreach($lessons as$l)if((int)$l->canonical_replacement_origin_lesson_id===$originId)throw new \InvalidArgumentException('replacement_origin_already_claimed');if(count(array_filter($lessons,fn($l)=>$l->lesson_type==='replacement'))>=(int)$term->replacement_allowance)throw new \InvalidArgumentException('replacement_allocation_exhausted');}
             $now=gmdate('Y-m-d H:i:s');$sequence=count($lessons)+1;$id=$this->repository->insertLesson(array('uid'=>Identifier::uid(),'reference_code'=>null,'student_id'=>(int)$e->student_id,'teacher_id'=>(int)$teacher->id,'course_id'=>(int)$e->course_id,'enrolment_id'=>$enrolmentId,'term_id'=>$termId,'lesson_type'=>$type,'status'=>'canonical','sequence_number'=>null,'current_schedule_version_id'=>null,'replacement_for_lesson_id'=>null,'created_at'=>$now,'updated_at'=>$now,'created_by'=>$actor,'updated_by'=>$actor,'archived_at'=>null,'archived_by'=>null,'record_model'=>'canonical_term_lesson_v1','lifecycle_state'=>'authorised','canonical_sequence'=>$sequence,'teacher_assignment_id'=>(int)$assignment->id,'canonical_replacement_origin_lesson_id'=>$originId));do_action('dzn_phase_2a2m_after_lesson_insert',$type);$this->event($id,1,null,'authorised',$proof,$now,$actor);do_action('dzn_phase_2a2m_after_lifecycle_event_insert',$type);$this->command($digest,$payload,'create_'.$type,$enrolmentId,$termId,$expectedAssignment,null,null,$originId,$id,'authorised',$now,$actor);do_action('dzn_phase_2a2m_after_command_insert',$type);return array('lesson_id'=>$id,'created'=>true,'operation'=>'create_'.$type);},$ownTransaction);
     }
-    private function transition(string $operation,int $lessonId,string $expected,array $evidence,string $key,?string $reasonOverride=null,?callable $guard=null):array{
-        $this->cap();
+    private function transition(string $operation,int $lessonId,string $expected,array $evidence,string $key,?string $reasonOverride=null,?callable $guard=null,?int $teacherId=null):array{
+        if(null===$teacherId)$this->cap();elseif(!current_user_can('dzn_submit_own_delivery_claim'))throw new \RuntimeException('Unauthorized');
         $actor=$this->actor();
         if($expected!=='authorised')throw new \InvalidArgumentException('transition_not_allowed');
         $hint=$this->repository->lesson($lessonId);
         if(!$hint||$hint->record_model!=='canonical_term_lesson_v1')throw new \InvalidArgumentException('canonical_lesson_required');
+        if(null!==$teacherId&&(int)$hint->teacher_id!==$teacherId)throw new \InvalidArgumentException('portal_object_not_owned');
         $reason=$operation==='cancel'
             ?(($evidence['reason_code']??'')==='attested_non_delivery'?'canonical_lesson_cancelled_replacement_eligible':(($evidence['reason_code']??'')==='academy_unavailable'?'canonical_lesson_cancelled_academy_unavailable':'canonical_lesson_cancelled'))
             :($reasonOverride??'canonical_lesson_completed');
@@ -51,13 +57,14 @@ final class CanonicalLessonAuthorityService {
         if($operation==='cancel'&&in_array($reason,array('canonical_lesson_cancelled_replacement_eligible','canonical_lesson_cancelled_academy_unavailable'),true))(new CanonicalLessonDeliveryGuard())->assertAdvanceCancellationAllowed($lessonId);
         $proof=$this->evidence($reason,$evidence);
         $facts=array('lesson_id'=>$lessonId,'expected_state'=>$expected,'target_state'=>$operation==='complete'?'completed':'cancelled')+$proof;
-        return $this->execute($operation,(int)$hint->enrolment_id,(int)$hint->term_id,$facts,$key,function($digest,$payload)use($operation,$lessonId,$expected,$proof,$facts,$actor,$hint,$guard){
+        return $this->execute($operation,(int)$hint->enrolment_id,(int)$hint->term_id,$facts,$key,function($digest,$payload)use($operation,$lessonId,$expected,$proof,$facts,$actor,$hint,$guard,$teacherId){
             $enrolmentHint=$this->repository->enrolment((int)$hint->enrolment_id);
             if(!$enrolmentHint)throw new \InvalidArgumentException('canonical_enrolment_required');
             $this->repository->lockRoot($enrolmentHint);
             $e=$this->repository->enrolment((int)$hint->enrolment_id,true);
             $t=$this->repository->term((int)$hint->term_id,true);
             $l=$this->repository->lesson($lessonId,true);
+            if(null!==$teacherId&&(!$l||(int)$l->teacher_id!==$teacherId))throw new \InvalidArgumentException('portal_object_not_owned');
             if($winner=$this->repository->command($digest))return $this->replay($winner,$payload,$operation,(int)$hint->enrolment_id,(int)$hint->term_id,$facts);
             $this->validTransitionContext($e,$t);
             if(!$l||(string)$l->lifecycle_state!==$expected)throw new \InvalidArgumentException('stale_lesson_state');

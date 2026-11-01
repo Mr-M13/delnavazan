@@ -34,7 +34,7 @@ $check('schedule-version mismatch is refused', str_contains($read('platform/src/
 
 $component = $read('theme/template-parts/components/classroom-actions.php');
 $check('primary Persian action is present exactly once', substr_count($component, '>ورود به کلاس</button>') === 1);
-$check('Google Meet backup action is present exactly once', substr_count($component, '>ورود با گوگل میت</button>') === 1);
+$check('Google Meet backup action is present exactly once', substr_count($component, 'dzn-classroom-actions__backup') === 1 && (str_contains($component, '>ورود با گوگل میت</button>') || str_contains($component, "'meet_label'")));
 $check('both actions are nonce-protected POST forms', substr_count($component, 'method="post"') === 2 && substr_count($component, "name=\"_wpnonce\"") === 2);
 $check('the component never renders a Meet URL', !str_contains($component, 'meet.google.com'));
 
@@ -106,7 +106,7 @@ $check('watermark is positioned in a video corner with logical RTL properties', 
 $check('watermark is transparent, smaller, and low opacity', str_contains($css, 'background: transparent') && str_contains($css, 'opacity: 0.36'));
 $check('desktop self view is smaller than the remote view', str_contains($css, 'grid-template-columns: minmax(0, 1fr) minmax(12rem, 30%)'));
 $check('fullscreen places the self view in a corner', str_contains($css, ':is(:fullscreen, .is-faux-fullscreen)') && str_contains($css, '.dzn-classroom__tile--local') && str_contains($css, 'inset-inline-end: 1rem'));
-$check('display rotation is implemented without rotating labels', str_contains($js, 'toggleRotation') && str_contains($css, '.dzn-classroom__stage.is-rotated .dzn-classroom__tile video'));
+$check('display rotation is implemented without rotating labels', str_contains($js, 'toggleRotation') && str_contains($css, '.dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile video'));
 $check('layout is responsive for phone and tablet', str_contains($css, '@media (max-width: 900px)') && str_contains($css, '@media (max-width: 640px)') && str_contains($css, 'pointer: coarse'));
 $check('RTL and reduced motion are supported', str_contains($css, '[dir="rtl"]') && str_contains($css, 'prefers-reduced-motion'));
 

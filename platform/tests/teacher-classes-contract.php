@@ -156,7 +156,8 @@ namespace {
 	dzn_theme_render_teacher_portal( 'classes', $model );
 	$html = (string) ob_get_clean();
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
-	$check( 'future cards expose the reschedule form without expanding details', str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
+	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
+	$check( 'the redundant upcoming list is gone and the calendar remains', ! str_contains( $html, 'tp-classes-upcoming' ) && ! str_contains( $html, 'کلاسی برای روزهای آینده' ) && str_contains( $html, 'تقویم کلاس‌های آینده' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
@@ -191,7 +192,7 @@ namespace {
 	$check( 'reschedule no longer hides proposals behind a notice window', ! str_contains( $rescheduleService, 'MIN_NOTICE_MINUTES' ) && ! str_contains( $rescheduleService, 'reschedule_notice_too_short' ) );
 
 	$routes = (string) file_get_contents( ABSPATH . 'theme/inc/routes.php' );
-	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding' )" ) );
+	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' )" ) );
 	$finance = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/finance.php' );
 	$check( 'withdrawn statements map to a known label', str_contains( $finance, "'withdrawn' =>" ) && ! str_contains( $finance, "'void'" ) );
 

@@ -60,6 +60,7 @@ final class LiveKitClassroomSessionService {
             (string)$grant['display_name'],
             $this->now()
         );
+        $isLesson = (string)$grant['kind'] === 'lesson';
         return array(
             'url' => (string)$config['url'],
             'token' => $token,
@@ -75,6 +76,10 @@ final class LiveKitClassroomSessionService {
             'meet_available' => (bool)$grant['meet_available'],
             'max_participants' => 2,
             'is_replacement' => (bool)$grant['is_replacement'],
+            // Canonical identifiers for the explicit teacher Finish action. They are empty for an
+            // introductory booking, which has no canonical Lesson/schedule version to report.
+            'lesson_uid' => $isLesson ? (string)$grant['resource_uid'] : '',
+            'schedule_version_uid' => $isLesson ? (string)$grant['schedule_key'] : '',
         );
     }
 

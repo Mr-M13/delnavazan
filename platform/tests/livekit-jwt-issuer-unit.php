@@ -10,7 +10,7 @@ $assert($decode($header) === array('alg' => 'HS256', 'typ' => 'JWT'), 'Issuer di
 $assert($claims['iss'] === 'devkey' && $claims['sub'] === 'dzn-t-99', 'Issuer lost token identity claims.');
 $assert($claims['exp'] === 1700000300 && $claims['nbf'] === 1699999995, 'Token lifetime is not bounded to five minutes.');
 $assert($claims['video']['roomJoin'] === true && $claims['video']['room'] === 'dzn-room_1', 'Token is not room scoped.');
-$assert($claims['video']['canPublish'] === true && $claims['video']['canSubscribe'] === true && $claims['video']['canPublishData'] === false, 'Token grants are broader than the classroom needs.');
+$assert($claims['video']['canPublish'] === true && $claims['video']['canSubscribe'] === true && $claims['video']['canPublishData'] === true, 'The 1:1 classroom needs reliable room data messages for shared music mode.');
 $assert($claims['video']['roomCreate'] === false && $claims['video']['roomAdmin'] === false && $claims['video']['roomRecord'] === false, 'Participant token must not create, administer, or record a room.');
 $assert($claims['video']['canPublishSources'] === array('camera', 'microphone'), 'Participant token may publish an unexpected source.');
 $assert(!str_contains($payload, 'not-a-real-secret'), 'API secret leaked into the token payload.');

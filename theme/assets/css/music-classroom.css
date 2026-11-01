@@ -225,9 +225,12 @@
 .dzn-classroom__tile--local .dzn-classroom-watermark { inset-inline-end: 0.65rem; inset-inline-start: auto; }
 .dzn-classroom__tile--local .dzn-classroom-watermark img { width: clamp(1.7rem, 3vw, 2.5rem); }
 
-/* Rotate only the video presentation; labels, controls, and the watermark stay upright. */
-.dzn-classroom__stage.is-rotated .dzn-classroom__tile video,
-.dzn-classroom__stage.is-rotated .dzn-classroom__remote-media video {
+/* Display rotation is a local presentation transform. It cycles 0 -> 90 -> 180 -> 270 -> 0 for
+   both the self preview and the remote tile; labels, controls, and the watermark stay upright.
+   The transmitted camera orientation is never changed. */
+.dzn-classroom__stage { --dzn-rotation: 0deg; }
+.dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile video,
+.dzn-classroom__stage[data-rotation="270"] .dzn-classroom__tile video {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -237,10 +240,17 @@
   max-width: none;
   max-height: none;
   object-fit: contain;
-  transform: translate(-50%, -50%) rotate(90deg);
+  transform: translate(-50%, -50%) rotate(var(--dzn-rotation));
 }
-.dzn-classroom__stage.is-rotated .dzn-classroom__tile--local video {
-  transform: translate(-50%, -50%) rotate(90deg) scaleX(-1);
+.dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile--local video,
+.dzn-classroom__stage[data-rotation="270"] .dzn-classroom__tile--local video {
+  transform: translate(-50%, -50%) rotate(var(--dzn-rotation)) scaleX(-1);
+}
+.dzn-classroom__stage[data-rotation="180"] .dzn-classroom__tile video {
+  transform: rotate(var(--dzn-rotation));
+}
+.dzn-classroom__stage[data-rotation="180"] .dzn-classroom__tile--local video {
+  transform: rotate(var(--dzn-rotation)) scaleX(-1);
 }
 
 /* Fullscreen: remote video fills the screen, own camera stays as a corner window. */
@@ -260,6 +270,7 @@
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__header,
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__meta,
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__notice,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__music-status,
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__alert,
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) noscript { display: none; }
 .dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage {
@@ -319,6 +330,32 @@
 }
 body.dzn-classroom-faux-active { overflow: hidden; }
 
+/* Fullscreen must keep the same local rotation transform; the fullscreen video sizing rules
+   above are intentionally overridden for 90/270 because the rotated box swaps its axes. */
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile video,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="270"] .dzn-classroom__tile video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--dzn-rotate-width, 100%);
+  height: var(--dzn-rotate-height, 100%);
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  transform: translate(-50%, -50%) rotate(var(--dzn-rotation));
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile--local video,
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="270"] .dzn-classroom__tile--local video {
+  transform: translate(-50%, -50%) rotate(var(--dzn-rotation)) scaleX(-1);
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="180"] .dzn-classroom__tile video {
+  transform: rotate(var(--dzn-rotation));
+}
+.dzn-classroom:is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="180"] .dzn-classroom__tile--local video {
+  transform: rotate(var(--dzn-rotation)) scaleX(-1);
+}
+
 .dzn-classroom__controls {
   display: flex;
   align-items: center;
@@ -351,6 +388,9 @@ body.dzn-classroom-faux-active { overflow: hidden; }
 .dzn-classroom__control:hover:not(:disabled) { background: rgb(30 123 112 / 18%); }
 .dzn-classroom__control:active:not(:disabled) { transform: translateY(1px); }
 .dzn-classroom__control:disabled { cursor: not-allowed; opacity: 0.48; }
+/* Author display rules must not defeat the native hidden attribute on the teacher-only action. */
+.dzn-classroom__control[hidden],
+.dzn-classroom__music-status[hidden] { display: none; }
 .dzn-classroom__control.is-off {
   background: var(--dzn-color-error-surface);
   border-color: var(--dzn-color-error-border);
@@ -359,6 +399,11 @@ body.dzn-classroom-faux-active { overflow: hidden; }
 .dzn-classroom__control--leave {
   background: var(--dzn-color-error);
   border-color: var(--dzn-color-error);
+  color: #fff;
+}
+.dzn-classroom__control--finish {
+  background: var(--dzn-color-success);
+  border-color: var(--dzn-color-success);
   color: #fff;
 }
 .dzn-classroom__control--backup { background: var(--dzn-color-information-surface); border-color: var(--dzn-color-information-border); color: var(--dzn-color-information); }
@@ -417,6 +462,17 @@ body.dzn-classroom-faux-active { overflow: hidden; }
   margin: 0.9rem 0 0;
   color: var(--dzn-color-text-muted);
   font-size: var(--dzn-text-small);
+  line-height: 1.9;
+}
+.dzn-classroom__music-status {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.85rem;
+  border-inline-start: 4px solid var(--dzn-color-action-primary);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-information-surface);
+  color: var(--dzn-color-information);
+  font-size: var(--dzn-text-small);
+  font-weight: 650;
   line-height: 1.9;
 }
 

@@ -18,8 +18,16 @@ final class FinanceSnapshotIntegrity {
     }
     /** Recompute a stored snapshot's digest from its own recorded facts. */
     public static function assertDigest(object $snapshot):void{
+        // The capture path builds the digest from typed values, while the repository returns
+        // every column as a string. Normalise the integer fields back to their capture types;
+        // otherwise a valid snapshot can never be re-proved from its own stored row.
+        $integerFields=array('lesson_id','enrolment_id','term_id','teacher_id','teacher_assignment_id','course_id','schedule_version_id','duration_minutes','rate_id','rate_version','rate_amount_minor','derived_amount_minor','intro_policy_version');
         $values=array();
-        foreach(FinanceRule::SNAPSHOT_DIGEST_FIELDS as $field)$values[$field]=$snapshot->{$field}??null;
+        foreach(FinanceRule::SNAPSHOT_DIGEST_FIELDS as $field){
+            $value=$snapshot->{$field}??null;
+            if($value!==null&&in_array($field,$integerFields,true))$value=(int)$value;
+            $values[$field]=$value;
+        }
         if(!hash_equals((string)$snapshot->derivation_digest,self::digest($values)))throw new \RuntimeException('snapshot_derivation_mismatch');
     }
     /**

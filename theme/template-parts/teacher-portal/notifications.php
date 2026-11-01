@@ -15,10 +15,10 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 <section id="dzn-tp-notifications" class="dzn-tp-section dzn-notifications" aria-labelledby="dzn-tp-notifications-title">
 	<div class="dzn-tp-section__heading">
 		<div>
-			<p class="dzn-tp-kicker">پیام‌های حساب شما</p>
 			<h2 id="dzn-tp-notifications-title">اعلان‌ها<?php if ( $unread > 0 ) : ?> <span class="dzn-notifications__count"><?php echo esc_html( number_format_i18n( $unread ) ); ?> تازه</span><?php endif; ?></h2>
 		</div>
 	</div>
+	<?php dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'خواندن اعلان، درخواست را حل نمی‌کند', 'text' => '«خوانده شد» فقط وضعیت خواندن را تغییر می‌دهد. برای تأیید یا پاسخ، از دکمهٔ همان کارت یا صفحهٔ کاری استفاده کنید.', 'module' => 'responsibilities' ) ); ?>
 	<?php if ( ! $available ) : ?>
 		<p class="dzn-tp-empty">این بخش هنوز به منبع اعلان معتبر متصل نشده است؛ بنابراین «بدون اعلان» به‌معنای نبودِ پیام نیست.</p>
 	<?php elseif ( ! $items ) : ?>
@@ -59,5 +59,4 @@ $nonce     = (string) ( $actions['read_nonce'] ?? '' );
 			<?php endforeach; ?>
 		</ol>
 	<?php endif; ?>
-	<p class="dzn-tp-note">این اعلان‌ها فقط وضعیت را نشان می‌دهند؛ تأیید یا تغییر کلاس، پرداخت یا درخواست همچنان از دکمهٔ همان صفحهٔ کاری انجام می‌شود.</p>
 </section>

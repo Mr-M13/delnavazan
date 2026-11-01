@@ -1,7 +1,7 @@
 <?php
 $model = $args['model'] ?? array();
 $teacher_tz = $model['teacher_timezone'] ?? ( $model['profile']['timezone'] ?? '' );
-dzn_theme_teacher_portal_component( 'tour', array( 'auto' => empty( $model['is_demo'] ) ) );
+dzn_theme_teacher_portal_component( 'tour', array( 'auto' => empty( $model['is_demo'] ) && empty( $model['induction'] ) ) );
 $announcement = $model['announcement'] ?? array();
 $announcement_states = array( 'general', 'technical', 'reminder', 'none' );
 $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_states, true );
@@ -20,6 +20,7 @@ $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_
 		</div>
 	</aside>
 <?php endif; ?>
+<?php dzn_theme_teacher_portal_component( 'induction-card', array( 'model' => $model ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array() ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'notifications', array( 'items' => $model['notifications'] ?? array(), 'available' => ! empty( $model['notifications_available'] ), 'unread' => (int) ( $model['notification_unread_count'] ?? 0 ), 'actions' => $model['notification_actions'] ?? array() ) ); ?>
@@ -31,6 +32,7 @@ dzn_theme_teacher_portal_component(
 	array(
 		'items'          => array(),
 		'today_items'    => $model['today_classes'] ?? array(),
+		'past_items'     => array(),
 		'upcoming_items' => array(),
 		'show_upcoming'  => false,
 		'model'          => $model,

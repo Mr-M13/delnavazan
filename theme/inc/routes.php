@@ -442,7 +442,7 @@ function dzn_theme_render_portal_route( $kind ) {
 	}
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
-		$screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding' ), true ) ? $screen : 'home';
+		$screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $screen : 'home';
 		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;
@@ -577,6 +577,10 @@ function dzn_theme_route_assets() {
 				'logoUrl' => get_theme_file_uri( 'assets/images/delnavazan-logo.png' ),
 				'meetActionUrl' => admin_url( 'admin-post.php?action=dzn_livekit_meet_fallback' ),
 				'meetNonce' => wp_create_nonce( 'dzn_livekit_meet_fallback' ),
+				'teacherPortalUrl' => esc_url_raw( home_url( '/teacher-portal/' ) ),
+				'studentPortalUrl' => esc_url_raw( home_url( '/student-portal/' ) ),
+				'finishActionUrl' => esc_url_raw( admin_url( 'admin-post.php?action=dzn_teacher_report_delivery' ) ),
+				'finishNonce' => wp_create_nonce( 'dzn_teacher_report_delivery' ),
 			)
 		);
 	}

@@ -98,6 +98,29 @@ async function login(context, role) {
     if (expect === 'connected') {
       check((await classroom.getAttribute('#dzn-classroom-connection', 'data-state')) === 'connected', 'LiveKit classroom reports connected');
       check(await classroom.locator('#dzn-classroom-participants').innerText().then((text) => text.includes('۱') || text.includes('۲')), 'participant count is bounded to one or two');
+
+      const rotationSteps = ['90', '180', '270', '0'];
+      const seenRotations = [];
+      for (const step of rotationSteps) {
+        await classroom.click('#dzn-classroom-rotate');
+        seenRotations.push(await classroom.getAttribute('.dzn-classroom__stage', 'data-rotation'));
+      }
+      check(seenRotations.join(',') === rotationSteps.join(','), 'rotation cycles 0 → 90 → 180 → 270 → 0');
+      check((await classroom.locator('#dzn-classroom-rotate span').innerText()).includes('۰°'), 'rotation label returns to zero degrees');
+
+      await classroom.click('#dzn-classroom-rotate');
+      const quarterTurn = await classroom.evaluate(() => getComputedStyle(document.querySelector('#dzn-classroom-local')).transform);
+      check(quarterTurn !== 'none', 'local preview receives the local rotation transform');
+      await classroom.click('#dzn-classroom-fullscreen');
+      await classroom.waitForTimeout(450);
+      const fullscreenTurn = await classroom.evaluate(() => getComputedStyle(document.querySelector('#dzn-classroom-local')).transform);
+      check(fullscreenTurn !== 'none', 'rotation survives fullscreen');
+      await classroom.click('#dzn-classroom-fullscreen');
+      await classroom.waitForTimeout(300);
+      await classroom.click('#dzn-classroom-rotate');
+      await classroom.click('#dzn-classroom-rotate');
+      await classroom.click('#dzn-classroom-rotate');
+      check((await classroom.getAttribute('.dzn-classroom__stage', 'data-rotation')) === '0', 'rotation returns to zero after fullscreen checks');
     } else {
       const visible = await classroom.locator('#dzn-classroom-alert').isVisible();
       const text = visible ? await classroom.locator('#dzn-classroom-alert').innerText() : '';

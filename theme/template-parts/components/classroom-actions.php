@@ -23,6 +23,8 @@ $meet_nonce = (string) ( $item['join_nonce'] ?? ( function_exists( 'wp_create_no
 $message = (string) ( $item['livekit_message'] ?? $item['join_message'] ?? ( $role === 'teacher' ? 'زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است.' : 'ورود به کلاس در این لحظه فعال نیست.' ) );
 $primary_class = (string) ( $args['primary_class'] ?? 'dzn-button' );
 $secondary_class = (string) ( $args['secondary_class'] ?? 'dzn-button dzn-button--secondary' );
+$meet_label = (string) ( $args['meet_label'] ?? 'ورود با گوگل میت' );
+$show_backup_note = ! array_key_exists( 'show_backup_note', $args ) || ! empty( $args['show_backup_note'] );
 $fields = static function () use ( $item, $is_booking ): void {
 	if ( $is_booking ) {
 		?><input type="hidden" name="kind" value="booking"><input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $item['confirmation_uid'] ?? '' ) ); ?>"><?php
@@ -43,9 +45,9 @@ $fields = static function () use ( $item, $is_booking ): void {
 		<form method="post" target="_blank" rel="noopener noreferrer" action="<?php echo esc_url( $meet_url ); ?>" class="dzn-classroom-actions__form dzn-classroom-actions__backup"<?php echo 'teacher' === $role ? ' data-dzn-tp-submit data-dzn-tp-reenable="5000"' : ''; ?>>
 			<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $meet_nonce ); ?>">
 			<?php $fields(); ?>
-			<button class="<?php echo esc_attr( $secondary_class ); ?>" type="submit"<?php echo 'teacher' === $role ? ' data-dzn-tp-busy-label="در حال باز کردن لینک…"' : ''; ?>>ورود با گوگل میت</button>
+			<button class="<?php echo esc_attr( $secondary_class ); ?>" type="submit"<?php echo 'teacher' === $role ? ' data-dzn-tp-busy-label="در حال باز کردن لینک…"' : ''; ?>><?php echo esc_html( $meet_label ); ?></button>
 		</form>
-		<p class="dzn-classroom-actions__note"><?php echo esc_html( $livekit_available ? 'گوگل میت گزینهٔ پشتیبان است.' : 'کلاس زندهٔ دلنوازان در دسترس نیست؛ گزینهٔ پشتیبان فعال است.' ); ?></p>
+		<?php if ( $show_backup_note ) : ?><p class="dzn-classroom-actions__note"><?php echo esc_html( $livekit_available ? 'گوگل میت گزینهٔ پشتیبان است.' : 'کلاس زندهٔ دلنوازان در دسترس نیست؛ گزینهٔ پشتیبان فعال است.' ); ?></p><?php endif; ?>
 	<?php endif; ?>
 	<?php if ( ! $livekit_available && ! $meet_available && '' !== $message ) : ?>
 		<p class="dzn-portal-help dzn-classroom-actions__unavailable"><?php echo esc_html( $message ); ?></p>

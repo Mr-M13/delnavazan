@@ -24,6 +24,7 @@ Submission and approval require all conditions:
 - display name, valid email, country code, IANA timezone, locale and existing calendar preference are present;
 - the active canonical availability profile matches the Teacher timezone;
 - at least one active `preferred` or `requestable` recurring availability rule exists;
+- a usable Google Calendar connection exists with an active credential, verified identity and the exact calendar scope. This is required by `TeacherOnboardingService::progress()` because event and Meet projection depends on it. A connected account is not proof that Meet is operational;
 - agreement state is `not_required` for v1 because the repository defines no concrete agreement or document requirement.
 
 A claimed account is deliberately `linked_pending / not_ready`. Normal teacher portal reads call the existing principal authority check and fail closed until the teacher submits complete information and staff records approval as `active / ready`.
@@ -46,7 +47,7 @@ Issuing creates a delivery intent in the existing outbox. The admin screen expos
 2. Issue an email-only invitation and verify it creates one blank canonical Teacher profile.
 3. Prepare/deliver the code through the authorized delivery boundary, then claim at `/teacher-invitation/`.
 4. Confirm claim produces `linked_pending / not_ready` and redirects the first login to onboarding.
-5. Save canonical profile, synchronize timezone and add a requestable/preferred rule.
+5. Save canonical profile, synchronize timezone, add a requestable/preferred rule and connect a usable Google Calendar credential.
 6. Submit and confirm `pending_review / not_ready`; verify normal portal access remains denied.
 7. Exercise return and resubmission, then approve and confirm `active / ready`. Exercise rejection on a separate submission and confirm access remains denied.
 8. Offboard; confirm authority and portal access are revoked and an event is appended.

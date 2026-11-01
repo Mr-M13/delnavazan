@@ -1804,6 +1804,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( function_exists( 'dzn_theme_teacher_portal_class_valid' ) && ! dzn_theme_teacher_portal_class_valid( $class ) ) {
 			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'class', $index, 'display_contract' );
 		}
+		// A cancelled occurrence is a scheduling fact, not a Today action. Keep it in the
+		// collapsed history with its explicit state instead of rendering a dead class card.
+		if ( 'cancelled' === (string) ( $lesson['lifecycle_state'] ?? '' ) ) {
+			$past_classes[] = array(
+				'ref' => $class['ref'], 'date' => $class['date'], 'time' => $class['time'],
+				'student' => $class['student'], 'course' => $class['course'],
+				'term_reference' => $class['term_reference'], 'term_progress_label' => $class['term_progress_label'],
+				'outcome' => 'لغو شده', 'tone' => 'muted', 'starts_at_utc' => $class['starts_at_utc'],
+			);
+			continue;
+		}
 		$classes[] = $class;
 		$past_row = array(
 			'ref' => $class['ref'],

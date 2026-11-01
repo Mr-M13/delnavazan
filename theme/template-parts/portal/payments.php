@@ -99,6 +99,22 @@ $render_items = static function ( array $rows ): void {
 	<div class="dzn-payments__summary">
 		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( (string) ( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ) ); ?></p></div>
 	</div>
+	<?php
+	/*
+	 * Future-Term advance payment needs a Platform-issued future-Term obligation and an
+	 * authorised checkout command. The current commercial read exposes obligations only for
+	 * an issued/accepted offer, so the Theme must not fabricate one or create a booking.
+	 */
+	$future_term_available = ! empty( $payments['future_term_available'] );
+	?>
+	<div class="dzn-payments__future-term">
+		<?php if ( $future_term_available ) : ?>
+			<a class="dzn-button dzn-button--secondary" href="#dzn-payments-title"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده', 'delnavazan-theme' ); ?></a>
+		<?php else : ?>
+			<button class="dzn-button dzn-button--secondary" type="button" disabled aria-describedby="dzn-future-term-note"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده', 'delnavazan-theme' ); ?></button>
+			<p id="dzn-future-term-note" class="dzn-portal-help"><?php esc_html_e( 'پرداخت پیشاپیش ترم آینده زمانی فعال می‌شود که پیشنهاد و تعهد ترم آینده از سوی آموزشگاه در سامانه صادر شود. تا آن زمان این پرداخت در دسترس نیست؛ برای هماهنگی با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p>
+		<?php endif; ?>
+	</div>
 	<?php if ( $checkout_enabled ) : ?>
 		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">
 			<p class="dzn-checkout__status" data-checkout-status aria-live="polite"><?php esc_html_e( 'در حال دریافت وضعیت پرداخت…', 'delnavazan-theme' ); ?></p>

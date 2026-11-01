@@ -70,7 +70,9 @@ $assert(str_contains($student, "'student_reports_missed_class'") && str_contains
 $assert(str_contains($student, "'student-claim:'.get_current_user_id()"), 'Student report key must be deterministic');
 $assert(str_contains($teacher, "ACTION_DELIVERED='dzn_teacher_report_delivery'"), 'Teachers must be able to report a delivered class');
 $assert(str_contains($teacher, "'teacher_reports_delivered'"), 'The delivered report must use a controlled reason code');
-$assert(str_contains($teacher, "'teacher-claim:'"), 'Teacher report key must be deterministic');
+$assert(str_contains($teacher, 'TeacherDeliveryConfirmationService'), 'Delivered confirmation must use the canonical teacher-confirmation seam');
+$assert(str_contains($teacher, "'teacher-confirmation:'"), 'Teacher confirmation key must be deterministic');
+$assert(str_contains($read('src/Core/Application/TeacherDeliveryConfirmationService.php'), "'teacher-confirm-delivery:'"), 'Teacher delivery key must be deterministic and replay-stable');
 $assert(str_contains($intake, 'authoriseOwnership') && str_contains($intake, 'hasTeacherPrincipal') && str_contains($intake, 'hasStudentPrincipal'), 'Report authority must stay bound to the owning principal');
 $assert(str_contains($screen, 'record_canonical_delivery') && str_contains($screen, 'reconcile_canonical_delivery') && str_contains($screen, 'dispute_canonical_delivery'), 'Administrators must have completed/not-delivered/disputed correction actions');
 $assert(str_contains($screen, 'dzn_manage_canonical_lesson_delivery'), 'Administrative corrections must stay capability-protected');

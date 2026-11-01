@@ -29,7 +29,10 @@ final class TeacherStatementEmailService {
         private ?FinanceStatementRepository $statementsRepository = null,
         private ?StatementEmailOutboxRepository $outbox = null,
         private ?TeacherStatementEmailRenderer $renderer = null,
-        private ?FinanceSettingsService $settings = null
+        private ?FinanceSettingsService $settings = null,
+        private ?\Closure $statementLoader = null,
+        private ?\Closure $lineLoader = null,
+        private ?\Closure $teacherLoader = null
     ) {
         $this->statements ??= new TeacherStatementReadService();
         $this->read ??= new FinanceAdminReadService();
@@ -47,11 +50,11 @@ final class TeacherStatementEmailService {
      */
     public function enqueue(int $statementId, bool $retry = false): array {
         FinanceSupport::requireCapability(self::CAPABILITY);
-        $statement = $this->statements->statement($statementId);
+        $statement = $this->loadStatement($statementId);
         if ((string) ($statement['state'] ?? '') !== 'issued') {
             return $this->outcome(false, 'statement_not_issued', null, null);
         }
-        $teacher = $this->read->teacherIdentity((int) $statement['teacher_id']);
+        $teacher = $this->loadTeacher((int) $statement['teacher_id']);
         $to = trim((string) ($teacher['email'] ?? ''));
         $valid = function_exists('is_email') ? (bool) is_email($to) : filter_var($to, FILTER_VALIDATE_EMAIL) !== false;
         if ($to === '' || !$valid) {
@@ -132,6 +135,16 @@ final class TeacherStatementEmailService {
         );
     }
 
+    private function loadStatement(int $id): array {
+        return $this->statementLoader !== null ? (array) ($this->statementLoader)($id) : $this->statements->statement($id);
+    }
+    private function loadLines(int $id): array {
+        return $this->lineLoader !== null ? (array) ($this->lineLoader)($id) : $this->read->statementLines($id);
+    }
+    private function loadTeacher(int $id): array {
+        return $this->teacherLoader !== null ? (array) ($this->teacherLoader)($id) : (array) $this->read->teacherIdentity($id);
+    }
+
     private function claimNext(): ?array {
         $this->outbox->begin();
         try {
@@ -184,9 +197,9 @@ final class TeacherStatementEmailService {
         $reason = 'statement_email_transport_failed';
         try {
             if ($actor > 0) wp_set_current_user($actor);
-            $statement = $this->statements->statement((int) $intent->statement_id);
-            $teacher = $this->read->teacherIdentity((int) $statement['teacher_id']);
-            $lines = $this->read->statementLines((int) $intent->statement_id);
+            $statement = $this->loadStatement((int) $intent->statement_id);
+            $teacher = $this->loadTeacher((int) $statement['teacher_id']);
+            $lines = $this->loadLines((int) $intent->statement_id);
             $template = $this->settings->template();
             $academy = function_exists('get_bloginfo') ? (string) get_bloginfo('name') : 'Delnavazan';
             $academy = $academy !== '' ? $academy : 'Delnavazan';

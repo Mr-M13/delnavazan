@@ -31,7 +31,7 @@ final class LiveKitJwtIssuer {
                 'room' => $room,
                 'canPublish' => true,
                 'canSubscribe' => true,
-                'canPublishData' => false,
+                'canPublishData' => true,
                 'canPublishSources' => array('camera', 'microphone'),
                 'roomCreate' => false,
                 'roomAdmin' => false,

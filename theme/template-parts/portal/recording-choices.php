@@ -48,14 +48,15 @@ $format_date = static function ( string $value ): string {
 };
 $iso_datetime = static function ( string $value ): string { return '' === $value ? '' : str_replace( ' ', 'T', $value ) . 'Z'; };
 ?>
-<section class="dzn-portal-section dzn-recording-choices" id="dzn-recording-choices" aria-labelledby="dzn-recording-choices-title">
+<section class="dzn-portal-section dzn-recording-choices dzn-recording-choices--compact" id="dzn-recording-choices" aria-labelledby="dzn-recording-choices-title">
 	<div class="dzn-portal-section__heading">
 		<div>
-			<p class="dzn-portal-kicker"><?php echo 'enrolment' === $context ? 'پیش از تکمیل ثبت‌نام' : 'حساب کاربری'; ?></p>
-			<h2 id="dzn-recording-choices-title">Recording and research choices</h2>
-			<p class="dzn-portal-help" lang="fa" dir="rtl">انتخاب ضبط کلاس و مشارکت در پژوهش</p>
+			<p class="dzn-portal-kicker"><?php echo 'enrolment' === $context ? 'پیش از تکمیل ثبت‌نام' : 'حریم خصوصی و رضایت'; ?></p>
+			<h2 id="dzn-recording-choices-title"><?php esc_html_e( 'ضبط کلاس و پژوهش', 'delnavazan-theme' ); ?> <span class="dzn-recording-choices__english" lang="en" dir="ltr">Recording and research choices</span></h2>
+			<p class="dzn-portal-help"><?php esc_html_e( 'این انتخاب‌ها جدا از هم و اختیاری‌اند؛ هر تصمیم در سابقهٔ حسابتان نگه داشته می‌شود.', 'delnavazan-theme' ); ?></p>
 		</div>
 	</div>
+	<?php if ( 'account' === $context ) : ?><h3 class="dzn-recording-choices__subhead"><?php esc_html_e( 'ضبط کلاس', 'delnavazan-theme' ); ?></h3><?php endif; ?>
 	<?php if ( isset( $messages[ $status ] ) ) : ?>
 		<?php $message = $messages[ $status ]; ?>
 		<p class="dzn-portal-action-status<?php echo 'error' === $message[0] ? ' is-error' : ''; ?>" role="<?php echo 'error' === $message[0] ? 'alert' : 'status'; ?>"><span lang="en" dir="ltr"><?php echo esc_html( $message[1] ); ?></span> <span lang="fa" dir="rtl"><?php echo esc_html( $message[2] ); ?></span></p>
@@ -110,7 +111,7 @@ $iso_datetime = static function ( string $value ): string { return '' === $value
 	<?php endif; ?>
 
 	<hr>
-	<h3>Research and model-training participation <span lang="fa" dir="rtl">· مشارکت در پژوهش</span></h3>
+	<h3 class="dzn-recording-choices__subhead"><?php esc_html_e( 'پژوهش و آموزش مدل', 'delnavazan-theme' ); ?> <span lang="en" dir="ltr">· Research and model-training participation</span></h3>
 	<?php if ( $research_notice && isset( $forms['research'] ) ) : ?>
 		<?php $form = $forms['research']; ?>
 		<div class="dzn-recording-choices__notice">

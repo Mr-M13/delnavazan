@@ -18,7 +18,7 @@ $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) 
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $notification_unread = isset( $model['notification_unread_count'] ) ? max( 0, (int) $model['notification_unread_count'] ) : 0;
 $notifications_available = ! empty( $model['notifications_available'] );
-$notification_account_url = add_query_arg( 'portal-view', 'account', home_url( '/student-portal/' ) ) . '#dzn-portal-notifications';
+$notification_classes_url = home_url( '/student-portal/' ) . '#dzn-portal-notifications';
 $screen_title = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت' : 'کلاس‌ها' );
 $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( 'درود بر شما' . ( '' !== $first_name ? '، ' . $first_name : '' ) ) );
 ?>
@@ -27,7 +27,7 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 		<div class="dzn-appbar__inner">
 			<p class="dzn-appbar__title"><?php echo esc_html( $screen_title ); ?></p>
 			<?php if ( is_user_logged_in() && $notifications_available ) : ?>
-				<a class="dzn-appbar__bell<?php echo $notification_unread > 0 ? ' has-unread' : ''; ?>" href="<?php echo esc_url( $notification_account_url ); ?>" aria-label="<?php echo esc_attr( $notification_unread > 0 ? 'اعلان‌ها، ' . number_format_i18n( $notification_unread ) . ' خوانده‌نشده' : 'اعلان‌ها' ); ?>">
+				<a class="dzn-appbar__bell<?php echo $notification_unread > 0 ? ' has-unread' : ''; ?>" href="<?php echo esc_url( $notification_classes_url ); ?>" aria-label="<?php echo esc_attr( $notification_unread > 0 ? 'اعلان‌ها، ' . number_format_i18n( $notification_unread ) . ' خوانده‌نشده' : 'اعلان‌ها' ); ?>">
 					<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 22a2.6 2.6 0 0 0 2.6-2.6h-5.2A2.6 2.6 0 0 0 12 22Zm7-6.2V11a7 7 0 0 0-5.3-6.8V3.5a1.7 1.7 0 1 0-3.4 0v.7A7 7 0 0 0 5 11v4.8l-1.7 1.7v1h17.4v-1Z"/></svg>
 					<?php if ( $notification_unread > 0 ) : ?><span class="dzn-appbar__badge"><?php echo esc_html( number_format_i18n( $notification_unread ) ); ?></span><?php endif; ?>
 				</a>
@@ -116,17 +116,8 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 		<?php elseif ( 'schedule' === $screen ) : ?>
 			<?php if ( ! empty( $model['replacement_limit_message'] ) ) : ?><p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php echo esc_html( (string) $model['replacement_limit_message'] ); ?></p><?php endif; ?>
 			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
+			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
-		<?php elseif ( 'payments' === $screen ) : ?>
-			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
-			<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $model['tuition_allocations'] ?? array(), 'id' => 'student-tuition-allocation-payments' ) ); ?>
-		<?php elseif ( 'account' === $screen ) : ?>
-			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $model['recording_choices'] ?? array() ) ); ?>
-			<?php if ( ! in_array( (string) ( $model['payments']['state'] ?? '' ), array( 'disabled', 'unavailable' ), true ) ) : ?>
-				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
-			<?php endif; ?>
-			<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $model['tuition_allocations'] ?? array(), 'id' => 'student-settings-finances' ) ); ?>
 			<?php
 			dzn_theme_portal_component(
 				'notifications',
@@ -139,11 +130,33 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 				)
 			);
 			?>
+		<?php elseif ( 'payments' === $screen ) : ?>
+			<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
+			<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $model['tuition_allocations'] ?? array(), 'id' => 'student-tuition-allocation-payments' ) ); ?>
+		<?php elseif ( 'account' === $screen ) : ?>
+			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'account-status', array( 'status' => $model['account_status'] ?? array() ) ); ?>
+			<?php if ( ! in_array( (string) ( $model['payments']['state'] ?? '' ), array( 'disabled', 'unavailable' ), true ) ) : ?>
+				<?php dzn_theme_portal_component( 'payments', array( 'payments' => $model['payments'] ?? array() ) ); ?>
+			<?php endif; ?>
+			<?php dzn_theme_component( 'tuition-allocation', array( 'model' => $model['tuition_allocations'] ?? array(), 'id' => 'student-settings-finances' ) ); ?>
+			<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 		<?php else : ?>
 			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
+			<?php
+			dzn_theme_portal_component(
+				'notifications',
+				array(
+					'items'       => $model['notifications'] ?? array(),
+					'archive_url' => $model['notification_archive_url'] ?? '',
+					'available'   => ! empty( $model['notifications_available'] ),
+					'unread'      => $notification_unread,
+					'actions'     => $model['notification_actions'] ?? array(),
+				)
+			);
+			?>
 			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array(), 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>

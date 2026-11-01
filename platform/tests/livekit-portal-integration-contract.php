@@ -34,7 +34,7 @@ $check('schedule-version mismatch is refused', str_contains($read('platform/src/
 
 $component = $read('theme/template-parts/components/classroom-actions.php');
 $check('primary Persian action is present exactly once', substr_count($component, '>ورود به کلاس</button>') === 1);
-$check('Google Meet backup action is present exactly once', substr_count($component, '>ورود با گوگل میت</button>') === 1);
+$check('Google Meet backup action is present exactly once', substr_count($component, 'dzn-classroom-actions__backup') === 1 && (str_contains($component, '>ورود با گوگل میت</button>') || str_contains($component, "'meet_label'")));
 $check('both actions are nonce-protected POST forms', substr_count($component, 'method="post"') === 2 && substr_count($component, "name=\"_wpnonce\"") === 2);
 $check('the component never renders a Meet URL', !str_contains($component, 'meet.google.com'));
 

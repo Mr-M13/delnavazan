@@ -89,6 +89,15 @@ check_theme_asset(){
   fi
 }
 
+check_forbidden(){
+  local path="$1" code
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 -A 'Mozilla/5.0 (compatible; DelnavazanProductionSmoke/1.0)' "$BASE_URL$path" || echo 000)"
+  case "$code" in
+    403|404) pass "$path is not public ($code)";;
+    *) fail "$path expected HTTP 403 or 404, got $code";;
+  esac
+}
+
 check_redirect(){
   local path="$1" expected="$2" required_location="$3"
   if ! smoke_request "$path" "$BASE_URL$path" --no-location; then
@@ -166,6 +175,14 @@ else
   fail "WordPress REST index missing Platform routes (HTTP $SMOKE_CODE)"
 fi
 if ! fetch '/wp-sitemap.xml'; then :; elif [[ "$SMOKE_CODE" == 200 ]]; then pass 'WordPress sitemap is available'; else fail "WordPress sitemap expected HTTP 200, got $SMOKE_CODE"; fi
+for forbidden_path in \
+  '/wp-content/plugins/delnavazan-platform/tests/synthetic-dataset.php' \
+  '/wp-content/plugins/delnavazan-platform/docs/CHANGELOG.md' \
+  '/wp-content/plugins/delnavazan-platform/runtime/.env.example' \
+  '/wp-content/plugins/delnavazan-platform/README.md' \
+  '/wp-content/plugins/delnavazan-platform/integration-conflict-resolution-manifest.md'; do
+  check_forbidden "$forbidden_path"
+done
 if ! smoke_request 'www' 'https://www.delnavazan.com/' --no-location; then
   fail "www retry budget exhausted or transport failed ($SMOKE_CLASSIFICATION)"
 else

@@ -32,12 +32,55 @@ build="main-${2:0:12}"
 [[ -n "$schema" && -n "$version" && -n "$declared_build" ]] || fail 'Platform schema, version, or build identity is missing'
 [[ "$version" =~ ^[0-9A-Za-z._-]+$ && "$build" =~ ^[0-9A-Za-z._-]+$ && "$declared_build" =~ ^[0-9A-Za-z._-]+$ ]] || fail 'Platform version/build identity contains unsupported characters'
 
+readonly -a PLATFORM_PATHS=(
+  platform/delnavazan-platform.php
+  platform/uninstall.php
+  platform/src
+  platform/content
+)
+readonly -a THEME_PATHS=(
+  theme/style.css
+  theme/theme.json
+  theme/functions.php
+  theme/header.php
+  theme/footer.php
+  theme/index.php
+  theme/front-page.php
+  theme/page.php
+  theme/single.php
+  theme/archive.php
+  theme/search.php
+  theme/searchform.php
+  theme/404.php
+  theme/comments.php
+  theme/inc
+  theme/template-parts
+  theme/patterns
+  theme/page-templates
+  theme/assets
+)
+readonly -a FORBIDDEN_PACKAGE_PATHS=(
+  tests
+  docs
+  runtime
+  README.md
+  .gitignore
+  integration-conflict-resolution-manifest.md
+  .DS_Store
+)
+
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/wp-content/plugins/delnavazan-platform" "$scratch/wp-content/themes/delnavazan-theme"
-git archive "$2" platform | tar -x -C "$scratch/wp-content/plugins/delnavazan-platform" --strip-components=1
-git archive "$2" theme | tar -x -C "$scratch/wp-content/themes/delnavazan-theme" --strip-components=1
-[[ -f "$scratch/wp-content/plugins/delnavazan-platform/delnavazan-platform.php" && -f "$scratch/wp-content/themes/delnavazan-theme/style.css" ]] || fail 'Platform/theme package is incomplete'
+git archive "$2" "${PLATFORM_PATHS[@]}" | tar -x -C "$scratch/wp-content/plugins/delnavazan-platform" --strip-components=1
+git archive "$2" "${THEME_PATHS[@]}" | tar -x -C "$scratch/wp-content/themes/delnavazan-theme" --strip-components=1
+[[ -f "$scratch/wp-content/plugins/delnavazan-platform/delnavazan-platform.php" && -f "$scratch/wp-content/plugins/delnavazan-platform/content/legal/recording-and-ai-policy.html" && -f "$scratch/wp-content/plugins/delnavazan-platform/src/Core/Infrastructure/Migration/Migrator.php" && -f "$scratch/wp-content/themes/delnavazan-theme/style.css" && -f "$scratch/wp-content/themes/delnavazan-theme/theme.json" ]] || fail 'Platform/theme package is incomplete'
+for forbidden in "${FORBIDDEN_PACKAGE_PATHS[@]}"; do
+  [[ ! -e "$scratch/wp-content/plugins/delnavazan-platform/$forbidden" ]] || fail "Platform package contains forbidden path: $forbidden"
+  [[ ! -e "$scratch/wp-content/themes/delnavazan-theme/$forbidden" ]] || fail "Theme package contains forbidden path: $forbidden"
+done
+forbidden_artifact="$(find "$scratch/wp-content/plugins/delnavazan-platform" "$scratch/wp-content/themes/delnavazan-theme" -type f \( -name '*.md' -o -name '*.sh' -o -name '*.sql' -o -name '*.zip' -o -name '*.tar.gz' -o -name '.env*' -o -name '.gitignore' \) -print -quit)"
+[[ -z "$forbidden_artifact" ]] || fail "Production package contains forbidden development artifact: $forbidden_artifact"
 for asset in theme.css booking.css; do
   [[ -f "$scratch/wp-content/themes/delnavazan-theme/assets/css/$asset" ]] || fail "theme package is missing required assets/css/$asset"
 done
@@ -99,7 +142,10 @@ if ! tar -xzf "$upload" -C "$staged" || ! find "$staged" -type f -name '*.php' -
 fi
 staged_plugin="$staged/wp-content/plugins/delnavazan-platform"
 staged_theme="$staged/wp-content/themes/delnavazan-theme"
-[[ -f "$staged_plugin/delnavazan-platform.php" && -f "$staged_theme/style.css" && -f "$staged_theme/assets/css/theme.css" && -f "$staged_theme/assets/css/booking.css" && -f "$staged_theme/assets/js/navigation.js" && -f "$staged_theme/assets/js/booking.js" ]] || { rm -rf "$staged"; echo 'FAIL staged Platform/theme package is missing required files' >&2; exit 1; }
+[[ -f "$staged_plugin/delnavazan-platform.php" && -f "$staged_plugin/content/legal/recording-and-ai-policy.html" && -f "$staged_plugin/src/Core/Infrastructure/Migration/Migrator.php" && -f "$staged_theme/style.css" && -f "$staged_theme/theme.json" && -f "$staged_theme/assets/css/theme.css" && -f "$staged_theme/assets/css/booking.css" && -f "$staged_theme/assets/js/navigation.js" && -f "$staged_theme/assets/js/booking.js" ]] || { rm -rf "$staged"; echo 'FAIL staged Platform/theme package is missing required files' >&2; exit 1; }
+for forbidden in tests docs runtime README.md .gitignore integration-conflict-resolution-manifest.md .DS_Store; do
+  [[ ! -e "$staged_plugin/$forbidden" && ! -e "$staged_theme/$forbidden" ]] || { rm -rf "$staged"; echo "FAIL staged package contains forbidden path: $forbidden" >&2; exit 1; }
+done
 [[ "$(sha256sum "$staged_theme/assets/css/theme.css" | awk '{print $1}')" == "$expected_theme_css_sha" && "$(sha256sum "$staged_theme/assets/css/booking.css" | awk '{print $1}')" == "$expected_booking_css_sha" && "$(sha256sum "$staged_theme/assets/js/navigation.js" | awk '{print $1}')" == "$expected_navigation_js_sha" && "$(sha256sum "$staged_theme/assets/js/booking.js" | awk '{print $1}')" == "$expected_booking_js_sha" ]] || { rm -rf "$staged"; echo 'FAIL staged theme asset checksum mismatch' >&2; exit 1; }
 plugin_device="$(stat -c '%d' "$(dirname "$plugin")")"
 theme_device="$(stat -c '%d' "$(dirname "$theme")")"

@@ -42,19 +42,24 @@ $runtimeSuites.=$claimNotificationContract;
 require_once $root.'/src/Core/Application/NotificationRule.php';
 $ruleClass='Delnavazan\\Platform\\Core\\Application\\NotificationRule';
 
-// 1. Schema identity, build shape and migration wiring.
-if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$plugin,$schema)||(int)$schema[1]!==32)throw new RuntimeException('The S schema identity must be 32');
-if(!preg_match("/DZN_PLATFORM_BUILD_ID', 'phase2a2s-notification-communications-authority-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('The S build identity is missing');
+// 1. Schema identity, build shape and migration wiring. A later additive phase advances both the
+// schema and the build id, so the S contract pins the minimum schema and the canonical build shape.
+if(!preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/",$plugin,$schema)||(int)$schema[1]<32)throw new RuntimeException('The S schema identity must be at least 32');
+if(!preg_match("/DZN_PLATFORM_BUILD_ID', '[a-z0-9-]+-[0-9]{8}\.[0-9]+'/",$plugin))throw new RuntimeException('The current build identity is missing');
 foreach(array('032_notification_communications_authority','install_notification_communications_authority','verify_notification_communications_schema') as $needle)if(!str_contains($migration,$needle))throw new RuntimeException('Missing the S migration contract: '.$needle);
 if(!str_contains($migration,"if(\$id==='032_notification_communications_authority')self::verify_notification_communications_schema();"))throw new RuntimeException('Migration 032 must invoke the S schema verifier before it is recorded');
 if(substr_count($migration,'self::verify_notification_communications_schema();')<3)throw new RuntimeException('The S verifier must run after migration 032, on current-schema verification and before schema activation');
 if(!str_contains($migration,"in_array( '032_notification_communications_authority', (array) get_option( self::COMPLETED, array() ), true )"))throw new RuntimeException('The retained-032 pre-activation verification is missing');
-if(!str_contains($migration,"'032_notification_communications_authority' )"))throw new RuntimeException('The S migration must be listed as required');
+// A later additive migration appends to the required ledger, so locate the S entry rather than
+// requiring it to remain the final element.
+if(!preg_match("/'032_notification_communications_authority'\s*[,)]/",$migration))throw new RuntimeException('The S migration must be listed as required');
 if(!str_contains($migration,'CAPABILITY_OPTION_S')||!str_contains($migration,'dzn_platform_capability_version_2a2s'))throw new RuntimeException('The S capability marker is missing');
 
 // 2. The migration is additive only and declares exactly the eighteen S-owned tables, each once.
+// Bound the installer by the next function declaration: later migrations append their own
+// installers, and the outbox extension helper is no longer the immediate following function.
 $installStart=strpos($migration,'private static function install_notification_communications_authority');
-$installEnd=strpos($migration,'private static function install_notification_outbox_extension');
+$installEnd=strpos($migration,'private static function ',$installStart+1);
 $install=substr($migration,$installStart,$installEnd-$installStart);
 if(str_contains($install,'INSERT INTO')||str_contains($install,'UPDATE '))throw new RuntimeException('Migration 032 must be additive only: no INSERT/UPDATE statement');
 preg_match_all('/CREATE TABLE \{\$p\}([a-z_]+)/',$install,$created);
@@ -69,7 +74,10 @@ foreach(array('UNIQUE KEY workflow_active(workflow_id,active_slot)','UNIQUE KEY 
 foreach(array('notification_id','workflow_key','workflow_version','intent_key','audience','scheduled_for','expires_at','deferral_count','priority','lease_token_digest','failure_reason_code') as $column)if(!str_contains(substr($migration,strpos($migration,'install_notification_outbox_extension')),"'".$column."'"))throw new RuntimeException('Missing the added outbox column: '.$column);
 foreach(array("array('notification_id','notification_id',true)","array('dispatch','status,scheduled_for,available_at',false)","array('intent_version','intent_key,workflow_version',false)") as $needle)if(!str_contains($migration,$needle))throw new RuntimeException('Missing the added outbox index: '.$needle);
 $verifyOutbox=substr($migration,strpos($migration,'function verify_notification_outbox_extension'));
-foreach(array("array('idempotency_key',true)","array('notification_id',true)","'available'","'invitation_generation'","'varchar(16)'","'smallint unsigned'","'updated_at'") as $needle)if(!str_contains($verifyOutbox,$needle))throw new RuntimeException('The outbox verifier must assert: '.$needle);
+foreach(array("array('idempotency_key',true)","array('notification_id',true)","'available'","'invitation_generation'","'varchar(16)'","'updated_at'") as $needle)if(!str_contains($verifyOutbox,$needle))throw new RuntimeException('The outbox verifier must assert: '.$needle);
+// The attempt counter is checked by its full unsigned-integer type expression, including the
+// optional display width, rather than a bare substring.
+if(!str_contains($verifyOutbox,'/^smallint(?:\\\\(\\\\d+\\\\))? unsigned$/'))throw new RuntimeException('The outbox verifier must assert the unsigned attempt counter type');
 
 // 4. Locked S vocabularies, the closed intent registry and the §6.2.2 binding matrix.
 foreach(array(
@@ -147,7 +155,11 @@ foreach($ruleClass::CAPABILITIES as $capability)if(!str_contains($migration,$cap
 if(!str_contains($migration,"foreach(array('dzn_teacher')as\$roleName)"))throw new RuntimeException('The Teacher role must be denied every S capability');
 foreach($ruleClass::OUTBOX_STATUS_VOCABULARY as $status)if(strlen($status)>16)throw new RuntimeException('Every status must fit the shared varchar(16) column: '.$status);
 foreach(array('prepared','pending','scheduled','queued','leased','dispatched','delivered','failed','cancelled','expired','suppressed') as $status)if(!in_array($status,$ruleClass::OUTBOX_STATUS_VOCABULARY,true))throw new RuntimeException('The status vocabulary must stay a superset: '.$status);
-foreach(array('stripe','Stripe','wp_remote_','wp_mail(','curl_','webhook','provider_sdk','meta_graph') as $forbidden)if(str_contains($services.$repositories,$forbidden))throw new RuntimeException('S must not acquire a transport or provider authority: '.$forbidden);
+// Comments may describe the provider webhook this phase consumes; the authority check is over code.
+$stripNotificationComments=static function(string $source):string{return (string)preg_replace(array('~/\*.*?\*/~s','~//[^\n]*~'),'',$source);};
+$notificationCode=$stripNotificationComments($services.$repositories);
+foreach(array('stripe','Stripe','webhook') as $forbidden)if(str_contains($notificationCode,$forbidden))throw new RuntimeException('S must not acquire a transport or provider authority: '.$forbidden);
+foreach(array('wp_remote_','wp_mail(','curl_','provider_sdk','meta_graph') as $forbidden)if(str_contains($services.$repositories,$forbidden))throw new RuntimeException('S must not acquire a transport or provider authority: '.$forbidden);
 foreach(array('INSERT INTO','UPDATE ','DELETE FROM') as $sql)if(str_contains($services,$sql))throw new RuntimeException('The S services must not write storage with raw SQL: '.$sql);
 foreach($ruleClass::FORBIDDEN_S_INPUTS as $forbidden)foreach(array($support,$schedule,$retry,$eligibility,$integrity,$services,$repositories) as $source)if(str_contains($source,$forbidden))throw new RuntimeException('S must not consult another authority: '.$forbidden);
 
@@ -223,10 +235,10 @@ if(!$ruleClass::legalAttemptTransition('handed_off','abandoned')||!$ruleClass::l
 if(!$ruleClass::legalNotificationTransition('dispatching','queued'))throw new RuntimeException('A re-arming closure must return the notification to its claimable state');
 if($ruleClass::legalAttemptTransition('acknowledged','failed')||$ruleClass::legalAttemptTransition('failed','abandoned'))throw new RuntimeException('A closed attempt must never be closed again');
 foreach(array(
-    'private function reserveHandOff(int $attemptId,string $digest,int $actor):array',
+    'private function reserveHandOff(int $attemptId,string $digest,int $actor,',
     'private function replayHandOff(int $attemptId,object $winner):array',
 ) as $needle)if(!str_contains($dispatch,$needle))throw new RuntimeException('The durable hand-off reservation is missing: '.$needle);
-if(!str_contains($dispatch,'$reservation=$this->reserveHandOff($attemptId,$digest,$actor);'))throw new RuntimeException('The hand-off must reserve durably before it calls the port');
+if(!str_contains($dispatch,'$reservation=$this->reserveHandOff($attemptId,$digest,$actor,'))throw new RuntimeException('The hand-off must reserve durably before it calls the port');
 if(!str_contains($dispatch,"if((\$reservation['reserved']??false)!==true)return \$reservation;"))throw new RuntimeException('A repeated hand-off must return the persisted reservation without a second port call');
 if(!str_contains($dispatch,"if(\$source!=='handed_off')throw new \RuntimeException('notification_attempt_state_conflict');"))throw new RuntimeException('An acknowledgement must be admitted only from a handed-off attempt');
 if(!str_contains($dispatch,'elseif(!in_array($source,NotificationRule::ATTEMPT_OPEN_STATES,true)){'))throw new RuntimeException('Only an open attempt may be closed');

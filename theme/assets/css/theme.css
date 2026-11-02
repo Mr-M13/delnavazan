@@ -7680,3 +7680,18 @@ button.dzn-button:disabled:hover {
 
 /* Keep Project fragment targets visible below the site’s sticky header. */
 .dzn-project [id]{scroll-margin-block-start:7rem}
+
+/* Narrow, dismissible notification banner shared by the Student and Teacher portals. */
+.dzn-notification-banner{position:fixed;inset-inline:1rem;inset-block-end:1rem;z-index:calc(var(--dzn-z-tabs,60) + 1);display:flex;justify-content:center;pointer-events:none}
+.dzn-notification-banner[hidden]{display:none}
+.dzn-notification-banner__inner{pointer-events:auto;display:flex;align-items:center;gap:.8rem;inline-size:min(100%,72rem);padding:.6rem .8rem;border:1px solid var(--dzn-color-border, #d8ddd9);border-inline-start:4px solid var(--dzn-color-accent, #0e8c8c);border-radius:.85rem;background:var(--dzn-color-surface-elevated, #fff);box-shadow:0 14px 36px rgb(var(--dzn-rgb-ink, 23 33 31) / .2)}
+.dzn-notification-banner__eyebrow{margin:0;flex:0 0 auto;color:var(--dzn-color-text-muted, #5b6661);font-size:.72rem;font-weight:800;letter-spacing:.02em}
+.dzn-notification-banner__content{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .7rem;min-inline-size:0;flex:1 1 20rem}
+.dzn-notification-banner__content strong{font-size:.9rem;line-height:1.6}
+.dzn-notification-banner__content span{color:var(--dzn-color-text-muted, #5b6661);font-size:.82rem;line-height:1.6;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dzn-notification-banner__actions{display:flex;align-items:center;gap:.5rem;flex:0 0 auto}
+.dzn-notification-banner__actions form{margin:0}
+.dzn-notification-banner__link{border:0;background:none;padding:.25rem;color:var(--dzn-color-action-primary, #0e8c8c);font:inherit;font-size:.8rem;font-weight:700;text-decoration:underline;cursor:pointer}
+.dzn-notification-banner__close{display:inline-grid;place-items:center;inline-size:2rem;block-size:2rem;border:1px solid var(--dzn-color-border, #d8ddd9);border-radius:999px;background:transparent;color:var(--dzn-color-text, #17211f);font-size:1.15rem;line-height:1;cursor:pointer}
+.dzn-notification-banner__close:focus-visible,.dzn-notification-banner__link:focus-visible{outline:2px solid var(--dzn-color-focus, #0e8c8c);outline-offset:2px}
+@media(max-width:47.99rem){.dzn-notification-banner{inset-block-end:calc(84px + env(safe-area-inset-bottom))}.dzn-notification-banner__inner{flex-wrap:wrap;gap:.45rem .65rem;padding:.55rem .65rem}.dzn-notification-banner__eyebrow{flex-basis:100%}.dzn-notification-banner__actions{inline-size:100%;justify-content:flex-end}}

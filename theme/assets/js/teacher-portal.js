@@ -153,3 +153,23 @@
     if (skipped === today) card.hidden = true;
   });
 })();
+
+(() => {
+  'use strict';
+  const banner = document.querySelector('[data-dzn-notification-banner]');
+  if (!banner) return;
+  const storageKey = `dzn-notification-banner:${banner.dataset.notificationId || 'latest'}`;
+  try {
+    if (window.sessionStorage.getItem(storageKey) === 'dismissed') banner.hidden = true;
+  } catch (error) {
+    // Storage may be unavailable; the banner still works for this render.
+  }
+  banner.querySelector('[data-dzn-notification-close]')?.addEventListener('click', () => {
+    banner.hidden = true;
+    try {
+      window.sessionStorage.setItem(storageKey, 'dismissed');
+    } catch (error) {
+      // Session dismissal is a convenience, never a business write.
+    }
+  });
+})();

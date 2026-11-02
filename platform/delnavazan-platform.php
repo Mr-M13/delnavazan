@@ -123,6 +123,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\GoogleOAuthController::register();
 	Delnavazan\Platform\Portals\TeacherBookingResponseController::register();
 	Delnavazan\Platform\Portals\LessonRescheduleController::register();
+	Delnavazan\Platform\Portals\IntroLessonLifecycleController::register();
 	Delnavazan\Platform\Integrations\LessonRescheduleWorker::register();
 	Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::register();

@@ -25,5 +25,6 @@ run_fixture DZN_ENROLMENT_POST_INTRO_FIXTURE enrolment-workspace-post-intro-fixt
 run_fixture DZN_ENROLMENT_ATTENDANCE_FIXTURE enrolment-workspace-attendance-fixture.php
 run_fixture DZN_ENROLMENT_WORKSPACE_RUNTIME_TEST enrolment-workspace-runtime-test.php
 run_fixture DZN_ENROLMENT_ACTIONS_RUNTIME_TEST enrolment-workspace-actions-runtime-test.php
+run_fixture DZN_ENROLMENT_RENDER_RUNTIME_TEST enrolment-workspace-render-runtime-test.php
 
 echo 'Enrolment workspace runtime acceptance: PASS'

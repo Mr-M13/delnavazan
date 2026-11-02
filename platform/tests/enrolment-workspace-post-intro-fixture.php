@@ -14,6 +14,8 @@ $uid = static fn(string $prefix): string => substr(str_pad($prefix . strtoupper(
 $requestId = (int) $fixture['intro_request_id'];
 $confirmation = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1", $requestId));
 if (!$confirmation) throw new RuntimeException('Confirmed trial required');
+$wpdb->update($p . 'booking_request_confirmations', array('state' => 'confirmed', 'provider_event_digest' => hash('sha256', 'fixture-confirmation-' . $requestId), 'confirmed_at' => $now, 'failure_reason_code' => null, 'updated_at' => $now, 'updated_by' => 1), array('id' => (int) $confirmation->id));
+$confirmation->state = 'confirmed';
 $outcome = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", $requestId));
 if (!$outcome) {
     $wpdb->insert($p . 'booking_request_intro_outcomes', array(

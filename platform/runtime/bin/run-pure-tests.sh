@@ -24,6 +24,7 @@ tests+=(tests/teacher-availability-summary-unit.php tests/tuition-allocation-uni
 tests+=(tests/student-workspace-filters-unit.php tests/student-workspaces-contract.php tests/student-admin-ux-contract.php tests/record-action-registry-unit.php tests/attendance-runtime-midnight-guard-contract.php)
 tests+=(tests/finance-clarity-redesign-contract.php tests/golden-hour-rules-unit.php tests/persian-calendar-unit.php)
 tests+=(tests/recording-notice-publication-contract.php tests/settings-redesign-contract.php tests/staff-access-unit.php tests/support-bundle-unit.php)
+tests+=(tests/booking-allocation-unit.php)
 executed=0
 for test in "${tests[@]}"; do
   [ -f "$plugin_root/$test" ] || continue

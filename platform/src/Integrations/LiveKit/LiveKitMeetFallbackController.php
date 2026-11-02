@@ -23,24 +23,38 @@ final class LiveKitMeetFallbackController {
             $claims = (new LiveKitLaunchTicket())->verify((string)($_POST['ticket'] ?? ''));
             $role = (string)$claims['role'];
             $kind = (string)$claims['kind'];
-            $input = $kind === 'booking'
-                ? array('kind' => 'booking', 'confirmation_uid' => (string)$claims['confirmation_uid'])
-                : array('kind' => 'lesson', 'lesson_uid' => (string)$claims['lesson_uid'], 'schedule_version_uid' => (string)$claims['schedule_version_uid']);
-            (new LiveKitClassroomAuthorizer())->authorize($role, $input);
-            $target = $kind === 'booking'
-                ? (new BookingClassJoinService())->target((string)$claims['confirmation_uid'], $role)
-                : ($role === 'teacher'
-                    ? (new TeacherClassJoinService())->target((string)$claims['lesson_uid'], (string)$claims['schedule_version_uid'])
-                    : (new StudentClassJoinService())->target((string)$claims['lesson_uid'], (string)$claims['schedule_version_uid']));
+            if ($role === 'administrator') {
+                $target = (new LiveKitAdministratorClassroomService())->meetUrl(
+                    $kind,
+                    $kind === 'booking'
+                        ? array('confirmation_uid' => (string)$claims['confirmation_uid'])
+                        : array('lesson_uid' => (string)$claims['lesson_uid'])
+                );
+            } else {
+                $input = $kind === 'booking'
+                    ? array('kind' => 'booking', 'confirmation_uid' => (string)$claims['confirmation_uid'])
+                    : array('kind' => 'lesson', 'lesson_uid' => (string)$claims['lesson_uid'], 'schedule_version_uid' => (string)$claims['schedule_version_uid']);
+                (new LiveKitClassroomAuthorizer())->authorize($role, $input);
+                $target = $kind === 'booking'
+                    ? (new BookingClassJoinService())->target((string)$claims['confirmation_uid'], $role)
+                    : ($role === 'teacher'
+                        ? (new TeacherClassJoinService())->target((string)$claims['lesson_uid'], (string)$claims['schedule_version_uid'])
+                        : (new StudentClassJoinService())->target((string)$claims['lesson_uid'], (string)$claims['schedule_version_uid']));
+            }
             nocache_headers();
             header('Referrer-Policy: no-referrer');
             wp_redirect($target, 302, 'Delnavazan');
             exit;
         } catch (\Throwable) {
-            $portal = home_url($role === 'teacher' ? '/teacher-portal/' : '/student-portal/');
-            $query = $role === 'teacher'
-                ? array('teacher-view' => 'home', 'class_status' => 'meet_unavailable')
-                : array('join_status' => 'meet_unavailable');
+            if ($role === 'administrator') {
+                $portal = admin_url('admin.php?page=dzn-academy-dashboard');
+                $query = array('classroom_status' => 'meet_unavailable');
+            } else {
+                $portal = home_url($role === 'teacher' ? '/teacher-portal/' : '/student-portal/');
+                $query = $role === 'teacher'
+                    ? array('teacher-view' => 'home', 'class_status' => 'meet_unavailable')
+                    : array('join_status' => 'meet_unavailable');
+            }
             wp_safe_redirect(add_query_arg($query, $portal), 302, 'Delnavazan');
             exit;
         }

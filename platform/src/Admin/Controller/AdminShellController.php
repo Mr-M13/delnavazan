@@ -11,8 +11,7 @@ final class AdminShellController {
             ['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
         ]],
         'teachers' => ['Teachers', [
-            ['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers'],
-            ['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']],
+            ['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP],
         ]],
         'students' => ['Students', [
             ['Directory', 'dzn-student', 'dzn_manage_students'],
@@ -88,6 +87,7 @@ final class AdminShellController {
     public static function register(): void {
         add_action('in_admin_header', [__CLASS__, 'renderNavigation']);
         add_action('admin_head', [__CLASS__, 'styles']);
+        add_action('admin_head', [__CLASS__, 'viewport']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueueAssets']);
         add_filter('admin_body_class', [__CLASS__, 'bodyClass']);
         AcademyDashboardScreen::register();
@@ -116,6 +116,10 @@ final class AdminShellController {
         $path = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.css' : '';
         $version = $path !== '' && file_exists($path) ? (string) filemtime($path) : (defined('DZN_PLATFORM_VERSION') ? DZN_PLATFORM_VERSION : null);
         wp_enqueue_style('dzn-admin', $url, [], $version);
+        $scriptUrl = plugins_url('src/Admin/Assets/admin.js', DZN_PLATFORM_FILE);
+        $scriptPath = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.js' : '';
+        $scriptVersion = $scriptPath !== '' && file_exists($scriptPath) ? (string) filemtime($scriptPath) : $version;
+        wp_enqueue_script('dzn-admin', $scriptUrl, array(), $scriptVersion, true);
         $font = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/fonts/Vazirmatn-Variable.woff2') : '';
         if ($font !== '') {
             wp_add_inline_style('dzn-admin', "@font-face{font-family:Vazirmatn;src:url('" . esc_url_raw($font) . "') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}");
@@ -227,6 +231,12 @@ final class AdminShellController {
             if (in_array($page, $slugs, true)) return $key;
         }
         return '';
+    }
+
+    /** Native wp-admin predates mobile viewport metadata; Delnavazan pages declare it explicitly. */
+    public static function viewport(): void {
+        if (!str_starts_with(self::currentPage(), 'dzn-')) return;
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     }
 
     public static function styles(): void {

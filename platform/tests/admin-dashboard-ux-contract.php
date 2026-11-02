@@ -14,7 +14,7 @@ $dashboard = $read('src/Admin/Controller/AcademyOperationsController.php');
 $readService = $read('src/Core/Application/AcademyDashboardReadService.php');
 $screenOptions = $read('src/Admin/AcademyDashboardScreen.php');
 $shell = $read('src/Admin/Controller/AdminShellController.php');
-$screen = $read('src/Admin/Controller/ScreenController.php');
+$screen = $read('src/Admin/Controller/ScreenController.php') . $read('src/Admin/View/TeacherWorkspaceView.php') . $read('src/Core/Application/TeacherWorkspaceReadService.php');
 $menu = $read('src/Admin/Controller/Menu.php');
 $routeSources = $menu;
 foreach (glob($root . '/src/Admin/Controller/*.php') ?: array() as $controllerFile) {
@@ -39,7 +39,10 @@ $contains($dashboard, array(
     'Quick actions',
     'classOperationalState',
     'pendingActions',
-), 'The Academy dashboard must expose the task-first sections.');
+    "AcademyDashboardScreen::shows('coverage')",
+    'AcademyCoverageController::renderAtlas',
+    'Golden-hour coverage',
+), 'The Academy dashboard must expose the task-first sections, including academy-wide golden-hour coverage.');
 $expect(!str_contains($dashboard, "'#'.(int)"), 'The dashboard must not show raw record identifiers as navigation labels.');
 $expect(!str_contains($dashboard, 'INSERT INTO') && !str_contains($dashboard, 'UPDATE '), 'The dashboard controller must remain read-only.');
 
@@ -71,6 +74,7 @@ $contains($screenOptions, array(
     'Learner pipeline',
     '14-day activity',
     'Finance snapshot',
+    'Golden-hour coverage',
     'Needs attention',
     'Learner journey queue',
     'Class time changes',
@@ -109,16 +113,17 @@ foreach (array(
     $expect(str_contains($routeSources, $route), 'Grouped Settings lost a registered WordPress route: ' . $route);
 }
 
-// Teacher finance is a real follow-up, not a placeholder for a future stage.
+// Teacher finance is embedded rather than a placeholder for a future stage.
 $contains($screen, array(
-    'dzn-finance-rates',
-    'dzn-finance-statements',
-    'dzn-finance-payability',
     'Rate timeline',
-    'Statements &amp; reconciliation',
+    'Statements',
     'Lesson payability',
-), 'Teacher records must link to the scoped finance views.');
-$expect(!str_contains($screen, 'next implementation stage'), 'Teacher finance links must not claim a future implementation stage.');
+    'statementReconciliation',
+    'Record payment',
+    'Record a new effective-dated rate',
+    'Remaining outside this profile',
+), 'Teacher records must embed the scoped finance read and command surfaces.');
+$expect(!str_contains($screen, 'next implementation stage'), 'Teacher finance must not claim a future implementation stage.');
 
 // Shared visual layer uses Delnavazan tokens and does not depend on the public theme CSS.
 $contains($css, array(

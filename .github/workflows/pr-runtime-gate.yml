@@ -243,11 +243,16 @@ jobs:
           php platform/tests/record-action-registry-unit.php
           php platform/tests/record-action-foundation-contract.php
           php platform/tests/teacher-workspaces-contract.php
+          php platform/tests/teacher-workspace-admin-contract.php
+          php platform/tests/teacher-workspace-state-unit.php
           php platform/tests/admin-navigation-teacher-finance-contract.php
           php platform/tests/admin-navigation-target-contract.php
           php platform/tests/admin-dashboard-ux-contract.php
           php platform/tests/admin-dashboard-screen-unit.php
           php platform/tests/admin-dashboard-review-fixes-contract.php
+          php platform/tests/admin-dashboard-finance-classroom-contract.php
+          php platform/tests/finance-monthly-activity-unit.php
+          php platform/tests/livekit-administrator-classroom-unit.php
           php platform/tests/academy-pipeline-stage-unit.php
           php platform/tests/admin-navigation-composite-cap-unit.php
           php platform/tests/admin-shell-route-capability-runtime.php

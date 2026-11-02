@@ -63,7 +63,8 @@ foreach (array('someone@example.invalid', 'DZN-STU-000005', 'DZN-XXX-000004') as
 }
 $wpdb->counts = array('student_principal_links` WHERE `student_id`=4' => 1);
 $manifest = $service->discover('student', 4);
-if (!in_array('related_record:student_principal_links.student_id', $manifest['blockers'], true)) throw new RuntimeException('Principal link missed');
+if (!in_array(array('table' => 'student_principal_links', 'column' => 'student_id', 'count' => 1), $manifest['relations'], true)) throw new RuntimeException('Principal link missed');
+if (in_array('related_record:student_principal_links.student_id', $manifest['blockers'], true)) throw new RuntimeException('A discovered relation was mislabelled as a refusal');
 $wpdb->counts = array('`wp_dzn_teachers` WHERE wordpress_user_id=17' => 1);
 $manifest = $service->discover('student', 4);
 if (!in_array('shared_wordpress_identity', $manifest['blockers'], true)) throw new RuntimeException('Shared identity missed');

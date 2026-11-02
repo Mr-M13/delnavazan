@@ -190,7 +190,8 @@ The consent behaviour runtime proves, on a real WordPress database:
 ## 7. PR details
 
 - Branch: `feat/consent-lifecycle-complete`
-- Base: `origin/main` `f6b24445`
-- Commit: generated at the end of this run; see final response.
-- CI status: local pure suite and disposable runtime suites pass; remote CI must be run by the PR.
-- Merge readiness: review-ready for staging; **not** production activation and **not** merge-approved by this run.
+- Base: `origin/main` (rebased onto `ee66e22a`)
+- PR: https://github.com/Mr-M13/delnavazan/pull/512
+- Verified implementation SHA: `44b2540fe8642f9e69a508dc632044960ef9f901`
+- CI: PR runtime gate run `41546942241` succeeded for all jobs (PHP source contracts and all runtime suites). This final documentation-only commit re-runs the same gate.
+- Merge state: `CLEAN` / `MERGEABLE` at verification. Review requested; **not merged**, **not deployed** and **not production-activated** by this run.

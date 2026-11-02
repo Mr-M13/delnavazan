@@ -1,7 +1,7 @@
 <?php
 /** Disposable DB proof for confirmed-intro cancellation, idempotency and retraction recovery. */
 if(getenv('DZN_CONFIRMED_CANCELLATION_RUNTIME')!=='authority'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Confirmed cancellation runtime refused.\n");exit(1);}
-use Delnavazan\Platform\Core\Application\{ConfirmedIntroBookingCancellationService,IntegrationSecretService,ProviderReferenceVault};
+use Delnavazan\Platform\Core\Application\{IntegrationSecretService,IntroLessonLifecycleService,ProviderReferenceVault};
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Integrations\BookingCancellationRetractionWorker;
 
@@ -21,25 +21,25 @@ $secrets=new IntegrationSecretService();$sealed=$secrets->seal(14,'google_calend
 $vault=new ProviderReferenceVault();$refs=$vault->seal('booking_calendar',$confirmation,array('provider_object_reference'=>'abcdef0123456789abcdef0123456789'));$wpdb->insert($p.'provider_projection_secrets',array_merge(array('uid'=>Identifier::uid(),'mapping_kind'=>'booking_calendar','mapping_id'=>$confirmation,'state'=>'active','active_slot'=>1,'created_at'=>$now,'created_by'=>1),$refs));$secret=(int)$wpdb->insert_id;
 $wpdb->insert($p.'coordination_cases',array('uid'=>Identifier::uid(),'reference_code'=>'CCS-CANCEL-'.strtoupper($suffix),'booking_request_id'=>$request,'state'=>'open','state_reason_code'=>'manual_review','version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>1,'updated_by'=>1));$case=(int)$wpdb->insert_id;
 
-$user=new WP_User(1);$user->add_cap(ConfirmedIntroBookingCancellationService::CAPABILITY);wp_set_current_user(1);
-$service=new ConfirmedIntroBookingCancellationService();
-$first=$service->cancel($confirmationUid,'duplicate_request','production-operator-review',$suffix.'-cancel-command-000');
-$second=$service->cancel($confirmationUid,'duplicate_request','production-operator-review',$suffix.'-cancel-command-000');
-$assert(!empty($first['idempotent'])===false&&!empty($second['idempotent'])===true&&$first['cancellation_id']===$second['cancellation_id'],'Cancellation replay was not idempotent');
-$third=$service->cancel($confirmationUid,'duplicate_request','production-operator-review',$suffix.'-cancel-command-001');
-$assert(!empty($third['idempotent'])===true,'A later command did not converge on the existing cancellation');
+$user=new WP_User(1);$user->add_cap('dzn_manage_booking_request_coordination');wp_set_current_user(1);
+$service=new IntroLessonLifecycleService();
+$first=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-000',$confirmation,1);
+$second=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-000',$confirmation,1);
+$assert(($first['state']??'')==='cancelled'&&($second['state']??'')==='cancelled','Cancellation or replay failed');
+$third=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-001',$confirmation,1);
+$assert(($third['state']??'')==='cancelled','A later command did not converge on the existing cancellation');
 $assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_cancellations WHERE confirmation_id={$confirmation}")===1,'Duplicate cancellation evidence was written');
 $assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_cancellation_commands")===1,'Duplicate command evidence was written');
 $assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_provider_retraction_jobs WHERE confirmation_id={$confirmation}")===1,'Duplicate retraction job was written');
-$assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE confirmation_id={$confirmation} AND notification_kind='cancelled'")===1,'Cancellation notice was not queued exactly once');
+$assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_student_notifications WHERE confirmation_id={$confirmation} AND notification_kind IN ('cancelled','cancelled_teacher')")===2,'Cancellation notices were not queued exactly once');
 $assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}booking_request_confirmations WHERE id=%d",$confirmation))==='cancelled','Confirmation was not cancelled');
 $assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}booking_request_teacher_deliveries WHERE id=%d",$delivery))==='cancelled','Delivery was not cancelled');
-$assert((string)$wpdb->get_var($wpdb->prepare("SELECT resolution_state FROM {$p}booking_requests WHERE id=%d",$request))==='cancelled_duplicate','Request resolution was not reconciled');
+$assert((string)$wpdb->get_var($wpdb->prepare("SELECT resolution_state FROM {$p}booking_requests WHERE id=%d",$request))==='cancelled','Request resolution was not reconciled');
 $assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}coordination_cases WHERE id=%d",$case))==='closed','Coordination case was not closed');
 $assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}provider_projection_secrets WHERE id=%d",$secret))==='active','Cancellation must leave the provider reference until retraction succeeds');
 
-$transport=new class{public int $calls=0;public bool $fail=true;public function retract(string $eventId,string $material):array{$this->calls++;if($this->fail){$this->fail=false;throw new RuntimeException('google_calendar_transport_failed');}return array('state'=>'retracted','provider_object_reference'=>$eventId);}};
-$job=(int)$first['retraction_job_id'];
+$transport=new class{public int $calls=0;public bool $fail=true;public function cancel(string $eventId,string $material):void{$this->calls++;if($this->fail){$this->fail=false;throw new RuntimeException('google_calendar_transport_failed');}}};
+$job=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_request_provider_retraction_jobs WHERE confirmation_id=%d AND cancellation_id=(SELECT id FROM {$p}booking_request_cancellations WHERE confirmation_id=%d)",$confirmation,$confirmation));
 $failed=BookingCancellationRetractionWorker::dispatch($job,null,$transport);
 $assert($failed['state']==='retry'&&!empty($failed['retryable'])&&$transport->calls===1,'Provider failure did not schedule a bounded retry');
 $assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}provider_projection_secrets WHERE id=%d",$secret))==='active','Failed retraction retired the provider reference too early');

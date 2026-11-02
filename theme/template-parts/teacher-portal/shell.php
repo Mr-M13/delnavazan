@@ -9,7 +9,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navigation;
 $notification_unread = isset( $model['notification_unread_count'] ) ? max( 0, (int) $model['notification_unread_count'] ) : 0;
 $notifications_available = ! empty( $model['notifications_available'] );
-$notification_url = home_url( '/teacher-portal/' ) . '#dzn-tp-notifications';
+$notification_url = home_url( '/teacher-portal/' ) . '#dzn-notification-banner';
 ?>
 <main id="main-content" class="site-main dzn-teacher-portal dzn-teacher-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1" dir="rtl">
  <header class="dzn-tp-appbar">
@@ -48,6 +48,7 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-tp-notifications';
  elseif ( 'induction' === $screen ) : dzn_theme_teacher_portal_component( 'induction', array( 'model' => $model ) );
  else : dzn_theme_teacher_portal_component( 'home', array( 'model' => $model ) ); endif; ?>
  </div>
+ <?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'teacher' ) ); ?>
  <?php if ( $show_tabs ) : ?>
  <nav id="dzn-tp-nav-mobile" class="dzn-tp-tabs" aria-label="پیمایش پرتال مدرس">
   <ul>

@@ -47,13 +47,31 @@ final class GoogleCalendarProjectionTransport {
         return array('provider_object_reference'=>$reference,'join_uri_reference'=>$join,'conference_pending'=>$join===null,'provider_occurred_at_utc'=>gmdate('Y-m-d H:i:s'));
     }
 
-    /** Remove the exact provider event. A missing event converges as already retracted. */
-    public function retract(string $eventId,string $credentialMaterial):array{
+    /** Move an existing deterministic introductory booking event to a new civil time. */
+    public function revise(string $eventId,string $startsAtUtc,string $endsAtUtc,string $timezone,string $credentialMaterial):array{
         if(!preg_match('/^[0-9a-v]{5,1024}$/D',$eventId))throw new \InvalidArgumentException('google_calendar_event_id_invalid');
-        $uri=self::CALENDAR_ORIGIN.'/calendar/v3/calendars/primary/events/'.rawurlencode($eventId).'?sendUpdates=none';
-        $response=$this->send('DELETE',$uri,$this->accessToken($credentialMaterial),null);
-        if(!in_array($response['code'],array(200,204,404,410),true))throw new \RuntimeException('google_calendar_retraction_refused');
-        return array('state'=>'retracted','provider_object_reference'=>$eventId,'http_status'=>$response['code']);
+        if(!in_array($timezone,timezone_identifiers_list(),true))throw new \InvalidArgumentException('google_calendar_timezone_invalid');
+        $body=array(
+            'start'=>array('dateTime'=>$this->rfc3339($startsAtUtc),'timeZone'=>$timezone),
+            'end'=>array('dateTime'=>$this->rfc3339($endsAtUtc),'timeZone'=>$timezone),
+        );
+        $response=$this->send('PATCH',self::CALENDAR_ORIGIN.'/calendar/v3/calendars/primary/events/'.rawurlencode($eventId).'?conferenceDataVersion=1&sendUpdates=none',$this->accessToken($credentialMaterial),$body);
+        if($response['code']<200||$response['code']>=300)throw new \RuntimeException('google_calendar_revision_refused');
+        $reference=trim((string)($response['body']['id']??''));
+        if($reference===''||!hash_equals($eventId,$reference))throw new \RuntimeException('google_calendar_projection_identity_mismatch');
+        return array('provider_object_reference'=>$reference,'join_uri_reference'=>$this->joinUri($response['body']),'provider_occurred_at_utc'=>gmdate('Y-m-d H:i:s'));
+    }
+
+    /** Remove an existing introductory booking event. A missing event already satisfies the intent. */
+    public function cancel(string $eventId,string $credentialMaterial):void{
+        if(!preg_match('/^[0-9a-v]{5,1024}$/D',$eventId))throw new \InvalidArgumentException('google_calendar_event_id_invalid');
+        $response=$this->send('DELETE',self::CALENDAR_ORIGIN.'/calendar/v3/calendars/primary/events/'.rawurlencode($eventId).'?sendUpdates=none',$this->accessToken($credentialMaterial),null);
+        if(in_array($response['code'],array(200,204,404,410),true))return;
+        throw new \RuntimeException('google_calendar_cancellation_refused');
+    }
+
+    private function rfc3339(string $utc):string{
+        return str_replace(' ','T',substr($utc,0,19)).'Z';
     }
 
     private function send(string $method,string $uri,string $access,?array $body):array{

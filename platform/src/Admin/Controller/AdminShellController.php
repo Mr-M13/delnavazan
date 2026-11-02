@@ -17,7 +17,8 @@ final class AdminShellController {
             ['Directory', 'dzn-student', 'dzn_manage_students'],
         ]],
         'enrolment' => ['Enrolment', [
-            ['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']],
+            ['Intro', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']],
+            ['Review', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'review']],
             ['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']],
         ]],
         'finance' => ['Finance', [

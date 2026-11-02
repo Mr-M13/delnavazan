@@ -62,7 +62,7 @@ final class BookingCancellationRetractionWorker {
             $references=$this->references->open('booking_calendar',(int)$job->confirmation_id,$secret);
             $eventId=trim((string)($references['provider_object_reference']??''));
             if($eventId==='')throw new \RuntimeException('provider_reference_required');
-            $this->transport->retract($eventId,$material);
+            $this->transport->cancel($eventId,$material);
         }catch(\Throwable $error){$failure=$error;}
         if($failure===null){$this->finish($jobId,$leaseDigest,'retracted',null,$now);return array('job_id'=>$jobId,'state'=>'retracted','retryable'=>false);}
         $code=$this->safeCode($failure->getMessage());
@@ -93,5 +93,5 @@ final class BookingCancellationRetractionWorker {
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
-    private function safeCode(string $message):string{return in_array($message,array('provider_credential_required','provider_credential_refresh_required','provider_reference_required','google_calendar_retraction_refused'),true)?$message:'provider_retraction_retryable';}
+    private function safeCode(string $message):string{return in_array($message,array('provider_credential_required','provider_credential_refresh_required','provider_reference_required','google_calendar_cancellation_refused'),true)?$message:'provider_retraction_retryable';}
 }

@@ -100,7 +100,11 @@ if ($existingStudentUser > 0) {
     dzn_lk_runtime_assert($wpdb->insert($p . 'student_principal_links', array('student_id' => $studentId, 'wordpress_user_id' => $studentUser, 'status' => 'active', 'link_sequence' => 1, 'active_slot' => 1, 'version' => 1, 'verification_basis' => 'runtime_fixture', 'evidence_channel' => 'authenticated_platform', 'evidence_reference' => 'livekit-runtime-' . $studentUser, 'evidence_at' => $linkAt, 'linked_at' => $linkAt, 'linked_by' => 1, 'updated_at' => $linkAt, 'updated_by' => 1)) !== false, 'Student principal link failed');
 }
 
-$authorizer = new LiveKitClassroomAuthorizer();
+// The safe wall may move a near-midnight fixture to tomorrow midday. Bind the authorizer
+// clock to that same occurrence so the test proves the join window without depending on
+// wall-clock time or failing between 21:50 and 00:00 UTC.
+$runtimeClock = static fn(): int => strtotime($startWall . ' UTC') + 60;
+$authorizer = new LiveKitClassroomAuthorizer(null, null, null, null, $runtimeClock);
 $lessonInput = array('kind' => 'lesson', 'lesson_uid' => (string)$lesson->uid, 'schedule_version_uid' => (string)$version->uid);
 wp_set_current_user($teacherUser);
 $teacher = $authorizer->authorize('teacher', $lessonInput);

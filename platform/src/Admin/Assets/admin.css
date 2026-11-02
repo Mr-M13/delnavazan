@@ -3126,6 +3126,11 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
   --dzn-enrolment-gap: 18px;
 }
 
+.dzn-enrolment__tabs {
+  margin-block: 12px 0;
+}
+
+.dzn-enrolment__page-head,
 .dzn-enrolment__hero,
 .dzn-enrolment__case-head {
   display: flex;
@@ -3137,6 +3142,35 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
   border: 1px solid var(--dzn-border);
   border-radius: var(--dzn-radius);
   background: linear-gradient(135deg, var(--dzn-surface) 0%, var(--dzn-teal-soft) 120%);
+}
+
+.dzn-enrolment__page-head {
+  padding: 8px 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.dzn-enrolment__page-head h1 {
+  margin-block: 0 6px;
+}
+
+.dzn-enrolment__page-head p {
+  max-inline-size: 860px;
+  margin-block: 0;
+  color: var(--dzn-muted);
+}
+
+.dzn-enrolment__page-head .dzn-enrolment__hero-actions {
+  flex: 0 0 auto;
+}
+
+.dzn-review-table {
+  min-inline-size: 1120px;
+}
+
+.dzn-review-stats {
+  margin-block: 8px 16px;
 }
 
 .dzn-enrolment__hero h1,
@@ -3776,10 +3810,14 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
 }
 
 @media (max-width: 782px) {
+  .dzn-enrolment__page-head,
   .dzn-enrolment__hero,
   .dzn-enrolment__case-head {
     flex-direction: column;
     padding: 16px;
+  }
+  .dzn-enrolment__page-head {
+    padding: 4px 0 10px;
   }
   .dzn-enrolment__section,
   .dzn-case-card,

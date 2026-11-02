@@ -10,13 +10,15 @@ evidence. The later duplicate is marked cancelled and its provider projection is
 
 ## Permission model
 
-- New capability: `dzn_cancel_confirmed_intro_booking`.
-- Granted to the Administrator role by the existing capability installer.
-- Exposed as a separate sensitive grant in Staff Access; it is not implied by the general booking
-  coordination grant.
-- Student and Teacher portal principals are deliberately denied this mutation. They retain their
-  existing read access and receive the cancellation notice. This prevents a Teacher or Student
-  session from cancelling the other party's booking or editing the audit record.
+The existing authority already proves ownership for three principals:
+
+- Administrator: `dzn_manage_booking_request_coordination`.
+- Confirming Teacher: an active Teacher portal principal whose Teacher id equals the confirmation.
+- Student/guardian: an active Student portal principal whose Student id equals the request.
+
+There is no cross-principal override. The new dashboard controls use the administrator path; the
+existing Student/Teacher portal controls keep their ownership checks. No new broad capability is
+introduced.
 
 ## State and evidence
 

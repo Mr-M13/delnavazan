@@ -38,6 +38,7 @@ $card_index = 0;
 		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
 	<p class="dzn-tp-help dzn-tp-classes__guidance">برای دیدن جزئیات یا تغییر زمان، کلاس موردنظر را باز کنید.</p>
+	<?php if ( isset( $_GET['intro_notice'] ) ) : ?><p class="dzn-tp-action-status" role="<?php echo sanitize_key( (string) ( $_GET['intro_status'] ?? '' ) ) === 'failed' ? 'alert' : 'status'; ?>"><?php echo esc_html( sanitize_text_field( wp_unslash( (string) $_GET['intro_notice'] ) ) ); ?></p><?php endif; ?>
 <?php foreach ( $sections as $section ) : ?>
 	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">
 		<h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>" class="<?php echo $section['visible_heading'] ? 'dzn-tp-class-section__title' : 'dzn-tp-sr'; ?>"><?php echo esc_html( $section['heading'] ); ?></h3>
@@ -147,6 +148,9 @@ $card_index = 0;
 				<p class="dzn-tp-action-status" role="status" aria-live="polite"></p>
 				<?php endif; ?>
 			</div>
+			<?php endif; ?>
+			<?php if ( ! empty( $item['intro_change_available'] ) ) : ?>
+				<?php dzn_theme_teacher_portal_component( 'intro-actions', array( 'item' => $item, 'timezone' => $timezone ) ); ?>
 			<?php endif; ?>
 			<?php if ( ! $is_today && true === ( $item['reschedule_available'] ?? false ) ) : ?>
 			<details class="dzn-tp-class__reschedule" data-dzn-highlight="reschedule">

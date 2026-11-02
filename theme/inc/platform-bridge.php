@@ -573,6 +573,23 @@ function dzn_theme_platform_student_replacement_summary( array $term, $timezone,
 	);
 }
 
+/** The handful of academy service-area timezones used for local scheduling. */
+function dzn_theme_platform_service_timezone_options() {
+	$out = array();
+	if ( class_exists( '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourRule' ) ) {
+		try {
+			foreach ( \Delnavazan\Platform\Core\Application\Finance\GoldenHourRule::defaults() as $key => $area ) {
+				$timezone = (string) ( $area['timezone'] ?? '' );
+				if ( '' !== $timezone ) { $out[ $timezone ] = (string) ( $area['label'] ?? $key ) . ' — ' . $timezone; }
+			}
+		} catch ( Throwable ) { $out = array(); }
+	}
+	if ( ! $out ) {
+		$out = array( 'Australia/Brisbane' => 'Australia — Australia/Brisbane', 'Asia/Tehran' => 'Iran — Asia/Tehran', 'UTC' => 'UTC' );
+	}
+	return $out;
+}
+
 /** Build a signed calendar download URL only from an already authorised portal row. */
 function dzn_theme_platform_calendar_export_url( $role, array $row ) {
 	$class = '\\Delnavazan\\Platform\\Portals\\PortalCalendarExportService';
@@ -841,6 +858,9 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'livekit_kind' => $is_booking ? 'booking' : 'lesson',
 		'livekit_message' => $livekit_message,
 		'confirmation_uid' => $is_booking ? (string) ( $row['confirmation_uid'] ?? '' ) : '',
+		'intro_cancel_available' => $is_booking && 'confirmed' === (string) ( $row['confirmation_state'] ?? '' ) && $start && $now < $start,
+		'intro_cancel_action_url' => $is_booking ? admin_url( 'admin-post.php?action=dzn_student_cancel_intro' ) : '',
+		'intro_cancel_nonce' => $is_booking ? wp_create_nonce( 'dzn_student_cancel_intro' ) : '',
 		'join_message' => $is_booking
 			? dzn_theme_platform_booking_join_message( $row, $within_join )
 			: ( $livekit_available ? ( 'کلاس زندهٔ دلنوازان آماده است.' ) : ( $join_available ? 'کلاس زندهٔ دلنوازان در دسترس نیست؛ گزینهٔ پشتیبان گوگل میت فعال است.' : ( $livekit_message ?: 'ورود به کلاس در این لحظه فعال نیست.' ) ) ),
@@ -1907,12 +1927,12 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! is_array( $row ) ) { continue; }
 		$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
 		if ( ! $start ) { continue; }
+		$is_booking = 'teacher_booking_class_v1' === ( $row['version'] ?? '' );
 		if ( null !== $day_window ) {
 			// The bounded read already scopes these, but never let a stale projection leak a
 			// previous-day or beyond-horizon class into either section.
 			if ( $start < dzn_theme_platform_utc_timestamp( $day_window['today_start'] ) || $start >= dzn_theme_platform_utc_timestamp( $day_window['upcoming_end'] ) ) { continue; }
 		}
-		$is_booking = 'teacher_booking_class_v1' === ( $row['version'] ?? '' );
 		$dedupe = $is_booking ? 'booking:' . (string) ( $row['confirmation_uid'] ?? '' ) : 'lesson:' . (string) ( $row['lesson_uid'] ?? '' );
 		if ( 'booking:' === $dedupe || 'lesson:' === $dedupe ) { $dedupe = 'instant:' . (string) $row['starts_at_utc'] . '|' . (string) ( $row['student_display_reference'] ?? '' ); }
 		if ( isset( $seen_rows[ $dedupe ] ) ) { continue; }
@@ -2037,6 +2057,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			&& ! $completion_completed
 			&& ! $completion_claimed
 			&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' );
+		$can_intro_change = $is_booking
+			&& 'confirmed' === (string) ( $lesson['confirmation_state'] ?? '' )
+			&& $start && $now < $start;
 		$status_label = 'پیش رو';
 		if ( 'in_progress' === $temporal ) {
 			$status_label = 'در حال برگزاری';
@@ -2096,6 +2119,14 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'reschedule_calendar' => $teacher_calendar,
 			'reschedule_locale' => $teacher_locale,
 			'reschedule_current' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+			'intro_change_available' => $can_intro_change,
+			'intro_close_available' => $can_intro_change,
+			'intro_cancel_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_cancel_intro' ),
+			'intro_cancel_nonce' => wp_create_nonce( 'dzn_teacher_cancel_intro' ),
+			'intro_reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_reschedule_intro' ),
+			'intro_reschedule_nonce' => wp_create_nonce( 'dzn_teacher_reschedule_intro' ),
+			'intro_timezone_options' => dzn_theme_platform_service_timezone_options(),
+			'intro_local_date' => dzn_theme_platform_local_date_key( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone ),
 			'delivery_issue_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery_issue' ),
 			'delivery_issue_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery_issue' ),
 			'delivery_recorded_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery' ),

@@ -83,7 +83,8 @@ if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || ! str_contains( $shell, 'Keep it intact; CSS hides only the legacy sidebar links.' )
     || ! str_contains( $shell, '#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}' )
     || ! str_contains( $shell, "'enrolment' => ['Enrolment'" )
-    || ! str_contains( $shell, "['New bookings & trials', 'dzn-enrolment-workspace'" )
+    || ! str_contains( $shell, "['Intro', 'dzn-enrolment-workspace'" )
+    || ! str_contains( $shell, "['Review', 'dzn-enrolment-workspace'" )
     || ! str_contains( $shell, "['Enrolled classes', 'dzn-enrolment-workspace'" )
     || ! str_contains( $shell, "'finance' => ['Finance'" ) ) {
     throw new RuntimeException( 'Application tabs must preserve WordPress route registration while hiding the legacy sidebar visually.' );

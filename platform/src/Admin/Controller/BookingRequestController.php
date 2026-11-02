@@ -3,6 +3,8 @@ namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\BookingRequestMatchAssessmentService;
 use Delnavazan\Platform\Core\Application\BookingRequestPrivacyService;
+use Delnavazan\Platform\Core\Application\BookingAllocationService;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestIntakeRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
 
@@ -15,6 +17,12 @@ final class BookingRequestController {
         $action = isset($_POST['dzn_booking_request_action']) && is_string($_POST['dzn_booking_request_action']) ? $_POST['dzn_booking_request_action'] : '';
         $id = filter_var($_POST['request_id'] ?? null, FILTER_VALIDATE_INT, array('options' => array('min_range' => 1)));
         if ( ! $id ) return;
+        if($action==='recover_allocation'){
+            self::requireCapabilities('dzn_view_booking_requests','dzn_manage_booking_request_coordination');
+            check_admin_referer('dzn_recover_booking_allocation_'.$id);
+            (new BookingAllocationService())->recover((int)$id,gmdate('Y-m-d H:i:s'));
+            wp_safe_redirect(add_query_arg(array('page'=>'dzn-booking-requests','request_id'=>$id,'updated'=>'1'),admin_url('admin.php')));exit;
+        }
         if ( $action === 'assess_matches' ) {
             self::requireCapabilities('dzn_view_booking_requests', 'dzn_prepare_booking_request_matches');
             check_admin_referer('dzn_prepare_booking_request_matches_' . $id);
@@ -50,6 +58,7 @@ final class BookingRequestController {
         $id = filter_var($_GET['request_id'] ?? null, FILTER_VALIDATE_INT, array('options' => array('min_range' => 1)));
         echo '<div class="wrap"><h1>Booking Requests</h1>';
         if ( $id && ($row = $repo->details((int) $id)) ) { self::details($repo, (int) $id, $row); echo '</div>'; return; }
+        if(current_user_can('dzn_manage_booking_request_coordination'))self::allocationQueue();
         echo '<table class="widefat striped"><thead><tr><th>Reference</th><th>Instrument</th><th>Lifecycle</th><th>Resolution</th><th>Created</th></tr></thead><tbody>';
         foreach ( $repo->rows() as $row ) echo '<tr><td><a href="' . esc_url(add_query_arg(array('page' => 'dzn-booking-requests','request_id' => $row->id),admin_url('admin.php'))) . '">' . esc_html((string) $row->reference_code) . '</a></td><td>' . esc_html((string) $row->requested_instrument_id) . '</td><td>' . esc_html((string) $row->lifecycle_status) . '</td><td>' . esc_html((string) $row->resolution_state) . '</td><td>' . esc_html((string) $row->created_at) . '</td></tr>';
         echo '</tbody></table></div>';
@@ -58,11 +67,35 @@ final class BookingRequestController {
     private static function details(BookingRequestRepository $repo, int $id, object $row): void {
         foreach (get_object_vars($row) as $field => $value) echo '<p><strong>' . esc_html($field) . ':</strong> ' . esc_html((string) $value) . '</p>';
         echo '<h2>Requested times</h2>'; foreach ($repo->times($id) as $time) echo '<p>' . esc_html(wp_json_encode($time)) . '</p>';
+        if(current_user_can('dzn_manage_booking_request_coordination'))self::allocationDetails($id);
         if (class_exists(NotificationManagementController::class)) NotificationManagementController::renderRecordStatus('booking_request',$id);
         self::assessmentPresentation($id, $row);
         $flags = (new BookingRequestIntakeRepository())->duplicateFlags($id);
         if ($flags) { echo '<h2>Duplicate-review signals</h2>'; foreach ($flags as $flag) { echo '<p>Candidate #' . esc_html((string) $flag->candidate_booking_request_id) . ' — ' . esc_html((string) $flag->signal_type) . ' — ' . esc_html((string) $flag->status) . '</p>'; if ($flag->status === 'open' && current_user_can('dzn_review_booking_request_duplicates')) { echo '<form method="post">'; wp_nonce_field('dzn_review_booking_request_' . $id); echo '<input type="hidden" name="dzn_booking_request_action" value="review_duplicate"><input type="hidden" name="request_id" value="' . esc_attr((string) $id) . '"><input type="hidden" name="flag_id" value="' . esc_attr((string) $flag->id) . '"><select name="review_status"><option value="reviewed_no_match">No match</option><option value="reviewed_possible_duplicate">Possible duplicate</option><option value="dismissed">Dismissed</option></select><input name="reason" required maxlength="64"><button class="button">Save review</button></form>'; } } }
         if ($row->lifecycle_status === 'submitted' && $row->resolution_state === 'unresolved' && current_user_can('dzn_erase_booking_request_pii')) { echo '<h2>Privacy erasure</h2><form method="post">'; wp_nonce_field('dzn_erase_booking_request_' . $id); echo '<input type="hidden" name="dzn_booking_request_action" value="erase_pii"><input type="hidden" name="request_id" value="' . esc_attr((string) $id) . '"><input name="reason" required maxlength="64" pattern="[a-z0-9_]{3,64}"><button class="button button-secondary">Erase identifying data</button></form>'; }
+    }
+
+    private static function allocationQueue():void{
+        echo '<h2>صف تخصیص کلاس آشنایی</h2><table class="widefat striped"><thead><tr><th>درخواست</th><th>وضعیت</th><th>مدرس</th><th>مهلت پاسخ (UTC)</th><th>ثبت</th></tr></thead><tbody>';
+        foreach((new BookingAllocationRepository())->queueRows() as $row){
+            $status=$row->escalation_at?'فوری · بیش از ۷۲ ساعت':($row->referral_reason?'نیازمند هماهنگی آکادمی':($row->offer_state==='pending'?'در انتظار پاسخ مدرس':'نیازمند بررسی تخصیص'));
+            echo '<tr><td><a href="'.esc_url(add_query_arg(array('page'=>'dzn-booking-requests','request_id'=>(int)$row->id),admin_url('admin.php'))).'">'.esc_html((string)$row->reference_code).'</a></td><td>'.esc_html($status).'</td><td>'.esc_html((string)$row->teacher_name).'</td><td>'.esc_html((string)$row->deadline_at).'</td><td>'.esc_html((string)$row->created_at).'</td></tr>';
+        }
+        echo '</tbody></table>';
+    }
+    private static function allocationDetails(int $id):void{
+        $repository=new BookingAllocationRepository();$preview=(new BookingAllocationService($repository))->recoveryPreview($id,gmdate('Y-m-d H:i:s'));
+        echo '<h2>تخصیص و هماهنگی</h2><p>پیش‌نمایش بازیابی: '.esc_html((string)$preview['action']).' · مدرس‌های قابل بررسی: '.(int)($preview['viable_teacher_count']??0).' · زمان ثبت (UTC): '.esc_html((string)($preview['submitted_at']??'')).'</p>';
+        if(in_array($preview['action'],array('reconcile_legacy_offer','start_offer','refer_administrator','manual_review'),true)){
+            echo '<form method="post">';wp_nonce_field('dzn_recover_booking_allocation_'.$id);
+            echo '<input type="hidden" name="dzn_booking_request_action" value="recover_allocation"><input type="hidden" name="request_id" value="'.(int)$id.'"><button class="button">اجرای بازیابی بررسی‌شده</button></form>';
+        }
+        $labels=array('pending'=>'در انتظار پاسخ','declined'=>'رد شد','expired'=>'مهلت گذشت','accepted'=>'پذیرفته شد');
+        echo '<h3>تاریخچهٔ پیشنهادها</h3><table class="widefat striped"><thead><tr><th>نوبت</th><th>مدرس</th><th>وضعیت</th><th>ارسال (UTC)</th><th>مهلت (UTC)</th></tr></thead><tbody>';
+        foreach($repository->history($id) as $offer)echo '<tr><td>'.(int)$offer->offer_sequence.'</td><td>'.esc_html((string)$offer->teacher_name).'</td><td>'.esc_html($labels[(string)$offer->state]??(string)$offer->state).'</td><td>'.esc_html((string)$offer->offered_at).'</td><td>'.esc_html((string)$offer->deadline_at).'</td></tr>';
+        echo '</tbody></table><h3>هشدارهای هماهنگی</h3>';
+        foreach($repository->alerts($id) as $alert)echo '<p>'.esc_html($alert->kind==='escalation'?'فوری · بیش از ۷۲ ساعت':'ارجاع به آکادمی').' · '.esc_html((string)$alert->reason_code).' · '.esc_html((string)$alert->state).'</p>';
+        echo '<p><a href="'.esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&booking_request_id='.$id)).'">ادامهٔ هماهنگی دستی</a></p>';
     }
 
     private static function assessmentPresentation(int $id, object $row): void {

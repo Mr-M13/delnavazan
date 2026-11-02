@@ -37,6 +37,13 @@ namespace Delnavazan\Platform\Core\Support {
 }
 namespace Delnavazan\Platform\Core\Application {
     final class IdempotencyConflictException extends \RuntimeException {}
+    final class BookingAllocationService {
+        public function assertPending(object $delivery,string $now):void{}
+        public function assertAcceptable(object $delivery,string $now):void{}
+        public function acceptedLocked(object $delivery,string $now):void{}
+        public function administratorAcceptedLocked(object $delivery,string $now):void{}
+        public function advanceLocked(object $delivery,string $outcome,string $now):?array{$delivery->state=$outcome;return null;}
+    }
 }
 namespace {
     function get_current_user_id(): int { return 27; }
@@ -58,8 +65,8 @@ namespace {
     $declineRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $declineRepository->teacher->onboarding_state='in_progress';$declineRepository->teacher->readiness_state='not_ready';$declineRepository->connection=null;
     $declined=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($declineRepository,null,$freePricing))->respond($declineRepository->delivery->uid,'decline','decline-once');
-    $assert($declined['state']==='declined' && $declineRepository->delivery->resolution_state==='teacher_declined','A linked active Teacher must be able to decline without provider readiness.');
-    $assert(isset($declineRepository->notifications['41|declined']),'Decline must queue the student update atomically.');
+    $assert($declined['state']==='declined' && $declineRepository->delivery->resolution_state==='unresolved','A decline must leave the request open for the next Teacher or administrator.');
+    $assert(!isset($declineRepository->notifications['41|declined']),'A decline must not tell the Student that the entire request failed.');
 
     $restartRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $first=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-first');

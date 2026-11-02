@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '57' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '58' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'phase2a2x-telnyx-sms-whatsapp-20261030.1' );
@@ -126,6 +126,8 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\LessonRescheduleWorker::register();
 	Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::register();
+	Delnavazan\Platform\Integrations\BookingAllocationWorker::register();
+	Delnavazan\Platform\Integrations\BookingAllocationNotificationWorker::register();
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
 	Delnavazan\Platform\Integrations\StudentClassJoinController::register();
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();

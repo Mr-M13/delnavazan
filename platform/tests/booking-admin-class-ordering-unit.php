@@ -47,17 +47,17 @@ $invalid = $row('legacy_phase1', 'not-a-date', 'UTC', 70);
 $expect($ordered(array($missing, $invalid, $intro0900)) === array(str_repeat('B', 26), 'canonical_term_lesson_v1:60', 'legacy_phase1:70'), 'missing/invalid starts must sort after valid rows without invented dates');
 $expect($ordered(array($invalid, $missing)) === array('canonical_term_lesson_v1:60', 'legacy_phase1:70'), 'missing/invalid rows must still be deterministic');
 
-$scheduleDate = new ReflectionMethod(AcademyOperationsController::class, 'scheduleDate');
+$scheduleDate = new ReflectionMethod(AcademyOperationsController::class, 'scheduleDateInAcademyTimezone');
 $scheduleDate->setAccessible(true);
-$todayFor = new ReflectionMethod(AcademyOperationsController::class, 'todayInScheduleTimezone');
+$todayFor = new ReflectionMethod(AcademyOperationsController::class, 'todayInAcademyTimezone');
 $todayFor->setAccessible(true);
 $midnightLesson = $row('canonical_term_lesson_v1', '2026-10-23 23:30:00', 'Australia/Brisbane', 80);
 $midnightIntro = $row('confirmed_intro_booking_v1', '2026-10-24 01:00:00', 'UTC', 90, str_repeat('D', 26));
-$expect($scheduleDate->invoke(null, $midnightLesson) === '2026-10-24', 'UTC start must cross the local midnight boundary in the schedule timezone');
+$expect($scheduleDate->invoke(null, $midnightLesson) === '2026-10-23', 'Overview today classification must use the academy timezone, not the row schedule timezone');
 $expect($scheduleDate->invoke(null, $midnightIntro) === '2026-10-24', 'UTC date must be used when the schedule timezone is UTC');
 $expect($ordered(array($midnightIntro, $midnightLesson)) === array('canonical_term_lesson_v1:80', str_repeat('D', 26)), 'midnight ordering must use UTC instants, not local date labels');
 $nowRow = $row('canonical_term_lesson_v1', gmdate('Y-m-d H:i:s'), 'UTC', 100);
-$expect($scheduleDate->invoke(null, $nowRow) === $todayFor->invoke(null, $nowRow), 'Academy today classification must use the same schedule timezone as the row date');
+$expect($scheduleDate->invoke(null, $nowRow) === $todayFor->invoke(null), 'Overview today classification must use the academy timezone');
 $labelOnly = $row('legacy_phase1', null, '', 110, '', '2026-10-24 · 09:00 Australia/Brisbane');
 $expect($scheduleDate->invoke(null, $labelOnly) === '2026-10-24', 'a legacy label may be used only as a fallback when UTC identity is absent');
 

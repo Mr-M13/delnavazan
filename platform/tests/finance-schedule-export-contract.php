@@ -13,7 +13,7 @@ $export = $read('src/Core/Application/Finance/FinanceExportService.php');
 $migration = $read('src/Core/Infrastructure/Migration/Migrator.php');
 $plugin = $read('delnavazan-platform.php');
 
-$contains($schedule, array('OPTION_ENABLED', "get_option(self::OPTION_ENABLED, '0')", 'previous completed UTC month', 'draft_only', 'runPreviousMonth', 'runMonth', 'run_key', 'already_completed', 'already_running', 'lease_expires_at', 'ACTOR_OPTION'), 'Monthly scheduling must be default-off, draft-only, durable and retryable');
+$contains($schedule, array('OPTION_ENABLED', "get_option(self::OPTION_ENABLED, '0')", 'previous completed Persian', 'PersianCalendar', 'draft_only', 'runPreviousMonth', 'runPersianMonth', 'run_key', 'already_completed', 'already_running', 'lease_expires_at', 'ACTOR_OPTION'), 'Monthly scheduling must be default-off, Persian-month, draft-only, durable and retryable');
 $assert(!str_contains($schedule, "'issue' => '1'") && !str_contains($schedule, "'email' => '1'"), 'Scheduled runs must never issue or email automatically');
 $contains($migration, array('062_statement_batch_runs', 'finance_statement_batch_runs', 'run_key'), 'Schema 062 must persist batch-run history');
 $contains($controller, array('handleStatementSchedule', 'handleExport', 'dzn_finance_statement_schedule', 'dzn_finance_export', 'Draft previous month now', 'Export payments CSV', 'Export refunds CSV', 'Export statements CSV'), 'Finance must expose guarded schedule and export actions');

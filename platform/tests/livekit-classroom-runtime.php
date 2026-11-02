@@ -20,6 +20,15 @@ global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
 function dzn_lk_runtime_assert(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function dzn_lk_runtime_evidence(string $reference): array { return array('evidence_channel' => 'staff_record', 'evidence_reference' => $reference, 'evidence_at' => gmdate('Y-m-d H:i:s')); }
+/** Keep the synthetic schedule inside one UTC day so the fixture does not fail only near midnight. */
+function dzn_lk_runtime_safe_wall(int $offsetMinutes): string {
+    $timestamp = time() + ($offsetMinutes * 60);
+    if ((int) gmdate('G', $timestamp) >= 22) {
+        $timestamp = strtotime('tomorrow 12:00:00 UTC');
+    }
+    return gmdate('Y-m-d H:i:s', $timestamp);
+}
+
 function dzn_lk_runtime_key(string $label): string { return 'dzn-livekit-runtime-' . $label . '-' . wp_generate_uuid4(); }
 function dzn_lk_runtime_rejected(callable $call, string $expected, string $message): void {
     $caught = null;
@@ -59,13 +68,13 @@ dzn_lk_runtime_assert($wpdb->insert($p . 'teacher_onboarding_states', array('tea
 $accepting->set(array('teacher_id' => $teacherId, 'state' => 'accepting', 'reason_code' => 'synthetic_livekit'));
 $availability->setProfile(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
 for ($weekday = 1; $weekday <= 7; $weekday++) {
-    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
+    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '2400', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
 }
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacherId, 'course_id' => $courseId, 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
 $moved = $assignments->replace($enrolmentId, $teacherId, array('expected_assignment_id' => (int)$assignment['assignment_id'], 'route' => 'staff_attestation', 'evidence_channel' => 'phone', 'evidence_reference' => 'livekit-' . $teacherId, 'evidence_at' => gmdate('Y-m-d H:i:s')), dzn_lk_runtime_key('assignment-move'));
 $assignmentId = (int)$moved['assignment_id'];
 $lessonId = (int)$lessons->createStandard((int)$term['term_id'], $assignmentId, dzn_lk_runtime_evidence('livekit-lesson'), dzn_lk_runtime_key('lesson'))['lesson_id'];
-$startWall = gmdate('Y-m-d H:i:s', strtotime('+10 minutes'));
+$startWall = dzn_lk_runtime_safe_wall(10);
 $scheduled = $schedules->schedule($lessonId, $assignmentId, array('schedule_timezone' => 'UTC', 'local_wall_date' => substr($startWall, 0, 10), 'local_wall_time' => substr($startWall, 11), 'duration_minutes' => 30, 'reason_code' => 'synthetic_livekit') + dzn_lk_runtime_evidence('livekit-schedule'), dzn_lk_runtime_key('schedule'));
 $version = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}canonical_lesson_schedule_versions WHERE id=%d", (int)$scheduled['schedule_version_id']));
 $lesson = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}lessons WHERE id=%d", $lessonId));
@@ -112,7 +121,7 @@ dzn_lk_runtime_rejected(static fn() => $authorizer->authorize('student', $lesson
 
 // A stale schedule version after a reschedule is refused, and the new version works.
 wp_set_current_user(1);
-$newWall = gmdate('Y-m-d H:i:s', strtotime('+20 minutes'));
+$newWall = gmdate('Y-m-d H:i:s', strtotime($startWall . ' UTC') + (10 * 60));
 $revised = $schedules->revise($lessonId, $assignmentId, array('expected_schedule_version_id' => (int)$version->id, 'schedule_timezone' => 'UTC', 'local_wall_date' => substr($newWall, 0, 10), 'local_wall_time' => substr($newWall, 11), 'duration_minutes' => 30, 'reason_code' => 'synthetic_livekit_reschedule') + dzn_lk_runtime_evidence('livekit-reschedule'), dzn_lk_runtime_key('reschedule'));
 $newVersion = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}canonical_lesson_schedule_versions WHERE id=%d", (int)$revised['schedule_version_id']));
 wp_set_current_user($teacherUser);

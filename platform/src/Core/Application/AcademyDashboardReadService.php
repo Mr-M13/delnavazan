@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Application\Finance\OperationalCashReadService;
 use Delnavazan\Platform\Core\Application\Finance\Read\FinanceAdminReadService;
 
 /**
@@ -22,9 +23,9 @@ final class AcademyDashboardReadService {
      *   availability: array<string, bool>
      * }
      */
-    public function summary(int $days = 14): array {
+    public function summary(int $days = 30): array {
         if (!current_user_can('dzn_view_booking_requests')) throw new \RuntimeException('Unauthorized');
-        $days = max(7, min(30, $days));
+        $days = max(7, min(90, $days));
         $pipeline = (new AcademyJourneyReadService())->stageCounts();
         return array(
             'counts' => $this->counts(),
@@ -44,6 +45,7 @@ final class AcademyDashboardReadService {
                 'reschedules' => current_user_can('dzn_manage_lessons') || current_user_can('dzn_manage_canonical_lesson_schedules'),
                 'finance' => current_user_can('dzn_view_finance_authority'),
                 'payments' => current_user_can('dzn_view_payment_execution_authority'),
+                'cashbook' => current_user_can('dzn_view_cash_ledger'),
             ),
         );
     }
@@ -123,11 +125,24 @@ final class AcademyDashboardReadService {
         return $out;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * Two independent finance sources are projected together but never combined:
+     * the manual two-account bookkeeping ledger and canonical Stripe/statement activity.
+     *
+     * @return array<string, mixed>
+     */
     private function finance(): array {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
-        $finance = array('available' => false, 'payments_available' => false);
+        $finance = array(
+            'available' => false,
+            'payments_available' => false,
+            'cashbook_available' => false,
+            'manual_accounts' => null,
+            'monthly' => null,
+            'monthly_available' => false,
+            'monthly_error' => false,
+        );
         if (current_user_can('dzn_view_payment_execution_authority')) {
             try {
                 $counts = (new FinanceAdminReadService())->paymentCounts();
@@ -142,6 +157,56 @@ final class AcademyDashboardReadService {
             $finance['statements_open'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_statements WHERE state IN ('draft','issued')");
             $finance['payability_pending'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_payability_evaluations WHERE applicable_slot=1 AND disposition='pending'");
             $finance['exceptions_open'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_exceptions WHERE state='open'");
+        }
+
+        if (current_user_can('dzn_view_cash_ledger')) {
+            try {
+                $accounts = array();
+                foreach ((new OperationalCashReadService())->accountSummaries() as $account) {
+                    $currency = (string) ($account['meta']['currency'] ?? '');
+                    $accounts[] = array(
+                        'key' => (string) ($account['key'] ?? ''),
+                        'label' => (string) ($account['meta']['label'] ?? ''),
+                        'currency' => $currency,
+                        'currency_label' => (string) ($account['meta']['currency_label'] ?? $currency),
+                        'balance_minor' => (int) ($account['balance_minor'] ?? 0),
+                    );
+                }
+                $finance['cashbook_available'] = true;
+                $finance['manual_accounts'] = $accounts;
+            } catch (\Throwable) {
+                // A missing/incomplete cashbook is reported as unavailable, never as a zero balance.
+                $finance['cashbook_available'] = false;
+                $finance['manual_accounts'] = array();
+            }
+        }
+
+        $read = null;
+        if (current_user_can('dzn_view_payment_execution_authority')) {
+            try {
+                $finance['monthly'] = (new FinanceAdminReadService())->monthlyActivity();
+                $finance['monthly_available'] = true;
+                $read = true;
+            } catch (\Throwable) {
+                $finance['monthly_error'] = true;
+            }
+        }
+        if (!$read && current_user_can('dzn_view_finance_authority')) {
+            try {
+                $teacher = (new FinanceAdminReadService())->teacherPaymentsThisMonth();
+                $finance['monthly'] = array(
+                    'month' => (string) ($teacher['month'] ?? ''),
+                    'period_label' => (string) ($teacher['period_label'] ?? ''),
+                    'timezone' => (string) ($teacher['timezone'] ?? ''),
+                    'students_paid' => null,
+                    'student_receipts' => null,
+                    'teacher_payments' => (array) ($teacher['teacher_payments'] ?? array()),
+                    'teacher_payments_available' => true,
+                );
+                $finance['monthly_available'] = true;
+            } catch (\Throwable) {
+                $finance['monthly_error'] = true;
+            }
         }
         return $finance;
     }

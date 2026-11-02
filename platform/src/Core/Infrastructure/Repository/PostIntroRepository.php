@@ -637,6 +637,28 @@ final class PostIntroRepository {
         )) ?: array();
     }
 
+    public function notificationForBookingKind(int $bookingRequestId, string $kind): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT n.* FROM {$this->p}booking_request_student_notifications n
+             INNER JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=n.delivery_id
+             WHERE d.booking_request_id=%d AND n.notification_kind=%s LIMIT 1",
+            $bookingRequestId, $kind
+        ));
+    }
+
+    public function requeueNotification(int $notificationId, string $now): void {
+        global $wpdb;
+        $changed = $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->p}booking_request_student_notifications
+             SET state='queued',next_attempt_at=%s,lease_token_digest=NULL,lease_expires_at=NULL,last_error_code=NULL,updated_at=%s
+             WHERE id=%d AND state IN ('failed','retryable','handed_off')",
+            $now, $now, $notificationId
+        ));
+        if ($changed === false) throw new \RuntimeException('Post-intro notification requeue failed');
+        if ($changed !== 1) throw new \InvalidArgumentException('Notification is not retryable');
+    }
+
     public function insertNotificationIfMissing(int $deliveryId, int $confirmationId, string $kind, string $now): void {
         global $wpdb;
         $table = $this->p . 'booking_request_student_notifications';

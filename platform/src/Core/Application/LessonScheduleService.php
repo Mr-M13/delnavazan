@@ -7,7 +7,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonScheduleR
 final class LessonScheduleService {
     private const LEGACY_BUFFER_MINUTES = 15;
 
-    public function initial(int $lesson,array $input):int{return $this->apply($lesson,$input,true);}
+    public function initial(int $lesson,array $input,bool $withinTransaction=false):int{return $this->apply($lesson,$input,true,$withinTransaction);}
     public function reschedule(int $lesson,array $input):int{return $this->apply($lesson,$input,false);}
     /**
      * Import the exact occurrence of an introductory Lesson that was already confirmed by a
@@ -49,7 +49,7 @@ final class LessonScheduleService {
         }catch(\Throwable$e){$capacity->rollback();throw $e;}
     }
 
-    private function apply(int $id,array $input,bool $initial):int{
+    private function apply(int $id,array $input,bool $initial,bool $withinTransaction=false):int{
         if(!current_user_can('dzn_manage_lessons'))throw new \RuntimeException('Unauthorized');
         $lessons=new LessonRepository();$schedules=new LessonScheduleVersionRepository();$capacity=new CanonicalLessonScheduleRepository();
         $lesson=$lessons->usable($id);
@@ -61,7 +61,7 @@ final class LessonScheduleService {
         [$start,$end,$timezone,$date,$time]=$this->times($lesson,$input);
         $this->assertChanged($current,$start,$end,$timezone,$date,$time);
 
-        $capacity->begin();
+        if(!$withinTransaction)$capacity->begin();
         try{
             $locked=$lessons->locked($id);
             if(!$locked||($locked->record_model??null)!=='legacy_phase1'||$locked->archived_at||in_array($locked->status,array('archived','completed','cancelled'),true))throw new \InvalidArgumentException('Lesson not schedulable');
@@ -83,9 +83,9 @@ final class LessonScheduleService {
             $version=$schedules->latest($id)+1;
             $versionId=$schedules->insert(array('lesson_id'=>$id,'version_number'=>$version,'starts_at_utc'=>$start,'ends_at_utc'=>$end,'schedule_timezone'=>$timezone,'local_wall_date'=>$date,'local_wall_time'=>$time,'reason'=>Normalizer::text($input['reason']??null,255),'changed_by'=>$actor?:null,'created_at'=>$now));
             $lessons->setCurrentSchedule($id,$locked->current_schedule_version_id,$versionId,$now,$actor?:null);
-            $capacity->commit();
+            if(!$withinTransaction)$capacity->commit();
             return $versionId;
-        }catch(\Throwable $exception){$capacity->rollback();throw $exception;}
+        }catch(\Throwable $exception){if(!$withinTransaction)$capacity->rollback();throw $exception;}
     }
 
     private function assertPointer(object $lesson,?object $current):void{

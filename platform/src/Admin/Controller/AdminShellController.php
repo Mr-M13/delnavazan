@@ -7,75 +7,83 @@ use Delnavazan\Platform\Admin\AcademyDashboardScreen;
 final class AdminShellController {
     /** The visible primary navigation follows academy work, never table layout. */
     private const TABS = [
-        'academy' => ['Academy', [
-            ['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
+        'overview' => ['Overview', [
+            ['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
         ]],
         'teachers' => ['Teachers', [
-            ['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers'],
-            ['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']],
+            ['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP],
         ]],
         'students' => ['Students', [
             ['Directory', 'dzn-student', 'dzn_manage_students'],
-            ['Identity & accounts', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
         ]],
         'enrolment' => ['Enrolment', [
-            ['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons'],
-            ['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP],
-            ['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
-            ['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP],
+            ['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']],
+            ['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']],
         ]],
         'finance' => ['Finance', [
             ['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']],
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
+            // Top-level fallback for catalogue-only staff. Settings sections below still render four links.
+            ['Catalogue access', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
-            ['WhatsApp', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
-            ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
-            ['SMS', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
-            ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings'],
-            ['Staff access', 'dzn-staff-access', 'manage_options'],
-            ['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
-            ['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities'],
-            ['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP],
-            // Protected legacy routes. They stay registered and keep working from bookmarks, but the
-            // visible Settings navigation is the Notifications workspace and its channel settings.
-            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
-            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
+            ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
         ]],
     ];
 
     /**
-     * Protected routes that remain resolvable but are no longer separate visible Settings entries.
-     * They stay in group membership so an old bookmark still highlights the correct area.
+     * The visible Settings navigation is exactly four sections. Every other registered
+     * Settings destination remains a protected direct route, keeps its original callback
+     * and is mapped to one of the four sections so an old bookmark highlights the right
+     * place. No legacy route is deleted or repurposed.
      */
-    private const HIDDEN_SETTINGS_ROUTES = ['dzn-communications', 'dzn-communications-templates'];
+    private const SETTINGS_SECTIONS = [
+        'general' => ['General', ['dzn-general', 'dzn-staff-access', 'dzn-recording-notices', 'dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
+        'notifications' => ['Notifications', ['dzn-notifications', 'dzn-communications', 'dzn-communications-templates']],
+        'integrations' => ['Integrations', [
+            'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
+            'dzn-integration-sms', 'dzn-integration-google',
+        ]],
+        'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
+    ];
 
-    /**
-     * Settings is a single area with five work groups. The individual protected
-     * routes stay registered; this map only decides how the same routes are
-     * presented inside the shell. A group is visible when at least one of its
-     * member routes is permitted.
-     */
-    private const SETTINGS_GROUPS = [
-        'general' => ['General', ['dzn-general']],
-        'messaging' => ['Messaging', ['dzn-notifications', 'dzn-integration-whatsapp', 'dzn-integration-email', 'dzn-integration-sms', 'dzn-communications', 'dzn-communications-templates']],
-        'integrations' => ['Integrations', ['dzn-integrations', 'dzn-integration-google']],
-        'access' => ['Access', ['dzn-staff-access', 'dzn-portal-capabilities']],
-        'system' => ['System', ['dzn-system-health', 'dzn-core-dataset-readiness']],
+    /** Alias retained for older source contracts; the visible shape is the four sections above. */
+    private const SETTINGS_GROUPS = self::SETTINGS_SECTIONS;
+
+    /** Capability for every registered Settings route, including protected legacy routes. */
+    private const SETTINGS_ROUTE_CAPABILITIES = [
+        'dzn-general' => 'manage_options',
+        'dzn-staff-access' => 'manage_options',
+        'dzn-recording-notices' => 'manage_options',
+        'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP,
+        'dzn-course' => 'dzn_manage_courses',
+        'dzn-instrument' => 'dzn_manage_instruments',
+        'dzn-notifications' => Menu::NOTIFICATION_MANAGEMENT_CAP,
+        'dzn-communications' => 'dzn_view_notification_authority',
+        'dzn-communications-templates' => 'dzn_manage_provider_integrations',
+        'dzn-integrations' => 'dzn_access_integrations_overview',
+        'dzn-integration-email' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-whatsapp' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-sms' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-google' => 'dzn_access_provider_integration_settings',
+        'dzn-system-health' => 'dzn_access_system_health',
+        'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',
+        'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP,
     ];
 
     /** Pages share their tab while retaining their original, protected callback. */
     private const PAGE_TABS = [
-        'dzn-platform' => 'academy', 'dzn-academy-dashboard' => 'academy',
+        'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
-        'dzn-lesson' => 'enrolment', 'dzn-enrolment-workspace' => 'enrolment',
-        'dzn-catalogue-workspace' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
+        'dzn-lesson' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
+        'dzn-attendance-review' => 'enrolment', 'dzn-post-intro' => 'enrolment',
+        'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'settings',
         'dzn-booking-requests' => 'enrolment', 'dzn-booking-request-coordination' => 'enrolment',
-        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'enrolment', 'dzn-instrument' => 'enrolment',
-        'dzn-attendance-review' => 'enrolment', 'dzn-exception' => 'enrolment', 'dzn-post-intro' => 'enrolment',
+        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'settings', 'dzn-instrument' => 'settings',
+        'dzn-exception' => 'enrolment',
         'dzn-commercial-catalogue' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
         'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
@@ -83,17 +91,33 @@ final class AdminShellController {
         'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
         'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
+        'dzn-recording-notices' => 'settings',
     ];
 
     public static function register(): void {
         add_action('in_admin_header', [__CLASS__, 'renderNavigation']);
         add_action('admin_head', [__CLASS__, 'styles']);
+        add_action('admin_head', [__CLASS__, 'viewport']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueueAssets']);
         add_filter('admin_body_class', [__CLASS__, 'bodyClass']);
+        add_filter('wp_redirect', [__CLASS__, 'preserveReturnContext'], 10, 2);
         AcademyDashboardScreen::register();
     }
 
-    /** The top-level click is the Academy dashboard whenever that authority is available. */
+    /**
+     * Keep a validated in-admin return destination across POST/redirect/GET.
+     * Central record workflows use this to return staff to the originating
+     * student profile without accepting an open redirect.
+     */
+    public static function preserveReturnContext($location, $status) {
+        $raw = $_REQUEST['dzn_return_to'] ?? '';
+        if (!is_string($raw) || $raw === '') return $location;
+        $safe = function_exists('wp_validate_redirect') ? wp_validate_redirect($raw, '') : '';
+        if ($safe === '' || !is_string($location) || str_contains($location, 'dzn_return_to=')) return $location;
+        return add_query_arg('dzn_return_to', $safe, $location);
+    }
+
+    /** The top-level click opens Overview whenever that authority is available. */
     public static function screen(): void {
         if (current_user_can('dzn_view_booking_requests')) { AcademyOperationsController::screen(); return; }
         if (!self::hasVisibleTab()) wp_die('Forbidden', 403);
@@ -116,6 +140,10 @@ final class AdminShellController {
         $path = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.css' : '';
         $version = $path !== '' && file_exists($path) ? (string) filemtime($path) : (defined('DZN_PLATFORM_VERSION') ? DZN_PLATFORM_VERSION : null);
         wp_enqueue_style('dzn-admin', $url, [], $version);
+        $scriptUrl = plugins_url('src/Admin/Assets/admin.js', DZN_PLATFORM_FILE);
+        $scriptPath = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.js' : '';
+        $scriptVersion = $scriptPath !== '' && file_exists($scriptPath) ? (string) filemtime($scriptPath) : $version;
+        wp_enqueue_script('dzn-admin', $scriptUrl, array(), $scriptVersion, true);
         $font = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/fonts/Vazirmatn-Variable.woff2') : '';
         if ($font !== '') {
             wp_add_inline_style('dzn-admin', "@font-face{font-family:Vazirmatn;src:url('" . esc_url_raw($font) . "') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}");
@@ -133,10 +161,14 @@ final class AdminShellController {
         $active = self::PAGE_TABS[$page] ?? '';
         $today = function_exists('wp_date') ? wp_date('l, j F Y') : gmdate('l, j F Y');
         echo '<div class="dzn-admin-shell" aria-label="Delnavazan"><div class="dzn-admin-shell__brand">';
-        echo '<span class="dzn-admin-shell__mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 17c3.2-6.4 5.4-9.6 7.6-9.6S15 10.6 15.8 14.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 14.4c.8 3.8 2 5.6 3.8 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6.1" cy="5.9" r="1.4" fill="currentColor"/><path d="M18.6 4.2v6.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>';
+        $logo = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/images/delnavazan-logo.png') : '';
+        if ($logo !== '') {
+            echo '<span class="dzn-admin-shell__mark" aria-hidden="true"><img src="' . esc_url($logo) . '" alt=""></span>';
+        }
         echo '<span class="dzn-admin-shell__brand-copy"><strong>Delnavazan</strong><span>Academy operations</span></span>';
         $siteUrl = function_exists('home_url') ? home_url('/') : '#';
         echo '<span class="dzn-admin-shell__context"><span>' . esc_html($today) . '</span><a href="' . esc_url($siteUrl) . '">View site</a></span></div>';
+        self::renderReturnBar($page);
         echo '<nav class="dzn-admin-shell__tabs" aria-label="Delnavazan primary navigation">';
         foreach (self::TABS as $key => [$label, $destinations]) {
             $url = self::firstAvailableDestinationUrl($destinations);
@@ -154,6 +186,15 @@ final class AdminShellController {
         echo '</div>';
     }
 
+    private static function renderReturnBar(string $page): void {
+        if ($page === 'dzn-student') return;
+        $raw = $_GET['dzn_return_to'] ?? '';
+        if (!is_string($raw) || $raw === '') return;
+        $safe = function_exists('wp_validate_redirect') ? wp_validate_redirect($raw, '') : '';
+        if ($safe === '') return;
+        echo '<div class="dzn-admin-return"><a href="' . esc_url($safe) . '">← Back to student profile</a><span>The action below belongs to a central workflow and will return here when completed.</span></div>';
+    }
+
     private static function renderAreaNavigation(string $active, string $page): void {
         $requestedView = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
         $visible = [];
@@ -166,7 +207,7 @@ final class AdminShellController {
             $seen[$key] = true;
             $visible[] = [$routeLabel, $slug, $args];
         }
-        // A single destination needs no second navigation row (Academy is one page).
+        // A single destination needs no second navigation row (Overview is one page).
         if (count($visible) <= 1) return;
         echo '<nav class="dzn-admin-shell__subtabs" aria-label="' . esc_attr(self::TABS[$active][0]) . ' pages">';
         foreach ($visible as [$routeLabel, $slug, $args]) {
@@ -178,55 +219,45 @@ final class AdminShellController {
         echo '</nav>';
     }
 
-    /** Settings is grouped by work, not by provider or table. */
+    /** Settings is exactly four work sections; legacy routes stay resolvable but are never separate entries. */
     private static function renderSettingsNavigation(string $page): void {
-        $members = [];
-        foreach (self::TABS['settings'][1] as $destination) {
-            [$label, $slug, $capabilities] = $destination;
-            if (!self::hasRequiredCapabilities($capabilities)) continue;
-            $members[$slug] = $destination;
+        $visible = [];
+        foreach (self::SETTINGS_SECTIONS as $key => [$label, $routes]) {
+            $route = self::firstAvailableSettingsRoute($routes);
+            if ($route !== null) $visible[$key] = [$label, $route];
         }
-        if (!$members) return;
-        $activeGroup = self::settingsGroupForPage($page);
-        if ($activeGroup === '') $activeGroup = array_key_first(self::SETTINGS_GROUPS);
-        $visibleGroups = [];
-        foreach (self::SETTINGS_GROUPS as $key => [$groupLabel, $slugs]) {
-            $groupMembers = [];
-            foreach ($slugs as $slug) if (isset($members[$slug])) $groupMembers[] = $members[$slug];
-            if ($groupMembers) $visibleGroups[$key] = [$groupLabel, $groupMembers];
-        }
-        if (!isset($visibleGroups[$activeGroup])) {
-            $activeGroup = (string) array_key_first($visibleGroups);
-        }
-        echo '<nav class="dzn-admin-shell__subtabs" aria-label="Settings groups">';
-        foreach ($visibleGroups as $key => [$groupLabel, $groupMembers]) {
-            [$label, $slug, $capabilities] = $groupMembers[0];
-            $args = isset($groupMembers[0][3]) && is_array($groupMembers[0][3]) ? $groupMembers[0][3] : [];
-            $url = admin_url('admin.php?' . http_build_query(array_merge(array('page' => $slug), $args)));
-            $current = $key === $activeGroup;
-            echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url($url) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($groupLabel) . '</a>';
-        }
-        echo '</nav>';
-        if (!isset($visibleGroups[$activeGroup])) return;
-        $activeMembers = $visibleGroups[$activeGroup][1];
-        if (count($activeMembers) === 1 && $activeMembers[0][0] === $visibleGroups[$activeGroup][0]) return;
-        echo '<nav class="dzn-admin-shell__subtabs dzn-admin-shell__subtabs--pages" aria-label="' . esc_attr($visibleGroups[$activeGroup][0]) . ' pages">';
-        foreach ($visibleGroups[$activeGroup][1] as $destination) {
-            [$label, $slug, $capabilities] = $destination;
-            if (in_array($slug, self::HIDDEN_SETTINGS_ROUTES, true) && $slug !== $page) continue;
-            $args = isset($destination[3]) && is_array($destination[3]) ? $destination[3] : [];
-            $url = admin_url('admin.php?' . http_build_query(array_merge(array('page' => $slug), $args)));
-            $current = $slug === $page;
+        if ($visible === []) return;
+        $active = self::settingsGroupForPage($page);
+        if (!isset($visible[$active])) $active = (string) array_key_first($visible);
+        echo '<nav class="dzn-admin-shell__subtabs" aria-label="Settings sections">';
+        foreach ($visible as $key => [$label, $route]) {
+            $url = admin_url('admin.php?page=' . rawurlencode($route));
+            $current = $key === $active;
             echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url($url) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
         }
         echo '</nav>';
     }
 
+    /** Prefer the canonical section route, then any protected legacy route the operator may open. */
+    private static function firstAvailableSettingsRoute(array $routes): ?string {
+        foreach ($routes as $route) {
+            $capability = self::SETTINGS_ROUTE_CAPABILITIES[$route] ?? '';
+            if ($capability !== '' && current_user_can($capability)) return $route;
+        }
+        return null;
+    }
+
     private static function settingsGroupForPage(string $page): string {
-        foreach (self::SETTINGS_GROUPS as $key => [, $slugs]) {
-            if (in_array($page, $slugs, true)) return $key;
+        foreach (self::SETTINGS_SECTIONS as $key => [, $routes]) {
+            if (in_array($page, $routes, true)) return $key;
         }
         return '';
+    }
+
+    /** Native wp-admin predates mobile viewport metadata; Delnavazan pages declare it explicitly. */
+    public static function viewport(): void {
+        if (!str_starts_with(self::currentPage(), 'dzn-')) return;
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     }
 
     public static function styles(): void {

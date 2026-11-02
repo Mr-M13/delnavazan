@@ -4,13 +4,16 @@ namespace Delnavazan\Platform\Core\Application\Finance\Statements;
 use Delnavazan\Platform\Core\Application\Finance\{FinanceSupport};
 use Delnavazan\Platform\Core\Infrastructure\Repository\StatementBatchRunRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
+use Delnavazan\Platform\Core\Support\PersianCalendar;
 
 /**
- * Recoverable monthly draft-only statement scheduling.
+ * Recoverable draft-only statement scheduling on the Persian calendar.
  *
- * Default off. When enabled, the worker drafts the previous completed UTC month only. It never issues
- * or emails a statement: those remain explicit administrator actions. One durable run row per month
- * makes the job idempotent and gives an administrator a retryable history.
+ * Default off. When enabled, a daily worker prepares drafts for the previous completed Persian
+ * month using the Asia/Tehran half-open month boundary. It never issues or emails a statement:
+ * those remain explicit administrator actions. One durable run row per Persian month makes the
+ * job idempotent and gives an administrator a retryable history. A UTC calendar month is never
+ * relabelled as Persian.
  */
 final class TeacherStatementScheduleService {
     public const HOOK = 'dzn_monthly_statement_draft';
@@ -57,14 +60,44 @@ final class TeacherStatementScheduleService {
     /** @return array<string,mixed> */
     public function runPreviousMonth(bool $requireEnabled = true): array {
         if ($requireEnabled && !$this->enabled()) return array('state' => 'disabled');
-        $month = gmdate('Y-m', strtotime('first day of last month UTC'));
-        return $this->runMonth($month);
+        $period = PersianCalendar::previousMonthForInstant(gmdate('Y-m-d H:i:s'), PersianCalendar::DEFAULT_TIMEZONE);
+        return $this->runPersianMonth($period['key']);
     }
-    /** @return array<string,mixed> */
+    /**
+     * Legacy UTC month entry point retained for callers that explicitly want a UTC month.
+     *
+     * @return array<string,mixed>
+     */
     public function runMonth(string $month): array {
         FinanceSupport::requireCapability(self::MANAGE_CAPABILITY);
         if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/D', $month) !== 1) throw new \InvalidArgumentException('statement_batch_month_invalid');
-        $runKey = 'monthly_draft:' . $month;
+        $start = \DateTimeImmutable::createFromFormat('!Y-m-d', $month . '-01', new \DateTimeZone('UTC'));
+        if (!$start) throw new \InvalidArgumentException('statement_batch_month_invalid');
+        $end = $start->modify('+1 month');
+        if ($end->format('Y-m-d H:i:s') > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('statement_period_not_elapsed');
+        $period = array(
+            'month' => $month,
+            'period_key' => 'utc_month:' . $month,
+            'period_label' => 'UTC month ' . $month,
+            'calendar' => 'gregorian_utc',
+            'timezone' => 'UTC',
+            'period_start' => $start->format('Y-m-d H:i:s'),
+            'period_end' => $end->format('Y-m-d H:i:s'),
+        );
+        return $this->runPeriod($period, 'utc_month:' . $month);
+    }
+
+    /** @return array<string,mixed> */
+    public function runPersianMonth(string $month): array {
+        FinanceSupport::requireCapability(self::MANAGE_CAPABILITY);
+        $period = (new TeacherStatementBatchService())->persianPeriod($month);
+        return $this->runPeriod($period, 'persian_month:' . $month);
+    }
+
+    /** @return array<string,mixed> */
+    private function runPeriod(array $period, string $runKey): array {
+        $month = (string) ($period['month'] ?? '');
+        if ($month === '') throw new \InvalidArgumentException('statement_batch_month_invalid');
         $this->runs->begin();
         try {
             $run = $this->runs->byRunKey($runKey, true);
@@ -97,7 +130,7 @@ final class TeacherStatementScheduleService {
         }
         $result = array();
         try {
-            $result = $this->batch->run($month, array('issue' => '', 'email' => ''), 'monthly-draft:' . $month . ':' . $runId);
+            $result = $this->batch->runPeriod($period, array('issue' => '', 'email' => ''), 'scheduled-draft:' . $runKey . ':' . $runId);
             $state = 'completed'; $errorCode = null;
         } catch (\Throwable $error) {
             $state = 'failed'; $errorCode = preg_match('/^[a-z0-9_]{3,64}$/D', trim($error->getMessage())) === 1 ? trim($error->getMessage()) : 'statement_batch_failed';

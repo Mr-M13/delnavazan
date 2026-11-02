@@ -67,6 +67,32 @@ final class LiveKitWebhookController {
         }
 
         $room = $capture ? $attendance->roomForWebhook($roomName) : null;
+        $registrySession = $registry->get($roomName);
+        $adminIdentity = is_array($registrySession) ? (string) ($registrySession['administrator_identity'] ?? '') : '';
+        $isAdministrator = $adminIdentity !== '' && $identity !== '' && hash_equals($adminIdentity, $identity);
+
+        if ($isAdministrator) {
+            // Administrative testing is not attendance evidence. Its room grant deliberately
+            // bypasses the participant joining window, but the canonical Lesson/schedule must
+            // still be current and authorised.
+            if ($eventType === 'participant_left') {
+                return new \WP_REST_Response(array('ok' => true, 'action' => 'administrator_left'), 200);
+            }
+            try {
+                $active = (new LiveKitClassroomAuthorizer())->grantStillActive($registrySession, true);
+            } catch (\Throwable) {
+                $active = false;
+            }
+            if (!$active) {
+                try {
+                    (new LiveKitRoomRevoker())->revokeRoom($roomName);
+                } catch (\Throwable) {
+                    self::remove($roomName, $identity);
+                }
+                return new \WP_REST_Response(array('ok' => true, 'action' => 'administrator_room_revoked'), 200);
+            }
+            return new \WP_REST_Response(array('ok' => true, 'action' => 'administrator_admitted'), 200);
+        }
 
         if ($eventType === 'participant_joined') {
             if (!$room) {

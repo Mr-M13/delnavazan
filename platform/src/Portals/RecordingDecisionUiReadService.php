@@ -52,7 +52,7 @@ final class RecordingDecisionUiReadService {
         $state=$this->authority->teacherTermsState();
         $notices=array();
         foreach(array('en','fa')as$language){
-            $notice=$this->notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,$language);
+            $notice=$this->authority->publishedNotice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,$language);
             if($notice!==null)$notices[]=$this->form('teacher_terms',$notice,'dzn_recording_teacher_terms',$context);
         }
         return array(

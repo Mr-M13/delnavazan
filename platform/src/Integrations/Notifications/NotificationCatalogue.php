@@ -107,7 +107,9 @@ final class NotificationCatalogue {
         $event=self::get($eventKey);
         if($event===null)return true;
         $category=(string)($event['category']??'');
-        return !empty($event['mandatory'])||in_array($category,array('security','account','payment'),true);
+        // Security, account and financial notices are protected. Operational booking/class
+        // notices remain staff-configurable, while an explicitly mandatory event stays locked.
+        return in_array($category,array('security','account','payment'),true)||!empty($event['mandatory_override']);
     }
     public static function categoryPolicy(string $eventKey):string{
         $event=self::get($eventKey);

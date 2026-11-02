@@ -36,7 +36,9 @@ final class LiveKitTokenRestController {
             $role = (string)$session['role'];
             $session['meet_action_url'] = admin_url('admin-post.php?action=dzn_livekit_meet_fallback');
             $session['meet_nonce'] = wp_create_nonce('dzn_livekit_meet_fallback');
-            $session['portal_url'] = home_url($role === 'teacher' ? '/teacher-portal/' : '/student-portal/');
+            $session['portal_url'] = $role === 'administrator'
+                ? admin_url('admin.php?page=dzn-academy-dashboard')
+                : home_url($role === 'teacher' ? '/teacher-portal/' : '/student-portal/');
             $response = new \WP_REST_Response($session, 200);
             $response->header('Cache-Control', 'no-store, private, max-age=0');
             $response->header('Referrer-Policy', 'no-referrer');

@@ -58,6 +58,18 @@ final class TeacherAvailabilityService {
         }
     }
     public function retireActiveOwnRecurringRule(int $ruleId):void { $teacher=$this->activeOwnTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();}catch(\Throwable $e){$this->repo->rollback();throw $e;} }
+    /** Administrator retirement of one recurring window; historical records are untouched. */
+    public function retireRule(int $teacherId, int $ruleId): void {
+        $this->admin(); $teacher = Normalizer::id($teacherId); $rule = Normalizer::id($ruleId); $now = current_time('mysql', true);
+        $this->repo->begin(); try { $this->repo->retireAdminRule($rule, $teacher, $now, get_current_user_id() ?: null); $this->repo->commit(); } catch (\Throwable $error) { $this->repo->rollback(); throw $error; }
+    }
+
+    /** Administrator retirement of one dated exception; historical records are untouched. */
+    public function retireException(int $teacherId, int $exceptionId): void {
+        $this->admin(); $teacher = Normalizer::id($teacherId); $exception = Normalizer::id($exceptionId); $now = current_time('mysql', true);
+        $this->repo->begin(); try { $this->repo->retireAdminException($exception, $teacher, $now, get_current_user_id() ?: null); $this->repo->commit(); } catch (\Throwable $error) { $this->repo->rollback(); throw $error; }
+    }
+
     public function setDatedException(array $input): int {
         $this->admin(); $d = $this->exception( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $id = $this->repo->saveException( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
@@ -93,6 +105,14 @@ final class TeacherAvailabilityService {
             }
         }
         foreach ( $exceptions as $exception ) { $exceptionTimezone = $this->authorityTimezone( $exception->timezone ?? null ); $interval = (int) $exception->all_day === 1 ? AvailabilityLocalTime::fullDay( (string) $exception->local_date, $exceptionTimezone ) : AvailabilityLocalTime::interval( (string) $exception->local_date, (string) $exception->local_start_time, (string) $exception->local_end_time, $exceptionTimezone ); $this->append( $facts, $interval, (string) $exception->state, 'exception', (int) $exception->id ); }
+        // An open-ended temporary unavailability is one durable sentinel row. It blocks every
+        // future occurrence from its local start date until an administrator reactivates the
+        // Teacher; it never rewrites weekly rules or historical facts.
+        foreach ( $this->repo->openEndedExceptions( $teacher ) as $exception ) {
+            $exceptionTimezone = $this->authorityTimezone( $exception->timezone ?? null );
+            $start = AvailabilityLocalTime::fullDay( (string) $exception->local_date, $exceptionTimezone );
+            $this->append( $facts, array( 'starts_at_utc' => $start['starts_at_utc'], 'ends_at_utc' => '9999-12-31 00:00:00' ), 'blocked', 'exception', (int) $exception->id );
+        }
         return $this->resolve( $facts, $from, $until );
     }
 

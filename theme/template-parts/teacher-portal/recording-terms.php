@@ -18,6 +18,7 @@ $accepted = ! empty( $recording['accepted'] );
 $notices = isset( $recording['notices'] ) && is_array( $recording['notices'] ) ? $recording['notices'] : array();
 $information_url = (string) ( $recording['information_url'] ?? home_url( '/recording-and-research/' ) );
 $status = sanitize_key( (string) ( $recording['status'] ?? '' ) );
+$status_label = $accepted ? 'پذیرفته شده' : ( ( $available && $notices ) ? 'نیازمند بررسی' : 'ثبت نشده' );
 $language_label = static function ( string $language ): string { return 'fa' === $language ? 'فارسی' : 'English'; };
 $format_date = static function ( string $value ): string {
 	if ( '' === $value ) { return ''; }
@@ -29,7 +30,7 @@ $iso_datetime = static function ( string $value ): string { return '' === $value
 <section class="dzn-tp-section dzn-teacher-recording-terms" id="dzn-teacher-recording-terms" aria-labelledby="tp-recording-terms">
 	<div class="dzn-tp-heading">
 		<div><p class="dzn-tp-kicker">شرایط ضبط برای مدرسان</p><h2 id="tp-recording-terms">Teacher recording terms</h2></div>
-		<span><?php echo $accepted ? 'پذیرفته شده' : 'نیازمند بررسی'; ?></span>
+		<span><?php echo esc_html( $status_label ); ?></span>
 	</div>
 	<?php if ( 'terms_saved' === $status ) : ?><p class="dzn-tp-notice is-success" role="status"><span lang="en" dir="ltr">Teacher recording terms accepted.</span> <span lang="fa" dir="rtl">شرایط ضبط برای مدرسان پذیرفته شد.</span></p><?php elseif ( 'terms_unavailable' === $status ) : ?><p class="dzn-tp-notice is-error" role="alert"><span lang="en" dir="ltr">The terms could not be accepted. No record was created.</span> <span lang="fa" dir="rtl">پذیرش شرایط ثبت نشد؛ هیچ سابقه‌ای ساخته نشد.</span></p><?php endif; ?>
 	<?php if ( ! $linked ) : ?>

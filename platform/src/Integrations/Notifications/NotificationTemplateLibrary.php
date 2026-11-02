@@ -349,7 +349,7 @@ final class NotificationTemplateLibrary {
     private function ctaFor(string $eventKey,string $body,array $variables,string $audience,string $locale):?array{
         foreach(array('portal_url','teacher_portal_url','claim_url','payment_url') as $code){
             if(!str_contains($body,'{{'.$code.'}}')||!isset($variables[$code]))continue;
-            $label=NotificationCatalogue::normaliseLocale($locale)==='en'?($audience==='teacher'?'Open Teacher Portal':($audience==='admin'?'Open Delnavazan Admin':'Open Student Portal')):($audience==='teacher'?'رفتن به پرتال مدرس':($audience==='admin'?'رفتن به پیشخوان دلنوازان':'رفتن به پرتال هنرجو'));
+            $label=NotificationCatalogue::normaliseLocale($locale)==='en'?($audience==='teacher'?'Open Teacher Portal':($audience==='admin'?'Open Delnavazan Admin':'Open your account')):($audience==='teacher'?'رفتن به پرتال مدرس':($audience==='admin'?'رفتن به پیشخوان دلنوازان':'رفتن به حساب کاربری'));
             return array('label'=>$label,'url'=>(string)$variables[$code]);
         }
         return null;

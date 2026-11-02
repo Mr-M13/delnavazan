@@ -78,7 +78,7 @@ namespace {
     $confirmed = NotificationCatalogue::defaultCopy('booking.confirmed.student', 'email', 'fa-IR');
     $emailPreview = $library->preview('booking.confirmed.student', 'email', (string) $confirmed['subject'], (string) $confirmed['body'], 'fa-IR');
     $fail('email CTA uses the synthetic portal URL', str_contains((string) $emailPreview['html'], 'https://example.invalid/student-portal/'));
-    $fail('email CTA is localised', str_contains((string) $emailPreview['html'], 'رفتن به پرتال هنرجو'));
+    $fail('email CTA is localised', str_contains((string) $emailPreview['html'], 'رفتن به حساب کاربری'));
 
     // Never render a real one-time secret, even if a caller passes one directly.
     $claim = NotificationCatalogue::defaultCopy('account.claim_issued.student', 'email', 'fa-IR');

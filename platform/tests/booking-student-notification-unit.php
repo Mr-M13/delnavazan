@@ -20,9 +20,9 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function begin(): void {}
         public function commit(): void {}
         public function rollback(): void {}
-        public function notificationPayload(int $id,bool $lock=false): ?object { return $id===81?$this->row:null; }
+        public function notificationPayload(int $id,bool $lock=false): ?object { return in_array($id,array(81,82),true)?$this->row:null; }
         public function updateNotification(int $id,string $from,array $data,?string $leaseTokenDigest=null): void {
-            if($id!==81||(string)$this->row->state!==$from)throw new \RuntimeException('state mismatch');
+            if(!in_array($id,array(81,82),true)||(string)$this->row->state!==$from)throw new \RuntimeException('state mismatch');
             if($leaseTokenDigest!==null&&!hash_equals($leaseTokenDigest,(string)$this->row->lease_token_digest))throw new \RuntimeException('lease mismatch');
             foreach($data as $key=>$value)$this->row->{$key}=$value;
         }
@@ -55,5 +55,23 @@ namespace {
     $exhausted=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository('sending',3);
     $failed=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$exhausted);
     $assert($failed['state']==='failed'&&$exhausted->row->last_error_code==='handoff_outcome_unknown'&&count($mailCalls)===2,'An ambiguous crashed handoff must stop at the bounded retry limit.');
+
+    $confirmed=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $confirmed->row->id=82;
+    $confirmed->row->notification_kind='confirmed';
+    $confirmed->row->confirmation_record_id=44;
+    $confirmed->row->course_name='سه تار';
+    $confirmed->row->teacher_name='نیما';
+    $confirmed->row->full_name='Hamed';
+    $confirmed->row->starts_at_utc='2026-11-03 05:45:00';
+    $confirmed->row->ends_at_utc='2026-11-03 06:15:00';
+    $confirmed->row->student_timezone='Australia/Brisbane';
+    $confirmed->row->student_locale='fa_IR';
+    $confirmed->row->student_calendar='persian';
+    $confirmedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(82,$confirmed);
+    $assert($confirmedResult['state']==='handed_off'&&count($mailCalls)===3,'A confirmed booking must hand off without a Meet secret.');
+    $assert(str_contains($mailCalls[2]['subject'],'کلاس معارفه')&&str_contains($mailCalls[2]['body'],'آبان')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar and account wording.');
+    $assert(!str_contains($mailCalls[2]['body'],'meet.google.com')&&!str_contains($mailCalls[2]['body'],'Google Meet'),'The confirmation email must not expose the Google Meet backup link.');
+
     echo "Booking student notification unit passed\n";
 }

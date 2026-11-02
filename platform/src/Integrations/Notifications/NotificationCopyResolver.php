@@ -34,7 +34,11 @@ final class NotificationCopyResolver {
             $subject=(string)($copy['subject']??'');
             $body=(string)($copy['body']??'');
             if($body==='')return self::fallback($fallback);
-            foreach(NotificationCatalogue::variables($eventKey) as $code){
+            $allowed=NotificationCatalogue::variables($eventKey);
+            // A stored version may predate a vocabulary change (for example a removed Meet-link
+            // placeholder). Render the reviewed fallback instead of sending a blank line.
+            if(preg_match_all('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',$subject."\n".$body,$matches))foreach($matches[1] as $code)if(!in_array($code,$allowed,true))return self::fallback($fallback);
+            foreach($allowed as $code){
                 if(!str_contains($subject,'{{'.$code.'}}')&&!str_contains($body,'{{'.$code.'}}'))continue;
                 if(!array_key_exists($code,$variables))return self::fallback($fallback);
             }

@@ -77,7 +77,7 @@
 - `tests/admin-navigation-teacher-finance-contract.php`
 - `tests/admin-dashboard-finance-classroom-contract.php`
 
-### Harness runs on commit `d0794a02`
+### Harness runs on commit `d0794a02` (plus later summary-rate fix `8399e96d`)
 
 - `platform/runtime/bin/run-pure-tests.sh` — full WordPress-free suite passed from a clean detached
   worktree, including the three new tests above.
@@ -85,6 +85,8 @@
   administration runtime passed.
 - `platform/runtime/bin/run-finance-manual-payment-runtime.sh` — Phase-J fixture plus manual payment
   runtime passed (offline settlement, refund/review lifecycle and duplicate refusal).
+- After `8399e96d`, the static lint and the new Persian/golden/clarity contracts were re-run; the
+  four-tab screen still rendered without a fatal error on all four tabs.
 - No live Stripe refund, charge or teacher email was made.
 
 ### Disposable WordPress/MariaDB acceptance runtime

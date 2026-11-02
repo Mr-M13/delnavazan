@@ -447,6 +447,19 @@ final class FinanceAdminRedesignReadService {
         ) ?: array();
         $rates = array();
         foreach ($rateRows as $row) if (!isset($rates[(int)$row->teacher_id])) $rates[(int)$row->teacher_id] = $row;
+        // A recorded snapshot rate is more specific than the current default and is what the
+        // completed Lesson actually consumed. It wins for the summary column; the timeline remains
+        // in Settings for the full version history.
+        $snapshotRateRows = $wpdb->get_results($wpdb->prepare(
+            "SELECT teacher_id,rate_amount_minor,rate_version,currency,scope_kind,compensation_basis,COUNT(*) line_count
+             FROM {$this->p}finance_lesson_snapshots
+             WHERE teacher_id IN ({$in}) AND occurrence_starts_at_utc>=%s AND occurrence_starts_at_utc<%s
+             GROUP BY teacher_id,rate_id,rate_amount_minor,rate_version,currency,scope_kind,compensation_basis
+             ORDER BY teacher_id,line_count DESC,rate_version DESC",
+            $current['start_utc'], $current['end_utc']
+        )) ?: array();
+        $snapshotRates = array();
+        foreach ($snapshotRateRows as $row) if (!isset($snapshotRates[(int)$row->teacher_id])) $snapshotRates[(int)$row->teacher_id] = $row;
         $globalRate = (new FinanceSettingsService())->globalTeacherRate();
         $query = strtolower(trim((string)($filters['q'] ?? '')));
         $out = array();
@@ -456,6 +469,7 @@ final class FinanceAdminRedesignReadService {
             $stats = $lessonStats[$id] ?? null;
             $earn = $earned[$id] ?? null;
             $rate = $rates[$id] ?? null;
+            $snapshotRate = $snapshotRates[$id] ?? null;
             $statement = $latestStatements[$id] ?? null;
             $paidCurrent = (int)($paid[$id]['current'] ?? 0);
             $latestPayment = (string)($paid[$id]['latest'] ?? '');
@@ -470,10 +484,10 @@ final class FinanceAdminRedesignReadService {
                 'current_minutes' => (int)($stats->current_minutes ?? 0),
                 'previous_lessons' => (int)($stats->previous_lessons ?? 0),
                 'previous_minutes' => (int)($stats->previous_minutes ?? 0),
-                'rate_minor' => $rate ? (int)$rate->amount_minor : ($globalRate['amount_minor'] ?? null),
-                'rate_currency' => $rate ? (string)$rate->currency : ($globalRate['currency'] ?? 'TOM'),
-                'rate_source' => $rate ? 'Teacher-specific' : ($globalRate ? 'Global default' : 'Not configured'),
-                'rate_version' => $rate ? (int)$rate->rate_version : null,
+                'rate_minor' => $snapshotRate ? (int)$snapshotRate->rate_amount_minor : ($rate ? (int)$rate->amount_minor : ($globalRate['amount_minor'] ?? null)),
+                'rate_currency' => $snapshotRate ? (string)$snapshotRate->currency : ($rate ? (string)$rate->currency : ($globalRate['currency'] ?? 'TOM')),
+                'rate_source' => $snapshotRate ? 'Recorded snapshot rate' : ($rate ? 'Teacher-specific' : ($globalRate ? 'Global default' : 'Not configured')),
+                'rate_version' => $snapshotRate ? (int)$snapshotRate->rate_version : ($rate ? (int)$rate->rate_version : null),
                 'base_minor' => (int)($earn->base_minor ?? 0),
                 'bonus_minor' => (int)($earn->bonus_minor ?? 0),
                 'earned_minor' => (int)($earn->earned_minor ?? 0),

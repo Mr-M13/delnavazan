@@ -1,12 +1,42 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
+use Delnavazan\Platform\Core\Application\CommercialPolicyService;
+use Delnavazan\Platform\Core\Application\CommercialRule;
 use Delnavazan\Platform\Core\Application\DiagnosticsService;
 
-/** Read-only general platform information; no settings or credentials are written here. */
+/** General platform identity plus academy scheduling rules that belong outside Finance. */
 final class GeneralSettingsController {
     public const MENU_SLUG = 'dzn-general';
     public const CAPABILITY = 'manage_options';
+    public const BOOKING_HORIZON_ACTION = 'dzn_general_booking_horizon';
+
+    public static function register(): void {
+        add_action('admin_post_' . self::BOOKING_HORIZON_ACTION, array(__CLASS__, 'handleBookingHorizon'));
+    }
+
+    public static function handleBookingHorizon(): void {
+        if (!current_user_can('dzn_manage_commercial_policies')) wp_die('Forbidden', 403);
+        check_admin_referer(self::BOOKING_HORIZON_ACTION);
+        $value = sanitize_text_field(wp_unslash((string) ($_POST['booking_horizon_value'] ?? '')));
+        $type = sanitize_key(wp_unslash((string) ($_POST['booking_horizon_type'] ?? 'weeks')));
+        $result = 'booking_horizon_saved';
+        try {
+            if ($value === '') throw new \InvalidArgumentException('booking_horizon_required');
+            $now = gmdate('Y-m-d H:i:s');
+            (new CommercialPolicyService())->set('INTRO_BOOKING_HORIZON', array(
+                'policy_value' => $value,
+                'value_type' => in_array($type, array('weeks', 'duration'), true) ? $type : 'weeks',
+                'evidence_channel' => 'authenticated_platform',
+                'evidence_reference' => 'general-settings:booking-horizon:' . $now,
+                'evidence_at' => $now,
+            ), 'general-settings-booking-horizon-' . $now . '-' . wp_generate_uuid4());
+        } catch (\Throwable $error) {
+            $result = 'booking_horizon_error';
+        }
+        wp_safe_redirect(add_query_arg(array('page' => self::MENU_SLUG, 'general_result' => $result), admin_url('admin.php')) . '#booking-horizon');
+        exit;
+    }
 
     public static function render(): void {
         if (!current_user_can(self::CAPABILITY)) wp_die('Forbidden', 403);
@@ -28,10 +58,36 @@ final class GeneralSettingsController {
             echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string) $value).'</td></tr>';
         }
         echo '</tbody></table>';
+        self::renderBookingHorizon();
         self::renderGoldenHourRules();
         self::renderLegalPages();
         echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-system-health')).'">Open system health</a> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-integrations')).'">Open integrations</a></p>';
         echo '</div>';
+    }
+
+    /** Academy scheduling rule, deliberately outside Finance. */
+    private static function renderBookingHorizon(): void {
+        $current = array('set' => false, 'value' => null, 'value_type' => 'weeks');
+        try {
+            if (current_user_can('dzn_view_commercial_authority')) $current = (new CommercialPolicyService())->current('INTRO_BOOKING_HORIZON');
+        } catch (\Throwable) {
+            $current = array('set' => false, 'value' => null, 'value_type' => 'weeks');
+        }
+        $result = isset($_GET['general_result']) ? sanitize_key(wp_unslash((string) $_GET['general_result'])) : '';
+        echo '<section id="booking-horizon"><h2>Booking horizon</h2>';
+        echo '<p>This is an academy scheduling rule, not a Finance setting. It controls how far ahead an introductory booking may be requested. Recording a new version never changes an existing booking.</p>';
+        if ($result === 'booking_horizon_saved') echo '<div class="notice notice-success inline"><p>The booking horizon was recorded as a new policy version.</p></div>';
+        if ($result === 'booking_horizon_error') echo '<div class="notice notice-error inline"><p>The booking horizon was not saved. Check the value and try again.</p></div>';
+        echo '<p><strong>Current:</strong> ' . ($current['set'] ? esc_html((string) $current['value']) . ' ' . esc_html((string) ($current['value_type'] ?? '')) : 'Unset') . '</p>';
+        if (current_user_can('dzn_manage_commercial_policies')) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form">';
+            wp_nonce_field(self::BOOKING_HORIZON_ACTION);
+            echo '<input type="hidden" name="action" value="' . esc_attr(self::BOOKING_HORIZON_ACTION) . '">';
+            echo '<label>Horizon value<input name="booking_horizon_value" inputmode="numeric" required value="' . esc_attr($current['set'] ? (string) $current['value'] : '') . '" placeholder="6"></label>';
+            echo '<label>Value type<select name="booking_horizon_type"><option value="weeks"' . selected((string) ($current['value_type'] ?? 'weeks'), 'weeks', false) . '>Weeks</option><option value="duration"' . selected((string) ($current['value_type'] ?? 'weeks'), 'duration', false) . '>Duration seconds</option></select></label>';
+            echo '<button class="button button-primary">Record booking horizon</button></form>';
+        }
+        echo '</section>';
     }
 
     /** Golden-hour definitions stay finance-owned; Settings is the discoverable configuration entry. */

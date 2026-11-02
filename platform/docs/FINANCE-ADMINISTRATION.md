@@ -1,7 +1,8 @@
 # Finance Administration
 
-**Status:** implementation candidate on `feat/finance-admin-redesign-20261026`.
-**Schema:** 51 / migrations `049_finance_administration`, `050_intro_payment_authority` and `051_teacher_rate_origin`.
+**Status:** implementation candidate on `feat/finance-administration-redesign-20261102`.
+**Schema:** no new migration on this branch; the existing finance/statement/cashbook tables are reused.
+**Clarity redesign:** see `FINANCE-CLARITY-REDESIGN-2026-11-02.md`, `FINANCE-REDESIGN-MAP-2026-11-02.md` and `FINANCE-STRIPE-REFUND-ASSESSMENT-2026-11-02.md`.
 
 ## 1. What administrators see
 
@@ -9,10 +10,10 @@ One **Finance** destination has exactly four tabs:
 
 | Tab | Purpose |
 | --- | --- |
-| **Payments** | Student checkout attempts, amount, student/course/offer context, checkout state, settled/refund evidence, provider-neutral reconciliation status, outstanding obligations, recent settlements, administrator-only manual refunds and refund-review cases, and two-instalment schedules with their stored outstanding balance. Checkout views are read-only; an authorised administrator can record an offline payment against one exact stored obligation. |
-| **Central Ledger** | Manual academy bookkeeping across the Australia (AUD) and Iran (TOM) accounts. Search, filters, pagination, signed amount, currency and statement reconciliation status. The view never invents a fee or a counterparty: the cashbook stores neither. This ledger is intentionally independent from Stripe, teacher rates and student pricing. |
-| **Teacher Statements** | Teacher selector, statement draft/issue/withdraw/supersede actions, monthly batch generation for every Teacher with work, branded email delivery, statement history, recorded preview, print/download and statement template settings with live sandboxed preview. |
-| **Settings** | Global regional student prices, free/paid introductory lessons, Toman teacher global default and per-Teacher overrides, Stripe setup/readiness, finance policies and commercial timing policies. |
+| **Student payments** | Sourced monthly summary, payments needing attention, searchable/sortable active-student payments with exact student/obligation detail, recent settlements, outstanding obligations, instalment schedules, discounts, an auditable student receipts report, administrator-only manual refunds/reviews, a Stripe-refund implementation assessment, and collapsed introductory payments. Checkout attempts are never presented as received money; an authorised administrator can record an offline payment against one exact stored obligation. |
+| **Teacher payments** | Searchable current/previous Persian-month teacher summary, Preview → Generate drafts → Review → Issue/publish → Send, separate teacher send and administrative staff summary, collapsible batch history, individual statement review, Persian-month draft-only scheduling, statement history, recorded preview, print/download and collapsed template/sample settings. |
+| **Manual ledger** | Manual academy bookkeeping across the Australia (AUD) and Iran (TOM) accounts. Search, filters, pagination, signed amount, currency and statement reconciliation status. The view never invents a fee or a counterparty: the cashbook stores neither. This ledger is intentionally independent from Stripe, student receipts, teacher payments, teacher rates and student pricing. |
+| **Settings** | Sourced finance summary, one validated regional-pricing form with shared introductory mode/effective date, compact Toman teacher global/per-Teacher rates, introductory teacher-payability, editable Iran golden-hour rows with coverage charts, finance/commercial policies, collapsed Stripe integration and a link to the booking horizon now owned by General Settings. |
 
 The old visible finance submenu entries are removed. Their protected direct routes remain registered
 for compatibility and for deep links from records, but ordinary configuration no longer requires

@@ -58,12 +58,19 @@ $contains($finance, array(
     'Outstanding payments',
     'name="payment_kind" value="standard"',
     'name="payment_kind" value="intro"',
-    'name="statement_operation" value="draft"',
+    'handleStatementWorkflow',
+    "add_action('admin_post_dzn_finance_statement_workflow'",
+    'workflow_operation" value="generate"',
+    'workflow_operation" value="issue"',
+    'workflow_operation" value="send"',
+    'TeacherStatementBatchWorkflowService',
+    'renderStatementWorkflow',
+    'renderStatementHistory',
     'name="statement_operation" value="issue"',
     'name="statement_operation" value="withdraw"',
     'name="statement_operation" value="supersede"',
     'statementTimezone',
-), 'Finance must expose guarded offline payment completion and the statement lifecycle');
+), 'Finance must expose guarded offline payment completion and the reviewed statement lifecycle');
 
 $contains($readService, array(
     'outstandingObligations',

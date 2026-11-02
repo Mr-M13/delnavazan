@@ -127,6 +127,91 @@ final class RegionalPricingService {
     }
 
     /**
+     * Validate one whole regional-pricing form before anything is written.
+     *
+     * The shared introductory mode and effective date apply to every region. A changed region is
+     * previewed exactly as it would resolve after saving; an unchanged region is reported as
+     * unchanged. Historical rows are never mutated by this validation.
+     *
+     * @param array{introductory_mode?:string,effective_from?:string,regions?:array<string,array{standard_price?:string,introductory_price?:string}>} $input
+     * @return array{effective_from:string,introductory_mode:string,rows:list<array<string,mixed>>,changed:int}
+     */
+    public function previewBundle(array $input): array {
+        if (!current_user_can(self::MANAGE_CAPABILITY) && !current_user_can('manage_options')) throw new \RuntimeException('Unauthorized');
+        $mode = (string)($input['introductory_mode'] ?? RegionalPricingRule::INTRO_FREE);
+        if (!in_array($mode, array(RegionalPricingRule::INTRO_FREE, RegionalPricingRule::INTRO_PAID), true)) {
+            throw new \InvalidArgumentException('introductory_mode_invalid');
+        }
+        $effectiveFrom = trim((string)($input['effective_from'] ?? ''));
+        if ($effectiveFrom === '') $effectiveFrom = gmdate('Y-m-d H:i:s');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $effectiveFrom) || $effectiveFrom > gmdate('Y-m-d H:i:s')) {
+            throw new \InvalidArgumentException('invalid_effective_from');
+        }
+        $active = array();
+        foreach ($this->activeAll() as $row) $active[$row['region_code']] = $row;
+        $rows = array();
+        $changed = 0;
+        foreach (RegionalPricingRule::REGIONS as $code => $currency) {
+            $provided = (array)($input['regions'][$code] ?? array());
+            $standard = trim((string)($provided['standard_price'] ?? ''));
+            $intro = trim((string)($provided['introductory_price'] ?? ''));
+            $current = $active[$code] ?? null;
+            if ($current !== null && $effectiveFrom < (string)$current['effective_from']) throw new \InvalidArgumentException('invalid_effective_from');
+            if ($standard === '' && $current === null) continue;
+            if ($standard === '') $standard = PricingMoney::fromMinor((int)$current['standard_amount_minor'], $currency);
+            $data = RegionalPricingRule::standardPrice(array(
+                'region_code' => $code,
+                'currency' => $currency,
+                'standard_price' => $standard,
+                'introductory_mode' => $mode,
+                'introductory_price' => $mode === RegionalPricingRule::INTRO_PAID ? $intro : '',
+            ));
+            $same = $current !== null
+                && (int)$current['standard_amount_minor'] === (int)$data['standard_amount_minor']
+                && (string)$current['introductory_mode'] === (string)$data['introductory_mode']
+                && (int)($current['introductory_amount_minor'] ?? 0) === (int)($data['introductory_amount_minor'] ?? 0);
+            if (!$same) $changed++;
+            $rows[] = array(
+                'region_code' => $code,
+                'currency' => $currency,
+                'label' => RegionalPricingRule::REGION_LABELS[$code] ?? array('fa' => $code, 'en' => $code),
+                'standard_amount_minor' => (int)$data['standard_amount_minor'],
+                'standard_display' => PricingMoney::format((int)$data['standard_amount_minor'], $currency),
+                'introductory_mode' => (string)$data['introductory_mode'],
+                'introductory_amount_minor' => $data['introductory_amount_minor'] === null ? null : (int)$data['introductory_amount_minor'],
+                'introductory_display' => $data['introductory_amount_minor'] === null ? 'Free' : PricingMoney::format((int)$data['introductory_amount_minor'], $currency),
+                'changed' => !$same,
+                'current_standard_display' => $current ? PricingMoney::format((int)$current['standard_amount_minor'], $currency) : 'Not configured',
+            );
+        }
+        if ($rows === array()) throw new \InvalidArgumentException('regional_price_required');
+        return array('effective_from' => $effectiveFrom, 'introductory_mode' => $mode, 'rows' => $rows, 'changed' => $changed);
+    }
+
+    /**
+     * Save the whole validated form. All rows are validated first; the existing per-region writer
+     * remains the only writer and preserves effective-dated history and historical offers.
+     *
+     * @return array{effective_from:string,introductory_mode:string,saved:int,rows:list<array<string,mixed>>}
+     */
+    public function saveBundle(array $input): array {
+        $preview = $this->previewBundle($input);
+        $saved = 0;
+        foreach ($preview['rows'] as $row) {
+            $this->saveRegion(array(
+                'region_code' => $row['region_code'],
+                'currency' => $row['currency'],
+                'standard_price' => PricingMoney::fromMinor((int)$row['standard_amount_minor'], (string)$row['currency']),
+                'introductory_mode' => $preview['introductory_mode'],
+                'introductory_price' => $row['introductory_amount_minor'] === null ? '' : PricingMoney::fromMinor((int)$row['introductory_amount_minor'], (string)$row['currency']),
+                'effective_from' => $preview['effective_from'],
+            ));
+            $saved++;
+        }
+        return array('effective_from' => $preview['effective_from'], 'introductory_mode' => $preview['introductory_mode'], 'saved' => $saved, 'rows' => $preview['rows']);
+    }
+
+    /**
      * Explicit conflict report. Conflicting old per-course prices are never silently collapsed.
      *
      * @return list<array<string,mixed>>

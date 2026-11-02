@@ -282,6 +282,83 @@ final class TeacherStatementService {
         ksort($active,SORT_NUMERIC);sort($archived,SORT_NUMERIC);
         return array('active'=>$active,'archived'=>$archived);
     }
+    /**
+     * Read-only preview of one Teacher's period before drafting.
+     *
+     * This reuses the same canonical period set, effective snapshot, payability evaluation and
+     * golden-hour amount as `draft()`. It never writes a statement and never hides a missing fact:
+     * each unresolved Lesson is reported in `missing` so the administrator can fix it first.
+     *
+     * @return array<string,mixed>
+     */
+    public function previewPeriod(int $teacherId,string $startUtc,string $endUtc):array{
+        // Read-only preview. The caller (batch service) owns the view capability; no statement
+        // or financial fact is written here.
+        $set=$this->periodLessons($teacherId,$startUtc,$endUtc);
+        $out=array(
+            'teacher_id'=>$teacherId,'period_start_utc'=>$startUtc,'period_end_utc'=>$endUtc,
+            'active_lessons'=>count($set['active']),'archived_lessons'=>count($set['archived']),
+            'payable_lessons'=>0,'non_payable_lessons'=>0,'pending_lessons'=>0,
+            'payable_amount_minor'=>0,'base_amount_minor'=>0,'bonus_minor'=>0,'currency'=>null,
+            'rates'=>array(),'missing'=>array(),'lines'=>array(),
+        );
+        foreach($set['active'] as $lessonId=>$context){
+            $lessonId=(int)$lessonId;
+            try{
+                if(!$context['finalised']){
+                    $out['missing'][$lessonId]='lesson_not_finalised_in_period';
+                    continue;
+                }
+                $effective=FinanceSnapshotIntegrity::effective($lessonId,$this->snapshots);
+                $evaluation=FinancePayabilityIntegrity::effective($lessonId,$this->evaluations,$this->snapshots);
+                if(!$evaluation){
+                    $out['missing'][$lessonId]='payability_pending';
+                    $out['pending_lessons']++;
+                    continue;
+                }
+                $disposition=(string)$evaluation->disposition;
+                $currency=(string)$effective['currency'];
+                if($out['currency']===null)$out['currency']=$currency;
+                elseif($out['currency']!==$currency){$out['missing'][$lessonId]='statement_currency_mismatch';continue;}
+                $rateKey=(int)$effective['rate_id'].':'.(int)$effective['rate_version'];
+                if(!isset($out['rates'][$rateKey]))$out['rates'][$rateKey]=array('rate_id'=>(int)$effective['rate_id'],'rate_version'=>(int)$effective['rate_version'],'amount_minor'=>(int)$effective['amount_minor'],'currency'=>$currency,'scope_kind'=>(string)$effective['scope_kind'],'compensation_basis'=>(string)$effective['compensation_basis'],'lessons'=>0);
+                $out['rates'][$rateKey]['lessons']++;
+                $base=(int)$effective['amount_minor'];
+                $amount=0;
+                if($disposition==='payable'){
+                    $amount=$this->payableAmount($lessonId,$base,$currency,(int)$effective['snapshot']->id,$effective['correction']===null?0:(int)$effective['correction']->id);
+                    $out['payable_lessons']++;
+                    $out['payable_amount_minor']+=$amount;
+                    $out['base_amount_minor']+=$base;
+                    $out['bonus_minor']+=max(0,$amount-$base);
+                }elseif($disposition==='pending'){
+                    $out['pending_lessons']++;
+                    $out['missing'][$lessonId]='payability_pending';
+                }else{
+                    $out['non_payable_lessons']++;
+                }
+                $out['lines'][]=array(
+                    'lesson_id'=>$lessonId,
+                    'occurrence_starts_at_utc'=>(string)$context['occurrence_starts_at_utc'],
+                    'duration_minutes'=>(int)$context['duration_minutes'],
+                    'disposition'=>$disposition,
+                    'basis_code'=>(string)$evaluation->basis_code,
+                    'rate_id'=>(int)$effective['rate_id'],
+                    'rate_version'=>(int)$effective['rate_version'],
+                    'base_amount_minor'=>$base,
+                    'bonus_minor'=>max(0,$amount-$base),
+                    'amount_minor'=>$amount,
+                    'currency'=>$currency,
+                );
+            }catch(\Throwable $error){
+                $refusal=FinanceSupport::refusalFrom($error);
+                $out['missing'][$lessonId]=trim((string)$refusal->getMessage())!==''?trim((string)$refusal->getMessage()):'payability_pending';
+            }
+        }
+        $out['rates']=array_values($out['rates']);
+        return $out;
+    }
+
     /** Hydrate one Lesson context and require it to be finalised (a drafting/issuance requirement). */
     private function contextOf(int $lessonId):array{
         $context=$this->hydrate($lessonId);

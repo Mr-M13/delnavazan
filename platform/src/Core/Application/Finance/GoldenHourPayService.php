@@ -258,20 +258,38 @@ final class GoldenHourPayService {
             'review_reason' => null,
         );
         if (empty($policy['enabled'])) return $resolved;
-        if ((int) $policy['bonus_basis_points'] <= 0) {
+        $rules = is_array($policy['rules'] ?? null) ? array_values($policy['rules']) : array();
+        $maxBonus = (int) $policy['bonus_basis_points'];
+        foreach ($rules as $rule) $maxBonus = max($maxBonus, (int) ($rule['bonus_basis_points'] ?? 0));
+        if ($maxBonus <= 0) {
             $resolved['outcome'] = GoldenHourRule::OUTCOME_ZERO;
             return $resolved;
         }
         $windows = array();
-        foreach ((array) ($policy['periods'] ?? array()) as $period) {
-            $windows[] = array(
-                'source' => GoldenHourRule::GLOBAL_IRAN_KEY,
-                'timezone' => (string) $policy['timezone'],
-                'weekdays' => array_values(array_map('intval', (array) $policy['weekdays'])),
-                'start' => (string) $period['start'],
-                'end' => (string) $period['end'],
-                'bonus_basis_points' => (int) $policy['bonus_basis_points'],
-            );
+        if ($rules !== array()) {
+            foreach ($rules as $rule) {
+                if ((string) ($rule['effective_from'] ?? '') > $occurrence) continue;
+                if ((int) ($rule['bonus_basis_points'] ?? 0) <= 0) continue;
+                $windows[] = array(
+                    'source' => GoldenHourRule::GLOBAL_IRAN_KEY,
+                    'timezone' => (string) $policy['timezone'],
+                    'weekdays' => array_values(array_map('intval', (array) ($rule['weekdays'] ?? array()))),
+                    'start' => (string) ($rule['start'] ?? ''),
+                    'end' => (string) ($rule['end'] ?? ''),
+                    'bonus_basis_points' => (int) $rule['bonus_basis_points'],
+                );
+            }
+        } else {
+            foreach ((array) ($policy['periods'] ?? array()) as $period) {
+                $windows[] = array(
+                    'source' => GoldenHourRule::GLOBAL_IRAN_KEY,
+                    'timezone' => (string) $policy['timezone'],
+                    'weekdays' => array_values(array_map('intval', (array) $policy['weekdays'])),
+                    'start' => (string) $period['start'],
+                    'end' => (string) $period['end'],
+                    'bonus_basis_points' => (int) $policy['bonus_basis_points'],
+                );
+            }
         }
         $resolved['window_definitions'] = $windows;
         if ($windows === array()) {

@@ -222,9 +222,12 @@ final class CoordinationWorkspaceView {
         }
         if (!empty($request['confirmed'])) {
             $confirmed = $request['confirmed'];
-            echo '<div class="dzn-confirmed-booking"><h3>Confirmed introductory booking</h3><p><strong>' . esc_html((string) $confirmed['label']) . '</strong> · ' . esc_html((string) $confirmed['teacher_name']) . '</p><p>' . esc_html((string) $confirmed['state_label']) . ' · provider ' . esc_html((string) ($confirmed['provider_code'] ?: 'not recorded')) . '</p></div>';
+            echo '<div class="dzn-confirmed-booking"><h3>Confirmed introductory booking</h3><p><strong>' . esc_html((string) $confirmed['label']) . '</strong> · ' . esc_html((string) $confirmed['teacher_name']) . '</p><p>' . esc_html((string) $confirmed['state_label']) . ' · provider ' . esc_html((string) ($confirmed['provider_code'] ?: 'not recorded')) . '</p>';
+            if ((string) ($confirmed['state'] ?? '') === 'confirmed' && current_user_can(\Delnavazan\Platform\Core\Application\ConfirmedIntroBookingCancellationService::CAPABILITY)) self::cancelConfirmedIntroForm($detail, $confirmed);
+            elseif ((string) ($confirmed['state'] ?? '') === 'cancelled') echo '<p class="dzn-inline-note"><strong>Cancelled.</strong> Retraction and the Student notice are recorded; history is retained.</p>';
+            echo '</div>';
         }
-        echo '<p class="dzn-inline-note"><strong>Supported edit boundary:</strong> the current domain authority has no administrator command to rewrite a submitted request’s preferred times or cancel the request itself. The dashboard does not simulate either. Use a new learner-confirmed request, or close the coordination case with an explicit reason.</p>';
+        echo '<p class="dzn-inline-note"><strong>Supported edit boundary:</strong> submitted preferred times are never rewritten. A confirmed introductory booking can now be cancelled through the audited cancellation authority above; a new request remains the normal rebooking path.</p>';
         echo '</section>';
     }
 
@@ -619,7 +622,7 @@ final class CoordinationWorkspaceView {
             echo '</ul>';
         }
         echo '</div></div>';
-        echo '<div class="dzn-inline-note"><strong>Unsupported in-place changes:</strong> the current authority has no administrator edit command for submitted request preferences, no confirmed-intro reschedule command, and no booking-request cancellation command. The dashboard does not simulate them. Class rescheduling after conversion lives in the canonical schedule authority.</div>';
+        echo '<div class="dzn-inline-note"><strong>Unsupported in-place changes:</strong> submitted request preferences and confirmed-intro rescheduling remain unsupported in this workspace. Confirmed booking cancellation uses the dedicated audited authority above. The dashboard does not simulate them. Class rescheduling after conversion lives in the canonical schedule authority.</div>';
         echo '</section>';
     }
 
@@ -720,6 +723,16 @@ final class CoordinationWorkspaceView {
             echo '</ul>';
         }
         echo '</div></details>';
+    }
+
+    /** @param array<string,mixed> $detail @param array<string,mixed> $confirmed */
+    private static function cancelConfirmedIntroForm(array $detail, array $confirmed): void {
+        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel confirmed introductory booking</strong><br><small>Records immutable evidence, queues provider retraction and one Student notice.</small></summary><div class="dzn-action-panel__body">';
+        self::formStart($detail, 'cancel_confirmed_intro', array('confirmation_uid' => (string) ($confirmed['confirmation_uid'] ?? '')));
+        echo '<label class="dzn-field"><span>Cancellation reason</span><select name="reason_code" required><option value="">Choose a reason</option><option value="duplicate_request">Duplicate request</option><option value="student_request">Student requested cancellation</option><option value="teacher_unavailable">Teacher unavailable</option><option value="academy_cancelled">Academy cancelled</option><option value="operator_correction">Operator correction</option></select></label>';
+        echo '<label class="dzn-field"><span>Evidence / operator reference</span><input type="text" name="evidence_reference" maxlength="191" required></label>';
+        echo '<button class="button" onclick="return confirm(\'Cancel this confirmed introductory booking? Audit history remains and the provider event is retracted asynchronously.\')">Cancel confirmed booking</button></form>';
+        echo '<p class="dzn-field-help">The confirmation, delivery and request are moved to cancelled state together. The retained duplicate, Student history and financial facts are not edited.</p></div></details>';
     }
 
     /** @param array<string,mixed> $detail @param array<string,mixed> $hidden */

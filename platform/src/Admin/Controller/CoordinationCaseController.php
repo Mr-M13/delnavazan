@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Admin\Controller;
 use Delnavazan\Platform\Admin\View\CoordinationWorkspaceView;
 use Delnavazan\Platform\Core\Application\BookingRequestMatchAssessmentService;
 use Delnavazan\Platform\Core\Application\CoordinationCapabilities;
+use Delnavazan\Platform\Core\Application\ConfirmedIntroBookingCancellationService;
 use Delnavazan\Platform\Core\Application\CoordinationCaseService;
 use Delnavazan\Platform\Core\Application\CoordinationWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\EnrolmentConversionService;
@@ -244,6 +245,17 @@ final class CoordinationCaseController {
                 $notificationId = self::id($raw['notification_id'] ?? null);
                 $result = (new NotificationManualDeliveryService())->retry($notificationId, 'coordination-retry:' . $notificationId . ':' . wp_generate_uuid4());
                 return $result['replayed'] ? 'That exact notification retry was already recorded; it remains queued.' : 'The exact eligible notification was queued for one retry. Provider acceptance and delivery remain separate states.';
+            case 'cancel_confirmed_intro':
+                self::requireCap(ConfirmedIntroBookingCancellationService::CAPABILITY);
+                $result = (new ConfirmedIntroBookingCancellationService())->cancel(
+                    self::text($raw['confirmation_uid'] ?? ''),
+                    self::key($raw['reason_code'] ?? ''),
+                    self::text($raw['evidence_reference'] ?? ''),
+                    'coordination-cancel:' . $caseId . ':' . wp_generate_uuid4()
+                );
+                return !empty($result['idempotent'])
+                    ? 'This confirmed introductory booking was already cancelled; no duplicate cancellation or retraction job was created.'
+                    : 'Confirmed introductory booking cancelled. Provider retraction and the student notice are queued; history is retained.';
             case 'record_manual_payment':
                 self::requireCap('dzn_manage_payment_execution');
                 $obligationUid = self::text($raw['obligation_uid'] ?? '');

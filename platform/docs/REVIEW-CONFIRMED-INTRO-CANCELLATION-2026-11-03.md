@@ -70,8 +70,8 @@ vaults:
 
 ## Dashboard control
 
-The Booking Coordination case screen now renders a capability-gated cancellation panel for a
-confirmed introductory booking that has no recorded outcome. It requires a controlled reason and an
+Both the Booking Coordination case screen and the redesigned Coordination Command Centre now render
+a capability-gated cancellation panel for a confirmed introductory booking that has no recorded outcome. It requires a controlled reason and an
 operator evidence reference, shows a destructive confirmation, and submits through the existing
 `EnrolmentWorkspaceController` admin-post/nonce boundary with a generated idempotency key.
 

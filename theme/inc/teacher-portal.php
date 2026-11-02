@@ -25,7 +25,7 @@ add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 
 
 function dzn_theme_teacher_portal_view_model( $screen ) {
 	$allowed = array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' );
-	$screen = in_array( $screen, $allowed, true ) ? $screen : 'home';
+	$screen = in_array( $screen, $allowed, true ) ? $screen : 'classes';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
 	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
 		return $model;
@@ -80,17 +80,21 @@ function dzn_theme_teacher_portal_teacher_valid( $teacher ) {
 	return is_array( $teacher ) && dzn_theme_teacher_portal_text( $teacher['first_name'] ?? null ) && dzn_theme_teacher_portal_text( $teacher['full_name'] ?? null );
 }
 function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
-	if ( ! is_array( $navigation ) || count( $navigation ) !== 4 ) { return false; }
+	// The Today destination is retired from the product navigation. A four-item model with a
+	// legacy `home` entry is still accepted for older bookmarks and the induction preview.
+	if ( ! is_array( $navigation ) || ! in_array( count( $navigation ), array( 3, 4 ), true ) ) { return false; }
 	$current = 0;
 	$seen = array();
+	$allowed = array( 'classes', 'finance', 'settings', 'home' );
 	foreach ( $navigation as $item ) {
 		if ( ! is_array( $item ) ) { return false; }
 		$item_screen = $item['screen'] ?? null;
-		if ( ! in_array( $item_screen, array( 'home', 'classes', 'finance', 'settings' ), true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
+		if ( ! in_array( $item_screen, $allowed, true ) || isset( $seen[ $item_screen ] ) || ! dzn_theme_teacher_portal_text( $item['label'] ?? null ) || ! dzn_theme_teacher_portal_text( $item['url'] ?? null ) || ! is_bool( $item['current'] ?? null ) ) { return false; }
 		$seen[ $item_screen ] = true;
 		if ( $item['current'] ) { ++$current; if ( $item_screen !== $screen ) { return false; } }
 	}
-	return 0 === $current || ( 1 === $current && count( $seen ) === 4 );
+	if ( array_diff( array( 'classes', 'finance', 'settings' ), array_keys( $seen ) ) ) { return false; }
+	return 0 === $current || ( 1 === $current && count( $seen ) === count( $navigation ) );
 }
 function dzn_theme_teacher_portal_profile_valid( $profile ) {
 	if ( ! is_array( $profile ) ) { return false; }
@@ -137,7 +141,6 @@ function dzn_theme_teacher_portal_preview_allowed() {
 }
 function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 	$nav = array(
-		array( 'screen' => 'home', 'label' => 'امروز', 'url' => add_query_arg( 'teacher-view', 'home', $url ), 'current' => 'home' === $screen ),
 		array( 'screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => add_query_arg( 'teacher-view', 'classes', $url ), 'current' => 'classes' === $screen ),
 		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $url ), 'current' => 'finance' === $screen ),
 		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $url ), 'current' => 'settings' === $screen ),

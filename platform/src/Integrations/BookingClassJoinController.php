@@ -20,7 +20,7 @@ final class BookingClassJoinController {
         } catch (\Throwable) {
             $path = $role === 'teacher' ? '/teacher-portal/' : '/student-portal/';
             $query = $role === 'teacher'
-                ? array('teacher-view' => 'home', 'class_status' => 'join_unavailable')
+                ? array('teacher-view' => 'classes', 'class_status' => 'join_unavailable')
                 : array('join_status' => 'join_unavailable');
             wp_safe_redirect(add_query_arg($query, home_url($path)));
             exit;

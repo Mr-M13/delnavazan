@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestIntakeRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 final class BookingRequestSubmissionService {
@@ -32,8 +33,15 @@ final class BookingRequestSubmissionService {
             $this->repo->assignReference( $id, $reference ); $digests = array('email_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['email']),'mobile_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['mobile']),'whatsapp_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['whatsapp_number'])); $this->repo->createSnapshot( $id, $data['contact'], $now, $digests );
             $persistedTimes=array();foreach ( $data['times'] as $sequence => $time ){$timeId=$this->repo->createTime( $id, $sequence + 1, $time, $now );$persistedTimes[]=array('id'=>$timeId,'sequence'=>$sequence+1,'starts_at_utc'=>$time['starts_at_utc'],'occupied_ends_at_utc'=>$time['occupied_ends_at_utc']);}
             // Delivery is a pending Teacher inbox request only. No lesson, reservation,
-            // confirmation, email, Calendar event or Meet space is created at intake.
-            if($data['course_id']) (new BookingTeacherDeliveryService())->deliver($id,(int)$data['course_id'],$persistedTimes,$now);
+            // confirmation, Calendar event or Meet space is created at intake.  Notification
+            // jobs are persisted here but handed off later by their leased worker.
+            if($data['course_id']) {
+                $delivery=(new BookingTeacherDeliveryService())->deliver($id,(int)$data['course_id'],$persistedTimes,$now);
+                // A matched request has two operational recipients.  Keep both notices in the
+                // existing leased booking queue so a mail failure cannot lose the request or
+                // make the public submission depend on an external transport.
+                if($delivery!==null)(new BookingTeacherResponseRepository())->queueRequestedNotifications((int)$delivery['delivery_id'],$now);
+            }
             foreach($this->intake->matchingContactRequests($digests,$id) as $match)$this->intake->createDuplicateFlag($id,$match['candidate_id'],$match['type'],$match['digest'],$now);
             $this->intake->completeSubmissionKey((int)$operation->id,$id,$reference,$now); return array( 'success' => true, 'request_reference' => $reference, 'request_id' => $id, 'replayed' => false );
     }

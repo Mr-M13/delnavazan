@@ -2,7 +2,6 @@
 namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
-use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
@@ -24,24 +23,34 @@ final class BookingStudentNotificationWorker {
             $stale=$state==='sending'&&$row->lease_expires_at!==null&&strtotime((string)$row->lease_expires_at.' UTC')<=time();
             $due=in_array($state,array('queued','retryable'),true)&&($row->next_attempt_at===null||strtotime((string)$row->next_attempt_at.' UTC')<=time());
             if(!$due&&!$stale)throw new \InvalidArgumentException('Booking notification is not dispatchable');
-            if(!is_email((string)$row->email)){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
+            if(!is_email(self::recipientEmail($row))){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             if($stale&&(int)$row->attempt_count>=self::MAX_ATTEMPTS){$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'handoff_outcome_unknown','updated_at'=>$now),(string)$row->lease_token_digest);$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
             $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
         }catch(\Throwable $error){$repository->rollback();throw $error;}
+        $mobile=array('state'=>'skipped','reason'=>'not_attempted');
         try{
-            [$subject,$body,$variables]=self::message($row,$repository);
+            [$subject,$body,$variables]=self::message($row);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
+            if((string)$row->notification_kind==='requested_student')$eventKey='booking.requested.student';
+            if((string)$row->notification_kind==='requested_teacher')$eventKey='booking.new.teacher';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
-                self::recordInbox($row,$eventKey,$variables);
             }
-            $accepted=class_exists(DelnavazanEmailRenderer::class)
-                ?DelnavazanEmailRenderer::send((string)$row->email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>'رفتن به پرتال هنرجو')),self::headers($row))
-                :wp_mail((string)$row->email,$copy['subject'],$copy['body'],self::headers($row));
+            // The portal is an independent first-party notice.  A missing or invalid editable
+            // email template must not hide the operational booking alert from the Teacher.
+            self::recordInbox($row,$eventKey,$variables);
+            try{
+                $accepted=class_exists(DelnavazanEmailRenderer::class)
+                    ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
+                    :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
+            }catch(\Throwable){$accepted=false;}
+            // WhatsApp is the mobile primary.  It is coordinated with the same leased booking
+            // notification so an email retry cannot duplicate an accepted provider hand-off.
+            $mobile=self::mobile($row,$eventKey,$variables);
         }catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{
@@ -50,15 +59,26 @@ final class BookingStudentNotificationWorker {
             if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>null),$leaseDigest);}
             elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
             else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
-            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false);
+            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false,'mobile'=>$mobile);
         }catch(\Throwable $error){$repository->rollback();throw $error;}
     }
 
     /** The student inbox is recorded even when the mail transport refuses the hand-off. */
     private static function recordInbox(object $row,string $eventKey,array $variables):void{
+        if(!class_exists(PortalNotificationRecorder::class))return;
+        if((string)$row->notification_kind==='requested_teacher'){
+            PortalNotificationRecorder::teacher((int)$row->teacher_id,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['teacher_portal_url']??''));
+            return;
+        }
         $studentId=(int)($row->student_id??0);
-        if($studentId<1||!class_exists(PortalNotificationRecorder::class))return;
-        PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+        if($studentId>0)PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+    }
+
+    /** Mobile is fail-soft: it can never roll back the durable booking or the email hand-off. */
+    private static function mobile(object $row,string $eventKey,array $variables):array{
+        if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
+        try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
+        catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
     }
 
     private static function headers(object $row):array{
@@ -68,17 +88,63 @@ final class BookingStudentNotificationWorker {
         return array('Content-Type: text/plain; charset=UTF-8','Message-ID: <'.$identity.'>','X-Delnavazan-Notification-ID: '.(string)$row->uid);
     }
 
-    private static function message(object $row,BookingTeacherResponseRepository $repository):array{
+    private static function recipientEmail(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?($row->teacher_email??''):($row->student_email??$row->email??''));}
+    private static function portalLabel(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
+
+    private static function message(object $row):array{
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
-        $portal=home_url('/student-portal/');
-        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal);
-        if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your Student Portal: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
-        if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your Student Portal.\n\nOpen your Student Portal: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);
-        if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal: {$portal}\n\nDelnavazan",$base);
-        if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no Calendar event or Meet link was created.\n\nDelnavazan",$base);
+        $portal=home_url('/student-portal/');$teacherPortal=home_url('/teacher-portal/');
+        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal,'teacher_portal_url'=>$teacherPortal,'student'=>$name);
+        if((string)$row->notification_kind==='requested_student'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('Delnavazan booking request received',"Hello {$name},\n\nYour introductory {$course} lesson request for {$when} was received. We will send the final class details after the Teacher confirms.\n\nOpen your account: {$portal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='requested_teacher'){
+            $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
+            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your account.\n\nOpen your account: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your account.\n\nOpen your account: {$portal}\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no calendar event was created.\n\nDelnavazan",$base);
         if((string)$row->notification_kind!=='confirmed'||(int)$row->confirmation_record_id<1)throw new \RuntimeException('Booking confirmation notification incomplete');
-        $secret=$repository->projectionSecret((int)$row->confirmation_record_id);if(!$secret)throw new \RuntimeException('provider_reference_required');$refs=(new ProviderReferenceVault())->open('booking_calendar',(int)$row->confirmation_record_id,$secret);$join=trim((string)($refs['join_uri_reference']??''));if($join==='')throw new \RuntimeException('provider_reference_required');
-        $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;$zone=new \DateTimeZone($timezone);$start=(new \DateTimeImmutable((string)$row->starts_at_utc,new \DateTimeZone('UTC')))->setTimezone($zone);$end=(new \DateTimeImmutable((string)$row->ends_at_utc,new \DateTimeZone('UTC')))->setTimezone($zone);$when=$start->format('l j F Y, H:i').'–'.$end->format('H:i').' '.$timezone;
-        return array('Your Delnavazan lesson is confirmed',"Hello {$name},\n\nYour introductory {$course} lesson with {$teacher} is confirmed.\n\nTime: {$when}\nGoogle Meet: {$join}\n\nThe Calendar event and Meet link were created before this confirmation was issued.\n\nDelnavazan",$base+array('when'=>$when,'join_url'=>$join));
+        $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+        $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+        return array('دلنوازان · کلاس معارفه شما تأیید شد',"درود {$name}،\n\nکلاس معارفهٔ «{$course}» با {$teacher} تأیید شد.\n\nزمان کلاس: {$when}\n\nاین کلاس در محیط کلاس آنلاین دلنوازان برگزار می‌شود. کمی پیش از زمان کلاس وارد حساب کاربری خود شوید و کلاس را از همان‌جا آغاز کنید. دسترسی کلاس را در اختیار دیگران قرار ندهید.\n\nبرای دیدن برنامهٔ کلاس‌ها وارد حساب کاربری خود شوید:\n{$portal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));
+    }
+
+    /**
+     * The recipient's explicit calendar preference wins. `auto` (or an older blank value) follows
+     * the recipient's language: Persian readers see the Persian calendar and everyone else Gregorian.
+     */
+    private static function calendarPreference(object $row):string{
+        $preference=strtolower(trim((string)($row->student_calendar??'')));
+        if(in_array($preference,array('persian','gregorian'),true))return $preference;
+        $locale=trim((string)($row->student_locale??''));
+        if($locale==='')$locale=trim((string)($row->student_language??''));
+        return str_starts_with(strtolower($locale),'fa')?'persian':'gregorian';
+    }
+
+    private static function formatWhen(string $startsAtUtc,string $endsAtUtc,string $timezone,string $calendar):string{
+        try{$zone=new \DateTimeZone($timezone);}catch(\Throwable){$zone=new \DateTimeZone('UTC');$timezone='UTC';}
+        try{
+            $start=(new \DateTimeImmutable($startsAtUtc,new \DateTimeZone('UTC')))->setTimezone($zone);
+            $end=(new \DateTimeImmutable($endsAtUtc,new \DateTimeZone('UTC')))->setTimezone($zone);
+        }catch(\Throwable){return trim($startsAtUtc.' '.$timezone);}
+        if($calendar==='persian'&&class_exists('IntlCalendar')){
+            try{
+                $persian=\IntlCalendar::createInstance($zone,'@calendar=persian');
+                $persian->setTime($start->getTimestamp()*1000);
+                $months=array(1=>'فروردین',2=>'اردیبهشت',3=>'خرداد',4=>'تیر',5=>'مرداد',6=>'شهریور',7=>'مهر',8=>'آبان',9=>'آذر',10=>'دی',11=>'بهمن',12=>'اسفند');
+                $weekdays=array(1=>'یکشنبه',2=>'دوشنبه',3=>'سه‌شنبه',4=>'چهارشنبه',5=>'پنجشنبه',6=>'جمعه',7=>'شنبه');
+                $digits=static fn($value):string=>strtr((string)$value,array('0'=>'۰','1'=>'۱','2'=>'۲','3'=>'۳','4'=>'۴','5'=>'۵','6'=>'۶','7'=>'۷','8'=>'۸','9'=>'۹'));
+                $month=(int)$persian->get(\IntlCalendar::FIELD_MONTH)+1;
+                $weekday=(int)$persian->get(\IntlCalendar::FIELD_DAY_OF_WEEK);
+                return ($weekdays[$weekday]??'').' '.$digits((int)$persian->get(\IntlCalendar::FIELD_DAY_OF_MONTH)).' '.($months[$month]??'').' '.$digits((int)$persian->get(\IntlCalendar::FIELD_YEAR)).'، ساعت '.$digits($start->format('H:i')).' تا '.$digits($end->format('H:i')).' به وقت '.$timezone;
+            }catch(\Throwable){}
+        }
+        return $start->format('l j F Y, H:i').'–'.$end->format('H:i').' '.$timezone;
     }
 }

@@ -519,6 +519,44 @@
   font-size: 1rem;
 }
 
+.dzn-tp-class-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem;
+  margin: 0 0 .65rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .7rem;
+  background: var(--dzn-color-surface-sunken);
+}
+
+.dzn-tp-class-filter label {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--dzn-color-text-secondary);
+}
+
+.dzn-tp-class-filter select {
+  min-block-size: 2.3rem;
+  max-inline-size: 100%;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
+  padding: .35rem .55rem;
+  font: inherit;
+}
+
+.dzn-tp-class-filter__status {
+  color: var(--dzn-color-text-secondary);
+  font-size: .8rem;
+}
+
+.dzn-tp-class-filter__empty {
+  margin-block: .5rem 0;
+}
+
 .dzn-tp-class-list {
   display: grid;
   gap: .55rem;
@@ -1845,7 +1883,7 @@
 
   .dzn-tp-tabs ul {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     min-inline-size: 0;
     margin: 0;
     padding: .25rem;

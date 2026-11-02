@@ -5,6 +5,7 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
 use Delnavazan\Platform\Integrations\TelnyxWhatsAppAdapter;
+use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 
 /**
  * Deployment composition for the two Telnyx transports.
@@ -19,6 +20,9 @@ final class NotificationProviderBindings {
         $settings??=new IntegrationSettingsService();
         $configuration=new TelnyxConfiguration($settings);
         $bindings=array();
+        if(function_exists('apply_filters')&&(bool)apply_filters('dzn_notification_email_transport_configured',false)){
+            $bindings[]=array('channel'=>'email','configured'=>true,'port'=>new WordPressEmailTransport(array(__CLASS__,'sendEmail')));
+        }
         if($configuration->smsReady()){
             $adapter=new TelnyxSmsAdapter($settings);
             $bindings[]=array('channel'=>'sms','configured'=>true,'port'=>new SmsTransport(array($adapter,'send')));
@@ -28,6 +32,14 @@ final class NotificationProviderBindings {
             $bindings[]=array('channel'=>'whatsapp','configured'=>true,'port'=>new WhatsAppTransport(array($adapter,'send')));
         }
         return $bindings;
+    }
+    /** The generic runtime reports only WordPress-mail hand-off, never mailbox delivery. */
+    public static function sendEmail(array $command):array{
+        $to=trim((string)($command['to']??''));$subject=trim((string)($command['subject']??''));$body=(string)($command['body']??'');
+        if(!is_email($to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
+        if($subject===''||trim($body)==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
+        $accepted=DelnavazanEmailRenderer::send($to,$subject,$body,array('locale'=>(string)($command['locale']??NotificationCatalogue::PRIMARY_LOCALE)));
+        return array('acknowledged'=>$accepted,'permanent_failure'=>$accepted?null:'send_refused');
     }
     public static function filter($bindings):array{
         $bindings=is_array($bindings)?$bindings:array();

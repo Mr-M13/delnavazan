@@ -94,9 +94,12 @@ final class BookingAllocationService {
     public function process(int $requestId,string $now):void{
         $this->repo->begin();
         try{
+            // The Teacher response path locks this delivery first. Use the same
+            // order so a deadline and an acceptance cannot each own half the
+            // aggregate while waiting for the other half.
+            $delivery=$this->repo->delivery($requestId,true);
             $request=$this->repo->request($requestId,true);
             if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null||$this->repo->confirmationExists($requestId)){$this->repo->commit();return;}
-            $delivery=$this->repo->delivery($requestId,true);
             $offer=$this->repo->offer($requestId,true);
             if($offer&&$delivery&&$delivery->state==='pending_request'&&(string)$offer->deadline_at<=$now)$this->advanceLocked($delivery,'expired',$now);
             if((string)$request->created_at<=self::addSeconds($now,-self::ESCALATION_SECONDS)){

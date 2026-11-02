@@ -1,22 +1,35 @@
 <?php
 /**
- * Today, the completed/past history and the next 30 local calendar days.
+ * Today, the next 30 local calendar days and the completed/past history.
  *
  * Presentation only: every action below uses a backend-issued URL, nonce and identifier from the
- * view model. The classes section is bounded to the teacher's current local day; the calendar is
- * rendered by the separate calendar component.
+ * view model. The classes section is bounded to the teacher's current local day; the second section
+ * starts tomorrow and ends after 30 local calendar days. The student filter below only hides
+ * already-rendered future cards; it establishes no scheduling authority.
  */
 $model    = is_array( $args['model'] ?? null ) ? $args['model'] : array();
 $context  = dzn_theme_teacher_portal_context();
 $demo     = ! empty( $context['demo'] );
 $settings = (string) ( $context['settings_url'] ?? '' );
 $timezone = (string) ( $args['timezone'] ?? ( $model['teacher_timezone'] ?? $model['profile']['timezone'] ?? '' ) );
-$today_items = isset( $args['today_items'] ) && is_array( $args['today_items'] ) ? $args['today_items'] : ( isset( $model['today_classes'] ) && is_array( $model['today_classes'] ) ? $model['today_classes'] : array() );
-$past_items  = isset( $args['past_items'] ) && is_array( $args['past_items'] ) ? $args['past_items'] : ( isset( $model['past_classes'] ) && is_array( $model['past_classes'] ) ? $model['past_classes'] : array() );
+$today_items    = isset( $args['today_items'] ) && is_array( $args['today_items'] ) ? $args['today_items'] : ( isset( $model['today_classes'] ) && is_array( $model['today_classes'] ) ? $model['today_classes'] : array() );
+$upcoming_items = isset( $args['upcoming_items'] ) && is_array( $args['upcoming_items'] ) ? $args['upcoming_items'] : ( isset( $model['upcoming_classes'] ) && is_array( $model['upcoming_classes'] ) ? $model['upcoming_classes'] : array() );
+$past_items     = isset( $args['past_items'] ) && is_array( $args['past_items'] ) ? $args['past_items'] : ( isset( $model['past_classes'] ) && is_array( $model['past_classes'] ) ? $model['past_classes'] : array() );
 $sections = array(
 	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => true, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
 );
-$section_heading = 'کلاس‌های امروز';
+if ( $upcoming_items ) {
+	$sections[] = array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' );
+}
+$section_heading = $upcoming_items ? 'برنامهٔ کلاس‌ها' : 'کلاس‌های امروز';
+$upcoming_students = array();
+foreach ( $upcoming_items as $upcoming_item ) {
+	if ( ! is_array( $upcoming_item ) || ! dzn_theme_teacher_portal_class_valid( $upcoming_item ) ) { continue; }
+	$student_name = trim( (string) ( $upcoming_item['student'] ?? '' ) );
+	if ( '' !== $student_name ) { $upcoming_students[ $student_name ] = $student_name; }
+}
+ksort( $upcoming_students, SORT_NATURAL | SORT_FLAG_CASE );
+$show_student_filter = ! empty( $upcoming_students );
 $card_index = 0;
 ?>
 <section class="dzn-tp-section dzn-tp-classes" aria-labelledby="tp-classes">
@@ -24,14 +37,24 @@ $card_index = 0;
 		<h2 id="tp-classes"><?php echo esc_html( $section_heading ); ?></h2>
 		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
-	<p class="dzn-tp-help dzn-tp-classes__guidance">برای دیدن جزئیات یا تغییر زمان، فلش کنار هر کلاس را باز کنید.</p>
+	<p class="dzn-tp-help dzn-tp-classes__guidance">برای دیدن جزئیات یا تغییر زمان، کلاس موردنظر را باز کنید.</p>
 <?php foreach ( $sections as $section ) : ?>
 	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">
 		<h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>" class="<?php echo $section['visible_heading'] ? 'dzn-tp-class-section__title' : 'dzn-tp-sr'; ?>"><?php echo esc_html( $section['heading'] ); ?></h3>
+		<?php if ( 'upcoming' === $section['key'] && $show_student_filter ) : ?>
+		<div class="dzn-tp-class-filter" data-dzn-tp-student-filter>
+			<label for="tp-student-filter">هنرجو</label>
+			<select id="tp-student-filter" data-dzn-tp-student-filter-select>
+				<option value="">همهٔ هنرجوها</option>
+				<?php foreach ( $upcoming_students as $student_name ) : ?><option value="<?php echo esc_attr( $student_name ); ?>"><?php echo esc_html( $student_name ); ?></option><?php endforeach; ?>
+			</select>
+			<span class="dzn-tp-class-filter__status" data-dzn-tp-student-filter-status role="status" aria-live="polite"></span>
+		</div>
+		<?php endif; ?>
 	<?php if ( ! $section['items'] ) : ?>
 		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3><?php echo esc_html( $section['empty_title'] ); ?></h3><?php if ( '' !== $settings ) : ?><div class="dzn-tp-empty-state__actions"><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $settings ); ?>">بررسی زمان‌های در دسترس</a></div><?php endif; ?></div>
 	<?php else : ?>
-		<ol class="dzn-tp-class-list">
+		<ol class="dzn-tp-class-list"<?php if ( 'upcoming' === $section['key'] ) : ?> data-dzn-tp-upcoming-list<?php endif; ?>>
 		<?php foreach ( $section['items'] as $item ) :
 			$index = $card_index++;
 			$valid = dzn_theme_teacher_portal_class_valid( $item );
@@ -44,7 +67,7 @@ $card_index = 0;
 			$starts_at = $valid ? (string) ( $item['starts_at_iso'] ?? '' ) : '';
 			$join_reason = ! empty( $item['confirmation_uid'] ) && ! empty( $item['join_message'] ) ? (string) $item['join_message'] : 'زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است.';
 			?>
-		<li><article class="dzn-tp-class is-<?php echo esc_attr( $state ); ?><?php echo $is_today ? '' : ' is-compact'; ?>" aria-labelledby="<?php echo esc_attr( $title ); ?>">
+		<li data-dzn-tp-student="<?php echo esc_attr( $valid ? (string) $item['student'] : '' ); ?>"><article class="dzn-tp-class is-<?php echo esc_attr( $state ); ?><?php echo $is_today ? '' : ' is-compact'; ?>" aria-labelledby="<?php echo esc_attr( $title ); ?>">
 			<div class="dzn-tp-class__time-col">
 				<time class="dzn-tp-class__time"<?php if ( '' !== $starts_at ) : ?> datetime="<?php echo esc_attr( $starts_at ); ?>"<?php endif; ?>>
 					<span class="dzn-tp-time-clock"><span class="dzn-tp-sr">ساعت </span><?php echo esc_html( $valid ? $item['time'] : '—' ); ?></span>
@@ -135,6 +158,7 @@ $card_index = 0;
 		</article></li>
 		<?php endforeach; ?>
 		</ol>
+		<?php if ( 'upcoming' === $section['key'] && $show_student_filter ) : ?><p class="dzn-tp-help dzn-tp-class-filter__empty" data-dzn-tp-student-filter-empty hidden>برای این هنرجو کلاسی در آینده ثبت نشده است.</p><?php endif; ?>
 	<?php endif; ?>
 	</section>
 <?php endforeach; ?>

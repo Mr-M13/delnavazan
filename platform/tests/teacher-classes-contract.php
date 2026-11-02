@@ -148,9 +148,9 @@ namespace {
 	$check( 'future row remains present and recently ended row follows the local-day boundary', isset( $classes_by_ref['REF-FUTURE'] ) && $recent_present === $recent_is_today );
 	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && in_array( 'REF-ACTIVE', $today_refs, true ) && ( ! $recent_is_today || ( 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) ) ) );
 	$check( 'a just-ended intro keeps the teacher late join window', true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
-	$check( 'navigation has four destinations', 4 === count( $model['navigation'] ?? array() ) );
-	$check( 'classes is the current navigation item', ! empty( $model['navigation'][1]['current'] ) && 'classes' === ( $model['navigation'][1]['screen'] ?? '' ) );
-	$check( 'home is labelled Today, not Account', 'امروز' === ( $model['navigation'][0]['label'] ?? '' ) );
+	$check( 'navigation has three destinations', 3 === count( $model['navigation'] ?? array() ) );
+	$check( 'classes is the first and current navigation item', ! empty( $model['navigation'][0]['current'] ) && 'classes' === ( $model['navigation'][0]['screen'] ?? '' ) );
+	$check( 'the Today tab is removed', ! array_filter( (array) ( $model['navigation'] ?? array() ), static fn( $item ) => 'home' === ( $item['screen'] ?? '' ) ) );
 	$check( 'the classes model passes its display contract', dzn_theme_teacher_portal_validate_model( $model, 'classes' ) );
 
 	ob_start();
@@ -158,7 +158,9 @@ namespace {
 	$html = (string) ob_get_clean();
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
-	$check( 'the redundant upcoming list is gone and the calendar remains', ! str_contains( $html, 'tp-classes-upcoming' ) && ! str_contains( $html, 'کلاسی برای روزهای آینده' ) && str_contains( $html, 'تقویم کلاس‌های آینده' ) );
+	$check( 'future class cards are restored with their reschedule action', str_contains( $html, 'tp-classes-upcoming' ) && str_contains( $html, 'کلاس‌های آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
+	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
+	$check( 'future classes can be filtered by student', str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );

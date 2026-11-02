@@ -55,8 +55,8 @@ final class DelnavazanEmailRenderer {
         $tagline = BrandIdentity::tagline($english);
         $supportLabel = BrandIdentity::supportLabel($english);
         $rights = $english
-            ? 'This message was sent because of an account or class activity at Delnavazan.'
-            : 'این پیام به دلیل فعالیت حساب کاربری یا کلاس شما در دلنوازان فرستاده شده است.';
+            ? 'We sent this message because of activity recorded on your Delnavazan account or classes.'
+            : 'این پیام را به‌دلیل فعالیتی که در حساب کاربری یا کلاس‌های شما در دلنوازان ثبت شده است، برایتان فرستاده‌ایم.';
         $headerMeta = (string) ($options['header_meta'] ?? '');
         $logoSide = $english ? 'left' : 'right';
         $metaSide = $english ? 'right' : 'left';

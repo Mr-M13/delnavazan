@@ -82,7 +82,7 @@ $check( 'absence inference from attendance_state_summary is gone', ! str_contain
 $check( 'the theme renders a persisted absence report only from the Platform fact', str_contains( $bridge, "\$row['absence_reported']" ) && ! str_contains( $bridge, 'absence_notified' ) );
 $check( 'student partition keeps in-progress rows', str_contains( $bridge, "'in_progress' === \$temporal" ) && str_contains( $bridge, '$active[] = $lesson' ) );
 $check( 'teacher partition keeps in-progress rows', str_contains( $bridge, '// An active canonical class must remain reachable' ) );
-$check( 'teacher navigation home no longer says account', str_contains( $bridge, "'screen' => 'home', 'label' => 'امروز'" ) && ! str_contains( $bridge, "'screen' => 'home', 'label' => 'حساب کاربری'" ) );
+$check( 'teacher navigation no longer exposes a Today tab', ! str_contains( $bridge, "'screen' => 'home', 'label' => 'امروز'" ) && ! str_contains( $bridge, "'screen' => 'home', 'label' => 'حساب کاربری'" ) );
 $check( 'teacher account page template uses settings', str_contains( $account, "dzn_theme_render_teacher_portal( 'settings'" ) && ! str_contains( $account, "'account'" ) );
 $check( 'fake teacher private-note sentence is gone', ! str_contains( $bridge, 'یادداشت خصوصی در این نمای خواندنی ارائه نشده است.' ) );
 $check( 'finance formats minor units with the currency exponent', str_contains( $finance, 'PricingMoney::format' ) && ! str_contains( $finance, 'واحد خرد ارز' ) );

@@ -21,5 +21,5 @@ final class TeacherBookingResponseController {
             self::redirect($notice,true);
         }
     }
-    private static function redirect(string $notice,bool $error):never{$url=add_query_arg(array('teacher-view'=>'home','dzn_notice'=>$notice,'dzn_error'=>$error?'1':'0'),home_url('/teacher-portal/'));nocache_headers();if(wp_safe_redirect($url))exit;wp_die(esc_html($notice),'Delnavazan',array('response'=>$error?400:200));}
+    private static function redirect(string $notice,bool $error):never{$url=add_query_arg(array('teacher-view'=>'classes','dzn_notice'=>$notice,'dzn_error'=>$error?'1':'0'),home_url('/teacher-portal/'));nocache_headers();if(wp_safe_redirect($url))exit;wp_die(esc_html($notice),'Delnavazan',array('response'=>$error?400:200));}
 }

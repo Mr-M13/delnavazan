@@ -67,7 +67,8 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
             \Delnavazan\Platform\Core\Support\Identifier::uid(),$requestedTimeId,$teacherId,$now,$now,$bookingRequestId
         ));
         if ($changed === false) throw new \RuntimeException('Booking Teacher delivery reassignment failed');
-        if ($changed === 1) return;
+        // MySQL counts both changed tables when an active offer is retired.
+        if ($changed > 0) return;
         $exists = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$this->prefix}booking_request_teacher_deliveries WHERE booking_request_id=%d LIMIT 1",
             $bookingRequestId

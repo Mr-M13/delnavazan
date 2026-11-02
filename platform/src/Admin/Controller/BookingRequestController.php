@@ -78,7 +78,8 @@ final class BookingRequestController {
     private static function allocationQueue():void{
         echo '<h2>صف تخصیص کلاس آشنایی</h2><table class="widefat striped"><thead><tr><th>درخواست</th><th>وضعیت</th><th>مدرس</th><th>مهلت پاسخ (UTC)</th><th>ثبت</th></tr></thead><tbody>';
         foreach((new BookingAllocationRepository())->queueRows() as $row){
-            $status=$row->escalation_at?'فوری · بیش از ۷۲ ساعت':($row->referral_reason?'نیازمند هماهنگی آکادمی':($row->offer_state==='pending'?'در انتظار پاسخ مدرس':'نیازمند بررسی تخصیص'));
+            $referrals=array('no_viable_teacher'=>'مدرس در دسترس نیست','candidates_exhausted'=>'همهٔ مدرس‌ها رد کردند یا مهلتشان گذشت');
+            $status=$row->escalation_at?'فوری · بیش از ۷۲ ساعت':($row->referral_reason?($referrals[(string)$row->referral_reason]??'نیازمند هماهنگی آکادمی'):($row->offer_state==='pending'&&$row->deadline_at<=gmdate('Y-m-d H:i:s')?'مهلت پاسخ مدرس گذشته است':($row->offer_state==='pending'?'در انتظار پاسخ مدرس':'نیازمند بررسی تخصیص')));
             echo '<tr><td><a href="'.esc_url(add_query_arg(array('page'=>'dzn-booking-requests','request_id'=>(int)$row->id),admin_url('admin.php'))).'">'.esc_html((string)$row->reference_code).'</a></td><td>'.esc_html($status).'</td><td>'.esc_html((string)$row->teacher_name).'</td><td>'.esc_html((string)$row->deadline_at).'</td><td>'.esc_html((string)$row->created_at).'</td></tr>';
         }
         echo '</tbody></table>';

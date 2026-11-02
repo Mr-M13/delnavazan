@@ -37,9 +37,9 @@ final class BookingRequestSubmissionService {
             // jobs are persisted here but handed off later by their leased worker.
             if($data['course_id']) {
                 $delivery=(new BookingTeacherDeliveryService())->deliver($id,(int)$data['course_id'],$persistedTimes,$now);
-                // A matched request has two operational recipients.  Keep both notices in the
-                // existing leased booking queue so a mail failure cannot lose the request or
-                // make the public submission depend on an external transport.
+                // The student receipt stays in the leased booking queue. The Teacher's
+                // notice is already queued per offer by the allocation ledger, including
+                // later rotations; never enqueue a second initial Teacher notice here.
                 if($delivery!==null)(new BookingTeacherResponseRepository())->queueRequestedNotifications((int)$delivery['delivery_id'],$now);
             }
             foreach($this->intake->matchingContactRequests($digests,$id) as $match)$this->intake->createDuplicateFlag($id,$match['candidate_id'],$match['type'],$match['digest'],$now);

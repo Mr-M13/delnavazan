@@ -2266,6 +2266,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$bookingAttention=array_map(static function($request)use($teacher_timezone,$teacher_calendar,$teacher_locale){
 		$teacherTime=dzn_theme_platform_calendar_time((string)$request->starts_at_utc,$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');
 		$deadline=dzn_theme_platform_calendar_time((string)$request->response_deadline_at,$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');
+		$remaining=max(0,(int)ceil((strtotime((string)$request->response_deadline_at.' UTC')-time())/60));
+		$remainingText=dzn_theme_platform_persian_digits((int)floor($remaining/60)).' ساعت و '.dzn_theme_platform_persian_digits($remaining%60).' دقیقه';
 		$preferences=array();
 		foreach((array)($request->requested_times??array()) as $preference){
 			try{$preferences[]=dzn_theme_platform_calendar_time((string)($preference['starts_at_utc']??''),$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');}catch(Throwable){}
@@ -2275,7 +2277,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'ref'=>(string)$request->delivery_uid,'action_available'=>true,'authoritative_request'=>true,'state'=>'intro_request',
 			'title'=>'درخواست تازهٔ کلاس آشنایی',
 			'context'=>(string)$request->full_name.' · '.(string)($request->instrument_name?:$request->course_name),
-			'message'=>$teacherTime.' به وقت شما · مهلت پاسخ: '.$deadline.' به وقت شما. این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.'.$preferenceText,
+			'message'=>$teacherTime.' به وقت شما · مهلت پاسخ: '.$deadline.' به وقت شما. زمان باقی‌مانده: '.$remainingText.'. این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.'.$preferenceText,
 			'due'=>'پاسخ تا '.$deadline,'primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());

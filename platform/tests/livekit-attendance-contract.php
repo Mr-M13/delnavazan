@@ -56,7 +56,7 @@ $check(str_contains($schema,"UNIQUE KEY connection_key(room_id,identity_digest,c
 $check(str_contains($schema,"'payload','token','secret','email','phone','contact','raw_body'"),'the schema verifier must forbid raw payload/secret columns');
 $check(str_contains($schema,'OPTION')&&str_contains($schema,'livekit_attendance_correlation_v2'),'the LiveKit schema must be feature-local and versioned');
 $check(str_contains($schema,'room_instance_state'),'the schema must retain explicit room-instance correlation state');
-$check(!str_contains($plugin,'DZN_PLATFORM_SCHEMA_VERSION\', \'58'),'the adapter must not activate an unrelated platform schema version');
+$check(!str_contains($schema,'DZN_PLATFORM_SCHEMA_VERSION'),'the adapter must keep its migration independent of the platform schema version');
 
 $check(str_contains($event,'MAX_FUTURE_SECONDS')&&str_contains($event,'provider_at'),'provider event time must be bounded and normalized');
 $check(str_contains($event,"'room_finished'"),'room termination must be a supported correlation event');

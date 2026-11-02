@@ -452,6 +452,9 @@ final class EnrolmentWorkspaceReadService {
         if ($outcome !== null) {
             return array('key' => 'post_intro', 'label' => 'Preparing continuation', 'next_action' => 'Review the post-intro exception');
         }
+        if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'cancelled') {
+            return array('key' => 'closed', 'label' => 'Intro cancelled', 'next_action' => 'No further action; retraction and notice are recorded');
+        }
         if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'confirmed') {
             $ended = (string) ($confirmation['ends_at_utc'] ?? '') < gmdate('Y-m-d H:i:s');
             return array('key' => $ended ? 'intro_outcome' : 'intro_scheduled', 'label' => $ended ? 'Outcome due' : 'Trial scheduled', 'next_action' => $ended ? 'Record what happened' : 'Prepare for the introductory lesson');
@@ -615,6 +618,7 @@ final class EnrolmentWorkspaceReadService {
     private function confirmationStateLabel(string $state): string {
         return match ($state) {
             'confirmed' => 'Confirmed',
+            'cancelled' => 'Cancelled',
             'pending_projection' => 'Calendar projection pending',
             'awaiting_conference' => 'Meet space pending',
             'awaiting_payment' => 'Introductory payment pending',

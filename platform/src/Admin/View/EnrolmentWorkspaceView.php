@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\View;
 
 use Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController;
+use Delnavazan\Platform\Core\Application\ConfirmedIntroBookingCancellationService;
 use Delnavazan\Platform\Admin\Controller\Menu;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
 use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
@@ -196,14 +197,27 @@ final class EnrolmentWorkspaceView {
         if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
         if (current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
-        if ($case['confirmed'] && empty($case['outcome'])) {
-            echo '<p class="dzn-inline-note">A confirmed trial keeps its protected booking confirmation. Until a canonical reschedule/cancel authority is available here, use the protected booking record for that lifecycle: <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-requests&request_id=' . (int) $case['id'])) . '">open booking record</a>' . (!empty($case['coordination']['case_id']) ? ' or <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&case_id=' . (int) $case['coordination']['case_id'])) . '">coordination</a>' : '') . '.</p>';
+        if ($case['confirmed'] && empty($case['outcome']) && (string) ($case['confirmed']['state'] ?? '') === 'confirmed') {
+            if (current_user_can(ConfirmedIntroBookingCancellationService::CAPABILITY)) self::cancelConfirmedIntroForm($case);
+            else echo '<p class="dzn-inline-note">This confirmed trial can only be cancelled by an authorised administrator. The protected booking record remains available: <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-requests&request_id=' . (int) $case['id'])) . '">open booking record</a>.</p>';
+        } elseif ($case['confirmed'] && (string) ($case['confirmed']['state'] ?? '') === 'cancelled') {
+            echo '<p class="dzn-inline-note"><strong>Cancelled.</strong> The confirmation, cancellation evidence and retraction outbox are retained. No further cancellation action is available.</p>';
         }
         if ($case['confirmed'] && empty($case['outcome']) && current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
         if ($case['confirmed'] && empty($case['outcome']) && !current_user_can('dzn_manage_post_intro_automation')) echo '<p>Outcome recording requires post-intro automation access.</p>';
         if ($case['confirmed'] && !empty($case['outcome'])) echo '<p class="dzn-inline-note">The introductory outcome is recorded as <strong>' . esc_html((string) $case['outcome']['label']) . '</strong>. The post-intro decision is shown above.</p>';
         if (!$case['confirmed'] && $case['stage_key'] !== 'identity') echo '<p class="description">A normal confirmed match requires an active Teacher Google connection and provider projection. The button below does not invent either.</p>';
         echo '</section>';
+    }
+
+    /** @param array<string,mixed> $case */
+    private static function cancelConfirmedIntroForm(array $case): void {
+        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel confirmed introductory booking</strong><br><small>Records immutable evidence, queues Google Calendar/Meet retraction and one student notice. The duplicate is not deleted.</small></summary><div class="dzn-action-panel__body">';
+        self::formStart('cancel_confirmed_intro', array('confirmation_uid' => (string) ($case['confirmed']['confirmation_uid'] ?? '')));
+        echo '<p><label>Cancellation reason<select name="reason_code" required><option value="">Choose a reason</option><option value="duplicate_request">Duplicate request</option><option value="student_request">Student requested cancellation</option><option value="teacher_unavailable">Teacher unavailable</option><option value="academy_cancelled">Academy cancelled</option><option value="operator_correction">Operator correction</option></select></label></p>';
+        self::input('evidence_reference', 'Evidence / operator reference', 'text', '', true);
+        echo '<button class="button" onclick="return confirm(\'Cancel this confirmed introductory booking? The audit history remains and the provider event is retracted asynchronously.\')">Cancel confirmed booking</button></form>';
+        echo '<p class="description">The later duplicate is cancelled; the retained booking, student history and financial facts are not edited.</p></div></details>';
     }
 
     /** @param array<string,mixed> $case */

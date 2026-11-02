@@ -34,6 +34,7 @@ final class BookingStudentNotificationWorker {
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
             if((string)$row->notification_kind==='requested_student')$eventKey='booking.requested.student';
             if((string)$row->notification_kind==='requested_teacher')$eventKey='booking.new.teacher';
+            if((string)$row->notification_kind==='cancelled')$eventKey='booking.cancelled.student';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
             $copy=array('subject'=>$subject,'body'=>$body);
@@ -109,6 +110,7 @@ final class BookingStudentNotificationWorker {
         if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your account.\n\nOpen your account: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your account.\n\nOpen your account: {$portal}\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no calendar event was created.\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='cancelled'){$timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;$when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));return array('دلنوازان · کلاس معارفه لغو شد',"درود {$name}،\n\nکلاس معارفهٔ «{$course}» با {$teacher} لغو شد و دیگر برگزار نمی‌شود.\n\nزمان: {$when}\n\nاگر این لغو را درخواست نکرده‌اید یا زمان تازه می‌خواهید، از حساب کاربری خود با دلنوازان در تماس باشید:\n{$portal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));}
         if((string)$row->notification_kind!=='confirmed'||(int)$row->confirmation_record_id<1)throw new \RuntimeException('Booking confirmation notification incomplete');
         $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
         $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));

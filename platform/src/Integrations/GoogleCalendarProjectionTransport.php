@@ -47,6 +47,15 @@ final class GoogleCalendarProjectionTransport {
         return array('provider_object_reference'=>$reference,'join_uri_reference'=>$join,'conference_pending'=>$join===null,'provider_occurred_at_utc'=>gmdate('Y-m-d H:i:s'));
     }
 
+    /** Remove the exact provider event. A missing event converges as already retracted. */
+    public function retract(string $eventId,string $credentialMaterial):array{
+        if(!preg_match('/^[0-9a-v]{5,1024}$/D',$eventId))throw new \InvalidArgumentException('google_calendar_event_id_invalid');
+        $uri=self::CALENDAR_ORIGIN.'/calendar/v3/calendars/primary/events/'.rawurlencode($eventId).'?sendUpdates=none';
+        $response=$this->send('DELETE',$uri,$this->accessToken($credentialMaterial),null);
+        if(!in_array($response['code'],array(200,204,404,410),true))throw new \RuntimeException('google_calendar_retraction_refused');
+        return array('state'=>'retracted','provider_object_reference'=>$eventId,'http_status'=>$response['code']);
+    }
+
     private function send(string $method,string $uri,string $access,?array $body):array{
         $args=array('method'=>$method,'timeout'=>15,'redirection'=>0,'headers'=>array('Authorization'=>'Bearer '.$access,'Accept'=>'application/json'));
         if($body!==null){$encoded=wp_json_encode($body,JSON_UNESCAPED_SLASHES);if(!is_string($encoded))throw new \RuntimeException('google_calendar_request_encode_failed');$args['headers']['Content-Type']='application/json';$args['body']=$encoded;}

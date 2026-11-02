@@ -120,6 +120,17 @@ final class NotificationCatalogue {
 
     private static function studentEvents():array{
         $out=array();
+        $out[]=self::event('booking.cancelled.student','Intro Lesson Cancelled','booking','student','ConfirmedIntroBookingCancellationService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.cancelled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس معارفه لغو شد','body'=>"درود {{name}}،\n\nکلاس معارفهٔ «{{course}}» با {{teacher}} لغو شد و دیگر برگزار نمی‌شود.\n\nزمان: {{when}}\n\nاگر این لغو را درخواست نکرده‌اید یا زمان تازه می‌خواهید، از حساب کاربری خود با ما در تماس باشید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس معارفه لغو شد','body'=>'کلاس معارفهٔ «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
+                'whatsapp'=>array('body'=>'دلنوازان: کلاس معارفهٔ {{course}} با {{teacher}} در {{when}} لغو شد. حساب: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory lesson cancelled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} has been cancelled.\n\nWhen: {{when}}\n\nIf you did not request this cancellation, contact us from your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson cancelled','body'=>'Your {{course}} lesson with {{teacher}} on {{when}} was cancelled.'),
+            ),
+        ));
         $out[]=self::event('booking.confirmed.student','Intro Lesson Confirmed','booking','student','BookingCalendarProjectionService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.confirmed',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس معارفه شما تأیید شد','body'=>"درود {{name}}،\n\nکلاس معارفهٔ «{{course}}» با {{teacher}} تأیید شد.\n\nزمان کلاس: {{when}}\n\nاین کلاس در محیط کلاس آنلاین دلنوازان برگزار می‌شود. کمی پیش از زمان کلاس وارد حساب کاربری خود شوید و کلاس را از همان‌جا آغاز کنید. دسترسی کلاس را در اختیار دیگران قرار ندهید.\n\nبرای دیدن برنامهٔ کلاس‌ها وارد حساب کاربری خود شوید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),

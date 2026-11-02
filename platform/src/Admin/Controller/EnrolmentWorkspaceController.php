@@ -11,6 +11,7 @@ use Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleReadService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleService;
 use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
+use Delnavazan\Platform\Core\Application\ConfirmedIntroBookingCancellationService;
 use Delnavazan\Platform\Core\Application\CoordinationCaseService;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
@@ -176,6 +177,17 @@ final class EnrolmentWorkspaceController {
                     $idempotency
                 );
                 return 'Introductory booking created once: ' . (string) ($result['request_reference'] ?: ('request #' . (int) $result['request_id'])) . '.';
+            case 'cancel_confirmed_intro':
+                self::requireCap(ConfirmedIntroBookingCancellationService::CAPABILITY);
+                $result = (new ConfirmedIntroBookingCancellationService())->cancel(
+                    sanitize_text_field((string) ($post['confirmation_uid'] ?? '')),
+                    sanitize_key((string) ($post['reason_code'] ?? '')),
+                    sanitize_text_field((string) ($post['evidence_reference'] ?? '')),
+                    $idempotency
+                );
+                return !empty($result['idempotent'])
+                    ? 'This confirmed introductory booking was already cancelled; no duplicate cancellation or retraction job was created.'
+                    : 'Confirmed introductory booking cancelled. Provider retraction and the student notice are queued; history is retained.';
             case 'record_outcome':
                 self::requireCap('dzn_manage_post_intro_automation');
                 $confirmation = (new PostIntroRepository())->confirmationByBooking($requestId);

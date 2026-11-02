@@ -52,6 +52,13 @@ body.dzn-admin-page .wrap > h1.wp-heading-inline {
   letter-spacing: -.01em;
 }
 
+.dzn-account-removal { direction: rtl; max-width: 980px; }
+.dzn-account-removal form { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 20px; background: var(--dzn-surface); border: 1px solid var(--dzn-border); border-radius: var(--dzn-radius); }
+.dzn-account-removal label { font-weight: 700; color: var(--dzn-teal-deep); }
+.dzn-account-removal input, .dzn-account-removal select { min-height: 38px; }
+.dzn-account-removal .widefat { border-color: var(--dzn-border); border-radius: var(--dzn-radius-sm); overflow: hidden; }
+.dzn-account-removal code { direction: ltr; unicode-bidi: isolate; }
+
 body.dzn-admin-page .wrap p {
   color: var(--dzn-muted);
 }

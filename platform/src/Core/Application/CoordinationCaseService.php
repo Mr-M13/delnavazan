@@ -86,7 +86,15 @@ final class CoordinationCaseService {
         $case = $this->repo->caseForUpdate( $caseId ); if ( ! $case || (int) $case->booking_request_id !== (int) $snapshot->booking_request_id ) throw new \RuntimeException( 'Coordination Case changed concurrently' );
         return $case;
     }
-    private function validRequest( ?object $request ): object { $adminPath = $request && $request->student_id === null && $request->lifecycle_status === 'submitted' && $request->resolution_state === 'unresolved'; $confirmedBookingPath = $request && $request->student_id !== null && $request->lifecycle_status === 'closed' && $request->resolution_state === 'teacher_confirmed'; if ( ! $request || $request->privacy_erased_at !== null || ( ! $adminPath && ! $confirmedBookingPath ) ) throw new \InvalidArgumentException( 'Booking Request is not available for coordination' ); return $request; }
+    private function validRequest( ?object $request ): object {
+        // Coordination work must remain available after an in-context identity review links
+        // the booking request to a Student. The request stays submitted/unresolved until the
+        // booking lifecycle itself moves it; identity resolution does not close coordination.
+        $intakePath = $request && $request->lifecycle_status === 'submitted' && $request->resolution_state === 'unresolved';
+        $confirmedBookingPath = $request && $request->lifecycle_status === 'closed' && $request->resolution_state === 'teacher_confirmed';
+        if ( ! $request || $request->privacy_erased_at !== null || ( ! $intakePath && ! $confirmedBookingPath ) ) throw new \InvalidArgumentException( 'Booking Request is not available for coordination' );
+        return $request;
+    }
     private function allowedCaseTransition( string $from, string $to ): bool { if ( $from === $to ) return false; return in_array( $to, self::CLOSED_CASE_STATES, true ) || in_array( $to, array( 'open', 'candidate_search', 'manual_search', 'waiting_for_availability' ), true ); }
     private function allowedCandidateTransition( string $from, string $to ): bool { return $from !== $to && in_array( $to, self::CANDIDATE_STATUSES, true ); }
     private function authorize(): void { if ( ! current_user_can( 'dzn_manage_booking_request_coordination' ) ) throw new \RuntimeException( 'Unauthorized' ); }

@@ -786,7 +786,7 @@ final class EnrolmentWorkspaceReadService {
             (int) $case->id
         )) ?: array();
         $summary['proposals'] = $wpdb->get_results($wpdb->prepare(
-            "SELECT v.*,o.id option_id,o.state option_state,o.teacher_id
+            "SELECT v.*,o.id option_id,o.teacher_id
              FROM {$this->p}proposal_versions v
              INNER JOIN {$this->p}proposal_options o ON o.id=v.proposal_option_id
              WHERE o.proposal_family_id IN (SELECT id FROM {$this->p}proposal_families WHERE coordination_case_id=%d)

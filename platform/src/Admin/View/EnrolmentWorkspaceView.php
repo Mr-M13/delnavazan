@@ -32,6 +32,7 @@ final class EnrolmentWorkspaceView {
         echo '<header class="dzn-enrolment__hero"><div><p class="dzn-eyebrow">Enrolment administration</p><h1>New bookings &amp; trials</h1>';
         echo '<p>Incoming requests, Teacher matching and the introductory lesson in one place. Completed, cancelled and expired trials are kept in History and are never mixed into the action queue.</p></div>';
         echo '<div class="dzn-enrolment__hero-actions">';
+        if (current_user_can('dzn_manage_booking_request_coordination')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Coordination cases</a>';
         if (current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) echo '<a class="button button-primary" href="#dzn-create-intro">Create introductory lesson</a>';
         echo '</div></header>';
         self::reportPanel($report);
@@ -56,7 +57,9 @@ final class EnrolmentWorkspaceView {
     public static function bookingCase(array $case, ?array $classroom): void {
         echo '<div class="wrap dzn-enrolment dzn-enrolment--case">';
         self::notices();
-        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">← Back to New bookings &amp; trials</a></p>';
+        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">← Back to New bookings &amp; trials</a>';
+        if (current_user_can('dzn_manage_booking_request_coordination')) echo ' · <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Coordination cases</a>';
+        echo '</p>';
         echo '<header class="dzn-enrolment__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $case['reference']) . ' · ' . esc_html($case['identity_state']['label']) . '</p><h1>' . esc_html((string) $case['learner_name']) . '</h1><p>' . esc_html((string) $case['instrument']) . ' · ' . esc_html((string) $case['course']) . ' · ' . esc_html((string) $case['timezone']) . '</p></div><div class="dzn-enrolment__case-state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $case['stage_label']) . '</span><span class="dzn-chip">' . esc_html((string) $case['urgency_label']) . '</span></div></header>';
         echo '<div class="dzn-case-grid">';
         self::caseFacts($case);
@@ -231,7 +234,7 @@ final class EnrolmentWorkspaceView {
     /** @param array<string,mixed> $case */
     private static function coordinationActions(array $case): void {
         $coordination = $case['coordination'];
-        echo '<details class="dzn-action-panel"><summary><strong>Teacher matching &amp; coordination</strong><br><small>Propose a Teacher and record attributable agreement. Advanced Proposal and final-acceptance steps remain on the protected coordination record.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel"><summary><strong>Teacher matching &amp; coordination</strong><br><small>Propose a Teacher and record attributable agreement. The coordination command centre carries identity, authority, Proposal, acceptance, conversion and assignment work in one place.</small></summary><div class="dzn-action-panel__body">';
         if (empty($coordination['case_id'])) {
             self::formStart('open_coordination', array('request_id' => (int) $case['id']));
             echo '<p><label>Reason<select name="reason"><option value="admin_opened">Administrator opened</option><option value="manual_review">Manual review</option></select></label></p><button class="button button-primary">Open coordination</button></form>';
@@ -270,7 +273,7 @@ final class EnrolmentWorkspaceView {
                     }
                 }
             }
-            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&case_id=' . (int) $coordination['case_id'])) . '">Open protected coordination, acceptance and final arrangement</a></p>';
+            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&case_id=' . (int) $coordination['case_id'])) . '">Open coordination command centre</a></p>';
         }
         echo '</div></details>';
     }

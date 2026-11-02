@@ -57,7 +57,6 @@ final class AccountRemovalDiscoveryService {
                 $this->assertDatabaseHealthy();
                 if ($count > 0) {
                     $relations[] = array('table' => $name, 'column' => $column, 'count' => $count);
-                    $blockers[] = 'related_record:' . $name . '.' . $column;
                 }
             }
         }

@@ -18,6 +18,8 @@ Before any mutation, inspect the exact reference `REQ-01M6DRJPEHA733V2GFMG20RY1K
 
 On 2026-11-02, the connected production site reported schema 57 and **zero rows for that exact reference** in `dzn_booking_requests`, deliveries, and confirmations. A broader reference listing was rejected by automatic approval review because it would reveal unrelated requests. Therefore the identified request cannot yet be recovered or characterized from production evidence. Do not infer its state from the absence of a row. Resolve the reference discrepancy through a narrowly authorized identifier or approved inspection before any recovery mutation.
 
+The production `wp cron test` reported a successful HTTP spawn, and WP-Cron is not disabled. This proves the site can start due events when triggered, but it does not establish an independent low-traffic schedule. A hosting-level timer or monitored external trigger remains a release prerequisite for the 24-hour deadlines.
+
 ## Release verification
 
 Run the PR source contracts, runtime migration jobs, booking allocation unit tests, and portal acceptance checks against the release candidate. Confirm a dependable server-side cron trigger for the two-minute hooks on low-traffic days; a scheduled WP-Cron event alone does not guarantee wall-clock execution. Verify offer mail and portal delivery, failure retry, administrator queue, privacy erasure, and the exact production recovery preview before merging or deploying.

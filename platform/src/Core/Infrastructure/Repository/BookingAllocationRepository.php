@@ -56,7 +56,7 @@ final class BookingAllocationRepository {
     }
     public function alert(int $requestId,string $kind,string $reason,string $priority,string $now):void{
         global $wpdb;
-        $sql=$wpdb->prepare("INSERT INTO {$this->p}booking_allocation_alerts (booking_request_id,kind,reason_code,priority,state,created_at,resolved_at) VALUES (%d,%s,%s,%s,'open',%s,NULL) ON DUPLICATE KEY UPDATE id=id",$requestId,$kind,$reason,$priority,$now);
+        $sql=$wpdb->prepare("INSERT INTO {$this->p}booking_allocation_alerts (booking_request_id,kind,reason_code,priority,state,created_at,resolved_at) VALUES (%d,%s,%s,%s,'open',%s,NULL) ON DUPLICATE KEY UPDATE notified_at=IF(state='resolved',NULL,notified_at),created_at=IF(state='resolved',VALUES(created_at),created_at),reason_code=VALUES(reason_code),priority=VALUES(priority),resolved_at=NULL,state='open'",$requestId,$kind,$reason,$priority,$now);
         if($wpdb->query($sql)===false)throw new \RuntimeException('Allocation alert unavailable');
     }
     public function resolveAlerts(int $requestId,string $now):void{global $wpdb;if($wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_allocation_alerts SET state='resolved',resolved_at=%s WHERE booking_request_id=%d AND state='open'",$now,$requestId))===false)throw new \RuntimeException('Allocation alert resolution failed');}

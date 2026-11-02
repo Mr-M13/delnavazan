@@ -33,15 +33,13 @@ $request = static function ( string $start, array $requestValues ) use ( $wpdb, 
     $occupied = gmdate( 'Y-m-d H:i:s', strtotime( $start . ' UTC +45 minutes' ) );
     $wpdb->insert( $p . 'booking_request_requested_times', array( 'booking_request_id' => $requestId, 'sequence_number' => 1, 'local_date' => substr( $start, 0, 10 ), 'local_start_time' => substr( $start, 11 ), 'timezone' => 'UTC', 'starts_at_utc' => $start, 'instructional_ends_at_utc' => $end, 'occupied_ends_at_utc' => $occupied, 'instructional_duration_minutes' => 30, 'buffer_minutes' => 15, 'version' => 1, 'created_at' => $now ) );
     $timeId = (int) $wpdb->insert_id;
-    $wpdb->update( $p . 'booking_requests', $requestValues, array( 'id' => $requestId ) );
+    if ( $requestValues !== array() ) $wpdb->update( $p . 'booking_requests', $requestValues, array( 'id' => $requestId ) );
     return array( 'request_id' => $requestId, 'time_id' => $timeId, 'starts_at_utc' => $start, 'ends_at_utc' => $end, 'occupied_ends_at_utc' => $occupied );
 };
 
 // Half-open occupied interval: 10:00 + 30 lesson + 15 buffer ends at 10:45.
-$base = $request( gmdate( 'Y-m-d' ) . ' 10:00:00', array() );
+$base = $request( '2026-12-01 10:00:00', array() );
 $assert( $conflicts( $student, $interval( '2026-12-01 10:44:00' ) ), 'A candidate inside the 15-minute buffer must conflict' );
-$start = ( new DateTimeImmutable( '2026-12-01 10:00:00', new DateTimeZone( 'UTC' ) ) )->format( 'Y-m-d H:i:s' );
-$wpdb->update( $p . 'booking_request_requested_times', array( 'starts_at_utc' => $start, 'instructional_ends_at_utc' => '2026-12-01 10:30:00', 'occupied_ends_at_utc' => '2026-12-01 10:45:00', 'local_date' => '2026-12-01', 'local_start_time' => '10:00:00' ), array( 'id' => (int) $base['time_id'] ) );
 $assert( $conflicts( $student, $interval( '2026-12-01 10:30:00' ) ), 'The buffer interval must still block a candidate at the instructional end' );
 $assert( ! $conflicts( $student, $interval( '2026-12-01 10:45:00' ) ), 'A candidate starting exactly at the occupied end must be allowed' );
 $assert( ! $conflicts( $student, $interval( '2026-12-01 09:30:00' ) ), 'A non-overlapping earlier booking must be allowed' );

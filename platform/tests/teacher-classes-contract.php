@@ -147,7 +147,13 @@ namespace {
 	$recent_present = isset( $classes_by_ref['REF-RECENT'] );
 	$check( 'future row remains present and recently ended row follows the local-day boundary', isset( $classes_by_ref['REF-FUTURE'] ) && $recent_present === $recent_is_today );
 	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && in_array( 'REF-ACTIVE', $today_refs, true ) && ( ! $recent_is_today || ( 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) ) ) );
-	$check( 'a just-ended intro keeps the teacher late join window', true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
+	// The fixture uses a moving "now"; around local midnight the just-ended intro starts on the
+	// previous local day and is intentionally outside the Today/Upcoming projection. Keep the
+	// late-join assertion deterministic without widening the product's local-day boundary.
+	$late_start = $fixture_now - 5400;
+	$late_is_today = $late_start >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$late_present = isset( $classes_by_ref['CONF-LATE'] );
+	$check( 'a just-ended intro keeps the teacher late join window on its local day', $late_present === $late_is_today && ( ! $late_is_today || true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) ) );
 	$check( 'navigation has three destinations', 3 === count( $model['navigation'] ?? array() ) );
 	$check( 'classes is the first and current navigation item', ! empty( $model['navigation'][0]['current'] ) && 'classes' === ( $model['navigation'][0]['screen'] ?? '' ) );
 	$check( 'the Today tab is removed', ! array_filter( (array) ( $model['navigation'] ?? array() ), static fn( $item ) => 'home' === ( $item['screen'] ?? '' ) ) );

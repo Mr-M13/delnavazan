@@ -61,6 +61,7 @@ add_action( 'plugins_loaded', static function () {
 	}
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceReconciliationWorker::register();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
+	Delnavazan\Platform\Admin\Controller\AccountRemovalController::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();
 	Delnavazan\Platform\Portals\PortalNotificationController::register();

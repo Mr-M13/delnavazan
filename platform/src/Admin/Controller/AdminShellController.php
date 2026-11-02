@@ -40,7 +40,7 @@ final class AdminShellController {
      * place. No legacy route is deleted or repurposed.
      */
     private const SETTINGS_SECTIONS = [
-        'general' => ['General', ['dzn-general', 'dzn-staff-access', 'dzn-recording-notices', 'dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
+        'general' => ['General', ['dzn-general', 'dzn-staff-access', 'dzn-recording-notices', 'dzn-account-removal', 'dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
         'notifications' => ['Notifications', ['dzn-notifications', 'dzn-communications', 'dzn-communications-templates']],
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
@@ -57,6 +57,7 @@ final class AdminShellController {
         'dzn-general' => 'manage_options',
         'dzn-staff-access' => 'manage_options',
         'dzn-recording-notices' => 'manage_options',
+        'dzn-account-removal' => 'manage_options',
         'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP,
         'dzn-course' => 'dzn_manage_courses',
         'dzn-instrument' => 'dzn_manage_instruments',
@@ -78,6 +79,7 @@ final class AdminShellController {
         'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
+        'dzn-account-removal' => 'settings',
         'dzn-lesson' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
         'dzn-attendance-review' => 'enrolment', 'dzn-post-intro' => 'enrolment',
         'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'settings',

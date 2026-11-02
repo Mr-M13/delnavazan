@@ -653,7 +653,7 @@
         body: JSON.stringify(payload)
       }, async (response) => ({ response, result: await response.json() }));
       if (!response.ok || !result.success || !result.request_reference) {
-        if (response.status === 400) idempotencyKey = '';
+        if (response.status === 400 || result.code === 'student_slot_conflict') idempotencyKey = '';
         throw new Error(result.code || 'submission_unavailable');
       }
       root.querySelector('[data-reference]').textContent = result.request_reference;
@@ -679,6 +679,7 @@
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
         blocked_time: 'زمان انتخاب‌شده طبق سیاست دلنوازان قابل درخواست نیست. زمان دیگری انتخاب کنید.',
+        student_slot_conflict: 'این زمان با کلاس یا درخواست دیگری از شما تداخل دارد. زمان دیگری انتخاب کنید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
         csrf_invalid: 'اعتبار فرم منقضی شده است. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.',

@@ -4,6 +4,8 @@ $root = dirname(__DIR__);
 $service = (string) file_get_contents($root . '/src/Core/Application/BookingStudentAccountService.php');
 $repository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/BookingStudentAccountRepository.php');
 $submission = (string) file_get_contents($root . '/src/Core/Application/BookingRequestSubmissionService.php');
+$bookingRepository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/BookingRequestRepository.php');
+$occupancyQuery = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/StudentOccupancyQuery.php');
 $controller = (string) file_get_contents($root . '/src/Public/BookingRequestRestController.php');
 $portal = (string) file_get_contents($root . '/src/Portals/PortalAuthenticatedReadService.php');
 $theme = (string) file_get_contents($root . '/../theme/inc/booking.php');
@@ -38,4 +40,12 @@ $expect(strpos($service, "'user_pass' => \$password") !== false && strpos($servi
 $expect(strpos($service, 'update_user_meta') === false && strpos($service, 'set_role') === false && strpos($service, 'add_role') === false, 'Booking must not alter existing WordPress roles.');
 $expect(strpos($portal, 'user_pass') === false && strpos($template, 'email') === false, 'Portal booking projection must not expose credentials or contact identity.');
 $expect(strpos($javascript, 'location.assign(result.dashboard_url)') !== false && strpos($theme, "home_url( '/student-portal/' )") !== false, 'Successful booking must continue to the student dashboard.');
+$expect(strpos($service, 'submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId )') !== false, 'Account-aware intake must pass the resolved Student into the one transaction.');
+foreach ( array( 'ensureAndLockStudentRoot', 'studentOccupancyConflicts', 'BookingRequestSlotConflictException', 'dzn_booking_student_root_held' ) as $needle ) {
+    $expect(strpos($submission . $bookingRepository, $needle) !== false, 'Missing Student slot-conflict intake contract: ' . $needle);
+}
+foreach ( array( 'canonical_lesson_schedule_versions', 'lesson_schedule_versions', 'booking_request_confirmations', "r.lifecycle_status='submitted'", 'occupied_ends_at_utc', 'include_open_requests' ) as $needle ) {
+    $expect(strpos($occupancyQuery, $needle) !== false, 'Missing Student occupancy source: ' . $needle);
+}
+$expect(strpos($controller, "'student_slot_conflict'") !== false && strpos($javascript, 'student_slot_conflict') !== false, 'Student slot conflicts must map to a non-generic public response.');
 echo "Booking student account source contract passed\n";

@@ -11,7 +11,7 @@ final class BookingStudentAccountRepository {
     public function rollback(): void { global $wpdb; $wpdb->query( 'ROLLBACK' ); }
     public function assertTransactionalStorage(): void {
         global $wpdb;
-        $tables = array( $wpdb->users, $wpdb->usermeta, $this->prefix . 'students', $this->prefix . 'student_principal_links', $this->prefix . 'booking_requests', $this->prefix . 'booking_request_identity_resolution_events', $this->prefix . 'booking_request_submission_keys' );
+        $tables = array( $wpdb->users, $wpdb->usermeta, $this->prefix . 'students', $this->prefix . 'student_principal_links', $this->prefix . 'student_schedule_roots', $this->prefix . 'booking_requests', $this->prefix . 'booking_request_identity_resolution_events', $this->prefix . 'booking_request_submission_keys' );
         foreach ( $tables as $table ) {
             $engine = $wpdb->get_var( $wpdb->prepare( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s', $table ) );
             if ( ! is_string( $engine ) || strcasecmp( $engine, 'InnoDB' ) !== 0 ) throw new \RuntimeException( 'Transactional account storage unavailable' );

@@ -243,26 +243,20 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     }
 
     /**
-     * Authoritative student-occupancy check across canonical and legacy Lessons plus confirmed
-     * booking classes. [start,end) is the instructional interval.
+     * Authoritative Student-occupancy check across canonical and legacy Lessons plus
+     * confirmed/in-flight booking classes. [start,end) is the occupied interval.
+     * The single overlap/business rule lives in StudentOccupancyQuery.
      */
     public function studentConflict(int $studentId,string $startsAtUtc,string $endsAtUtc,int $excludeLessonId):array{
+        $rows=StudentOccupancyQuery::conflicts($studentId,array(array('starts_at_utc'=>$startsAtUtc,'occupied_ends_at_utc'=>$endsAtUtc)),array('exclude_lesson_id'=>$excludeLessonId));
         $conflicts=array();
-        $canonical=$this->rows(
-            "SELECT l.id lesson_id,v.starts_at_utc,v.occupied_ends_at_utc ends_at_utc,'canonical' source FROM {$this->p}lessons l INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.student_id=%d AND l.id<>%d AND l.archived_at IS NULL AND v.starts_at_utc<%s AND v.occupied_ends_at_utc>%s ORDER BY v.starts_at_utc LIMIT 20",
-            $studentId,$excludeLessonId,$endsAtUtc,$startsAtUtc
+        foreach($rows as$row)$conflicts[]=array(
+            'lesson_id'=>(int)$row['conflict_id'],
+            'starts_at_utc'=>(string)$row['starts_at_utc'],
+            'ends_at_utc'=>(string)$row['occupied_ends_at_utc'],
+            'source'=>(string)$row['source'],
         );
-        $legacy=$this->rows(
-            "SELECT l.id lesson_id,v.starts_at_utc,DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE) ends_at_utc,'legacy' source FROM {$this->p}lessons l INNER JOIN {$this->p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.student_id=%d AND l.id<>%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL AND v.starts_at_utc<%s AND DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE)>%s ORDER BY v.starts_at_utc LIMIT 20",
-            $studentId,$excludeLessonId,$endsAtUtc,$startsAtUtc
-        );
-        // A provider-confirmed introductory booking is authoritative Student occupancy even
-        // before the post-intro workflow creates a canonical Lesson.
-        $bookings=$this->rows(
-            "SELECT c.id lesson_id,c.starts_at_utc,c.ends_at_utc,'booking' source FROM {$this->p}booking_request_confirmations c INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id WHERE r.student_id=%d AND c.state='confirmed' AND r.privacy_erased_at IS NULL AND c.starts_at_utc<%s AND c.ends_at_utc>%s ORDER BY c.starts_at_utc LIMIT 20",
-            $studentId,$endsAtUtc,$startsAtUtc
-        );
-        return array_merge($canonical,$legacy,$bookings);
+        return $conflicts;
     }
 
     public function duplicate(\Throwable $e):?string{

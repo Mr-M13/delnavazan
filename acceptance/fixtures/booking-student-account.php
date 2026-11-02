@@ -63,6 +63,11 @@ $replay = $submit( $payload( $newEmail, $password, $instrument, $course, 'New' )
 $assert( $replay->get_status() === 201 && ( $replay->get_data()['request_reference'] ?? '' ) === $firstData['request_reference'], 'Credential-proved replay did not resume safely' );
 $assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->users} WHERE user_email=%s", $newEmail ) ) === 1 && (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}booking_requests WHERE student_id=%d", (int) $link->student_id ) ) === 1, 'Replay duplicated account or booking' );
 
+$beforeDuplicate = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}booking_requests WHERE student_id=%d", (int) $link->student_id ) );
+wp_set_current_user( 0 );
+$duplicate = $submit( $payload( $newEmail, $password, $instrument, $course, 'New' ), 'booking-account-duplicate-' . $suffix . '-000', '203.0.113.107' );
+$assert( $duplicate->get_status() === 409 && ( $duplicate->get_data()['code'] ?? '' ) === 'student_slot_conflict' && (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}booking_requests WHERE student_id=%d", (int) $link->student_id ) ) === $beforeDuplicate, 'A Student was allowed to create a second booking at the same date and time' );
+
 $existingEmail = 'booking-existing-' . $suffix . '@example.invalid';
 $existingPassword = 'Existing-local-' . wp_generate_password( 20, true, true );
 $existingId = wp_insert_user( array( 'user_login' => 'booking-existing-' . $suffix, 'user_pass' => $existingPassword, 'user_email' => $existingEmail, 'role' => 'editor' ) );

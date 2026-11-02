@@ -29,7 +29,7 @@ foreach ( $upcoming_items as $upcoming_item ) {
 	if ( '' !== $student_name ) { $upcoming_students[ $student_name ] = $student_name; }
 }
 ksort( $upcoming_students, SORT_NATURAL | SORT_FLAG_CASE );
-$show_student_filter = count( $upcoming_students ) > 1;
+$show_student_filter = ! empty( $upcoming_students );
 $card_index = 0;
 ?>
 <section class="dzn-tp-section dzn-tp-classes" aria-labelledby="tp-classes">

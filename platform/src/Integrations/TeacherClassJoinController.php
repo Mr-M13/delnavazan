@@ -10,7 +10,7 @@ final class TeacherClassJoinController {
             $target=(new TeacherClassJoinService())->target((string)($_POST['lesson_uid']??''),(string)($_POST['schedule_version_uid']??''));
             nocache_headers();header('Referrer-Policy: no-referrer');wp_redirect($target,302,'Delnavazan');exit;
         }catch(\Throwable){
-            wp_safe_redirect(add_query_arg(array('teacher-view'=>'home','class_status'=>'join_unavailable'),home_url('/teacher-portal/')));exit;
+            wp_safe_redirect(add_query_arg(array('teacher-view'=>'classes','class_status'=>'join_unavailable'),home_url('/teacher-portal/')));exit;
         }
     }
 }

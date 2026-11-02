@@ -37,7 +37,7 @@ final class PortalCalendarExportController {
         } catch (\Throwable) {
             $path = $role === 'teacher' ? '/teacher-portal/' : '/student-portal/';
             $query = $role === 'teacher'
-                ? array('teacher-view' => 'home', 'calendar_status' => 'export_unavailable')
+                ? array('teacher-view' => 'classes', 'calendar_status' => 'export_unavailable')
                 : array('portal-view' => 'home', 'calendar_status' => 'export_unavailable');
             wp_safe_redirect(add_query_arg($query, home_url($path)));
             exit;

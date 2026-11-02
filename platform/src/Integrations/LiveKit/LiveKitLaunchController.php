@@ -20,7 +20,7 @@ final class LiveKitLaunchController {
         check_admin_referer('dzn_' . $role . '_livekit_class');
         $portal = home_url($role === 'teacher' ? '/teacher-portal/' : '/student-portal/');
         $failure = $role === 'teacher'
-            ? array('teacher-view' => 'home', 'class_status' => 'livekit_unavailable')
+            ? array('teacher-view' => 'classes', 'class_status' => 'livekit_unavailable')
             : array('join_status' => 'livekit_unavailable');
         try {
             $kind = sanitize_key((string)($_POST['kind'] ?? 'lesson'));

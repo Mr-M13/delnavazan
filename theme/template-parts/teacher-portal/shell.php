@@ -1,5 +1,5 @@
 <?php
-$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $args['screen'] : 'home';
+$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $args['screen'] : 'classes';
 $model = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model['teacher'] : array();
 $teacher_first_name = trim( (string) ( $model['teacher']['first_name'] ?? '' ) );

@@ -37,7 +37,6 @@ namespace {
         return (string) ob_get_clean();
     };
     $nav = array(
-        array( 'screen' => 'home', 'label' => 'امروز', 'url' => 'https://example.invalid/?teacher-view=home', 'current' => false ),
         array( 'screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => 'https://example.invalid/?teacher-view=classes', 'current' => false ),
         array( 'screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/?teacher-view=finance', 'current' => false ),
         array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/?teacher-view=settings', 'current' => false ),
@@ -47,7 +46,7 @@ namespace {
     $order = 0;
     foreach ( $ids as $id => $title ) {
         ++$order;
-        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'today' === $id ? 'home' : 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'today' === $id ? 'completed' : 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
+        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'today' === $id ? 'completed' : 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
     }
     $hub = array( 'modules' => $steps, 'completed_count' => 1, 'started_count' => 0, 'total_count' => 9, 'percent' => 11, 'state' => 'in_progress', 'next_module_id' => 'join' );
     $base = array(
@@ -66,7 +65,7 @@ namespace {
     $fail( 'every step posts its own nonce-protected action', substr_count( $hub_html, 'name="module_id"' ) === 9 && substr_count( $hub_html, 'dzn_teacher_induction_complete' ) === 9 );
     $fail( 'steps use short purpose copy and action labels', str_contains( $hub_html, 'کلاس‌های امروز' ) && str_contains( $hub_html, 'نمایش ورود به کلاس' ) );
     $fail( 'hub does not render long sections or quizzes', ! str_contains( $hub_html, 'سناریوهای عملیاتی' ) && ! str_contains( $hub_html, 'تمرین کوتاه' ) && ! str_contains( $hub_html, 'در این بخش یاد می‌گیرید' ) );
-    $fail( 'shell is RTL and exposes real navigation targets', str_contains( $hub_html, 'dir="rtl"' ) && str_contains( $hub_html, 'data-dzn-nav-screen="home"' ) && str_contains( $hub_html, 'dzn-tp-tabs' ) );
+    $fail( 'shell is RTL and exposes real navigation targets', str_contains( $hub_html, 'dir="rtl"' ) && str_contains( $hub_html, 'data-dzn-nav-screen="classes"' ) && str_contains( $hub_html, 'dzn-tp-tabs' ) );
     $fail( 'progress is an accessible progressbar', str_contains( $hub_html, 'role="progressbar"' ) && str_contains( $hub_html, 'aria-valuenow="1"' ) && str_contains( $hub_html, 'aria-valuemax="9"' ) );
 
     ob_start();

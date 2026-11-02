@@ -86,6 +86,14 @@ introductory/import idempotency, canonical reschedule/release/cancel, Teacher
 replacement history, attendance duplicate protection and post-intro reminder
 policy. It calls no external provider or message transport.
 
+`make coordination-command-centre` builds synthetic coordination cases covering
+an unresolved identity, a resolved identity with agreement/Proposal/provisional
+evidence, a final arrangement ready for conversion, and an unresolved
+adult/minor capacity. It verifies the read projection, blocker/next-action
+engine, human-readable view, no-write read/render seam, and the in-place
+authority panel. It calls no external provider or message transport and does not
+modify production records.
+
 ## CI and current gaps
 
 Run `make smoke` only on an isolated Docker-capable CI worker with the three

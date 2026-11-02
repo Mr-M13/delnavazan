@@ -4,7 +4,7 @@
 
 The Persian administrator screen accepts only a canonical Student (`DZN-STU-...`) or Teacher (`DZN-TCH-...`) reference code. It resolves that code to the canonical numeric ID server-side. It uses a POST request, a WordPress nonce, and `manage_options`. Its service reads the canonical root, scans installed Delnavazan tables for direct owner columns, checks linked WordPress identities, posts and comments, and returns counts and blockers with a manifest digest. It performs no mutation and registers no deletion action.
 
-The screen accepts test and other Student or Teacher accounts by canonical ID. It always reports `indirect_and_external_dependencies_unreviewed` as a blocker. The digest is an inspection fingerprint, **not** an execution token.
+The screen accepts test and other Student or Teacher accounts by canonical reference code. Directly related rows appear as an inventory, not as tasks for an administrator to delete. It always reports `indirect_and_external_dependencies_unreviewed` as a blocker because no complete executor exists. The digest is an inspection fingerprint, **not** an execution token.
 
 ## Threat review
 
@@ -14,7 +14,7 @@ The screen accepts test and other Student or Teacher accounts by canonical ID. I
 | Administrator-provided SQL or table name | Only a validated canonical reference enters the service; kind and ID are resolved server-side. Table/column names come from database metadata and are syntax checked | Freeze a reviewed dependency allowlist for any destructive operation. |
 | Shared WordPress user | Both canonical roots and linked posts/comments are inspected | Check multisite and all plugin user ownership; use supported WordPress deletion API only when exclusive. |
 | Mistaken eligibility classification | No flag or email is trusted; execution is absent | Apply the same complete ownership and retention checks to test and other accounts. |
-| Financial or consent evidence loss | Every direct related record blocks; execution is absent | Walk indirect parent chains and classify retained evidence before any deletion. |
+| Financial or consent evidence loss | Execution is absent; discovered rows are listed without suggesting manual removal | Walk indirect parent chains and classify retained evidence before any deletion. |
 | Remote resource orphaning | Execution is absent | Build provider-specific inventory and reconciliation for calendars, scheduling, notifications, payments and recordings. |
 | Concurrent change after review | No execution exists | Recompute a complete manifest immediately before execution; bind a short-lived, atomic single-use token to its digest. |
 | Partial WordPress or provider failure | No execution exists | Persist recoverable stages, retry idempotently, verify absence, and emit a minimal audit receipt only after completion. |

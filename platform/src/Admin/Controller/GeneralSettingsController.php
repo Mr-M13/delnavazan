@@ -52,6 +52,11 @@ final class GeneralSettingsController {
         self::renderLegalPages();
         self::renderBookingHorizon();
         StaffAccessController::renderPanel(true);
+        echo '<section class="dzn-settings-card" id="account-removal" dir="rtl">';
+        echo '<h2>بررسی حذف حساب</h2>';
+        echo '<p>وابستگی‌های حساب دانشجو یا مدرس را پیش از حذف بررسی کنید. این ابزار فقط گزارش می‌دهد و هنوز حسابی را حذف نمی‌کند.</p>';
+        echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-account-removal')) . '">باز کردن بررسی حساب</a></p>';
+        echo '</section>';
         echo '</div>';
     }
 

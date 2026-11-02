@@ -6,6 +6,7 @@ These are different evidence levels, not an overall release approval. `SOURCE PA
 
 | Area | Status | Evidence / next requirement |
 | --- | --- | --- |
+| Consolidated Teachers administration recovery and state refresh | RUNTIME PASS | `make teacher-workspace` covers invite/resend/revoke/remove/reset, role/content preservation, protected-history refusal, archive path, open-ended and bounded unavailability, display-name preservation, class history and current-state onboarding refresh. |
 | Local WordPress + MariaDB | RUNTIME BLOCKED | This worker cannot access the Docker API socket, and the cache check reports the required `mariadb:11.4` image unavailable. The harness uses `--pull=never`, so it did not fetch an image. Re-run on a Docker-capable isolated worker with all three documented images preloaded. |
 | Student, teacher, dual login routes | NOT RE-RUN | The merged acceptance foundation remains present. Re-run the HTTP role-routing smoke on the Docker-capable worker. |
 | Teacher invitation cron registration | SOURCE PASS | `teacher-invitation-worker-scheduling-unit.php`. |

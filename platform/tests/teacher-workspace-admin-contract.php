@@ -81,22 +81,34 @@ $contains($unavailable, array(
     'TeacherAvailabilityService',
     'teacher_availability_exceptions',
     'temporary_unavailability',
+    'temporary_unavailability_open',
+    'open_ended',
     'unavailability_conflicts',
     'blocked',
     'clearFuture',
-), 'Temporary unavailability must use dated availability exceptions and never rewrite history.');
+), 'Temporary unavailability must support an open-ended sentinel and bounded periods without rewriting history.');
+$contains($read('src/Core/Application/TeacherAvailabilityService.php'), array('openEndedExceptions', '9999-12-31 00:00:00'), 'Booking eligibility must treat an open-ended unavailability as a future block until reactivated.');
+$contains($read('src/Core/Infrastructure/Repository/TeacherAvailabilityRepository.php'), array('temporary_unavailability_open'), 'Open-ended availability must use a durable sentinel exception.');
 $expect(str_contains($unavailable, 'booking_request_confirmations') && str_contains($unavailable, 'canonical_lesson_schedule_versions'), 'Unavailability preview must identify existing confirmed lessons.');
 $contains($screen, array(
     'apply_teacher_unavailability', 'clear_teacher_unavailability',
     'save_teacher_rate', 'draft_teacher_statement', 'issue_teacher_statement', 'record_teacher_statement_payment',
+    'resolve_teacher_attendance', 'confirm_teacher_reschedule', 'cancel_teacher_reschedule',
+    'pause_teacher_student', 'resume_teacher_student',
     'TeacherStatementService', 'TeacherStatementPaymentService', 'FinanceSettingsService',
+    'LessonRescheduleService', 'CanonicalAttendanceIntakeService', 'CanonicalEnrolmentLifecycleService',
 ), 'Teacher profile mutations must route through canonical services.');
+$contains($view, array('show_all_classes', 'Show all records', 'Reschedule and replacement decisions', 'Attendance exceptions', 'Pause assignment', 'Resume assignment'), 'Teacher-scoped class, attendance and student decisions must be available inline with an untruncated history.');
+$contains($service, array('statementReconciliation', 'lesson_reschedule_proposals', 'case_version'), 'Teacher-scoped finance reconciliation and class decisions must come from canonical read models.');
+$contains($lifecycle, array('reset_pending', 'protectedHistory', 'teacher_history_exists', 'isExclusiveOnboardingAccount', "array('dzn_teacher')"), 'Reset must hide the failed attempt, preserve any additional role/content and expose the archive path.');
+$contains($read('src/Admin/Controller/AdminShellController.php'), array('public static function viewport', "width=device-width"), 'The admin shell must declare a mobile viewport so the workspace reflows below 600px.');
 
 // Golden-hour overview moved to Overview, while teacher coverage stays in the profile.
 $contains($academy, array("AcademyDashboardScreen::shows('coverage')", 'AcademyCoverageController::renderAtlas', 'Golden-hour coverage'), 'Academy Overview must host the academy-wide golden-hour coverage.');
 $contains($dashboard, array("'coverage' => 'Golden-hour coverage'"), 'Golden-hour coverage must be a Screen Options section on Overview.');
 $expect(!str_contains($screen, 'teacherCoverage'), 'The Teachers administration route must not render the academy-wide coverage atlas.');
 $contains($view, array('Golden-hour coverage', 'Selected golden-hour windows'), 'Each Teacher profile must retain individual golden-hour coverage.');
-$contains($css, array('.dzn-tw-table-scroll', '.dzn-tw-snapshot__body', '.dzn-tw-status-icon--complete', '.dzn-tw-status-icon--unknown', '.dzn-tw-status-icon[data-dzn-tip]:focus-visible::after', '@media (max-width: 782px)'), 'The workspace must be responsive, keyboard accessible and visually consistent.');
+$contains($css, array('.dzn-tw-table-scroll', '.dzn-tw-snapshot__body', '.dzn-tw-status-icon--complete', '.dzn-tw-status-icon--unknown', '.dzn-tw-status-icon[data-dzn-tip]:focus-visible::after', '@media (max-width: 782px)', 'overflow-x: hidden', 'min-inline-size: 0'), 'The workspace must be responsive, keyboard accessible and visually consistent.');
+foreach (array('platform/docs/evidence/teachers-directory-desktop-2026-11-02.png','platform/docs/evidence/teachers-profile-desktop-2026-11-02.png','platform/docs/evidence/teachers-onboarding-desktop-2026-11-02.png','platform/docs/evidence/teachers-directory-mobile-2026-11-02.png','platform/docs/evidence/teachers-profile-mobile-2026-11-02.png','platform/docs/evidence/teachers-onboarding-mobile-2026-11-02.png') as $evidence) $expect(is_file($root . '/../' . $evidence), 'Missing screenshot evidence: ' . $evidence);
 
 echo "teacher-workspace-admin-contract: OK\n";

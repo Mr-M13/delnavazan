@@ -110,11 +110,11 @@ final class TeacherWorkspaceView {
         self::detailsSection($record, $onboarding, $page, $archived);
         if (!$archived) {
             self::statusSection($read, $record, $profile, $page);
-            self::accountSection($read, $record, $onboarding, $profile['account'], $page);
+            self::accountSection($read, $record, $onboarding, $profile['account'], $profile['protected_history'], $page);
             self::instrumentsSection($read, $record, $profile['eligibility'], $page);
             self::availabilitySection($read, $record, $availability, $profile['eligibility'], $page);
             self::studentsSection($record, $stats, $profile['students'], $page);
-            self::classesSection($profile['classes'], $page);
+            self::classesSection($profile['classes'], $page, (int) $record->id);
             self::tasksSection($profile['tasks'], $profile['response'], $stats);
             self::financeSection($read, $record, $finance, $page);
             self::actionsSection($record, $page);
@@ -160,14 +160,20 @@ final class TeacherWorkspaceView {
         $teacherId = (int) $record->id;
         $exceptions = (array) ($profile['availability']['exceptions'] ?? array());
         $timezone = (string) ($profile['availability']['profile']->timezone ?? $record->timezone ?? '');
-        $futureBlocked = array_values(array_filter($exceptions, static function (object $row) use ($timezone): bool {
-            $today = (new \DateTimeImmutable('today', new \DateTimeZone($timezone ?: 'UTC')))->format('Y-m-d');
-            return (string) $row->status === 'active' && (string) $row->state === 'blocked' && (string) $row->reason_code === 'temporary_unavailability' && (string) $row->local_date >= $today;
+        $todayLocal = (new \DateTimeImmutable('today', new \DateTimeZone($timezone ?: 'UTC')))->format('Y-m-d');
+        $openEnded = null;
+        foreach ($exceptions as $row) if ((string) $row->status === 'active' && (string) $row->state === 'blocked' && (string) $row->reason_code === 'temporary_unavailability_open') { $openEnded = $row; break; }
+        $futureBlocked = array_values(array_filter($exceptions, static function (object $row) use ($todayLocal): bool {
+            return (string) $row->status === 'active' && (string) $row->state === 'blocked' && (string) $row->reason_code === 'temporary_unavailability' && (string) $row->local_date >= $todayLocal;
         }));
         echo '<section class="dzn-tw-section" id="teacher-status"><div class="dzn-tw-section__head"><div><h2>Operational status and student intake</h2><p>Teaching status and new-student intake are separate. A teacher may keep existing students while intake is paused.</p></div></div>';
         echo '<div class="dzn-tw-inline-cards"><div class="dzn-tw-inline-card"><span>Teaching status</span><strong>' . esc_html((string) $record->onboarding_label) . '</strong><small>' . (($record->directory_status === 'active') ? 'Eligible to teach and be matched.' : 'Not currently a ready active teacher.') . '</small></div>';
         echo '<div class="dzn-tw-inline-card"><span>Student intake</span><strong>' . esc_html(self::intakeLabel((string) ($record->accepting_state ?? ''))) . '</strong><small>Affects new assignments only; existing students remain.</small></div>';
-        echo '<div class="dzn-tw-inline-card"><span>Temporary unavailability</span><strong>' . ($futureBlocked ? esc_html(count($futureBlocked) . ' blocked day' . (count($futureBlocked) === 1 ? '' : 's')) : 'None scheduled') . '</strong><small>' . ($futureBlocked ? esc_html(self::dateValue((string) $futureBlocked[0]->local_date) . ' → ' . self::dateValue((string) $futureBlocked[count($futureBlocked) - 1]->local_date)) : 'New bookings follow weekly availability.') . '</small></div></div>';
+        $unavailableValue = $openEnded ? 'Until reactivated' : ($futureBlocked ? esc_html(count($futureBlocked) . ' blocked day' . (count($futureBlocked) === 1 ? '' : 's')) : 'None scheduled');
+        $unavailableHint = $openEnded
+            ? 'Since ' . self::dateValue((string) $openEnded->local_date) . ' · no automatic expiry'
+            : ($futureBlocked ? self::dateValue((string) $futureBlocked[0]->local_date) . ' → ' . self::dateValue((string) $futureBlocked[count($futureBlocked) - 1]->local_date) : 'New bookings follow weekly availability.');
+        echo '<div class="dzn-tw-inline-card"><span>Temporary unavailability</span><strong>' . ($openEnded ? esc_html($unavailableValue) : $unavailableValue) . '</strong><small>' . esc_html($unavailableHint) . '</small></div></div>';
         if (current_user_can('dzn_manage_teaching_eligibility')) {
             echo '<details class="dzn-tw-disclosure"><summary>Change student intake</summary><p class="dzn-tw-note">Student intake changes take effect immediately. A future-dated intake change is not modelled by the canonical accepting-state authority; use a temporary unavailable period for a dated booking stop.</p>';
             RecordActionRenderer::renderSelected('teacher', $record, $page, array('teacher-accepting-state'));
@@ -181,7 +187,7 @@ final class TeacherWorkspaceView {
             if ($previewRequested) {
                 try {
                     $preview = (new TeacherUnavailabilityService())->preview($teacherId, $from, $to);
-                    echo '<div class="notice notice-info inline"><p><strong>Period:</strong> ' . esc_html(self::dateValue($preview['from'])) . ' → ' . esc_html(self::dateValue($preview['to'])) . ' · ' . esc_html($preview['timezone']) . '</p></div>';
+                    echo '<div class="notice notice-info inline"><p><strong>Period:</strong> ' . esc_html(self::dateValue($preview['from'])) . ' → ' . ($preview['open_ended'] ? 'until reactivated' : esc_html(self::dateValue($preview['to']))) . ' · ' . esc_html($preview['timezone']) . ($preview['open_ended'] ? ' · conflicts reviewed through ' . esc_html(self::dateValue($preview['conflict_horizon'])) : '') . '</p></div>';
                     if ($preview['conflicts']) {
                         echo '<div class="notice notice-warning inline"><p><strong>' . esc_html(count($preview['conflicts'])) . ' future lesson' . (count($preview['conflicts']) === 1 ? '' : 's') . ' conflict with this period.</strong> They will not be cancelled automatically. Confirm below to record unavailability and resolve them separately.</p></div>';
                         echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student</th><th>Class</th><th>Reference</th><th>Resolve</th></tr></thead><tbody>';
@@ -205,8 +211,8 @@ final class TeacherWorkspaceView {
                     echo '<div class="notice notice-error inline"><p>' . esc_html(self::safeError($error)) . '</p></div>';
                 }
             }
-            echo '<form method="get" class="dzn-tw-form dzn-tw-form--inline"><input type="hidden" name="page" value="' . esc_attr($page) . '"><input type="hidden" name="id" value="' . esc_attr((string) $teacherId) . '"><input type="hidden" name="unavailability_preview" value="1"><label>Start date <input type="date" name="unavailability_from" value="' . esc_attr(gmdate('Y-m-d')) . '" required></label><label>End date <span class="dzn-tw-muted">(optional; defaults to 90 days)</span><input type="date" name="unavailability_to"></label><button class="button">Review conflicts</button></form>';
-            if ($futureBlocked) {
+            echo '<form method="get" class="dzn-tw-form dzn-tw-form--inline"><input type="hidden" name="page" value="' . esc_attr($page) . '"><input type="hidden" name="id" value="' . esc_attr((string) $teacherId) . '"><input type="hidden" name="unavailability_preview" value="1"><label>Start date <input type="date" name="unavailability_from" value="' . esc_attr(gmdate('Y-m-d')) . '" required></label><label>End date <span class="dzn-tw-muted">(leave blank to remain unavailable until reactivated; enter a date for a bounded period)</span><input type="date" name="unavailability_to"></label><button class="button">Review conflicts</button></form>';
+            if ($openEnded || $futureBlocked) {
                 echo '<form method="post" class="dzn-tw-form">';
                 self::formFields('clear_teacher_unavailability', $teacherId);
                 echo '<p class="dzn-tw-note">Reactivating removes only future temporary-unavailability blocks. Historical dates and confirmed lessons remain untouched.</p><button class="button">Reactivate availability</button></form>';
@@ -215,7 +221,7 @@ final class TeacherWorkspaceView {
         echo '</section>';
     }
 
-    private static function accountSection(TeacherWorkspaceReadService $read, object $record, ?array $onboarding, array $account, string $page): void {
+    private static function accountSection(TeacherWorkspaceReadService $read, object $record, ?array $onboarding, array $account, array $protectedHistory, string $page): void {
         $teacherId = (int) $record->id;
         $progress = is_array($onboarding['progress'] ?? null) ? $onboarding['progress'] : array();
         $google = is_array($onboarding['google'] ?? null) ? $onboarding['google'] : array();
@@ -230,6 +236,9 @@ final class TeacherWorkspaceView {
         } elseif (is_array($onboarding)) {
             echo '<p class="dzn-tw-note">No onboarding blocker is currently recorded. Next action: ' . esc_html((string) ($onboarding['next_action'] ?? 'No onboarding action required.')) . '</p>';
         }
+        if ($protectedHistory) {
+            echo '<div class="notice notice-warning inline"><p><strong>Invitation-only removal or onboarding reset is unavailable.</strong> Protected history exists: ' . esc_html(implode(', ', $protectedHistory)) . '. Use <a href="#teacher-actions">Archive Teacher</a> after resolving any future lessons or assignments; historical classes, attendance and finance records are preserved.</p></div>';
+        }
         echo '<div class="dzn-tw-controls">';
         if (current_user_can('dzn_issue_teacher_invitations') && (int) ($record->linked_user_id ?? 0) < 1 && $account['active'] === false) {
             echo '<details class="dzn-tw-disclosure"><summary>Resend invitation</summary><p>Resending supersedes the outstanding claimable token; the same Teacher record and email are reused.</p><form method="post" class="dzn-tw-form">';
@@ -241,12 +250,12 @@ final class TeacherWorkspaceView {
             self::formFields('revoke_teacher_invitation', $teacherId);
             echo '<button class="button">Revoke invitation</button></form></details>';
         }
-        if (current_user_can('dzn_manage_onboarding') && current_user_can('dzn_manage_teachers')) {
+        if (current_user_can('dzn_manage_onboarding') && current_user_can('dzn_manage_teachers') && !$protectedHistory) {
             echo '<details class="dzn-tw-disclosure"><summary>Reset onboarding</summary><p>Only for an account with no teaching, finance or attendance history. Revokes Teacher access, clears the failed onboarding attempt and allows a fresh invitation to the same email. Other WordPress roles are preserved.</p><form method="post" class="dzn-tw-form" onsubmit="return confirm(\'Reset this onboarding attempt? This cannot restore prior invitation tokens.\')">';
             self::formFields('reset_teacher_onboarding', $teacherId);
             echo '<label>Reason <input type="text" name="reason" maxlength="64" required placeholder="For example: wrong email used"></label><button class="button">Reset onboarding</button></form></details>';
         }
-        if (current_user_can('dzn_manage_teachers') && current_user_can('dzn_revoke_teacher_invitations') && (int) ($record->linked_user_id ?? 0) < 1) {
+        if (current_user_can('dzn_manage_teachers') && current_user_can('dzn_revoke_teacher_invitations') && (int) ($record->linked_user_id ?? 0) < 1 && !$protectedHistory) {
             echo '<details class="dzn-tw-disclosure"><summary>Revoke and remove invitation-only record</summary><p>Only available when the invitation never produced an account or any protected history. Audit evidence and the anonymised invitation record are retained.</p><form method="post" class="dzn-tw-form" onsubmit="return confirm(\'Remove this invitation-only Teacher record?\')">';
             self::formFields('revoke_remove_teacher_invitation', $teacherId);
             echo '<label>Reason <input type="text" name="reason" maxlength="64" required></label><button class="button">Revoke and remove</button></form></details>';
@@ -383,45 +392,87 @@ final class TeacherWorkspaceView {
             echo '<p class="dzn-tw-empty">No current student assignment is recorded.</p></section>';
             return;
         }
-        echo '<table class="widefat striped"><thead><tr><th>Student</th><th>Instrument</th><th>Current term</th><th>Completed</th><th>Remaining</th><th>Next lesson</th><th>Assignment</th><th>Action</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>Student</th><th>Instrument</th><th>Current term</th><th>Completed</th><th>Remaining</th><th>Next lesson</th><th>Assignment</th><th>Teacher decision</th></tr></thead><tbody>';
         foreach ($students as $student) {
             $studentUrl = add_query_arg(array('page' => 'dzn-student', 'id' => (int) $student->student_id), admin_url('admin.php'));
-            echo '<tr><td><a href="' . esc_url($studentUrl) . '">' . esc_html((string) $student->student_name) . '</a></td><td>' . esc_html((string) $student->instrument_name) . '</td><td>' . esc_html((int) ($student->sequence_number ?? 0) > 0 ? 'Term ' . (int) $student->sequence_number : 'No current term') . '</td><td>' . esc_html(number_format_i18n((int) $student->completed_lessons)) . '</td><td>' . esc_html(number_format_i18n((int) $student->remaining_lessons)) . '</td><td>' . esc_html(self::dateValue((string) ($student->next_lesson_utc ?? ''))) . '</td><td>' . esc_html(self::enrolmentLabel((string) $student->enrolment_state)) . '</td><td><a class="button button-small" href="' . esc_url($studentUrl) . '">Open student</a></td></tr>';
+            $state = (string) $student->enrolment_state;
+            $decision = '<a class="button button-small" href="' . esc_url($studentUrl) . '">Open student</a>';
+            if (current_user_can('dzn_manage_canonical_enrolment_lifecycle') && in_array($state, array('current', 'paused'), true)) {
+                $action = $state === 'current' ? 'pause_teacher_student' : 'resume_teacher_student';
+                $label = $state === 'current' ? 'Pause assignment' : 'Resume assignment';
+                $decision .= '<form method="post" class="dzn-tw-inline-form" onsubmit="return confirm(\'' . esc_js($label) . ' for this student? Existing classes and attendance are not rewritten.\')">';
+                $decision .= '<input type="hidden" name="dzn_action" value="' . esc_attr($action) . '"><input type="hidden" name="teacher_id" value="' . esc_attr((string) $record->id) . '"><input type="hidden" name="enrolment_id" value="' . esc_attr((string) $student->enrolment_id) . '"><input type="hidden" name="expected_state" value="' . esc_attr($state) . '">';
+                $decision .= wp_nonce_field('dzn_platform_' . $action, '_wpnonce', true, false) . '<button class="button button-small">' . esc_html($label) . '</button></form>';
+            }
+            echo '<tr><td><a href="' . esc_url($studentUrl) . '">' . esc_html((string) $student->student_name) . '</a></td><td>' . esc_html((string) $student->instrument_name) . '</td><td>' . esc_html((int) ($student->sequence_number ?? 0) > 0 ? 'Term ' . (int) $student->sequence_number : 'No current term') . '</td><td>' . esc_html(number_format_i18n((int) $student->completed_lessons)) . '</td><td>' . esc_html(number_format_i18n((int) $student->remaining_lessons)) . '</td><td>' . esc_html(self::dateValue((string) ($student->next_lesson_utc ?? ''))) . '</td><td>' . esc_html(self::enrolmentLabel($state)) . '</td><td>' . $decision . '</td></tr>';
         }
-        echo '</tbody></table><p class="dzn-tw-note">Assignment changes use the existing Student and Enrolment workflows; this profile never invents a second assignment authority.</p></section>';
+        echo '</tbody></table><p class="dzn-tw-note"><strong>Assignment replacement remains in Enrolments.</strong> Replacing a teacher is a cross-teacher commercial/authority decision with an agreed effective date and evidence; it is not duplicated here. Pause/resume uses the canonical Enrolment lifecycle authority and never rewrites historical classes.</p></section>';
     }
 
-    private static function classesSection(array $classes, string $page): void {
-        echo '<section class="dzn-tw-section" id="teacher-classes"><div class="dzn-tw-section__head"><div><h2>Classes and attendance</h2><p>Canonical schedule and delivery facts. Reschedule, attendance and classroom actions remain with their existing authorities.</p></div></div>';
-        self::classTable('Today', (array) ($classes['today'] ?? array()), $page);
-        self::classTable('Upcoming', (array) ($classes['upcoming'] ?? array()), $page);
-        self::classTable('Recently completed', (array) ($classes['recent'] ?? array()), $page);
-        self::classTable('Replacement lessons', (array) ($classes['replacements'] ?? array()), $page);
+    private static function classesSection(array $classes, string $page, int $teacherId): void {
+        $showAll = isset($_GET['show_all_classes']) && (string) $_GET['show_all_classes'] === '1';
+        echo '<section class="dzn-tw-section" id="teacher-classes"><div class="dzn-tw-section__head"><div><h2>Classes and attendance</h2><p>Canonical schedule and delivery facts. Teacher-specific reschedule and attendance decisions are available inline; complex scheduling/evidence recording remains with its owning authority.</p></div></div>';
+        self::classTable('Today', (array) ($classes['today'] ?? array()), $page, $teacherId, $showAll);
+        self::classTable('Upcoming', (array) ($classes['upcoming'] ?? array()), $page, $teacherId, $showAll);
+        self::classTable('Recently completed', (array) ($classes['recent'] ?? array()), $page, $teacherId, $showAll);
+        self::classTable('Replacement lessons', (array) ($classes['replacements'] ?? array()), $page, $teacherId, $showAll);
+        $reschedules = (array) ($classes['reschedules'] ?? array());
+        echo '<h3>Reschedule and replacement decisions</h3>';
+        if (!$reschedules) {
+            echo '<p class="dzn-tw-empty">No pending or failed reschedule proposal is recorded.</p>';
+        } else {
+            echo '<table class="widefat striped"><thead><tr><th>Proposed time</th><th>Student / class</th><th>State</th><th>Decision</th></tr></thead><tbody>';
+            foreach ($reschedules as $row) {
+                $when = self::utcLabel((string) $row->proposed_starts_at_utc, (string) $row->schedule_timezone);
+                $decision = '<a class="button button-small" href="' . esc_url(admin_url('admin.php?page=dzn-lesson&id=' . (int) $row->lesson_id)) . '">Open class</a>';
+                if ((string) $row->state === 'pending' && current_user_can('dzn_manage_lessons')) {
+                    foreach (array('confirm' => 'Confirm change', 'cancel' => 'Cancel proposal') as $operation => $label) {
+                        $decision .= '<form method="post" class="dzn-tw-inline-form" onsubmit="return confirm(\'' . esc_js($label) . '?\')"><input type="hidden" name="dzn_action" value="' . esc_attr($operation === 'confirm' ? 'confirm_teacher_reschedule' : 'cancel_teacher_reschedule') . '"><input type="hidden" name="teacher_id" value="' . esc_attr((string) $teacherId) . '"><input type="hidden" name="proposal_uid" value="' . esc_attr((string) $row->proposal_uid) . '"><input type="hidden" name="decision_key" value="' . esc_attr(wp_generate_uuid4()) . '">' . wp_nonce_field('dzn_platform_' . ($operation === 'confirm' ? 'confirm_teacher_reschedule' : 'cancel_teacher_reschedule'), '_wpnonce', true, false) . '<button class="button button-small">' . esc_html($label) . '</button></form>';
+                    }
+                }
+                echo '<tr><td>' . esc_html($when) . '</td><td>' . esc_html((string) $row->student_name . ' · ' . (string) $row->course_name) . '</td><td>' . esc_html(ucfirst(str_replace('_', ' ', (string) $row->state))) . '</td><td>' . $decision . '</td></tr>';
+            }
+            echo '</tbody></table>';
+        }
         $attendance = (array) ($classes['attendance'] ?? array());
         echo '<h3>Attendance exceptions</h3>';
         if (!$attendance) {
             echo '<p class="dzn-tw-empty">No open attendance case is recorded.</p>';
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>Occurrence</th><th>Student</th><th>State</th><th>Action</th></tr></thead><tbody>';
-            foreach ($attendance as $row) echo '<tr><td>' . esc_html(self::utcLabel((string) $row->occurrence_start_utc, '')) . '</td><td>' . esc_html((string) $row->student_name) . '</td><td>' . esc_html(ucfirst(str_replace('_', ' ', (string) $row->state))) . '</td><td><a class="button button-small" href="' . esc_url(admin_url('admin.php?page=dzn-attendance-review&lesson_id=' . (int) $row->lesson_id)) . '">Review attendance</a></td></tr>';
+            echo '<table class="widefat striped"><thead><tr><th>Occurrence</th><th>Student</th><th>State</th><th>Reviewed outcome</th></tr></thead><tbody>';
+            foreach ($attendance as $row) {
+                echo '<tr><td>' . esc_html(self::utcLabel((string) $row->occurrence_start_utc, '')) . '</td><td>' . esc_html((string) $row->student_name) . '</td><td>' . esc_html(ucfirst(str_replace('_', ' ', (string) $row->state))) . ' · v' . esc_html((string) $row->case_version) . '</td><td>';
+                if (current_user_can('dzn_manage_canonical_attendance_review')) {
+                    echo '<form method="post" class="dzn-tw-form dzn-tw-form--inline"><input type="hidden" name="dzn_action" value="resolve_teacher_attendance"><input type="hidden" name="teacher_id" value="' . esc_attr((string) $teacherId) . '"><input type="hidden" name="case_id" value="' . esc_attr((string) $row->id) . '"><input type="hidden" name="expected_case_version" value="' . esc_attr((string) $row->case_version) . '"><input type="hidden" name="operator_key" value="' . esc_attr(wp_generate_uuid4()) . '">' . wp_nonce_field('dzn_platform_resolve_teacher_attendance', '_wpnonce', true, false) . '<select name="review_operation"><option value="reassess">Reassess evidence</option><option value="settle_delivered">Settle delivered</option><option value="record_no_change">Close — no canonical change</option><option value="review_required">Publish review required</option><option value="teacher_non_delivery">Publish teacher non-delivery</option></select><button class="button button-small">Apply reviewed outcome</button></form>';
+                } else {
+                    echo '<a class="button button-small" href="' . esc_url(admin_url('admin.php?page=dzn-attendance-review&lesson_id=' . (int) $row->lesson_id)) . '">Review attendance</a>';
+                }
+                echo '</td></tr>';
+            }
             echo '</tbody></table>';
         }
         echo '</section>';
     }
 
-    private static function classTable(string $title, array $rows, string $page): void {
+    private static function classTable(string $title, array $rows, string $page, int $teacherId, bool $showAll = false): void {
         echo '<h3>' . esc_html($title) . '</h3>';
         if (!$rows) {
             echo '<p class="dzn-tw-empty">No class in this group.</p>';
             return;
         }
-        echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student</th><th>Course</th><th>Type</th><th>Status</th><th>Action</th></tr></thead><tbody>';
-        foreach (array_slice($rows, 0, 10) as $row) {
+        $visible = $showAll ? $rows : array_slice($rows, 0, 10);
+        echo '<table class="widefat striped"><thead><tr><th>When</th><th>Student</th><th>Course</th><th>Type</th><th>Status</th><th>Details</th><th>Action</th></tr></thead><tbody>';
+        foreach ($visible as $row) {
             $url = admin_url('admin.php?page=dzn-lesson&id=' . (int) $row->id);
             $when = (string) ($row->starts_at_utc ?? '') !== '' ? self::utcLabel((string) $row->starts_at_utc, (string) ($row->schedule_timezone ?? '')) : 'Not scheduled';
-            echo '<tr><td>' . esc_html($when) . '</td><td>' . esc_html((string) ($row->student_name ?: 'Student')) . '</td><td>' . esc_html((string) ($row->course_name ?: 'Course')) . '</td><td>' . esc_html(ucfirst((string) $row->lesson_type)) . '</td><td>' . esc_html(self::classState((string) $row->lifecycle_state, (string) ($row->delivery_state ?? ''))) . '</td><td><a class="button button-small" href="' . esc_url($url) . '">Inspect class</a></td></tr>';
+            $details = '<details class="dzn-tw-row-details"><summary>Inspect</summary><p><strong>Reference:</strong> ' . esc_html((string) ($row->class_reference ?: 'Class record')) . '</p><p><strong>Delivery:</strong> ' . esc_html((string) ($row->outcome_code ?: ($row->delivery_state ?: 'No outcome recorded'))) . '</p><p><strong>Local schedule:</strong> ' . esc_html(trim((string) ($row->local_wall_date ?? '') . ' ' . substr((string) ($row->local_wall_time ?? ''), 0, 5) . ' ' . (string) ($row->schedule_timezone ?? ''))) . '</p></details>';
+            echo '<tr><td>' . esc_html($when) . '</td><td>' . esc_html((string) ($row->student_name ?: 'Student')) . '</td><td>' . esc_html((string) ($row->course_name ?: 'Course')) . '</td><td>' . esc_html(ucfirst((string) $row->lesson_type)) . '</td><td>' . esc_html(self::classState((string) $row->lifecycle_state, (string) ($row->delivery_state ?? ''))) . '</td><td>' . $details . '</td><td><a class="button button-small" href="' . esc_url($url) . '">Open canonical class</a></td></tr>';
         }
         echo '</tbody></table>';
+        if (count($rows) > 10) {
+            $toggle = array('page' => $page, 'id' => $teacherId, 'show_all_classes' => $showAll ? null : '1');
+            echo '<p class="dzn-tw-note">' . esc_html('Showing ' . count($visible) . ' of ' . count($rows) . ' records.') . ' <a href="' . esc_url(add_query_arg($toggle, admin_url('admin.php')) . '#teacher-classes') . '">' . ($showAll ? 'Show latest 10' : 'Show all records') . '</a></p>';
+        }
     }
 
     private static function tasksSection(array $tasks, array $response, array $stats): void {
@@ -485,13 +536,17 @@ final class TeacherWorkspaceView {
         if (!$statements) {
             echo '<p class="dzn-tw-empty">No statement has been drafted for this Teacher.</p>';
         } else {
-            echo '<div class="dzn-tw-table-scroll" role="region" aria-label="Teacher statements" tabindex="0"><table class="widefat striped"><thead><tr><th>Statement</th><th>Period</th><th>Amount</th><th>Status</th><th>Issued</th><th>Payment</th><th>Actions</th></tr></thead><tbody>';
+            echo '<div class="dzn-tw-table-scroll" role="region" aria-label="Teacher statements" tabindex="0"><table class="widefat striped"><thead><tr><th>Statement</th><th>Period</th><th>Amount</th><th>Status</th><th>Issued</th><th>Payment</th><th>Reconciliation</th><th>Actions</th></tr></thead><tbody>';
             foreach ($statements as $statement) {
                 $state = (string) $statement['state'];
                 $amount = PricingMoney::format((int) $statement['payable_amount_minor'], (string) $statement['currency']);
                 $period = (string) ($statement['period_label'] ?: self::dateValue((string) $statement['period_start_utc']) . ' → ' . self::dateValue((string) $statement['period_end_utc']));
                 $payment = !empty($statement['payment_recorded']) ? 'Paid ' . self::dateValue((string) $statement['paid_at']) : ($state === 'issued' ? 'Not recorded' : '—');
-                echo '<tr><td>Statement v' . esc_html((string) $statement['statement_version']) . '</td><td>' . esc_html($period) . '</td><td>' . esc_html($amount) . '</td><td>' . esc_html(ucfirst($state)) . '</td><td>' . esc_html(self::dateValue((string) ($statement['issued_at'] ?? ''))) . '</td><td>' . esc_html($payment) . '</td><td>';
+                $reconciliation = is_array($statement['reconciliation'] ?? null) ? $statement['reconciliation'] : null;
+                if ($reconciliation === null) $reconciliationCell = '<span class="dzn-tw-muted">Not available</span>';
+                elseif (!empty($reconciliation['reconciled'])) $reconciliationCell = '<span class="dzn-tw-status dzn-tw-status--active">Reconciled</span>';
+                else $reconciliationCell = '<span class="dzn-tw-status dzn-tw-status--unavailable">' . esc_html(count((array) ($reconciliation['derived_differences'] ?? array())) . ' difference' . (count((array) ($reconciliation['derived_differences'] ?? array())) === 1 ? '' : 's')) . '</span>';
+                echo '<tr><td>Statement v' . esc_html((string) $statement['statement_version']) . '</td><td>' . esc_html($period) . '</td><td>' . esc_html($amount) . '</td><td>' . esc_html(ucfirst($state)) . '</td><td>' . esc_html(self::dateValue((string) ($statement['issued_at'] ?? ''))) . '</td><td>' . esc_html($payment) . '</td><td>' . $reconciliationCell . '</td><td>';
                 if (current_user_can('dzn_manage_finance_statements') && $state === 'draft') {
                     echo '<form method="post" class="dzn-tw-inline-form" onsubmit="return confirm(\'Issue this statement? The canonical issuance gate must pass.\')">';
                     self::formFields('issue_teacher_statement', $teacherId);
@@ -518,7 +573,7 @@ final class TeacherWorkspaceView {
             echo '</tbody></table></div>';
         }
         echo '<p class="dzn-tw-note">A statement records compensation facts only. It is not a payout receipt, tax invoice or bank instruction. Payment is shown only when an append-only settlement event exists. The canonical settlement authority records full settlement once; partial settlement is not modelled and is never inferred.</p>';
-        echo '<p class="dzn-tw-links"><a class="button" href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-rates', 'teacher_id' => $teacherId), admin_url('admin.php'))) . '">Rate timeline</a> <a class="button" href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-statements', 'teacher_id' => $teacherId), admin_url('admin.php'))) . '">Statements &amp; reconciliation</a> <a class="button" href="' . esc_url(add_query_arg(array('page' => 'dzn-finance-payability', 'teacher_id' => $teacherId), admin_url('admin.php'))) . '">Lesson payability</a></p></section>';
+        echo '<p class="dzn-tw-note"><strong>Remaining outside this profile:</strong> statement email delivery/PDF export and cross-teacher central-ledger reconciliation stay in Finance because they are transport and multi-teacher operations. Teacher-specific rate entry, statement draft/issue/payment and statement reconciliation are embedded above.</p></section>';
     }
 
     private static function actionsSection(object $record, string $page): void {
@@ -606,6 +661,7 @@ final class TeacherWorkspaceView {
             echo '</td></tr>';
             echo '<tr class="dzn-tw-onboarding-expand"><td colspan="12"><details><summary>Verified account linking and onboarding controls</summary>';
             echo '<div class="dzn-tw-facts"><div><span>Invitation</span><strong>' . esc_html((string) ($row['invitation']['label'] ?? 'Not sent')) . '</strong></div><div><span>Delivery</span><strong>' . esc_html((string) ($row['delivery']['label'] ?? 'No evidence')) . '</strong></div><div><span>Availability</span><strong>' . esc_html($availabilityTip) . '</strong></div><div><span>Next action</span><strong>' . esc_html((string) ($row['next_action'] ?? '')) . '</strong></div></div>';
+            if ($protectedRow) echo '<div class="notice notice-warning inline"><p><strong>Removal/reset blocked by protected history:</strong> ' . esc_html(implode(', ', $protectedRow)) . '. Use Archive Teacher after resolving future dependencies.</p></div>';
             if (($overview['can_link'] ?? false)) {
                 echo '<form method="post" class="dzn-tw-form">';
                 self::formFields('admin_link_teacher_principal', $teacherId);
@@ -613,12 +669,13 @@ final class TeacherWorkspaceView {
                 foreach ((array) ($overview['users'] ?? array()) as $user) echo '<option value="' . esc_attr((string) $user->ID) . '">' . esc_html(trim((string) $user->display_name) . ' · ' . (string) $user->user_email) . '</option>';
                 echo '</select></label><button class="button">Link verified account</button></form>';
             }
-            if (($overview['can_manage'] ?? false) && ($overview['can_revoke'] ?? false) && !(bool) ($row['accepted'] ?? false)) {
+            $protectedRow = (array) ($row['protected_history'] ?? array());
+            if (($overview['can_manage'] ?? false) && ($overview['can_revoke'] ?? false) && !(bool) ($row['accepted'] ?? false) && !$protectedRow) {
                 echo '<form method="post" class="dzn-tw-form" onsubmit="return confirm(\'Remove this invitation-only record?\')"><input type="hidden" name="dzn_action" value="revoke_remove_teacher_invitation"><input type="hidden" name="teacher_id" value="' . esc_attr((string) $teacherId) . '">';
                 wp_nonce_field('dzn_platform_revoke_remove_teacher_invitation');
                 echo '<label>Reason <input type="text" name="reason" maxlength="64" required></label><button class="button">Revoke &amp; remove</button></form>';
             }
-            if (($overview['can_manage'] ?? false) && current_user_can('dzn_manage_onboarding') && ($row['review']['state'] ?? '') !== 'approved' && ($row['review']['state'] ?? '') !== 'ready') {
+            if (($overview['can_manage'] ?? false) && current_user_can('dzn_manage_onboarding') && !$protectedRow && ($row['review']['state'] ?? '') !== 'approved' && ($row['review']['state'] ?? '') !== 'ready') {
                 echo '<form method="post" class="dzn-tw-form" onsubmit="return confirm(\'Reset this onboarding attempt? Only records without protected history can be reset.\')"><input type="hidden" name="dzn_action" value="reset_teacher_onboarding"><input type="hidden" name="teacher_id" value="' . esc_attr((string) $teacherId) . '">';
                 wp_nonce_field('dzn_platform_reset_teacher_onboarding');
                 echo '<label>Reason <input type="text" name="reason" maxlength="64" required></label><button class="button">Reset onboarding</button></form>';

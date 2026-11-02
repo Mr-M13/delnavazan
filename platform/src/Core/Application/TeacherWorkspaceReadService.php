@@ -71,7 +71,7 @@ final class TeacherWorkspaceReadService {
         $p = $wpdb->prefix . 'dzn_';
         $where = $archived
             ? "(t.status='archived' OR t.archived_at IS NOT NULL)"
-            : "t.archived_at IS NULL AND t.status<>'archived'";
+            : "t.archived_at IS NULL AND t.status<>'archived' AND NOT (o.state='reset_pending' AND (i.id IS NULL OR i.status IN ('revoked','superseded')) AND l.id IS NULL)";
         $rows = $wpdb->get_results(
             "SELECT t.*,o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state,o.submitted_at,o.reviewed_at,
                     l.wordpress_user_id linked_user_id,l.status principal_status,
@@ -154,6 +154,7 @@ final class TeacherWorkspaceReadService {
             'finance' => $this->finance($teacherId),
             'account' => $this->account($record),
             'unavailability_conflicts' => $this->futureUnavailabilityConflicts($teacherId),
+            'protected_history' => (new TeacherOnboardingLifecycleService())->protectedHistory($teacherId),
         );
     }
 
@@ -217,8 +218,10 @@ final class TeacherWorkspaceReadService {
             if (!$teacher) continue;
             if ((string) ($teacher->archived_at ?? '') !== '' || (string) ($teacher->status ?? '') === 'archived') continue;
             $terminalInvitation = $invitation !== null && in_array((string) ($invitation->lifecycle_status ?? ''), array('revoked', 'superseded', 'teacher_archived'), true);
-            if ($terminalInvitation && $item === null) continue;
+            $hasOnboarding = $item !== null && trim((string) ($item['teacher']->state ?? '')) !== '';
+            if ($terminalInvitation && !$hasOnboarding) continue;
             if ($terminalInvitation) $invitation = null;
+            if ($item !== null && (string) ($item['teacher']->state ?? '') === 'reset_pending' && $invitation === null) continue;
             $name = $this->displayName($teacher);
             $email = (string) ($teacher->email ?? '');
             $progress = is_array($item['progress'] ?? null) ? $item['progress'] : array();
@@ -254,6 +257,7 @@ final class TeacherWorkspaceReadService {
                 'blockers' => $blockers,
                 'next_action' => $nextAction,
                 'review' => $this->reviewState($teacher, $progress),
+                'protected_history' => current_user_can(self::MANAGE_TEACHERS) ? (new TeacherOnboardingLifecycleService())->protectedHistory($teacherId) : array(),
                 'archived' => ((string) ($teacher->archived_at ?? '') !== '' || (string) ($teacher->status ?? '') === 'archived'),
             );
         }
@@ -354,7 +358,7 @@ final class TeacherWorkspaceReadService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $lessons = $wpdb->get_results($wpdb->prepare(
-            "SELECT l.id,l.reference_code,l.lesson_type,l.record_model,l.lifecycle_state,l.status,
+            "SELECT l.id,l.reference_code class_reference,l.lesson_type,l.record_model,l.lifecycle_state,l.status,
                     s.display_name student_name,COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
                     v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,v.local_wall_date,v.local_wall_time,
                     d.outcome_code,d.delivery_state
@@ -364,7 +368,7 @@ final class TeacherWorkspaceReadService {
              LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
              LEFT JOIN {$p}canonical_lesson_delivery_outcomes d ON d.lesson_id=l.id AND d.applicable_slot=1
              WHERE l.teacher_id=%d AND l.archived_at IS NULL
-             ORDER BY COALESCE(v.starts_at_utc,d.occurrence_starts_at_utc) DESC,l.id DESC LIMIT 80",
+             ORDER BY COALESCE(v.starts_at_utc,d.occurrence_starts_at_utc) DESC,l.id DESC LIMIT 300",
             $teacherId
         )) ?: array();
         $now = gmdate('Y-m-d H:i:s');
@@ -376,21 +380,29 @@ final class TeacherWorkspaceReadService {
             $isToday = (string) ($lesson->local_wall_date ?? '') === $today;
             if ($lesson->lesson_type === 'replacement') $result['replacements'][] = $lesson;
             if ($isFuture) $result['upcoming'][] = $lesson;
-            elseif ((string) $lesson->lifecycle_state === 'completed') $result['recent'][] = $lesson;
+            elseif ((string) $lesson->lifecycle_state === 'completed' || (string) ($lesson->status ?? '') === 'completed') $result['recent'][] = $lesson;
             if ($isToday) $result['today'][] = $lesson;
         }
-        $result['today'] = array_slice($result['today'], 0, 20);
-        $result['upcoming'] = array_slice($result['upcoming'], 0, 20);
-        $result['recent'] = array_slice($result['recent'], 0, 10);
-        $result['replacements'] = array_slice($result['replacements'], 0, 10);
         $result['attendance'] = $wpdb->get_results($wpdb->prepare(
-            "SELECT c.id,c.lesson_id,c.state,c.occurrence_start_utc,c.occurrence_end_utc,
+            "SELECT c.id,c.lesson_id,c.schedule_version_id,c.case_version,c.state,c.occurrence_start_utc,c.occurrence_end_utc,c.window_end_utc,
                     s.display_name student_name,l.reference_code
              FROM {$p}canonical_attendance_cases c
              INNER JOIN {$p}students s ON s.id=c.student_id
              LEFT JOIN {$p}lessons l ON l.id=c.lesson_id
              WHERE c.teacher_id=%d AND c.state IN ('open','ready_for_review','settlement_pending')
              ORDER BY c.occurrence_start_utc,c.id LIMIT 20",
+            $teacherId
+        )) ?: array();
+        $result['reschedules'] = $wpdb->get_results($wpdb->prepare(
+            "SELECT r.id,r.uid proposal_uid,r.lesson_id,r.state,r.created_at,r.proposed_starts_at_utc,r.proposed_ends_at_utc,r.schedule_timezone,
+                    COALESCE(NULLIF(s.display_name,''),'Student') student_name,
+                    COALESCE(NULLIF(c.name_en,''),c.name_fa,'Class') course_name
+             FROM {$p}lesson_reschedule_proposals r
+             LEFT JOIN {$p}students s ON s.id=r.student_id
+             LEFT JOIN {$p}lessons l ON l.id=r.lesson_id
+             LEFT JOIN {$p}courses c ON c.id=l.course_id
+             WHERE r.teacher_id=%d AND r.state IN ('pending','rejected','failed')
+             ORDER BY r.state='pending' DESC,r.created_at DESC LIMIT 30",
             $teacherId
         )) ?: array();
         return $result;
@@ -443,12 +455,15 @@ final class TeacherWorkspaceReadService {
         if (!self::canReadFinance()) return $result;
         try { $result['rates'] = (new TeacherRateReadService())->timeline($teacherId); } catch (\Throwable) {}
         try {
-            $statements = (new TeacherStatementReadService())->statements($teacherId);
+            $statementService = new TeacherStatementReadService();
+            $statements = $statementService->statements($teacherId);
             $repository = new FinanceStatementRepository();
             foreach ($statements as &$statement) {
                 $payment = $repository->paymentFor((int) $statement['statement_id']);
                 $statement['paid_at'] = $payment ? (string) $payment->occurred_at : null;
                 $statement['payment_recorded'] = $payment !== null;
+                try { $statement['reconciliation'] = $statementService->statementReconciliation((int) $statement['statement_id']); }
+                catch (\Throwable) { $statement['reconciliation'] = null; }
             }
             unset($statement);
             $result['statements'] = array_reverse($statements);

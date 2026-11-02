@@ -79,7 +79,7 @@ final class TeacherOnboardingLifecycleService {
                 ), array('id' => (int) $link->id, 'status' => 'active'));
             }
             $this->repo->update('teachers', array('wordpress_user_id' => null, 'updated_at' => $now, 'updated_by' => $actor), array('id' => $teacherId));
-            $this->deleteOnboardingFacts($teacherId, true);
+            $this->markOnboardingReset($teacherId, $now, $actor);
             $this->clearTemporaryUnavailability($teacherId, $now, $actor);
             $this->repo->audit('teacher', $teacherId, 'teacher_onboarding.reset', $actor, hash('sha256', 'teacher-reset:' . $teacherId . ':' . $now . ':' . wp_generate_uuid4()), 'reason=' . $reason . ';linked_user=' . $userId);
             $this->repo->commit();
@@ -134,6 +134,29 @@ final class TeacherOnboardingLifecycleService {
         $this->repo->audit('teacher_invitation', (int) $invitation->id, 'teacher_invitation.revoked_for_cleanup', $actor, hash('sha256', 'invitation-cleanup:' . $teacherId . ':' . $now), $reason);
     }
 
+    /** Keep a hidden reset marker so the failed attempt leaves active views without losing audit history. */
+    private function markOnboardingReset(int $teacherId, string $now, ?int $actor): void {
+        global $wpdb;
+        $table = $wpdb->prefix . 'dzn_teacher_onboarding_states';
+        $current = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE teacher_id=%d FOR UPDATE", $teacherId));
+        $data = array(
+            'state' => 'reset_pending', 'readiness_state' => 'not_ready',
+            'profile_state' => 'incomplete', 'availability_state' => 'incomplete',
+            'submitted_at' => null, 'reviewed_at' => null, 'reviewed_by' => null,
+            'review_reason_code' => null, 'activated_at' => null,
+            'updated_at' => $now, 'updated_by' => $actor,
+        );
+        if ($current) {
+            $data['version'] = (int) $current->version + 1;
+            $wpdb->update($table, $data, array('id' => (int) $current->id, 'version' => (int) $current->version));
+        } else {
+            $data['teacher_id'] = $teacherId; $data['version'] = 1;
+            $data['created_at'] = $now; $data['created_by'] = $actor;
+            $wpdb->insert($table, $data);
+        }
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher onboarding reset marker could not be saved.');
+    }
+
     /** Remove onboarding/availability facts that belong to a rejected attempt, never historical leadgers. */
     private function deleteOnboardingFacts(int $teacherId, bool $keepAvailabilityHistory): void {
         global $wpdb;
@@ -179,7 +202,9 @@ final class TeacherOnboardingLifecycleService {
     }
 
     private function isExclusiveOnboardingAccount(int $userId, object $user): bool {
-        $roles = array_values(array_diff((array) $user->roles, array('dzn_teacher', 'subscriber')));
+        // Any additional role — including WordPress's default subscriber role — is
+        // an unrelated relationship and forbids account deletion.
+        $roles = array_values(array_diff((array) $user->roles, array('dzn_teacher')));
         if ($roles !== array()) return false;
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';

@@ -9,12 +9,16 @@ Replaces the Teachers Overview / Onboarding submenu split with one management wo
 a complete non-paginated Teacher directory, an in-page Teacher management record, and one
 current-state invitation and onboarding table. Directory statistics derive from canonical
 enrolment, delivery, attendance, availability, introductory-outcome and finance records.
-Temporary unavailability is recorded as dated blocked availability exceptions with explicit
-future-lesson conflict review. Invitation-only removal and account reset are guarded canonical
-lifecycle operations that preserve unrelated WordPress roles and historical business records.
-The academy-wide golden-hour atlas moves to the Academy Overview; individual golden-hour coverage
-remains in each Teacher profile and definitions remain in Settings/Finance configuration. See
-`TEACHERS-ADMINISTRATION-WORKSPACE.md`.
+Temporary unavailability now supports both an explicit until-reactivated sentinel and a separately
+chosen bounded period, with future-lesson conflict review. Teacher-scoped rate, statement,
+reconciliation, attendance, reschedule and student pause/resume decisions are embedded in the
+profile; assignment replacement, complex scheduling evidence and transport/export operations stay
+with their owning authority and are explained in context. Invitation-only removal and account reset
+are guarded canonical lifecycle operations that preserve unrelated WordPress roles, content and
+historical business records. The academy-wide golden-hour atlas moves to the Academy Overview;
+individual golden-hour coverage remains in each Teacher profile and definitions remain in
+Settings/Finance configuration. The branch also merges and reconciles the Overview finance/classroom
+changes from PR #490. See `TEACHERS-ADMINISTRATION-WORKSPACE.md`.
 
 ## LiveKit canonical attendance adapter — source only, not activated
 

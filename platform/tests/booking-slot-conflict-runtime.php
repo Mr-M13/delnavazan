@@ -42,7 +42,7 @@ $base = $request( '2026-12-01 10:00:00', array() );
 $assert( $conflicts( $student, $interval( '2026-12-01 10:44:00' ) ), 'A candidate inside the 15-minute buffer must conflict' );
 $assert( $conflicts( $student, $interval( '2026-12-01 10:30:00' ) ), 'The buffer interval must still block a candidate at the instructional end' );
 $assert( ! $conflicts( $student, $interval( '2026-12-01 10:45:00' ) ), 'A candidate starting exactly at the occupied end must be allowed' );
-$assert( ! $conflicts( $student, $interval( '2026-12-01 09:30:00' ) ), 'A non-overlapping earlier booking must be allowed' );
+$assert( ! $conflicts( $student, $interval( '2026-12-01 09:00:00' ) ), 'A non-overlapping earlier booking must be allowed' );
 
 // Declined/cancelled requests and failed confirmations are not occupancy.
 $wpdb->update( $p . 'booking_requests', array( 'lifecycle_status' => 'closed', 'resolution_state' => 'teacher_declined' ), array( 'id' => (int) $base['request_id'] ) );

@@ -9,6 +9,7 @@ $response = $read('src/Core/Application/BookingTeacherResponseService.php');
 $reschedule = $read('src/Core/Infrastructure/Repository/LessonRescheduleRepository.php');
 $canonical = $read('src/Core/Application/CanonicalLessonScheduleService.php');
 $legacy = $read('src/Core/Application/LessonScheduleService.php');
+$adminIntro = $read('src/Core/Application/AdministratorIntroBookingService.php');
 $requestRepository = $read('src/Core/Infrastructure/Repository/BookingRequestRepository.php');
 $responseRepository = $read('src/Core/Infrastructure/Repository/BookingTeacherResponseRepository.php');
 $expect = static function(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
@@ -20,6 +21,7 @@ $expect(str_contains($query, "'pending_projection','awaiting_conference','retrya
 $expect(str_contains($authority, 'assertLessonIntervalAvailable') && str_contains($authority, "'student_slot_conflict'"), 'The shared application authority must expose one lesson-interval rule.');
 
 $expect(str_contains($submission, 'ensureAndLockStudentRoot') && str_contains($submission, 'studentOccupancyConflicts') && str_contains($submission, "'include_open_requests' => true"), 'Intake must lock the Student root before its open-request-aware occupancy read.');
+$expect(str_contains($submission, 'submitPublic(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null, ?int $studentId = null)') && str_contains($adminIntro, '$requestKey, null, $studentId'), 'Administrator introductory booking must pass its verified Student to the shared intake check.');
 $expect(str_contains($response, 'ensureAndLockStudentRoot') && str_contains($response, 'studentOccupancyConflicts') && str_contains($response, "'exclude_booking_request_id'"), 'Teacher and administrator acceptance must lock and re-check the same Student occupancy rule.');
 $start=strpos($reschedule,'public function studentConflict('); $end=$start===false?false:strpos($reschedule,'public function duplicate(', $start); $studentConflict=$start===false||$end===false?'':substr($reschedule,$start,$end-$start);
 $expect(str_contains($studentConflict, 'StudentOccupancyQuery::conflicts') && !str_contains($studentConflict, 'canonical_lesson_schedule_versions') && !str_contains($studentConflict, 'lesson_schedule_versions'), 'Reschedule/replacement conflict reads must delegate to the one occupancy query, not duplicate SQL.');

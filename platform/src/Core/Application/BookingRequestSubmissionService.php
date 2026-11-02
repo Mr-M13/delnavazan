@@ -14,8 +14,8 @@ final class BookingRequestSubmissionService {
      * locked and established replays/conflicts have been resolved. This keeps
      * secondary abuse controls from changing the authoritative retry outcome.
      */
-    public function submitPublic(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null): array {
-        $this->repo->begin(); try { $result = $this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate ); $this->repo->commit(); unset( $result['request_id'] ); return $result; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    public function submitPublic(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null, ?int $studentId = null): array {
+        $this->repo->begin(); try { $result = $this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId ); $this->repo->commit(); unset( $result['request_id'] ); return $result; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
     /** Internal composition seam for an owner that already holds the transaction. */

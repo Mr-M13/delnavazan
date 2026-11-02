@@ -80,10 +80,10 @@ foreach (array('background', 'surface', 'surface-elevated', 'text-primary', 'tex
 /* 3. The public footer uses the canonical identity and accessible links. */
 $footer = (string) file_get_contents($repo . '/theme/footer.php');
 $fail('footer reads the canonical brand helper', str_contains($footer, 'dzn_theme_brand_identity()'));
-$fail('footer exposes a tel link', str_contains($footer, "esc_url( \$footer_brand['phone_href'] )"));
+$fail('footer does not expose a phone action', !str_contains($footer, 'site-footer__action--phone') && !str_contains($footer, "esc_url( \$footer_brand['phone_href'] )"));
 $fail('footer exposes the canonical mail link', str_contains($footer, "esc_url( \$footer_brand['support_mailto'] )"));
 $fail('footer exposes the canonical WhatsApp link', str_contains($footer, "esc_url( \$footer_brand['whatsapp_url'] )"));
-$fail('footer labels include the phone number', str_contains($footer, "phone_display"));
+$fail('footer does not repeat contact details', !str_contains($footer, 'site-footer__contact') && !str_contains($footer, "phone_display']") && !str_contains($footer, "support_email']"));
 $fail('footer icons are decorative', substr_count($footer, 'alt=""') >= 3);
 $fail('footer has no stale support address', !str_contains($footer, 'delnavazan@mail.com') && !str_contains($footer, 'support@delnavazan.com'));
 

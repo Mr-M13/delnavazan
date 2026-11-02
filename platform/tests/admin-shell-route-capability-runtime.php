@@ -58,8 +58,20 @@ foreach ( array_keys( $routeCaps ) as $currentPage ) {
         $adminShown[$slug] = true;
     }
 }
-if ( count( $adminShown ) !== count( $routeCaps ) ) {
-    throw new RuntimeException( 'Administrator shell did not expose every permitted registered destination.' );
+// Catalogue is linked inside General rather than becoming a fifth Settings section.
+$missing = array_values( array_diff( array_keys( $routeCaps ), array_keys( $adminShown ) ) );
+if ( $missing !== array( 'dzn-catalogue-workspace' )
+    || ! str_contains( (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Controller/GeneralSettingsController.php' ), 'admin.php?page=dzn-catalogue-workspace' ) ) {
+    throw new RuntimeException( 'Administrator shell lost a permitted destination: ' . implode( ', ', $missing ) );
+}
+
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_catalogue_workspace' );
+$_GET['page'] = 'dzn-catalogue-workspace';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$catalogueHtml = ob_get_clean();
+if ( ! str_contains( $catalogueHtml, 'page=dzn-catalogue-workspace' ) || ! str_contains( $catalogueHtml, '>Settings<' ) ) {
+    throw new RuntimeException( 'Catalogue-only staff lost the protected Settings entry.' );
 }
 
 // A restricted operator with only student authority sees that route and cannot

@@ -25,6 +25,8 @@ final class AdminShellController {
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
+            // Top-level fallback for catalogue-only staff. Settings sections below still render four links.
+            ['Catalogue access', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
             ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],

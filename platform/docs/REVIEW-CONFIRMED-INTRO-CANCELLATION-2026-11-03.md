@@ -37,10 +37,10 @@ the completed ledger and the schema verifier.
 ## Transaction and lock behaviour
 
 - One `READ COMMITTED` transaction.
-- Confirmation row is locked first, then request/delivery, then the Student scheduling root.
+- Request and confirmation rows are locked for update, then the Student scheduling root is acquired before the state transition.
 - Replay is command-digest based. A second key for an already-cancelled confirmation converges on
   the existing cancellation rather than appending another.
-- Version-safe confirmation transition: expected version + `state='confirmed'`.
+- Version-safe confirmation transition: expected id/version and the locked previous state; a stale expected version is refused.
 - Request, delivery, coordination case, notification and retraction job are committed together.
 - Any failure rolls back every state change; no partial cancellation is visible.
 - The provider projection secret is **not** retired at cancellation time. It remains available to the

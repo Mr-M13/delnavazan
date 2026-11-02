@@ -85,6 +85,7 @@ add_action( 'plugins_loaded', static function () {
 	// Delnavazan's operational overview lives in the capability-filtered Academy
 	// console. Do not duplicate a stale snapshot on WordPress's generic dashboard.
 	Delnavazan\Platform\Admin\Controller\AdminShellController::register();
+	Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController::register();
 	Delnavazan\Platform\Admin\RecordAction\RecordActionController::register();
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
 	Delnavazan\Platform\Admin\Controller\LegalPagesController::register();

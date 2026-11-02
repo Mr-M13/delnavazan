@@ -20,6 +20,8 @@ final class Menu {
     public const TEACHER_ONBOARDING_CAP = 'dzn_access_teacher_onboarding';
     /** Composite entry capabilities for the consolidated Enrolment workspaces. */
     public const ENROLMENT_WORKSPACE_CAP = 'dzn_access_enrolment_workspace';
+    public const ENROLMENT_TRIALS_CAP = 'dzn_access_enrolment_trials';
+    public const ENROLLED_CLASSES_CAP = 'dzn_access_enrolled_classes';
     public const CATALOGUE_WORKSPACE_CAP = 'dzn_access_catalogue_workspace';
     public const ATTENDANCE_WORKSPACE_CAP = 'dzn_access_attendance_workspace';
     /** One Finance page with four tabs; individual tabs still enforce narrow capabilities. */
@@ -48,6 +50,25 @@ final class Menu {
         if ($cap === self::ENROLMENT_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
             'dzn_view_booking_requests',
             'dzn_manage_booking_request_coordination',
+            'dzn_manage_enrolments',
+            'dzn_manage_terms',
+            'dzn_manage_lessons',
+            'dzn_manage_canonical_lessons',
+            'dzn_manage_canonical_lesson_schedules',
+            'dzn_manage_canonical_attendance_review',
+            'dzn_manage_post_intro_automation',
+        ]);
+        if ($cap === self::ENROLMENT_TRIALS_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_view_booking_requests',
+            'dzn_manage_booking_request_coordination',
+            'dzn_manage_enrolments',
+            'dzn_manage_terms',
+        ]);
+        if ($cap === self::ENROLLED_CLASSES_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_lessons',
+            'dzn_manage_canonical_lessons',
+            'dzn_manage_canonical_lesson_schedules',
+            'dzn_manage_canonical_attendance_review',
             'dzn_manage_enrolments',
             'dzn_manage_terms',
         ]);

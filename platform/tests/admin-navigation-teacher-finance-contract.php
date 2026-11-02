@@ -23,12 +23,10 @@ $contains($shell, array(
     "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "'teachers' => ['Teachers'",
     "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
-    "'classes' => ['Classes'",
-    "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
-    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
     "'enrolment' => ['Enrolment'",
-    "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+    "['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
+    "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
+    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
     "'finance' => ['Finance'",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
@@ -61,9 +59,10 @@ $contains($menu, array(
 $enrolmentWorkspace = $read('EnrolmentWorkspaceController.php');
 $catalogueWorkspace = $read('CatalogueWorkspaceController.php');
 $attendanceWorkspace = $read('AttendanceWorkspaceController.php');
-$contains($enrolmentWorkspace, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must preserve the authorised booking, coordination, enrolment and Term workflows');
+$contains($enrolmentWorkspace, array('EnrolmentWorkspaceView', 'AdministratorBookingMatchService', 'HistoricalEnrolmentImportService'), 'Enrolment must use the two operational sub-tabs');
+$contains((string) file_get_contents($root . '/src/Admin/View/EnrolmentWorkspaceView.php'), array('New bookings &amp; trials', 'Enrolled classes', 'Shared class action component'), 'Enrolment must use the two operational sub-tabs');
 $contains($catalogueWorkspace, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must preserve catalogue, instrument, finance-settings and exception workflows');
-$contains($attendanceWorkspace, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must preserve attendance, post-intro and class-outcome workflows');
+$contains($attendanceWorkspace, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Protected attendance and post-intro routes must remain resolvable');
 $contains($academy, array(
     'todayClasses(): void',
     '>Today’s classes',

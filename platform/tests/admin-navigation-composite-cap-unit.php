@@ -21,7 +21,7 @@ $map = static function (array $caps, string $capability): array {
 $assert($map(array('manage_options'), Menu::ENROLMENT_WORKSPACE_CAP) === array('manage_options'), 'Site administrators keep manage_options through the workspace capability.');
 $assert($map(array('dzn_manage_terms'), Menu::ENROLMENT_WORKSPACE_CAP) === array('dzn_manage_terms'), 'Terms-only operators must reach the Enrolment workspace.');
 $assert($map(array('dzn_manage_enrolments'), Menu::ENROLMENT_WORKSPACE_CAP) === array('dzn_manage_enrolments'), 'Enrolment operators must reach the Enrolment workspace.');
-$assert($map(array('dzn_view_booking_requests'), Menu::ENROLMENT_TRIALS_CAP) === array('dzn_view_booking_requests'), 'Booking-request readers must reach New bookings & trials.');
+$assert($map(array('dzn_view_booking_requests'), Menu::ENROLMENT_TRIALS_CAP) === array('dzn_view_booking_requests'), 'Booking-request readers must reach Intro.');
 $assert($map(array('dzn_manage_lessons'), Menu::ENROLLED_CLASSES_CAP) === array('dzn_manage_lessons'), 'Class operators must reach Enrolled classes.');
 $assert($map(array('dzn_manage_canonical_lesson_schedules'), Menu::ENROLLED_CLASSES_CAP) === array('dzn_manage_canonical_lesson_schedules'), 'Schedule operators must reach Enrolled classes.');
 $assert($map(array('dzn_manage_lessons'), Menu::ENROLMENT_TRIALS_CAP) === array('do_not_allow'), 'Class-only operators must not reach the booking trial queue.');

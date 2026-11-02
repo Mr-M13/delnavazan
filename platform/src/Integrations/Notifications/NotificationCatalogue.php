@@ -142,6 +142,26 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'Introductory lesson request not accepted','body'=>'{{teacher}} is unable to accept the {{course}} lesson at this time.'),
             ),
         ));
+        $out[]=self::event('booking.cancelled.student','Intro Lesson Cancelled','booking','student','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.cancelled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس معارفه لغو شد','body'=>"درود {{name}}،\n\nکلاس معارفهٔ «{{course}}» با {{teacher}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس معارفه لغو شد','body'=>'کلاس معارفهٔ «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory lesson cancelled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} for {{when}} has been cancelled. No attendance or payment decision was inferred.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson cancelled','body'=>'Your {{course}} lesson with {{teacher}} for {{when}} was cancelled.'),
+            ),
+        ));
+        $out[]=self::event('booking.rescheduled.student','Intro Lesson Rescheduled','booking','student','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.rescheduled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · زمان کلاس معارفه تغییر کرد','body'=>"درود {{name}}،\n\nزمان کلاس معارفهٔ «{{course}}» با {{teacher}} به {{when}} تغییر کرد.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'زمان کلاس معارفه تغییر کرد','body'=>'زمان کلاس معارفهٔ «{{course}}» با {{teacher}} به {{when}} تغییر کرد.'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory lesson rescheduled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} has been rescheduled to {{when}}.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson rescheduled','body'=>'Your {{course}} lesson with {{teacher}} is now at {{when}}.'),
+            ),
+        ));
         $out[]=self::event('post_intro.invitation.student','Enrolment Ready','booking','student','PostIntroPreparationService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.invitation',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · ثبت‌نام شما آمادهٔ تکمیل است','body'=>"درود {{name}}،\n\n{{teacher}} تأیید کرد که کلاس معارفه «{{course}}» برگزار شده است. اکنون می‌توانید با همان مدرس، ثبت‌نام خود را تکمیل کنید.\n\nبرای ادامهٔ ثبت‌نام و پرداخت به حساب کاربری بروید:\n{{portal_url}}\n\nپس از تأیید پرداخت، ثبت‌نام، برنامهٔ هفتگی و کلاس‌های آیندهٔ شما به‌صورت خودکار فعال می‌شود و تأیید دوبارهٔ مدرس لازم نیست.\n\nبا احترام، دلنوازان"),
@@ -245,6 +265,18 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد.'),
                 'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. برای بررسی جزئیات به پرتال مدرس مراجعه کنید: {{teacher_portal_url}}'),
                 'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('booking.cancelled.teacher','Intro Lesson Cancelled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.cancelled.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس معارفه لغو شد','body'=>"درود {{teacher}}،\n\nکلاس معارفهٔ «{{course}}» با {{student}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس معارفه لغو شد','body'=>'کلاس معارفهٔ «{{course}}» با {{student}} در {{when}} لغو شد.'),
+            ),
+        ));
+        $out[]=self::event('booking.rescheduled.teacher','Intro Lesson Rescheduled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.rescheduled.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · زمان کلاس معارفه تغییر کرد','body'=>"درود {{teacher}}،\n\nزمان کلاس معارفهٔ «{{course}}» با {{student}} به {{when}} تغییر کرد.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'زمان کلاس معارفه تغییر کرد','body'=>'زمان کلاس معارفهٔ «{{course}}» با {{student}} به {{when}} تغییر کرد.'),
             ),
         ));
         self::appendRescheduleTeacher($out);

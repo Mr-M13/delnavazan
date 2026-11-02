@@ -34,6 +34,10 @@ final class BookingStudentNotificationWorker {
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
             if((string)$row->notification_kind==='requested_student')$eventKey='booking.requested.student';
             if((string)$row->notification_kind==='requested_teacher')$eventKey='booking.new.teacher';
+            if((string)$row->notification_kind==='cancelled')$eventKey='booking.cancelled.student';
+            if((string)$row->notification_kind==='cancelled_teacher')$eventKey='booking.cancelled.teacher';
+            if((string)$row->notification_kind==='rescheduled')$eventKey='booking.rescheduled.student';
+            if((string)$row->notification_kind==='rescheduled_teacher')$eventKey='booking.rescheduled.teacher';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
             $copy=array('subject'=>$subject,'body'=>$body);
@@ -66,7 +70,7 @@ final class BookingStudentNotificationWorker {
     /** The student inbox is recorded even when the mail transport refuses the hand-off. */
     private static function recordInbox(object $row,string $eventKey,array $variables):void{
         if(!class_exists(PortalNotificationRecorder::class))return;
-        if((string)$row->notification_kind==='requested_teacher'){
+        if(str_ends_with((string)$row->notification_kind,'_teacher')){
             PortalNotificationRecorder::teacher((int)$row->teacher_id,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['teacher_portal_url']??''));
             return;
         }
@@ -88,8 +92,8 @@ final class BookingStudentNotificationWorker {
         return array('Content-Type: text/plain; charset=UTF-8','Message-ID: <'.$identity.'>','X-Delnavazan-Notification-ID: '.(string)$row->uid);
     }
 
-    private static function recipientEmail(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?($row->teacher_email??''):($row->student_email??$row->email??''));}
-    private static function portalLabel(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
+    private static function recipientEmail(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?($row->teacher_email??''):($row->student_email??$row->email??''));}
+    private static function portalLabel(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
 
     private static function message(object $row):array{
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
@@ -104,6 +108,26 @@ final class BookingStudentNotificationWorker {
             $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
             $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
             return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='cancelled'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('Delnavazan introductory lesson cancelled',"Hello {$name},\n\nYour introductory {$course} lesson with {$teacher} for {$when} has been cancelled. No attendance or payment decision was inferred from this cancellation.\n\nOpen your account: {$portal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='cancelled_teacher'){
+            $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
+            return array('Delnavazan introductory lesson cancelled',"Hello {$teacher},\n\nThe introductory {$course} lesson with {$name} for {$when} has been cancelled. No attendance or payment decision was inferred from this cancellation.\n\nOpen your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='rescheduled'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('Delnavazan introductory lesson rescheduled',"Hello {$name},\n\nYour introductory {$course} lesson with {$teacher} has been rescheduled to {$when}.\n\nOpen your account: {$portal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='rescheduled_teacher'){
+            $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
+            return array('Delnavazan introductory lesson rescheduled',"Hello {$teacher},\n\nThe introductory {$course} lesson with {$name} has been rescheduled to {$when}.\n\nOpen your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
         }
         if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your account.\n\nOpen your account: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);

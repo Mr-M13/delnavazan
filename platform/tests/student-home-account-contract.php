@@ -28,9 +28,9 @@ $position = static function ( string $haystack, string $needle ): int {
 	return false === $at ? PHP_INT_MAX : $at;
 };
 
-/* 1. Home is task-first: next class, term, schedule, inbox, requests/invitations, announcement, history. */
+/* 1. Home is task-first: next class, term, schedule, requests/invitations, announcement, history. */
 $home = substr( $shell, (string) strpos( $shell, "<?php else : ?>") );
-$order = array( 'reschedule', 'term-timeline', 'schedule', 'notifications', 'booking-requests', 'post-intro', 'announcement' );
+$order = array( 'reschedule', 'term-timeline', 'schedule', 'booking-requests', 'post-intro', 'announcement' );
 $previous = -1;
 $ordered = true;
 foreach ( $order as $component ) {
@@ -67,7 +67,7 @@ foreach ( array( 'profile', 'account-status', 'payments', 'recording-choices' ) 
 	$account_previous = $at;
 }
 $check( 'account puts status directly beneath profile and consent at the very bottom', $account_ordered );
-$check( 'notifications moved from Settings to the Classes timeline', ! str_contains( $account, "'notifications'" ) && str_contains( $home, "'notifications'" ) );
+$check( 'the notification card is replaced by the shared unread-only banner', ! str_contains( $account, "dzn_theme_portal_component( 'notifications'" ) && ! str_contains( $home, "dzn_theme_portal_component( 'notifications'" ) && str_contains( $shell, 'template-parts/components/notification-banner' ) );
 $check( 'the always-rendered future-orders placeholder is gone', ! str_contains( $shell, "'future-orders'" ) );
 
 /* 3. History dates are machine-readable instants. */

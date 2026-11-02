@@ -136,6 +136,7 @@ $withdrawn=$publisher->withdrawAll(RecordingDecisionAuthorityService::AUDIENCE_T
 dzn_rda_ui_assert($withdrawn>=1&&$publisher->current(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en')===null,'withdrawal must leave no current English version');
 $afterWithdraw=$ui->teacher();
 dzn_rda_ui_assert(count($afterWithdraw['notices'])===1&&(string)$afterWithdraw['notices'][0]['language']==='fa','withdrawing English must leave the published Persian version only');
+wp_set_current_user(1);
 ob_start();\Delnavazan\Platform\Admin\Controller\RecordingNoticeAdminController::render();$adminHtml=(string)ob_get_clean();
 dzn_rda_ui_assert(str_contains($adminHtml,'Recording notices')&&str_contains($adminHtml,'Publish new version')&&str_contains($adminHtml,'Withdraw all published versions'),'the administrator publication screen must render');
 dzn_rda_ui_assert(str_contains($adminHtml,'Not published'),'a withdrawn audience language must be shown as not published');

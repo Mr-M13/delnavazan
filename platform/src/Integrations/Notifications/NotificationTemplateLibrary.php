@@ -24,6 +24,7 @@ final class NotificationTemplateLibrary {
     public const OPTION_AUDIT='dzn_notification_copy_audit';
     public const OPTION_WHATSAPP='dzn_notification_whatsapp_templates';
     public const OPTION_CHANNEL_POLICY='dzn_notification_channel_policy';
+    public const OPTION_EVENT_ENABLED='dzn_notification_event_enabled';
     public const OPTION_SEEDED='dzn_notification_catalogue_seeded';
     public const AUDIT_LIMIT=1000;
 
@@ -378,6 +379,36 @@ final class NotificationTemplateLibrary {
         return array('ok'=>true,'mapping'=>$map[$templateKey]);
     }
 
+    // ------------------------------------------------------------------ event enablement
+
+    /**
+     * Optional events may be disabled by staff. Security, account and financial events are
+     * mandatory and always report enabled; disabling one is refused rather than ignored later.
+     */
+    public function eventEnabled(string $eventKey):bool{
+        if(NotificationCatalogue::get($eventKey)===null)return false;
+        if(NotificationCatalogue::isMandatory($eventKey))return true;
+        $saved=$this->option(self::OPTION_EVENT_ENABLED);
+        return !array_key_exists($eventKey,$saved)||!empty($saved[$eventKey]);
+    }
+
+    /** @return array<string,bool> All optional events with their effective state. */
+    public function eventStates():array{
+        $out=array();
+        foreach(NotificationCatalogue::events() as $eventKey=>$event)$out[$eventKey]=$this->eventEnabled($eventKey);
+        return $out;
+    }
+
+    public function saveEventEnabled(string $eventKey,bool $enabled):array{
+        if(NotificationCatalogue::get($eventKey)===null)throw new \InvalidArgumentException('notification_event_unknown');
+        if(NotificationCatalogue::isMandatory($eventKey)&&!$enabled)throw new \InvalidArgumentException('notification_event_mandatory');
+        $saved=$this->option(self::OPTION_EVENT_ENABLED);
+        $saved[$eventKey]=$enabled;
+        $this->putOption(self::OPTION_EVENT_ENABLED,$saved);
+        $this->audit($enabled?'enable_event':'disable_event',$eventKey,'','',null,$enabled?'Optional event enabled':'Optional event disabled');
+        return array('event_key'=>$eventKey,'enabled'=>$enabled,'mandatory'=>NotificationCatalogue::isMandatory($eventKey));
+    }
+
     // ------------------------------------------------------------------ channel policy
 
     /** The effective, non-secret channel policy of one category. Mandatory channels stay locked. */
@@ -431,7 +462,7 @@ final class NotificationTemplateLibrary {
             'security'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
             'essential'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
             'financial'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
-            'operational'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
+            'operational'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>false),
             default=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>false),
         };
     }

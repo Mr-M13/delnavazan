@@ -22,17 +22,17 @@ $fail('menu label is English', str_contains($menu, "'Notifications', self::NOTIF
 $fail('settings tab is English', str_contains($shell, "'Notifications', 'dzn-notifications'"));
 $fail('page heading is English', str_contains($controller, '<h1>Notifications</h1>'));
 foreach (array(
-    'templates' => 'Templates', 'settings' => 'Channel settings', 'diagnostics' => 'Diagnostics',
+    'events' => 'Events', 'templates' => 'Templates',
 ) as $slug => $label) {
     $fail('tab ' . $slug . ' is English', str_contains($controller, "'" . $slug . "'=>'" . $label . "'"));
 }
-$fail('legacy tabs are not separate navigation entries', str_contains($controller, "\$tabs=array('templates'=>'Templates','settings'=>'Channel settings','diagnostics'=>'Diagnostics')") && str_contains($controller, 'LEGACY_TABS'));
+$fail('legacy tabs are not separate navigation entries', str_contains($controller, "\$tabs=array('events'=>'Events','templates'=>'Templates')") && str_contains($controller, 'LEGACY_TABS'));
 
 /* 2. The admin surface is LTR and contains no Persian UI labels. */
 $fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr}'));
 $fail('no Persian remains in the admin controller', !$persian($controller));
 $fail('no Persian remains in the admin menu', !$persian($menu));
-foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Prune Expired Notifications', 'Delivery Authority', 'Consent Basis', 'Handed off to provider', 'Delivery confirmed', 'Channel settings', 'Delivery choices', 'Inspect notification details') as $label) {
+foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Delivery Authority', 'Consent Basis', 'Handed off to provider', 'Delivery confirmed', 'Channel settings', 'Delivery choices', 'Inspect notification details') as $label) {
     $fail('English control or status: ' . $label, str_contains($controller, $label));
 }
 

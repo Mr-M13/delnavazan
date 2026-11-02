@@ -13,6 +13,7 @@ final class NotificationChannelPolicy {
     public static function allows(string $eventKey,string $channel):bool{
         $event=NotificationCatalogue::get($eventKey);
         if($event===null)return false;
+        if(!(new NotificationTemplateLibrary())->eventEnabled($eventKey))return false;
         if(!in_array($channel,(array)$event['channels'],true))return false;
         $policy=(new NotificationTemplateLibrary())->channelPolicy((string)$event['category']);
         return !empty($policy[$channel]);

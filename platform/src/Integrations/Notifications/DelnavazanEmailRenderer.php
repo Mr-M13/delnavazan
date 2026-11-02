@@ -35,6 +35,8 @@ final class DelnavazanEmailRenderer {
         $preheader=self::oneLine((string)($options['preheader']??''));
         $logo=self::logoUrl((string)($options['logo_url']??''));
         $note=self::oneLine((string)($options['footer_note']??''));
+        if($note===''&&class_exists(EmailAppearance::class))$note=self::oneLine(EmailAppearance::values()['footer_note']);
+        $font=class_exists(EmailAppearance::class)?EmailAppearance::fontStack():"Tahoma, 'Segoe UI', Arial, sans-serif";
         $brand=$english?'Delnavazan':'دلنوازان';
         $tagline=$english?'Music academy · Persian and international students':'آکادمی موسیقی · هنرجویان ایران و سراسر جهان';
         $supportLabel=$english?'Support':'پشتیبانی';
@@ -44,7 +46,7 @@ final class DelnavazanEmailRenderer {
             .'<body style="margin:0;padding:0;background:'.self::IVORY.';">'
             .($preheader!==''?'<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">'.self::e($preheader).'</div>':'')
             .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:'.self::IVORY.';padding:24px 12px;"><tr><td align="center">'
-            .'<table role="presentation" class="dzn-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:'.self::CARD.';border:1px solid '.self::BORDER.';border-radius:14px;overflow:hidden;font-family:Tahoma,\'Segoe UI\',Arial,sans-serif;color:'.self::INK.';">'
+            .'<table role="presentation" class="dzn-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:'.self::CARD.';border:1px solid '.self::BORDER.';border-radius:14px;overflow:hidden;font-family:'.$font.';color:'.self::INK.';">'
             .'<tr><td style="padding:20px 28px;border-bottom:3px solid '.self::POMEGRANATE.';background:'.self::CARD.';">'
             .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="'.($english?'left':'right').'" style="vertical-align:middle;">'
             .'<a href="'.self::e(self::SITE_URL).'" style="text-decoration:none;color:'.self::INK.';">'
@@ -56,7 +58,7 @@ final class DelnavazanEmailRenderer {
             .'<div style="font-size:15px;line-height:2;color:'.self::INK.';">'.$paragraphs.'</div>';
         if($cta!==null){
             $html.='<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 8px;"><tr><td class="dzn-cta" align="center" bgcolor="'.self::TURQUOISE.'" style="border-radius:8px;">'
-                .'<a href="'.self::e($cta['url']).'" style="display:inline-block;padding:13px 26px;font-family:Tahoma,\'Segoe UI\',Arial,sans-serif;font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:8px;">'.self::e($cta['label']).'</a></td></tr></table>'
+                .'<a href="'.self::e($cta['url']).'" style="display:inline-block;padding:13px 26px;font-family:'.$font.';font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:8px;">'.self::e($cta['label']).'</a></td></tr></table>'
                 .'<p style="margin:8px 0 0;font-size:12px;line-height:1.8;color:'.self::MUTED.';">'.($english?'If the button does not work, copy this address into your browser:':'اگر دکمه کار نکرد، این نشانی را در مرورگر خود باز کنید:').'<br><span dir="ltr" style="word-break:break-all;">'.self::e($cta['url']).'</span></p>';
         }
         $html.='</div></td></tr>'
@@ -132,6 +134,10 @@ final class DelnavazanEmailRenderer {
 
     private static function logoUrl(string $override):string{
         if($override!=='')return $override;
+        if(class_exists(EmailAppearance::class)){
+            $configured=EmailAppearance::logoUrl();
+            if($configured!=='')return $configured;
+        }
         if(function_exists('get_theme_file_uri')){
             $uri=(string)get_theme_file_uri('assets/images/delnavazan-logo.png');
             if($uri!=='')return $uri;

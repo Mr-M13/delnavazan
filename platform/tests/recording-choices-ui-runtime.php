@@ -1,6 +1,7 @@
 <?php
 if(getenv('DZN_RECORDING_UI_TEST')!=='choices'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Recording choices UI runtime refused.\n");exit(1);}
 use Delnavazan\Platform\Core\Application\RecordingDecisionAuthorityService;
+use Delnavazan\Platform\Core\Application\RecordingNoticePublicationService;
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Portals\RecordingDecisionUiReadService;
 global $wpdb;$p=$wpdb->prefix.'dzn_';$GLOBALS['dzn_rda_ui_prefix']=$p;$service=new RecordingDecisionAuthorityService();$ui=new RecordingDecisionUiReadService($service);
@@ -118,5 +119,24 @@ foreach(array('Recording and research information','Mbox local processing','curr
 $pageId=wp_insert_post(array('post_type'=>'page','post_name'=>'recording-and-research','post_status'=>'publish','post_title'=>'Recording and research information'));
 dzn_rda_ui_assert(!is_wp_error($pageId)&&$pageId>0,'fixture information page failed');
 dzn_rda_ui_assert(dzn_theme_route()==='','a published editor-managed page must take over the canonical slug');
+
+// Administrator publication authority: a new version is immutable, becomes current and requires re-acceptance.
+$publisher=new RecordingNoticePublicationService();
+$published=$publisher->publish(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en','Teacher recording terms v2 (runtime publication)',1);
+dzn_rda_ui_assert($published['version']===2,'publication must derive the next version server-side');
+$stored=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_notice_versions WHERE uid=%s",$published['uid']));
+dzn_rda_ui_assert($stored!==null&&(string)$stored->publication_state==='published'&&hash_equals(hash('sha256',(string)$stored->body_text),(string)$stored->text_digest),'publication must store a published digest-backed version');
+$current=$publisher->current(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en');
+dzn_rda_ui_assert($current!==null&&(string)$current['uid']===$published['uid'],'the newest published version must be current');
+wp_set_current_user($teacherUser);$renewed=$ui->teacher();
+dzn_rda_ui_assert($renewed['available']===true&&$renewed['accepted']===false,'a newer published version must require re-acceptance');
+dzn_rda_ui_assert(in_array(2,array_map(static fn(array $notice):int=>(int)$notice['notice_version'],$renewed['notices']),true),'the renewal form must cite the new version');
+$withdrawn=$publisher->withdrawAll(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',1);
+dzn_rda_ui_assert($withdrawn>=1&&$publisher->current(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en')===null,'withdrawal must leave no current English version');
+$afterWithdraw=$ui->teacher();
+dzn_rda_ui_assert(count($afterWithdraw['notices'])===1&&(string)$afterWithdraw['notices'][0]['language']==='fa','withdrawing English must leave the published Persian version only');
+ob_start();\Delnavazan\Platform\Admin\Controller\RecordingNoticeAdminController::render();$adminHtml=(string)ob_get_clean();
+dzn_rda_ui_assert(str_contains($adminHtml,'Recording notices')&&str_contains($adminHtml,'Publish new version')&&str_contains($adminHtml,'Withdraw all published versions'),'the administrator publication screen must render');
+dzn_rda_ui_assert(str_contains($adminHtml,'Not published'),'a withdrawn audience language must be shown as not published');
 
 echo "Recording choices UI runtime: PASS\n";

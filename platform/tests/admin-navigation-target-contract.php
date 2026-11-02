@@ -55,13 +55,18 @@ $contains($enrolment, array('dzn-booking-requests', 'dzn-booking-request-coordin
 $contains($catalogue, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must retain catalogue, instrument, finance-settings and exception workflows');
 $contains($attendance, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must retain the existing authorised workflows');
 
-// Finance owns lesson payability; Settings owns restricted Advanced Recovery.
+// Finance owns lesson payability; Settings exposes exactly four sections and keeps
+// every other Settings route as a protected direct route for bookmarks.
 $contains($shell, array(
     "'finance' => ['Finance'",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
-    "['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP]",
-), 'Finance must have exactly one visible destination and the four tabs must live inside it');
+    "'general' => ['General'",
+    "'notifications' => ['Notifications'",
+    "'integrations' => ['Integrations'",
+    "'diagnostics' => ['Diagnostics'",
+    "'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP",
+), 'Finance must have exactly one visible destination and Settings must expose four sections');
 $finance = $controller('FinanceAdminController.php');
 $contains($finance, array(
     "self::TAB_PAYMENTS => 'Payments'", "self::TAB_LEDGER => 'Central Ledger'",
@@ -111,13 +116,13 @@ $contains($shell, array(
     'firstAvailableDestinationUrl',
 ), 'The shell must suppress sub-tabs for a single destination and resolve the first permitted destination URL');
 $contains($shell, array(
-    'SETTINGS_GROUPS',
+    'SETTINGS_SECTIONS',
     'renderSettingsNavigation',
-    "'messaging' => ['Messaging'",
+    "'general' => ['General'",
+    "'notifications' => ['Notifications'",
     "'integrations' => ['Integrations'",
-    "'access' => ['Access'",
-    "'system' => ['System'",
-), 'Settings must be grouped into General, Messaging, Integrations, Access and System without removing protected routes');
+    "'diagnostics' => ['Diagnostics'",
+), 'Settings must be exactly General, Notifications, Integrations and Diagnostics without removing protected routes');
 
 // Legacy Academy deep links must keep resolving without restoring the tabs.
 $contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-academy-attention'"), 'Legacy Academy view URLs must focus the combined page without restoring sub-tabs');

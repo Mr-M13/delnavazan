@@ -146,6 +146,10 @@ function dzn_theme_render_booking_route(): void {
                     <section class="dzn-booking__step" data-step="availability" aria-labelledby="dzn-booking-availability-title" hidden>
                         <p class="dzn-booking__kicker">مرحلهٔ دوم · زمان جلسه</p>
                         <h2 id="dzn-booking-availability-title" tabindex="-1">چه زمانی برای شما مناسب است؟</h2>
+                        <p class="dzn-booking__preference-intro">
+                            <strong>تا ۳ زمان دلخواه را به ترتیب اولویت انتخاب کنید.</strong>
+                            <span>اولین انتخاب شما اولویت ۱ است.</span>
+                        </p>
                         <div class="dzn-booking__calendar">
                             <div class="dzn-booking__calendar-heading">
                                 <button type="button" class="dzn-booking__calendar-nav" data-calendar-prev aria-label="ماه قبل">‹</button>
@@ -155,20 +159,23 @@ function dzn_theme_render_booking_route(): void {
                             <div class="dzn-booking__calendar-grid" data-calendar-weekdays aria-hidden="true"></div>
                             <div class="dzn-booking__calendar-grid" data-calendar role="group" aria-label="انتخاب روز" tabindex="-1"></div>
                         </div>
-                        <p class="dzn-booking__time-guidance">اگر زمان موردنظر شما در این فهرست نیست، یکی از زمان‌های موجود را برای جلسهٔ معارفه انتخاب کنید و نیازهای زمانی خود را با مدرس در میان بگذارید. هیچ پرداختی در این مرحله انجام نمی‌شود.</p>
+                        <p class="dzn-booking__time-guidance">اگر زمان مناسب را در فهرست نمی‌بینید، نزدیک‌ترین زمان را انتخاب کنید تا با مدرس هماهنگ شود. پرداختی در این مرحله انجام نمی‌شود.</p>
                         <section class="dzn-booking__day-times" data-day-times hidden aria-labelledby="dzn-booking-day-title">
                             <h3 id="dzn-booking-day-title" data-day-title>زمان‌های پیشنهادی</h3>
-                                                        <div class="dzn-booking__time-options" data-time-options></div>
+                            <div class="dzn-booking__availability-key" role="note" aria-labelledby="dzn-booking-availability-key-title">
+                                <p class="dzn-booking__availability-key-title" id="dzn-booking-availability-key-title">رنگ‌ها وضعیت هر زمان را نشان می‌دهند، نه کل روز.</p>
+                                <div class="dzn-booking__availability-key-items">
+                                    <span><i class="is-strong" aria-hidden="true"></i>تناسب زمانی خوب</span>
+                                    <span><i class="is-possible" aria-hidden="true"></i>امکان محدود</span>
+                                    <span title="هنوز استادی منطبق نیست؛ همچنان قابل درخواست است"><i class="is-none" aria-hidden="true"></i>قابل درخواست</span>
+                                </div>
+                            </div>
+                            <div class="dzn-booking__time-options" data-time-options></div>
                         </section>
                         <div class="dzn-booking__preference-heading">
                             <h3>اولویت‌های شما</h3><span data-preference-count>۰ از ۳</span>
                         </div>
-                        <ul class="dzn-booking__times" data-times aria-live="polite"></ul>
-                        <div class="dzn-booking__availability-key" aria-label="راهنمای وضعیت پیشنهادی زمان‌ها">
-                            <span><i class="is-strong"></i>تناسب زمانی خوب</span>
-                            <span><i class="is-possible"></i>امکان محدود یا احتمالی</span>
-                            <span><i class="is-none"></i>هنوز استادی منطبق نیست؛ قابل درخواست</span>
-                        </div>
+                        <ol class="dzn-booking__times" data-times aria-label="زمان‌های انتخابی به ترتیب اولویت" aria-live="polite"></ol>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="instrument">بازگشت به انتخاب ساز</button>
                             <button class="dzn-booking__button" type="button" data-next="contact">ادامه به اطلاعات شما</button>
@@ -193,7 +200,7 @@ function dzn_theme_render_booking_route(): void {
                         <div class="dzn-booking__timezone dzn-booking__field--wide" data-timezone-note>
                             <strong>منطقهٔ زمانی انتخاب‌شده</strong><span class="dzn-booking__timezone-copy">همهٔ تاریخ‌ها و ساعت‌های درخواست بر اساس این منطقهٔ زمانی نمایش داده می‌شوند.</span>
                             <label for="dzn-booking-timezone">منطقهٔ زمانی</label>
-                            <select id="dzn-booking-timezone" data-timezone<?php echo $booking_timezone ? ' data-prefilled="1"' : ''; ?> required>
+                            <select id="dzn-booking-timezone" data-timezone required<?php echo $booking_timezone ? ' data-prefilled="1"' : ''; ?>>
                                 <optgroup label="مناطق پرکاربرد دلنوازان">
                                     <option value="Australia/Brisbane" <?php selected( $booking_timezone, 'Australia/Brisbane' ); ?>>استرالیا — بریزبن</option>
                                     <option value="Australia/Sydney">استرالیا — سیدنی / ملبورن</option>

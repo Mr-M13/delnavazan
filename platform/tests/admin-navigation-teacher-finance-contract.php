@@ -33,8 +33,9 @@ $contains($shell, array(
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
     "['General', 'dzn-general', 'manage_options']",
-    "['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health']",
-    "['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP]",
+    "['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP]",
+    "['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview']",
+    "['Diagnostics', 'dzn-system-health', 'dzn_access_system_health']",
     'http_build_query',
     'Menu::CORE_WORKFLOW_CAP',
 ), 'navigation must consolidate into Academy, Teachers, Students, Enrolment, Finance and Settings while retaining protected routes');
@@ -84,7 +85,7 @@ $contains($coreRead, array(
     'classRowTieBreak',
     'utcScheduleTimestamp',
 ), 'the new Academy navigation must reuse the chronological composite Classes read seam');
-$contains($general, array('class GeneralSettingsController', "CAPABILITY = 'manage_options'", 'Read-only platform identity', 'DiagnosticsService'), 'General must be a read-only administrator page');
+$contains($general, array('class GeneralSettingsController', "CAPABILITY = 'manage_options'", 'Site information', 'Contact and public presence', 'Legal and policy pages', 'Introductory booking horizon', 'StaffAccessController::renderPanel'), 'General must be the academy information, pages, policy and access section');
 
 $contains($options, array(
     'class FinanceTeacherOptionsReadService',

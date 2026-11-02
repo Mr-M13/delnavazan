@@ -41,9 +41,9 @@ $fail('preview masks one-time secrets', str_contains($library, "foreach(array('c
 $fail('preview test covers all four channels', is_file($root . '/tests/notification-preview-unit.php') && str_contains((string) file_get_contents($root . '/tests/notification-preview-unit.php'), "\$channelsSeen['website']"));
 $fail('delivery status test exists', is_file($root . '/tests/notification-delivery-status-unit.php'));
 
-/* 1c. Notifications is the templates workspace; old tabs keep working as aliases. */
-$fail('templates is the default workspace', str_contains($controller, "'templates'=>'Templates','settings'=>'Channel settings','diagnostics'=>'Diagnostics'"));
-$fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'settings'") && str_contains($controller, "'monitoring'=>'diagnostics'"));
+/* 1c. Notifications opens on the event table; templates remain an editor beneath it and old tabs stay aliases. */
+$fail('events is the default workspace', str_contains($controller, "'events'=>'Events'") || str_contains($controller, "sanitize_key(wp_unslash((string)\$_GET['tab'])):'events'"));
+$fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'events'") && str_contains($controller, "'monitoring'=>'diagnostics'"));
 $fail('channel settings are ordered WhatsApp, Email, SMS', strpos($controller, "self::renderChannelCard('whatsapp'") < strpos($controller, "self::renderChannelCard('email'") && strpos($controller, "self::renderChannelCard('email'") < strpos($controller, "self::renderChannelCard('sms'"));
 $fail('provider mapping lives with the WhatsApp template editor', str_contains($controller, 'private static function renderProviderMapping') && str_contains($controller, "if(\$channel!=='whatsapp')return;"));
 $fail('Twilio is not presented as implemented', str_contains($controller, 'Twilio WhatsApp is not implemented') && str_contains((string) file_get_contents($root . '/src/Admin/Controller/IntegrationControlPlaneController.php'), 'Twilio WhatsApp is not implemented'));

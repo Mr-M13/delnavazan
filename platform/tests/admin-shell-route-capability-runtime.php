@@ -125,43 +125,46 @@ if ( ! str_contains( $teacherBothHtml, 'dzn-admin-shell__subtabs' )
     throw new RuntimeException( 'Teachers must expose exactly Overview and Onboarding & Invitations when both authorities are held.' );
 }
 
-// Settings is one area with five work groups. The active group exposes only its
-// own member routes; every group remains reachable from the group row.
+// Settings is exactly four sections. Legacy provider/staff/recovery routes remain
+// resolvable but are never rendered as separate Settings entries.
 $GLOBALS['dzn_shell_test_caps'] = array_values( array_unique( array_merge( ...array_values( $routeCaps ) ) ) );
 $_GET['page'] = 'dzn-integration-email';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $settingsHtml = ob_get_clean();
-if ( ! str_contains( $settingsHtml, 'Settings groups' )
+if ( ! str_contains( $settingsHtml, 'Settings sections' )
     || ! str_contains( $settingsHtml, 'General' )
-    || ! str_contains( $settingsHtml, 'Messaging' )
-    || ! str_contains( $settingsHtml, 'Integrations' )
-    || ! str_contains( $settingsHtml, 'Access' )
-    || ! str_contains( $settingsHtml, 'System' )
     || ! str_contains( $settingsHtml, 'Notifications' )
-    || ! str_contains( $settingsHtml, 'WhatsApp' )
-    || ! str_contains( $settingsHtml, 'Email' )
-    || ! str_contains( $settingsHtml, 'SMS' )
+    || ! str_contains( $settingsHtml, 'Integrations' )
+    || ! str_contains( $settingsHtml, 'Diagnostics' )
+    || str_contains( $settingsHtml, 'Messaging' )
+    || str_contains( $settingsHtml, 'Access' )
+    || str_contains( $settingsHtml, 'System' )
+    || str_contains( $settingsHtml, 'WhatsApp' )
+    || str_contains( $settingsHtml, 'SMS' )
     || str_contains( $settingsHtml, 'Communications health' )
     || str_contains( $settingsHtml, 'Notification templates' )
-    || str_contains( $settingsHtml, 'Portal capabilities' ) ) {
-    throw new RuntimeException( 'Grouped Settings must show five groups and only the active group member routes.' );
+    || str_contains( $settingsHtml, 'Portal capabilities' )
+    || str_contains( $settingsHtml, 'Advanced Recovery' ) ) {
+    throw new RuntimeException( 'Settings must show exactly four sections and no legacy entries.' );
 }
 
-// A notification-only operator lands in Messaging and cannot see access routes. A legacy
-// bookmarked route remains resolvable and is the only hidden route shown while active.
+// A notification-only operator sees Notifications and cannot see General,
+// Integrations, Diagnostics or any protected access/technical route.
 $GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_notification_authority', 'dzn_access_notification_management' );
 $_GET['page'] = 'dzn-communications';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $restrictedSettings = ob_get_clean();
-if ( ! str_contains( $restrictedSettings, 'Messaging' )
-    || ! str_contains( $restrictedSettings, 'Notifications' )
-    || ! str_contains( $restrictedSettings, 'Communications health' )
+if ( ! str_contains( $restrictedSettings, 'Notifications' )
+    || str_contains( $restrictedSettings, '>General<' )
+    || str_contains( $restrictedSettings, '>Integrations<' )
+    || str_contains( $restrictedSettings, '>Diagnostics<' )
+    || str_contains( $restrictedSettings, 'Communications health' )
     || str_contains( $restrictedSettings, 'Notification templates' )
     || str_contains( $restrictedSettings, 'Staff access' )
     || str_contains( $restrictedSettings, 'Portal capabilities' ) ) {
-    throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work group.' );
+    throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work section.' );
 }
 
 // Route registrations remain available to WordPress, but the legacy submenu must

@@ -33,8 +33,24 @@ final class BookingRequestValidationService {
         if ( ! $instrument || $instrument->status !== 'active' || $instrument->archived_at !== null ) throw new \InvalidArgumentException( 'Active Instrument required' );
         $duration = 30; $buffer = 15;
         if ( $data['course_id'] ) { if ( ! $course || $course->status !== 'active' || $course->archived_at !== null || $course->course_type !== 'introductory' || (int) $course->instrument_id !== (int) $instrument->id ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' ); $duration = Normalizer::count( $course->default_duration_minutes, 5, 480 ); $buffer = Normalizer::count( $course->default_buffer_minutes, 0, 240 ); }
-        $times = array(); $seen = array(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); $zone = new \DateTimeZone( $item['timezone'] ); $today = new \DateTimeImmutable( 'today', $zone ); $first = $today->modify( '+1 day' ); $last = $first->modify( '+' . ( self::BOOKING_HORIZON_DAYS - 1 ) . ' days' ); $requested = new \DateTimeImmutable( $item['local_date'] . ' 00:00:00', $zone ); if ( $requested < $first || $requested > $last ) throw new \InvalidArgumentException( 'Requested time outside booking horizon' ); if ( RequestedTimeNormalizer::overlapsIranQuietHours( $item ) ) throw new \InvalidArgumentException( self::BLOCKED_TIME_MESSAGE ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
+        $times = array(); $seen = array(); $horizonDays = $this->bookingHorizonDays(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); $zone = new \DateTimeZone( $item['timezone'] ); $today = new \DateTimeImmutable( 'today', $zone ); $first = $today->modify( '+1 day' ); $last = $first->modify( '+' . ( $horizonDays - 1 ) . ' days' ); $requested = new \DateTimeImmutable( $item['local_date'] . ' 00:00:00', $zone ); if ( $requested < $first || $requested > $last ) throw new \InvalidArgumentException( 'Requested time outside booking horizon' ); if ( RequestedTimeNormalizer::overlapsIranQuietHours( $item ) ) throw new \InvalidArgumentException( self::BLOCKED_TIME_MESSAGE ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
         $data['times'] = $times; unset( $data['requested_times'] ); return $data;
+    }
+
+    /**
+     * The public horizon follows the versioned commercial policy when a valid week value is
+     * recorded. The constant remains the safe fallback for an unset, malformed or unavailable
+     * policy read, so booking intake never fails open.
+     */
+    private function bookingHorizonDays(): int {
+        try {
+            $policy = (new CommercialPolicyService())->current('INTRO_BOOKING_HORIZON');
+            if (!empty($policy['set']) && (string) ($policy['value_type'] ?? '') === 'weeks') {
+                $weeks = (int) ($policy['value'] ?? 0);
+                if ($weeks >= 1 && $weeks <= 104) return $weeks * 7;
+            }
+        } catch (\Throwable) {}
+        return self::BOOKING_HORIZON_DAYS;
     }
     /** Reject compound public values before a normalizer or PHP cast can inspect them. */
     private function assertScalarFields(array $input, array $fields): void {

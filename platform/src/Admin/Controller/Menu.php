@@ -94,8 +94,15 @@ final class Menu {
             'dzn_manage_notification_workflows',
             'dzn_operate_notification_dispatch',
         ]);
-        if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
-        if ($cap === self::INTEGRATION_SETTINGS_CAP) return self::mappedIntegrationCaps($userId, 'dzn_manage_provider_integrations');
+        if ($cap === self::INTEGRATIONS_OVERVIEW_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_view_diagnostics',
+            'dzn_view_provider_integrations',
+            'dzn_manage_provider_integrations',
+        ]);
+        if ($cap === self::INTEGRATION_SETTINGS_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_provider_integrations',
+            'dzn_manage_payment_providers',
+        ]);
         if ($cap === self::SYSTEM_HEALTH_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
         return $caps;
     }
@@ -188,7 +195,7 @@ final class Menu {
             ['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
             ['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
             ['Google OAuth / Calendar', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
-            ['System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [ScreenController::class, 'status'], null],
+            ['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [ScreenController::class, 'status'], null],
             ['Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
         ];
 

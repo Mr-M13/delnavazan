@@ -131,3 +131,11 @@ real-provider tests in the PR that implements it.
    deletion and retention journeys. CI and read-only smoke checks alone do not satisfy this gate.
 4. An authorised release deploys schema and choices with both flags off, verifies production identity
    and settings flows, then enables only approved purpose/cohort flags.
+
+## Publication operator surface
+
+Administrators publish approved versions at **Settings → General → Recording notices**
+(`dzn-recording-notices`). Publishing is append-only: each action creates a new version and never edits
+an earlier row. Withdrawing closes every published version for that audience and language, so the
+affected portal returns to its unavailable state instead of revealing an older version. This surface
+changes only notice text and availability; it does not enable capture or research export.

@@ -21,55 +21,57 @@ $enrolment = $controller('EnrolmentWorkspaceController.php');
 $catalogue = $controller('CatalogueWorkspaceController.php');
 $attendance = $controller('AttendanceWorkspaceController.php');
 
-// Exactly one Overview destination and no replacement sub-tabs.
-$test(1 === substr_count($shell, "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']"), 'Overview must have exactly one visible destination');
-$test(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Overview must not expose replacement sub-tabs');
+// Exactly one Academy destination and no replacement sub-tabs.
+$test(1 === substr_count($shell, "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']"), 'Academy must have exactly one visible destination');
+$test(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
 $contains($academy, array(
-    'todayClasses(): void',
+    'classOperationalState(): void',
+    'id="dzn-academy-attention"',
     'id="dzn-academy-today-upcoming"',
-    'id="dzn-pending-work"',
-    '>Today’s classes',
+    '>Today and upcoming lessons<',
+    '>Attention needed<',
     'pendingActions()',
-    'dzn_academy_mark_attended',
-    'dzn_academy_reschedule_class',
-), 'Overview must render today’s classes and the combined pending-work content');
+), 'Academy must render the combined dashboard content');
 
-// Teachers is one consolidated destination with no finance or legacy sub-tabs.
-$test(1 === preg_match_all("/\\['Teachers', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly one consolidated destination');
+// Teachers has exactly two tabs and no finance destinations.
+$test(2 === preg_match_all("/\\['(?:Overview|Onboarding & Invitations)', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly two tabs');
 $contains($shell, array(
-    "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
-), 'Teachers must be a single capability-aware destination');
-$test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'") && !str_contains($shell, "['Overview', 'dzn-teachers-menu'"), 'Teacher navigation must not contain finance or legacy directory workflows');
-$contains($screen, array("TeacherWorkspaceController::screen()", 'dzn-teachers-menu'), 'Teacher maintenance and onboarding must render the consolidated workspace');
+    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
+    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
+), 'Teachers tabs must be Overview and Onboarding & Invitations');
+$test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teacher tabs must not contain finance or legacy directory workflows');
+$contains($screen, array("\$view === ''", "!current_user_can('dzn_manage_teachers')", 'Menu::TEACHER_ONBOARDING_CAP', "\$view === 'onboarding'", 'self::teacherInvitationPanel();'), 'Teacher onboarding must be a gated view of the existing authority, including legacy generic links');
 
-// Enrolment has exactly two operational sub-tabs; courses/instruments live under Settings > Catalogue.
-$status = preg_match_all("/\\['(?:New bookings & trials|Enrolled classes)'/", $shell);
-$test(2 === $status, 'Enrolment must expose exactly two sub-tabs');
+// Enrolment has exactly four tabs with the agreed destinations.
+$status = preg_match_all("/\\['(?:Classes & Schedules|Bookings & Enrolments|Courses & Instruments|Attendance & Post-intro)'/", $shell);
+$test(4 === $status, 'Enrolment must expose exactly four tabs');
 $contains($shell, array(
-    "['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
-    "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
-    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
-), 'Enrolment must use exactly the two agreed destinations and move catalogue configuration to Settings');
-$test(!str_contains($shell, "['Classes & Schedules'") && !str_contains($shell, "['Attendance & Post-intro'") && !str_contains($shell, "['Courses & Instruments'"), 'The former four visible Enrolment destinations must not remain');
-$view = (string) file_get_contents($root . '/src/Admin/View/EnrolmentWorkspaceView.php');
-$contains($enrolment, array('EnrolmentWorkspaceView', 'AdministratorBookingMatchService', 'HistoricalEnrolmentImportService'), 'The two Enrolment sub-tabs must deliver the operational workspace');
-$contains($view, array('New bookings &amp; trials', 'Enrolled classes'), 'The two Enrolment sub-tabs must be the visible workspace destinations');
-$contains($view, array('Shared class action component', 'classroomActions', 'Import existing enrolment', 'Manual Teacher match'), 'The Enrolment view must provide the shared class actions and guided import/match surfaces');
+    "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
+    "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
+    "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
+), 'Enrolment must use the four agreed destinations');
+$contains($enrolment, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must retain the existing authorised workflows');
 $contains($catalogue, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must retain catalogue, instrument, finance-settings and exception workflows');
-$contains($attendance, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Protected attendance and post-intro routes must remain resolvable');
+$contains($attendance, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must retain the existing authorised workflows');
 
-// Finance owns lesson payability; Settings owns restricted Advanced Recovery.
+// Finance owns lesson payability; Settings exposes exactly four sections and keeps
+// every other Settings route as a protected direct route for bookmarks.
 $contains($shell, array(
     "'finance' => ['Finance'",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'settings' => ['Settings'",
-    "['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP]",
-), 'Finance must have exactly one visible destination and the four tabs must live inside it');
+    "'general' => ['General'",
+    "'notifications' => ['Notifications'",
+    "'integrations' => ['Integrations'",
+    "'diagnostics' => ['Diagnostics'",
+    "'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP",
+), 'Finance must have exactly one visible destination and Settings must expose four sections');
 $finance = $controller('FinanceAdminController.php');
 $contains($finance, array(
-    "self::TAB_PAYMENTS => 'Student payments'", "self::TAB_STATEMENTS => 'Teacher payments'",
-    "self::TAB_LEDGER => 'Manual ledger'", "self::TAB_SETTINGS => 'Settings'",
-    'Regional pricing', 'Teacher compensation', 'Statement template and sample',
+    "self::TAB_PAYMENTS => 'Payments'", "self::TAB_LEDGER => 'Central Ledger'",
+    "self::TAB_STATEMENTS => 'Teacher Statements'", "self::TAB_SETTINGS => 'Settings'",
+    'Global regional pricing', 'Teacher compensation', 'Statement Template Settings',
 ), 'Finance must expose exactly four tabs and consolidated settings');
 
 // The composite navigation capabilities must map to existing narrow capabilities only.
@@ -114,16 +116,15 @@ $contains($shell, array(
     'firstAvailableDestinationUrl',
 ), 'The shell must suppress sub-tabs for a single destination and resolve the first permitted destination URL');
 $contains($shell, array(
-    'SETTINGS_GROUPS',
+    'SETTINGS_SECTIONS',
     'renderSettingsNavigation',
-    "'messaging' => ['Messaging'",
+    "'general' => ['General'",
+    "'notifications' => ['Notifications'",
     "'integrations' => ['Integrations'",
-    "'access' => ['Access'",
-    "'system' => ['System'",
-    "'catalogue' => ['Catalogue'",
-), 'Settings must be grouped into General, Catalogue, Messaging, Integrations, Access and System without removing protected routes');
+    "'diagnostics' => ['Diagnostics'",
+), 'Settings must be exactly General, Notifications, Integrations and Diagnostics without removing protected routes');
 
-// Legacy Academy deep links must keep resolving without restoring removed panels.
-$contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-pending-work'"), 'Legacy Overview view URLs must focus the combined page without restoring sub-tabs');
+// Legacy Academy deep links must keep resolving without restoring the tabs.
+$contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-academy-attention'"), 'Legacy Academy view URLs must focus the combined page without restoring sub-tabs');
 
 echo "Admin navigation target contract passed\n";

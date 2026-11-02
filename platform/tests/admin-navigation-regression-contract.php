@@ -89,9 +89,8 @@ if ( ! str_contains( $shell, 'current_user_can($capability)' )
     throw new RuntimeException( 'Application tabs must preserve WordPress route registration while hiding the legacy sidebar visually.' );
 }
 if ( ! str_contains( $shell, "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]" )
-    || ! str_contains( $shell, "['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings']" )
-    || ! str_contains( $shell, "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]" )
-    || ! str_contains( $shell, "['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities']" )
+    || ! str_contains( $shell, "'dzn-integration-email' => 'settings'" )
+    || ! str_contains( $shell, "'dzn-portal-capabilities' => 'settings'" )
     || ! str_contains( $shell, 'dzn-admin-shell__subtabs' )
     || ! str_contains( $shell, 'private static function hasRequiredCapabilities' )
     || ! str_contains( $shell, 'foreach ($requiredCapabilities as $capability) if (!current_user_can($capability)) return false;' ) ) {
@@ -336,7 +335,7 @@ foreach ( array(
     "['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms'",
     "['Google OAuth / Calendar', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google'",
     "['Exceptions', 'dzn_manage_exceptions', 'dzn-exception'",
-    "['System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",
+    "['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",
 ) as $protected_route ) {
     if ( ! str_contains( $menu, $protected_route ) ) throw new RuntimeException( 'Protected destination lost its original capability: ' . $protected_route );
 }
@@ -359,7 +358,7 @@ if ( str_contains( $shell, 'remove_submenu_page(' ) || str_contains( $shell, 're
     throw new RuntimeException( 'Protected routes and unrelated WordPress menus must remain registered.' );
 }
 if ( ! str_contains( $menu, "['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'")
-    || ! str_contains( $menu, "['System health', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'") ) {
+    || ! str_contains( $menu, "['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'") ) {
     throw new RuntimeException( 'Protected Settings pages must remain registered as hidden, capability-checked WordPress pages.' );
 }
 

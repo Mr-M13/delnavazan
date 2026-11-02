@@ -25,43 +25,50 @@ final class AdminShellController {
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
-            ['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
-            ['WhatsApp', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
-            ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
-            ['SMS', 'dzn-integration-sms', 'dzn_access_provider_integration_settings'],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
-            ['Google OAuth / Calendar', 'dzn-integration-google', 'dzn_access_provider_integration_settings'],
-            ['Staff access', 'dzn-staff-access', 'manage_options'],
-            ['System health and technical diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
-            ['Portal capabilities', 'dzn-portal-capabilities', 'dzn_view_portal_capabilities'],
-            ['Advanced Recovery', 'dzn-core-dataset-readiness', Menu::CORE_WORKFLOW_CAP],
-            // Protected legacy routes. They stay registered and keep working from bookmarks, but the
-            // visible Settings navigation is the Notifications workspace and its channel settings.
-            ['Communications health', 'dzn-communications', 'dzn_view_notification_authority'],
-            ['Notification templates', 'dzn-communications-templates', 'dzn_manage_provider_integrations'],
+            ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
         ]],
     ];
 
     /**
-     * Protected routes that remain resolvable but are no longer separate visible Settings entries.
-     * They stay in group membership so an old bookmark still highlights the correct area.
+     * The visible Settings navigation is exactly four sections. Every other registered
+     * Settings destination remains a protected direct route, keeps its original callback
+     * and is mapped to one of the four sections so an old bookmark highlights the right
+     * place. No legacy route is deleted or repurposed.
      */
-    private const HIDDEN_SETTINGS_ROUTES = ['dzn-communications', 'dzn-communications-templates'];
+    private const SETTINGS_SECTIONS = [
+        'general' => ['General', ['dzn-general', 'dzn-staff-access', 'dzn-recording-notices', 'dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
+        'notifications' => ['Notifications', ['dzn-notifications', 'dzn-communications', 'dzn-communications-templates']],
+        'integrations' => ['Integrations', [
+            'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
+            'dzn-integration-sms', 'dzn-integration-google',
+        ]],
+        'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
+    ];
 
-    /**
-     * Settings is a single area with five work groups. The individual protected
-     * routes stay registered; this map only decides how the same routes are
-     * presented inside the shell. A group is visible when at least one of its
-     * member routes is permitted.
-     */
-    private const SETTINGS_GROUPS = [
-        'general' => ['General', ['dzn-general']],
-        'messaging' => ['Messaging', ['dzn-notifications', 'dzn-integration-whatsapp', 'dzn-integration-email', 'dzn-integration-sms', 'dzn-communications', 'dzn-communications-templates']],
-        'integrations' => ['Integrations', ['dzn-integrations', 'dzn-integration-google']],
-        'access' => ['Access', ['dzn-staff-access', 'dzn-portal-capabilities']],
-        'system' => ['System', ['dzn-system-health', 'dzn-core-dataset-readiness']],
-        'catalogue' => ['Catalogue', ['dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
+    /** Alias retained for older source contracts; the visible shape is the four sections above. */
+    private const SETTINGS_GROUPS = self::SETTINGS_SECTIONS;
+
+    /** Capability for every registered Settings route, including protected legacy routes. */
+    private const SETTINGS_ROUTE_CAPABILITIES = [
+        'dzn-general' => 'manage_options',
+        'dzn-staff-access' => 'manage_options',
+        'dzn-recording-notices' => 'manage_options',
+        'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP,
+        'dzn-course' => 'dzn_manage_courses',
+        'dzn-instrument' => 'dzn_manage_instruments',
+        'dzn-notifications' => Menu::NOTIFICATION_MANAGEMENT_CAP,
+        'dzn-communications' => 'dzn_view_notification_authority',
+        'dzn-communications-templates' => 'dzn_manage_provider_integrations',
+        'dzn-integrations' => 'dzn_access_integrations_overview',
+        'dzn-integration-email' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-whatsapp' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-sms' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-google' => 'dzn_access_provider_integration_settings',
+        'dzn-system-health' => 'dzn_access_system_health',
+        'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',
+        'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP,
     ];
 
     /** Pages share their tab while retaining their original, protected callback. */
@@ -210,53 +217,37 @@ final class AdminShellController {
         echo '</nav>';
     }
 
-    /** Settings is grouped by work, not by provider or table. */
+    /** Settings is exactly four work sections; legacy routes stay resolvable but are never separate entries. */
     private static function renderSettingsNavigation(string $page): void {
-        $members = [];
-        foreach (self::TABS['settings'][1] as $destination) {
-            [$label, $slug, $capabilities] = $destination;
-            if (!self::hasRequiredCapabilities($capabilities)) continue;
-            $members[$slug] = $destination;
+        $visible = [];
+        foreach (self::SETTINGS_SECTIONS as $key => [$label, $routes]) {
+            $route = self::firstAvailableSettingsRoute($routes);
+            if ($route !== null) $visible[$key] = [$label, $route];
         }
-        if (!$members) return;
-        $activeGroup = self::settingsGroupForPage($page);
-        if ($activeGroup === '') $activeGroup = array_key_first(self::SETTINGS_GROUPS);
-        $visibleGroups = [];
-        foreach (self::SETTINGS_GROUPS as $key => [$groupLabel, $slugs]) {
-            $groupMembers = [];
-            foreach ($slugs as $slug) if (isset($members[$slug])) $groupMembers[] = $members[$slug];
-            if ($groupMembers) $visibleGroups[$key] = [$groupLabel, $groupMembers];
-        }
-        if (!isset($visibleGroups[$activeGroup])) {
-            $activeGroup = (string) array_key_first($visibleGroups);
-        }
-        echo '<nav class="dzn-admin-shell__subtabs" aria-label="Settings groups">';
-        foreach ($visibleGroups as $key => [$groupLabel, $groupMembers]) {
-            [$label, $slug, $capabilities] = $groupMembers[0];
-            $args = isset($groupMembers[0][3]) && is_array($groupMembers[0][3]) ? $groupMembers[0][3] : [];
-            $url = admin_url('admin.php?' . http_build_query(array_merge(array('page' => $slug), $args)));
-            $current = $key === $activeGroup;
-            echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url($url) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($groupLabel) . '</a>';
-        }
-        echo '</nav>';
-        if (!isset($visibleGroups[$activeGroup])) return;
-        $activeMembers = $visibleGroups[$activeGroup][1];
-        if (count($activeMembers) === 1 && $activeMembers[0][0] === $visibleGroups[$activeGroup][0]) return;
-        echo '<nav class="dzn-admin-shell__subtabs dzn-admin-shell__subtabs--pages" aria-label="' . esc_attr($visibleGroups[$activeGroup][0]) . ' pages">';
-        foreach ($visibleGroups[$activeGroup][1] as $destination) {
-            [$label, $slug, $capabilities] = $destination;
-            if (in_array($slug, self::HIDDEN_SETTINGS_ROUTES, true) && $slug !== $page) continue;
-            $args = isset($destination[3]) && is_array($destination[3]) ? $destination[3] : [];
-            $url = admin_url('admin.php?' . http_build_query(array_merge(array('page' => $slug), $args)));
-            $current = $slug === $page;
+        if ($visible === []) return;
+        $active = self::settingsGroupForPage($page);
+        if (!isset($visible[$active])) $active = (string) array_key_first($visible);
+        echo '<nav class="dzn-admin-shell__subtabs" aria-label="Settings sections">';
+        foreach ($visible as $key => [$label, $route]) {
+            $url = admin_url('admin.php?page=' . rawurlencode($route));
+            $current = $key === $active;
             echo '<a class="dzn-admin-shell__subtab' . ($current ? ' is-active' : '') . '" href="' . esc_url($url) . '"' . ($current ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
         }
         echo '</nav>';
     }
 
+    /** Prefer the canonical section route, then any protected legacy route the operator may open. */
+    private static function firstAvailableSettingsRoute(array $routes): ?string {
+        foreach ($routes as $route) {
+            $capability = self::SETTINGS_ROUTE_CAPABILITIES[$route] ?? '';
+            if ($capability !== '' && current_user_can($capability)) return $route;
+        }
+        return null;
+    }
+
     private static function settingsGroupForPage(string $page): string {
-        foreach (self::SETTINGS_GROUPS as $key => [, $slugs]) {
-            if (in_array($page, $slugs, true)) return $key;
+        foreach (self::SETTINGS_SECTIONS as $key => [, $routes]) {
+            if (in_array($page, $routes, true)) return $key;
         }
         return '';
     }

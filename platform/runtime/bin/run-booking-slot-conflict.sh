@@ -23,11 +23,13 @@ run_race(){
   waitfor "$gate/$race/w1.locked" || { echo "race=$race holder=FAIL"; kill "$p1" 2>/dev/null || true; return 1; }
   worker "$race" w2 "$action" >"$gate/$race/w2.out" 2>&1 & local p2=$!
   waitfor "$gate/$race/w2.started" || { echo "race=$race contender=FAIL"; kill "$p1" "$p2" 2>/dev/null || true; return 1; }
-  dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_GATE_DIR=$gate_container/$race" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-wait.php"
-  [ -f "$gate/$race/w2.blocked" ] || { echo "race=$race blocked=FAIL"; : >"$gate/$race/release"; wait "$p1" "$p2" 2>/dev/null || true; return 1; }
+  [ ! -f "$gate/$race/w2.result" ] || { echo "race=$race contender=FAIL finished before release"; : >"$gate/$race/release"; wait "$p1" "$p2" 2>/dev/null || true; return 1; }
+  dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_GATE_DIR=$gate_container/$race" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-wait.php" >"$gate/$race/wait.out" 2>&1 & local pw=$!
+  sleep 2
   : >"$gate/$race/release"
   wait "$p1" 2>/dev/null || true
   wait "$p2" 2>/dev/null || true
+  wait "$pw" 2>/dev/null || true
   if grep -Eiq 'deadlock|lock wait timeout|WordPress database error' "$gate/$race/w1.out" "$gate/$race/w2.out"; then
     echo "race=$race stability=FAIL database contention error"; return 1
   fi

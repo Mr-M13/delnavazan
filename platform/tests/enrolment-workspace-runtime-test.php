@@ -47,6 +47,33 @@ $assert((int) $one['enrolment_id'] === (int) $two['enrolment_id'], 'Import retry
 $assert(count($one['lesson_ids']) === count($two['lesson_ids']), 'Import retry changed the future class count');
 $termCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}terms WHERE enrolment_id=%d", (int) $one['enrolment_id']));
 $assert($termCount === 1, 'Import retry created a second Term');
+$paymentState = (string) $wpdb->get_var($wpdb->prepare("SELECT payment_state FROM {$p}terms WHERE enrolment_id=%d", (int) $one['enrolment_id']));
+$assert($paymentState === 'unknown', 'Historical payment uncertainty must not be represented as free or paid');
+
+// Inject an audit write failure after the Enrolment, Term and Lessons have been inserted.
+// Every row must roll back, leaving the same Student eligible for a clean retry.
+$rollbackStudent = (new StudentService())->create(array('display_name' => 'Import Rollback Student', 'email' => 'import-rollback-' . substr(hash('sha256', wp_generate_uuid4()), 0, 8) . '@example.invalid', 'phone' => '+61400000012', 'country_code' => 'AU', 'city' => 'Brisbane', 'timezone' => 'Australia/Brisbane', 'locale' => 'en_AU', 'calendar_preference' => 'gregorian', 'status' => 'active'));
+$rollbackInput = $importInput;
+$rollbackInput['student_id'] = $rollbackStudent;
+$rollbackInput['next_class_date'] = (new DateTimeImmutable('next friday', new DateTimeZone('UTC')))->format('Y-m-d');
+$rollbackInput['weekday'] = 5;
+$rollbackInput['local_time'] = '11:00';
+$trigger = $p . 'historical_import_audit_failure';
+$created = $wpdb->query("CREATE TRIGGER {$trigger} BEFORE INSERT ON {$p}platform_audit_events FOR EACH ROW SET NEW.event_type = IF(NEW.event_type = 'enrolment.historical_import', NULL, NEW.event_type)");
+$assert($created !== false, 'Could not install the disposable audit failure trigger');
+$rollbackError = null;
+try {
+    $importer->import($rollbackInput, 'runtime-import-rollback-' . wp_generate_uuid4());
+} catch (Throwable $exception) {
+    $rollbackError = $exception;
+} finally {
+    $wpdb->query("DROP TRIGGER {$trigger}");
+}
+$assert($rollbackError !== null, 'Injected audit failure did not refuse the import');
+$orphanCount = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolments WHERE student_id=%d AND record_model='legacy_phase1'", $rollbackStudent));
+$assert($orphanCount === 0, 'Failed import left an orphaned Enrolment or child records');
+$retry = $importer->import($rollbackInput, 'runtime-import-rollback-retry-' . wp_generate_uuid4());
+$assert(count($retry['lesson_ids']) === $rollbackInput['remaining_classes'], 'Clean retry after rollback did not create the intended classes');
 
 // Real collision: place the request on an existing imported class occurrence for the same Teacher.
 $existingLesson = (int) $fixture['import_twelve']['lesson_ids'][0];

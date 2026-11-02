@@ -16,7 +16,7 @@ $schedule->setEnabled(true);
 dzn_schedule_runtime_assert($schedule->enabled() && (int) get_option(TeacherStatementScheduleService::ACTOR_OPTION) === 1, 'Enabling must record the authorising administrator');
 $first = $schedule->runMonth('2026-01');
 dzn_schedule_runtime_assert((string) ($first['state'] ?? '') === 'completed', 'A draft-only monthly run must complete');
-$row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_statement_batch_runs WHERE run_key=%s", 'monthly_draft:2026-01'));
+$row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_statement_batch_runs WHERE run_key=%s", 'utc_month:2026-01'));
 dzn_schedule_runtime_assert($row !== null && (string) $row->state === 'completed' && (int) $row->attempt_count === 1 && $row->result_json !== null, 'A completed run must persist its result and attempt history');
 $again = $schedule->runMonth('2026-01');
 dzn_schedule_runtime_assert((string) ($again['state'] ?? '') === 'already_completed', 'A completed month must not be drafted twice');

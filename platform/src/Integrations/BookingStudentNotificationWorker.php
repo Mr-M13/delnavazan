@@ -28,6 +28,7 @@ final class BookingStudentNotificationWorker {
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
             $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
         }catch(\Throwable $error){$repository->rollback();throw $error;}
+        $mobile=array('state'=>'skipped','reason'=>'not_attempted');
         try{
             [$subject,$body,$variables]=self::message($row);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
@@ -38,11 +39,18 @@ final class BookingStudentNotificationWorker {
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
-                self::recordInbox($row,$eventKey,$variables);
             }
-            $accepted=class_exists(DelnavazanEmailRenderer::class)
-                ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
-                :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
+            // The portal is an independent first-party notice.  A missing or invalid editable
+            // email template must not hide the operational booking alert from the Teacher.
+            self::recordInbox($row,$eventKey,$variables);
+            try{
+                $accepted=class_exists(DelnavazanEmailRenderer::class)
+                    ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
+                    :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
+            }catch(\Throwable){$accepted=false;}
+            // WhatsApp is the mobile primary.  It is coordinated with the same leased booking
+            // notification so an email retry cannot duplicate an accepted provider hand-off.
+            $mobile=self::mobile($row,$eventKey,$variables);
         }catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{
@@ -51,7 +59,7 @@ final class BookingStudentNotificationWorker {
             if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>null),$leaseDigest);}
             elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
             else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
-            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false);
+            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false,'mobile'=>$mobile);
         }catch(\Throwable $error){$repository->rollback();throw $error;}
     }
 
@@ -64,6 +72,13 @@ final class BookingStudentNotificationWorker {
         }
         $studentId=(int)($row->student_id??0);
         if($studentId>0)PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+    }
+
+    /** Mobile is fail-soft: it can never roll back the durable booking or the email hand-off. */
+    private static function mobile(object $row,string $eventKey,array $variables):array{
+        if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
+        try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
+        catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
     }
 
     private static function headers(object $row):array{

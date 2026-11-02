@@ -18,10 +18,11 @@ $submissionOne = $result( 'submission', 'w1' );
 $submissionTwo = $result( 'submission', 'w2' );
 $assert( $submissionOne['ok'] === true, 'First simultaneous submission did not succeed' );
 $assert( $submissionTwo['ok'] === false && ( $submissionTwo['message'] ?? '' ) === 'student_slot_conflict', 'Second simultaneous submission was not refused with student_slot_conflict' );
-$assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}booking_requests WHERE student_id=%d", (int) $state['submission_student_id'] ) ) === 1, 'Simultaneous submissions committed more than one request' );
+$assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(DISTINCT r.id) FROM {$p}booking_requests r INNER JOIN {$p}booking_request_requested_times rt ON rt.booking_request_id=r.id WHERE r.student_id=%d AND rt.starts_at_utc=%s", (int) $state['submission_student_id'], (string) $state['at'] ) ) === 1, 'Simultaneous submissions committed more than one request at the same instant' );
 
 $nonOverlap = $result( 'single-nonoverlap', 'w2' );
 $assert( $nonOverlap['ok'] === true, 'A non-overlapping booking was refused' );
+$assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(DISTINCT r.id) FROM {$p}booking_requests r INNER JOIN {$p}booking_request_requested_times rt ON rt.booking_request_id=r.id WHERE r.student_id=%d AND rt.starts_at_utc=%s", (int) $state['submission_student_id'], (string) $state['non_overlap_input']['requested_times'][0]['local_date'] . ' 14:00:00' ) ) === 1, 'The non-overlapping booking was not committed' );
 $timezoneOverlap = $result( 'single-timezone', 'w2' );
 $assert( $timezoneOverlap['ok'] === false && ( $timezoneOverlap['message'] ?? '' ) === 'student_slot_conflict', 'The same UTC instant in another timezone was not refused' );
 

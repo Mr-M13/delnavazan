@@ -28,5 +28,10 @@ final class BookingAllocationWorker {
                 try{$repo->markAlertNotified((int)$alert->id,$now);}catch(\Throwable $error){do_action('dzn_booking_allocation_notification_failed',(int)$alert->id,get_class($error));}
             }
         }
+        foreach($repo->unnotifiedExpirations(25) as $offer){
+            if(PortalNotificationRecorder::teacher((int)$offer->teacher_id,'booking.expired.teacher','booking_offer_expiry',(int)$offer->id,array(),home_url('/teacher-portal/'))!==null){
+                try{$repo->markExpiryNotified((int)$offer->id,$now);}catch(\Throwable $error){do_action('dzn_booking_allocation_notification_failed',(int)$offer->id,get_class($error));}
+            }
+        }
     }
 }

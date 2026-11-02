@@ -7,6 +7,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public array $referrals = array();
         public array $alerts = array();
         public static array $pendingAlerts = array();
+        public static array $pendingExpirations = array();
         public int $cursorId = 0;
         public function begin(): void {}
         public function commit(): void {}
@@ -26,6 +27,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function transitionOffer(int $offerId, string $outcome, string $now, string $reason): void {
             if (!$this->active || $this->active->id!==$offerId) throw new \RuntimeException('Wrong active offer');
             $this->active->state=$outcome;
+            if($outcome==='expired')self::$pendingExpirations[$offerId]=(object)array('id'=>$offerId,'teacher_id'=>$this->active->teacher_id);
             $this->active=null;
         }
         public function rotateDelivery(object $delivery, array $candidate, string $now): int {
@@ -41,6 +43,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function dueRequests(string $now, int $limit=25): array { return array(); }
         public function unnotifiedAlerts(int $limit=25): array { return array_values(self::$pendingAlerts); }
         public function markAlertNotified(int $id, string $now): void { foreach(self::$pendingAlerts as $kind=>$row)if($row->id===$id)unset(self::$pendingAlerts[$kind]); }
+        public function unnotifiedExpirations(int $limit=25):array{return array_values(self::$pendingExpirations);}
+        public function markExpiryNotified(int $id,string $now):void{unset(self::$pendingExpirations[$id]);}
     }
     final class BookingRequestMatchAssessmentRepository {
         public function eligibleTeachers(int $courseId, string $now): array {
@@ -66,6 +70,7 @@ namespace Delnavazan\Platform\Core\Application {
     final class PortalNotificationRecorder {
         public static array $calls=array();
         public static function admin(string $event,string $kind,int $id,array $variables=array(),?string $url=null):?int { self::$calls[]=compact('event','kind','id','url');return $id; }
+        public static function teacher(int $teacherId,string $event,string $kind,int $id,array $variables=array(),?string $url=null):?int { self::$calls[]=compact('teacherId','event','kind','id','url');return $id; }
     }
 }
 namespace Delnavazan\Platform\Core\Support {
@@ -73,6 +78,7 @@ namespace Delnavazan\Platform\Core\Support {
 }
 namespace {
     function admin_url(string $path=''): string { return 'https://academy.example/wp-admin/'.$path; }
+    function home_url(string $path=''): string { return 'https://academy.example'.$path; }
     function do_action(string $hook, mixed ...$args): void {}
     require_once dirname(__DIR__).'/src/Core/Application/BookingAllocationService.php';
     require_once dirname(__DIR__).'/src/Integrations/BookingAllocationWorker.php';
@@ -95,6 +101,6 @@ namespace {
     \Delnavazan\Platform\Integrations\BookingAllocationWorker::run();
     \Delnavazan\Platform\Integrations\BookingAllocationWorker::run();
     $notices=\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls;
-    $assert(count($notices)===2 && $notices[0]['event']==='booking.referral.admin' && $notices[1]['event']==='booking.escalation.admin','Referral and escalation must create one durable administrator inbox notice each.');
+    $assert(count($notices)===3 && $notices[0]['event']==='booking.referral.admin' && $notices[1]['event']==='booking.escalation.admin' && $notices[2]['event']==='booking.expired.teacher','Referral, escalation, and expiration must create one durable portal notice each.');
     echo "Booking allocation unit passed\n";
 }

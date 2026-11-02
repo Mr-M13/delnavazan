@@ -6,6 +6,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationAttemptReposi
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationTemplateRepository;
+use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateAuthority;
@@ -127,6 +128,52 @@ final class TelnyxWhatsAppAdapter {
         return array('acknowledged'=>true,'permanent_failure'=>null,'provider_attempted'=>true,'provider_reference_present'=>$reference!=='');
     }
 
+    /**
+     * Business hand-off for an event-owned durable queue (booking/intro notices).
+     *
+     * The booking queue is not a canonical notification aggregate, so the booking notification id is
+     * stored in the provider correlation table with attempt_id 0.  That is the same "tracked test"
+     * shape the webhook already recognises: delivery receipts update the message state without
+     * attempting a canonical aggregate transition.  The digest-once check makes a leased retry
+     * idempotent even when the caller has no canonical attempt row.
+     */
+    public function sendBookingNotification(string $to,int $notificationId,string $eventKey,array $parameters):array{
+        $to=PhoneNumberNormalizer::toE164($to);
+        if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
+        if($notificationId<1)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'booking_notification_required');
+        if($this->provider->messageForAttempt($notificationId,0))return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
+        $sender=(string)$this->settings->value('whatsapp','sender_id');
+        if($sender==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'sender_not_configured');
+        $mapped=$this->eventMapping($eventKey);
+        if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
+        foreach($mapped['variable_order'] as $code)if(!array_key_exists($code,$parameters))return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],$parameters,$profile);
+        $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
+            'timeout'=>20,'redirection'=>0,
+            'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
+            'body'=>wp_json_encode($payload),
+        ));
+        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);
+        $status=(int)wp_remote_retrieve_response_code($response);
+        $body=json_decode((string)wp_remote_retrieve_body($response),true);
+        if($status<200||$status>=300){
+            $permanent=self::permanentFailure($status);
+            $error=self::providerError(is_array($body)?$body:null);
+            $result=array('acknowledged'=>false,'permanent_failure'=>$permanent,'http'=>$status,'provider_attempted'=>true,'ambiguous'=>$permanent===null);
+            if($permanent!==null&&self::recipientRejection($status,$error)){
+                $at=NotificationSupport::now();
+                $result['provider_evidence_digest']=hash_hmac('sha256','telnyx:whatsapp:booking-rejected:'.$notificationId.':'.$eventKey.':'.$status.':'.$at,NotificationSupport::salt());
+                $result['provider_evidence_at']=$at;
+                $result['provider_outcome']='rejected';
+            }
+            return $result;
+        }
+        $reference=is_array($body)?(string)($body['data']['id']??''):'';
+        if($reference!=='')$this->rememberBooking($reference,$notificationId,$mapped['name'],$mapped['language']);
+        return array('acknowledged'=>true,'permanent_failure'=>null,'provider_attempted'=>true,'provider_reference_present'=>$reference!=='','channel'=>'whatsapp');
+    }
+
     public static function templatePayload(string $from,string $to,string $name,string $language,array $order,array $parameters,string $profile=''):array{
         $params=array();
         foreach($order as $code)$params[]=array('type'=>'text','text'=>(string)$parameters[$code]);
@@ -165,6 +212,23 @@ final class TelnyxWhatsAppAdapter {
         return false;
     }
 
+    /** Approved provider template for one catalogue event, with the same fail-closed contract. */
+    private function eventMapping(string $eventKey):?array{
+        $approved=$this->templateAuthority->resolve($eventKey,NotificationCatalogue::PRIMARY_LOCALE);
+        if($approved['state']===TelnyxTemplateAuthority::MAPPED)return array('name'=>$approved['name'],'language'=>$approved['language'],'variable_order'=>$approved['variable_order']);
+        if($approved['state']!==TelnyxTemplateAuthority::NOT_MAPPED)return null;
+        $templateKey=$eventKey.'.whatsapp.'.NotificationCatalogue::PRIMARY_LOCALE;
+        $manual=(new NotificationTemplateLibrary(null,null,$this->templateAuthority))->providerMapping($templateKey);
+        $name=trim((string)($manual['name']??''));
+        if($name==='')return null;
+        $definition=TelnyxTemplateRegistry::definitionForName($name);
+        if($definition===null||(string)$definition['event_key']!==$eventKey)return null;
+        $language=(string)($manual['language']??TelnyxTemplateRegistry::LANGUAGE);
+        $known=$this->provider->templateByName('telnyx',$name,$language);
+        if($known&&(strtoupper((string)$known->status)!=='APPROVED'||(string)$known->event_key!==$eventKey))return null;
+        $order=array_values((array)$definition['variable_order']);
+        return $order===array()?null:array('name'=>$name,'language'=>$language,'variable_order'=>$order);
+    }
     /** @return array{name:string,language:string,variable_order:string[]}|null */
     private function mapping(array $command):?array{
         $templateVersionId=(int)($command['template_version_id']??0);
@@ -212,6 +276,22 @@ final class TelnyxWhatsAppAdapter {
             'notification_id'=>0,'attempt_id'=>0,'provider_template_name'=>$name,'provider_template_language'=>$language,
             'state'=>'sent','created_at'=>$now,'updated_at'=>$now,
         ));}catch(\Throwable $error){if(!$this->provider->messageForReference($digest))throw $error;}
+    }
+    /** Booking queue has no canonical attempt row; attempt_id 0 is the tracked business hand-off. */
+    private function rememberBooking(string $reference,int $notificationId,string $name,string $language):void{
+        $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());
+        $now=NotificationSupport::now();
+        try{
+            $this->provider->insertMessage(array(
+                'uid'=>NotificationSupport::uid(),'provider'=>'telnyx','channel'=>'whatsapp',
+                'message_reference_digest'=>$digest,'notification_id'=>$notificationId,'attempt_id'=>0,
+                'provider_template_name'=>$name,'provider_template_language'=>$language,'state'=>'sent',
+                'created_at'=>$now,'updated_at'=>$now,
+            ));
+        }catch(\Throwable $error){
+            if($this->provider->messageForReference($digest))return;
+            throw $error;
+        }
     }
     private function remember(object $notification,object $attempt,string $reference,string $name,string $language):void{
         $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());

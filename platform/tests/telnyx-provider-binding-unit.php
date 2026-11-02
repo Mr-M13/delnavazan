@@ -1,6 +1,8 @@
 <?php
 $root=dirname(__DIR__);
 $GLOBALS['wpdb']=(object)array('prefix'=>'wp_');
+$GLOBALS['dzn_email_enabled']=false;
+function apply_filters(string $tag,mixed $value):mixed{return $tag==='dzn_notification_email_transport_configured'&&!empty($GLOBALS['dzn_email_enabled'])?true:$value;}
 require_once $root.'/src/Core/Application/NotificationTransportPort.php';
 require_once $root.'/src/Core/Application/NotificationRule.php';
 require_once $root.'/src/Core/Infrastructure/Repository/NotificationRepository.php';
@@ -9,6 +11,7 @@ require_once $root.'/src/Core/Infrastructure/Repository/NotificationTemplateRepo
 require_once $root.'/src/Core/Infrastructure/Repository/NotificationProviderRepository.php';
 require_once $root.'/src/Integrations/Notifications/SmsTransport.php';
 require_once $root.'/src/Integrations/Notifications/WhatsAppTransport.php';
+require_once $root.'/src/Integrations/Notifications/WordPressEmailTransport.php';
 require_once $root.'/src/Integrations/Notifications/TelnyxConfiguration.php';
 require_once $root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
 require_once $root.'/src/Integrations/Notifications/TelnyxTemplateAuthority.php';
@@ -37,6 +40,10 @@ if(count($bindings)!==2||$bindings[0]['channel']!=='sms'||$bindings[1]['channel'
 if(!$bindings[0]['port'] instanceof SmsTransport||!$bindings[1]['port'] instanceof WhatsAppTransport)throw new RuntimeException('Telnyx bindings must use the channel-neutral transports');
 $missing=new DznSettingsFixture(array('sms'=>array('api_key'=>'test-key','messaging_profile_id'=>'profile-1','sender_id'=>'+15550000001'),'whatsapp'=>array('sender_id'=>'+15550000001','waba_id'=>'1421107699354690')));
 if(count(NotificationProviderBindings::bindings($missing))!==0)throw new RuntimeException('a transport without verified webhook configuration must stay unconfigured');
+$GLOBALS['dzn_email_enabled']=true;
+$emailBindings=NotificationProviderBindings::bindings($missing);
+if(count($emailBindings)!==1||$emailBindings[0]['channel']!=='email'||!$emailBindings[0]['configured'])throw new RuntimeException('the configured WordPress mail transport must be exposed as the email channel without Telnyx credentials');
+$GLOBALS['dzn_email_enabled']=false;
 $sms=TelnyxSmsAdapter::messagePayload('+15550001111','سلام','+15550000001','');
 if(($sms['from']??'')!=='+15550000001'||isset($sms['messaging_profile_id'])||($sms['text']??'')!=='سلام')throw new RuntimeException('SMS sender payload contract failed');
 $sms=TelnyxSmsAdapter::messagePayload('+15550001111','سلام','','profile-1');

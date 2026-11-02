@@ -28,19 +28,29 @@ final class BookingStudentNotificationWorker {
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
             $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
         }catch(\Throwable $error){$repository->rollback();throw $error;}
+        $mobile=array('state'=>'skipped','reason'=>'not_attempted');
         try{
             [$subject,$body,$variables]=self::message($row);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
+            if((string)$row->notification_kind==='requested_student')$eventKey='booking.requested.student';
+            if((string)$row->notification_kind==='requested_teacher')$eventKey='booking.new.teacher';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
-                self::recordInbox($row,$eventKey,$variables);
             }
-            $accepted=class_exists(DelnavazanEmailRenderer::class)
-                ?DelnavazanEmailRenderer::send((string)$row->email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>'رفتن به حساب کاربری')),self::headers($row))
-                :wp_mail((string)$row->email,$copy['subject'],$copy['body'],self::headers($row));
+            // The portal is an independent first-party notice.  A missing or invalid editable
+            // email template must not hide the operational booking alert from the Teacher.
+            self::recordInbox($row,$eventKey,$variables);
+            try{
+                $accepted=class_exists(DelnavazanEmailRenderer::class)
+                    ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
+                    :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
+            }catch(\Throwable){$accepted=false;}
+            // WhatsApp is the mobile primary.  It is coordinated with the same leased booking
+            // notification so an email retry cannot duplicate an accepted provider hand-off.
+            $mobile=self::mobile($row,$eventKey,$variables);
         }catch(\Throwable){$accepted=false;}
         $repository->begin();
         try{
@@ -49,15 +59,26 @@ final class BookingStudentNotificationWorker {
             if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>null),$leaseDigest);}
             elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
             else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
-            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false);
+            $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false,'mobile'=>$mobile);
         }catch(\Throwable $error){$repository->rollback();throw $error;}
     }
 
     /** The student inbox is recorded even when the mail transport refuses the hand-off. */
     private static function recordInbox(object $row,string $eventKey,array $variables):void{
+        if(!class_exists(PortalNotificationRecorder::class))return;
+        if((string)$row->notification_kind==='requested_teacher'){
+            PortalNotificationRecorder::teacher((int)$row->teacher_id,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['teacher_portal_url']??''));
+            return;
+        }
         $studentId=(int)($row->student_id??0);
-        if($studentId<1||!class_exists(PortalNotificationRecorder::class))return;
-        PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+        if($studentId>0)PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+    }
+
+    /** Mobile is fail-soft: it can never roll back the durable booking or the email hand-off. */
+    private static function mobile(object $row,string $eventKey,array $variables):array{
+        if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
+        try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
+        catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
     }
 
     private static function headers(object $row):array{
@@ -67,10 +88,23 @@ final class BookingStudentNotificationWorker {
         return array('Content-Type: text/plain; charset=UTF-8','Message-ID: <'.$identity.'>','X-Delnavazan-Notification-ID: '.(string)$row->uid);
     }
 
+    private static function recipientEmail(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?($row->teacher_email??''):($row->student_email??$row->email??''));}
+    private static function portalLabel(object $row):string{return (string)((string)$row->notification_kind==='requested_teacher'?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
+
     private static function message(object $row):array{
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
-        $portal=home_url('/student-portal/');
-        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal);
+        $portal=home_url('/student-portal/');$teacherPortal=home_url('/teacher-portal/');
+        $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal,'teacher_portal_url'=>$teacherPortal,'student'=>$name);
+        if((string)$row->notification_kind==='requested_student'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('Delnavazan booking request received',"Hello {$name},\n\nYour introductory {$course} lesson request for {$when} was received. We will send the final class details after the Teacher confirms.\n\nOpen your account: {$portal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='requested_teacher'){
+            $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
+            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
         if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your account.\n\nOpen your account: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your account.\n\nOpen your account: {$portal}\n\nDelnavazan",$base);

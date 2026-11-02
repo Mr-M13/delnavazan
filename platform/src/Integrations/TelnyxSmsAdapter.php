@@ -73,6 +73,37 @@ final class TelnyxSmsAdapter {
         return array('acknowledged'=>true,'permanent_failure'=>null,'provider_reference_present'=>$reference!=='');
     }
 
+    /**
+     * Business SMS hand-off for an event-owned durable queue.
+     *
+     * This is only called by the booking fallback authority after a verified terminal WhatsApp
+     * refusal.  The booking notification id is correlated with attempt_id 0, which the webhook
+     * treats as a tracked business/test delivery and never as a canonical aggregate transition.
+     */
+    public function sendBookingNotification(string $to,int $notificationId,string $text):array{
+        $to=PhoneNumberNormalizer::toE164($to);
+        if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
+        if($text==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
+        if($notificationId<1)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'booking_notification_required');
+        if($this->provider->messageForAttempt($notificationId,0))return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
+        $from=(string)$this->settings->value('sms','sender_id');
+        $profile=(string)$this->settings->value('sms','messaging_profile_id');
+        if($from===''&&$profile==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'sender_not_configured');
+        $payload=self::messagePayload($to,$text,$from,$profile);
+        $response=$this->post('https://api.telnyx.com/v2/messages',array(
+            'timeout'=>20,'redirection'=>0,
+            'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
+            'body'=>wp_json_encode($payload),
+        ));
+        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);
+        $status=(int)wp_remote_retrieve_response_code($response);
+        if($status<200||$status>=300)return array('acknowledged'=>false,'permanent_failure'=>self::permanentFailure($status),'http'=>$status,'ambiguous'=>in_array($status,array(408,425),true)||$status>=500);
+        $body=json_decode((string)wp_remote_retrieve_body($response),true);
+        $reference=is_array($body)?(string)($body['data']['id']??''):'';
+        if($reference!=='')$this->rememberBooking($reference,$notificationId);
+        return array('acknowledged'=>true,'permanent_failure'=>null,'provider_reference_present'=>$reference!=='','channel'=>'sms');
+    }
+
     public static function messagePayload(string $to,string $text,string $from,string $profile):array{
         $payload=array('to'=>$to,'text'=>$text);
         if($from!=='')$payload['from']=$from;else $payload['messaging_profile_id']=$profile;
@@ -91,6 +122,21 @@ final class TelnyxSmsAdapter {
     private function attempt(array $command,?object $notification):?object{
         if(!$notification)return null;
         return $this->attempts->bySequence((int)$notification->id,(int)($command['attempt_sequence']??0));
+    }
+    private function rememberBooking(string $reference,int $notificationId):void{
+        $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());
+        $now=NotificationSupport::now();
+        try{
+            $this->provider->insertMessage(array(
+                'uid'=>NotificationSupport::uid(),'provider'=>'telnyx','channel'=>'sms',
+                'message_reference_digest'=>$digest,'notification_id'=>$notificationId,'attempt_id'=>0,
+                'provider_template_name'=>null,'provider_template_language'=>null,'state'=>'sent',
+                'created_at'=>$now,'updated_at'=>$now,
+            ));
+        }catch(\Throwable $error){
+            if($this->provider->messageForReference($digest))return;
+            throw $error;
+        }
     }
     private function remember(object $notification,object $attempt,string $reference,string $state,string $channel):void{
         $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());

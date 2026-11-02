@@ -27,6 +27,15 @@ final class TeacherOnboardingRepository {
     public function teacherForUpdate(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teachers WHERE id=%d FOR UPDATE", $teacherId ) ); }
     public function stateForUpdate(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_onboarding_states WHERE teacher_id=%d FOR UPDATE", $teacherId ) ); }
     public function state(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_onboarding_states WHERE teacher_id=%d", $teacherId ) ); }
+    /** Activation establishes the default once; an explicit paused/limited choice always wins. */
+    public function ensureDefaultAccepting(int $teacherId, string $now, int $actor): void {
+        global $wpdb;
+        $sql = $wpdb->prepare(
+            "INSERT INTO {$this->prefix}teacher_accepting_states (teacher_id,state,version,reason_code,created_at,updated_at,created_by,updated_by) VALUES (%d,'accepting',1,'onboarding_default',%s,%s,%d,%d) ON DUPLICATE KEY UPDATE teacher_id=teacher_id",
+            $teacherId, $now, $now, $actor, $actor
+        );
+        if ($wpdb->query($sql) === false) throw new \RuntimeException('Teacher accepting default persistence failed');
+    }
     public function availabilityProfile(int $teacherId): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}teacher_availability_profiles WHERE teacher_id=%d", $teacherId ) ); }
     public function availabilityHasFacts(int $profileId): bool { global $wpdb; return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$this->prefix}teacher_availability_rules WHERE profile_id=%d LIMIT 1", $profileId ) ) || (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$this->prefix}teacher_availability_exceptions WHERE profile_id=%d LIMIT 1", $profileId ) ); }
     /** Keep availability local-wall-clock facts attached to the Teacher's selected IANA zone. */

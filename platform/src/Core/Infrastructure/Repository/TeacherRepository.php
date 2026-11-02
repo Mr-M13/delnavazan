@@ -77,7 +77,7 @@ final class TeacherRepository extends BaseRepository {
         $total = (int) $wpdb->get_var($args ? $wpdb->prepare($countSql, ...$args) : $countSql);
         $offset = ($page - 1) * $perPage;
         $sql = "SELECT t.id,t.reference_code,t.display_name,t.persian_name,t.english_name,t.email,t.status,t.timezone,t.archived_at,
-            COALESCE(a.state,'not_set') accepting_state,
+            COALESCE(a.state,'accepting') accepting_state,
             CASE
                 WHEN t.archived_at IS NOT NULL OR t.status='archived' THEN 'archived'
                 WHEN t.status='inactive' THEN 'inactive'
@@ -115,7 +115,7 @@ final class TeacherRepository extends BaseRepository {
         $row=$wpdb->get_row($wpdb->prepare("SELECT t.*,o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state,o.submitted_at,o.reviewed_at,o.review_reason_code,l.wordpress_user_id linked_wordpress_user_id,l.status principal_status FROM {$this->table} t LEFT JOIN {$p}teacher_onboarding_states o ON o.teacher_id=t.id LEFT JOIN {$p}teacher_principal_links l ON l.teacher_id=t.id AND l.status='active' AND l.revoked_at IS NULL WHERE t.id=%d LIMIT 1",$teacherId));
         if(!$row)return null;
         $row->wordpress_user_id=$row->linked_wordpress_user_id!==null?(int)$row->linked_wordpress_user_id:($row->wordpress_user_id!==null?(int)$row->wordpress_user_id:null);
-        $row->accepting_state=(string)($wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}teacher_accepting_states WHERE teacher_id=%d",$teacherId))?:'not_set');
+        $row->accepting_state=(string)($wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}teacher_accepting_states WHERE teacher_id=%d",$teacherId))?:'accepting');
         $row->availability_profile_status=(string)($wpdb->get_var($wpdb->prepare("SELECT status FROM {$p}teacher_availability_profiles WHERE teacher_id=%d",$teacherId))?:'not_set');
         $row->availability_timezone=(string)($wpdb->get_var($wpdb->prepare("SELECT timezone FROM {$p}teacher_availability_profiles WHERE teacher_id=%d",$teacherId))?:($row->timezone??''));
         $row->instrument_names=(string)($wpdb->get_var($wpdb->prepare("SELECT GROUP_CONCAT(DISTINCT COALESCE(NULLIF(i.name_en,''),i.name_fa) ORDER BY COALESCE(NULLIF(i.name_en,''),i.name_fa) SEPARATOR ', ') FROM {$p}teacher_course_eligibilities e INNER JOIN {$p}courses c ON c.id=e.course_id INNER JOIN {$p}instruments i ON i.id=c.instrument_id WHERE e.teacher_id=%d AND e.status='active' AND c.status='active' AND c.archived_at IS NULL AND i.status='active' AND i.archived_at IS NULL",$teacherId))?:'');

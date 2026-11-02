@@ -166,7 +166,7 @@ $assert(count(array_filter($effectiveWindows,static fn(array $row):bool=>(int)$r
 
 $service=file_get_contents($root.'/src/Core/Application/AcademyCoverageReadService.php');
 $assert(str_contains($service,'catch(\\Throwable)')&&str_contains($service,"'unavailable'")&&str_contains($service,'availability records could not be read'),'The read service must fail closed on unreadable availability data');
-foreach(array("o.state='active'","o.readiness_state='ready'","a.state IN ('accepting','limited')","e.status='active'","c.status='active'","ap.status='active'","r.state IN ('preferred','requestable')","new TeacherAvailabilityService()","->effective(")as$needle)$assert(str_contains($service,$needle),'Eligibility and effective-availability authority must be preserved: '.$needle);
+foreach(array("o.state='active'","o.readiness_state='ready'","COALESCE(a.state,'accepting') IN ('accepting','limited')","e.status='active'","c.status='active'","ap.status='active'","r.state IN ('preferred','requestable')","new TeacherAvailabilityService()","->effective(")as$needle)$assert(str_contains($service,$needle),'Eligibility and effective-availability authority must be preserved: '.$needle);
 foreach(array('GoldenHourPolicyService','coverageWindows','windowsForWeek')as$needle)$assert(str_contains($service,$needle),'Coverage must use the shared finance window authority: '.$needle);
 $assert(!str_contains($service,'resolveAt('),'Coverage must not resolve the global Iran pay policy as a service-area window');
 $analyzer=file_get_contents($root.'/src/Core/Application/AcademyCoverageAnalyzer.php');

@@ -157,6 +157,7 @@ final class TeacherOnboardingService {
                 'reviewed_at' => $now, 'reviewed_by' => $actor, 'review_reason_code' => $reason,
                 'activated_at' => $decision === 'approve' ? $now : null,
             ), $now, $actor );
+            if ( $decision === 'approve' ) $this->repo->ensureDefaultAccepting( (int) $teacher->id, $now, $actor );
             $this->repo->appendEvent( (int) $teacher->id, 'pending_review', $to, $decision === 'approve' ? 'administrator_approved' : $reason, $actor, $now );
             $this->repo->commit();
         } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }

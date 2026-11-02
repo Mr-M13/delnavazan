@@ -14,7 +14,7 @@ $interval = static fn( string $start, int $duration = 30, int $buffer = 15 ): ar
     'starts_at_utc' => $start,
     'occupied_ends_at_utc' => gmdate( 'Y-m-d H:i:s', strtotime( $start . ' UTC +' . ( $duration + $buffer ) . ' minutes' ) ),
 );
-$conflicts = static fn( int $student, array $time, array $options = array() ): bool => $authority->conflicts( $student, array( $time ), $options ) !== array();
+$conflicts = static fn( int $student, array $time, array $options = array( 'include_open_requests' => true ) ): bool => $authority->conflicts( $student, array( $time ), $options ) !== array();
 
 $wpdb->insert( $p . 'instruments', array( 'uid' => Identifier::uid(), 'reference_code' => 'DZN-INSTR-BOUND-' . strtoupper( $suffix ), 'slug' => 'slot-bound-' . $suffix, 'name_fa' => 'ساز مرز', 'name_en' => 'Boundary', 'status' => 'active', 'created_at' => $now, 'updated_at' => $now ) );
 $instrument = (int) $wpdb->insert_id;

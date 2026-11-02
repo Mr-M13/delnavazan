@@ -84,7 +84,13 @@ final class BookingStudentAccountService {
         if ( ! function_exists( 'wp_insert_user' ) ) require_once ABSPATH . 'wp-admin/includes/user.php';
         $login = $this->availableLogin( $email );
         $created = wp_insert_user( array( 'user_login' => $login, 'user_pass' => $password, 'user_email' => $email, 'display_name' => $displayName, 'role' => 'subscriber' ) );
-        if ( is_wp_error( $created ) ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+        if ( is_wp_error( $created ) ) {
+            // Record only a bounded WordPress error code; never log credentials or email.
+            $codes = $created->get_error_codes();
+            $code = isset( $codes[0] ) && is_string( $codes[0] ) && preg_match( '/\\A[a-zA-Z0-9_\\-]{1,80}\\z/', $codes[0] ) ? $codes[0] : 'unknown';
+            error_log( '[delnavazan booking] new_account_insert_rejected code=' . $code );
+            throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+        }
         $createdUserId = (int) $created;
         $user = $this->accounts->userForUpdate( $createdUserId );
         if ( ! $user || strcasecmp( (string) $user->user_email, $email ) !== 0 ) throw new \RuntimeException( 'Created account verification failed' );

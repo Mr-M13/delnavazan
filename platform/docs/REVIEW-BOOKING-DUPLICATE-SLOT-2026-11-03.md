@@ -141,4 +141,9 @@ production record**.
 - No live Google Calendar retraction test; the projection contract is provider-neutral only.
 - Lock-wait view attribution requires database privileges unavailable to the disposable test user;
   the race outcome is still proven by gating and committed rows.
+- The existing Phase 2A.2-N scheduling runtime could not execute: its Phase 2A.2-J fixture already
+  installs recurring availability, then the runtime attempts an overlapping full-day rule. The same
+  failure reproduces on unmodified `origin/main`, so it is a pre-existing harness defect rather than
+  a regression in this branch. The new database suite still exercises canonical and legacy Lesson
+  occupancy directly.
 - Existing duplicate confirmations are not repaired automatically.

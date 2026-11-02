@@ -259,7 +259,7 @@ Source snapshot: current `main` schema 57, `platform/src/Core/Infrastructure/Mig
 
 ## Current implementation boundary
 
-The administrator screen performs read-only direct-reference discovery for both account types, including test and other accounts, and produces counts, blockers, and a manifest digest. It always blocks deletion because indirect/external ownership is unverified. No execution route, token, or production deletion exists in this branch.
+The administrator screen performs read-only direct-reference discovery for both account types, including test and other accounts, using canonical reference codes (`DZN-STU-...` and `DZN-TCH-...`). It produces counts, blockers, and a manifest digest. It always blocks deletion because indirect/external ownership is unverified. No execution route, token, or production deletion exists in this branch.
 
 ## Required before enabling execution
 

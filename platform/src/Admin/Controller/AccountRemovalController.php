@@ -23,13 +23,9 @@ final class AccountRemovalController {
         $error = '';
         if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST') {
             check_admin_referer(self::NONCE);
-            $kind = sanitize_key((string) wp_unslash($_POST['account_kind'] ?? ''));
-            $rawId = (string) wp_unslash($_POST['account_id'] ?? '');
-            if (!preg_match('/^[1-9][0-9]*$/D', $rawId)) $error = 'شناسه حساب نامعتبر است.';
-            else {
-                try { $manifest = (new AccountRemovalDiscoveryService())->discover($kind, (int) $rawId); }
-                catch (\Throwable $exception) { $error = 'بررسی وابستگی‌ها انجام نشد. هیچ داده‌ای حذف نشده است.'; }
-            }
+            $reference = (string) wp_unslash($_POST['account_reference'] ?? '');
+            try { $manifest = (new AccountRemovalDiscoveryService())->discoverByReference($reference); }
+            catch (\Throwable $exception) { $error = 'کد حساب پیدا نشد یا بررسی وابستگی‌ها انجام نشد. هیچ داده‌ای حذف نشده است.'; }
         }
         ?>
         <div class="wrap dzn-account-removal">
@@ -38,17 +34,13 @@ final class AccountRemovalController {
             <?php if ($error !== '') : ?><div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div><?php endif; ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=' . self::SLUG)); ?>">
                 <?php wp_nonce_field(self::NONCE); ?>
-                <label for="dzn-removal-kind">نوع حساب</label>
-                <select id="dzn-removal-kind" name="account_kind" required>
-                    <option value="student">دانشجو</option><option value="teacher">مدرس</option>
-                </select>
-                <label for="dzn-removal-id">شناسه اصلی حساب</label>
-                <input id="dzn-removal-id" name="account_id" type="number" min="1" step="1" required>
+                <label for="dzn-removal-reference">کد دانشجو یا مدرس</label>
+                <input id="dzn-removal-reference" name="account_reference" type="text" maxlength="32" placeholder="DZN-STU-000003" pattern="DZN-(STU|TCH)-[0-9]{6,}" dir="ltr" required>
                 <?php submit_button('نمایش وابستگی‌ها', 'primary', 'submit', false); ?>
             </form>
             <?php if (is_array($manifest)) : ?>
                 <h2>فهرست وابستگی‌ها</h2>
-                <p>شناسه: <?php echo esc_html((string) $manifest['id']); ?> · نوع: <?php echo $manifest['kind'] === 'student' ? 'دانشجو' : 'مدرس'; ?> · اثر انگشت فهرست: <code><?php echo esc_html($manifest['digest']); ?></code></p>
+                <p>کد حساب: <code><?php echo esc_html($manifest['reference_code']); ?></code> · نوع: <?php echo $manifest['kind'] === 'student' ? 'دانشجو' : 'مدرس'; ?> · اثر انگشت فهرست: <code><?php echo esc_html($manifest['digest']); ?></code></p>
                 <table class="widefat striped"><thead><tr><th>جدول</th><th>رابطه</th><th>تعداد رکورد</th></tr></thead><tbody>
                 <?php foreach ($manifest['relations'] as $relation) : ?><tr><td><?php echo esc_html($relation['table']); ?></td><td><?php echo esc_html($relation['column']); ?></td><td><?php echo esc_html((string) $relation['count']); ?></td></tr><?php endforeach; ?>
                 </tbody></table>

@@ -21,7 +21,7 @@ final class RemovalFakeDb {
     public function esc_like(string $s): string { return $s; }
     public function get_row(string $query, $format = null): ?array {
         $this->assertRead($query);
-        return array('id' => 4, 'uid' => 'TESTACCOUNT000000000000000', 'wordpress_user_id' => 17, 'status' => 'inactive');
+        return array('id' => 4, 'uid' => 'TESTACCOUNT000000000000000', 'reference_code' => str_contains($query, 'teachers') ? 'DZN-TCH-000004' : 'DZN-STU-000004', 'wordpress_user_id' => 17, 'status' => 'inactive');
     }
     public function get_col(string $query): array {
         $this->assertRead($query);
@@ -32,6 +32,7 @@ final class RemovalFakeDb {
     }
     public function get_var(string $query): int {
         $this->assertRead($query);
+        if (str_contains($query, 'WHERE reference_code=')) return str_contains($query, '000004') ? 4 : 0;
         foreach ($this->counts as $fragment => $count) if (str_contains($query, $fragment)) return $count;
         return 0;
     }
@@ -51,6 +52,14 @@ foreach (array('student', 'teacher') as $kind) {
     if ($manifest['kind'] !== $kind) throw new RuntimeException('Wrong account type');
     if (!in_array('indirect_and_external_dependencies_unreviewed', $manifest['blockers'], true)) throw new RuntimeException('External dependencies omitted');
     if (count($wpdb->queries) < 4) throw new RuntimeException('Dependencies not inspected');
+}
+foreach (array('DZN-STU-000004' => 'student', 'DZN-TCH-000004' => 'teacher') as $reference => $kind) {
+    $manifest = $service->discoverByReference($reference);
+    if ($manifest['kind'] !== $kind || $manifest['reference_code'] !== $reference) throw new RuntimeException('Canonical reference lookup failed');
+}
+foreach (array('someone@example.invalid', 'DZN-STU-000005', 'DZN-XXX-000004') as $reference) {
+    try { $service->discoverByReference($reference); throw new RuntimeException('Invalid reference accepted'); }
+    catch (InvalidArgumentException $expected) {}
 }
 $wpdb->counts = array('student_principal_links` WHERE `student_id`=4' => 1);
 $manifest = $service->discover('student', 4);

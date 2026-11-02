@@ -16,12 +16,27 @@ final class AccountRemovalDiscoveryService {
     );
     private const WP_COLUMNS = array('wordpress_user_id', 'principal_user_id', 'teacher_actor_user_id', 'guardian_actor_user_id', 'acting_wordpress_user_id', 'accepting_wordpress_user_id', 'claimed_principal_id');
 
+    /** Resolve only the canonical reference printed in the Student/Teacher workspace. */
+    public function discoverByReference(string $reference): array {
+        $reference = strtoupper(trim($reference));
+        if (!preg_match('/^DZN-(STU|TCH)-[0-9]{6,}$/D', $reference, $match)) throw new \InvalidArgumentException('invalid_account_reference');
+        $kind = $match[1] === 'STU' ? 'student' : 'teacher';
+        global $wpdb;
+        $table = $wpdb->prefix . 'dzn_' . self::KINDS[$kind];
+        $id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE reference_code=%s LIMIT 1", $reference));
+        $this->assertDatabaseHealthy();
+        if ($id < 1) throw new \InvalidArgumentException('account_not_found');
+        $manifest = $this->discover($kind, $id);
+        if ($manifest['reference_code'] !== $reference) throw new \RuntimeException('account_reference_changed');
+        return $manifest;
+    }
+
     public function discover(string $kind, int $id): array {
         if (!isset(self::KINDS[$kind]) || $id < 1) throw new \InvalidArgumentException('invalid_account_selector');
         global $wpdb;
         $prefix = $wpdb->prefix . 'dzn_';
         $root = $prefix . self::KINDS[$kind];
-        $row = $wpdb->get_row($wpdb->prepare("SELECT id, uid, wordpress_user_id, status FROM {$root} WHERE id=%d", $id), ARRAY_A);
+        $row = $wpdb->get_row($wpdb->prepare("SELECT id, uid, reference_code, wordpress_user_id, status FROM {$root} WHERE id=%d", $id), ARRAY_A);
         $this->assertDatabaseHealthy();
         if (!is_array($row)) throw new \InvalidArgumentException('account_not_found');
         $userId = (int) ($row['wordpress_user_id'] ?? 0);
@@ -73,6 +88,7 @@ final class AccountRemovalDiscoveryService {
             'kind' => $kind,
             'id' => $id,
             'canonical_uid' => (string) $row['uid'],
+            'reference_code' => (string) $row['reference_code'],
             'status' => (string) $row['status'],
             'wordpress_user_id' => $userId,
             'relations' => $relations,

@@ -158,7 +158,7 @@ namespace {
 	$html = (string) ob_get_clean();
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
-	$check( 'the redundant upcoming list is gone and the calendar remains', ! str_contains( $html, 'tp-classes-upcoming' ) && ! str_contains( $html, 'کلاسی برای روزهای آینده' ) && str_contains( $html, 'تقویم کلاس‌های آینده' ) );
+	$check( 'future class cards are restored with their reschedule action', str_contains( $html, 'tp-classes-upcoming' ) && str_contains( $html, 'کلاس‌های آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) && str_contains( $html, 'تقویم کلاس‌های آینده' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );

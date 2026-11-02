@@ -1,22 +1,27 @@
 <?php
 /**
- * Today, the completed/past history and the next 30 local calendar days.
+ * Today, the next 30 local calendar days and the completed/past history.
  *
  * Presentation only: every action below uses a backend-issued URL, nonce and identifier from the
- * view model. The classes section is bounded to the teacher's current local day; the calendar is
- * rendered by the separate calendar component.
+ * view model. The classes section is bounded to the teacher's current local day; the second section
+ * starts tomorrow and ends after 30 local calendar days. The calendar remains a separate export
+ * projection.
  */
 $model    = is_array( $args['model'] ?? null ) ? $args['model'] : array();
 $context  = dzn_theme_teacher_portal_context();
 $demo     = ! empty( $context['demo'] );
 $settings = (string) ( $context['settings_url'] ?? '' );
 $timezone = (string) ( $args['timezone'] ?? ( $model['teacher_timezone'] ?? $model['profile']['timezone'] ?? '' ) );
-$today_items = isset( $args['today_items'] ) && is_array( $args['today_items'] ) ? $args['today_items'] : ( isset( $model['today_classes'] ) && is_array( $model['today_classes'] ) ? $model['today_classes'] : array() );
-$past_items  = isset( $args['past_items'] ) && is_array( $args['past_items'] ) ? $args['past_items'] : ( isset( $model['past_classes'] ) && is_array( $model['past_classes'] ) ? $model['past_classes'] : array() );
+$today_items    = isset( $args['today_items'] ) && is_array( $args['today_items'] ) ? $args['today_items'] : ( isset( $model['today_classes'] ) && is_array( $model['today_classes'] ) ? $model['today_classes'] : array() );
+$upcoming_items = isset( $args['upcoming_items'] ) && is_array( $args['upcoming_items'] ) ? $args['upcoming_items'] : ( isset( $model['upcoming_classes'] ) && is_array( $model['upcoming_classes'] ) ? $model['upcoming_classes'] : array() );
+$past_items     = isset( $args['past_items'] ) && is_array( $args['past_items'] ) ? $args['past_items'] : ( isset( $model['past_classes'] ) && is_array( $model['past_classes'] ) ? $model['past_classes'] : array() );
 $sections = array(
 	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => true, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
 );
-$section_heading = 'کلاس‌های امروز';
+if ( $upcoming_items ) {
+	$sections[] = array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' );
+}
+$section_heading = $upcoming_items ? 'برنامهٔ کلاس‌ها' : 'کلاس‌های امروز';
 $card_index = 0;
 ?>
 <section class="dzn-tp-section dzn-tp-classes" aria-labelledby="tp-classes">

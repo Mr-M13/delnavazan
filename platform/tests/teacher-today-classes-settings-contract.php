@@ -28,8 +28,9 @@ $assert(str_contains($notifications, '>اعلان‌ها') && str_contains($noti
 $assert(str_contains($notifications, 'dzn-tp-section dzn-notifications'), 'Notifications must keep the white panel.');
 $assert(!str_contains($notifications, 'dzn-tp-note'), 'The notification explanatory caption must be removed.');
 
-// Today classes: no duplicate upcoming list; completed work is collapsed history.
-$assert(!str_contains($shell, "'upcoming_items'") && !str_contains($shell, '$model[\'upcoming_classes\']'), 'The classes screen must not render the redundant upcoming list.');
+// Today classes: future cards stay actionable; completed work is collapsed history.
+$assert(str_contains($shell, "'upcoming_items'") && str_contains($shell, "\$model['upcoming_classes']"), 'The classes screen must render future class cards with their reschedule action.');
+$assert(str_contains($classes, "'key' => 'upcoming'") && str_contains($classes, 'dzn-tp-class__reschedule'), 'Future cards must keep the reschedule disclosure.');
 $assert(str_contains($classes, 'dzn-tp-class-history') && str_contains($classes, '<summary>کلاس‌های گذشته'), 'Completed classes must be available in a collapsed history section.');
 $assert(str_contains($classes, "isset( \$args['past_items'] )") && str_contains($shell, "'past_items'"), 'History must come from the model, never from a date guess.');
 $assert(str_contains($bridge, "array( 'not_recorded', 'presumed_completed', 'review_required'"), 'History must exclude presumed completion and unresolved review that have no recorded delivery outcome.');

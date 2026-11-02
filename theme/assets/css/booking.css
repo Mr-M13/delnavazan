@@ -82,8 +82,13 @@
 .dzn-booking__step .dzn-booking__instrument-source { position: absolute; box-sizing: border-box; inline-size: 1px; width: 1px; min-inline-size: 0; min-width: 0; max-inline-size: 1px; max-width: 1px; block-size: 1px; height: 1px; min-block-size: 0; min-height: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
 
 /* Availability */
-.dzn-booking__availability-key { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem 1.2rem; margin-block: 1rem; color: var(--dzn-color-text-muted); font-size: .9rem; }
-.dzn-booking__availability-key span { display: inline-flex; align-items: center; gap: .4rem; }
+.dzn-booking__preference-intro { display: grid; gap: .15rem; max-width: 38rem; margin: 0 auto 1.25rem; border: 1px solid color-mix(in srgb, var(--dzn-color-action-primary) 24%, var(--dzn-color-border)); border-inline-start: .28rem solid var(--dzn-color-action-primary); border-radius: var(--dzn-radius-sm); background: color-mix(in srgb, var(--dzn-color-action-primary) 7%, var(--dzn-color-surface-elevated)); padding: .7rem .9rem; }
+.dzn-booking__preference-intro strong { color: var(--dzn-color-text-primary); font-size: 1rem; }
+.dzn-booking__preference-intro span { color: var(--dzn-color-text-muted); font-size: .86rem; }
+.dzn-booking__availability-key { display: grid; gap: .45rem; margin-block: .85rem 1rem; border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-sm); background: var(--dzn-color-surface-elevated); padding: .6rem .75rem; color: var(--dzn-color-text-muted); font-size: .84rem; }
+.dzn-booking__availability-key-title { margin: 0; color: var(--dzn-color-text-secondary); font-size: .82rem; font-weight: 700; }
+.dzn-booking__availability-key-items { display: flex; flex-wrap: wrap; gap: .35rem .9rem; }
+.dzn-booking__availability-key-items > span { display: inline-flex; align-items: center; gap: .35rem; }
 .dzn-booking__availability-key i { width: .7rem; height: .7rem; border-radius: 50%; background: var(--dzn-color-information); }
 .dzn-booking__availability-key i.is-strong { background: var(--dzn-color-success); }
 .dzn-booking__availability-key i.is-possible { background: var(--dzn-color-warning); }
@@ -114,7 +119,7 @@
 .dzn-booking__time-group + .dzn-booking__time-group { margin-top: 1rem; }
 .dzn-booking__time-group h4 { margin-bottom: .4rem; font-size: .95rem; }
 .dzn-booking__time-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(3.7rem, 1fr)); gap: .4rem; }
-.dzn-booking__time-option { min-width: 0; min-height: 2.35rem; border: 1px solid var(--dzn-color-border); border-radius: .7rem; background: var(--dzn-color-surface-elevated); color: var(--dzn-color-text-secondary); padding: .3rem .45rem; font: inherit; font-size: .84rem; font-weight: 700; cursor: pointer; }
+.dzn-booking__time-option { position: relative; min-width: 0; min-height: 2.35rem; border: 1px solid var(--dzn-color-border); border-radius: .7rem; background: var(--dzn-color-surface-elevated); color: var(--dzn-color-text-secondary); padding: .3rem .45rem; font: inherit; font-size: .84rem; font-weight: 700; cursor: pointer; }
 .dzn-booking__time-option:hover:not(:disabled),
 .dzn-booking__time-option:focus-visible:not(:disabled) { border-color: color-mix(in srgb, var(--dzn-color-highlight) 72%, var(--dzn-color-text-primary)); background: color-mix(in srgb, var(--dzn-color-highlight) 24%, var(--dzn-color-surface-elevated)); color: var(--dzn-color-text-primary); }
 .dzn-booking__time-option:disabled { opacity: .45; cursor: default; }
@@ -124,13 +129,18 @@
 .dzn-booking__time-option.is-possible:hover { border-color: var(--dzn-color-warning); background: var(--dzn-color-warning); color: var(--dzn-color-on-action); }
 .dzn-booking__time-option.is-none,
 .dzn-booking__time-option.is-none:hover { border-color: var(--dzn-color-border); background: var(--dzn-color-surface-elevated); color: var(--dzn-color-text-primary); }
+.dzn-booking__time-option.is-preference,
+.dzn-booking__time-option.is-preference:hover { border-color: var(--dzn-color-action-secondary); box-shadow: 0 0 0 .15rem color-mix(in srgb, var(--dzn-color-action-secondary) 24%, transparent); }
+.dzn-booking__time-option.is-preference:disabled { opacity: 1; cursor: default; }
+.dzn-booking__time-option.is-preference::after { position: absolute; inset-block-start: -.38rem; inset-inline-start: -.3rem; display: grid; inline-size: 1.15rem; block-size: 1.15rem; place-items: center; border-radius: 50%; background: var(--dzn-color-action-secondary); color: var(--dzn-color-on-action); content: attr(data-priority); font-size: .68rem; font-weight: 800; line-height: 1; }
 .dzn-booking__teacher-time { display: block; margin-block-start: .2rem; color: var(--dzn-color-text-muted); font-size: .78rem; font-weight: 500; line-height: 1.65; }
 .dzn-booking__preference-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 1.5rem; }
 .dzn-booking__preference-heading span { color: var(--dzn-color-text-muted); font-size: .9rem; }
 
 /* Selected preferences and contact */
 .dzn-booking__times { display: grid; gap: .65rem; margin: 1rem 0; padding: 0; list-style: none; }
-.dzn-booking__time { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-sm); padding: .75rem 1rem; }
+.dzn-booking__time { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid var(--dzn-color-border); border-inline-start: .25rem solid var(--dzn-color-action-secondary); border-radius: var(--dzn-radius-sm); background: color-mix(in srgb, var(--dzn-color-action-secondary) 5%, var(--dzn-color-surface-elevated)); padding: .75rem 1rem; }
+.dzn-booking__preference-rank { display: inline-flex; align-items: center; min-height: 1.45rem; margin-block-end: .25rem; border-radius: var(--dzn-radius-pill); background: var(--dzn-color-action-secondary); color: var(--dzn-color-on-action); padding: .1rem .55rem; font-size: .72rem; font-weight: 800; }
 .dzn-booking__time strong,
 .dzn-booking__badge { display: block; font-size: .95rem; }
 .dzn-booking__badge { margin-top: .25rem; color: var(--dzn-color-text-muted); }
@@ -185,6 +195,8 @@
   .dzn-booking__calendar-grid { gap: .12rem; }
   .dzn-booking__calendar-day { min-height: 2.5rem; font-size: .88rem; }
   .dzn-booking__day-times { padding: .75rem; }
+  .dzn-booking__preference-intro { padding: .65rem .75rem; }
+  .dzn-booking__availability-key { padding: .55rem .65rem; }
 }
 
 /* Long Persian/Latin names and narrow cards must never create hidden overflow. */
@@ -217,7 +229,8 @@
   .dzn-booking__instrument.is-selected,
   .dzn-booking__calendar button.is-selected,
   .dzn-booking__time-option.is-strong,
-  .dzn-booking__time-option.is-possible {
+  .dzn-booking__time-option.is-possible,
+  .dzn-booking__time-option.is-preference {
     border: 2px solid Highlight;
   }
 }

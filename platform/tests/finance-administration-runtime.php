@@ -217,12 +217,26 @@ $wpdb->insert($p . 'student_principal_links', array('student_id' => $studentId, 
 $introCourseId = (int) $wpdb->insert($p . 'courses', array('uid' => Identifier::uid(), 'reference_code' => 'DZN-CRS-RT-' . $suffix, 'instrument_id' => $instrumentA, 'name_fa' => 'کلاس معارفه آزمون ' . $suffix, 'name_en' => 'Intro Test ' . $suffix, 'course_type' => 'introductory', 'status' => 'active', 'default_duration_minutes' => 30, 'default_buffer_minutes' => 15, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1, 'archived_at' => null, 'archived_by' => null));
 $introCourseId = (int) $wpdb->insert_id;
 $teacherForBooking = $teacherId;
+$insertRequestTime = static function (int $bookingRequestId) use ($wpdb, $p, $now): int {
+    $start = gmdate('Y-m-d H:i:s', time() + 86400);
+    $end = gmdate('Y-m-d H:i:s', time() + 88200);
+    $inserted = $wpdb->insert($p . 'booking_request_requested_times', array(
+        'booking_request_id' => $bookingRequestId, 'sequence_number' => 1,
+        'local_date' => gmdate('Y-m-d', time() + 86400), 'local_start_time' => '10:00:00',
+        'timezone' => 'Australia/Sydney', 'starts_at_utc' => $start,
+        'instructional_ends_at_utc' => $end, 'occupied_ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 89100),
+        'instructional_duration_minutes' => 30, 'buffer_minutes' => 15, 'version' => 1, 'created_at' => $now,
+    ));
+    dzn_fin_runtime_assert($inserted === 1, 'Finance fixture needs a real unique requested time');
+    return (int) $wpdb->insert_id;
+};
 $requestId = (int) $wpdb->insert($p . 'booking_requests', array('uid' => Identifier::uid(), 'reference_code' => null, 'student_id' => $studentId, 'requested_instrument_id' => $instrumentA, 'selected_intro_course_id' => $introCourseId, 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => gmdate('Y-m-d H:i:s', time() + 86400), 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1));
 $requestId = (int) $wpdb->insert_id;
+$requestedTimeId = $insertRequestTime($requestId);
 $wpdb->insert($p . 'booking_request_contact_snapshots', array('booking_request_id' => $requestId, 'snapshot_sequence' => 1, 'full_name' => 'Finance Student ' . $suffix, 'email' => 'finance-student-' . $suffix . '@example.com', 'mobile' => '+61400000000', 'country' => 'AU', 'city' => 'Sydney', 'timezone' => 'Australia/Sydney', 'communication_language' => 'en', 'whatsapp_same_as_mobile' => 1, 'whatsapp_number' => '+61400000000', 'privacy_notice_version' => '1', 'privacy_notice_accepted' => 1, 'privacy_notice_accepted_at' => $now, 'submission_source' => 'runtime', 'created_at' => $now));
-$deliveryId = (int) $wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => Identifier::uid(), 'booking_request_id' => $requestId, 'requested_time_id' => 0, 'teacher_id' => $teacherForBooking, 'state' => 'accepting', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now));
+$deliveryId = (int) $wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => Identifier::uid(), 'booking_request_id' => $requestId, 'requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherForBooking, 'state' => 'accepting', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now));
 $deliveryId = (int) $wpdb->insert_id;
-$confirmationId = (int) $wpdb->insert($p . 'booking_request_confirmations', array('uid' => Identifier::uid(), 'delivery_id' => $deliveryId, 'booking_request_id' => $requestId, 'requested_time_id' => 0, 'teacher_id' => $teacherForBooking, 'connection_id' => 0, 'state' => 'awaiting_payment', 'version' => 1, 'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 86400), 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 88200), 'schedule_timezone' => 'Australia/Sydney', 'local_wall_date' => gmdate('Y-m-d', time() + 86400), 'local_wall_time' => '10:00:00', 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => $now, 'confirmed_at' => null, 'created_at' => $now, 'created_by' => 1, 'updated_at' => $now, 'updated_by' => 1));
+$confirmationId = (int) $wpdb->insert($p . 'booking_request_confirmations', array('uid' => Identifier::uid(), 'delivery_id' => $deliveryId, 'booking_request_id' => $requestId, 'requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherForBooking, 'connection_id' => 0, 'state' => 'awaiting_payment', 'version' => 1, 'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 86400), 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 88200), 'schedule_timezone' => 'Australia/Sydney', 'local_wall_date' => gmdate('Y-m-d', time() + 86400), 'local_wall_time' => '10:00:00', 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => $now, 'confirmed_at' => null, 'created_at' => $now, 'created_by' => 1, 'updated_at' => $now, 'updated_by' => 1));
 $confirmationId = (int) $wpdb->insert_id;
 
 $intro = new IntroPaymentService();
@@ -257,10 +271,11 @@ dzn_fin_runtime_assert($duplicateEvent['idempotent'] === true && dzn_fin_runtime
 
 $request2 = (int) $wpdb->insert($p . 'booking_requests', array('uid' => Identifier::uid(), 'reference_code' => null, 'student_id' => $studentId, 'requested_instrument_id' => $instrumentA, 'selected_intro_course_id' => $introCourseId, 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => gmdate('Y-m-d H:i:s', time() + 86400), 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1));
 $request2 = (int) $wpdb->insert_id;
+$requestedTimeId2 = $insertRequestTime($request2);
 $wpdb->insert($p . 'booking_request_contact_snapshots', array('booking_request_id' => $request2, 'snapshot_sequence' => 1, 'full_name' => 'Finance Student ' . $suffix, 'email' => 'finance-student-' . $suffix . '@example.com', 'mobile' => '+61400000000', 'country' => 'AU', 'city' => 'Sydney', 'timezone' => 'Australia/Sydney', 'communication_language' => 'en', 'whatsapp_same_as_mobile' => 1, 'whatsapp_number' => '+61400000000', 'privacy_notice_version' => '1', 'privacy_notice_accepted' => 1, 'privacy_notice_accepted_at' => $now, 'submission_source' => 'runtime', 'created_at' => $now));
-$delivery2 = (int) $wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => Identifier::uid(), 'booking_request_id' => $request2, 'requested_time_id' => 0, 'teacher_id' => $teacherForBooking, 'state' => 'accepting', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now));
+$delivery2 = (int) $wpdb->insert($p . 'booking_request_teacher_deliveries', array('uid' => Identifier::uid(), 'booking_request_id' => $request2, 'requested_time_id' => $requestedTimeId2, 'teacher_id' => $teacherForBooking, 'state' => 'accepting', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now));
 $delivery2 = (int) $wpdb->insert_id;
-$confirmation2 = (int) $wpdb->insert($p . 'booking_request_confirmations', array('uid' => Identifier::uid(), 'delivery_id' => $delivery2, 'booking_request_id' => $request2, 'requested_time_id' => 0, 'teacher_id' => $teacherForBooking, 'connection_id' => 0, 'state' => 'awaiting_payment', 'version' => 1, 'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 86400), 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 88200), 'schedule_timezone' => 'Australia/Sydney', 'local_wall_date' => gmdate('Y-m-d', time() + 86400), 'local_wall_time' => '10:00:00', 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => $now, 'confirmed_at' => null, 'created_at' => $now, 'created_by' => 1, 'updated_at' => $now, 'updated_by' => 1));
+$confirmation2 = (int) $wpdb->insert($p . 'booking_request_confirmations', array('uid' => Identifier::uid(), 'delivery_id' => $delivery2, 'booking_request_id' => $request2, 'requested_time_id' => $requestedTimeId2, 'teacher_id' => $teacherForBooking, 'connection_id' => 0, 'state' => 'awaiting_payment', 'version' => 1, 'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 86400), 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 88200), 'schedule_timezone' => 'Australia/Sydney', 'local_wall_date' => gmdate('Y-m-d', time() + 86400), 'local_wall_time' => '10:00:00', 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => $now, 'confirmed_at' => null, 'created_at' => $now, 'created_by' => 1, 'updated_at' => $now, 'updated_by' => 1));
 $confirmation2 = (int) $wpdb->insert_id;
 $obligation2 = $intro->ensureObligation(array('booking_request_id' => $request2, 'confirmation_id' => $confirmation2, 'student_id' => $studentId, 'teacher_id' => $teacherForBooking, 'course_id' => $introCourseId, 'region_code' => 'AU', 'currency' => 'AUD', 'amount_minor' => 1000), 'runtime-intro-fail-' . $suffix);
 $failed = $intro->recordProviderEvent(array('reference' => $obligation2['reference'], 'provider_key' => 'stripe', 'event_reference' => 'evt_IntroFail' . $suffix, 'event_kind' => 'payment_failed', 'amount_minor' => 1000, 'currency' => 'AUD', 'provider_occurred_at' => $now));
@@ -388,18 +403,18 @@ ob_start();
 FinanceAdminController::screen();
 $screenHtml = (string) ob_get_clean();
 dzn_fin_runtime_assert(substr_count($screenHtml, 'class="nav-tab') >= 4, 'The actual Finance screen must render four tabs');
-foreach (array('Payments', 'Central Ledger', 'Teacher Statements', 'Settings') as $tabLabel) dzn_fin_runtime_assert(str_contains($screenHtml, '>' . $tabLabel . '<'), 'Rendered Finance tab missing: ' . $tabLabel);
-dzn_fin_runtime_assert(str_contains($screenHtml, 'Global regional pricing') && str_contains($screenHtml, 'Teacher compensation'), 'Settings tab must render consolidated finance fields');
+foreach (array('Student payments', 'Teacher payments', 'Manual ledger', 'Settings') as $tabLabel) dzn_fin_runtime_assert(str_contains($screenHtml, '>' . $tabLabel . '<'), 'Rendered Finance tab missing: ' . $tabLabel);
+dzn_fin_runtime_assert(str_contains($screenHtml, 'Finance summary') && str_contains($screenHtml, 'Regional pricing') && str_contains($screenHtml, 'save_regional_pricing_bundle') && str_contains($screenHtml, 'Teacher compensation'), 'Settings tab must render the sourced summary and consolidated finance fields');
 
-/* The Statements tab must expose the draft/issue lifecycle and the unset-timezone warning. */
+/* The Teacher payments tab must expose the reviewed draft/issue/send workflow and the unset-timezone warning. */
 $_GET = array('page' => 'dzn-finance', 'tab' => 'statements', 'teacher_id' => $teacherId);
 ob_start();
 FinanceAdminController::screen();
 $statementsHtml = (string) ob_get_clean();
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Draft a statement for a completed period'), 'Statements must expose the draft form');
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement timezone policy is unset'), 'Statements must warn when the timezone policy is unset');
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Teacher Statements'), 'Statements must render its own tab content');
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Generate statements for every Teacher who worked in a month'), 'Statements must expose the monthly batch generator');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement timezone policy is unset'), 'Teacher payments must warn when the timezone policy is unset');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Teacher payments'), 'Teacher payments must render its own tab content');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Generate teacher statements') && str_contains($statementsHtml, 'Preview eligible teachers') && str_contains($statementsHtml, 'Generate drafts'), 'Teacher payments must expose preview and draft generation');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement batch history') && str_contains($statementsHtml, 'Individual statement review'), 'Teacher payments must expose batch history and individual review');
 $previousMonth = gmdate('Y-m', strtotime('first day of last month UTC'));
 $batchPreview = (new TeacherStatementBatchService())->preview($previousMonth);
 dzn_fin_runtime_assert(isset($batchPreview['month'], $batchPreview['period_start'], $batchPreview['period_end'], $batchPreview['teachers']), 'The monthly batch preview must return its period and candidate list');

@@ -16,7 +16,7 @@ final class RecordActionRenderer {
 
     /** @param array<int, string> $keys */
     public static function renderSelected(string $recordType, object $record, string $page, array $keys): void {
-        $actions = RecordActionRegistry::forRecord($recordType, $record);
+        $actions = RecordActionRegistry::forRecordSelected($recordType, $record, $keys);
         if (!$actions) return;
         $recordId = (int) ($record->id ?? 0);
         if ($recordId < 1) return;

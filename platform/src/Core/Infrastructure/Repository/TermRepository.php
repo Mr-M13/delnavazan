@@ -61,7 +61,7 @@ final class TermRepository extends BaseRepository {
         if (!in_array($data['status'] ?? null, array('draft', 'awaiting_payment', 'active', 'completed', 'cancelled'), true)) {
             throw new \InvalidArgumentException('Legacy Term status required');
         }
-        if (!in_array($data['payment_state'] ?? null, array('not_required', 'pending', 'paid', 'failed', 'refunded'), true)) {
+        if (!in_array($data['payment_state'] ?? null, array('not_required', 'pending', 'paid', 'failed', 'refunded', 'unknown'), true)) {
             throw new \InvalidArgumentException('Legacy Term payment state required');
         }
         return parent::insert($data);

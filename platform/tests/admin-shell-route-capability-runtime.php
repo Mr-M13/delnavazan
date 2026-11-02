@@ -58,8 +58,20 @@ foreach ( array_keys( $routeCaps ) as $currentPage ) {
         $adminShown[$slug] = true;
     }
 }
-if ( count( $adminShown ) !== count( $routeCaps ) ) {
-    throw new RuntimeException( 'Administrator shell did not expose every permitted registered destination.' );
+// Catalogue is linked inside General rather than becoming a fifth Settings section.
+$missing = array_values( array_diff( array_keys( $routeCaps ), array_keys( $adminShown ) ) );
+if ( $missing !== array( 'dzn-catalogue-workspace' )
+    || ! str_contains( (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Controller/GeneralSettingsController.php' ), 'admin.php?page=dzn-catalogue-workspace' ) ) {
+    throw new RuntimeException( 'Administrator shell lost a permitted destination: ' . implode( ', ', $missing ) );
+}
+
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_catalogue_workspace' );
+$_GET['page'] = 'dzn-catalogue-workspace';
+ob_start();
+\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+$catalogueHtml = ob_get_clean();
+if ( ! str_contains( $catalogueHtml, 'page=dzn-catalogue-workspace' ) || ! str_contains( $catalogueHtml, '>Settings<' ) ) {
+    throw new RuntimeException( 'Catalogue-only staff lost the protected Settings entry.' );
 }
 
 // A restricted operator with only student authority sees that route and cannot
@@ -91,77 +103,66 @@ if ( ! str_contains( $academyHtml, 'page=dzn-academy-dashboard' )
     throw new RuntimeException( 'Academy must render one primary destination without replacement sub-tabs.' );
 }
 
-// A teacher-maintenance operator gets Overview only; an onboarding operator gets
-// the onboarding view directly; holding both reveals exactly two tabs.
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_manage_teachers' );
-$_GET['page'] = 'dzn-teachers-menu';
-ob_start();
-\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
-$teacherOverviewHtml = ob_get_clean();
-if ( ! str_contains( $teacherOverviewHtml, 'page=dzn-teachers-menu' )
-    || str_contains( $teacherOverviewHtml, 'view=onboarding' )
-    || str_contains( $teacherOverviewHtml, 'dzn-admin-shell__subtabs' ) ) {
-    throw new RuntimeException( 'Teacher overview must not expose onboarding or a redundant sub-tab row.' );
-}
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_teacher_onboarding' );
-$_GET['page'] = 'dzn-teachers-menu';
-$_GET['view'] = 'onboarding';
-ob_start();
-\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
-$teacherOnboardingHtml = ob_get_clean();
-if ( ! str_contains( $teacherOnboardingHtml, 'view=onboarding' )
-    || str_contains( $teacherOnboardingHtml, 'dzn-admin-shell__subtabs' ) ) {
-    throw new RuntimeException( 'Onboarding-only operators must land directly on the onboarding view.' );
-}
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_manage_teachers', 'dzn_access_teacher_onboarding' );
-$_GET['page'] = 'dzn-teachers-menu';
-unset( $_GET['view'] );
-ob_start();
-\Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
-$teacherBothHtml = ob_get_clean();
-if ( ! str_contains( $teacherBothHtml, 'dzn-admin-shell__subtabs' )
-    || ! str_contains( $teacherBothHtml, 'Overview' )
-    || ! str_contains( $teacherBothHtml, 'Onboarding & Invitations' ) ) {
-    throw new RuntimeException( 'Teachers must expose exactly Overview and Onboarding & Invitations when both authorities are held.' );
+// Teachers is one destination for both maintenance and onboarding authorities.
+// The consolidated page itself decides which sections the operator may see.
+foreach ( array(
+    array( 'dzn_manage_teachers', 'dzn_access_teacher_operations' ),
+    array( 'dzn_access_teacher_onboarding', 'dzn_access_teacher_operations' ),
+    array( 'dzn_manage_teachers', 'dzn_access_teacher_onboarding', 'dzn_access_teacher_operations' ),
+) as $teacherCaps ) {
+    $GLOBALS['dzn_shell_test_caps'] = $teacherCaps;
+    $_GET['page'] = 'dzn-teachers-menu';
+    unset( $_GET['view'] );
+    ob_start();
+    \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
+    $teacherHtml = ob_get_clean();
+    if ( ! str_contains( $teacherHtml, 'page=dzn-teachers-menu' )
+        || str_contains( $teacherHtml, 'view=onboarding' )
+        || str_contains( $teacherHtml, 'dzn-admin-shell__subtabs' ) ) {
+        throw new RuntimeException( 'Teachers must expose one primary destination without a redundant sub-tab row.' );
+    }
 }
 
-// Settings is one area with five work groups. The active group exposes only its
-// own member routes; every group remains reachable from the group row.
+// Settings is exactly four sections. Legacy provider/staff/recovery routes remain
+// resolvable but are never rendered as separate Settings entries.
 $GLOBALS['dzn_shell_test_caps'] = array_values( array_unique( array_merge( ...array_values( $routeCaps ) ) ) );
 $_GET['page'] = 'dzn-integration-email';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $settingsHtml = ob_get_clean();
-if ( ! str_contains( $settingsHtml, 'Settings groups' )
+if ( ! str_contains( $settingsHtml, 'Settings sections' )
     || ! str_contains( $settingsHtml, 'General' )
-    || ! str_contains( $settingsHtml, 'Messaging' )
-    || ! str_contains( $settingsHtml, 'Integrations' )
-    || ! str_contains( $settingsHtml, 'Access' )
-    || ! str_contains( $settingsHtml, 'System' )
     || ! str_contains( $settingsHtml, 'Notifications' )
-    || ! str_contains( $settingsHtml, 'WhatsApp' )
-    || ! str_contains( $settingsHtml, 'Email' )
-    || ! str_contains( $settingsHtml, 'SMS' )
+    || ! str_contains( $settingsHtml, 'Integrations' )
+    || ! str_contains( $settingsHtml, 'Diagnostics' )
+    || str_contains( $settingsHtml, 'Messaging' )
+    || str_contains( $settingsHtml, 'Access' )
+    || str_contains( $settingsHtml, 'System' )
+    || str_contains( $settingsHtml, 'WhatsApp' )
+    || str_contains( $settingsHtml, 'SMS' )
     || str_contains( $settingsHtml, 'Communications health' )
     || str_contains( $settingsHtml, 'Notification templates' )
-    || str_contains( $settingsHtml, 'Portal capabilities' ) ) {
-    throw new RuntimeException( 'Grouped Settings must show five groups and only the active group member routes.' );
+    || str_contains( $settingsHtml, 'Portal capabilities' )
+    || str_contains( $settingsHtml, 'Advanced Recovery' ) ) {
+    throw new RuntimeException( 'Settings must show exactly four sections and no legacy entries.' );
 }
 
-// A notification-only operator lands in Messaging and cannot see access routes. A legacy
-// bookmarked route remains resolvable and is the only hidden route shown while active.
+// A notification-only operator sees Notifications and cannot see General,
+// Integrations, Diagnostics or any protected access/technical route.
 $GLOBALS['dzn_shell_test_caps'] = array( 'dzn_view_notification_authority', 'dzn_access_notification_management' );
 $_GET['page'] = 'dzn-communications';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $restrictedSettings = ob_get_clean();
-if ( ! str_contains( $restrictedSettings, 'Messaging' )
-    || ! str_contains( $restrictedSettings, 'Notifications' )
-    || ! str_contains( $restrictedSettings, 'Communications health' )
+if ( ! str_contains( $restrictedSettings, 'Notifications' )
+    || str_contains( $restrictedSettings, '>General<' )
+    || str_contains( $restrictedSettings, '>Integrations<' )
+    || str_contains( $restrictedSettings, '>Diagnostics<' )
+    || str_contains( $restrictedSettings, 'Communications health' )
     || str_contains( $restrictedSettings, 'Notification templates' )
     || str_contains( $restrictedSettings, 'Staff access' )
     || str_contains( $restrictedSettings, 'Portal capabilities' ) ) {
-    throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work group.' );
+    throw new RuntimeException( 'Restricted Settings navigation exposed an unauthorised work section.' );
 }
 
 // Route registrations remain available to WordPress, but the legacy submenu must

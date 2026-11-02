@@ -32,7 +32,7 @@ final class BookingStudentNotificationWorker {
         try{
             [$subject,$body,$variables]=self::message($row,$repository);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
-            if((string)$row->notification_kind==='post_intro_invitation')$eventKey='post_intro.invitation.student';
+            if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
@@ -73,6 +73,7 @@ final class BookingStudentNotificationWorker {
         $portal=home_url('/student-portal/');
         $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal);
         if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your Student Portal: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
+        if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your Student Portal.\n\nOpen your Student Portal: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal: {$portal}\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no Calendar event or Meet link was created.\n\nDelnavazan",$base);
         if((string)$row->notification_kind!=='confirmed'||(int)$row->confirmation_record_id<1)throw new \RuntimeException('Booking confirmation notification incomplete');

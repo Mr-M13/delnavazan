@@ -58,12 +58,19 @@ $contains($finance, array(
     'Outstanding payments',
     'name="payment_kind" value="standard"',
     'name="payment_kind" value="intro"',
-    'name="statement_operation" value="draft"',
+    'handleStatementWorkflow',
+    "add_action('admin_post_dzn_finance_statement_workflow'",
+    'workflow_operation" value="generate"',
+    'workflow_operation" value="issue"',
+    'workflow_operation" value="send"',
+    'TeacherStatementBatchWorkflowService',
+    'renderStatementWorkflow',
+    'renderStatementHistory',
     'name="statement_operation" value="issue"',
     'name="statement_operation" value="withdraw"',
     'name="statement_operation" value="supersede"',
     'statementTimezone',
-), 'Finance must expose guarded offline payment completion and the statement lifecycle');
+), 'Finance must expose guarded offline payment completion and the reviewed statement lifecycle');
 
 $contains($readService, array(
     'outstandingObligations',
@@ -80,6 +87,7 @@ $assert(str_contains($finance, 'Checkout complete; settlement not accepted'), 'T
 
 $contains($authorityRepository, array('public function offerByUid', 'public function obligationByOfferSequence'), 'The manual settlement service must resolve the offer and its exact obligation through the canonical repository');
 $contains($statement, array('public function draft(', 'public function issue(', 'public function withdraw(', 'public function supersede('), 'Statement authority must remain the only issuer');
-$contains($staff, array('dzn_manage_payment_execution', 'dzn_ingest_commercial_payment_evidence', 'dzn_manage_finance_statements', 'dzn_manage_cash_ledger'), 'The Finance staff bundle must grant the narrow write capabilities its workspace requires');
+$staffService = $read('src/Core/Application/StaffAccessService.php');
+$contains($staffService, array('dzn_manage_payment_execution', 'dzn_ingest_commercial_payment_evidence', 'dzn_manage_finance_statements', 'dzn_manage_cash_ledger'), 'Finance execution and evidence ingestion must remain separately grantable narrow capabilities');
 
 echo "finance-payment-completion-contract: OK\n";

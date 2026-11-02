@@ -244,10 +244,16 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = faDigits(value);
-      const existing = slots.find((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
+      const existingIndex = slots.findIndex((slot) => slot.local_date === selectedDate && slot.local_start_time === value);
       button.className = 'dzn-booking__time-option is-' + row.status;
       button.setAttribute('dir', 'ltr');
-      button.disabled = slots.length >= 3 || Boolean(existing);
+      if (existingIndex >= 0) {
+        const priority = faDigits(existingIndex + 1);
+        button.classList.add('is-preference');
+        button.dataset.priority = priority;
+        button.setAttribute('aria-label', 'اولویت ' + priority + ' · ' + faDigits(value));
+      }
+      button.disabled = slots.length >= 3 || existingIndex >= 0;
       button.addEventListener('click', () => addPreference(value, row.status));
       buttons.append(button);
     });
@@ -310,10 +316,13 @@
       const item = document.createElement('li');
       item.className = 'dzn-booking__time';
       const details = document.createElement('div');
+      const rank = document.createElement('span');
+      rank.className = 'dzn-booking__preference-rank';
+      rank.textContent = 'اولویت ' + faDigits(index + 1);
       const heading = document.createElement('strong');
-      heading.textContent = 'اولویت ' + faDigits(index + 1) + ' · ' + selectedDateLabel(slot.local_date) + '، ساعت ' + faDigits(slot.local_start_time);
+      heading.textContent = selectedDateLabel(slot.local_date) + '، ساعت ' + faDigits(slot.local_start_time);
       const state = availabilityPreviewPending ? copy.checking : (availabilityPreviewFailed ? copy.failed : copy[slot.status]);
-      details.append(heading);
+      details.append(rank, heading);
       if (state) {
         const badge = document.createElement('span');
         badge.className = 'dzn-booking__badge ' + state[1];

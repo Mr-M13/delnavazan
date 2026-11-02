@@ -36,6 +36,226 @@ final class FinanceAdminReadService {
     }
 
     /**
+     * Current-calendar-month online student activity and recorded Teacher payments.
+     *
+     * This projection deliberately does not read the manual cash ledger. A successful online
+     * charge is a provider fact; a settlement is the accepted obligation fact; neither writes a
+     * manual bookkeeping balance. Amounts are stored minor units and are grouped by their explicit
+     * currency so different currencies are never added together.
+     *
+     * @return array{
+     *   month:string,period_start_utc:string,period_end_utc:string,timezone:string,period_label:string,
+     *   students_paid:int,
+     *   student_receipts:list<array{currency:string,gross_minor:int,refunds_minor:int,net_minor:int}>,
+     *   teacher_payments:list<array{currency:string,amount_minor:int,teachers:int}>
+     * }
+     */
+    public function monthlyActivity(?string $month = null): array {
+        FinanceSupport::requireCapability('dzn_view_payment_execution_authority');
+        global $wpdb;
+        $period = $this->calendarMonth($month);
+
+        // Commercial course charges: the accepted provider evidence row is the canonical successful
+        // customer charge. Checkout/attempt rows are intentionally not used here.
+        $commercial = $wpdb->get_results($wpdb->prepare(
+            "SELECT evidence.currency,COALESCE(SUM(evidence.amount_minor),0) gross_minor,
+                    COUNT(DISTINCT offer_row.beneficiary_student_id) students
+             FROM {$this->p}commercial_payment_evidence evidence
+             INNER JOIN {$this->p}commercial_offers offer_row ON offer_row.id=evidence.offer_id
+             WHERE evidence.provider_key='stripe' AND evidence.evidence_kind='success'
+               AND evidence.processing_state='accepted' AND evidence.amount_minor>0
+               AND evidence.provider_occurred_at>=%s AND evidence.provider_occurred_at<%s
+             GROUP BY evidence.currency",
+            $period['start'], $period['end']
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('finance_monthly_activity_unavailable');
+
+        // Accepted provider refunds are subtracted from the same month's receipts and shown
+        // separately so the gross charge figure is never silently rewritten.
+        $commercialRefunds = $wpdb->get_results($wpdb->prepare(
+            "SELECT evidence.currency,COALESCE(SUM(evidence.amount_minor),0) refunds_minor
+             FROM {$this->p}commercial_payment_evidence evidence
+             WHERE evidence.provider_key='stripe' AND evidence.evidence_kind='refund'
+               AND evidence.processing_state='accepted' AND evidence.amount_minor>0
+               AND evidence.provider_occurred_at>=%s AND evidence.provider_occurred_at<%s
+             GROUP BY evidence.currency",
+            $period['start'], $period['end']
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('finance_monthly_activity_unavailable');
+
+        // Introductory payments are a separate canonical obligation authority. Their accepted
+        // provider event is the successful charge, not the checkout attempt.
+        $intro = $wpdb->get_results($wpdb->prepare(
+            "SELECT obligation.currency,COALESCE(SUM(event.amount_minor),0) gross_minor,
+                    COUNT(DISTINCT obligation.student_id) students
+             FROM {$this->p}intro_payment_events event
+             INNER JOIN {$this->p}intro_payment_obligations obligation ON obligation.id=event.intro_obligation_id
+             WHERE event.provider_key='stripe' AND event.event_kind='payment_succeeded'
+               AND event.result_state='accepted' AND event.amount_minor>0
+               AND event.provider_occurred_at>=%s AND event.provider_occurred_at<%s
+             GROUP BY obligation.currency",
+            $period['start'], $period['end']
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('finance_monthly_activity_unavailable');
+
+        $introRefunds = $wpdb->get_results($wpdb->prepare(
+            "SELECT obligation.currency,COALESCE(SUM(event.amount_minor),0) refunds_minor
+             FROM {$this->p}intro_payment_events event
+             INNER JOIN {$this->p}intro_payment_obligations obligation ON obligation.id=event.intro_obligation_id
+             WHERE event.provider_key='stripe' AND event.event_kind='refund_recorded'
+               AND event.result_state='accepted' AND event.amount_minor>0
+               AND event.provider_occurred_at>=%s AND event.provider_occurred_at<%s
+             GROUP BY obligation.currency",
+            $period['start'], $period['end']
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('finance_monthly_activity_unavailable');
+
+        $studentsPaid = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM (
+                SELECT offer_row.beneficiary_student_id student_id
+                FROM {$this->p}commercial_payment_evidence evidence
+                INNER JOIN {$this->p}commercial_offers offer_row ON offer_row.id=evidence.offer_id
+                WHERE evidence.provider_key='stripe' AND evidence.evidence_kind='success'
+                  AND evidence.processing_state='accepted' AND evidence.amount_minor>0
+                  AND evidence.provider_occurred_at>=%s AND evidence.provider_occurred_at<%s
+                  AND offer_row.beneficiary_student_id IS NOT NULL
+                UNION
+                SELECT obligation.student_id
+                FROM {$this->p}intro_payment_events event
+                INNER JOIN {$this->p}intro_payment_obligations obligation ON obligation.id=event.intro_obligation_id
+                WHERE event.provider_key='stripe' AND event.event_kind='payment_succeeded'
+                  AND event.result_state='accepted' AND event.amount_minor>0
+                  AND event.provider_occurred_at>=%s AND event.provider_occurred_at<%s
+                  AND obligation.student_id IS NOT NULL
+            ) paid_students",
+            $period['start'], $period['end'], $period['start'], $period['end']
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('finance_monthly_activity_unavailable');
+
+        // Teacher compensation is a statement settlement fact. Issued/draft statements are
+        // liabilities, not payments, so only the append-only `payment_recorded` event counts.
+        $teacher = current_user_can('dzn_view_finance_authority')
+            ? $this->teacherPaymentRows($period['start'], $period['end'])
+            : array();
+
+        $receipts = array();
+        foreach (array_merge((array) $commercial, (array) $intro) as $row) {
+            $currency = strtoupper((string) ($row->currency ?? ''));
+            if ($currency === '') continue;
+            $receipts[$currency]['currency'] = $currency;
+            $receipts[$currency]['gross_minor'] = (int) ($receipts[$currency]['gross_minor'] ?? 0) + (int) $row->gross_minor;
+        }
+        foreach (array_merge((array) $commercialRefunds, (array) $introRefunds) as $row) {
+            $currency = strtoupper((string) ($row->currency ?? ''));
+            if ($currency === '') continue;
+            $receipts[$currency]['currency'] = $currency;
+            $receipts[$currency]['gross_minor'] = (int) ($receipts[$currency]['gross_minor'] ?? 0);
+            $receipts[$currency]['refunds_minor'] = (int) ($receipts[$currency]['refunds_minor'] ?? 0) + (int) $row->refunds_minor;
+        }
+        foreach ($receipts as &$receipt) {
+            $receipt['refunds_minor'] = (int) ($receipt['refunds_minor'] ?? 0);
+            $receipt['net_minor'] = (int) $receipt['gross_minor'] - $receipt['refunds_minor'];
+        }
+        unset($receipt);
+        usort($receipts, static fn(array $a, array $b): int => strcmp($a['currency'], $b['currency']));
+
+        $teacherPayments = array();
+        foreach ((array) $teacher as $row) {
+            $currency = strtoupper((string) ($row->currency ?? ''));
+            if ($currency === '') continue;
+            $teacherPayments[] = array(
+                'currency' => $currency,
+                'amount_minor' => (int) $row->amount_minor,
+                'teachers' => (int) $row->teachers,
+            );
+        }
+        usort($teacherPayments, static fn(array $a, array $b): int => strcmp($a['currency'], $b['currency']));
+
+        return array(
+            'month' => $period['month'],
+            'period_start_utc' => $period['start'],
+            'period_end_utc' => $period['end'],
+            'timezone' => $period['timezone'],
+            'period_label' => $period['label'],
+            'students_paid' => $studentsPaid,
+            'student_receipts' => array_values($receipts),
+            'teacher_payments' => $teacherPayments,
+            'teacher_payments_available' => current_user_can('dzn_view_finance_authority'),
+        );
+    }
+
+    /**
+     * Recorded Teacher statement settlements for the current calendar month.
+     *
+     * @return array{month:string,period_label:string,timezone:string,teacher_payments:list<array{currency:string,amount_minor:int,teachers:int}>}
+     */
+    public function teacherPaymentsThisMonth(?string $month = null): array {
+        FinanceSupport::requireCapability('dzn_view_finance_authority');
+        $period = $this->calendarMonth($month);
+        $payments = array();
+        foreach ($this->teacherPaymentRows($period['start'], $period['end']) as $row) {
+            $currency = strtoupper((string) ($row->currency ?? ''));
+            if ($currency === '') continue;
+            $payments[] = array(
+                'currency' => $currency,
+                'amount_minor' => (int) $row->amount_minor,
+                'teachers' => (int) $row->teachers,
+            );
+        }
+        usort($payments, static fn(array $a, array $b): int => strcmp($a['currency'], $b['currency']));
+        return array(
+            'month' => $period['month'],
+            'period_label' => $period['label'],
+            'timezone' => $period['timezone'],
+            'teacher_payments' => $payments,
+        );
+    }
+
+    /** @return list<object> */
+    private function teacherPaymentRows(string $start, string $end): array {
+        global $wpdb;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT statement.currency,COALESCE(SUM(statement.payable_amount_minor),0) amount_minor,
+                    COUNT(DISTINCT statement.teacher_id) teachers
+             FROM {$this->p}finance_statement_events event
+             INNER JOIN {$this->p}finance_statements statement ON statement.id=event.statement_id
+             WHERE event.event_type='payment_recorded' AND event.to_state='paid'
+               AND event.occurred_at>=%s AND event.occurred_at<%s
+             GROUP BY statement.currency",
+            $start, $end
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('finance_monthly_activity_unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
+    /**
+     * One calendar month in the Academy's WordPress timezone, returned as a half-open UTC range.
+     *
+     * @return array{month:string,start:string,end:string,timezone:string,label:string}
+     */
+    private function calendarMonth(?string $month): array {
+        $timezone = function_exists('wp_timezone') ? wp_timezone() : new \DateTimeZone('UTC');
+        $timezoneName = $timezone instanceof \DateTimeZone ? $timezone->getName() : 'UTC';
+        $now = new \DateTimeImmutable('now', $timezone);
+        $requested = trim((string) $month);
+        $start = null;
+        if ($requested !== '') {
+            $candidate = \DateTimeImmutable::createFromFormat('!Y-m', $requested, $timezone);
+            if ($candidate instanceof \DateTimeImmutable && $candidate->format('Y-m') === $requested) $start = $candidate;
+        }
+        if (!$start) $start = $now->modify('first day of this month')->setTime(0, 0, 0);
+        $end = $start->modify('first day of next month')->setTime(0, 0, 0);
+        $utc = new \DateTimeZone('UTC');
+        return array(
+            'month' => $start->format('Y-m'),
+            'start' => $start->setTimezone($utc)->format('Y-m-d H:i:s'),
+            'end' => $end->setTimezone($utc)->format('Y-m-d H:i:s'),
+            'timezone' => $timezoneName,
+            'label' => $start->format('F Y'),
+        );
+    }
+
+    /**
      * @return array{rows:list<object>,total:int,page:int,pages:int}
      */
     public function payments(array $filters = array(), int $page = 1, int $perPage = 25): array {

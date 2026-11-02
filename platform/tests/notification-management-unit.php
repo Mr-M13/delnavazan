@@ -304,7 +304,7 @@ namespace {
     $fail('unknown placeholder is refused', !$unknown['ok']);
     $missing = NotificationTemplateSanitizer::validate('booking.confirmed.student', 'email', 'عنوان', "سلام {{name}} {{portal_url}}");
     $fail('missing required class time is refused', !$missing['ok']);
-    $goodBody = "سلام {{name}}،\n\nکلاس در {{when}} برگزار می‌شود.\nپیوند: {{join_url}}\n\n{{portal_url}}\n\nدلنوازان";
+    $goodBody = "سلام {{name}}،\n\nکلاس در {{when}} برگزار می‌شود.\n\n{{portal_url}}\n\nدلنوازان";
     $good = NotificationTemplateSanitizer::validate('booking.confirmed.student', 'email', 'کلاس تأیید شد', $goodBody);
     $fail('valid copy is accepted', $good['ok']);
     $persian = NotificationTemplateSanitizer::smsSegmentation(str_repeat('ا', 80));
@@ -339,7 +339,7 @@ namespace {
     $fail('published copy is active', ($active['source'] ?? '') === 'published' && str_contains($active['body'], '{{name}}'));
     $fail('definitions key the active version', isset($library->copyDefinitions()[$first['template_version_id'] . ':email:fa-IR']));
 
-    $customBody = "سلام {{name}}،\n\nزمان تازه: {{when}}\nپیوند: {{join_url}}\n\n{{portal_url}}\n\nدلنوازان";
+    $customBody = "سلام {{name}}،\n\nزمان تازه: {{when}}\n\n{{portal_url}}\n\nدلنوازان";
     $library->saveDraft($event, 'email', 'fa-IR', 'پیش‌نویس عنوان', $customBody);
     $draft = $library->workingCopy($event, 'email', 'fa-IR');
     $fail('draft is visible but not active', $draft['source'] === 'draft' && $library->activeCopy($event, 'email', 'fa-IR')['source'] !== 'draft');
@@ -352,16 +352,16 @@ namespace {
     $history = $library->history($event, 'email', 'fa-IR');
     $fail('history keeps both immutable versions', count($history) === 2 && $history[0]['version_number'] === 2 && $history[1]['version_number'] === 1);
     $byNumber = static fn(array $rows, int $number): array => (array) current(array_values(array_filter($rows, static fn(array $row): bool => (int) $row['version_number'] === $number)));
-    $fail('version 1 body is preserved', $byNumber($history, 1)['body_present'] && str_contains((string) $byNumber($history, 1)['body'], 'کلاس آشنایی'));
+    $fail('version 1 body is preserved', $byNumber($history, 1)['body_present'] && str_contains((string) $byNumber($history, 1)['body'], 'کلاس معارفه'));
 
     $rollback = $library->restoreVersion($event, 'email', 'fa-IR', $first['template_version_id']);
     $fail('rollback publishes a new version', $rollback['version_number'] === 3);
-    $fail('rollback content equals version 1', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس آشنایی'));
+    $fail('rollback content equals version 1', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس معارفه'));
     $fail('version 2 body is unchanged by rollback', str_contains((string) $byNumber($library->history($event, 'email', 'fa-IR'), 2)['body'], 'زمان تازه'));
 
     $restored = $library->restoreDefault($event, 'email', 'fa-IR');
     $fail('restore default creates version 4', $restored['version_number'] === 4);
-    $fail('restore default equals catalogue copy', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس آشنایی'));
+    $fail('restore default equals catalogue copy', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس معارفه'));
 
     $invalid = false;
     try { $library->publish($event, 'email', 'fa-IR', 'x', 'بدون جای‌نگهدار'); } catch (NotificationTemplateValidationException $error) { $invalid = true; }
@@ -390,7 +390,7 @@ namespace {
     try{$discoveredLibrary->saveProviderMapping('booking.new.teacher','whatsapp','fa-IR','legacy_teacher_booking_fa','fa');}catch(InvalidArgumentException){$conflictingMap=true;}
     $fail('manual mapping cannot contradict approved discovery', $conflictingMap);
 
-    $library->publish($event, 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', "سلام {{name}} {{when}} {{join_url}} {{portal_url}}\nمتن تازهٔ واتس‌اپ");
+    $library->publish($event, 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', "سلام {{name}} {{when}} {{portal_url}}\nمتن تازهٔ واتس‌اپ");
     $fail('whatsapp copy requires provider approval after publication', $library->status($event, 'whatsapp', 'fa-IR')['provider_state'] === 'approval_required');
 
     /* 5. Channel policy cannot disable mandatory channels. */

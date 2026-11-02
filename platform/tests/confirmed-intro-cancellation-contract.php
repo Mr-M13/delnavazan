@@ -10,6 +10,7 @@ $transport = $read('src/Integrations/GoogleCalendarProjectionTransport.php');
 $controller = $read('src/Admin/Controller/EnrolmentWorkspaceController.php');
 $view = $read('src/Admin/View/EnrolmentWorkspaceView.php');
 $readModel = $read('src/Core/Application/EnrolmentWorkspaceReadService.php');
+$staffAccess = $read('src/Core/Application/StaffAccessService.php');
 $notification = $read('src/Integrations/BookingStudentNotificationWorker.php');
 $catalogue = $read('src/Integrations/Notifications/NotificationCatalogue.php');
 $plugin = $read('delnavazan-platform.php');
@@ -26,6 +27,7 @@ $expect(str_contains($repository, 'SET TRANSACTION ISOLATION LEVEL READ COMMITTE
 $expect(str_contains($worker, 'MAX_ATTEMPTS') && str_contains($worker, 'lease_token_digest') && str_contains($worker, 'retractionJob') && str_contains($worker, "'retry'") && str_contains($worker, "'failed'") && str_contains($worker, 'retireSecret'), 'Retraction worker is missing bounded retry, lease or secret retirement');
 $expect(str_contains($transport, 'function retract(') && str_contains($transport, "'DELETE'") && str_contains($transport, '404') && str_contains($transport, '410'), 'Google retraction transport is missing idempotent DELETE handling');
 $expect(str_contains($controller, "'cancel_confirmed_intro'") && str_contains($controller, 'ConfirmedIntroBookingCancellationService::CAPABILITY') && str_contains($view, 'cancelConfirmedIntroForm') && str_contains($view, 'confirmation_uid'), 'Cancellation control is missing from the Booking Coordination dashboard');
+$expect(str_contains($staffAccess, 'booking_cancellation') && str_contains($staffAccess, 'dzn_cancel_confirmed_intro_booking'), 'Cancellation is not a separate Staff Access sensitive grant');
 $expect(str_contains($readModel, "'cancelled' => 'Cancelled'") && str_contains($readModel, "'Intro cancelled'"), 'Cancelled state is missing from the workspace read model');
 $expect(str_contains($notification, "notification_kind==='cancelled'") && str_contains($catalogue, 'booking.cancelled.student'), 'Student cancellation notification is not wired');
 $expect(!str_contains($repository . $worker . $service, 'provider_object_reference=') && !str_contains($service . $worker, 'join_uri_reference'), 'Cancellation must not persist raw provider references or join URLs');

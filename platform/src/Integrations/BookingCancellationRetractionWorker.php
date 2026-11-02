@@ -88,7 +88,7 @@ final class BookingCancellationRetractionWorker {
             $locked=$this->repository->retractionJob($jobId,true);
             if(!$locked||(string)$locked->lease_token_digest!==$leaseDigest)throw new \RuntimeException('Booking retraction lease changed concurrently');
             $secret=$this->repository->projectionSecret((int)$locked->confirmation_id);
-            if($secret)$this->repository->retireSecret((int)$secret->id,(int)($locked->teacher_id??0),$now);
+            if($secret)$this->repository->retireSecret((int)$secret->id,get_current_user_id()?:0,$now);
             $this->repository->updateRetractionJob($jobId,array('state'=>'sending','lease_token_digest'=>$leaseDigest),array('state'=>$state,'lease_token_digest'=>null,'lease_expires_at'=>null,'next_attempt_at'=>null,'last_error_code'=>$code,'completed_at'=>$now,'updated_at'=>$now));
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}

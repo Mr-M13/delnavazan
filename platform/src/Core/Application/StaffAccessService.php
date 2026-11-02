@@ -92,6 +92,11 @@ final class StaffAccessService {
             'caps' => array('dzn_ingest_commercial_payment_evidence','dzn_ingest_payment_provider_events'),
             'warning' => 'Allows provider and commercial payment evidence ingestion. It is not ordinary Finance viewing.',
         ),
+        'booking_cancellation' => array(
+            'label' => 'Cancel confirmed introductory bookings',
+            'caps' => array('dzn_cancel_confirmed_intro_booking'),
+            'warning' => 'Allows cancellation of a confirmed introductory booking, queues provider retraction and notifies the Student. Audit history is retained.',
+        ),
         'identity_resolution' => array(
             'label' => 'Resolve student identity',
             'caps' => array('dzn_manage_student_acceptance_authority','dzn_resolve_booking_request_student_identity'),

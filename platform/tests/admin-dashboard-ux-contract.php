@@ -92,16 +92,15 @@ $contains($shell, array(
     'dzn-admin-page',
 ), 'The shell must register Screen Options and the shared admin design layer.');
 
-// Settings stays one area with five work groups; every protected route remains registered.
+// Settings stays one area with four work sections; every protected route remains registered.
 $contains($shell, array(
-    'SETTINGS_GROUPS',
+    'SETTINGS_SECTIONS',
     "'general' => ['General'",
-    "'messaging' => ['Messaging'",
+    "'notifications' => ['Notifications'",
     "'integrations' => ['Integrations'",
-    "'access' => ['Access'",
-    "'system' => ['System'",
+    "'diagnostics' => ['Diagnostics'",
     'renderSettingsNavigation',
-), 'Settings must be grouped by work, not by provider.');
+), 'Settings must expose the four agreed sections.');
 foreach (array(
     "'dzn-general'", "'dzn-integration-email'", "'dzn-integration-whatsapp'", "'dzn-integration-sms'",
     "'dzn-communications'", "'dzn-communications-templates'", "'dzn-integrations'", "'dzn-integration-google'",

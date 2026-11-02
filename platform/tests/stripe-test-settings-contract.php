@@ -12,7 +12,7 @@ foreach(array('pk_test_','sk_test_','whsec_',"execution_state'=>'disabled",'comp
     if(strpos($service,$needle)===false)throw new RuntimeException('Stripe test configuration contract missing '.$needle);
 foreach(array('dzn_stripe_test_settings_save','dzn_stripe_test_connection','Test Connection','dzn_stripe_test_activation','Enable Stripe test Checkout','Disable Stripe test Checkout','payment-provider-events/stripe/','webhookReference','type="password"','configured; leave blank to keep','Credential entry and outbound test requests are unavailable in production','safeStripeSaveResult','invalid_stripe_test_secret_key','credential values are never shown here') as $needle)
     if(strpos($controller,$needle)===false)throw new RuntimeException('Stripe Settings surface contract missing '.$needle);
-foreach(array('Configure Stripe test mode','admin.php?page=dzn-stripe-settings','users with payment provider authority') as $needle)
+foreach(array('Configure in Finance','admin.php?page=dzn-finance&tab=settings#stripe','payment-provider authority') as $needle)
     if(strpos($controller,$needle)===false)throw new RuntimeException('Stripe Integrations card contract missing '.$needle);
 if(strpos($navigation,"'dzn-sms-settings', 'dzn-stripe-settings'")!==false)throw new RuntimeException('Capability-checked Stripe settings page must stay reachable from its card');
 if(strpos($readiness,'test_publishable_key')===false)throw new RuntimeException('Stripe publishable-key readiness check missing');

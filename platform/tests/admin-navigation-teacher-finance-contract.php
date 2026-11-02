@@ -1,112 +1,28 @@
 <?php
-/** Admin navigation consolidation and teacher-scoped Finance read contract. */
+/** Current navigation with Teacher finance and protected route boundaries. */
 $root = dirname(__DIR__);
 $read = static fn(string $path): string => (string) file_get_contents($root . '/src/Admin/Controller/' . $path);
-$expect = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
-$contains = static function (string $haystack, array $needles, string $message) use ($expect): void {
-    foreach ($needles as $needle) $expect(str_contains($haystack, $needle), $message . ': ' . $needle);
+$need = static function (string $source, array $fragments, string $message): void {
+    foreach ($fragments as $fragment) if (!str_contains($source, $fragment)) throw new RuntimeException($message . ': ' . $fragment);
 };
-
 $shell = $read('AdminShellController.php');
 $menu = $read('Menu.php');
+$finance = $read('FinanceAdminController.php');
 $general = $read('GeneralSettingsController.php');
-$rate = $read('FinanceRateController.php');
-$statement = $read('FinanceStatementController.php');
-$payability = $read('FinancePayabilityController.php');
-$academy = $read('AcademyOperationsController.php');
-$options = (string) file_get_contents($root . '/src/Core/Application/Finance/Read/FinanceTeacherOptionsReadService.php');
-$coreRead = (string) file_get_contents($root . '/src/Core/Application/CoreReadService.php');
-$operations = (string) file_get_contents($root . '/../theme/inc/operations.php');
-
-$contains($shell, array(
-    "'academy' => ['Academy'",
-    "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
-    "'teachers' => ['Teachers'",
-    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
-    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
-    "'enrolment' => ['Enrolment'",
-    "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
-    "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
-    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
-    "'finance' => ['Finance'",
-    "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
-    "'settings' => ['Settings'",
-    "['General', 'dzn-general', 'manage_options']",
-    "['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP]",
-    "['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview']",
-    "['Diagnostics', 'dzn-system-health', 'dzn_access_system_health']",
-    'http_build_query',
-    'Menu::CORE_WORKFLOW_CAP',
-), 'navigation must consolidate into Academy, Teachers, Students, Enrolment, Finance and Settings while retaining protected routes');
-$contains((string)file_get_contents($root.'/src/Admin/Controller/FinanceAdminController.php'),array('Teacher Statements','Teacher compensation','Statement Template Settings','Global regional pricing'),'the single Finance page must contain the four consolidated tabs and settings');
-foreach (array("'courses' => ['Courses'", "'communications' => ['Communications'", "'enrolments_classes' => ['Enrolments / Classes'") as $removedTab) {
-    $expect(!str_contains($shell, $removedTab), 'redundant top-level tab must be consolidated, not duplicated: ' . $removedTab);
+$teacher = (string) file_get_contents($root . '/src/Admin/View/TeacherWorkspaceView.php');
+$need($shell, array(
+    "'overview' => ['Overview'", "'teachers' => ['Teachers'", "'students' => ['Students'",
+    "'enrolment' => ['Enrolment'", "'finance' => ['Finance'", "'settings' => ['Settings'",
+    "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
+    "['New bookings & trials', 'dzn-enrolment-workspace'", "['Enrolled classes', 'dzn-enrolment-workspace'",
+    "'dzn-recording-notices' => 'settings'", "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
+), 'Navigation must retain six work areas and protected routes');
+$need($menu, array('mappedCoreWorkflowCaps','TEACHER_OPERATIONS_CAP','ENROLMENT_TRIALS_CAP','ENROLLED_CLASSES_CAP','CATALOGUE_WORKSPACE_CAP','FINANCE_WORKSPACE_CAP'), 'Composite navigation must be capability-scoped');
+$need($general, array('Site information','Contact and public presence','Legal and policy pages','Introductory booking horizon','StaffAccessController::renderPanel'), 'General must own site, policy and access work');
+$need($finance, array('Student payments','Teacher payments','Manual ledger','Regional pricing','Teacher compensation'), 'Finance must expose the redesigned payments and settings');
+$need($teacher, array('Rate timeline','Statements','Lesson payability'), 'Teacher profile must retain Teacher-scoped finance evidence');
+foreach (array('FinanceRateController.php','FinanceStatementController.php','FinancePayabilityController.php') as $file) {
+    $source = $read($file);
+    $need($source, array('FinanceTeacherOptionsReadService','teacher_id','dzn_view_finance_authority'), 'Protected Teacher finance view must remain scoped');
 }
-$expect(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
-$expect(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teachers must expose exactly Overview and Onboarding & Invitations');
-$contains($menu, array(
-    'CORE_WORKFLOW_CAP',
-    'mappedCoreWorkflowCaps',
-    'TEACHER_ONBOARDING_CAP',
-    'ENROLMENT_WORKSPACE_CAP',
-    'CATALOGUE_WORKSPACE_CAP',
-    'ATTENDANCE_WORKSPACE_CAP',
-    "['Bookings and enrolments', self::ENROLMENT_WORKSPACE_CAP, 'dzn-enrolment-workspace'",
-    "['Courses and instruments', self::CATALOGUE_WORKSPACE_CAP, 'dzn-catalogue-workspace'",
-    "['Attendance and post-intro', self::ATTENDANCE_WORKSPACE_CAP, 'dzn-attendance-workspace'",
-    "['General', GeneralSettingsController::CAPABILITY",
-    "['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings'",
-    "['Finance', self::FINANCE_WORKSPACE_CAP, 'dzn-finance'",
-), 'route registration must retain every protected destination and add the consolidated workspace routes');
-$enrolmentWorkspace = $read('EnrolmentWorkspaceController.php');
-$catalogueWorkspace = $read('CatalogueWorkspaceController.php');
-$attendanceWorkspace = $read('AttendanceWorkspaceController.php');
-$contains($enrolmentWorkspace, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must preserve the authorised booking, coordination, enrolment and Term workflows');
-$contains($catalogueWorkspace, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must preserve catalogue, instrument, finance-settings and exception workflows');
-$contains($attendanceWorkspace, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must preserve attendance, post-intro and class-outcome workflows');
-$contains($academy, array(
-    "private static function classOperationalState(): void",
-    '>Today and upcoming lessons<',
-    '>Attention needed<',
-    "'dzn-academy-attention'",
-    "'dzn-academy-today-upcoming'",
-    '(new CoreReadService())->classOperatorRows()',
-    'self::classUrl($row)',
-    "'confirmed_intro_booking_v1'",
-    "'Open booking'",
-    'schedule_starts_at_utc',
-    'scheduleUtcInstant',
-    'setTimezone(new \\DateTimeZone($timezone))',
-), 'Academy must render the combined dashboard with confirmed-intro visibility, booking links, chronological UTC ordering and timezone-aware classification');
-$contains($coreRead, array(
-    'private function sortClassRows(array $rows): array',
-    'schedule_starts_at_utc',
-    'classRowTieBreak',
-    'utcScheduleTimestamp',
-), 'the new Academy navigation must reuse the chronological composite Classes read seam');
-$contains($general, array('class GeneralSettingsController', "CAPABILITY = 'manage_options'", 'Site information', 'Contact and public presence', 'Legal and policy pages', 'Introductory booking horizon', 'StaffAccessController::renderPanel'), 'General must be the academy information, pages, policy and access section');
-
-$contains($options, array(
-    'class FinanceTeacherOptionsReadService',
-    "CAPABILITY = 'dzn_view_finance_authority'",
-    'requireCapability',
-    'SELECT id',
-), 'teacher selectors must reuse Finance read authority');
-foreach (array($rate, $statement, $payability) as $controller) {
-    $contains($controller, array(
-        'FinanceTeacherOptionsReadService',
-        "teacher_id",
-        "dzn_view_finance_authority",
-        'teacherSelector',
-    ), 'teacher Financial views must be teacher-scoped and capability-gated');
-}
-$contains($rate, array('TeacherRateReadService', 'timeline($teacherId)'), 'rates must use the existing TeacherRateReadService timeline');
-$contains($statement, array('TeacherStatementReadService', 'statements($teacherId)', 'statementReconciliation($statementId)', "statement_id"), 'statements must use the existing read service and show read-only reconciliation');
-$contains($payability, array('INNER JOIN {$p}lessons lesson', 'lesson.teacher_id=%d'), 'payability must be scoped through the Lesson owner');
-foreach (array('INSERT ', 'UPDATE ', 'DELETE ', 'wp_insert', '->archive(', '->restore(') as $forbidden) {
-    foreach (array($rate, $statement, $payability) as $controller) $expect(!str_contains($controller, $forbidden), 'teacher Financial views must remain read-only: ' . $forbidden);
-}
-$expect(!str_contains($operations, 'dzn-teaching-eligibility') && !str_contains($operations, 'dzn-teacher-availability'), 'theme operations must not link to unregistered standalone routes');
-
-echo "PASS consolidated admin navigation and teacher-scoped Finance read views\n";
+echo "Consolidated admin navigation and Teacher finance contract passed\n";

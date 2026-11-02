@@ -39,6 +39,7 @@ make check-cache
 make smoke
 make student-account-claim
 make booking-student-account
+make enrolment-workspace
 make destroy CONFIRM=YES
 ```
 
@@ -71,6 +72,12 @@ existing-account sign-in without role changes, rejection of a teacher principal
 being bound as a student, and rollback after a deliberately invalid catalogue
 reference. It is restricted to the disposable local host and synthetic
 `@example.invalid` identities.
+
+`make enrolment-workspace` builds synthetic booking, trial, canonical class,
+attendance and post-intro records, then proves manual-match collision refusal,
+introductory/import idempotency, canonical reschedule/release/cancel, Teacher
+replacement history, attendance duplicate protection and post-intro reminder
+policy. It calls no external provider or message transport.
 
 ## CI and current gaps
 

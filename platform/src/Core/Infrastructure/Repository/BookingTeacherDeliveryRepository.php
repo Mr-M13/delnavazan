@@ -43,6 +43,26 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         return is_array($rows) ? $rows : array();
     }
 
+    /**
+     * Re-point one still-pending inbox delivery to a staff-selected Teacher and requested time.
+     * The unique booking_request_id index deliberately permits only one delivery per request.
+     */
+    public function reassignPending(int $bookingRequestId, int $requestedTimeId, int $teacherId, string $now): void {
+        global $wpdb;
+        $changed = $wpdb->update(
+            $this->prefix . 'booking_request_teacher_deliveries',
+            array('requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherId, 'match_strength' => 'manual', 'updated_at' => $now),
+            array('booking_request_id' => $bookingRequestId, 'state' => 'pending_request')
+        );
+        if ($changed === false) throw new \RuntimeException('Booking Teacher delivery reassignment failed');
+        if ($changed === 1) return;
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$this->prefix}booking_request_teacher_deliveries WHERE booking_request_id=%d LIMIT 1",
+            $bookingRequestId
+        ));
+        if ($exists) throw new \InvalidArgumentException('Booking Teacher delivery is no longer pending');
+    }
+
     /** All ranked student preferences remain visible to the selected Teacher. */
     public function requestedTimes(int $requestId): array {
         global $wpdb;

@@ -42,18 +42,21 @@ $contains($shell, array(
 $test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'") && !str_contains($shell, "['Overview', 'dzn-teachers-menu'"), 'Teacher navigation must not contain finance or legacy directory workflows');
 $contains($screen, array("TeacherWorkspaceController::screen()", 'dzn-teachers-menu'), 'Teacher maintenance and onboarding must render the consolidated workspace');
 
-// Enrolment has exactly four tabs with the agreed destinations.
-$status = preg_match_all("/\\['(?:Classes & Schedules|Bookings & Enrolments|Courses & Instruments|Attendance & Post-intro)'/", $shell);
-$test(4 === $status, 'Enrolment must expose exactly four tabs');
+// Enrolment has exactly two operational sub-tabs; courses/instruments live under Settings > Catalogue.
+$status = preg_match_all("/\\['(?:New bookings & trials|Enrolled classes)'/", $shell);
+$test(2 === $status, 'Enrolment must expose exactly two sub-tabs');
 $contains($shell, array(
-    "['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons']",
-    "['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
-    "['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP]",
-), 'Enrolment must use the four agreed destinations');
-$contains($enrolment, array('dzn-booking-requests', 'dzn-booking-request-coordination', 'dzn-enrolment', 'dzn-term', 'Temporary navigation'), 'Bookings & Enrolments must retain the existing authorised workflows');
+    "['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
+    "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
+    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+), 'Enrolment must use exactly the two agreed destinations and move catalogue configuration to Settings');
+$test(!str_contains($shell, "['Classes & Schedules'") && !str_contains($shell, "['Attendance & Post-intro'") && !str_contains($shell, "['Courses & Instruments'"), 'The former four visible Enrolment destinations must not remain');
+$view = (string) file_get_contents($root . '/src/Admin/View/EnrolmentWorkspaceView.php');
+$contains($enrolment, array('EnrolmentWorkspaceView', 'AdministratorBookingMatchService', 'HistoricalEnrolmentImportService'), 'The two Enrolment sub-tabs must deliver the operational workspace');
+$contains($view, array('New bookings &amp; trials', 'Enrolled classes'), 'The two Enrolment sub-tabs must be the visible workspace destinations');
+$contains($view, array('Shared class action component', 'classroomActions', 'Import existing enrolment', 'Manual Teacher match'), 'The Enrolment view must provide the shared class actions and guided import/match surfaces');
 $contains($catalogue, array('dzn-course', 'dzn-instrument', 'dzn-finance', 'dzn-exception', 'Temporary navigation'), 'Courses & Instruments must retain catalogue, instrument, finance-settings and exception workflows');
-$contains($attendance, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Attendance & Post-intro must retain the existing authorised workflows');
+$contains($attendance, array('dzn-attendance-review', 'dzn-post-intro', 'dzn-lesson', 'Temporary navigation'), 'Protected attendance and post-intro routes must remain resolvable');
 
 // Finance owns lesson payability; Settings owns restricted Advanced Recovery.
 $contains($shell, array(
@@ -117,7 +120,8 @@ $contains($shell, array(
     "'integrations' => ['Integrations'",
     "'access' => ['Access'",
     "'system' => ['System'",
-), 'Settings must be grouped into General, Messaging, Integrations, Access and System without removing protected routes');
+    "'catalogue' => ['Catalogue'",
+), 'Settings must be grouped into General, Catalogue, Messaging, Integrations, Access and System without removing protected routes');
 
 // Legacy Academy deep links must keep resolving without restoring removed panels.
 $contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-pending-work'"), 'Legacy Overview view URLs must focus the combined page without restoring sub-tabs');

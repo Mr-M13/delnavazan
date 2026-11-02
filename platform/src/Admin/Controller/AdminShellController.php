@@ -17,19 +17,16 @@ final class AdminShellController {
             ['Directory', 'dzn-student', 'dzn_manage_students'],
             ['Identity & accounts', 'dzn-student-identity-authority', 'dzn_view_student_acceptance_eligibility'],
         ]],
-        'classes' => ['Classes', [
-            ['Classes & Schedules', 'dzn-lesson', 'dzn_manage_lessons'],
-            ['Attendance & Post-intro', 'dzn-attendance-workspace', Menu::ATTENDANCE_WORKSPACE_CAP],
-        ]],
         'enrolment' => ['Enrolment', [
-            ['Bookings & Enrolments', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP],
-            ['Courses & Instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
+            ['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']],
+            ['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']],
         ]],
         'finance' => ['Finance', [
             ['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']],
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
+            ['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['WhatsApp', 'dzn-integration-whatsapp', 'dzn_access_provider_integration_settings'],
             ['Email', 'dzn-integration-email', 'dzn_access_provider_integration_settings'],
@@ -65,6 +62,7 @@ final class AdminShellController {
         'integrations' => ['Integrations', ['dzn-integrations', 'dzn-integration-google']],
         'access' => ['Access', ['dzn-staff-access', 'dzn-portal-capabilities']],
         'system' => ['System', ['dzn-system-health', 'dzn-core-dataset-readiness']],
+        'catalogue' => ['Catalogue', ['dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
     ];
 
     /** Pages share their tab while retaining their original, protected callback. */
@@ -72,11 +70,11 @@ final class AdminShellController {
         'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
-        'dzn-lesson' => 'classes', 'dzn-attendance-workspace' => 'classes',
-        'dzn-attendance-review' => 'classes', 'dzn-post-intro' => 'classes',
-        'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'enrolment',
+        'dzn-lesson' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
+        'dzn-attendance-review' => 'enrolment', 'dzn-post-intro' => 'enrolment',
+        'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'settings',
         'dzn-booking-requests' => 'enrolment', 'dzn-booking-request-coordination' => 'enrolment',
-        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'enrolment', 'dzn-instrument' => 'enrolment',
+        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'settings', 'dzn-instrument' => 'settings',
         'dzn-exception' => 'enrolment',
         'dzn-commercial-catalogue' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
         'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',

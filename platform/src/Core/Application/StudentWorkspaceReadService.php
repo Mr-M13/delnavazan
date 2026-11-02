@@ -786,7 +786,7 @@ final class StudentWorkspaceReadService {
         if ((string) $row->lifecycle_status === 'submitted' && ($row->referral_alert_id || $row->coordination_case_id)) return 'Academy coordinating';
         if ((string) $row->lifecycle_status === 'submitted') return 'Request received';
         if ((string) $row->lifecycle_status === 'closed' && (string) $row->resolution_state === 'teacher_confirmed') {
-            return (string) ($row->intro_lesson_id ?? '') !== '' ? 'Introductory lesson created' : 'Teacher confirmed';
+            return (string) ($row->intro_lesson_id ?? '') !== '' ? 'Introductory lesson created' : 'Booking confirmed';
         }
         if ((string) $row->lifecycle_status === 'closed') return 'Closed · ' . ucfirst(str_replace('_', ' ', (string) $row->resolution_state));
         return ucfirst(str_replace('_', ' ', (string) $row->lifecycle_status));

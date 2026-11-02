@@ -258,6 +258,12 @@ final class NotificationCatalogue {
         $out[]=self::event('system.inbox_check.admin','Portal Notification Check','account','admin','notification_management','queue',array('website'),'operational',false,array('when'),'system.inbox_check.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'اعلان آزمایشی دلنوازان','body'=>'این یک اعلان آزمایشی داخلی است. زمان ثبت: {{when}}. هیچ ایمیل، واتس‌اپ یا پیامکی ارسال نشده است.')),
         ));
+        $out[]=self::event('booking.referral.admin','Intro Booking Needs Coordination','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.referral.admin',array(
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست آشنایی نیازمند هماهنگی است','body'=>'مدرس مناسبی برای درخواست پیدا نشد یا نوبت همهٔ مدرس‌ها پایان یافت. درخواست را در صف هماهنگی بررسی کنید.')),
+        ));
+        $out[]=self::event('booking.escalation.admin','Intro Booking Escalated','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.escalation.admin',array(
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'فوری · درخواست آشنایی بیش از ۷۲ ساعت','body'=>'درخواست آشنایی هنوز تأیید نشده و از زمان ثبت اولیه بیش از ۷۲ ساعت گذشته است. در صف هماهنگی پیگیری کنید.')),
+        ));
         foreach(array('change'=>array('Lesson Change','تغییر زمان کلاس'),'replacement'=>array('Replacement Session','جلسهٔ جبرانی')) as $kind=>[$label,$faLabel]){
             foreach(array('proposed'=>array('Proposal Created','{{when}} ({{timezone}}) پیشنهاد شد و در انتظار پاسخ هنرجو است.'),
                 'accepted'=>array('Proposal Accepted','هنرجو پیشنهاد را پذیرفت و زمان {{when}} ({{timezone}}) قطعی شد.'),

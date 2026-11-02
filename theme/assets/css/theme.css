@@ -1001,52 +1001,6 @@
     display: none;
   }
 
-  .site-footer__contact {
-    margin: 0;
-
-    color:
-      var(--dzn-color-on-dark);
-
-    font-size:
-      var(--dzn-text-small);
-
-    line-height:
-      var(--dzn-leading-ui);
-
-    text-align: center;
-  }
-
-  .site-footer__contact a {
-    color:
-      var(--dzn-color-on-action);
-
-    text-decoration:
-      underline;
-
-    text-decoration-color:
-      rgb(255 255 255 / .45);
-
-    text-underline-offset:
-      .18em;
-  }
-
-  .site-footer__contact a:hover,
-  .site-footer__contact a:focus-visible {
-    color:
-      var(--dzn-color-highlight);
-
-    text-decoration-color:
-      currentColor;
-  }
-
-  .site-footer__contact span {
-    margin-inline:
-      .35rem;
-
-    color:
-      rgb(255 255 255 / .55);
-  }
-
   .site-footer__actions {
     display: flex;
 

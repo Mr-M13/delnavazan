@@ -4,7 +4,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 final class BookingRequestRepository {
     private string $prefix;
     public function __construct() { global $wpdb; $this->prefix = $wpdb->prefix . 'dzn_'; }
-    public function begin(): void { global $wpdb; if ( $wpdb->query( 'START TRANSACTION' ) === false ) throw new \RuntimeException( 'Transaction start failed' ); }
+    public function begin(): void { global $wpdb; if ( $wpdb->query( 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED' ) === false || $wpdb->query( 'START TRANSACTION' ) === false ) throw new \RuntimeException( 'Transaction start failed' ); }
     public function commit(): void { global $wpdb; if ( $wpdb->query( 'COMMIT' ) === false ) throw new \RuntimeException( 'Transaction commit failed' ); }
     public function rollback(): void { global $wpdb; $wpdb->query( 'ROLLBACK' ); }
     /** Catalogue lock order is Instrument then Course, matching Core catalogue mutations. */

@@ -77,7 +77,17 @@
 - `tests/admin-navigation-teacher-finance-contract.php`
 - `tests/admin-dashboard-finance-classroom-contract.php`
 
-### Disposable WordPress/MariaDB runtime
+### Harness runs on commit `d0794a02`
+
+- `platform/runtime/bin/run-pure-tests.sh` — full WordPress-free suite passed from a clean detached
+  worktree, including the three new tests above.
+- `platform/runtime/bin/run-finance-runtime.sh` — fresh install to Schema 57 and the Finance
+  administration runtime passed.
+- `platform/runtime/bin/run-finance-manual-payment-runtime.sh` — Phase-J fixture plus manual payment
+  runtime passed (offline settlement, refund/review lifecycle and duplicate refusal).
+- No live Stripe refund, charge or teacher email was made.
+
+### Disposable WordPress/MariaDB acceptance runtime
 
 A disposable WordPress + MariaDB runtime was installed from this worktree. The actual four-tab screen rendered without a PHP fatal/notice on all four tabs; tab labels/order and legacy tab aliases were checked by rendering the page. Synthetic fixture rows were then used to exercise:
 

@@ -41,7 +41,7 @@ run_single(){
   echo "single=$race PASS"
 }
 
-wp eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-setup.php"
+dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-setup.php"
 run_race submission submission
 run_single single-nonoverlap non_overlap
 run_single single-timezone timezone_overlap

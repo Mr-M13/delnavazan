@@ -2,6 +2,15 @@
 
 Date: 2026-11-02
 
+Branch: `feat/enrolment-administration-workspace-20261102`
+
+Integration branch prepared with the in-progress Students workspace:
+`integration/enrolment-students-20261102` (both workspaces retained; shared
+navigation and CSS conflicts resolved).
+
+Deployment status: **not merged to `main` and not deployed**. The feature branch
+and the combined integration branch are local commits awaiting review.
+
 ## Shape
 
 The visible Enrolment area now has exactly two sub-tabs:

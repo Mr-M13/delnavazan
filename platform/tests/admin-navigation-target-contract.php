@@ -21,26 +21,26 @@ $enrolment = $controller('EnrolmentWorkspaceController.php');
 $catalogue = $controller('CatalogueWorkspaceController.php');
 $attendance = $controller('AttendanceWorkspaceController.php');
 
-// Exactly one Academy destination and no replacement sub-tabs.
-$test(1 === substr_count($shell, "['Academy', 'dzn-academy-dashboard', 'dzn_view_booking_requests']"), 'Academy must have exactly one visible destination');
-$test(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Academy must not expose replacement sub-tabs');
+// Exactly one Overview destination and no replacement sub-tabs.
+$test(1 === substr_count($shell, "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']"), 'Overview must have exactly one visible destination');
+$test(!str_contains($shell, "'Today and upcoming lessons'") && !str_contains($shell, "'Attention needed'"), 'Overview must not expose replacement sub-tabs');
 $contains($academy, array(
-    'classOperationalState(): void',
-    'id="dzn-academy-attention"',
+    'todayClasses(): void',
     'id="dzn-academy-today-upcoming"',
-    '>Today and upcoming lessons<',
-    '>Attention needed<',
+    'id="dzn-pending-work"',
+    '>Today’s classes',
     'pendingActions()',
-), 'Academy must render the combined dashboard content');
+    'dzn_academy_mark_attended',
+    'dzn_academy_reschedule_class',
+), 'Overview must render today’s classes and the combined pending-work content');
 
-// Teachers has exactly two tabs and no finance destinations.
-$test(2 === preg_match_all("/\\['(?:Overview|Onboarding & Invitations)', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly two tabs');
+// Teachers is one consolidated destination with no finance or legacy sub-tabs.
+$test(1 === preg_match_all("/\\['Teachers', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly one consolidated destination');
 $contains($shell, array(
-    "['Overview', 'dzn-teachers-menu', 'dzn_manage_teachers']",
-    "['Onboarding & Invitations', 'dzn-teachers-menu', Menu::TEACHER_ONBOARDING_CAP, ['view' => 'onboarding']]",
-), 'Teachers tabs must be Overview and Onboarding & Invitations');
-$test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'"), 'Teacher tabs must not contain finance or legacy directory workflows');
-$contains($screen, array("\$view === ''", "!current_user_can('dzn_manage_teachers')", 'Menu::TEACHER_ONBOARDING_CAP', "\$view === 'onboarding'", 'self::teacherInvitationPanel();'), 'Teacher onboarding must be a gated view of the existing authority, including legacy generic links');
+    "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
+), 'Teachers must be a single capability-aware destination');
+$test(!str_contains($shell, "['Teacher-specific rates'") && !str_contains($shell, "['Teacher reconciliation'") && !str_contains($shell, "['Teacher directory and profiles'") && !str_contains($shell, "['Overview', 'dzn-teachers-menu'"), 'Teacher navigation must not contain finance or legacy directory workflows');
+$contains($screen, array("TeacherWorkspaceController::screen()", 'dzn-teachers-menu'), 'Teacher maintenance and onboarding must render the consolidated workspace');
 
 // Enrolment has exactly four tabs with the agreed destinations.
 $status = preg_match_all("/\\['(?:Classes & Schedules|Bookings & Enrolments|Courses & Instruments|Attendance & Post-intro)'/", $shell);
@@ -119,7 +119,7 @@ $contains($shell, array(
     "'system' => ['System'",
 ), 'Settings must be grouped into General, Messaging, Integrations, Access and System without removing protected routes');
 
-// Legacy Academy deep links must keep resolving without restoring the tabs.
-$contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-academy-attention'"), 'Legacy Academy view URLs must focus the combined page without restoring sub-tabs');
+// Legacy Academy deep links must keep resolving without restoring removed panels.
+$contains($academy, array("array('upcoming', 'attention')", "'dzn-academy-today-upcoming'", "'dzn-pending-work'"), 'Legacy Overview view URLs must focus the combined page without restoring sub-tabs');
 
 echo "Admin navigation target contract passed\n";

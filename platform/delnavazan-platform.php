@@ -100,6 +100,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\CoreDatasetReadinessController::register();
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
 	Delnavazan\Platform\Admin\Controller\RescheduleReviewController::register();
+	Delnavazan\Platform\Admin\Controller\AcademyClassOperationsController::register();
 	Delnavazan\Platform\Portals\StudentProfileController::register();
 	Delnavazan\Platform\Portals\RecordingDecisionController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
@@ -124,6 +125,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitLaunchController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackController::register();
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomRevocationListener::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();

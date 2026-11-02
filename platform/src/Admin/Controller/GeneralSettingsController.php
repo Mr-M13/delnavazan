@@ -28,9 +28,31 @@ final class GeneralSettingsController {
             echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string) $value).'</td></tr>';
         }
         echo '</tbody></table>';
+        self::renderGoldenHourRules();
         self::renderLegalPages();
         echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-system-health')).'">Open system health</a> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-integrations')).'">Open integrations</a></p>';
         echo '</div>';
+    }
+
+    /** Golden-hour definitions stay finance-owned; Settings is the discoverable configuration entry. */
+    private static function renderGoldenHourRules(): void {
+        $policyClass = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourPolicyService';
+        $ruleClass = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourRule';
+        if (!class_exists($policyClass) || !class_exists($ruleClass)) return;
+        $policy = array();
+        try { $policy = (new $policyClass())->latest($ruleClass::GLOBAL_IRAN_KEY); } catch (\Throwable) { $policy = array(); }
+        echo '<h2>Golden-hour definitions and rules</h2>';
+        echo '<p>Golden-hour windows and bonus rules are finance-owned configuration. The academy-wide coverage overview is on the Academy Overview; individual coverage is in each Teacher profile. Configuration remains on the canonical Finance settings surface so committed lesson compensation is never rewritten by a presentation change.</p>';
+        if ($policy) {
+            echo '<table class="widefat striped"><tbody>';
+            echo '<tr><th>Policy</th><td>'.esc_html((string) ($policy['label'] ?? 'Iran global golden hours')).'</td></tr>';
+            echo '<tr><th>Status</th><td>'.(!empty($policy['enabled'])?'Enabled':'Disabled').'</td></tr>';
+            echo '<tr><th>Bonus</th><td>'.esc_html(rtrim(rtrim(number_format(((int)($policy['bonus_basis_points'] ?? 0))/100,2,'.',''),'0'),'.').'%').'</td></tr>';
+            echo '<tr><th>Timezone</th><td>'.esc_html((string) ($policy['timezone'] ?? $ruleClass::GLOBAL_IRAN_TIMEZONE)).'</td></tr>';
+            echo '<tr><th>Effective from</th><td>'.esc_html((string) ($policy['effective_from'] ?? 'Not recorded')).'</td></tr>';
+            echo '</tbody></table>';
+        }
+        echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#golden-hour-pay')).'">Open golden-hour rules</a></p>';
     }
 
     /** Draft-only policy provisioning. Publication is a separate WordPress action. */

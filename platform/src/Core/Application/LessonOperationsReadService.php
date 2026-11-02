@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
-use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,LessonRepository,LessonScheduleVersionRepository};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonAuthorityRepository,LessonRepository,LessonRescheduleRepository,LessonScheduleVersionRepository};
 
 /** Read-only operator queue for the Classes workflow. Canonical lesson and schedule facts are validated by their owners. */
 final class LessonOperationsReadService {
@@ -9,7 +9,7 @@ final class LessonOperationsReadService {
         if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
         global $wpdb; $p=$wpdb->prefix.'dzn_';
         $models=current_user_can('dzn_manage_canonical_lessons') ? "('legacy_phase1','canonical_term_lesson_v1')" : "('legacy_phase1')";
-        $rows=$wpdb->get_results("SELECT l.id,l.reference_code,l.record_model,l.lesson_type,l.status,l.lifecycle_state,l.canonical_sequence,l.current_schedule_version_id,COALESCE(NULLIF(s.display_name,''),NULLIF(s.first_name,''),s.last_name) student_name,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,legacy.local_wall_date,legacy.local_wall_time,legacy.schedule_timezone,legacy.starts_at_utc schedule_starts_at_utc FROM {$p}lessons l LEFT JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}teachers t ON t.id=l.teacher_id LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}lesson_schedule_versions legacy ON legacy.id=l.current_schedule_version_id AND legacy.lesson_id=l.id AND legacy.superseded_at IS NULL WHERE l.record_model IN {$models} AND l.archived_at IS NULL ORDER BY l.id DESC LIMIT 100");
+        $rows=$wpdb->get_results("SELECT l.id,l.reference_code,l.record_model,l.lesson_type,l.status,l.lifecycle_state,l.canonical_sequence,l.current_schedule_version_id,COALESCE(NULLIF(s.display_name,''),NULLIF(s.first_name,''),s.last_name) student_name,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,COALESCE(NULLIF(i.name_fa,''),NULLIF(i.name_en,'')) instrument_name,legacy.local_wall_date,legacy.local_wall_time,legacy.schedule_timezone,legacy.starts_at_utc schedule_starts_at_utc FROM {$p}lessons l LEFT JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}teachers t ON t.id=l.teacher_id LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}instruments i ON i.id=c.instrument_id LEFT JOIN {$p}lesson_schedule_versions legacy ON legacy.id=l.current_schedule_version_id AND legacy.lesson_id=l.id AND legacy.superseded_at IS NULL WHERE l.record_model IN {$models} AND l.archived_at IS NULL ORDER BY l.id DESC LIMIT 100");
         if($wpdb->last_error!=='')throw new \RuntimeException('Class operator read failed: '.$wpdb->last_error);
         $rows=is_array($rows)?$rows:array();
         foreach($rows as$row){
@@ -38,6 +38,123 @@ final class LessonOperationsReadService {
             return (int)$b->id<=>(int)$a->id;
         });
         return $rows;
+    }
+
+    /**
+     * Enrich already-authorised class rows with the authoritative Term, completion and
+     * replacement facts needed by the Overview's Today's classes panel.
+     *
+     * @param list<object> $rows
+     * @return list<object>
+     */
+    public function enrichTodayRows(array $rows): array {
+        if (!current_user_can('dzn_manage_lessons')) throw new \RuntimeException('Unauthorized');
+        $out = array();
+        foreach ($rows as $row) {
+            if (!is_object($row)) continue;
+            foreach ($this->todayOperatorDetails($row) as $field => $value) $row->{$field} = $value;
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /** @return array<string,mixed> */
+    private function todayOperatorDetails(object $row): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $base = array(
+            'instrument_name' => (string) ($row->instrument_name ?? $row->course_name ?? ''),
+            'term_id' => 0,
+            'term_label' => 'Unavailable',
+            'term_state' => '',
+            'term_allocation' => null,
+            'completed_class_count' => null,
+            'remaining_class_count' => null,
+            'replacement_remaining' => null,
+            'schedule_version_id' => 0,
+            'schedule_version_uid' => '',
+            'schedule_assignment_id' => 0,
+            'schedule_timezone' => (string) ($row->schedule_timezone ?? ''),
+            'schedule_start_utc' => (string) ($row->schedule_starts_at_utc ?? ''),
+            'schedule_end_utc' => '',
+            'local_wall_date' => '',
+            'local_wall_time' => '',
+            'class_detail_state' => 'unavailable',
+            'attendance_action_available' => false,
+            'schedule_action_available' => false,
+        );
+        if ((string) ($row->record_model ?? '') !== 'canonical_term_lesson_v1') {
+            $base['term_label'] = 'Introductory booking';
+            $base['class_detail_state'] = 'not_applicable';
+            return $base;
+        }
+        $lessonId = (int) ($row->id ?? 0);
+        if ($lessonId < 1) return $base;
+        $data = $wpdb->get_row($wpdb->prepare(
+            "SELECT l.term_id,l.enrolment_id,l.teacher_assignment_id,
+                    t.reference_code term_reference,t.sequence_number,t.lesson_allocation,t.replacement_allowance,t.lifecycle_state term_state,
+                    (SELECT COUNT(*) FROM {$p}lessons lc
+                     WHERE lc.term_id=l.term_id AND lc.record_model='canonical_term_lesson_v1'
+                       AND lc.lesson_type='standard' AND lc.archived_at IS NULL AND lc.lifecycle_state='completed') completed_standard,
+                    (SELECT COUNT(*) FROM {$p}lessons lc
+                     WHERE lc.term_id=l.term_id AND lc.record_model='canonical_term_lesson_v1'
+                       AND lc.lesson_type='standard' AND lc.archived_at IS NULL AND lc.lifecycle_state='cancelled') cancelled_standard,
+                    v.id schedule_version_id,v.uid schedule_version_uid,v.starts_at_utc,v.ends_at_utc,
+                    v.schedule_timezone,v.local_wall_date,v.local_wall_time
+             FROM {$p}lessons l
+             LEFT JOIN {$p}terms t ON t.id=l.term_id
+             LEFT JOIN {$p}canonical_lesson_schedule_versions v
+                    ON v.lesson_id=l.id AND v.applicable_slot=1 AND v.superseded_at IS NULL
+             WHERE l.id=%d",
+            $lessonId
+        ));
+        if (!$data || $wpdb->last_error !== '') return $base;
+
+        $termId = (int) ($data->term_id ?? 0);
+        $allocation = $data->lesson_allocation === null ? null : (int) $data->lesson_allocation;
+        $completed = $data->completed_standard === null ? null : (int) $data->completed_standard;
+        $cancelled = (int) ($data->cancelled_standard ?? 0);
+        $remaining = ($allocation !== null && $completed !== null) ? max(0, $allocation - $completed - $cancelled) : null;
+        $replacement = null;
+        if ($termId > 0) {
+            try {
+                $facts = (new LessonRescheduleRepository())->termReplacementAllocation($termId);
+                $replacement = (int) ($facts['available'] ?? 0);
+            } catch (\Throwable) {
+                $replacement = null;
+            }
+        }
+        $scheduleVersionId = (int) ($data->schedule_version_id ?? 0);
+        $assignmentId = (int) ($data->teacher_assignment_id ?? 0);
+        $lifecycle = (string) ($row->lifecycle_state ?? '');
+        $startsAt = (string) ($data->starts_at_utc ?? '');
+        $endsAt = (string) ($data->ends_at_utc ?? '');
+        $ended = $endsAt !== '' && strtotime($endsAt . ' UTC') !== false && strtotime($endsAt . ' UTC') <= time();
+        $termLabel = trim((string) ($data->term_reference ?? '')) !== ''
+            ? (string) $data->term_reference
+            : ($termId > 0 ? 'Term ' . (int) ($data->sequence_number ?? 0) : 'Unavailable');
+        return array_merge($base, array(
+            'term_id' => $termId,
+            'term_label' => $termLabel,
+            'term_state' => (string) ($data->term_state ?? ''),
+            'term_allocation' => $allocation,
+            'completed_class_count' => $completed,
+            'remaining_class_count' => $remaining,
+            'replacement_remaining' => $replacement,
+            'schedule_version_id' => $scheduleVersionId,
+            'schedule_version_uid' => (string) ($data->schedule_version_uid ?? ''),
+            'schedule_assignment_id' => $assignmentId,
+            'schedule_timezone' => (string) ($data->schedule_timezone ?? ''),
+            'schedule_start_utc' => $startsAt,
+            'schedule_end_utc' => $endsAt,
+            'local_wall_date' => (string) ($data->local_wall_date ?? ''),
+            'local_wall_time' => (string) ($data->local_wall_time ?? ''),
+            'class_detail_state' => ($termId > 0 && $scheduleVersionId > 0) ? 'available' : 'partial',
+            'attendance_action_available' => current_user_can('dzn_manage_canonical_attendance_review')
+                && $lifecycle === 'authorised' && $scheduleVersionId > 0 && $ended,
+            'schedule_action_available' => current_user_can('dzn_manage_canonical_lesson_schedules')
+                && $lifecycle === 'authorised' && $scheduleVersionId > 0 && $assignmentId > 0,
+        ));
     }
 
     public function canonicalLesson(int $lessonId): ?object {

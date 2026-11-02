@@ -59,7 +59,7 @@ dzn_lk_runtime_assert($wpdb->insert($p . 'teacher_onboarding_states', array('tea
 $accepting->set(array('teacher_id' => $teacherId, 'state' => 'accepting', 'reason_code' => 'synthetic_livekit'));
 $availability->setProfile(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
 for ($weekday = 1; $weekday <= 7; $weekday++) {
-    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '23:59:59', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
+    $availability->setRecurringRule(array('teacher_id' => $teacherId, 'timezone' => 'UTC', 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '2400', 'state' => 'requestable', 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
 }
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacherId, 'course_id' => $courseId, 'status' => 'active', 'reason_code' => 'synthetic_livekit'));
 $moved = $assignments->replace($enrolmentId, $teacherId, array('expected_assignment_id' => (int)$assignment['assignment_id'], 'route' => 'staff_attestation', 'evidence_channel' => 'phone', 'evidence_reference' => 'livekit-' . $teacherId, 'evidence_at' => gmdate('Y-m-d H:i:s')), dzn_lk_runtime_key('assignment-move'));

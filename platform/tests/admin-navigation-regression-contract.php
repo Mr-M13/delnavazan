@@ -15,6 +15,7 @@ $integrations = file_get_contents( $controllers . '/IntegrationControlPlaneContr
 $coverage = file_get_contents( $controllers . '/AcademyCoverageController.php' );
 $catalogue = file_get_contents( $controllers . '/CommercialCatalogueController.php' );
 $screen = file_get_contents( $controllers . '/ScreenController.php' );
+$teacher_workspace_view = file_get_contents( dirname( $controllers, 2 ) . '/Admin/View/TeacherWorkspaceView.php' );
 $teaching_eligibility = file_get_contents( $controllers . '/TeachingEligibilityController.php' );
 $availability = file_get_contents( $controllers . '/TeacherAvailabilityController.php' );
 $core_read = file_get_contents( dirname( $controllers, 2 ) . '/Core/Application/CoreReadService.php' );
@@ -58,7 +59,7 @@ if ( 1 !== substr_count( $menu, 'add_menu_page(' )
     || ! str_contains( $menu, "add_submenu_page(self::ROOT_SLUG, \$label, \$label, \$capability, \$slug, \$callback)")
     || str_contains( $menu, "['Bookings', 'dzn-bookings-menu'")
     || str_contains( $menu, "['Finance', 'dzn-finance-menu'")
-    || ! str_contains( $menu, "['Academy', 'dzn_view_booking_requests', 'dzn-academy-dashboard'")
+    || ! str_contains( $menu, "['Overview', 'dzn_view_booking_requests', 'dzn-academy-dashboard'")
     || ! str_contains( $menu, "['Classes', 'dzn_manage_lessons', 'dzn-lesson'")
     || ! str_contains( $menu, "['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review'")
     || ! str_contains( $menu, "['Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'")
@@ -81,6 +82,7 @@ if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || str_contains( $shell, "\$submenu[Menu::ROOT_SLUG] = [];" )
     || ! str_contains( $shell, 'Keep it intact; CSS hides only the legacy sidebar links.' )
     || ! str_contains( $shell, '#adminmenu #toplevel_page_dzn-platform .wp-submenu{display:none}' )
+    || ! str_contains( $shell, "'classes' => ['Classes'" )
     || ! str_contains( $shell, "'enrolment' => ['Enrolment'" )
     || ! str_contains( $shell, "'finance' => ['Finance'" ) ) {
     throw new RuntimeException( 'Application tabs must preserve WordPress route registration while hiding the legacy sidebar visually.' );
@@ -103,18 +105,18 @@ if ( str_contains( $menu, 'dzn-academy-operations' )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-academy-dashboard'" )
     || ! str_contains( $theme_operations, "'slug' => 'dzn-system-health'" )
     || ! str_contains( $menu, "add_menu_page('Delnavazan', 'Delnavazan', 'read', self::ROOT_SLUG" )
-    || ! str_contains( $operations, '<h1>Academy</h1>' )
+    || ! str_contains( $operations, '<h1>Overview</h1>' )
     || ! str_contains( $operations, 'Today’s work is collected here.' ) ) {
-    throw new RuntimeException( 'The Academy dashboard must be the operational default without a second Operations route.' );
+    throw new RuntimeException( 'The Overview dashboard must be the operational default without a second Operations route.' );
 }
 if ( ! str_contains( $operations, 'Absence reports needing administrator review' )
-    || ! str_contains( $operations, 'Class time changes awaiting student response' )
+    || ! str_contains( $operations, 'Class time changes needing a decision' )
     || ! str_contains( $operations, "'dzn-attendance-review'" )
     || ! str_contains( $operations, "'Review attendance'" )
-    || ! str_contains( $operations, 'Reschedule negotiations needing admin intervention' )
+    || ! str_contains( $operations, 'Classes needing schedule or integrity review' )
     || ! str_contains( $operations, 'Confirm proposed time' )
     || ! str_contains( $operations, 'Open class to change manually' ) ) {
-    throw new RuntimeException( 'Academy pending actions must surface Student absences and pending class-time changes.' );
+    throw new RuntimeException( 'Overview pending work must surface Student absences, class issues and class-time decisions.' );
 }
 if ( ! str_contains( (string) file_get_contents( $root . '/delnavazan-platform.php' ), 'RescheduleReviewController::register()' ) ) {
     throw new RuntimeException( 'Administrator reschedule confirm/cancel actions must be registered.' );
@@ -132,17 +134,17 @@ if ( ( ! str_contains( $operations, 'new AcademyJourneyReadService())->recent()'
     || str_contains( $operations, 'SELECT br.id request_id' )
     || ! str_contains( $journey_read, 'current_user_can(\'dzn_view_booking_requests\')' )
     || ! str_contains( $journey_read, 'SELECT br.id request_id' ) ) {
-    throw new RuntimeException( 'Academy dashboard data must come from its capability-gated application read projection.' );
+    throw new RuntimeException( 'Overview dashboard data must come from its capability-gated application read projection.' );
 }
-if ( ! str_contains( $operations, "private static function classOperationalState(): void" )
+if ( ! str_contains( $operations, "private static function todayClasses(): void" )
     || ! str_contains( $operations, "current_user_can('dzn_manage_lessons')" )
     || ! str_contains( $operations, '(new CoreReadService())->classOperatorRows()' )
-    || ! str_contains( $operations, 'Today and upcoming lessons' )
-    || ! str_contains( $operations, 'private static function scheduleDate(object $row): string' )
+    || ! str_contains( $operations, 'Today’s classes' )
+    || ! str_contains( $operations, 'private static function scheduleDateInAcademyTimezone(object $row): string' )
     || str_contains( $operations, 'FROM {$p}lessons' )
     || ! str_contains( $core_read, 'public function lessonOperatorRows(): array' )
     || ! str_contains( $lesson_operations_read, "current_user_can('dzn_manage_lessons')" ) ) {
-    throw new RuntimeException( 'Academy class state must reuse the existing capability-gated Classes projection.' );
+    throw new RuntimeException( 'Overview class state must reuse the existing capability-gated Classes projection.' );
 }
 if ( ! str_contains( $operations, '<th>Journey stage</th>' )
     || ! str_contains( $operations, "'Identity unresolved'" )
@@ -152,7 +154,7 @@ if ( ! str_contains( $operations, '<th>Journey stage</th>' )
     || str_contains( $operations, "'#'.(int)\$r->case_id" )
     || str_contains( $operations, "(string)\$r->request_state" )
     || str_contains( $operations, "(string)\$r->term_state" ) ) {
-    throw new RuntimeException( 'Academy dashboard must present human workflow stages instead of raw IDs or internal lifecycle codes.' );
+    throw new RuntimeException( 'Overview dashboard must present human workflow stages instead of raw IDs or internal lifecycle codes.' );
 }
 if ( ! str_contains( $dataset, 'private static function contextId( string $name )' )
     || ! str_contains( $dataset, 'preg_match( \'/^[1-9][0-9]*$/D\'' )
@@ -165,8 +167,9 @@ if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
     throw new RuntimeException( 'Stripe integration must live in Finance while payment operations remain there' );
 }
 if ( ! str_contains( $menu, "['Teachers', self::TEACHER_OPERATIONS_CAP, 'dzn-teachers-menu'" )
-    || ! str_contains( $screen, 'teacherDirectory()' )
-    || ! str_contains( $screen, 'teacherInvitationPanel()' )
+    || ! str_contains( $screen, 'TeacherWorkspaceController::screen()' )
+    || ! str_contains( $teacher_workspace_view, 'Teacher directory' )
+    || ! str_contains( $teacher_workspace_view, 'Onboarding and invitations' )
     || ! str_contains( $catalogue, 'add_submenu_page(Menu::ROOT_SLUG' )
     || str_contains( $coverage, "add_submenu_page('dzn-settings-menu'" )
     || str_contains( $catalogue, "add_submenu_page('dzn-settings-menu'" ) ) {
@@ -216,8 +219,8 @@ if ( ! str_contains( $screen, "'<h2>Student directory</h2>" )
     || ! str_contains( $screen, 'All non-archived students' )
     || ! str_contains( $screen, 'Location / time zone' )
     || ! str_contains( $screen, 'private static function studentStatus(string $status, bool $archived): string' )
-    || ! str_contains( $screen, 'teacherOnboardingSummary(object $teacher)' )
-    || ! str_contains( $screen, 'Weekly availability' ) ) {
+    || ! str_contains( $teacher_workspace_view, 'onboarding_label' )
+    || ! str_contains( $teacher_workspace_view, 'Weekly availability' ) ) {
     throw new RuntimeException( 'Student and Teacher directories must provide concise operational identity and state.' );
 }
 if ( ! str_contains( $screen, 'private static function catalogueFields(string $entity): array' )
@@ -312,9 +315,10 @@ if ( ! str_contains( $theme_setup, "add_filter( 'show_admin_bar', 'dzn_theme_sho
 // Structural navigation contract: one application root, canonical destination URLs,
 // capability-filtered tabs, and protected integrations/diagnostic destinations.
 foreach ( array(
-    "'academy' => ['Academy'",
+    "'overview' => ['Overview'",
     "'teachers' => ['Teachers'",
     "'students' => ['Students'",
+    "'classes' => ['Classes'",
     "'enrolment' => ['Enrolment'",
     "'finance' => ['Finance'",
     "'settings' => ['Settings'",
@@ -341,7 +345,7 @@ if ( 1 !== substr_count( $menu, "'dzn-academy-dashboard'" )
     || str_contains( $menu, "['dzn-platform', 'Request coordination'")
     || ! str_contains( $shell, "'dzn-exception' => 'enrolment'")
     || ! str_contains( $shell, "'dzn-system-health' => 'settings'") ) {
-    throw new RuntimeException( 'Academy must use one dashboard entry and Settings must retain protected diagnostics destinations.' );
+    throw new RuntimeException( 'Overview must use one dashboard entry and Settings must retain protected diagnostics destinations.' );
 }
 if ( ! str_contains( $shell, 'current_user_can($capability)' )
     || ! str_contains( $shell, 'remove_menu_page(Menu::ROOT_SLUG)' )

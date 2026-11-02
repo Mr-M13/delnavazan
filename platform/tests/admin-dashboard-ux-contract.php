@@ -1,6 +1,6 @@
 <?php
 /**
- * Source contract for the task-first Academy dashboard, Screen Options and the
+ * Source contract for the task-first Overview dashboard, Screen Options and the
  * grouped settings navigation. Presentation only; authority stays in services.
  */
 $root = dirname(__DIR__);
@@ -14,7 +14,7 @@ $dashboard = $read('src/Admin/Controller/AcademyOperationsController.php');
 $readService = $read('src/Core/Application/AcademyDashboardReadService.php');
 $screenOptions = $read('src/Admin/AcademyDashboardScreen.php');
 $shell = $read('src/Admin/Controller/AdminShellController.php');
-$screen = $read('src/Admin/Controller/ScreenController.php');
+$screen = $read('src/Admin/Controller/ScreenController.php') . $read('src/Admin/View/TeacherWorkspaceView.php');
 $menu = $read('src/Admin/Controller/Menu.php');
 $routeSources = $menu;
 foreach (glob($root . '/src/Admin/Controller/*.php') ?: array() as $controllerFile) {
@@ -29,19 +29,22 @@ $contains($dashboard, array(
     'AcademyDashboardScreen::shows(',
     'dzn-dash-hero',
     'dzn-kpi-grid',
-    'Action centre',
+    'Pending work',
     'Learner pipeline',
-    'Today and upcoming lessons',
-    'Attention needed',
-    '14-day activity',
+    'Today’s classes',
+    '30-day activity',
     'Finance snapshot',
     'Learner journeys',
     'Quick actions',
-    'classOperationalState',
+    'todayClasses',
     'pendingActions',
-), 'The Academy dashboard must expose the task-first sections.');
+    "AcademyDashboardScreen::shows('coverage')",
+    'AcademyCoverageController::renderAtlas',
+    'Golden-hour coverage',
+), 'The Overview dashboard must expose the task-first sections, including academy-wide golden-hour coverage.');
 $expect(!str_contains($dashboard, "'#'.(int)"), 'The dashboard must not show raw record identifiers as navigation labels.');
 $expect(!str_contains($dashboard, 'INSERT INTO') && !str_contains($dashboard, 'UPDATE '), 'The dashboard controller must remain read-only.');
+$contains($readService, array('public function summary(int $days = 30)'), 'The Overview activity window must be a real 30-day dataset.');
 
 // Dashboard aggregates are capability-gated and never write.
 $contains($readService, array(
@@ -66,14 +69,13 @@ $contains($screenOptions, array(
     'public static function sections(): array',
     'Quick actions',
     'Key numbers',
-    'Action centre',
-    'Today and upcoming classes',
+    'Pending work',
+    'Today’s classes',
     'Learner pipeline',
-    '14-day activity',
+    '30-day activity',
     'Finance snapshot',
-    'Needs attention',
-    'Learner journey queue',
-    'Class time changes',
+    'Golden-hour coverage',
+    'Learner journeys',
     "add_action('current_screen'",
     "add_filter('screen_settings'",
     "add_filter('set_screen_option_' . self::OPTION",

@@ -5,7 +5,7 @@ use Delnavazan\Platform\Admin\View\AcademyCoverageView;
 use Delnavazan\Platform\Core\Application\AcademyCoverageReadService;
 use Delnavazan\Platform\Core\Application\AcademyDemandWindowRule;
 
-/** Read-only Golden Hour Coverage Atlas on the consolidated Teachers overview. */
+/** Read-only Golden Hour Coverage Atlas on the Academy Overview. */
 final class AcademyCoverageController {
     private const CAP='dzn_view_booking_requests';
     /** Coverage is rendered inside the canonical Teachers page. */

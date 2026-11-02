@@ -56,7 +56,7 @@ final class LiveKitLaunchTicket {
 
     private function validatePayload(array $payload, bool $checkExpiry): void {
         if ((int)($payload['v'] ?? 0) !== self::VERSION
-            || !in_array((string)($payload['role'] ?? ''), array('teacher', 'student'), true)
+            || !in_array((string)($payload['role'] ?? ''), array('teacher', 'student', 'administrator'), true)
             || !in_array((string)($payload['kind'] ?? ''), array('lesson', 'booking'), true)
             || (int)($payload['user_id'] ?? 0) < 1) {
             throw new \InvalidArgumentException('livekit_ticket_invalid');

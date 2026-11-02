@@ -377,3 +377,26 @@ The automation is driven by the existing WP-Cron notification and activation wor
 `dzn_post_intro_activation_dispatch` is scheduled after the release. If it is not, run the standard
 WP-Cron recovery process; do not create Lessons, Enrolments, Terms, Assignments, or provider mappings
 by hand. Use the admin retry surface only after repairing the owning authority named by the exception.
+
+## Production backup retention
+
+`deployment/qa/prune-production-backups.sh` implements the retention policy for
+`$PRODUCTION_BACKUP_DIR`:
+
+- keep the four newest full backups;
+- keep the newest successfully deployed backup for each of the current and two
+  previous release SHAs, preserving a known-good rollback chain;
+- keep the newest full backup for each of the last 14 days and each of the last
+  6 ISO weeks;
+- delete only `application-files.tar.gz` from older backups; every
+  `database.sql`, `before.json` and `deployment.json` is retained;
+- keep the two newest Softaculous archives.
+
+The script is dry-run by default and requires `--confirm` to delete. On the
+production account it is installed as a daily 03:17 cron job:
+
+```cron
+17 3 * * * /bin/bash /home/delnavaz/backups/delnavazan-production-cutover/prune-production-backups.sh --confirm >> /home/delnavaz/backups/delnavazan-production-cutover/prune.log 2>&1
+```
+
+Database-dump retention remains a separate, later policy decision.

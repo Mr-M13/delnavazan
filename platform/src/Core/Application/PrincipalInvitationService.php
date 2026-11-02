@@ -77,7 +77,7 @@ final class PrincipalInvitationService {
             if($this->repo->activeTeacherLinkForTeacher($teacherId))throw new \InvalidArgumentException('Teacher principal link already exists');
             if($this->repo->activeTeacherLinkForUser($wordpressUserId))throw new \InvalidArgumentException('WordPress user is already linked to a Teacher');
             $onboarding=$this->repo->onboardingForTeacher($teacherId);
-            if($onboarding&&(string)$onboarding->state!=='offboarded')throw new \InvalidArgumentException('Teacher onboarding state is incompatible with a new principal link');
+            if($onboarding&&!in_array((string)$onboarding->state,array('offboarded','reset_pending'),true))throw new \InvalidArgumentException('Teacher onboarding state is incompatible with a new principal link');
             $invitation=$this->repo->invitationForTeacher($teacherId);
             if($invitation){
                 $this->repo->revokeUnclaimedGenerations((int)$invitation->id,$now);

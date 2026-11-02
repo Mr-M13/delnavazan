@@ -167,7 +167,7 @@ namespace {
 	$check( 'teacher absence prompt explains the replacement conversation', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان تازه را پیشنهاد دهید' ) || str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان جلسهٔ جبرانی را پیشنهاد دهید' ) );
 	$check( 'teacher absence task exposes the reschedule form', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/attention.php' ), "'reschedule-form'" ) );
 	$check( 'teacher pending tasks include rejected reschedule proposals', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'TeacherRescheduleAttentionReadService' ) && str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'با هنرجو صحبت کنید و زمان تازه' ) );
-	$check( 'three rejections escalate to the administrator queue', str_contains( (string) file_get_contents( ABSPATH . 'platform/src/Admin/Controller/AcademyOperationsController.php' ), 'Reschedule negotiations needing admin intervention' ) );
+	$check( 'three rejections escalate to the administrator queue', str_contains( (string) file_get_contents( ABSPATH . 'platform/src/Admin/Controller/AcademyOperationsController.php' ), 'Class time changes needing a decision' ) );
 	$check( 'teacher shell greets the teacher by first name', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/shell.php' ), "'درود بر شما' . ( '' !== \$teacher_first_name" ) );
 
 	$check( 'teacher can propose a reschedule for a class that starts within the hour', true === ( $classes_by_ref['REF-ACTIVE']['reschedule_available'] ?? false ) );

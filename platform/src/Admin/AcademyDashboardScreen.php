@@ -17,14 +17,13 @@ final class AcademyDashboardScreen {
         return array(
             'quick' => 'Quick actions',
             'kpis' => 'Key numbers',
-            'actions' => 'Action centre',
-            'schedule' => 'Today and upcoming classes',
+            'actions' => 'Pending work',
+            'schedule' => 'Today’s classes',
             'pipeline' => 'Learner pipeline',
-            'activity' => '14-day activity',
+            'activity' => '30-day activity',
             'finance' => 'Finance snapshot',
-            'attention' => 'Needs attention',
-            'queue' => 'Learner journey queue',
-            'reschedules' => 'Class time changes',
+            'coverage' => 'Golden-hour coverage',
+            'queue' => 'Learner journeys',
         );
     }
 
@@ -41,7 +40,7 @@ final class AcademyDashboardScreen {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen || !self::isAcademyScreen((string) $screen->id)) return;
         add_screen_option(self::OPTION, array(
-            'label' => 'Dashboard sections',
+            'label' => 'Overview sections',
             'default' => array_fill_keys(array_keys(self::sections()), 1),
         ));
     }
@@ -53,8 +52,8 @@ final class AcademyDashboardScreen {
     public static function render($settings, $screen): string {
         if (!$screen || !self::isAcademyScreen((string) $screen->id)) return (string) $settings;
         $visible = self::visible();
-        $html = '<fieldset class="dzn-screen-options"><legend>Delnavazan dashboard sections</legend>';
-        $html .= '<p class="description">Choose the sections shown on the Academy dashboard. Hidden sections remain available from the navigation.</p>';
+        $html = '<fieldset class="dzn-screen-options"><legend>Delnavazan Overview sections</legend>';
+        $html .= '<p class="description">Choose the sections shown on the Overview dashboard. Hidden sections remain available from the navigation.</p>';
         $html .= '<input type="hidden" name="wp_screen_options[option]" value="' . esc_attr(self::OPTION) . '">';
         foreach (self::sections() as $key => $label) {
             $html .= '<label class="dzn-screen-options__item"><input type="hidden" name="wp_screen_options[value][' . esc_attr($key) . ']" value="0">';

@@ -293,27 +293,91 @@ final class IntegrationControlPlaneController {
         echo '</ol>';
     }
     public static function screen():void{
-        if(!current_user_can('manage_options')&&!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))wp_die('Forbidden',403);
-        $r=(new IntegrationControlPlaneReadService())->report();
+        if(!current_user_can('manage_options')&&!current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY)
+            &&!current_user_can('dzn_manage_provider_integrations')&&!current_user_can('dzn_view_provider_integrations'))wp_die('Forbidden',403);
         $settings=new IntegrationSettingsService();
-        echo '<div class="wrap"><h1>Integrations</h1><p>Local readiness is separate from explicit provider tests. Test actions do not participate in notification delivery.</p><h2>Notification routing</h2><p>WhatsApp primary → email supporting channel → Telnyx SMS fallback.</p><ul>';
-        foreach(array('email'=>'Email settings','whatsapp'=>'Meta WhatsApp Cloud API settings','sms'=>'SMS fallback settings','google'=>'Google OAuth / Calendar settings') as $provider=>$label)echo '<li><a href="'.esc_url(admin_url('admin.php?page=dzn-integration-'.$provider)).'">'.esc_html($label).'</a> — '.esc_html($settings->ready($provider)?'Ready':'Needs configuration').'</li>';
-        echo '</ul><h2>Current runtime signals</h2><table class="widefat striped"><tbody><tr><th>Email invitation transport</th><td>'.esc_html((string)$r['email']['invitation_transport']).'</td></tr><tr><th>Notification runtime</th><td>'.esc_html((string)$r['notifications']['runtime']).'</td></tr>';
-        foreach($r['notifications']['channels'] as $channel=>$state)echo '<tr><th>'.esc_html(ucfirst($channel)).' binding</th><td>'.esc_html((string)$state).'</td></tr>';
-        foreach($r['notifications']['states'] as $state=>$count)echo '<tr><th>Notification state: '.esc_html((string)$state).'</th><td>'.(int)$count.'</td></tr>';
-        foreach($r['notifications']['delivery_states'] as $state=>$count)echo '<tr><th>Notification delivery evidence: '.esc_html((string)$state).'</th><td>'.(int)$count.'</td></tr>';
-        $telnyx=(array)($r['telnyx']??array());$webhook=(array)($telnyx['webhook']??array());
-        echo '<tr><th>Telnyx webhook URL</th><td><code>'.esc_html((string)($webhook['url']??'')).'</code></td></tr>';
-        echo '<tr><th>Telnyx webhook signature</th><td>'.esc_html((string)($webhook['signature']??'not_configured')).'</td></tr>';
-        echo '<tr><th>Telnyx WhatsApp templates</th><td>'.esc_html((string)(int)($telnyx['whatsapp']['templates']['approved']??0)).' approved · '.esc_html((string)(int)($telnyx['whatsapp']['templates']['mapped']??0)).' mapped · '.esc_html((string)(int)($telnyx['whatsapp']['templates']['unmapped']??0)).' unmapped</td></tr>';
-        foreach(array('copy_definitions'=>'Notification copy definitions','dispatch_actor'=>'Notification dispatch actor','student_route_filter'=>'Student route authority','student_consent_filter'=>'Student consent authority','student_guardian_filter'=>'Guardian authority') as $key=>$label)echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)($telnyx['routing'][$key]??'not_configured')).'</td></tr>';
-        echo '<tr><th>Google teacher calendar</th><td>'.esc_html((string)$r['google_calendar']['oauth_client']).'</td></tr></tbody></table><h2>Google teacher connection</h2><p>Teachers connect or disconnect their own account from their account settings. Calendar entries are projections of Delnavazan’s canonical schedule; Delnavazan remains authoritative.</p><table class="widefat striped"><tbody>';
-        foreach($r['google_calendar']['projection_states'] as $state=>$count)echo '<tr><th>Calendar projection: '.esc_html((string)$state).'</th><td>'.esc_html((string)$count).'</td></tr>';
-        echo '</tbody></table><h2>Stripe</h2><div class="card"><p>Configure Stripe sandbox credentials and check connectivity. Live credentials and production payment execution remain prohibited.</p>';
-        if(current_user_can(PaymentExecutionController::CAPABILITY)){
-            $stripeReadiness=(new StripeTestModeReadinessService())->read();
-            echo '<p>Checkout readiness: <strong>'.esc_html($stripeReadiness['ready']?'Ready':'Setup is incomplete').'</strong></p><p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-stripe-settings')).'">Configure Stripe test mode</a></p>';
-        }else echo '<p>Stripe settings are available to users with payment provider authority.</p>';
-        echo '</div></div>';
+        echo '<div class="wrap dzn-settings-page" dir="ltr"><h1>Integrations</h1>';
+        echo '<p class="dzn-settings-lede">Provider configuration and readiness. “Credentials stored” means local configuration exists; it is not proof that the provider is working. Provider calls happen only when an authorised operator presses an explicit test.</p>';
+        self::renderFrontlineContactNotice();
+        echo '<div class="dzn-settings-cards">';
+        self::renderProviderCard($settings,'email','Email','Account, security and operational email delivery.','dzn-integration-email',array('Sender name/address','Host mail or SMTP','Write-only password'));
+        self::renderProviderCard($settings,'whatsapp','WhatsApp','Business-initiated WhatsApp through the existing Telnyx / Meta WABA route.','dzn-integration-whatsapp',array('Telnyx sender and WABA','Meta approved templates','Provider-template mapping is in Notifications → Templates'));
+        self::renderProviderCard($settings,'sms','SMS','A constrained fallback only after a verified terminal WhatsApp failure. It is never a primary channel.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Direct SMS is not enabled by a checkbox'));
+        self::renderProviderCard($settings,'google','Google authentication, Calendar and Meet','Academy-wide OAuth client, calendar projection and Meet links. Teacher-owned authorisation stays separate.','dzn-integration-google',array('Academy OAuth client','Teacher connects their own account','Projection never owns the canonical schedule'));
+        self::renderStripeCard();
+        self::renderClassroomCard();
+        echo '</div>';
+        echo '<section class="dzn-settings-card"><h2>Routing and provider boundaries</h2><ul class="dzn-settings-list">';
+        echo '<li><strong>Twilio WhatsApp is not implemented.</strong> No Twilio credential is read or stored, and no Twilio send can be enabled here.</li>';
+        echo '<li><strong>Telnyx / Meta routing remains authoritative.</strong> The notification workspace does not contain a second provider form.</li>';
+        echo '<li><strong>Google teacher-owned authorisation is separate</strong> from the academy-wide Google client shown above.</li>';
+        echo '<li><strong>Stripe configuration remains under Finance.</strong> This page links to that authority and does not create a second secret store.</li>';
+        echo '</ul></section>';
+        echo '</div>';
+    }
+
+    private static function renderFrontlineContactNotice():void{
+        $phone=class_exists(GeneralSettingsController::class)?GeneralSettingsController::FRONTLINE_PHONE_DISPLAY:'0413 413 004';
+        echo '<div class="notice notice-info inline"><p><strong>Frontline WhatsApp contact:</strong> '.esc_html($phone).' — this is the academy contact, not the Telnyx notification sender. The sender below is used only to deliver notifications.</p></div>';
+    }
+
+    private static function renderProviderCard(IntegrationSettingsService $settings,string $provider,string $label,string $supports,string $route,array $controls):void{
+        $ready=false;$redacted=array();
+        try{$ready=$settings->ready($provider);$redacted=$settings->redacted($provider);}catch(\Throwable){}
+        $secretStored=false;foreach($redacted as $value)if($value===true){$secretStored=true;break;}
+        $last=(array)get_option('dzn_integration_test_'.$provider,array());
+        $lastState=(string)($last['state']??'');
+        $lastCode=(string)($last['code']??'');
+        $state=$ready?'Configured locally, unverified':($secretStored?'Credentials stored, provider not ready':'Not configured');
+        $badge=$ready?'is-warn':($secretStored?'is-warn':'is-locked');
+        echo '<section class="dzn-settings-card dzn-integration-card"><h2>'.esc_html($label).'</h2>';
+        echo '<p><span class="dzn-status-badge '.esc_attr($badge).'">'.esc_html($state).'</span></p>';
+        echo '<p>'.esc_html($supports).'</p>';
+        echo '<p><strong>Last explicit verification:</strong> '.(($lastState==='success')?'Succeeded':($lastState==='failed'?'Failed':($lastState==='blocked'?'Blocked':'Not run'))).' '.($lastCode!==''?'<span class="dzn-settings-meta">('.esc_html(self::friendlyProviderCode($lastCode)).')</span>':'').'</p>';
+        echo '<p class="dzn-settings-meta">Technical code: <code dir="ltr">'.esc_html($lastCode!==''?$lastCode:'not_run').'</code>'.($last?' · '.(string)($last['at']??''):'').'</p>';
+        echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page='.$route)).'">'.(self::canConfigureProvider()?'Configure':'Inspect').'</a>'.((current_user_can('manage_options')||current_user_can(IntegrationControlPlaneReadService::READ_CAPABILITY))?' <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-system-health&component=providers')).'">Inspect evidence</a>':'').'</p>';
+        echo '<details class="dzn-settings-advanced"><summary><strong>Advanced provider controls</strong></summary><ul class="dzn-settings-list">';
+        foreach($controls as $control)echo '<li>'.esc_html($control).'</li>';
+        echo '</ul><p class="dzn-settings-meta">The provider page is a protected route. Credentials are encrypted at rest, write-only and never present in this page HTML. Explicit tests may make a provider request; no test runs automatically.</p></details>';
+        echo '</section>';
+    }
+
+    private static function renderStripeCard():void{
+        $last=(array)get_option('dzn_stripe_test_connection_result',array());
+        $allowed=current_user_can(PaymentExecutionController::CAPABILITY);
+        echo '<section class="dzn-settings-card dzn-integration-card"><h2>Stripe</h2>';
+        echo '<p><span class="dzn-status-badge '.($allowed?'is-warn':'is-locked').'">'.esc_html($allowed?((string)($last['state']??'')==='success'?'Test connection confirmed':'Configuration authority available'):'Restricted').'</span></p>';
+        echo '<p>Checkout, payment evidence and reconciliation remain Finance-owned. Stripe credentials and readiness use the existing Finance payment-provider authority; this page does not create a second secret store.</p>';
+        if($allowed)echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#stripe')).'">Configure in Finance</a></p>';
+        else echo '<p>Stripe configuration is available to staff with payment-provider authority.</p>';
+        if($last)echo '<p class="dzn-settings-meta">Last test: '.esc_html((string)($last['state']??'unknown')).' · <code dir="ltr">'.esc_html((string)($last['code']??'')).'</code> · '.esc_html((string)($last['at']??'')).'</p>';
+        echo '</section>';
+    }
+
+    private static function renderClassroomCard():void{
+        $class='\\Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitConfiguration';
+        if(!class_exists($class))return;
+        try{(new $class())->values();$state='Configured locally, unverified';$badge='is-warn';$detail='LiveKit credentials are present. No provider call was made.';}
+        catch(\Throwable){$state='Not configured';$badge='is-locked';$detail='LiveKit classroom credentials are absent; the Google Meet fallback and existing classroom permissions remain unchanged.';}
+        echo '<section class="dzn-settings-card dzn-integration-card"><h2>LiveKit classroom</h2><p><span class="dzn-status-badge '.esc_attr($badge).'">'.esc_html($state).'</span></p><p>'.esc_html($detail).'</p>';
+        echo '<p class="dzn-settings-meta">Process-level configuration only; the API secret is never stored in WordPress or shown here.</p>';
+        echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-system-health&component=classroom')).'">Inspect classroom evidence</a></p></section>';
+    }
+
+    private static function canConfigureProvider():bool{
+        return current_user_can('manage_options')||current_user_can('dzn_manage_provider_integrations');
+    }
+
+    private static function friendlyProviderCode(string $code):string{
+        return match($code){
+            'smtp_tls_failed'=>'TLS negotiation failed — check encryption and certificate.',
+            'smtp_authentication_failed'=>'The mail host rejected the username or password.',
+            'smtp_connection_failed'=>'The mail host could not be reached.',
+            'smtp_sender_rejected'=>'The mail host rejected the sender address.',
+            'smtp_recipient_rejected'=>'The mail host rejected the test destination.',
+            'success_mailer_accepted'=>'The mail server accepted the test message; inbox delivery is not confirmed.',
+            'not_configured'=>'Provider configuration is incomplete.',
+            default=>$code!==''?$code:'No technical code recorded.',
+        };
     }
 }

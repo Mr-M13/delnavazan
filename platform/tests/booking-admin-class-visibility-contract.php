@@ -79,7 +79,8 @@ $contains($academy, array(
     'classUrl',
     "page' => 'dzn-booking-requests'",
     'scheduleUtcInstant',
-    'setTimezone(new \\DateTimeZone($timezone))',
+    'setTimezone(self::academyTimezone())',
+    'scheduleDateInAcademyTimezone',
     'validScheduleTimezone',
 ), 'Academy today/upcoming must use the composite projection and classify dates through the row schedule timezone');
 

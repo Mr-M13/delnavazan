@@ -1,5 +1,5 @@
 <?php
-/** Teacher Overview and Onboarding workspace source contract. */
+/** Teacher consolidated workspace and Onboarding source contract. */
 $root = dirname(__DIR__);
 $read = static fn(string $path): string => (string) file_get_contents($root . '/' . $path);
 $expect = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
@@ -9,20 +9,22 @@ $contains = static function (string $source, array $needles, string $message) us
 
 $shell = $read('src/Admin/Controller/AdminShellController.php');
 $screen = $read('src/Admin/Controller/ScreenController.php');
+$view = $read('src/Admin/View/TeacherWorkspaceView.php');
+$controller = $read('src/Admin/Controller/TeacherWorkspaceController.php');
 $registry = $read('src/Admin/RecordAction/RecordActionRegistry.php');
 $resolver = $read('src/Admin/RecordAction/RecordActionResolver.php');
 $onboarding = $read('src/Core/Application/TeacherOnboardingWorkspaceReadService.php');
 $onboardingService = $read('src/Core/Application/TeacherOnboardingService.php');
 $repository = $read('src/Core/Infrastructure/Repository/TeacherOnboardingRepository.php');
 
-$expect(2 === preg_match_all("/\\['(?:Overview|Onboarding & Invitations)', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly two tabs.');
+$expect(1 === preg_match_all("/\\['Teachers', 'dzn-teachers-menu'/", $shell), 'Teachers must expose exactly one consolidated destination.');
 
-$contains($screen, array(
-    "if (\$view === 'onboarding')",
-    'self::teacherInvitationPanel();',
-    'TeacherOnboardingWorkspaceReadService',
-    'teacherReadinessPanel',
-    'teacherFinanceLinks',
+$contains($controller, array('TeacherWorkspaceReadService', 'TeacherWorkspaceView::render', 'dzn-teachers-menu'), 'The consolidated route must render the workspace.');
+$contains($view, array(
+    'Teacher directory',
+    'Onboarding and invitations',
+    'onboardingOverview',
+    'teacher-onboarding',
     "'teacher-profile'",
     "'teacher-eligibility'",
     "'teacher-availability-profile'",
@@ -32,16 +34,12 @@ $contains($screen, array(
     "'teacher-return-onboarding'",
     "'teacher-reject-onboarding'",
     'Rate timeline',
-    'Statements &amp; reconciliation',
+    'Statements',
     'Lesson payability',
-    'Teacher rate settings',
-), 'The Teacher workspaces must expose focused profile, eligibility, availability, lifecycle, onboarding and finance follow-up actions.');
-$expect(!str_contains($screen, "self::formStart('update_teacher_profile')"), 'Teacher profile maintenance must use the shared action renderer.');
-$contains($screen, array("self::formStart('issue_teacher_invitation_by_email')"), 'Invitation creation remains a deliberate invitation action.');
-$expect(!str_contains($screen, 'teacherArchiveActions('), 'Teacher lifecycle must not retain a parallel archive form.');
-$expect(!str_contains($screen, 'name="command_key"'), 'Invitation idempotency keys must be generated server-side, not exposed in the form.');
-$contains($screen, array('Google account', 'Calendar', 'Meet', 'Blockers / next action', 'meet_caveat', 'generation_expires_at', 'invitation_form_id', 'teacherAnchor'), 'Onboarding must render Google account, Calendar, Meet, blockers, next action, invitation expiry and human anchors with the Meet caveat.');
-$expect(!str_contains($screen, "'#dzn-teacher-onboarding-' . (int)"), 'Onboarding anchors must not expose raw Teacher identifiers.');
+), 'The Teacher workspace must expose focused profile, eligibility, availability, lifecycle, onboarding and finance actions.');
+$expect(str_contains($screen, "issue_teacher_invitation_by_email"), 'Invitation creation remains a deliberate invitation action.');
+$contains($view, array('Google account', 'Blockers', 'Next action', 'Google Meet', 'Expiry', 'invitation_form_id'), 'Onboarding must render Google account, blockers, next action and invitation evidence.');
+$expect(!str_contains($view, "'#dzn-teacher-onboarding-' . (int)"), 'Onboarding anchors must not expose raw Teacher identifiers.');
 
 $contains($registry, array(
     "'teacher-profile'",

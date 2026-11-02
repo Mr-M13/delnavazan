@@ -33,12 +33,16 @@ function dzn_assert_meta_cap(array $expected, string $capability, int $userId): 
     }
 }
 
-foreach (array('dzn_access_integrations_overview', 'dzn_access_system_health') as $capability) {
+foreach (array('dzn_access_system_health') as $capability) {
     dzn_assert_meta_cap(array('manage_options'), $capability, 1);
     dzn_assert_meta_cap(array('dzn_view_diagnostics'), $capability, 2);
     dzn_assert_meta_cap(array('do_not_allow'), $capability, 3);
     dzn_assert_meta_cap(array('do_not_allow'), $capability, 4);
 }
+dzn_assert_meta_cap(array('manage_options'), 'dzn_access_integrations_overview', 1);
+dzn_assert_meta_cap(array('dzn_view_diagnostics'), 'dzn_access_integrations_overview', 2);
+dzn_assert_meta_cap(array('dzn_manage_provider_integrations'), 'dzn_access_integrations_overview', 3);
+dzn_assert_meta_cap(array('do_not_allow'), 'dzn_access_integrations_overview', 4);
 
 dzn_assert_meta_cap(array('manage_options'), 'dzn_access_provider_integration_settings', 1);
 dzn_assert_meta_cap(array('dzn_manage_provider_integrations'), 'dzn_access_provider_integration_settings', 3);

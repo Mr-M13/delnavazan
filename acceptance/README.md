@@ -39,6 +39,7 @@ make check-cache
 make smoke
 make student-account-claim
 make booking-student-account
+make enrolment-workspace
 make destroy CONFIRM=YES
 ```
 
@@ -56,6 +57,13 @@ the initial Teacher Assignment. A `pre_wp_mail` guard proves that none of those
 paths reached external mail transport. The runner destroys the scoped runtime
 on exit, including after a failed assertion.
 
+`make teacher-workspace` exercises the consolidated Teachers administration
+recovery and state-refresh paths: invitation resend/revoke, invitation-only removal,
+reset with another WordPress role/content preserved, exclusive-account deletion,
+protected-history refusal and archive path, open-ended versus bounded
+unavailability, Teacher-entered display-name handling, class-history retrieval and
+current-state onboarding status refresh.
+
 `make teacher-onboarding` additionally exercises Teacher soft archive and
 restore: the invitation and Teacher principal are revoked, the Teacher-only
 WordPress role is removed while an unrelated role remains, lifecycle history is
@@ -71,6 +79,12 @@ existing-account sign-in without role changes, rejection of a teacher principal
 being bound as a student, and rollback after a deliberately invalid catalogue
 reference. It is restricted to the disposable local host and synthetic
 `@example.invalid` identities.
+
+`make enrolment-workspace` builds synthetic booking, trial, canonical class,
+attendance and post-intro records, then proves manual-match collision refusal,
+introductory/import idempotency, canonical reschedule/release/cancel, Teacher
+replacement history, attendance duplicate protection and post-intro reminder
+policy. It calls no external provider or message transport.
 
 ## CI and current gaps
 

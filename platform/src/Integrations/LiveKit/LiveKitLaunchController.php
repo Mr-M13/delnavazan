@@ -12,6 +12,7 @@ final class LiveKitLaunchController {
     public static function register(): void {
         add_action('admin_post_dzn_teacher_livekit_class', static fn() => self::launch('teacher'));
         add_action('admin_post_dzn_student_livekit_class', static fn() => self::launch('student'));
+        add_action('admin_post_dzn_admin_livekit_class', array(__CLASS__, 'launchAdministrator'));
     }
 
     public static function launch(string $role): never {
@@ -39,6 +40,47 @@ final class LiveKitLaunchController {
             exit;
         } catch (\Throwable) {
             wp_safe_redirect(add_query_arg($failure, $portal), 302, 'Delnavazan');
+            exit;
+        }
+    }
+
+    /**
+     * Administrator pre-class entry. The signed ticket is bound to this administrator and
+     * carries the canonical resource, never a provider secret or a reusable participant token.
+     */
+    public static function launchAdministrator(): never {
+        if (!is_user_logged_in()) auth_redirect();
+        check_admin_referer('dzn_admin_livekit_class');
+        $failure = add_query_arg(
+            array('page' => 'dzn-academy-dashboard', 'classroom_status' => 'livekit_unavailable'),
+            admin_url('admin.php')
+        ) . '#dzn-academy-today-upcoming';
+        try {
+            $kind = sanitize_key((string) ($_POST['kind'] ?? 'lesson'));
+            $service = new LiveKitAdministratorClassroomService();
+            if ($kind === 'lesson') {
+                $grant = $service->grantForLesson(absint($_POST['lesson_id'] ?? 0));
+                $resource = array(
+                    'kind' => 'lesson',
+                    'lesson_uid' => (string) $grant['resource_uid'],
+                    'schedule_version_uid' => (string) $grant['schedule_key'],
+                );
+            } elseif ($kind === 'booking') {
+                $grant = $service->grantForBooking(sanitize_text_field((string) ($_POST['confirmation_uid'] ?? '')));
+                $resource = array(
+                    'kind' => 'booking',
+                    'confirmation_uid' => (string) $grant['resource_uid'],
+                );
+            } else {
+                throw new \InvalidArgumentException('classroom_resource_invalid');
+            }
+            $ticket = (new LiveKitLaunchTicket())->issue('administrator', $resource + array('meet_available' => !empty($grant['meet_available'])));
+            nocache_headers();
+            header('Referrer-Policy: no-referrer');
+            wp_safe_redirect(home_url('/music-classroom/') . '#ticket=' . rawurlencode($ticket), 302, 'Delnavazan');
+            exit;
+        } catch (\Throwable) {
+            wp_safe_redirect($failure, 302, 'Delnavazan');
             exit;
         }
     }

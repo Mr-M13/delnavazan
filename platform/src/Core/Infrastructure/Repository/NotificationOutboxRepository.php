@@ -136,6 +136,19 @@ final class NotificationOutboxRepository {
         $changed=$wpdb->update($this->p.'platform_outbox',array('status'=>$status,'leased_at'=>null,'lease_token_digest'=>null,'failure_reason_code'=>$reasonCode,'processed_at'=>NotificationSupport::now()),array('id'=>$rowId));
         if($changed!==1)throw new \RuntimeException('notification_outbox_state_conflict');
     }
+    /**
+     * Staff-authorised retry of one failed/expired row. The attempt counter restarts so the
+     * existing retry policy can run again; the notification's own append-only attempt and event
+     * history still records the earlier failures.
+     */
+    public function manualRequeue(int $rowId,string $now):void{
+        global $wpdb;
+        $changed=$wpdb->query($wpdb->prepare(
+            "UPDATE {$this->p}platform_outbox SET status='queued',available_at=%s,leased_at=NULL,lease_token_digest=NULL,failure_reason_code=NULL,processed_at=NULL,attempt_count=0 WHERE id=%d AND status IN ('failed','expired')",
+            $now,$rowId
+        ));
+        if($changed!==1)throw new \RuntimeException('notification_outbox_state_conflict');
+    }
     /** The durable attempt counter S reuses instead of adding a competing counter (§6.6). */
     public function attemptCount(int $rowId):int{global $wpdb;return (int)$wpdb->get_var($wpdb->prepare("SELECT attempt_count FROM {$this->p}platform_outbox WHERE id=%d",$rowId));}
     private function guardedUpdate(int $rowId,array $where,array $fields):void{

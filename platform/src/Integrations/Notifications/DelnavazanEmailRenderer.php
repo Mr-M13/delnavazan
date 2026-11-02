@@ -41,8 +41,10 @@ final class DelnavazanEmailRenderer {
         $subject = self::oneLine($subject);
         $cta = self::cta($options['cta'] ?? array(), $english);
         $preheader = self::oneLine((string) ($options['preheader'] ?? ''));
-        $logo = self::logoUrl((string) ($options['logo_url'] ?? ''));
-        $note = self::oneLine((string) ($options['footer_note'] ?? ''));
+        $appearance = class_exists(EmailAppearance::class) ? EmailAppearance::values() : array();
+        $logo = self::logoUrl((string) ($options['logo_url'] ?? ($appearance['logo_url'] ?? '')));
+        $note = self::oneLine((string) ($options['footer_note'] ?? ($appearance['footer_note'] ?? '')));
+        $font = class_exists(EmailAppearance::class) ? EmailAppearance::fontStack((string) ($appearance['font'] ?? EmailAppearance::DEFAULT_FONT)) : Tokens::FONT_EMAIL;
         $details = array();
         foreach ((array) ($options['footer_details'] ?? array()) as $detail) {
             $detail = self::oneLine((string) $detail);
@@ -64,7 +66,7 @@ final class DelnavazanEmailRenderer {
             . '<body style="margin:0;padding:0;background:' . Tokens::color('background') . ';">'
             . ($preheader !== '' ? '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">' . self::e($preheader) . '</div>' : '')
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' . Tokens::color('background') . ';padding:24px 12px;"><tr><td align="center">'
-            . '<table role="presentation" class="dzn-wrap" width="' . $width . '" cellpadding="0" cellspacing="0" border="0" style="width:' . $width . 'px;max-width:' . $width . 'px;background:' . Tokens::color('surface_elevated') . ';border:1px solid ' . Tokens::color('border') . ';border-radius:16px;overflow:hidden;font-family:' . str_replace('"', '&quot;', Tokens::FONT_EMAIL) . ';color:' . Tokens::color('text_primary') . ';">'
+            . '<table role="presentation" class="dzn-wrap" width="' . $width . '" cellpadding="0" cellspacing="0" border="0" style="width:' . $width . 'px;max-width:' . $width . 'px;background:' . Tokens::color('surface_elevated') . ';border:1px solid ' . Tokens::color('border') . ';border-radius:16px;overflow:hidden;font-family:' . str_replace('"', '&quot;', $font) . ';color:' . Tokens::color('text_primary') . ';">'
             . '<tr><td style="padding:20px 28px;border-bottom:3px solid ' . Tokens::color('accent') . ';background:' . Tokens::color('surface_elevated') . ';">'
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="' . $logoSide . '" style="vertical-align:middle;">'
             . '<a href="' . self::e(BrandIdentity::SITE_URL) . '" style="text-decoration:none;color:' . Tokens::color('text_primary') . ';">'
@@ -78,7 +80,7 @@ final class DelnavazanEmailRenderer {
             . $contentHtml;
         if ($cta !== null) {
             $html .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 8px;"><tr><td class="dzn-cta" align="center" bgcolor="' . Tokens::color('action_primary') . '" style="border-radius:8px;">'
-                . '<a href="' . self::e($cta['url']) . '" style="display:inline-block;padding:13px 26px;font-family:' . str_replace('"', '&quot;', Tokens::FONT_EMAIL) . ';font-size:15px;font-weight:bold;color:' . Tokens::color('on_action') . ';text-decoration:none;border-radius:8px;">' . self::e($cta['label']) . '</a></td></tr></table>'
+                . '<a href="' . self::e($cta['url']) . '" style="display:inline-block;padding:13px 26px;font-family:' . str_replace('"', '&quot;', $font) . ';font-size:15px;font-weight:bold;color:' . Tokens::color('on_action') . ';text-decoration:none;border-radius:8px;">' . self::e($cta['label']) . '</a></td></tr></table>'
                 . '<p style="margin:8px 0 0;font-size:12px;line-height:1.8;color:' . Tokens::color('text_muted') . ';">' . ($english ? 'If the button does not work, copy this address into your browser:' : 'اگر دکمه کار نکرد، این نشانی را در مرورگر خود باز کنید:') . '<br><span dir="ltr" style="display:inline-block;unicode-bidi:isolate;word-break:break-all;">' . self::e($cta['url']) . '</span></p>';
         }
         $html .= '</td></tr>'

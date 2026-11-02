@@ -21,4 +21,8 @@ $retry=new P(array('acknowledged'=>false,'permanent_failure'=>null,'ambiguous'=>
 $t3=new CompositeNotificationTransport(new NotificationTransportRouter(array(array('channel'=>'whatsapp','configured'=>true,'port'=>$retry),array('channel'=>'sms','configured'=>true,'port'=>$sms2))),new C(),fn($c)=>array('route'=>'mobile','locale'=>'fa-IR','whatsapp_eligible'=>true,'sms_eligible'=>true,'whatsapp'=>'+1','sms'=>'+1'));
 $r3=$t3->handoff(array('template_version_id'=>7,'parameters'=>array('name'=>'ندا')));
 if(!array_key_exists('permanent_failure',$r3)||$r3['permanent_failure']!==null||count($sms2->seen)!==0)throw new RuntimeException('Transient failure must not duplicate through SMS');
+$waSafe=new P(array('acknowledged'=>true,'permanent_failure'=>null));
+$safe=new CompositeNotificationTransport(new NotificationTransportRouter(array(array('channel'=>'whatsapp','configured'=>true,'port'=>$waSafe))),new C(),fn($c)=>array('route'=>'mobile','locale'=>'fa-IR','whatsapp_eligible'=>true,'whatsapp'=>'+61400123456'));
+$safe->handoff(array('template_version_id'=>7,'parameters'=>array('name'=>'ندا'),'channel'=>'sms','to'=>'+19999999999','subject'=>'unsafe subject','body'=>'unsafe body'));
+if(($waSafe->seen[0]['channel']??'')!=='whatsapp'||($waSafe->seen[0]['to']??'')!=='+61400123456'||($waSafe->seen[0]['subject']??'')!=='s'||($waSafe->seen[0]['body']??'')!=='wa ندا')throw new RuntimeException('Resolved channel, recipient, and rendered copy must override untrusted handoff fields');
 echo "Composite notification transport contract passed\n";

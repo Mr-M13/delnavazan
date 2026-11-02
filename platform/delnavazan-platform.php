@@ -85,11 +85,16 @@ add_action( 'plugins_loaded', static function () {
 	// Delnavazan's operational overview lives in the capability-filtered Academy
 	// console. Do not duplicate a stale snapshot on WordPress's generic dashboard.
 	Delnavazan\Platform\Admin\Controller\AdminShellController::register();
+	Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController::register();
 	Delnavazan\Platform\Admin\RecordAction\RecordActionController::register();
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
+	Delnavazan\Platform\Admin\Controller\GeneralSettingsController::register();
+	Delnavazan\Platform\Admin\Controller\DiagnosticsController::register();
 	Delnavazan\Platform\Admin\Controller\LegalPagesController::register();
+	Delnavazan\Platform\Admin\Controller\RecordingNoticeAdminController::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceAdminController::register();
+	Delnavazan\Platform\Admin\Controller\GeneralSettingsController::register();
 	Delnavazan\Platform\Admin\Controller\CommercialCatalogueController::register();
 	Delnavazan\Platform\Admin\Controller\AcademyCoverageController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();
@@ -100,6 +105,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\CoreDatasetReadinessController::register();
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
 	Delnavazan\Platform\Admin\Controller\RescheduleReviewController::register();
+	Delnavazan\Platform\Admin\Controller\AcademyClassOperationsController::register();
 	Delnavazan\Platform\Portals\StudentProfileController::register();
 	Delnavazan\Platform\Portals\RecordingDecisionController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
@@ -124,6 +130,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitLaunchController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackController::register();
+	Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomController::register();
 	Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomRevocationListener::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();

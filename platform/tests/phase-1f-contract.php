@@ -29,12 +29,13 @@ foreach ([
     "NonceLifecycleDiagnostic::logStage('mutation_complete')",
     "NonceLifecycleDiagnostic::logStage('redirect_enter')",
     'if (wp_safe_redirect($url)) exit',
-    "' · Build ' . esc_html(DZN_PLATFORM_BUILD_ID)",
     "'nonce_present'", "'nonce_scalar'", "'nonce_verify'", "'user_id'",
     "'capability_allowed'", "'page'", "'method'",
 ] as $fragment) {
     if (!str_contains($screen, $fragment)) throw new RuntimeException("Phase 1F nonce diagnostic missing: {$fragment}");
 }
+$general = file_get_contents("{$root}/src/Admin/Controller/GeneralSettingsController.php");
+if (!str_contains($general, 'DZN_PLATFORM_BUILD_ID')) throw new RuntimeException('The build identity must remain visible in General Settings');
 foreach (['$_COOKIE', 'HTTP_AUTHORIZATION', 'AUTH_SALT', "'nonce_value'"] as $forbidden) {
     if (str_contains($screen, $forbidden)) throw new RuntimeException("Phase 1F nonce diagnostic exposes forbidden data: {$forbidden}");
 }

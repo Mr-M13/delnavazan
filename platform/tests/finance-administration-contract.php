@@ -29,9 +29,14 @@ $themePricing = $read('../theme/inc/pricing.php');
 $contains($finance, array(
     "const TAB_PAYMENTS = 'payments'", "const TAB_LEDGER = 'ledger'",
     "const TAB_STATEMENTS = 'statements'", "const TAB_SETTINGS = 'settings'",
-    "self::TAB_PAYMENTS => 'Payments'", "self::TAB_LEDGER => 'Central Ledger'",
-    "self::TAB_STATEMENTS => 'Teacher Statements'", "self::TAB_SETTINGS => 'Settings'",
-), 'Finance must expose exactly the four required tabs');
+    "self::TAB_PAYMENTS => 'Student payments'", "self::TAB_STATEMENTS => 'Teacher payments'",
+    "self::TAB_LEDGER => 'Manual ledger'", "self::TAB_SETTINGS => 'Settings'",
+    "'student-payments' => self::TAB_PAYMENTS", "'teacher-payments' => self::TAB_STATEMENTS",
+    "'manual-ledger' => self::TAB_LEDGER", "'central-ledger' => self::TAB_LEDGER",
+), 'Finance must expose exactly the four required visible tabs in order while preserving old tab parameters');
+$assert(strpos($finance, "self::TAB_PAYMENTS => 'Student payments'") < strpos($finance, "self::TAB_STATEMENTS => 'Teacher payments'")
+    && strpos($finance, "self::TAB_STATEMENTS => 'Teacher payments'") < strpos($finance, "self::TAB_LEDGER => 'Manual ledger'")
+    && strpos($finance, "self::TAB_LEDGER => 'Manual ledger'") < strpos($finance, "self::TAB_SETTINGS => 'Settings'"), 'The four visible Finance tabs must be ordered Student payments, Teacher payments, Manual ledger, Settings');
 $assert(substr_count($finance, 'self::TAB_') >= 8, 'All four tabs must be reachable');
 $assert(!str_contains($finance, 'dzn-commercial-catalogue'), 'Ordinary pricing must not navigate to a separate catalogue page');
 $contains($shell, array(
@@ -77,11 +82,11 @@ $contains($settings, array(
     'TEACHER_GLOBAL_RATE_KEY', 'template_version', 'TEACHER_CURRENCY', 'TEACHER_CURRENCY = ', "'TOM'",
     'saveGlobalTeacherRate', 'saveTeacherRate', 'resumeGlobalTeacherRate', 'markOverride', 'TeacherRateService',
 ), 'Teacher global Toman rate and per-Teacher override must use the existing rate authority');
-$contains($finance, array('Global teacher rate default', 'Teacher-specific rate', 'Amount per session (Toman)', 'Toman', 'resume_global_teacher_rate'), 'Settings must expose a Toman global default and override fields');
+$contains($finance, array('Global default', 'Teacher-specific rate', 'Amount per session (Toman)', 'Toman', 'resume_global_teacher_rate', 'Advanced · course-specific override'), 'Settings must expose a compact Toman global default, teacher-specific override and preserved advanced course override');
 
 // Statement template editor: safe, presentation-only, reset and placeholders.
 $contains($template, array('sanitizeHtml', 'sanitizeCss', 'safeUrl', 'DEFAULT_HEADER', 'DEFAULT_BODY', 'DEFAULT_FOOTER', 'PLACEHOLDERS', 'LESSON_PLACEHOLDERS'), 'Template must be sanitised, defaulted and documented');
-$contains($finance, array('Statement Template Settings', 'logo_url', 'Reset to default template', 'dzn-finance-live-preview', 'Supported placeholders', 'Print / open'), 'Template settings must include editor, live preview, validation, default and reset');
+$contains($finance, array('Statement template and sample', 'Sample statement and placeholders', 'logo_url', 'Reset to default template', 'dzn-finance-live-preview', 'Print / open'), 'Template settings must include collapsed sample/placeholders, editor, live preview, validation, default and reset');
 $assert(str_contains($template, 'script|style|iframe|object|embed|form') && str_contains($template, 'javascript'), 'Template sanitizer must explicitly block scripts and unsafe URLs');
 
 // Stripe and finance policies are consolidated without changing security or commercial rules.
@@ -118,7 +123,7 @@ $assert(!str_contains($read('src/Core/Infrastructure/Repository/TeacherRateRepos
 $contains($read('src/Core/Application/TeacherOnboardingService.php'), array("do_action( 'dzn_teacher_activated'", "decision === 'approve'"), 'The authoritative onboarding approval must emit the activation event');
 $contains($platform, array('dzn_teacher_activated', 'TeacherRateInheritanceService', 'dzn_teacher_rate_inheritance_failed'), 'Runtime must apply rate inheritance on activation and expose failures');
 
-$contains($finance, array('Manual academy bookkeeping only', 'Online checkout, Stripe settlement, teacher rates and student pricing never write to this ledger', 'Reconciliation', 'Not reconciled'), 'Central Ledger must remain manual and independent');
+$contains($finance, array('Manual academy bookkeeping only', 'Online checkout, Stripe settlement, teacher rates, student receipts and teacher payments never write to this ledger', 'Reconciliation', 'Not reconciled'), 'Manual ledger must remain manual and independent');
 $contains($finance, array('dzn_cashbook_record', 'wp_nonce_field(\'cashbook_record\')'), 'Manual ledger entry must reuse the existing cashbook command and nonce');
 
 // Instalment schedule visibility stays read-only and uses stored obligations.

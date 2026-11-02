@@ -1,8 +1,8 @@
 # Booking Coordination command centre — operational redesign
 
-**Date:** 2026-11-03  
-**Route:** `Bookings → Coordination` in the updated admin navigation, served by the protected `dzn-booking-request-coordination` route inside the consolidated **Enrolment** area.  
-**Status:** implemented for review; **not merged, not deployed, and no production booking record was modified.**  
+**Date:** 2026-11-03
+**Route:** `Bookings → Coordination` in the updated admin navigation, served by the protected `dzn-booking-request-coordination` route inside the consolidated **Enrolment** area.
+**Status:** implemented for review; **not merged, not deployed, and no production booking record was modified.**
 **Evidence:** disposable WordPress + MariaDB acceptance runtime, synthetic `@example.invalid` identities only.
 
 ## 1. Executive summary

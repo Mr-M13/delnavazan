@@ -307,7 +307,6 @@ final class ScreenController {
                 echo '<p>Teacher overview requires teacher maintenance access. Use <strong>Onboarding &amp; Invitations</strong> for your permitted work.</p>';
                 return;
             }
-            self::teacherCoverage();
             self::teacherDirectory();
             return;
         }

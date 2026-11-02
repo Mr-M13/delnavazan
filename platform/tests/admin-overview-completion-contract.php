@@ -40,7 +40,7 @@ $contains($shell, array(
     "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
     "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
-    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+    "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
     "get_theme_file_uri('assets/images/delnavazan-logo.png')",
 ), 'Enrolment must expose two operational sub-tabs and Overview must use the approved logo.');
 $expect(!str_contains($shell, '<svg viewBox="0 0 24 24"'), 'The improvised dashboard SVG mark must be replaced by the approved logo.');

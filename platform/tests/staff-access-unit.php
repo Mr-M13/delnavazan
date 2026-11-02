@@ -60,7 +60,7 @@ namespace Delnavazan\Platform\Tests {
     final class FakeStaffWpdb {
         public string $prefix = 'wp_';
         public int $insert_id = 0;
-        public function insert($table, $data) { $GLOBALS['dzn_staff_audit'][] = compact('table', 'data'); return 1; }
+        public function insert($table, $data) { if (!empty($GLOBALS['dzn_staff_fail_audit'])) return false; $GLOBALS['dzn_staff_audit'][] = compact('table', 'data'); return 1; }
         public function get_results($sql) { return $GLOBALS['dzn_staff_audit_rows'] ?? array(); }
         public function prepare($sql, ...$args) { return $sql; }
     }
@@ -74,14 +74,19 @@ namespace Delnavazan\Platform\Tests {
     $before = $service->selectionFor(2);
     $assert($before['areas']['overview']['view'] === true, 'Existing overview view must be inferred');
     $assert($before['areas']['overview']['manage'] === true, 'Existing overview manage must be inferred');
-    $assert($before['areas']['finance']['view'] === true, 'Existing finance view must be inferred');
-    $assert($before['areas']['finance']['manage'] === true, 'Existing finance manage must be inferred');
+    $assert($before['areas']['finance']['view'] === false, 'A partial finance view bundle must not appear fully granted');
+    $assert($before['areas']['finance']['manage'] === false, 'A partial finance bundle must not appear fully granted');
+    $assert($service->partialBundlesFor(2) !== array(), 'Partial legacy permissions must be surfaced');
+    try { $service->apply(2, $service->emptySelection(), 1); throw new \RuntimeException('Expected partial-grant refusal'); }
+    catch (\InvalidArgumentException $error) { $assert($error->getMessage() === 'staff_access_partial_bundle_requires_review', 'Partial grants must require explicit review'); }
+    $assert(!$GLOBALS['dzn_staff_users'][2]->has_cap('dzn_manage_finance_policies'), 'A routine save must not expand a partial Finance grant');
 
     // Grant students view/manage and finance view only, preserving unrelated capabilities.
     $selection = $service->emptySelection();
     $selection['areas']['students']['view'] = true;
     $selection['areas']['students']['manage'] = true;
     $selection['areas']['finance']['view'] = true;
+    $selection['confirm_partial'] = true;
     $result = $service->apply(2, $selection, 1);
     $user = $GLOBALS['dzn_staff_users'][2];
     $assert($user->has_cap('dzn_view_student_acceptance_eligibility'), 'Students view grant missing');
@@ -92,6 +97,12 @@ namespace Delnavazan\Platform\Tests {
     $assert($user->has_cap('unrelated_capability'), 'Unrelated capability must be preserved');
     $assert(count($GLOBALS['dzn_staff_audit']) === 1, 'Grant/revoke audit not written');
     $assert(str_contains((string) $GLOBALS['dzn_staff_audit'][0]['data']['safe_detail'], 'students'), 'Audit must describe the new area grants');
+
+    $GLOBALS['dzn_staff_fail_audit'] = true;
+    try { $service->apply(2, $service->emptySelection(), 1); throw new \RuntimeException('Expected audit failure'); }
+    catch (\RuntimeException $error) { $assert($error->getMessage() === 'staff_access_audit_failed', 'Audit failure must refuse the change'); }
+    $GLOBALS['dzn_staff_fail_audit'] = false;
+    $assert($user->has_cap('dzn_manage_students'), 'Audit failure must restore effective grants');
 
     // A teacher portal identity stays separate from the administrative grant.
     $teacherSelection = $service->emptySelection();

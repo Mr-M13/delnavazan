@@ -87,6 +87,10 @@ final class HistoricalEnrolmentImportService {
         $actor = (int) get_current_user_id();
         $this->enrolments->begin();
         try {
+            // Serialize imports for one Student; the duplicate check must run after this lock.
+            $student = $wpdb->get_row($wpdb->prepare("SELECT id FROM {$wpdb->prefix}dzn_students WHERE id=%d FOR UPDATE", $data['student_id']));
+            if (!$student) throw new \InvalidArgumentException('Choose an existing Student');
+            $this->assertNoDuplicate($data);
             $enrolmentId = $this->enrolments->insertLegacyBootstrap(array(
                 'uid' => Identifier::uid(),
                 'reference_code' => null,
@@ -106,23 +110,18 @@ final class HistoricalEnrolmentImportService {
                 'updated_by' => $actor,
             ));
             $this->enrolments->assignReference($enrolmentId, Identifier::reference('ENR-', $enrolmentId));
-            $this->enrolments->commit();
-        } catch (\Throwable $exception) {
-            $this->enrolments->rollback();
-            throw $exception;
-        }
-        $totalClasses = max(1, $data['completed_classes'] + $data['remaining_classes']);
-        $termId = (new TermService())->create(array(
+            $totalClasses = max(1, $data['completed_classes'] + $data['remaining_classes']);
+            $termId = (new TermService())->create(array(
             'enrolment_id' => $enrolmentId,
             'sequence_number' => 1,
             'status' => 'active',
             'lesson_allocation' => $totalClasses,
             'replacement_allowance' => $data['replacement_allowance'],
-            'payment_state' => $data['payment_status'] === 'unknown' ? 'not_required' : $data['payment_status'],
-        ));
-        $lessonIds = array();
-        foreach ($slots as $slot) {
-            $lessonId = (new LessonService())->create(array(
+            'payment_state' => $data['payment_status'],
+            ), true, true);
+            $lessonIds = array();
+            foreach ($slots as $slot) {
+                $lessonId = (new LessonService())->create(array(
                 'student_id' => $data['student_id'],
                 'teacher_id' => $data['teacher_id'],
                 'course_id' => $data['course_id'],
@@ -130,16 +129,16 @@ final class HistoricalEnrolmentImportService {
                 'status' => 'draft',
                 'enrolment_id' => $enrolmentId,
                 'term_id' => $termId,
-            ));
-            (new LessonScheduleService())->initial($lessonId, array(
+                ), true);
+                (new LessonScheduleService())->initial($lessonId, array(
                 'local_wall_date' => $slot['local_date'],
                 'local_wall_time' => $slot['local_time'],
                 'schedule_timezone' => $data['timezone'],
                 'reason' => 'historical_enrolment_import',
-            ));
-            $lessonIds[] = $lessonId;
-        }
-        $inserted = $wpdb->insert($wpdb->prefix . 'dzn_platform_audit_events', array(
+                ), true);
+                $lessonIds[] = $lessonId;
+            }
+            $inserted = $wpdb->insert($wpdb->prefix . 'dzn_platform_audit_events', array(
             'aggregate_type' => 'enrolment',
             'aggregate_id' => $enrolmentId,
             'event_type' => 'enrolment.historical_import',
@@ -161,8 +160,13 @@ final class HistoricalEnrolmentImportService {
             )),
             'idempotency_key' => $digest,
             'occurred_at' => $now,
-        ));
-        if ($inserted === false) throw new \RuntimeException('Import evidence could not be recorded');
+            ));
+            if ($inserted === false) throw new \RuntimeException('Import evidence could not be recorded');
+            $this->enrolments->commit();
+        } catch (\Throwable $exception) {
+            $this->enrolments->rollback();
+            throw $exception;
+        }
         return array(
             'enrolment_id' => $enrolmentId,
             'term_id' => $termId,

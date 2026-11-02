@@ -46,6 +46,9 @@ final class GeneralSettingsController {
         self::renderSiteInformation($status, $environment);
         self::renderContactAndPresence();
         self::renderPages();
+        if (current_user_can('dzn_manage_courses')) {
+            echo '<section class="dzn-settings-card"><h2>Courses &amp; instruments</h2><p>Manage the teaching catalogue used by bookings and classes.</p><p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-catalogue-workspace')) . '">Open courses and instruments</a></p></section>';
+        }
         self::renderLegalPages();
         self::renderBookingHorizon();
         StaffAccessController::renderPanel(true);
@@ -206,7 +209,7 @@ final class GeneralSettingsController {
         }
         echo '<section class="dzn-settings-card" id="booking-horizon">';
         echo '<h2>Introductory booking horizon</h2>';
-        echo '<p>How far ahead an introductory lesson may be requested. This is the existing versioned commercial policy; historical values stay recorded and a new value creates a new version.</p>';
+        echo '<p>How far ahead an introductory lesson may be requested. This academy scheduling rule uses the existing versioned commercial policy; historical values stay recorded and a new value creates a new version.</p>';
         echo '<p><strong>Current value:</strong> ' . esc_html(!empty($current['set']) ? (string) $current['value'] . ' week(s)' : 'Not recorded') . ' <span class="dzn-settings-meta">' . esc_html(!empty($current['version']) ? 'version ' . (string) $current['version'] : '') . '</span></p>';
         if (current_user_can('dzn_manage_commercial_policies')) {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-settings-inline-form">';

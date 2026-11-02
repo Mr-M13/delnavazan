@@ -135,6 +135,28 @@ final class StaffAccessService {
     /** @return array<string,array> */
     public static function sensitiveActions(): array { return self::SENSITIVE; }
 
+    /** Legacy accounts can hold only part of a work-area bundle. Show that state before a save. */
+    public function partialBundlesFor(int $userId): array {
+        $user = function_exists('get_userdata') ? get_userdata($userId) : false;
+        if (!$user) return array();
+        $partial = array();
+        foreach (self::AREAS as $key => $definition) {
+            foreach (array('view', 'manage') as $level) {
+                $caps = $definition[$level];
+                if (count($caps) < 2) continue;
+                $held = array_values(array_filter($caps, fn($cap) => $user->has_cap($cap)));
+                if ($held !== array() && count($held) < count($caps)) $partial[] = $definition['label'] . ' ' . $level . ': ' . implode(', ', $held);
+            }
+        }
+        foreach (self::SENSITIVE as $definition) {
+            $caps = $definition['caps'];
+            if (count($caps) < 2) continue;
+            $held = array_values(array_filter($caps, fn($cap) => $user->has_cap($cap)));
+            if ($held !== array() && count($held) < count($caps)) $partial[] = $definition['label'] . ': ' . implode(', ', $held);
+        }
+        return $partial;
+    }
+
     /**
      * Current saved or inferred selection for one account.
      *
@@ -201,13 +223,39 @@ final class StaffAccessService {
         $current = array();
         foreach ($managed as $cap) if (method_exists($target, 'has_cap') ? $target->has_cap($cap) : false) $current[] = $cap;
 
+        foreach (array_merge(self::AREAS, self::SENSITIVE) as $key => $definition) {
+            foreach (array($definition['view'] ?? array(), $definition['manage'] ?? array(), $definition['caps'] ?? array()) as $bundle) {
+                if (count($bundle) < 2) continue;
+                $held = count(array_intersect($bundle, $current));
+                if ($held > 0 && $held < count($bundle) && empty($selection['confirm_partial'])) {
+                    throw new \InvalidArgumentException('staff_access_partial_bundle_requires_review');
+                }
+            }
+        }
         $added = array_values(array_diff($desired, $current));
         $removed = array_values(array_diff($current, $desired));
-        foreach ($removed as $cap) $target->remove_cap($cap);
-        foreach ($added as $cap) $target->add_cap($cap);
-
-        if (function_exists('update_user_meta')) update_user_meta($targetId, self::META_KEY, $after);
-        $this->audit($actorId, $targetId, $before, $after, $added, $removed);
+        $priorMeta = function_exists('get_user_meta') ? get_user_meta($targetId, self::META_KEY, true) : '';
+        try {
+            foreach ($removed as $cap) $target->remove_cap($cap);
+            foreach ($added as $cap) $target->add_cap($cap);
+            foreach ($managed as $cap) {
+                if ((bool) $target->has_cap($cap) !== in_array($cap, $desired, true)) {
+                    throw new \RuntimeException('staff_access_effective_grant_mismatch');
+                }
+            }
+            if (function_exists('update_user_meta') && update_user_meta($targetId, self::META_KEY, $after) === false && $priorMeta !== $after) {
+                throw new \RuntimeException('staff_access_save_failed');
+            }
+            $this->audit($actorId, $targetId, $before, $after, $added, $removed);
+        } catch (\Throwable $error) {
+            foreach ($managed as $cap) {
+                if (in_array($cap, $current, true)) $target->add_cap($cap);
+                else $target->remove_cap($cap);
+            }
+            if ($priorMeta === '' && function_exists('delete_user_meta')) delete_user_meta($targetId, self::META_KEY);
+            elseif (function_exists('update_user_meta')) update_user_meta($targetId, self::META_KEY, $priorMeta);
+            throw $error;
+        }
         return array('before' => $before, 'after' => $after, 'added' => $added, 'removed' => $removed);
     }
 
@@ -261,11 +309,11 @@ final class StaffAccessService {
     private function inferSelection(object $user): array {
         $selection = $this->emptySelection();
         foreach (self::AREAS as $key => $area) {
-            $selection['areas'][$key]['view'] = $area['view'] !== array() && $this->hasAny($user, $area['view']);
-            $selection['areas'][$key]['manage'] = $area['manage'] !== array() && $this->hasAny($user, $area['manage']);
+            $selection['areas'][$key]['view'] = $area['view'] !== array() && $this->hasAll($user, $area['view']);
+            $selection['areas'][$key]['manage'] = $area['manage'] !== array() && $this->hasAll($user, $area['manage']);
             if ($selection['areas'][$key]['manage'] && $area['view'] !== array()) $selection['areas'][$key]['view'] = true;
         }
-        foreach (self::SENSITIVE as $key => $definition) $selection['sensitive'][$key] = $this->hasAny($user, $definition['caps']);
+        foreach (self::SENSITIVE as $key => $definition) $selection['sensitive'][$key] = $this->hasAll($user, $definition['caps']);
         return $selection;
     }
 
@@ -283,14 +331,14 @@ final class StaffAccessService {
         return $normalised;
     }
 
-    private function hasAny(object $user, array $caps): bool {
-        foreach ($caps as $cap) if (method_exists($user, 'has_cap') && $user->has_cap($cap)) return true;
-        return false;
+    private function hasAll(object $user, array $caps): bool {
+        foreach ($caps as $cap) if (!method_exists($user, 'has_cap') || !$user->has_cap($cap)) return false;
+        return true;
     }
 
     private function audit(int $actorId, int $targetId, array $before, array $after, array $added, array $removed): void {
         global $wpdb;
-        if (!is_object($wpdb) || !method_exists($wpdb, 'insert')) return;
+        if (!is_object($wpdb) || !method_exists($wpdb, 'insert')) throw new \RuntimeException('staff_access_audit_unavailable');
         $now = gmdate('Y-m-d H:i:s');
         $detail = array(
             'areas_before' => $this->compactAreas($before),
@@ -302,7 +350,7 @@ final class StaffAccessService {
         );
         $key = hash_hmac('sha256', 'staff-access:' . $targetId . ':' . $actorId . ':' . $now . ':' . wp_json_encode($detail), function_exists('wp_salt') ? wp_salt('dzn_platform_audit') : 'staff-access');
         try {
-            $wpdb->insert($wpdb->prefix . 'dzn_platform_audit_events', array(
+            $inserted = $wpdb->insert($wpdb->prefix . 'dzn_platform_audit_events', array(
                 'aggregate_type' => self::AUDIT_AGGREGATE,
                 'aggregate_id' => $targetId,
                 'event_type' => 'staff_access.updated',
@@ -313,9 +361,9 @@ final class StaffAccessService {
                 'idempotency_key' => $key,
                 'occurred_at' => $now,
             ));
-        } catch (\Throwable) {
-            // The grant itself is already applied. Audit failure must not roll the account back
-            // into an unverified state; Diagnostics reports the missing audit evidence.
+            if ($inserted === false) throw new \RuntimeException('staff_access_audit_failed');
+        } catch (\Throwable $error) {
+            throw new \RuntimeException('staff_access_audit_failed', 0, $error);
         }
     }
 

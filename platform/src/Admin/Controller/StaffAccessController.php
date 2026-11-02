@@ -96,6 +96,13 @@ final class StaffAccessController {
         echo '<input type="hidden" name="user_id" value="' . (int) $selected->ID . '">';
         wp_nonce_field(self::ACTION);
 
+        $partial = $service->partialBundlesFor((int) $selected->ID);
+        if ($partial !== []) {
+            echo '<div class="notice notice-warning inline"><p>This account has partial legacy access. Review the affected bundles before saving:</p><ul>';
+            foreach ($partial as $description) echo '<li><code>' . esc_html($description) . '</code></li>';
+            echo '</ul><p><label><input type="checkbox" name="confirm_partial" value="1" required> I have reviewed these partial grants. Checked area permissions become complete bundles; unchecked ones are removed.</label></p></div>';
+        }
+
         echo '<table class="widefat striped dzn-settings-table"><thead><tr><th>Work area</th><th>View</th><th>Manage</th><th>Effect</th></tr></thead><tbody>';
         foreach (StaffAccessService::areas() as $key => $area) {
             $row = $selection['areas'][$key] ?? ['view' => false, 'manage' => false];

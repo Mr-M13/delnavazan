@@ -34,7 +34,7 @@ final class AccountRemovalController {
         ?>
         <div class="wrap dzn-account-removal">
             <h1>بررسی حذف دائمی حساب</h1>
-            <p>این صفحه فقط وابستگی‌های حساب دانشجو یا مدرس را بررسی می‌کند. اجرای حذف غیرفعال است.</p>
+            <p>این صفحه وابستگی‌های هر حساب دانشجو یا مدرس، آزمایشی یا واقعی، را بررسی می‌کند. اجرای حذف غیرفعال است و سوابق مالی، رضایت و منابع بیرونی باید پیش از هر حذف بررسی شوند.</p>
             <?php if ($error !== '') : ?><div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div><?php endif; ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=' . self::SLUG)); ?>">
                 <?php wp_nonce_field(self::NONCE); ?>

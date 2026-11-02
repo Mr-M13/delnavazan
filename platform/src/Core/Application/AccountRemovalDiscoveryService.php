@@ -65,8 +65,8 @@ final class AccountRemovalDiscoveryService {
             }
         } else $blockers[] = 'wordpress_identity_unresolved';
         if (function_exists('is_multisite') && is_multisite()) $blockers[] = 'multisite_ownership_unreviewed';
-        // No trusted, immutable disposable-test provenance exists in the current schema.
-        $blockers[] = 'disposable_test_provenance_unverified';
+        // Account origin is not an eligibility shortcut: real and test accounts
+        // require the same complete dependency and retention review.
         $blockers[] = 'indirect_and_external_dependencies_unreviewed';
         usort($relations, static fn(array $a, array $b): int => strcmp($a['table'] . '.' . $a['column'], $b['table'] . '.' . $b['column']));
         $manifest = array(

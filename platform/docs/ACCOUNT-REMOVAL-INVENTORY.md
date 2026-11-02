@@ -255,16 +255,16 @@ Source snapshot: current `main` schema 57, `platform/src/Core/Infrastructure/Mig
 - Commercial offers, purchases, entitlements, payment evidence, provider objects and finance tables contain retained accounting evidence. A direct `student_id` or `teacher_id` count cannot prove that their descendants are absent.
 - Recording decisions and notices, consent/acceptance evidence, notification outbox and rendered snapshots can be referenced by intermediate IDs or digests and require retention classification.
 - Integration connections, OAuth authorizations, provider identity mappings, calendar event and meeting mappings, checkout sessions, notifications, and LiveKit rooms may have remote resources. Database transactions cannot undo WordPress hooks or provider calls.
-- The current schema has no immutable disposable-test attestation. An administrator-editable flag or account email would not be sufficient proof.
+- Account origin does not determine eligibility. A test account and any other Student or Teacher account must satisfy the same dependency, retention, ownership and external cleanup rules. An administrator-editable flag or email is never deletion authority.
 
 ## Current implementation boundary
 
-The administrator screen performs read-only direct-reference discovery for both account types and produces counts, blockers, and a manifest digest. It always blocks deletion because disposable-test provenance and indirect/external ownership are unverified. No execution route, token, or production deletion exists in this branch.
+The administrator screen performs read-only direct-reference discovery for both account types, including test and other accounts, and produces counts, blockers, and a manifest digest. It always blocks deletion because indirect/external ownership is unverified. No execution route, token, or production deletion exists in this branch.
 
 ## Required before enabling execution
 
-1. Introduce immutable, creation-time test provenance and verify it against a reserved identity namespace and WordPress ownership.
-2. Classify every descendant edge into disposable, retained, shared, or remote; add explicit dependency-order operations and refusal rules.
+1. Apply one eligibility policy to every Student and Teacher account, regardless of test status. Never treat a user-editable flag or email as deletion authority.
+2. Classify every descendant edge into deletable, retained, shared, or remote; add explicit dependency-order operations and refusal rules. Retained accounting and protected consent evidence block complete deletion.
 3. Define external cleanup contracts and reconciliation states for scheduling, calendar, notifications, payment provider and recordings.
 4. Add fresh reauthentication, manifest-bound single-use execution token, immediately repeated discovery and atomic claim of the token.
 5. Use WordPress account deletion APIs only after content ownership is resolved; verify both platform and portal absence and emit a PII-minimized receipt.

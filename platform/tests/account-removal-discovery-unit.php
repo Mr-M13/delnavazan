@@ -48,7 +48,7 @@ $wpdb = new RemovalFakeDb();
 $service = new AccountRemovalDiscoveryService();
 foreach (array('student', 'teacher') as $kind) {
     $manifest = $service->discover($kind, 4);
-    if ($manifest['kind'] !== $kind || !in_array('disposable_test_provenance_unverified', $manifest['blockers'], true)) throw new RuntimeException('Unsafe manifest');
+    if ($manifest['kind'] !== $kind) throw new RuntimeException('Wrong account type');
     if (!in_array('indirect_and_external_dependencies_unreviewed', $manifest['blockers'], true)) throw new RuntimeException('External dependencies omitted');
     if (count($wpdb->queries) < 4) throw new RuntimeException('Dependencies not inspected');
 }

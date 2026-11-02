@@ -35,10 +35,29 @@ final class FinanceSettingsService {
 
     public function template(): array {
         $row = $this->repository->active(self::TEMPLATE_KEY);
-        if (!$row) return StatementTemplateRule::defaultTemplate();
+        if (!$row) return $this->withApprovedLogo(StatementTemplateRule::defaultTemplate());
         $decoded = json_decode((string) $row->setting_value, true);
         $template = is_array($decoded) ? StatementTemplateRule::sanitizeTemplate($decoded) : StatementTemplateRule::defaultTemplate();
         $template['template_version'] = (int) $row->setting_version;
+        return $this->withApprovedLogo($template);
+    }
+
+    /**
+     * Use the academy's approved theme logo when no custom logo was recorded.
+     *
+     * The template remains editable; this only supplies the delivered default. Existing saved
+     * templates keep their own https URL.
+     *
+     * @param array<string,mixed> $template
+     * @return array<string,mixed>
+     */
+    private function withApprovedLogo(array $template): array {
+        if (trim((string) ($template['logo_url'] ?? '')) !== '') return $template;
+        if (!function_exists('get_theme_file_uri')) return $template;
+        $url = (string) get_theme_file_uri('assets/images/delnavazan-logo.png');
+        if ($url === '') return $template;
+        if (function_exists('set_url_scheme')) $url = (string) set_url_scheme($url, 'https');
+        if (preg_match('~^https://~i', $url) === 1) $template['logo_url'] = $url;
         return $template;
     }
 

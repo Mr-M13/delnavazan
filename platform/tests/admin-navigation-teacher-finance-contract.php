@@ -36,7 +36,7 @@ $contains($shell, array(
     'http_build_query',
     'Menu::CORE_WORKFLOW_CAP',
 ), 'navigation must consolidate into Overview, Teachers, Students, Classes, Enrolment, Finance and Settings while retaining protected routes');
-$contains((string)file_get_contents($root.'/src/Admin/Controller/FinanceAdminController.php'),array('Teacher Statements','Teacher compensation','Statement Template Settings','Global regional pricing'),'the single Finance page must contain the four consolidated tabs and settings');
+$contains((string)file_get_contents($root.'/src/Admin/Controller/FinanceAdminController.php'),array('Teacher payments','Teacher compensation','Statement template and sample','Regional pricing'),'the single Finance page must contain the four consolidated tabs and settings');
 foreach (array("'courses' => ['Courses'", "'communications' => ['Communications'", "'enrolments_classes' => ['Enrolments / Classes'") as $removedTab) {
     $expect(!str_contains($shell, $removedTab), 'redundant top-level tab must be consolidated, not duplicated: ' . $removedTab);
 }

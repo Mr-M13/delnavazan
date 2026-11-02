@@ -45,7 +45,7 @@ $assert(str_contains($calculator, '$windowTimezone = (string) ($window[\'timezon
 $assert(str_contains($pay, 'teacherWindowDisplay') && str_contains($pay, 'teacherStart->format') && str_contains($pay, 'teacherTimezone') && !str_contains($pay, "' · your time '"), 'Teacher presentation must convert the Iran window into the teacher timezone without appending the academy clock.');
 $assert(str_contains($theme, 'forLessonIds( $golden_hour_ids, $teacher_timezone )'), 'The teacher schedule must pass the teacher timezone into the golden-hour projection.');
 $assert(str_contains($migration, "'059_golden_hour_iran_global'") && str_contains($migration, 'global_policy_setting_version') && str_contains($migration, 'window_definitions'), 'Schema 57 must persist global policy provenance and window definitions.');
-$assert(str_contains($admin, 'GLOBAL_IRAN_KEY') && str_contains($admin, 'golden_periods_text') && str_contains($admin, 'edit_golden_hour_policy') && str_contains($admin, 'remove_golden_hour_policy'), 'Finance Settings must expose multiple Iran periods and history edit/remove actions.');
+$assert(str_contains($admin, 'GLOBAL_IRAN_KEY') && str_contains($admin, 'golden_rules') && str_contains($admin, 'retire_golden_hour_rule') && str_contains($admin, 'copy_golden_hour_rule') && str_contains($admin, 'remove_golden_hour_policy'), 'Finance Settings must expose editable Iran rule rows, copy/retire and history removal.');
 $assert(str_contains($policy, 'editVersion') && str_contains($policy, 'removeVersion') && str_contains($policy, 'golden_hour_policy_version_edited') && str_contains($policy, 'golden_hour_policy_version_removed'), 'Policy history edit/remove must be audited and retain committed details.');
 $assert(str_contains($rule, "'enabled' => false") && str_contains($rule, "'bonus_basis_points' => 0"), 'The structural default must be disabled at 0%.');
 $assert(str_contains($rule, 'percentageToBasisPoints') && str_contains($rule, 'golden_hour_percentage_invalid'), 'Percentage validation must reject invalid values.');
@@ -82,17 +82,17 @@ $assert(str_contains($reconciliation, 'committedTotal') && str_contains($reconci
 $assert(str_contains($statementRead, 'detailsForVersion') && str_contains($statementRead, 'committedTotal'), 'Teacher statement reads must use the canonical snapshot-version projection.');
 $assert(str_contains($correction, 'correctBase') && str_contains($correction, '(int)$snapshot->id,$correctionId'), 'Only the explicit correction path may append a corrected detail version.');
 $assert(str_contains($enrolmentArea, 'previous=') && str_contains($enrolmentArea, 'new='), 'Service-area changes must record previous and new values in the audit trail.');
-$assert(str_contains($admin, 'save_golden_hour_policy') && str_contains($admin, 'Golden hour pay bonus'), 'Finance Settings must expose the golden-hour policy section and operation.');
+$assert(str_contains($admin, 'save_golden_hour_policy') && str_contains($admin, 'Golden-hour pay bonus'), 'Finance Settings must expose the golden-hour policy section and operation.');
 $assert(str_contains($admin, 'FinanceSettingsService::MANAGE_TEACHER_RATE_CAPABILITY'), 'The admin form must require teacher-rate authority.');
-$assert(str_contains($admin, 'data-dzn-golden-preview') && str_contains($admin, '"A base rate of "+f(b)+"'), 'The admin form must show a plain-language preview before saving.');
+$assert(str_contains($admin, 'GoldenHourRule::previewText') && str_contains($admin, 'The preview uses the global teacher rate'), 'The admin form must show a plain-language preview before saving.');
 $assert(!str_contains($admin, '£40') && !str_contains($admin, '£48'), 'The admin preview must not hard-code pounds.');
 $assert(str_contains($payability, 'Golden-hour bonus') && str_contains($payability, 'Total teacher pay') && str_contains($payability, 'eligible_minutes'), 'The admin pay breakdown must show base, bonus, eligible minutes and total.');
 $assert(str_contains($theme, 'GoldenHourPayService') && str_contains($theme, "'golden_hour'"), 'The teacher schedule view model must receive golden-hour facts.');
 $assert(str_contains($classes, 'dzn-tp-golden-badge') && str_contains($classes, 'estimated'), 'The teacher schedule must distinguish estimated from committed bonuses.');
 $assert(str_contains($finance, 'golden_hour_bonus_minor'), 'The teacher earnings view must label a statement that includes golden-hour pay.');
 $assert(str_contains($pay, 'resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY') && !str_contains($pay, 'resolveAt((string) $area'), 'Eligibility must use only the global Iran policy.');
-$assert(str_contains($admin, 'data-dzn-example-base') && !str_contains($admin, 'name="golden_example_base"'), 'The example base rate must not be editable and must follow the global teacher rate.');
-$assert(str_contains($admin, 'Teacher and course-specific rates keep precedence'), 'The admin copy must state that actual pay uses the teacher-specific rate when present.');
+$assert(str_contains($admin, 'GoldenHourRule::previewText($exampleMinor') && !str_contains($admin, 'name="golden_example_base"'), 'The example base rate must not be editable and must follow the global teacher rate.');
+$assert(str_contains($admin, 'Actual bonuses use each Teacher’s effective snapshotted rate'), 'The admin copy must state that actual pay uses the teacher-specific rate when present.');
 $assert(!str_contains($pay, 'wp_remote_') && !str_contains($pay, 'curl_') && !str_contains($pay, "INSERT INTO") && !str_contains($pay, 'UPDATE '), 'Golden-hour pay must add no provider call or parallel ledger write.');
 
 if ($fail !== array()) {

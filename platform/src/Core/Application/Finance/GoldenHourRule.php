@@ -121,14 +121,15 @@ final class GoldenHourRule {
         if ($timezone === '' || strlen($timezone) > 64 || !in_array($timezone, timezone_identifiers_list(), true)) {
             throw new \InvalidArgumentException('golden_hour_timezone_invalid');
         }
-        $weekdays = $input['weekdays'] ?? $defaults['weekdays'];
+        $rules = self::normalizeRules($input['rules'] ?? null, $defaults);
+        $weekdays = $rules !== array() ? (array) $rules[0]['weekdays'] : ($input['weekdays'] ?? $defaults['weekdays']);
         if (is_string($weekdays)) $weekdays = preg_split('/[^0-9]+/', $weekdays, -1, PREG_SPLIT_NO_EMPTY) ?: array();
         if (!is_array($weekdays)) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
         $weekdays = array_values(array_unique(array_map('intval', $weekdays)));
         sort($weekdays, SORT_NUMERIC);
         if ($weekdays === array()) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
         foreach ($weekdays as $weekday) if ($weekday < 1 || $weekday > 7) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
-        $periodsInput = $input['periods'] ?? null;
+        $periodsInput = $rules !== array() ? array(array('start' => $rules[0]['start'], 'end' => $rules[0]['end'])) : ($input['periods'] ?? null);
         if (!is_array($periodsInput) || $periodsInput === array()) {
             $periodsInput = array(array(
                 'start' => (string) ($input['start'] ?? ($defaults['periods'][0]['start'] ?? $defaults['start'])),
@@ -165,13 +166,78 @@ final class GoldenHourRule {
             'start' => $start,
             'end' => $end,
             'periods' => $periods,
-            'bonus_basis_points' => self::percentageToBasisPoints($input['bonus_percentage'] ?? 0),
+            'bonus_basis_points' => $rules !== array() ? (int) $rules[0]['bonus_basis_points'] : self::percentageToBasisPoints($input['bonus_percentage'] ?? 0),
+            'rules' => $rules,
             'effective_from' => $effectiveFrom,
             'effective_until' => $effectiveUntil,
             'configured' => true,
             'setting_id' => null,
             'setting_version' => 0,
         );
+    }
+
+    /**
+     * Normalise the editable weekday/time/bonus rows and reject overlapping intervals.
+     *
+     * Each row is one local time window for one or more weekdays. A row may cross local midnight
+     * when its finish is earlier than its start. Overlap is checked across the week, including the
+     * spill from an overnight row into the following day.
+     *
+     * @return list<array{weekdays:list<int>,start:string,end:string,bonus_basis_points:int,effective_from:string}>
+     */
+    private static function normalizeRules(mixed $input, array $defaults): array {
+        if (!is_array($input) || $input === array()) return array();
+        if (count($input) > 12) throw new \InvalidArgumentException('golden_hour_periods_too_many');
+        $rules = array();
+        foreach ($input as $row) {
+            if (!is_array($row)) throw new \InvalidArgumentException('golden_hour_window_invalid');
+            $weekdays = $row['weekdays'] ?? array();
+            if (is_string($weekdays)) $weekdays = preg_split('/[^0-9]+/', $weekdays, -1, PREG_SPLIT_NO_EMPTY) ?: array();
+            if (!is_array($weekdays)) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
+            $weekdays = array_values(array_unique(array_map('intval', $weekdays)));
+            sort($weekdays, SORT_NUMERIC);
+            if ($weekdays === array()) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
+            foreach ($weekdays as $weekday) if ($weekday < 1 || $weekday > 7) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
+            $start = self::normalizeTime((string) ($row['start'] ?? ''));
+            $end = self::normalizeTime((string) ($row['end'] ?? ''), true);
+            if (self::minutes($start) >= 1440) throw new \InvalidArgumentException('golden_hour_window_invalid');
+            if (self::minutes($end) === self::minutes($start)) throw new \InvalidArgumentException('golden_hour_window_invalid');
+            $effectiveFrom = trim((string) ($row['effective_from'] ?? ''));
+            if ($effectiveFrom === '') $effectiveFrom = (string) ($defaults['effective_from'] ?? self::DEFAULT_EFFECTIVE_FROM);
+            if (!self::utc($effectiveFrom)) throw new \InvalidArgumentException('golden_hour_effective_from_invalid');
+            $bonusInput = $row['bonus_percentage'] ?? (isset($row['bonus_basis_points']) ? number_format(((int)$row['bonus_basis_points']) / 100, 2, '.', '') : 0);
+            $rules[] = array(
+                'weekdays' => $weekdays,
+                'start' => $start,
+                'end' => $end,
+                'bonus_basis_points' => self::percentageToBasisPoints($bonusInput),
+                'effective_from' => $effectiveFrom,
+            );
+        }
+        self::assertNoOverlaps($rules);
+        return $rules;
+    }
+
+    /** @param list<array{weekdays:list<int>,start:string,end:string}> $rules */
+    private static function assertNoOverlaps(array $rules): void {
+        $intervals = array();
+        foreach ($rules as $index => $rule) {
+            $start = self::minutes((string)$rule['start']);
+            $end = self::minutes((string)$rule['end']);
+            if ($end <= $start) $end += 1440;
+            foreach ((array)$rule['weekdays'] as $weekday) {
+                $base = ((int)$weekday - 1) * 1440;
+                foreach (array(-10080, 0, 10080) as $shift) {
+                    $intervals[] = array($index, $base + $start + $shift, $base + $end + $shift);
+                }
+            }
+        }
+        foreach ($intervals as $left) {
+            foreach ($intervals as $right) {
+                if ($left[0] === $right[0]) continue;
+                if ($left[1] < $right[2] && $right[1] < $left[2]) throw new \InvalidArgumentException('golden_hour_period_overlap');
+            }
+        }
     }
 
     /**

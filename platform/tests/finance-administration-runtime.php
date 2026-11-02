@@ -388,18 +388,18 @@ ob_start();
 FinanceAdminController::screen();
 $screenHtml = (string) ob_get_clean();
 dzn_fin_runtime_assert(substr_count($screenHtml, 'class="nav-tab') >= 4, 'The actual Finance screen must render four tabs');
-foreach (array('Payments', 'Central Ledger', 'Teacher Statements', 'Settings') as $tabLabel) dzn_fin_runtime_assert(str_contains($screenHtml, '>' . $tabLabel . '<'), 'Rendered Finance tab missing: ' . $tabLabel);
-dzn_fin_runtime_assert(str_contains($screenHtml, 'Global regional pricing') && str_contains($screenHtml, 'Teacher compensation'), 'Settings tab must render consolidated finance fields');
+foreach (array('Student payments', 'Teacher payments', 'Manual ledger', 'Settings') as $tabLabel) dzn_fin_runtime_assert(str_contains($screenHtml, '>' . $tabLabel . '<'), 'Rendered Finance tab missing: ' . $tabLabel);
+dzn_fin_runtime_assert(str_contains($screenHtml, 'Finance summary') && str_contains($screenHtml, 'Regional pricing') && str_contains($screenHtml, 'save_regional_pricing_bundle') && str_contains($screenHtml, 'Teacher compensation'), 'Settings tab must render the sourced summary and consolidated finance fields');
 
-/* The Statements tab must expose the draft/issue lifecycle and the unset-timezone warning. */
+/* The Teacher payments tab must expose the reviewed draft/issue/send workflow and the unset-timezone warning. */
 $_GET = array('page' => 'dzn-finance', 'tab' => 'statements', 'teacher_id' => $teacherId);
 ob_start();
 FinanceAdminController::screen();
 $statementsHtml = (string) ob_get_clean();
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Draft a statement for a completed period'), 'Statements must expose the draft form');
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement timezone policy is unset'), 'Statements must warn when the timezone policy is unset');
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Teacher Statements'), 'Statements must render its own tab content');
-dzn_fin_runtime_assert(str_contains($statementsHtml, 'Generate statements for every Teacher who worked in a month'), 'Statements must expose the monthly batch generator');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement timezone policy is unset'), 'Teacher payments must warn when the timezone policy is unset');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Teacher payments'), 'Teacher payments must render its own tab content');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Generate teacher statements') && str_contains($statementsHtml, 'Preview eligible teachers') && str_contains($statementsHtml, 'Generate drafts'), 'Teacher payments must expose preview and draft generation');
+dzn_fin_runtime_assert(str_contains($statementsHtml, 'Statement batch history') && str_contains($statementsHtml, 'Individual statement review'), 'Teacher payments must expose batch history and individual review');
 $previousMonth = gmdate('Y-m', strtotime('first day of last month UTC'));
 $batchPreview = (new TeacherStatementBatchService())->preview($previousMonth);
 dzn_fin_runtime_assert(isset($batchPreview['month'], $batchPreview['period_start'], $batchPreview['period_end'], $batchPreview['teachers']), 'The monthly batch preview must return its period and candidate list');

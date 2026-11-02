@@ -67,9 +67,9 @@ $contains($shell, array(
 ), 'Finance must have exactly one visible destination and the four tabs must live inside it');
 $finance = $controller('FinanceAdminController.php');
 $contains($finance, array(
-    "self::TAB_PAYMENTS => 'Payments'", "self::TAB_LEDGER => 'Central Ledger'",
-    "self::TAB_STATEMENTS => 'Teacher Statements'", "self::TAB_SETTINGS => 'Settings'",
-    'Global regional pricing', 'Teacher compensation', 'Statement Template Settings',
+    "self::TAB_PAYMENTS => 'Student payments'", "self::TAB_STATEMENTS => 'Teacher payments'",
+    "self::TAB_LEDGER => 'Manual ledger'", "self::TAB_SETTINGS => 'Settings'",
+    'Regional pricing', 'Teacher compensation', 'Statement template and sample',
 ), 'Finance must expose exactly four tabs and consolidated settings');
 
 // The composite navigation capabilities must map to existing narrow capabilities only.

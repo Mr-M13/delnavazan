@@ -1,7 +1,8 @@
 # Finance Administration
 
-**Status:** implementation candidate on `feat/finance-admin-redesign-20261026`.
-**Schema:** 51 / migrations `049_finance_administration`, `050_intro_payment_authority` and `051_teacher_rate_origin`.
+**Status:** implementation candidate on `feat/finance-administration-redesign-20261102`.
+**Schema:** no new migration on this branch; the existing finance/statement/cashbook tables are reused.
+**Clarity redesign:** see `FINANCE-CLARITY-REDESIGN-2026-11-02.md`, `FINANCE-REDESIGN-MAP-2026-11-02.md` and `FINANCE-STRIPE-REFUND-ASSESSMENT-2026-11-02.md`.
 
 ## 1. What administrators see
 
@@ -9,10 +10,10 @@ One **Finance** destination has exactly four tabs:
 
 | Tab | Purpose |
 | --- | --- |
-| **Payments** | Student checkout attempts, amount, student/course/offer context, checkout state, settled/refund evidence, provider-neutral reconciliation status, outstanding obligations, recent settlements, administrator-only manual refunds and refund-review cases, and two-instalment schedules with their stored outstanding balance. Checkout views are read-only; an authorised administrator can record an offline payment against one exact stored obligation. |
-| **Central Ledger** | Manual academy bookkeeping across the Australia (AUD) and Iran (TOM) accounts. Search, filters, pagination, signed amount, currency and statement reconciliation status. The view never invents a fee or a counterparty: the cashbook stores neither. This ledger is intentionally independent from Stripe, teacher rates and student pricing. |
-| **Teacher Statements** | Teacher selector, statement draft/issue/withdraw/supersede actions, monthly batch generation for every Teacher with work, branded email delivery, statement history, recorded preview, print/download and statement template settings with live sandboxed preview. |
-| **Settings** | Global regional student prices, free/paid introductory lessons, Toman teacher global default and per-Teacher overrides, Stripe setup/readiness, finance policies and commercial timing policies. |
+| **Student payments** | Sourced monthly summary, payments needing attention, searchable/sortable active-student payments with exact student/obligation detail, recent settlements, outstanding obligations, instalment schedules, discounts, an auditable student receipts report, administrator-only manual refunds/reviews, a Stripe-refund implementation assessment, and collapsed introductory payments. Checkout attempts are never presented as received money; an authorised administrator can record an offline payment against one exact stored obligation. |
+| **Teacher payments** | Searchable current/previous Persian-month teacher summary, Preview → Generate drafts → Review → Issue/publish → Send, separate teacher send and administrative staff summary, collapsible batch history, individual statement review, Persian-month draft-only scheduling, statement history, recorded preview, print/download and collapsed template/sample settings. |
+| **Manual ledger** | Manual academy bookkeeping across the Australia (AUD) and Iran (TOM) accounts. Search, filters, pagination, signed amount, currency and statement reconciliation status. The view never invents a fee or a counterparty: the cashbook stores neither. This ledger is intentionally independent from Stripe, student receipts, teacher payments, teacher rates and student pricing. |
+| **Settings** | Sourced finance summary, one validated regional-pricing form with shared introductory mode/effective date, compact Toman teacher global/per-Teacher rates, introductory teacher-payability, editable Iran golden-hour rows with coverage charts, finance/commercial policies, collapsed Stripe integration and a link to the booking horizon now owned by General Settings. |
 
 The old visible finance submenu entries are removed. Their protected direct routes remain registered
 for compatibility and for deep links from records, but ordinary configuration no longer requires
@@ -190,34 +191,42 @@ Each lesson row shows the occurrence date, course, duration, base rate, golden-h
 amount and payability status. The summary shows payable total, payable lesson count and total lesson
 count. The statement remains explicitly **compensation only**, not a payout receipt or tax invoice.
 
-### 5.3 Monthly batch statements
+### 5.3 Teacher payment batch workflow
 
-The Statements tab can generate one statement for every Teacher with at least one active Lesson in a
-completed UTC month:
+The **Teacher payments** tab generates one statement for every Teacher with at least one active Lesson
+in a completed **Persian month** (Asia/Tehran half-open boundaries) or a completed custom date range:
 
-1. **Preview** lists the candidate Teachers, their active/archived Lesson counts, any existing live
-   statement and whether a recorded email address exists.
-2. **Generate** drafts each missing statement through the recorded authority. If “issue” is selected,
-   each draft passes the normal issuance gate independently.
-3. **Email** sends each issued statement to the Teacher's recorded address. The email is recorded as an
-   `emailed` or `email_failed` statement event.
-4. A per-Teacher result table reports drafted, issued, skipped, failed and emailed outcomes. One
-   Teacher's failure never blocks another.
+1. **Preview** lists the candidate Teachers, their payable/pending/non-payable/archived Lesson counts,
+   applied rate versions, golden-hour bonus, total, missing payability evidence, any existing live
+   statement and the recorded email address.
+2. **Generate drafts** drafts each missing statement through the recorded authority. It never issues
+   and never sends email.
+3. **Review** shows each draft and its result; only then can an administrator **Issue/publish** the
+   selected drafts. Every issuance still passes the normal fail-closed gate independently.
+4. **Send to teachers** queues each issued statement only to that Teacher's own recorded, verified
+   address. **Send batch summary to staff** sends an administrative summary only; it does not attach
+   every private statement.
+5. A collapsible history table records period, counts, currency totals, draft/issue/send state,
+   individual failures and a preview/retry link. One Teacher's failure never blocks another.
 
 A batch rerun does not duplicate a live statement; an exact issued statement is skipped and only a
-missing successful email is retried. The batch remains operator-triggered; a draft-only monthly cron
-with an explicit administrator confirmation is the recommended next step.
+missing successful email is retried. Generating drafts is separate from issuing and sending.
 
-### 5.4 Administrator-only manual refunds
+The optional scheduler prepares drafts for the **previous completed Persian month** at the start of
+each Persian month using Asia/Tehran boundaries. It is draft-only, default off and idempotent by
+`persian_month:YYYY-MM`; it never issues or emails automatically. It is not a UTC-month scheduler with
+a Persian label.
 
-A refund is recorded from Payments → Manual refunds. The form selects an already-settled obligation,
-takes the amount (blank = full remaining), the actual refund date, an evidence reference and an
-optional note. `ManualRefundService`:
+### 5.4 Administrator-only manual refunds and Stripe assessment
+
+A refund is recorded from Student payments → Manual refunds. The form selects an already-settled
+obligation, takes the amount (blank = full remaining), the actual refund date, an evidence reference
+and an optional note. `ManualRefundService`:
 
 - requires `dzn_manage_refund_reviews`; this capability is deliberately not part of the Finance staff
   bundle, so only an administrator can refund;
 - records accepted `manual` refund evidence through the existing commercial evidence authority;
-- caps the amount at the settled amount minus already-accepted refund evidence;
+- caps the amount at the settled amount minus already-accepted refund evidence and reservations;
 - opens the existing refund-review case and retains the note;
 - never rewrites the settlement, purchase, entitlement, funding plan, Lesson or statement.
 
@@ -225,10 +234,24 @@ The review case can then be **routed for review**, **resolved** with a decision 
 That decision is a recorded human fact. Moving money remains a completely manual external action in the
 bank/Stripe dashboard; this page does not initiate or reverse a transfer.
 
-## 6. Manual Central Ledger
+Integrated Stripe refunds are **not enabled**. The retained reference is an encrypted test-mode
+Checkout Session, not a verified PaymentIntent/charge; there is no live refund execution authority or
+refund-result webhook consequence. `StripeRefundAssessmentService` reports this assessment in the
+refund section without calling Stripe. The full assessment is in
+`FINANCE-STRIPE-REFUND-ASSESSMENT-2026-11-02.md`.
 
-The ledger remains manual by design. It does not read or write Stripe settlement, student pricing or
-teacher rates. It reuses the append-only academy cashbook command service (`OperationalCashLedgerService`)
+### 5.5 Student receipts report
+
+Student payments includes a read-only receipts report for a calendar month or custom date range. It
+lists confirmed student payments and accepted refunds, totals gross receipts, refunds and net receipts
+**by currency**, identifies Stripe vs recorded-offline sources, labels the Asia/Tehran boundary and the
+recorded settlement/received vs accepted-refund occurrence date basis, and downloads an auditable CSV.
+It is not a tax invoice and never combines currencies.
+
+## 6. Manual ledger
+
+The ledger remains manual by design. It does not read or write Stripe settlement, student receipts,
+refunds, teacher payments, student pricing or teacher rates. It reuses the append-only academy cashbook command service (`OperationalCashLedgerService`)
 and its capabilities. The four-tab ledger view adds cross-account search, filters, pagination and the
 required accounting columns; corrections still use reversals, never edits.
 
@@ -391,6 +414,12 @@ Pure/contract suites added:
 - `tests/finance-administration-contract.php` — four tabs, one visible Finance destination, migrations
   049/050/051, shared authority reuse, paid intro lifecycle, Toman teacher rates and inheritance, template
   editor/versioning, Stripe consolidation, manual ledger independence and capability/nonce gates.
+- `tests/finance-clarity-redesign-contract.php` — visible tab order/labels and legacy aliases, student
+  page ordering, confirmed-settlement truth, receipts report, Stripe-refund assessment boundary,
+  teacher summary/workflow ordering, Persian scheduling, golden-hour rows and booking-horizon move.
+- `tests/persian-calendar-unit.php` — Nowruz, Jalali month lengths, leap years, Asia/Tehran boundaries,
+  previous month and custom date ranges.
+- `tests/golden-hour-rules-unit.php` — per-row bonus/effective dates, overnight windows and overlap refusal.
 - `tests/intro-payment-unit.php` — paid intro obligation idempotency, amount/currency refusal, failed
   payment visibility, duplicate provider-event convergence and malformed-reference rejection.
 - `tests/finance-administration-runtime.php` — disposable WordPress/MariaDB proof for empty catalogue,

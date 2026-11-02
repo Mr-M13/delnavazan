@@ -26,7 +26,9 @@ $service=new IntroLessonLifecycleService();
 $first=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-000',$confirmation,1);
 $second=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-000',$confirmation,1);
 $assert(($first['state']??'')==='cancelled'&&($second['state']??'')==='cancelled','Cancellation or replay failed');
-$third=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-001',$confirmation,1);
+$stale=false;try{$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-001',$confirmation,1);}catch(\Throwable $error){$stale=$error->getMessage()==='Booking confirmation changed concurrently';}
+$assert($stale,'A stale confirmation version was not refused');
+$third=$service->cancel($request,'admin','duplicate_request',$suffix.'-cancel-command-002',$confirmation,0);
 $assert(($third['state']??'')==='cancelled','A later command did not converge on the existing cancellation');
 $assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_cancellations WHERE confirmation_id={$confirmation}")===1,'Duplicate cancellation evidence was written');
 $assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_cancellation_commands")===1,'Duplicate command evidence was written');

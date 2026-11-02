@@ -70,9 +70,8 @@ namespace {
         ), $o);
     };
     $nav = array(
-        array('screen' => 'home', 'label' => 'حساب کاربری', 'url' => 'https://example.invalid/teacher-portal/', 'current' => true),
-        array('screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=finance', 'current' => false),
         array('screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=classes', 'current' => false),
+        array('screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=finance', 'current' => false),
         array('screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=settings', 'current' => false),
     );
     $model = static function (array $o = array()) use ($nav): array {
@@ -97,6 +96,8 @@ namespace {
     $futureHtml = $render('classes', $model(array('classes' => array($future, $futureTwo), 'today_classes' => array(), 'upcoming_classes' => array($future, $futureTwo))));
     $check('future class cards keep the inline reschedule action', str_contains($futureHtml, 'tp-classes-upcoming') && str_contains($futureHtml, 'کلاس‌های آینده') && str_contains($futureHtml, 'dzn-tp-class__reschedule') && str_contains($futureHtml, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"') && str_contains($futureHtml, 'name="schedule_version_uid" value="SCHEDULE-UID"'));
     $check('future classes can be filtered by student', str_contains($futureHtml, 'data-dzn-tp-student-filter-select') && str_contains($futureHtml, '<option value="Student One">Student One</option>') && str_contains($futureHtml, '<option value="Student Two">Student Two</option>') && str_contains($futureHtml, 'data-dzn-tp-student="Student Two"'));
+    $singleFutureHtml = $render('classes', $model(array('classes' => array($future), 'today_classes' => array(), 'upcoming_classes' => array($future))));
+    $check('the student filter is shown even with one future student', str_contains($singleFutureHtml, 'data-dzn-tp-student-filter-select') && str_contains($singleFutureHtml, '<option value="Student One">Student One</option>'));
     $check('home uses the simple welcome header without a Delnavazan brand link', str_contains($html, 'درود بر شما') && !str_contains($html, 'dzn-tp-appbar__brand') && !str_contains($html, 'صفحهٔ اصلی'));
     $check('classes render as an ordered list of labelled articles', substr_count($classes_html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($classes_html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($classes_html, 'id="tp-class-title-0"') && str_contains($classes_html, 'id="tp-class-title-1"'));
     $check('date and timezone are visible on a booking class that has no details panel', str_contains($classes_html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($classes_html, 'id="tp-details-1"'));

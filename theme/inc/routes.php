@@ -441,8 +441,8 @@ function dzn_theme_render_portal_route( $kind ) {
 		echo '<p class="dzn-route__notice is-success" role="status">حساب هنرجویی با موفقیت متصل شد. اطلاعات آموزشی شما از این پرتال در دسترس است.</p>';
 	}
 	if ( 'teacher' === $kind ) {
-		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'home';
-		$screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $screen : 'home';
+		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'classes';
+		$screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $screen : 'classes';
 		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;

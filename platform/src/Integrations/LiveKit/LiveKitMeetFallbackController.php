@@ -52,7 +52,7 @@ final class LiveKitMeetFallbackController {
             } else {
                 $portal = home_url($role === 'teacher' ? '/teacher-portal/' : '/student-portal/');
                 $query = $role === 'teacher'
-                    ? array('teacher-view' => 'home', 'class_status' => 'meet_unavailable')
+                    ? array('teacher-view' => 'classes', 'class_status' => 'meet_unavailable')
                     : array('join_status' => 'meet_unavailable');
             }
             wp_safe_redirect(add_query_arg($query, $portal), 302, 'Delnavazan');

@@ -242,6 +242,17 @@ function dzn_theme_render_booking_route(): void {
                                 <p lang="en" dir="ltr">Recording and research export are currently disabled. Read the public information page to understand the planned capability and how choices work after an adult student account is linked.</p>
                                 <p lang="fa" dir="rtl">ضبط و خروجی پژوهش در حال حاضر غیرفعال است. برای آشنایی با قابلیت برنامه‌ریزی‌شده و نحوهٔ انتخاب‌ها پس از اتصال حساب هنرجوی بزرگسال، صفحهٔ اطلاعات عمومی را بخوانید.</p>
                                 <p><a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
+                                <?php if ( is_user_logged_in() && function_exists( 'dzn_theme_platform_recording_choices' ) ) : ?>
+                                    <?php $dzn_booking_consent = dzn_theme_platform_recording_choices( 'enrolment' ); ?>
+                                    <?php if ( ! empty( $dzn_booking_consent['available'] ) ) : ?>
+                                        <p class="dzn-booking__help">می‌توانید همین حالا انتخاب معتبر خود را ثبت کنید؛ این انتخاب به حساب متصل شما وابسته است و در ثبت‌نام آینده حفظ می‌شود.</p>
+                                        <?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $dzn_booking_consent ) ); ?>
+                                    <?php else : ?>
+                                        <p class="dzn-booking__help">ثبت رضایت معتبر پس از اتصال حساب هنرجو و توسط خود هنرجو یا سرپرست دارای اختیار انجام می‌شود. هیچ تصمیمی از نبود پاسخ استنباط نمی‌شود.</p>
+                                    <?php endif; ?>
+                                <?php else : ?>
+                                    <p class="dzn-booking__help">رضایت معتبر ضبط و پژوهش پس از ایجاد و اتصال حساب هنرجو، با هویت تأییدشده و به‌صورت جداگانه ثبت می‌شود. این فرم هیچ رضایتی از طرف شما نمی‌سازد.</p>
+                                <?php endif; ?>
                             </aside>
                         </div>
                         <div class="dzn-booking__actions">

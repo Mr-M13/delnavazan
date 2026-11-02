@@ -66,6 +66,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();
 	Delnavazan\Platform\Portals\PortalNotificationController::register();
 	Delnavazan\Platform\Core\Application\PortalNotificationRecorder::register();
+	Delnavazan\Platform\Core\Application\ConsentNotificationService::register();
 	// The admin-editable copy store is the canonical copy source once a template version is published.
 	// Registering definitions never installs a transport binding, so delivery stays behind its own gate.
 	add_filter( 'dzn_notification_copy_definitions', static function ( $definitions ) {
@@ -93,6 +94,8 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\DiagnosticsController::register();
 	Delnavazan\Platform\Admin\Controller\LegalPagesController::register();
 	Delnavazan\Platform\Admin\Controller\RecordingNoticeAdminController::register();
+	Delnavazan\Platform\Admin\Controller\PoliciesController::register();
+	Delnavazan\Platform\Core\Application\ConsentLifecycleWorker::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceAdminController::register();
 	Delnavazan\Platform\Admin\Controller\GeneralSettingsController::register();

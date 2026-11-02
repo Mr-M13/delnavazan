@@ -40,7 +40,7 @@ $wpdb->insert($p.'teachers',array('uid'=>str_repeat('T',26),'status'=>'active','
 $wpdb->insert($p.'students',array('uid'=>str_repeat('S',26),'status'=>'active','display_name'=>'Baseline Student','created_at'=>$now,'updated_at'=>$now));
 // Recreate the exact pre-055 physical/ledger state, then upgrade through the real migrator.
 foreach($tables as$table)$wpdb->query("DROP TABLE {$p}{$table}");
-$done=array_values(array_filter((array)get_option('dzn_platform_completed_migrations',array()),static fn($id)=>$id!=='055_recording_decision_authority'));update_option('dzn_platform_completed_migrations',$done,false);update_option('dzn_platform_schema_version','54',false);
+$done=array_values(array_filter((array)get_option('dzn_platform_completed_migrations',array()),static fn($id)=>!in_array($id,array('055_recording_decision_authority','065_consent_lifecycle_authority'),true)));update_option('dzn_platform_completed_migrations',$done,false);update_option('dzn_platform_schema_version','54',false);
 Migrator::maybe_upgrade();dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='57','54 to 57 upgrade must advance schema option');dzn_rda_m_assert($ledgerCount()===1,'54 to 57 upgrade must record the ledger once');$assertShape();
 dzn_rda_m_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}teachers WHERE display_name='Baseline Teacher'")===1,'54 to 57 upgrade must preserve existing Teachers');
 dzn_rda_m_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}students WHERE display_name='Baseline Student'")===1,'54 to 57 upgrade must preserve existing Students');

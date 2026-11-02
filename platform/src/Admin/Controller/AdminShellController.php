@@ -28,6 +28,7 @@ final class AdminShellController {
             ['General', 'dzn-general', 'manage_options'],
             // Top-level fallback for catalogue-only staff. Settings sections below still render four links.
             ['Catalogue access', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
+            ['Policies', 'dzn-policies', 'dzn_manage_consent_policies'],
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
             ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
@@ -42,6 +43,7 @@ final class AdminShellController {
      */
     private const SETTINGS_SECTIONS = [
         'general' => ['General', ['dzn-general', 'dzn-staff-access', 'dzn-recording-notices', 'dzn-account-removal', 'dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
+        'policies' => ['Policies', ['dzn-policies']],
         'notifications' => ['Notifications', ['dzn-notifications', 'dzn-communications', 'dzn-communications-templates']],
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
@@ -56,6 +58,7 @@ final class AdminShellController {
     /** Capability for every registered Settings route, including protected legacy routes. */
     private const SETTINGS_ROUTE_CAPABILITIES = [
         'dzn-general' => 'manage_options',
+        'dzn-policies' => 'dzn_manage_consent_policies',
         'dzn-staff-access' => 'manage_options',
         'dzn-recording-notices' => 'manage_options',
         'dzn-account-removal' => 'manage_options',
@@ -91,10 +94,12 @@ final class AdminShellController {
         'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
         'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
+        'dzn-policies' => 'settings',
         'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
         'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
         'dzn-recording-notices' => 'settings',
+        'dzn-policies' => 'settings',
     ];
 
     public static function register(): void {

@@ -2,14 +2,15 @@
 
 ## Outcome
 
-Delnavazan Settings now shows exactly four work sections:
+Delnavazan Settings now shows five work sections:
 
+0. **Policies** — the consent policy library, authoritative collection status, guardian authority attention, recording/ML eligibility exceptions, withdrawal processing and access-controlled evidence export. Policy publication reuses the existing append-only recording-notice authority.
 1. **General** — academy information, public contact/presence, real WordPress pages, legal drafts, the versioned introductory booking horizon and “Who can use each work area”.
 2. **Notifications** — the event table is the opening view; templates, global email appearance, delivery rules and restricted retry live inside the same workspace.
 3. **Integrations** — provider configuration and readiness cards for Email, WhatsApp, SMS, Google, Stripe and LiveKit when active.
 4. **Diagnostics** — filtered runtime evidence, support summary/bundle and separate capability-gated technical actions.
 
-No Settings Overview was added. The WordPress submenu is still registered but visually hidden by the existing shell, so every old route remains resolvable.
+No Settings Overview was added. Policies is the single consent administration surface; capture and ML export remain disabled. The WordPress submenu is still registered but visually hidden by the existing shell, so every old route remains resolvable.
 
 ## Old control → destination
 

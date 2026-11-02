@@ -56,6 +56,25 @@ final class EnrolmentRepository extends BaseRepository {
         parent::restore($id, $status, $now, $actor);
     }
 
+    /** Bounded central Enrolment list filtered to one Student for contextual return workflows. */
+    public function forStudent(int $studentId, int $limit = 100): array {
+        global $wpdb;
+        $students = $wpdb->prefix . 'dzn_students'; $teachers = $wpdb->prefix . 'dzn_teachers'; $courses = $wpdb->prefix . 'dzn_courses';
+        $limit = max(1, min(200, $limit));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT e.*,COALESCE(NULLIF(s.display_name,''),NULLIF(s.first_name,''),s.last_name) student,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher,
+                    COALESCE(NULLIF(c.name_en,''),c.name_fa) course
+             FROM {$this->table} e
+             LEFT JOIN {$students} s ON s.id=e.student_id
+             LEFT JOIN {$teachers} t ON t.id=e.teacher_id
+             LEFT JOIN {$courses} c ON c.id=e.course_id
+             WHERE e.student_id=%d AND e.archived_at IS NULL
+             ORDER BY e.id DESC LIMIT %d",
+            $studentId, $limit
+        )) ?: array();
+    }
+
     public function forStudentCourse(int $studentId, int $courseId): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(

@@ -61,6 +61,7 @@ final class ScreenController {
     public static function screen(string $screen): void {
         NonceLifecycleDiagnostic::logStage('submenu_callback');
         if ($screen === 'exception') { self::exceptionScreen(); return; }
+        if ($screen === 'student') { StudentWorkspaceController::screen(); return; }
         if (!isset(self::ENTITIES[$screen]) || !current_user_can(self::ENTITIES[$screen][1])) { self::forbidden(); return; }
         self::renderMessages();
         \Delnavazan\Platform\Admin\RecordAction\RecordActionRenderer::renderNotices();
@@ -147,7 +148,10 @@ final class ScreenController {
                 'set_teacher_accepting_state' => (new \Delnavazan\Platform\Core\Application\TeacherAcceptingStateService())->set($post),
                 'set_availability_profile' => (new \Delnavazan\Platform\Core\Application\TeacherAvailabilityService())->setProfile($post),
                 'set_availability_rule' => (new \Delnavazan\Platform\Core\Application\TeacherAvailabilityService())->setRecurringRule($post),
-                'create_student' => (new StudentService())->create(self::createPayload('student', $post)),
+                'create_student' => (new \Delnavazan\Platform\Core\Application\StudentAdministrationService())->createFromAdmin(
+                    self::createPayload('student', $post),
+                    sanitize_text_field((string) ($post['student_form_id'] ?? ''))
+                ),
                 'create_instrument' => (new CatalogueService())->setupInstrument(self::createPayload('instrument', $post))['instrument_id'],
                 'create_course' => (new CatalogueService())->course(self::createPayload('course', $post)),
                 'create_term' => (new TermService())->create(self::createPayload('term', $post)),
@@ -189,7 +193,12 @@ final class ScreenController {
                 \Delnavazan\Platform\Core\Application\TeacherInvitationIssuanceFailure::log($category);
                 self::redirectNotice(\Delnavazan\Platform\Core\Application\TeacherInvitationIssuanceFailure::notice($category), true);
             }
-            self::redirectNotice($e->getMessage()==='invitation_dispatch_failed'?'Invitation dispatch failed; the recorded status below is authoritative.':'Operation failed; no change was saved.', true, ['id' => absint($post['teacher_id'] ?? 0)]);
+            $failureNotice = match ($e->getMessage()) {
+                'invitation_dispatch_failed' => 'Invitation dispatch failed; the recorded status below is authoritative.',
+                'student_identity_already_exists' => 'A student with this email or phone already exists. Open the existing record instead of creating a duplicate.',
+                default => 'Operation failed; no change was saved.',
+            };
+            self::redirectNotice($failureNotice, true, ['id' => absint($post['teacher_id'] ?? 0)]);
         }
     }
 
@@ -270,11 +279,19 @@ final class ScreenController {
             self::teacherDirectory();
             return;
         }
-        try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
-        catch (\InvalidArgumentException $exception) {
-            if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
-            echo '<p class="notice notice-error">Canonical lifecycle history failed integrity validation.</p>';
-            return;
+        $studentFilter = $entity === 'enrolment' ? max(0, absint($_GET['student_id'] ?? 0)) : 0;
+        if ($studentFilter > 0) {
+            if (!current_user_can('dzn_manage_enrolments')) { self::forbidden(); return; }
+            $records = (new \Delnavazan\Platform\Core\Infrastructure\Repository\EnrolmentRepository())->forStudent($studentFilter);
+            $studentName = (new \Delnavazan\Platform\Core\Infrastructure\Repository\StudentRepository())->nameForId($studentFilter);
+            echo '<div class="notice notice-info inline"><p>Filtered to <strong>' . esc_html($studentName !== '' ? $studentName : 'this student') . '</strong>. <a href="' . esc_url(admin_url('admin.php?page=dzn-enrolment')) . '">Clear student filter</a></p></div>';
+        } else {
+            try { $records = in_array($entity,['course','instrument'],true)?(new CoreReadService())->catalogueRows($entity):(new CoreReadService())->recent($entity); }
+            catch (\InvalidArgumentException $exception) {
+                if ($entity !== 'enrolment' || $exception->getMessage() !== 'data_integrity_conflict') throw $exception;
+                echo '<p class="notice notice-error">Canonical lifecycle history failed integrity validation.</p>';
+                return;
+            }
         }
         echo '<h2>Recent records</h2>';
         if (in_array($entity, ['student','teacher'], true)) self::objectTable($records, 'dzn-' . $entity, self::profileFields($entity));

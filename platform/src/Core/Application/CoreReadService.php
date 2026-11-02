@@ -40,6 +40,18 @@ final class CoreReadService {
         return (new StudentRepository())->adminRows($query, $status, $page);
     }
 
+    /** Bounded, recent-activity-first Students directory for the consolidated workspace. */
+    public function studentWorkspaceDirectory(array $filters): array {
+        if (!current_user_can('dzn_manage_students')) throw new \RuntimeException('Unauthorized');
+        return (new StudentWorkspaceReadService())->directory($filters);
+    }
+
+    /** Complete read composition for one Student workspace profile. */
+    public function studentWorkspaceProfile(int $studentId, int $lessonPage = 1, int $lessonPerPage = 50): ?array {
+        if (!current_user_can('dzn_manage_students')) throw new \RuntimeException('Unauthorized');
+        return (new StudentWorkspaceReadService())->profile($studentId, $lessonPage, $lessonPerPage);
+    }
+
     /** @return array{rows:array,total:int,page:int,per_page:int} */
     public function teacherAdminDirectory(string $search, string $status, int $page, string $sort = 'name', string $direction = 'asc'): array {
         if (!current_user_can('dzn_manage_teachers')) throw new \RuntimeException('Unauthorized');

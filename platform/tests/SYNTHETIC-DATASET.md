@@ -2,7 +2,7 @@
 
 `synthetic-dataset.php` is a WP-CLI-only test fixture. It is not loaded by the plugin and is kept under `tests/`, which is excluded from deployment packages. It creates the catalog, teacher, and student core records through `CatalogueService`, `TeacherService`, and `StudentService`.
 
-Every run requires WP-CLI, an operator with the fixture's required platform capabilities, and `DZN_SYNTHETIC_DATASET=1`. Local/development environments use that gate. Staging also requires a second exact acknowledgement and an approved staging hostname; a `production` environment always fails closed, even if the host resembles staging. The runner permits only `staging.delnavazan.com` and its subdomains. Do not change this allowlist to a production hostname.
+Every run requires WP-CLI, an operator with the fixture's required platform capabilities, and `DZN_SYNTHETIC_DATASET=1`. Local/development environments use that gate but still refuse the live `delnavazan.com` host, `www.delnavazan.com`, and every non-staging `*.delnavazan.com` subdomain, so a misconfigured environment type cannot authorize production. Staging also requires a second exact acknowledgement and an approved staging hostname; a `production` environment always fails closed, even if the host resembles staging. The runner permits only `staging.delnavazan.com` and its subdomains. Do not change this allowlist to a production hostname.
 
 ```sh
 # Confirm WP-CLI reports `staging` and `home_url()` is the staging hostname first.

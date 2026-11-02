@@ -3,6 +3,21 @@
 All notable changes to the Delnavazan Platform repository are documented here.
 Platform phase numbers are independent of Hamnavaz phase numbers.
 
+## Booking Coordination command centre — 2026-11-03
+
+Replaces the raw Booking Request Coordination forms with one operational command centre for
+exceptional booking cases. The workspace embeds Student identity/capacity/authority resolution,
+Teacher candidate comparison (eligibility, accepting state, availability, workload and real
+occupancy), Teacher agreement, Proposal issuance/revision, provisional and final acceptance,
+Enrolment conversion, initial Teacher assignment, account invitation, exact notification retry,
+verified offline intro payment evidence and audit history. Blockers explain the missing fact,
+evidence, supported action and consequence; a permission-aware recommended action is shown with
+non-linear alternatives. Technical identifiers, fingerprints, versions and idempotency keys are
+resolved server-side and retained only in a collapsed advanced section. Routine bookings do not
+enter coordination. No migration, deployment or production record change is included; the only
+backend change is a narrow continuity correction so in-place identity review does not strand
+agreement/proposal issuance. See `BOOKING-COORDINATION-COMMAND-CENTRE.md`.
+
 ## Consolidated Teachers administration — 2026-11-02
 
 Replaces the Teachers Overview / Onboarding submenu split with one management workspace:

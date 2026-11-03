@@ -39,6 +39,14 @@
     errorBox.textContent = message || '';
     errorBox.hidden = !message;
   };
+  // Re-rendering a step must never move the page under the student's pointer
+  // or keyboard focus. Capture the viewport and restore it after the DOM work.
+  const keepViewport = (callback) => {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    callback();
+    if (window.scrollX !== scrollX || window.scrollY !== scrollY) window.scrollTo(scrollX, scrollY);
+  };
   const selectedOption = () => instrument.options[instrument.selectedIndex];
   const activeInstrument = () => instrument.value && selectedOption().dataset.course;
   const apiUrl = (path) => String(dznBooking.apiRoot).replace(/\/?$/, '/') + path;
@@ -168,7 +176,7 @@
   populateCountries();
   country.addEventListener('change', () => { updatePhoneHint(); city.value = ''; populateCities(); });
 
-  const renderCalendar = () => {
+  const renderCalendarView = () => {
     calendar.replaceChildren();
     calendarLabel.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { month: 'long', year: 'numeric' }).format(dateCursor);
     const weekdays = root.querySelector('[data-calendar-weekdays]');
@@ -203,6 +211,8 @@
         dayTimes.hidden = false;
         renderTimeOptions();
         renderCalendar();
+        const selectedDay = calendar.querySelector('.dzn-booking__calendar-day.is-selected');
+        if (selectedDay) selectedDay.focus({ preventScroll: true });
         refreshAvailabilityGrid();
       });
       calendar.append(button);
@@ -213,7 +223,8 @@
     const maxMonth = new Date(latest.getFullYear(), latest.getMonth(), 1);
     next.disabled = dateCursor >= maxMonth;
   };
-  const renderTimeOptions = () => {
+  const renderCalendar = () => keepViewport(renderCalendarView);
+  const renderTimeOptionsView = () => {
     timeOptions.replaceChildren();
     if (!selectedDate) return;
     if (availabilityGridState === 'loading') {
@@ -259,6 +270,7 @@
     });
     timeOptions.append(buttons);
   };
+  const renderTimeOptions = () => keepViewport(renderTimeOptionsView);
 
   const refreshAvailabilityGrid = async () => {
     const requestId = ++gridAvailabilityRequestId;
@@ -310,7 +322,7 @@
       return false;
     }
   };
-  const renderSlots = () => {
+  const renderSlotsView = () => {
     timesList.replaceChildren();
     slots.forEach((slot, index) => {
       const item = document.createElement('li');
@@ -361,6 +373,7 @@
     });
     preferenceCount.textContent = faDigits(slots.length) + ' از ۳';
   };
+  const renderSlots = () => keepViewport(renderSlotsView);
   const invalidateAvailabilityPreview = () => {
     availabilityRequestId += 1;
     if (availabilityPreviewController) availabilityPreviewController.abort();
@@ -479,7 +492,7 @@
     });
   });
   const currentStep = () => root.querySelector('.dzn-booking__step.is-active')?.dataset.step || 'instrument';
-  const goTo = (name) => {
+  const goTo = (name) => keepViewport(() => {
     showError('');
     root.querySelectorAll('.dzn-booking__step').forEach((section) => {
       const active = section.dataset.step === name;
@@ -493,8 +506,8 @@
       item.classList.toggle('is-done', sequence.indexOf(item.dataset.progress) < sequence.indexOf(name));
     });
     const heading = root.querySelector('[data-step="' + name + '"] h2');
-    if (heading) heading.focus();
-  };
+    if (heading) heading.focus({ preventScroll: true });
+  });
   const validateSection = (step) => {
     const section = root.querySelector('[data-step="' + step + '"]');
     const fields = Array.from(section.querySelectorAll('input, select, textarea'));
@@ -653,7 +666,7 @@
         body: JSON.stringify(payload)
       }, async (response) => ({ response, result: await response.json() }));
       if (!response.ok || !result.success || !result.request_reference) {
-        if (response.status === 400) idempotencyKey = '';
+        if (response.status === 400 || result.code === 'student_slot_conflict') idempotencyKey = '';
         throw new Error(result.code || 'submission_unavailable');
       }
       root.querySelector('[data-reference]').textContent = result.request_reference;
@@ -679,6 +692,7 @@
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',
         blocked_time: 'زمان انتخاب‌شده طبق سیاست دلنوازان قابل درخواست نیست. زمان دیگری انتخاب کنید.',
+        student_slot_conflict: 'این زمان با کلاس یا درخواست دیگری از شما تداخل دارد. زمان دیگری انتخاب کنید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
         csrf_invalid: 'اعتبار فرم منقضی شده است. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.',
@@ -690,7 +704,7 @@
     } finally {
       submissionPending = false;
       button.disabled = false;
-      button.textContent = 'ثبت درخواست جلسهٔ معارفه';
+      button.textContent = 'ثبت درخواست کلاس معارفه';
     }
   });
 

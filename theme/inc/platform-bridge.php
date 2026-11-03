@@ -2118,7 +2118,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'join_message' => $classroom_message,
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
 			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),
-			'is_today' => ! $is_booking && $is_today_row,
+			'is_today' => $is_today_row,
 			'details_available' => ! $is_booking && $is_today_row,
 			'student_whatsapp' => (string) ( $lesson['student_whatsapp'] ?? $lesson['student_phone'] ?? '' ),
 			'term_sequence' => (int) ( $lesson['term_sequence'] ?? 0 ),

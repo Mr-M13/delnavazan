@@ -181,6 +181,9 @@ namespace {
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
+	$check( 'a today intro keeps its classroom re-entry action', ! $late_intro_starts_today || ( str_contains( $html, 'name="confirmation_uid" value="CONF-LATE"' ) && str_contains( $html, 'ورود با گوگل میت (پشتیبان)' ) ) );
+	$teacherCss = (string) file_get_contents( ABSPATH . 'theme/assets/css/teacher-portal.css' );
+	$check( 'intro management spans the full class card', str_contains( $teacherCss, '.dzn-tp-intro-actions {' ) && str_contains( $teacherCss, 'grid-column: 1 / -1;' ) && str_contains( $teacherCss, '.dzn-tp-intro-actions__body {' ) && str_contains( $teacherCss, 'grid-template-columns: repeat(2, minmax(0, 1fr));' ) );
 	$check( 'teacher first tab ends with WhatsApp support', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/home.php' ), "'support'" ) && str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/support.php' ), 'dzn_theme_whatsapp_link' ) );
 	$check( 'teacher pending tasks query student absence reports', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'TeacherAbsenceAttentionReadService' ) );
 	$check( 'teacher absence prompt explains the replacement conversation', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان تازه را پیشنهاد دهید' ) || str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان جلسهٔ جبرانی را پیشنهاد دهید' ) );

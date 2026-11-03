@@ -107,13 +107,13 @@ $contains($fallback, array('LiveKitAdministratorClassroomService'), 'The classro
 
 // Participant restrictions remain exactly as before.
 $contains($policy, array(
-    'public const EARLY_SECONDS = 3600',
-    'public const LATE_SECONDS = 7200',
-    "if (\$now < \$start - self::EARLY_SECONDS || \$now > \$end + self::LATE_SECONDS)",
+    'public const EARLY_SECONDS = ParticipantJoinWindow::EARLY_SECONDS',
+    'public const LATE_SECONDS = ParticipantJoinWindow::LATE_SECONDS',
+    'ParticipantJoinWindow::contains',
     'authorizeAdministrator',
-), 'Participant window enforcement must remain unchanged beside the administrator grant.');
+), 'Participant window enforcement must remain the shared 30-minute window beside the administrator grant.');
 $adminMethod = substr($policy, strpos($policy, 'public function authorizeAdministrator'));
-$expect(!str_contains($adminMethod, 'EARLY_SECONDS') && !str_contains($adminMethod, 'LATE_SECONDS'), 'Administrator access must not silently reuse the participant window.');
+$expect(!str_contains($adminMethod, 'EARLY_SECONDS') && !str_contains($adminMethod, 'LATE_SECONDS') && !str_contains($adminMethod, 'ParticipantJoinWindow'), 'Administrator access must not silently reuse the participant window.');
 
 // No privileged material is rendered by the dashboard.
 $expect(!str_contains($dashboard, 'api_secret') && !str_contains($dashboard, 'apiSecret'), 'The dashboard must not expose provider credentials.');

@@ -19,7 +19,7 @@ $assert(str_contains($join, "'meet.google.com'") && str_contains($join, "'https'
 $assert(!str_contains((string) file_get_contents($root . '/src/Portals/BookingUpcomingReadProjector.php'), '->open('), 'Portal reads must not decrypt Meet material before an authenticated join action.');
 $assert(str_contains($repository, 'c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR'), 'Started classes must remain visible throughout the late join window.');
 $assert(str_contains($repository, 'd.requested_time_id=c.requested_time_id'), 'Booking join ownership must retain the accepted requested-time binding.');
-$assert(str_contains($bridge, "'teacher_booking_class_v1' === ( \$row['version'] ?? '' )") && str_contains($bridge, '$end + ( 2 * HOUR_IN_SECONDS ) >= $now'), 'Teacher presentation must retain started booking classes throughout the late join window.');
+$assert(str_contains($bridge, "'teacher_booking_class_v1' === ( \$row['version'] ?? '' )") && str_contains($bridge, 'dzn_theme_platform_within_join_window') && str_contains($bridge, 'ParticipantJoinWindow'), 'Teacher and Student presentation must use the shared 30-minute participant join window.');
 $assert(str_contains($classroomActions, 'confirmation_uid') && str_contains($studentTemplate, 'classroom-actions') && str_contains($teacherTemplate, 'classroom-actions'), 'Both participant UIs must submit the booking confirmation identity.');
 $assert(!str_contains($bridge, "'join_url' => 'https://meet.google.com"), 'The Theme must never fabricate a Meet URL.');
 echo "Booking intro portal contract passed\n";

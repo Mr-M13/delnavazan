@@ -138,7 +138,11 @@ $expired_booking = $lesson( gmdate( 'Y-m-d H:i:s', $now - 14400 ), gmdate( 'Y-m-
 	'confirmation_uid' => 'CONF-EXPIRED', 'teacher_display_reference' => 'استاد', 'join_available' => true,
 ) );
 $expired_rows = dzn_theme_platform_student_schedule_rows( array(), array( $expired_booking ), array(), 'Asia/Tehran', $now );
-$check( 'the late join window closes after two hours', empty( $expired_rows[0]['join_available'] ) );
+$check( 'the late join window closes after 30 minutes', empty( $expired_rows[0]['join_available'] ) );
+$check( 'the shared join window opens exactly 30 minutes before start', dzn_theme_platform_within_join_window( $now + 1800, $now + 3600, $now ) );
+$check( 'the shared join window stays closed 31 minutes before start', ! dzn_theme_platform_within_join_window( $now + 1801, $now + 3601, $now ) );
+$check( 'the shared join window stays open exactly 30 minutes after end', dzn_theme_platform_within_join_window( $now - 3600, $now - 1800, $now ) );
+$check( 'the shared join window closes 31 minutes after end', ! dzn_theme_platform_within_join_window( $now - 3601, $now - 1801, $now ) );
 $unknown_booking = $lesson( '', '', array(
 	'version' => 'student_booking_class_v1', 'confirmation_state' => 'confirmed',
 	'confirmation_uid' => 'CONF-UNKNOWN', 'teacher_display_reference' => 'استاد', 'join_available' => true,

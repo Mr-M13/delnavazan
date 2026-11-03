@@ -57,6 +57,17 @@ namespace Delnavazan\Platform\Portals {
 						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 1800 ),
 						'join_available' => true,
 					),
+					array(
+						'version' => 'teacher_booking_class_v1',
+						'confirmation_uid' => 'CONF-EXPIRED',
+						'confirmation_state' => 'confirmed',
+						'course_name' => 'سه‌تار',
+						'teacher_display_reference' => 'استاد',
+						'student_display_reference' => 'Student EXPIRED',
+						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 7200 ),
+						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 5400 ),
+						'join_available' => true,
+					),
 				),
 			);
 		}
@@ -152,6 +163,8 @@ namespace {
 	$late_intro_starts_today = ( $fixture_now - 5400 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
 	$check( 'a just-ended intro keeps the teacher late join window when it starts today', ! $late_intro_starts_today || true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
 	$check( 'a previous-day intro does not leak into today', $late_intro_starts_today || ! isset( $classes_by_ref['CONF-LATE'] ) );
+	$expired_intro_starts_today = ( $fixture_now - 7200 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$check( 'an intro more than 30 minutes after its end loses the join action', ! $expired_intro_starts_today || empty( $classes_by_ref['CONF-EXPIRED']['start_available'] ) );
 	$check( 'navigation has three destinations', 3 === count( $model['navigation'] ?? array() ) );
 	$check( 'classes is the first and current navigation item', ! empty( $model['navigation'][0]['current'] ) && 'classes' === ( $model['navigation'][0]['screen'] ?? '' ) );
 	$check( 'the Today tab is removed', ! array_filter( (array) ( $model['navigation'] ?? array() ), static fn( $item ) => 'home' === ( $item['screen'] ?? '' ) ) );

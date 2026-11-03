@@ -278,10 +278,27 @@ function dzn_theme_platform_lesson_temporal_state( array $lesson, $now = null ) 
 }
 
 function dzn_theme_platform_booking_join_message( array $booking, $within_window ) {
-	if ( ! empty( $booking['join_available'] ) && ! $within_window ) { return 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.'; }
+	if ( ! empty( $booking['join_available'] ) && ! $within_window ) { return 'ورود به کلاس از ۳۰ دقیقه پیش از شروع فعال می‌شود.'; }
 	if ( 'provider_conference_unavailable' === ( $booking['join_issue'] ?? '' ) ) { return 'Google Calendar ساخته شده، اما پیوند Meet هنوز آماده نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.'; }
 	if ( empty( $booking['join_available'] ) ) { return 'پیوند امن Meet در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.'; }
 	return '';
+}
+
+/**
+ * Participant classroom join window shared by Teacher and Student presentation.
+ *
+ * The window opens 30 minutes before the start and closes 30 minutes after the
+ * end. It mirrors Platform\Portals\ParticipantJoinWindow so a visible button
+ * and the server-side gate can never disagree when the Platform is loaded.
+ */
+function dzn_theme_platform_within_join_window( $start, $end, $now = null ) {
+	$start = (int) $start;
+	$end = (int) $end;
+	if ( ! $start || ! $end ) { return false; }
+	$now = null === $now ? time() : (int) $now;
+	$class = '\\Delnavazan\\Platform\\Portals\\ParticipantJoinWindow';
+	if ( class_exists( $class ) ) { return (bool) $class::contains( $start, $end, $now ); }
+	return $now >= $start - 1800 && $now <= $end + 1800;
 }
 
 function dzn_theme_platform_lesson_state( array $lesson, $now = null ) {
@@ -657,7 +674,7 @@ function dzn_theme_platform_livekit_nonce( $role ) {
 function dzn_theme_platform_livekit_message( array $row, $is_booking, $within_join, $livekit_available, $meet_available ) {
 	if ( 'cancelled' === (string) ( $row['lifecycle_state'] ?? '' ) ) { return 'این کلاس لغو شده است و ورود به آن امکان‌پذیر نیست.'; }
 	if ( 'completed' === (string) ( $row['lifecycle_state'] ?? '' ) ) { return 'این کلاس به پایان رسیده است.'; }
-	if ( ! $within_join ) { return 'ورود به کلاس از یک ساعت پیش از شروع تا دو ساعت پس از پایان فعال است.'; }
+	if ( ! $within_join ) { return 'ورود به کلاس از ۳۰ دقیقه پیش از شروع تا ۳۰ دقیقه پس از پایان فعال است.'; }
 	if ( $livekit_available ) { return ''; }
 	if ( $meet_available ) { return 'کلاس زندهٔ دلنوازان برای این جلسه در دسترس نیست؛ گزینهٔ پشتیبان گوگل میت فعال است.'; }
 	return 'دسترسی ورود برای این جلسه تأیید نشده است. صفحه را تازه کنید یا با پشتیبانی دلنوازان تماس بگیرید.';
@@ -749,7 +766,7 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
 	$end   = dzn_theme_platform_utc_timestamp( $row['ends_at_utc'] ?? '' );
 	$temporal = dzn_theme_platform_lesson_temporal_state( $row, $now );
-	$within_join = $start && $end && $now >= $start - HOUR_IN_SECONDS && $now <= $end + ( 2 * HOUR_IN_SECONDS );
+	$within_join = dzn_theme_platform_within_join_window( $start, $end, $now );
 	$enrolment = array();
 	if ( ! $is_booking ) {
 		foreach ( $enrolments as $candidate ) {
@@ -1402,7 +1419,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	$next_start = $next ? dzn_theme_platform_utc_timestamp( $next['starts_at_utc'] ?? '' ) : false;
 	$enrolment = $next && ! $is_booking ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
     $next_end = $next ? dzn_theme_platform_utc_timestamp( $next['ends_at_utc'] ?? '' ) : false;
-    $within_join_window = $next_start && $next_end && $now >= $next_start - HOUR_IN_SECONDS && $now <= $next_end + ( 2 * HOUR_IN_SECONDS );
+    $within_join_window = dzn_theme_platform_within_join_window( $next_start, $next_end, $now );
 	// Lesson schedules are UTC facts. Students always see them in their own
 	// canonical profile timezone, never in the teacher's schedule timezone.
 	$display_timezone = $student_timezone;
@@ -2033,7 +2050,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				$completion_message = 'اگر کلاس برگزار شد، برگزاری و حضور را تأیید کنید.';
 			}
 		}
-		$within_join = $start && $end && $start - HOUR_IN_SECONDS <= $now && $end + ( 2 * HOUR_IN_SECONDS ) >= $now;
+		$within_join = dzn_theme_platform_within_join_window( $start, $end, $now );
 		$join_ready = dzn_theme_platform_meet_available( $lesson, $is_booking, $within_join );
 		$livekit_ready = dzn_theme_platform_livekit_available( 'teacher', $lesson, $is_booking, $within_join );
 		$classroom_message = dzn_theme_platform_livekit_message( $lesson, $is_booking, $within_join, $livekit_ready, $join_ready );

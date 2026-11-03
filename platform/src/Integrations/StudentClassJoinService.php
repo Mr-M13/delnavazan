@@ -3,7 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Core\Infrastructure\Repository\ProviderIntegrationRepository;
-use Delnavazan\Platform\Portals\{PortalAccessPolicy,PortalPrincipalResolver};
+use Delnavazan\Platform\Portals\{ParticipantJoinWindow,PortalAccessPolicy,PortalPrincipalResolver};
 
 /**
  * Student-owned secure entry to a canonical term Lesson's provider event.
@@ -14,8 +14,6 @@ use Delnavazan\Platform\Portals\{PortalAccessPolicy,PortalPrincipalResolver};
  * until after the authenticated POST.
  */
 final class StudentClassJoinService {
-    private const EARLY_SECONDS=3600;
-    private const LATE_SECONDS=7200;
     public function __construct(private ?ProviderIntegrationRepository $repository=null,private ?ProviderReferenceVault $vault=null){
         $this->repository??=new ProviderIntegrationRepository();$this->vault??=new ProviderReferenceVault();
     }
@@ -31,7 +29,7 @@ final class StudentClassJoinService {
         if((string)($lesson->record_model??'')!=='canonical_term_lesson_v1'||(string)($lesson->lifecycle_state??'')!=='authorised')throw new \InvalidArgumentException('portal_object_not_portal_visible');
         PortalAccessPolicy::assertObject('student_portal','lesson',(int)$lesson->id,$principal);
         $start=strtotime((string)$schedule->starts_at_utc.' UTC');$end=strtotime((string)$schedule->ends_at_utc.' UTC');$now=time();
-        if(!$start||!$end||$now<$start-self::EARLY_SECONDS||$now>$end+self::LATE_SECONDS)throw new \InvalidArgumentException('portal_action_outside_window');
+        if(!$start||!$end||!ParticipantJoinWindow::contains($start,$end,$now))throw new \InvalidArgumentException('portal_action_outside_window');
         $mapping=$this->repository->activeCalendarMapping((int)$lesson->id,(int)$schedule->id,false);
         if(!$mapping||(string)$mapping->provider_code!=='google_calendar'||(string)$mapping->projection_state!=='verified')throw new \InvalidArgumentException('portal_capability_unknown');
         $secret=$this->repository->projectionSecret('calendar_event',(int)$mapping->id,false);

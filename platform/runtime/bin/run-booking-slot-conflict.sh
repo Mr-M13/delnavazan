@@ -11,9 +11,10 @@ gate_container="/var/www/html/slot-conflict-gate"
 # The WordPress volume is owned by the container user on Linux CI, so every
 # mutation of the shared gate directory runs as root in a disposable CLI
 # container. Host-side logs stay outside the mounted volume.
-logs="$DZN_RUNTIME_STATE_DIR/slot-conflict-logs"
+logs="${TMPDIR:-/tmp}/dzn-booking-slot-logs-$DZN_COMPOSE_PROJECT"
 rm -rf "$logs"; mkdir -p "$logs"
-gate_exec(){ docker run --rm --pull=never -v "$DZN_WP_DIR:/var/www/html" --entrypoint sh "$DZN_CLI_IMAGE" -c "$1"; }
+trap 'rm -rf "$logs"' EXIT
+gate_exec(){ docker run --rm --pull=never -u 0 -v "$DZN_WP_DIR:/var/www/html" --entrypoint sh "$DZN_CLI_IMAGE" -c "$1"; }
 gate_reset(){ gate_exec "rm -rf '/var/www/html/slot-conflict-gate' && mkdir -p '/var/www/html/slot-conflict-gate'"; }
 gate_prepare(){ gate_exec "mkdir -p '/var/www/html/slot-conflict-gate/$1' && rm -f '/var/www/html/slot-conflict-gate/$1'/*"; }
 gate_release(){ gate_exec ": > '/var/www/html/slot-conflict-gate/$1'"; }

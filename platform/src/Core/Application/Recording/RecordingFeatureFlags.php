@@ -19,9 +19,11 @@ final class RecordingFeatureFlags {
     public const EMERGENCY_STOP_OPTION='dzn_recording_emergency_stop';
     public const EMERGENCY_STOP_CONSTANT='DZN_RECORDING_EMERGENCY_STOP';
     public const PRODUCTION_APPROVAL_CONSTANT='DZN_RECORDING_CAPTURE_APPROVED';
+    public const GLOBAL_CAPTURE_OPTION='dzn_recording_global_capture';
 
     public static function captureEnabledForLesson(int $lessonId):bool{
         if(self::emergencyStop()['engaged']===true)return false;
+        if(!self::globalCaptureEnabled())return false;
         if($lessonId<1)return false;
         $environment=function_exists('wp_get_environment_type')?wp_get_environment_type():'production';
         // Production activation is a separate, explicit owner decision. The build kill-switch
@@ -43,6 +45,16 @@ final class RecordingFeatureFlags {
             if(ctype_digit((string)$entry)&&(int)$entry===$lessonId)return true;
         }
         return false;
+    }
+
+    /**
+     * Normal administrator switch. It is separate from the emergency stop: disabling it queues a
+     * stop for active work and refuses new capture without claiming an incident.
+     */
+    public static function globalCaptureEnabled():bool{
+        $stored=function_exists('get_option')?get_option(self::GLOBAL_CAPTURE_OPTION,null):null;
+        if($stored===null||$stored==='')return defined(self::PRODUCTION_APPROVAL_CONSTANT)&&constant(self::PRODUCTION_APPROVAL_CONSTANT)===true;
+        return $stored===true||$stored===1||$stored==='1'||$stored==='true'||$stored==='enabled';
     }
 
     /** Repository-wide emergency stop. A true constant or the stored option engages it. */

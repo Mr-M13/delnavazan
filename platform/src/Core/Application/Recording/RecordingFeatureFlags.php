@@ -53,7 +53,11 @@ final class RecordingFeatureFlags {
      */
     public static function globalCaptureEnabled():bool{
         $stored=function_exists('get_option')?get_option(self::GLOBAL_CAPTURE_OPTION,null):null;
-        if($stored===null||$stored==='')return defined(self::PRODUCTION_APPROVAL_CONSTANT)&&constant(self::PRODUCTION_APPROVAL_CONSTANT)===true;
+        if($stored===null||$stored===''){
+            if(defined(self::PRODUCTION_APPROVAL_CONSTANT)&&constant(self::PRODUCTION_APPROVAL_CONSTANT)===true)return true;
+            if(defined(self::STAGING_CONSTANT)&&constant(self::STAGING_CONSTANT)===true)return true;
+            return false;
+        }
         return $stored===true||$stored===1||$stored==='1'||$stored==='true'||$stored==='enabled';
     }
 

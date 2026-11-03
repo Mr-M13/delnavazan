@@ -477,15 +477,16 @@ final class EnrolmentWorkspaceReadService {
         $held = $this->heldSlot($requestId);
         $coordination = $this->coordinationSummary($requestId);
         $confirmation = $this->confirmedBooking($requestId);
+        $pending = $this->pendingDelivery($requestId);
         $outcome = $this->introOutcome($requestId);
         $postIntro = $this->postIntro($requestId);
-        $stage = $this->bookingStage($row, $times, $coordination, $confirmation, $outcome, $postIntro);
+        $stage = $this->bookingStage($row, $times, $coordination, $confirmation, $outcome, $postIntro, $pending);
         $deadline = $this->bookingDeadline($row, $times, $postIntro, $held);
         $age = max(0, time() - strtotime((string) $row->created_at . ' UTC'));
         $urgency = $this->bookingUrgency($row, $stage, $times, $deadline, $outcome, $postIntro);
         $notifications = $this->bookingNotifications($requestId);
-        $teacher = $coordination['teacher_name'] !== '' ? $coordination['teacher_name'] : (string) ($confirmation['teacher_name'] ?? '');
-        $teacherResponse = $coordination['teacher_response'] !== '' ? $coordination['teacher_response'] : (string) ($confirmation['state_label'] ?? '');
+        $teacher = $coordination['teacher_name'] !== '' ? $coordination['teacher_name'] : (string) ($confirmation['teacher_name'] ?? ($pending['teacher_name'] ?? ''));
+        $teacherResponse = $coordination['teacher_response'] !== '' ? $coordination['teacher_response'] : (string) ($confirmation['state_label'] ?? ($pending ? 'Awaiting Teacher response' : ''));
         $conversion = $this->conversionClassification((object) array(
             'id' => $requestId,
             'created_at' => $row->created_at,
@@ -527,8 +528,8 @@ final class EnrolmentWorkspaceReadService {
             'teacher_id' => (int) $coordination['teacher_id'],
             'teacher_name' => $teacher !== '' ? $teacher : 'Teacher not selected',
             'teacher_response' => $teacherResponse !== '' ? $teacherResponse : 'No response recorded',
-            'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0),
-            'availability_state' => $confirmation !== null ? 'Confirmed; provider projection state is shown below' : $coordination['availability_state'],
+            'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0, $pending !== null ? 1 : 0),
+            'availability_state' => $confirmation !== null ? 'Confirmed; provider projection state is shown below' : ($pending !== null ? 'Teacher invited for a requested time; awaiting response' : $coordination['availability_state']),
             'identity_state' => $this->identityState($row),
             'prior_booking_count' => (int) ($row->student_id ?? 0) > 0 ? $this->priorBookingCount((int) $row->student_id, $requestId) : null,
             'notification_summary' => $notifications['summary'],
@@ -536,6 +537,7 @@ final class EnrolmentWorkspaceReadService {
             'urgency_rank' => $urgency['rank'],
             'urgency_label' => $urgency['label'],
             'confirmation' => $confirmation,
+            'pending_delivery' => $pending,
             'outcome' => $outcome,
             'post_intro' => $postIntro,
             'coordination' => $coordination,
@@ -580,7 +582,7 @@ final class EnrolmentWorkspaceReadService {
     }
 
     /** @return array{key:string,label:string,next_action:string} */
-    private function bookingStage(object $row, array $times, array $coordination, ?array $confirmation, ?array $outcome, array $postIntro): array {
+    private function bookingStage(object $row, array $times, array $coordination, ?array $confirmation, ?array $outcome, array $postIntro, ?array $pendingDelivery = null): array {
         $identity = $this->identityState($row);
         if ((string) $row->privacy_erased_at !== '' && $row->privacy_erased_at !== null) {
             return array('key' => 'archived', 'label' => 'Privacy-erased', 'next_action' => 'Archived history only');
@@ -612,6 +614,9 @@ final class EnrolmentWorkspaceReadService {
                 return array('key' => 'teacher_agreed', 'label' => 'Teacher agreed', 'next_action' => 'Confirm the trial booking');
             }
             return array('key' => 'teacher_match', 'label' => 'Teacher matching', 'next_action' => 'Record the Teacher’s agreement');
+        }
+        if ($pendingDelivery !== null) {
+            return array('key' => 'teacher_match', 'label' => 'Teacher invited', 'next_action' => 'Await the Teacher response or follow up');
         }
         if ($identity['key'] !== 'verified') {
             return array('key' => 'identity', 'label' => 'Identity needed', 'next_action' => 'Resolve identity or record an identity blocker');
@@ -729,6 +734,27 @@ final class EnrolmentWorkspaceReadService {
     }
 
     /** @return array<string,mixed>|null */
+    /** @return array<string,mixed>|null */
+    private function pendingDelivery(int $requestId): ?array {
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT d.id,d.teacher_id,d.state,d.match_strength,d.created_at,rt.sequence_number,rt.starts_at_utc,rt.local_date,rt.local_start_time,rt.timezone,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name FROM {$this->p}booking_request_teacher_deliveries d INNER JOIN {$this->p}teachers t ON t.id=d.teacher_id INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=d.requested_time_id AND rt.booking_request_id=d.booking_request_id WHERE d.booking_request_id=%d AND d.state='pending_request' ORDER BY d.id DESC LIMIT 1",
+            $requestId
+        ));
+        if (!$row) return null;
+        return array(
+            'delivery_id' => (int) $row->id,
+            'teacher_id' => (int) $row->teacher_id,
+            'teacher_name' => (string) $row->teacher_name,
+            'state' => (string) $row->state,
+            'match_strength' => (string) $row->match_strength,
+            'created_at' => (string) $row->created_at,
+            'sequence' => (int) $row->sequence_number,
+            'starts_at_utc' => (string) $row->starts_at_utc,
+            'local_label' => $this->localLabel((string) $row->starts_at_utc, $this->safeTimezone((string) $row->timezone)),
+        );
+    }
+
     private function confirmedBooking(int $requestId): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
@@ -955,24 +981,53 @@ final class EnrolmentWorkspaceReadService {
     private function bookingNotifications(int $requestId): array {
         $status = (new NotificationDeliveryStatusReadService())->forBookingRequest($requestId);
         $rows = array();
+        $recovery = current_user_can(BookingNotificationRecoveryService::CAPABILITY) ? new BookingNotificationRecoveryService() : null;
         foreach ((array) $status['rows'] as $row) {
             $category = (string) ($row['category'] ?? 'unknown');
+            $preview = null;
+            if ($recovery !== null && $category === 'failed' && (int) ($row['notification_id'] ?? 0) > 0) {
+                try { $preview = $recovery->preview((int) $row['notification_id']); } catch (\Throwable) { $preview = null; }
+            }
             $rows[] = array(
                 'label' => $this->notificationLabel($category),
                 'category' => $category,
                 'at' => (string) ($row['updated_at'] ?? ''),
                 'detail' => $this->notificationDetail($category, $row),
+                'notification_id' => (int) ($row['notification_id'] ?? 0),
+                'audience' => (string) ($row['audience'] ?? ''),
+                'recipient' => (string) ($row['recipient'] ?? ''),
+                'channel' => (string) ($row['channel'] ?? 'email'),
+                'state' => (string) ($row['state'] ?? ''),
+                'attempt_count' => (int) ($row['attempt_count'] ?? 0),
+                'failure_reason' => (string) ($row['last_error_code'] ?? ''),
+                'last_attempt' => (string) ($row['updated_at'] ?? ''),
+                'recovery_available' => !empty($preview['eligible']),
+                'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
         }
         $post = $this->postIntroNotifications($requestId);
         foreach ($post as $row) {
             $category = $this->notificationCategory((string) $row->state, $row->handed_off_at);
             $status['summary'][$category] = (int) ($status['summary'][$category] ?? 0) + 1;
+            $preview = null;
+            if ($recovery !== null && $category === 'failed') {
+                try { $preview = $recovery->preview((int) $row->id); } catch (\Throwable) { $preview = null; }
+            }
             $rows[] = array(
                 'label' => $this->notificationLabel($category) . ' · ' . $this->postIntroNotificationKind((string) $row->notification_kind),
                 'category' => $category,
                 'at' => (string) $row->updated_at,
                 'detail' => $this->notificationDetail($category, array('state' => (string) $row->state, 'attempt_count' => (int) $row->attempt_count, 'last_error_code' => $row->last_error_code)),
+                'notification_id' => (int) $row->id,
+                'audience' => str_contains((string) $row->notification_kind, 'teacher') ? 'teacher' : 'student',
+                'recipient' => '',
+                'channel' => 'email',
+                'state' => (string) $row->state,
+                'attempt_count' => (int) $row->attempt_count,
+                'failure_reason' => (string) ($row->last_error_code ?? ''),
+                'last_attempt' => (string) $row->updated_at,
+                'recovery_available' => !empty($preview['eligible']),
+                'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
         }
         return array('summary' => $status['summary'] + array('unknown' => 0), 'rows' => $rows);

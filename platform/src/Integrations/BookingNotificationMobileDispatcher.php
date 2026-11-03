@@ -108,8 +108,10 @@ final class BookingNotificationMobileDispatcher {
         if ($audience === 'student') {
             $id = (int) ($row->student_id ?? 0);
             if ($id < 1) return null;
-            $whatsapp = trim((string) ($row->student_whatsapp ?? ''));
-            $phone = trim((string) ($row->student_mobile ?? ''));
+            $whatsapp = trim((string) ($row->student_account_whatsapp ?? ''));
+            $phone = trim((string) ($row->student_account_phone ?? ''));
+            if ($whatsapp === '') $whatsapp = trim((string) ($row->student_whatsapp ?? ''));
+            if ($phone === '') $phone = trim((string) ($row->student_mobile ?? ''));
         } elseif ($audience === 'teacher') {
             $id = (int) ($row->teacher_id ?? 0);
             if ($id < 1) return null;

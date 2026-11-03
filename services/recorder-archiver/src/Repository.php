@@ -83,6 +83,7 @@ final class Repository {
     }
 
     public function assetUpsert(array $asset): void {
+        if (isset($asset['verified_at']) && is_int($asset['verified_at'])) $asset['verified_at'] = gmdate('Y-m-d H:i:s', $asset['verified_at']);
         $existing = $this->db->fetch('SELECT * FROM recording_assets WHERE recording_uid=? AND content_version=?', [$asset['recording_uid'], $asset['content_version']]);
         $now = $this->db->now();
         if ($existing) {

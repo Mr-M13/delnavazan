@@ -31,8 +31,8 @@ final class App {
         if ($method === 'GET' && ($path === '/' || $path === '/index.html')) { $this->page(); return; }
         if ($method === 'POST' && $path === '/session') { $this->session($body); return; }
         if (($method === 'GET' || $method === 'HEAD') && preg_match('#^/stream/([a-f0-9]{48})$#D', $path, $m) === 1) { $this->stream($method, $m[1], $range); return; }
-        if ($method === 'GET' && $path === '/health') { $this->health(); return; }
-        if ($method === 'GET' && $path === '/metrics') { $this->metrics(); return; }
+        if ($method === 'GET' && $path === '/health') { if (!$this->authoriseAdmin()) { $this->json(404, ['error' => 'not_found']); return; } $this->health(); return; }
+        if ($method === 'GET' && $path === '/metrics') { if (!$this->authoriseAdmin()) { $this->json(404, ['error' => 'not_found']); return; } $this->metrics(); return; }
         if ($path === '/favicon.ico') { http_response_code(204); return; }
         $this->json(404, ['error' => 'not_found']);
     }
@@ -94,6 +94,14 @@ HTML;
             if ($reason === 'archive_temporarily_unavailable') $this->json(503, ['error' => 'recording_temporarily_unavailable']);
             else $this->json(403, ['error' => 'recording_playback_denied']);
         }
+    }
+
+    /** Operational endpoints are never exposed through the public playback listener. */
+    private function authoriseAdmin(): bool {
+        $token = (string) $this->config->get('admin_token');
+        if (strlen($token) < 24) return false;
+        $header = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+        return hash_equals('Bearer ' . $token, $header);
     }
 
     private function health(): void {

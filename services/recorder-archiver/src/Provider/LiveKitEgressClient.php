@@ -90,7 +90,10 @@ final class LiveKitEgressClient implements EgressPort {
             return ['status' => $status, 'body' => is_string($response) ? $response : ''];
         };
         $response = $transport($url, $body, $headers);
-        if ((int) ($response['status'] ?? 0) < 200 || (int) ($response['status'] ?? 0) >= 300) throw new \RuntimeException('livekit_egress_unavailable');
+        if ((int) ($response['status'] ?? 0) < 200 || (int) ($response['status'] ?? 0) >= 300) {
+            $safeBody = substr(preg_replace('/[^\x20-\x7E]/', ' ', (string) ($response['body'] ?? '')), 0, 240);
+            throw new \RuntimeException('livekit_egress_unavailable:' . (int) ($response['status'] ?? 0) . ':' . $safeBody);
+        }
         $decoded = json_decode((string) ($response['body'] ?? ''), true);
         if (!is_array($decoded)) throw new \RuntimeException('livekit_egress_invalid_response');
         return $decoded;

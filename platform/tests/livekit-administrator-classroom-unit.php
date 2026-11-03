@@ -7,6 +7,7 @@
  * privileged token is part of the administrator grant.
  */
 $root = dirname(__DIR__);
+require_once $root . '/src/Portals/ParticipantJoinWindow.php';
 require_once $root . '/src/Integrations/LiveKit/LiveKitClassroomGrantPolicy.php';
 require_once $root . '/src/Integrations/LiveKit/LiveKitLaunchTicket.php';
 
@@ -43,7 +44,7 @@ $facts = array(
 $teacherPrincipal = array('kind' => 'teacher', 'id' => 11, 'uid' => 'T', 'display_reference' => 'T', 'linked_at' => '2026-01-01 00:00:00');
 $studentPrincipal = array('kind' => 'student', 'id' => 12, 'uid' => 'S', 'display_reference' => 'S', 'linked_at' => '2026-01-01 00:00:00');
 
-// Participant policy: two hours before class is outside the unchanged one-hour join window.
+// Participant policy: two hours before class is outside the shared 30-minute join window.
 $refuse(static fn() => $policy->authorize($facts, 'teacher', $teacherPrincipal, $start - 7200, $secret), 'livekit_outside_window');
 $refuse(static fn() => $policy->authorize($facts, 'student', $studentPrincipal, $start - 7200, $secret), 'livekit_outside_window');
 

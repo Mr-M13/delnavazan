@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Integrations\LiveKit;
 
+use Delnavazan\Platform\Portals\ParticipantJoinWindow;
+
 /**
  * Pure classroom grant policy.
  *
@@ -12,8 +14,8 @@ namespace Delnavazan\Platform\Integrations\LiveKit;
  * connection with the same identity instead of admitting a third person.
  */
 final class LiveKitClassroomGrantPolicy {
-    public const EARLY_SECONDS = 3600;
-    public const LATE_SECONDS = 7200;
+    public const EARLY_SECONDS = ParticipantJoinWindow::EARLY_SECONDS;
+    public const LATE_SECONDS = ParticipantJoinWindow::LATE_SECONDS;
 
     public function authorize(array $facts, string $role, array $principal, int $now, string $secret): array {
         if (!in_array($role, array('teacher', 'student'), true)) {
@@ -39,7 +41,7 @@ final class LiveKitClassroomGrantPolicy {
         $start = strtotime((string)$facts['starts_at_utc'] . ' UTC');
         $end = strtotime((string)$facts['ends_at_utc'] . ' UTC');
         if (!$start || !$end || $end <= $start) throw new \InvalidArgumentException('livekit_resource_invalid');
-        if ($now < $start - self::EARLY_SECONDS || $now > $end + self::LATE_SECONDS) {
+        if (!ParticipantJoinWindow::contains($start, $end, $now)) {
             throw new \InvalidArgumentException('livekit_outside_window');
         }
         $teacherIdentity = $this->identity($secret, $kind, (int)$facts['resource_id'], 'teacher', (int)$facts['teacher_id']);

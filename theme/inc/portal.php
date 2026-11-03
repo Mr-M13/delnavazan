@@ -302,7 +302,7 @@ function dzn_theme_student_portal_demo_model( $screen, $preview_url ) {
 				'time'               => '۱۸:۳۰ تا ۱۹:۱۵',
 				'timezone_label'     => 'زمان بریزبن',
 				'join_url'           => '',
-				'notice'             => 'کلاس تا کمتر از یک ساعت دیگر آغاز می‌شود.',
+				'notice'             => 'کلاس تا کمتر از ۳۰ دقیقه دیگر آغاز می‌شود.',
 				'owed_session_label' => '',
 			),
 			'term' => array(

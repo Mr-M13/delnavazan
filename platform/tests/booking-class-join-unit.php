@@ -21,6 +21,7 @@ namespace Delnavazan\Platform\Portals {
     }
 }
 namespace {
+    require_once dirname(__DIR__) . '/src/Portals/ParticipantJoinWindow.php';
     require_once dirname(__DIR__) . '/src/Integrations/BookingClassJoinService.php';
     $assert = static function(bool $ok, string $message): void { if (!$ok) throw new \RuntimeException($message); };
     $repository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository();

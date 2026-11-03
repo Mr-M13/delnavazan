@@ -1,5 +1,6 @@
 <?php
 $root = dirname(__DIR__);
+require_once $root . '/src/Portals/ParticipantJoinWindow.php';
 require_once $root . '/src/Integrations/LiveKit/LiveKitClassroomGrantPolicy.php';
 require_once $root . '/src/Integrations/LiveKit/LiveKitLaunchTicket.php';
 require_once $root . '/src/Integrations/LiveKit/LiveKitWebhookVerifier.php';
@@ -66,6 +67,10 @@ $refuse(static fn() => $policy->authorize(array_merge($facts, array('joinable' =
 $refuse(static fn() => $policy->authorize(array_merge($facts, array('requested_schedule_key' => str_repeat('X', 26))), 'teacher', $teacherPrincipal, $now, $secret), 'livekit_stale_schedule');
 $refuse(static fn() => $policy->authorize($facts, 'teacher', $teacherPrincipal, $now - 3601, $secret), 'livekit_outside_window');
 $refuse(static fn() => $policy->authorize($facts, 'teacher', $teacherPrincipal, $now + 10801, $secret), 'livekit_outside_window');
+$policy->authorize($facts, 'teacher', $teacherPrincipal, $now - 1800, $secret);
+$refuse(static fn() => $policy->authorize($facts, 'teacher', $teacherPrincipal, $now - 1801, $secret), 'livekit_outside_window');
+$policy->authorize($facts, 'student', $studentPrincipal, $now + 3600 + 1800, $secret);
+$refuse(static fn() => $policy->authorize($facts, 'student', $studentPrincipal, $now + 3600 + 1801, $secret), 'livekit_outside_window');
 $replacement = $policy->authorize(array_merge($facts, array('is_replacement' => true)), 'student', $studentPrincipal, $now, $secret);
 $assert($replacement['is_replacement'] === true, 'Replacement lesson flag was lost.');
 $assert($policy->authorize(array_merge($facts, array('meet_available' => false)), 'student', $studentPrincipal, $now, $secret)['meet_available'] === false, 'Missing Meet fallback was not propagated.');

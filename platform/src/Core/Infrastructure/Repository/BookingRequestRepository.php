@@ -4,7 +4,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 final class BookingRequestRepository {
     private string $prefix;
     public function __construct() { global $wpdb; $this->prefix = $wpdb->prefix . 'dzn_'; }
-    public function begin(): void { global $wpdb; if ( $wpdb->query( 'START TRANSACTION' ) === false ) throw new \RuntimeException( 'Transaction start failed' ); }
+    public function begin(): void { global $wpdb; if ( $wpdb->query( 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED' ) === false || $wpdb->query( 'START TRANSACTION' ) === false ) throw new \RuntimeException( 'Transaction start failed' ); }
     public function commit(): void { global $wpdb; if ( $wpdb->query( 'COMMIT' ) === false ) throw new \RuntimeException( 'Transaction commit failed' ); }
     public function rollback(): void { global $wpdb; $wpdb->query( 'ROLLBACK' ); }
     /** Catalogue lock order is Instrument then Course, matching Core catalogue mutations. */
@@ -19,4 +19,7 @@ final class BookingRequestRepository {
     public function rows(): array { global $wpdb; return $wpdb->get_results( "SELECT id,reference_code,requested_instrument_id,selected_intro_course_id,lifecycle_status,resolution_state,retention_due_at,created_at FROM {$this->prefix}booking_requests ORDER BY id DESC LIMIT 100" ); }
     public function details(int $id): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT r.*,s.full_name,s.email,s.mobile,s.country,s.city,s.timezone,s.communication_language,s.whatsapp_same_as_mobile,s.whatsapp_number,s.privacy_notice_version,s.privacy_notice_accepted_at FROM {$this->prefix}booking_requests r INNER JOIN {$this->prefix}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1 WHERE r.id=%d", $id ) ); }
     public function times(int $id): array { global $wpdb; return $wpdb->get_results( $wpdb->prepare( "SELECT local_date,local_start_time,timezone,starts_at_utc,instructional_ends_at_utc,occupied_ends_at_utc,instructional_duration_minutes,buffer_minutes FROM {$this->prefix}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number", $id ) ); }
+    /** @param list<array{starts_at_utc:string,occupied_ends_at_utc:string}> $times */
+    public function studentOccupancyConflicts(int $studentId, array $times, array $options = array()): array { return StudentOccupancyQuery::conflicts( $studentId, $times, $options ); }
+    public function ensureAndLockStudentRoot(int $studentId, string $now, int $actor): void { (new CanonicalLessonScheduleRepository())->ensureAndLockStudentRoot( $studentId, $now, $actor ); }
 }

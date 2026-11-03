@@ -2,6 +2,7 @@
 /** Disposable DB proof for authorised failed-booking-notification recovery. */
 if(getenv('DZN_BOOKING_NOTIFICATION_RECOVERY')!=='authority'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Booking notification recovery runtime refused.\n");exit(1);}
 use Delnavazan\Platform\Core\Application\BookingNotificationRecoveryService;
+use Delnavazan\Platform\Core\Application\BookingNotificationRetentionService;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');$suffix=strtolower(wp_generate_password(10,false,false));
@@ -41,4 +42,21 @@ $wpdb->update($p.'teachers',array('email'=>'invalid-address'),array('id'=>$teach
 $wpdb->update($p.'booking_request_student_notifications',array('state'=>'failed','last_error_code'=>'contact_unusable','attempt_count'=>1),array('id'=>$failed));
 $invalidResult=$service->recover($failed,$suffix.'-recovery-command-002');
 $assert(($invalidResult['state']??'')==='failed'&&($invalidResult['reason']??'')==='recipient_contact_unusable','An invalid recipient was recovered.');
-echo wp_json_encode(array('eligible'=>'queued','replay'=>'idempotent','stale'=>'refused','invalid_recipient'=>'refused','booking_state'=>'unchanged')) . "\n";
+$wpdb->update($p.'booking_request_student_notifications',array('state'=>'failed','last_error_code'=>'contact_unusable','attempt_count'=>1,'updated_at'=>'2026-11-02 12:00:00'),array('id'=>$failed));
+$wpdb->insert($p.'booking_request_student_notifications',array('uid'=>Identifier::uid(),'delivery_id'=>$delivery,'confirmation_id'=>null,'notification_kind'=>'requested_student','state'=>'failed','attempt_count'=>1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now));$recentFailure=(int)$wpdb->insert_id;
+$wpdb->insert($p.'booking_request_student_notifications',array('uid'=>Identifier::uid(),'delivery_id'=>$delivery,'confirmation_id'=>null,'notification_kind'=>'confirmed','state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now));$queuedNotification=(int)$wpdb->insert_id;
+$retention=new BookingNotificationRetentionService();
+$closePreview=$retention->preview($failed);$assert(!empty($closePreview['eligible']),'A pre-fix failed notification was not eligible for historical closure.');
+$closed=$retention->close($failed,$suffix.'-close-command-000');
+$assert(($closed['state']??'')==='closed'&&empty($closed['replayed']),'Historical closure did not close the failed notification.');
+$assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}booking_request_student_notifications WHERE id=%d",$failed))==='closed','Historical closure did not persist the closed state.');
+$assert((string)$wpdb->get_var($wpdb->prepare("SELECT last_error_code FROM {$p}booking_request_student_notifications WHERE id=%d",$failed))==='historical_stale','Historical closure did not record the retention reason.');
+$assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}booking_request_teacher_deliveries WHERE id=%d",$delivery))==='pending_request','Historical closure changed the Teacher delivery.');
+$assert((string)$wpdb->get_var($wpdb->prepare("SELECT lifecycle_status FROM {$p}booking_requests WHERE id=%d",$request))==='submitted','Historical closure changed the booking request.');
+$closeReplay=$retention->close($failed,$suffix.'-close-command-000');$assert(!empty($closeReplay['replayed']),'Historical closure replay was not idempotent.');
+$assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE event_type='booking_request.notification_closed'")===1,'Historical closure audit was duplicated.');
+$recentResult=$retention->close($recentFailure,$suffix.'-close-command-001');
+$assert(($recentResult['state']??'')==='failed'&&($recentResult['reason']??'')==='notification_not_historical','A recent failure was closed as historical.');
+$queuedResult=$retention->close($queuedNotification,$suffix.'-close-command-002');
+$assert(($queuedResult['state']??'')==='queued'&&($queuedResult['reason']??'')==='notification_not_failed','A non-failed notification was closed.');
+echo wp_json_encode(array('eligible'=>'queued','replay'=>'idempotent','stale'=>'refused','invalid_recipient'=>'refused','historical_close'=>'closed_without_send','recent'=>'refused','booking_state'=>'unchanged')) . "\n";

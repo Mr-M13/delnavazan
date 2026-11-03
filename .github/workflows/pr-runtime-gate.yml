@@ -133,6 +133,8 @@ jobs:
           php platform/tests/booking-calendar-projection-unit.php
           php platform/tests/booking-student-notification-unit.php
           php platform/tests/booking-notification-mobile-recipient-unit.php
+          php platform/tests/booking-notification-receipt-contract.php
+          php platform/tests/booking-notification-retention-contract.php
           php platform/tests/booking-notification-independence-contract.php
           php platform/tests/booking-notification-recovery-contract.php
           php platform/tests/google-oauth-scope-policy-unit.php

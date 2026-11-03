@@ -11,6 +11,10 @@
 .dzn-booking__heading { position: relative; max-width: 46rem; margin: 0 auto 2rem; padding-block: 1rem 1.5rem; text-align: center; }
 .dzn-booking__heading h1 { margin-bottom: .6rem; font-size: clamp(1.8rem, 4vw, 2.8rem); }
 .dzn-booking__heading p { font-size: 1.05rem; }
+.dzn-booking__heading-caption { max-width: 42rem; margin: 0 auto .55rem; }
+.dzn-booking__heading-caption strong { color: var(--dzn-color-text-primary); }
+.dzn-booking__heading p.dzn-booking__heading-key { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .3rem .85rem; margin: 0 auto; color: var(--dzn-color-text-muted); font-size: .84rem; line-height: 1.7; }
+.dzn-booking__heading-key > span { display: inline-flex; align-items: center; gap: .35rem; }
 .dzn-booking__card { max-width: 62rem; margin-inline: auto; padding: clamp(1rem, 4vw, 2.5rem); border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-lg); background: var(--dzn-color-surface-elevated); box-shadow: var(--dzn-shadow-soft); }
 
 /* Progress */
@@ -82,18 +86,21 @@
 .dzn-booking__step .dzn-booking__instrument-source { position: absolute; box-sizing: border-box; inline-size: 1px; width: 1px; min-inline-size: 0; min-width: 0; max-inline-size: 1px; max-width: 1px; block-size: 1px; height: 1px; min-block-size: 0; min-height: 0; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
 
 /* Availability */
-.dzn-booking__preference-intro { display: grid; gap: .15rem; max-width: 38rem; margin: 0 auto 1.25rem; border: 1px solid color-mix(in srgb, var(--dzn-color-action-primary) 24%, var(--dzn-color-border)); border-inline-start: .28rem solid var(--dzn-color-action-primary); border-radius: var(--dzn-radius-sm); background: color-mix(in srgb, var(--dzn-color-action-primary) 7%, var(--dzn-color-surface-elevated)); padding: .7rem .9rem; }
-.dzn-booking__preference-intro strong { color: var(--dzn-color-text-primary); font-size: 1rem; }
-.dzn-booking__preference-intro span { color: var(--dzn-color-text-muted); font-size: .86rem; }
+.dzn-booking__step-caption { max-width: 38rem; margin: -.85rem 0 1.25rem; color: var(--dzn-color-text-muted); font-size: .95rem; line-height: 1.8; }
 .dzn-booking__availability-key { display: grid; gap: .45rem; margin-block: .85rem 1rem; border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-sm); background: var(--dzn-color-surface-elevated); padding: .6rem .75rem; color: var(--dzn-color-text-muted); font-size: .84rem; }
 .dzn-booking__availability-key-title { margin: 0; color: var(--dzn-color-text-secondary); font-size: .82rem; font-weight: 700; }
 .dzn-booking__availability-key-items { display: flex; flex-wrap: wrap; gap: .35rem .9rem; }
 .dzn-booking__availability-key-items > span { display: inline-flex; align-items: center; gap: .35rem; }
-.dzn-booking__availability-key i { width: .7rem; height: .7rem; border-radius: 50%; background: var(--dzn-color-information); }
+.dzn-booking__heading-key i,
+.dzn-booking__availability-key i { flex: none; width: .7rem; height: .7rem; border-radius: 50%; background: var(--dzn-color-information); }
+.dzn-booking__heading-key i.is-strong,
 .dzn-booking__availability-key i.is-strong { background: var(--dzn-color-success); }
+.dzn-booking__heading-key i.is-possible,
 .dzn-booking__availability-key i.is-possible { background: var(--dzn-color-warning); }
+.dzn-booking__heading-key i.is-none,
 .dzn-booking__availability-key i.is-none { border: 1px solid var(--dzn-color-border); background: var(--dzn-color-surface-elevated); }
 .dzn-booking__availability-key i.is-blocked { background: var(--dzn-color-text-muted); }
+.dzn-booking__availability-key-title { line-height: 1.75; }
 .dzn-booking__availability-status { margin: .5rem 0; color: var(--dzn-color-text-muted); font-size: .9rem; }
 .dzn-booking__availability-status.is-error { color: var(--dzn-color-error); }
 .dzn-booking__time-guidance { max-width: 38rem; margin: 0 auto 1rem; border-inline-start: .2rem solid var(--dzn-color-highlight); color: var(--dzn-color-text-muted); padding: .65rem .8rem; font-size: .9rem; line-height: 1.8; }
@@ -195,7 +202,7 @@
   .dzn-booking__calendar-grid { gap: .12rem; }
   .dzn-booking__calendar-day { min-height: 2.5rem; font-size: .88rem; }
   .dzn-booking__day-times { padding: .75rem; }
-  .dzn-booking__preference-intro { padding: .65rem .75rem; }
+  .dzn-booking__step-caption { margin-block-start: -.7rem; }
   .dzn-booking__availability-key { padding: .55rem .65rem; }
 }
 

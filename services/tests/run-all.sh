@@ -2,6 +2,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "$BASH_SOURCE")/../.." && pwd)"
 php "$root/services/tests/signature-contract.php"
+php "$root/services/recorder-archiver/tests/resource-unit.php"
 php "$root/services/recorder-archiver/tests/egress-unit.php"
 php "$root/services/recorder-archiver/tests/integration.php"
 php "$root/services/recorder-archiver/tests/resilience.php"

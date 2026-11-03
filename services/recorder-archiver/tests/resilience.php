@@ -229,6 +229,20 @@ try {
     echo "M-Box capacity threshold: PASS\n";
 } finally { dzn_cleanup($root); }
 
+// 6c. Host pressure admission refuses capture before Egress starts.
+$root = dzn_tmp('host-pressure');
+try {
+    [$config, $db, $repo, $storage, $client] = dzn_environment($root, ['max_load_per_cpu' => 0.05]);
+    $uid = Support::uid();
+    dzn_command($client, 'start', dzn_start_payload($uid), hash('sha256', 'host-pressure-start'), 'recording_requested');
+    $egress = new FakeEgress();
+    $worker = dzn_worker($config, $repo, $storage, $egress, new LocalArchiveAdapter($config), $client);
+    $stats = $worker->runOnce(true);
+    dzn_assert_true($stats['inbox_failed'] === 1 && $egress->startCalls === 0, 'host pressure must refuse capture before Egress');
+    dzn_assert_true($repo->job($uid) === null, 'host-pressure refusal must not create a job');
+    echo "Host pressure admission: PASS\n";
+} finally { dzn_cleanup($root); }
+
 // 7. Storage threshold refuses new capture.
 $root = dzn_tmp('threshold');
 try {

@@ -19,6 +19,7 @@ use Delnavazan\Recorder\Storage\StorageLayout;
 final class Worker {
     private WordPressClient $wordpress;
     private ConfirmationSigner $confirmations;
+    private SystemMetrics $metrics;
     private ?int $lastHealthSent = null;
     public array $stats = [];
 
@@ -34,6 +35,7 @@ final class Worker {
         ?ConfirmationSigner $confirmations = null,
     ) {
         $this->wordpress = $wordpress ?? new WordPressClient($config);
+        $this->metrics = new SystemMetrics($config);
         if ($confirmations) {
             $this->confirmations = $confirmations;
         } else {
@@ -106,6 +108,8 @@ final class Worker {
     }
 
     private function handleStart(array $payload): void {
+        $resource = $this->metrics->admission();
+        if (!$resource['allowed']) throw new \RuntimeException('recording_' . $resource['reason']);
         $check = $this->storage->canAccept();
         if (!$check['ok']) throw new \RuntimeException('recording_' . $check['reason']);
         $job = $this->repository->jobCreate($payload);
@@ -447,6 +451,8 @@ final class Worker {
             'storage_free_bytes' => $storage['free_bytes'], 'storage_free_percent' => $storage['free_percent'],
             'archive_mount_identity' => $archive['identity'], 'archive_available' => $archive['mounted'],
             'archive_free_bytes' => $archive['free_bytes'], 'tailscale_connected' => $tailscale,
+            'host_load_per_cpu' => $this->metrics->snapshot()['load_per_cpu'],
+            'host_memory_available_bytes' => $this->metrics->snapshot()['memory_available_bytes'],
             'egress_cpu_percent' => (float) $this->config->get('egress_cpu_percent'),
             'egress_memory_bytes' => (int) $this->config->get('egress_memory_bytes'),
             'oldest_queue_age_seconds' => $this->repository->oldestQueueAge(),

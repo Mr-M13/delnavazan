@@ -55,7 +55,7 @@ function dzn_config(string $root, array $overrides = []): Config {
         'wordpress_service_secret' => str_repeat('s', 64), 'wordpress_service_key_id' => 'test-recorder-v1',
         'archive_signing_secret' => str_repeat('m', 64), 'livekit_api_url' => 'http://127.0.0.1:7880', 'livekit_key' => 'devkey', 'livekit_secret' => 'secret',
         'egress_template_url' => 'http://127.0.0.1:8091/egress/template', 'egress_layout' => 'dzn-two-person',
-        'min_free_bytes' => 1048576, 'min_free_percent' => 0.001, 'lease_seconds' => 300, 'max_attempts' => 6,
+        'min_free_bytes' => 1048576, 'min_free_percent' => 0.001, 'min_available_memory_bytes' => 536870912, 'max_load_per_cpu' => 2.0, 'host_load_per_cpu_override' => '0.1', 'host_memory_available_override' => '4294967296', 'lease_seconds' => 300, 'max_attempts' => 6,
         'http_bind' => '127.0.0.1:8091', 'tailscale_binary' => '/usr/bin/true', 'egress_cpu_percent' => 1.0, 'egress_memory_bytes' => 1048576,
     ], $overrides);
     return new Config($values);

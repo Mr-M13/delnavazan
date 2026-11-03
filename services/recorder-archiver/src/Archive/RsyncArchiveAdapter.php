@@ -7,23 +7,20 @@ use Delnavazan\Recorder\Config;
 use Delnavazan\Recorder\Support;
 
 /**
- * Restricted rsync-over-SSH archive adapter for the Tailscale-only M-Box path.
+ * Restricted rsync-over-SSH archive adapter for the Pi.
  *
- * It never trusts an rsync exit code as proof. The remote side reports exact size and SHA-256, the
- * file is flushed, renamed atomically and the parent directory is flushed before a receipt is
- * returned. A different existing object is quarantined, never overwritten.
+ * The archive account's forced command is `pi-archive-shell.py`. It allows only rsync writes
+ * under the dedicated archive root and a small JSON operation set for identity, verification,
+ * atomic commit and deletion. A remote shell is never available. A different existing object is
+ * quarantined and never overwritten.
  */
 final class RsyncArchiveAdapter implements ArchivePort {
     public function __construct(private Config $config) {}
 
     public function identity(): array {
         try {
-            $root = $this->remoteRoot();
-            $marker = $this->config->get('archive_mount_marker');
-            $out = $this->sshRun('test -f ' . escapeshellarg($marker) . ' && test -d ' . escapeshellarg($root) . ' && cat ' . escapeshellarg($marker) . ' && printf "\\n" && df -P -B1 ' . escapeshellarg($root) . ' | awk \'NR==2 {print $4}\'');
-            $lines = array_values(array_filter(array_map('trim', explode("\n", trim($out))), static fn($v) => $v !== ''));
-            if (count($lines) < 2) return ['mounted' => false, 'identity' => '', 'free_bytes' => 0, 'reason' => 'archive_mount_absent'];
-            return ['mounted' => true, 'identity' => $lines[0], 'free_bytes' => (int) $lines[1], 'reason' => 'mounted'];
+            $result = $this->helper(['op' => 'identity']);
+            return ['mounted' => ($result['mounted'] ?? false) === true, 'identity' => (string) ($result['identity'] ?? ''), 'free_bytes' => (int) ($result['free_bytes'] ?? 0), 'reason' => ($result['mounted'] ?? false) === true ? 'mounted' : 'archive_mount_absent'];
         } catch (\Throwable $error) {
             return ['mounted' => false, 'identity' => '', 'free_bytes' => 0, 'reason' => Support::safeReason($error->getMessage())];
         }
@@ -38,45 +35,39 @@ final class RsyncArchiveAdapter implements ArchivePort {
     public function transfer(string $sourcePath, string $objectKey, string $expectedSha256, string $temporaryKey): array {
         $identity = $this->identity();
         if (!$identity['mounted']) throw new \RuntimeException('archive_mount_absent');
-        $root = $this->remoteRoot();
-        $final = $root . '/' . $objectKey;
-        $temporary = $root . '/' . $temporaryKey;
-        $probe = $this->sshRun('mkdir -p ' . escapeshellarg(dirname($final)) . ' ' . escapeshellarg(dirname($temporary)) . ' && if [ -f ' . escapeshellarg($final) . ' ]; then sha256sum ' . escapeshellarg($final) . ' | cut -d" " -f1; else echo absent; fi');
-        $probe = trim($probe);
-        if ($probe !== 'absent') {
-            if (!hash_equals($expectedSha256, $probe)) throw new \RuntimeException('archive_destination_conflict');
-            return ['idempotent' => true, 'bytes' => (int) filesize($sourcePath), 'sha256' => $probe, 'receipt' => $this->remoteReceipt($final), 'temp_key' => $temporaryKey];
+        $sourceBytes = @filesize($sourcePath);
+        if (!is_int($sourceBytes) || $sourceBytes < 1) throw new \RuntimeException('archive_source_unreadable');
+        $probe = $this->helper(['op' => 'probe', 'path' => $objectKey]);
+        if (($probe['exists'] ?? false) === true) {
+            if (!hash_equals($expectedSha256, (string) $probe['sha256']) || (int) $probe['bytes'] !== $sourceBytes) throw new \RuntimeException('archive_destination_conflict');
+            return ['idempotent' => true, 'bytes' => (int) $probe['bytes'], 'sha256' => (string) $probe['sha256'], 'receipt' => 'existing', 'temp_key' => $temporaryKey];
         }
+        $this->helper(['op' => 'mkdir', 'path' => dirname($temporaryKey)]);
+        $this->helper(['op' => 'mkdir', 'path' => dirname($objectKey)]);
         $rsync = (string) $this->config->get('archive_rsync_binary');
-        $ssh = $this->sshCommand();
-        $command = escapeshellarg($rsync) . ' --archive --partial --append-verify --inplace --timeout=120 --rsh ' . escapeshellarg($ssh) . ' ' . escapeshellarg($sourcePath) . ' ' . escapeshellarg($this->sshTarget() . ':' . $temporary);
+        $command = escapeshellarg($rsync) . ' --archive --partial --append-verify --inplace --timeout=180 --chmod=Dg+rx,Fg+r --rsh ' . escapeshellarg($this->sshCommand()) . ' ' . escapeshellarg($sourcePath) . ' ' . escapeshellarg($this->sshTarget() . ':' . $temporaryKey);
         $this->run($command, 'archive_transfer_failed');
-        $remote = $this->sshRun('set -e; f=' . escapeshellarg($temporary) . '; d=' . escapeshellarg($final) . '; s=$(sha256sum "$f" | cut -d" " -f1); n=$(stat -c %s "$f"); printf "%s %s\\n" "$s" "$n"; test "$s" = ' . escapeshellarg($expectedSha256) . '; test "$n" = ' . escapeshellarg((string) filesize($sourcePath)) . '; mv -f "$f" "$d"; chmod 600 "$d"; sync "$d"; sync "$(dirname "$d")"');
-        [$remoteSha, $remoteBytes] = array_pad(preg_split('/\s+/', trim($remote)) ?: [], 2, '0');
-        if (!hash_equals($expectedSha256, (string) $remoteSha) || (int) $remoteBytes !== (int) filesize($sourcePath)) throw new \RuntimeException('archive_destination_checksum_mismatch');
-        return ['idempotent' => false, 'bytes' => (int) $remoteBytes, 'sha256' => (string) $remoteSha, 'receipt' => $this->remoteReceipt($final), 'temp_key' => $temporaryKey];
+        $commit = $this->helper(['op' => 'commit', 'temporary' => $temporaryKey, 'final' => $objectKey, 'sha256' => $expectedSha256, 'bytes' => $sourceBytes]);
+        return ['idempotent' => false, 'bytes' => (int) $commit['bytes'], 'sha256' => (string) $commit['sha256'], 'receipt' => (string) $commit['receipt'], 'temp_key' => $temporaryKey];
     }
 
     public function verify(string $objectKey, string $expectedSha256, int $expectedBytes): array {
-        $path = $this->remoteRoot() . '/' . $objectKey;
-        $out = trim($this->sshRun('f=' . escapeshellarg($path) . '; test -f "$f"; printf "%s %s\\n" "$(sha256sum "$f" | cut -d" " -f1)" "$(stat -c %s "$f")"'));
-        [$sha, $bytes] = array_pad(preg_split('/\s+/', $out) ?: [], 2, '0');
-        if (!hash_equals($expectedSha256, (string) $sha) || (int) $bytes !== $expectedBytes) throw new \RuntimeException('archive_destination_checksum_mismatch');
-        return ['verified' => true, 'bytes' => (int) $bytes, 'sha256' => (string) $sha, 'receipt' => $this->remoteReceipt($path)];
+        $result = $this->helper(['op' => 'verify', 'path' => $objectKey, 'sha256' => $expectedSha256, 'bytes' => $expectedBytes]);
+        return ['verified' => true, 'bytes' => (int) $result['bytes'], 'sha256' => (string) $result['sha256'], 'receipt' => (string) $result['receipt']];
     }
 
     public function delete(string $objectKey): array {
-        if (preg_match('#(^|/)\.\.(/|$)#', $objectKey) === 1 || str_starts_with($objectKey, '/')) throw new \RuntimeException('archive_object_key_invalid');
-        $path = $this->remoteRoot() . '/' . $objectKey;
-        $receipt = $this->remoteReceipt($path);
-        $this->sshRun('f=' . escapeshellarg($path) . '; test -f "$f"; rm -f -- "$f"; sync "$(dirname "$f")"');
-        return ['deleted' => true, 'receipt' => $receipt];
+        $result = $this->helper(['op' => 'delete', 'path' => $objectKey]);
+        return ['deleted' => true, 'receipt' => (string) ($result['receipt'] ?? '')];
     }
 
-    private function remoteRoot(): string {
-        $root = rtrim((string) $this->config->get('archive_root'), '/');
-        if (!str_starts_with($root, '/')) throw new \RuntimeException('archive_root_invalid');
-        return $root;
+    private function helper(array $payload): array {
+        $encoded = rtrim(strtr(base64_encode(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)), '+/', '-_'), '=');
+        $command = $this->sshCommand() . ' ' . escapeshellarg($this->sshTarget()) . ' ' . escapeshellarg('dzn-archive-op ' . $encoded);
+        $output = trim($this->run($command, 'archive_operation_failed'));
+        $decoded = json_decode($output, true);
+        if (!is_array($decoded)) throw new \RuntimeException('archive_operation_invalid_response');
+        return $decoded;
     }
 
     private function sshTarget(): string {
@@ -87,17 +78,8 @@ final class RsyncArchiveAdapter implements ArchivePort {
     }
 
     private function sshCommand(): string {
-        return 'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 -i ' . escapeshellarg((string) $this->config->get('archive_ssh_key'));
-    }
-
-    private function sshRun(string $script): string {
-        $command = $this->sshCommand() . ' ' . escapeshellarg($this->sshTarget()) . ' ' . escapeshellarg('sh -c ' . escapeshellarg($script));
-        return $this->run($command, 'archive_transport_failed');
-    }
-
-    private function remoteReceipt(string $path): string {
-        $out = trim($this->sshRun('f=' . escapeshellarg($path) . '; stat -c "dev=%d;ino=%i;size=%s;mtime=%Y" "$f"'));
-        return $out !== '' ? $out : 'unavailable';
+        $known = (string) $this->config->get('archive_ssh_known_hosts');
+        return 'ssh -p ' . (int) $this->config->get('archive_ssh_port', 22) . ' -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o ConnectTimeout=15' . ($known !== '' ? ' -o UserKnownHostsFile=' . escapeshellarg($known) : '') . ' -i ' . escapeshellarg((string) $this->config->get('archive_ssh_key'));
     }
 
     private function run(string $command, string $error): string {

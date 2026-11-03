@@ -40,7 +40,7 @@ function dzn_gw_grant(string $secret, string $kid, array $payload, int $ttl = 30
 function dzn_gw_wait(string $url): bool {
     for ($i = 0; $i < 40; $i++) {
         $r = dzn_gw_curl('GET', $url);
-        if ($r['status'] > 0) return true;
+        if ($r['status'] === 200) return true;
         usleep(100000);
     }
     return false;
@@ -61,7 +61,11 @@ try {
     mkdir(dirname($final), 0700, true);
     copy($fixture, $final); chmod($final, 0600);
     $secret = str_repeat('p', 64); $kid = 'test-playback-v1';
-    $port = random_int(18150, 18250);
+    $probe = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+    if (!is_resource($probe)) throw new RuntimeException('free port probe failed');
+    $socketName = stream_socket_get_name($probe, false);
+    fclose($probe);
+    $port = (int) substr((string) $socketName, strrpos((string) $socketName, ':') + 1);
     $env = array_merge(getenv(), [
         'DZN_PLAYBACK_SIGNING_SECRET' => $secret, 'DZN_PLAYBACK_KEY_ID' => $kid, 'DZN_PLAYBACK_ISSUER' => 'https://delnavazan.test/',
         'DZN_ARCHIVE_ROOT' => $mbox, 'DZN_ARCHIVE_MOUNT_MARKER' => $mbox . '/.dzn-mount',

@@ -28,6 +28,8 @@ final class LiveKitEgressClient implements EgressPort {
                 'disable_manifest' => true,
             ]],
         ];
+        $preset = (string) $this->config->get('egress_preset');
+        if ($preset !== '') $body['preset'] = $preset;
         $template = (string) $this->config->get('egress_template_url');
         if ($template !== '') $body['custom_base_url'] = $template;
         $response = $this->call('StartRoomCompositeEgress', $body, (string) ($job['room_name'] ?? ''));

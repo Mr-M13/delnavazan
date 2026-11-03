@@ -1,8 +1,8 @@
 # Real Staging Evidence — LiveKit → OVH → Pi Archive → Playback
 
-**Date:** 2026-11-03 UTC  
+**Date:** 2026-11-03 UTC
 **Environment:** disposable WordPress control plane on the operator Mac, OVH LiveKit VPS
-(`vps-4e83ecc6` / `rtc.delnavazan.com`), Pi (`pixelbox` / `100.70.11.93`).  
+(`vps-4e83ecc6` / `rtc.delnavazan.com`), Pi (`pixelbox` / `100.70.11.93`).
 **Posture:** staging-only. No production WordPress deployment, no production recording, no
 real-student lesson, no ML export, no infrastructure purchase and no Orchestra decommissioning.
 

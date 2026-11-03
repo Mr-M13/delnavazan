@@ -321,7 +321,11 @@ final class Worker {
                     if (!$deleteArchive) throw new \RuntimeException('recording_source_missing');
                     $this->archive->delete((string) $confirmation['destination_object_key']);
                     $receipt = 'source_missing=1;size=' . (int) $asset['bytes'] . ';sha256=' . $asset['sha256'] . ';archive_deleted=1;deleted_at=' . $this->dbNow();
-                    $this->repository->deletionUpdate((int) $deletion['id'], (int) $deletion['version'], ['state' => 'completed', 'deletion_receipt' => $receipt]);
+                    $deletionFields = ['state' => 'completed', 'deletion_receipt' => $receipt];
+                    if (!$this->repository->deletionUpdate((int) $deletion['id'], (int) $deletion['version'], $deletionFields)) {
+                        $freshDeletion = $this->repository->deletion($recordingUid, $contentVersion);
+                        if ($freshDeletion) $this->repository->deletionUpdate((int) $freshDeletion['id'], (int) $freshDeletion['version'], $deletionFields);
+                    }
                     $this->repository->jobUpdate($recordingUid, (int) $job['version'], ['state' => 'archived_vps_deleted']);
                     $this->repository->assetUpsert(['recording_uid' => $recordingUid, 'content_version' => $contentVersion, 'path_relative' => $relative, 'state' => 'deleted', 'bytes' => (int) $asset['bytes'], 'sha256' => (string) $asset['sha256'], 'duration_ms' => $asset['duration_ms'], 'width' => $asset['width'], 'height' => $asset['height'], 'video_codec' => $asset['video_codec'], 'audio_codec' => $asset['audio_codec'], 'video_streams' => $asset['video_streams'], 'audio_streams' => $asset['audio_streams'], 'sync_offset_ms' => $asset['sync_offset_ms'], 'verified_at' => $asset['verified_at']]);
                     $this->outboxEnqueue('source_deleted', $recordingUid, $contentVersion, $this->callbackPayload('source_deleted', $job, ['deleted_source_bytes' => (int) $asset['bytes'], 'deleted_source_sha256' => (string) $asset['sha256'], 'deletion_receipt' => $receipt, 'archive_deleted' => true]), $this->eventKey('source_deleted|' . $recordingUid . '|' . $contentVersion));
@@ -357,7 +361,11 @@ final class Worker {
                     $archiveDeleted = true;
                 }
                 $receipt = 'dev=' . $before['dev'] . ';ino=' . $before['ino'] . ';size=' . $before['size'] . ';sha256=' . $asset['sha256'] . ';archive_deleted=' . ($archiveDeleted ? '1' : '0') . ';deleted_at=' . $this->dbNow();
-                $this->repository->deletionUpdate((int) $deletion['id'], (int) $deletion['version'], ['state' => 'completed', 'deletion_receipt' => $receipt, 'source_device' => (string) $before['dev'], 'source_inode' => (string) $before['ino']]);
+                $deletionFields = ['state' => 'completed', 'deletion_receipt' => $receipt, 'source_device' => (string) $before['dev'], 'source_inode' => (string) $before['ino']];
+                if (!$this->repository->deletionUpdate((int) $deletion['id'], (int) $deletion['version'], $deletionFields)) {
+                    $freshDeletion = $this->repository->deletion($recordingUid, $contentVersion);
+                    if ($freshDeletion) $this->repository->deletionUpdate((int) $freshDeletion['id'], (int) $freshDeletion['version'], $deletionFields);
+                }
                 $this->repository->jobUpdate($recordingUid, (int) $job['version'], ['state' => 'archived_vps_deleted']);
                 $this->repository->assetUpsert(['recording_uid' => $recordingUid, 'content_version' => $contentVersion, 'path_relative' => $relative, 'state' => 'deleted', 'bytes' => (int) $asset['bytes'], 'sha256' => (string) $asset['sha256'], 'duration_ms' => $asset['duration_ms'], 'width' => $asset['width'], 'height' => $asset['height'], 'video_codec' => $asset['video_codec'], 'audio_codec' => $asset['audio_codec'], 'video_streams' => $asset['video_streams'], 'audio_streams' => $asset['audio_streams'], 'sync_offset_ms' => $asset['sync_offset_ms'], 'verified_at' => $asset['verified_at']]);
                 $this->outboxEnqueue('source_deleted', $recordingUid, $contentVersion, $this->callbackPayload('source_deleted', $job, ['deleted_source_bytes' => (int) $asset['bytes'], 'deleted_source_sha256' => (string) $asset['sha256'], 'deletion_receipt' => $receipt, 'archive_deleted' => $archiveDeleted]), $this->eventKey('source_deleted|' . $recordingUid . '|' . $contentVersion));

@@ -186,6 +186,8 @@ final class Menu {
             ['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
 
             ['Notifications', self::NOTIFICATION_MANAGEMENT_CAP, 'dzn-notifications', [NotificationManagementController::class, 'screen'], null],
+            ['Policies', 'dzn_manage_consent_policies', 'dzn-policies', [PoliciesController::class, 'render'], null],
+    ['Recordings', 'dzn_manage_recording_operations', 'dzn-recordings', [RecordingOperationsController::class, 'render'], null],
             ['Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],

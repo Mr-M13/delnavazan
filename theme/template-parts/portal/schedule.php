@@ -77,6 +77,7 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 				);
 				?>
 				<div class="dzn-schedule-row__meta">
+					<?php if ( function_exists( 'dzn_theme_recording_playback_button' ) ) { echo dzn_theme_recording_playback_button( $item, 'student' ); } ?>
 					<?php if ( ! empty( $item['absence_available'] ) ) : ?>
 						<details class="dzn-schedule-row__absence">
 							<summary><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></summary>

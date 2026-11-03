@@ -21,6 +21,10 @@ final class PortalNotificationRecorder {
     public static function admin(string $eventKey,string $sourceKind,int $sourceId,array $variables=array(),?string $linkUrl=null):?int{
         return self::record($eventKey,'admin',0,$sourceKind,$sourceId,$variables,$linkUrl);
     }
+    /** A minor's verified guardian inbox. The recipient is the canonical grant holder. */
+    public static function guardian(int $studentId,string $eventKey,string $sourceKind,int $sourceId,array $variables=array(),?string $linkUrl=null):?int{
+        return self::record($eventKey,'guardian',$studentId,$sourceKind,$sourceId,$variables,$linkUrl);
+    }
 
     public static function record(string $eventKey,string $audience,int $recipientId,string $sourceKind,int $sourceId,array $variables=array(),?string $linkUrl=null):?int{
         if(!isset($GLOBALS['wpdb'])||!is_object($GLOBALS['wpdb']))return null;

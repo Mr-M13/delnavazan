@@ -1,0 +1,24 @@
+[Unit]
+Description=Delnavazan recorder/archiver worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+RequiresMountsFor=/srv/delnavazan-recordings
+
+[Service]
+Type=simple
+User=delnavazan-recorder
+Group=delnavazan-recorder
+EnvironmentFile=/etc/delnavazan/recorder.env
+ExecStart=/usr/bin/php /opt/delnavazan-recorder/bin/recorder.php work
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/delnavazan-recordings /var/lib/delnavazan-recorder
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

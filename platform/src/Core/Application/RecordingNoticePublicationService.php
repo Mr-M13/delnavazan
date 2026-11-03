@@ -13,8 +13,11 @@ use Delnavazan\Platform\Core\Support\Identifier;
 final class RecordingNoticePublicationService {
     public const AUDIENCES = array(
         RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,
+        RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RECORDING,
+        RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RESEARCH,
         RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,
         RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH,
+        RecordingDecisionAuthorityService::AUDIENCE_PRIVACY_TERMS,
     );
     public const LANGUAGES = array('en','fa');
 
@@ -63,7 +66,10 @@ final class RecordingNoticePublicationService {
                 'created_at'=>$now,
                 'created_by'=>$actor,
             ));
-            if($inserted===1)return array('uid'=>$uid,'audience'=>$audience,'language'=>$language,'version'=>$version,'published_at'=>$now);
+            if($inserted===1){
+                do_action('dzn_recording_notice_published',$audience,$language,$version,$uid,$actor);
+                return array('uid'=>$uid,'audience'=>$audience,'language'=>$language,'version'=>$version,'published_at'=>$now);
+            }
             if(!str_contains((string)$wpdb->last_error,'Duplicate'))break;
         }
         throw new \RuntimeException('recording_notice_persistence_failed');

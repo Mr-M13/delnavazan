@@ -276,7 +276,7 @@ decision.
   already-submitted open evidence is immutable; the case remains review-only rather than
   automatically settling.
 - The adapter does not backfill historical LiveKit or Google Meet attendance.
-- The adapter does not create recordings, egress, transcripts, Analytics, PixelBox storage or any
+- The adapter does not create recordings, egress, transcripts, Analytics, Pi storage or any
   provider-side data.
 - The shell-level proof races two reconciliation workers on one pending occurrence. It does not claim
   to simulate an unbounded production-wide concurrency storm; the underlying Phase-P command/evidence

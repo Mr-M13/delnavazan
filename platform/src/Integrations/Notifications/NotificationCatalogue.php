@@ -52,6 +52,7 @@ final class NotificationCatalogue {
         foreach(self::teacherEvents() as $event)$events[$event['key']]=$event;
         foreach(self::adminEvents() as $event)$events[$event['key']]=$event;
         foreach(self::declaredFinancialEvents() as $event)$events[$event['key']]=$event;
+        foreach(self::consentEvents() as $event)$events[$event['key']]=$event;
         ksort($events,SORT_STRING);
         return $events;
     }
@@ -301,6 +302,38 @@ final class NotificationCatalogue {
                     self::PRIMARY_LOCALE=>array('email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"درود،\n\n".$content[1]."\n\nاین پیام فقط برای اطلاع مدیر آموزشگاه است.\n\nدلنوازان")),
                 ));
             }
+        }
+        return $out;
+    }
+
+    // ------------------------------------------------------------------ consent lifecycle events
+
+    /**
+     * Consent notices are operational account messages. They never contain decision evidence,
+     * guardian identity, recording contents or research material.
+     */
+    private static function consentEvents():array{
+        $definitions=array(
+            'consent.teacher_required.teacher'=>array('Teacher Consent Required','consent_required','teacher','teacher','email','website','teacher_portal_url',array('teacher','teacher_portal_url'),'درود {{teacher}}، برای ادامهٔ همکاری لازم است انتخاب‌های ضبط کلاس و پژوهش را در پرتال مدرس بررسی کنید. هیچ کلاسی به‌صورت خودکار ضبط نمی‌شود. {{teacher_portal_url}}'),
+            'consent.student_required.student'=>array('Student Consent Required','consent_required','student','student','email','website','portal_url',array('name','portal_url'),'درود {{name}}، لطفاً انتخاب‌های ضبط کلاس و پژوهش را در حساب کاربری بررسی کنید. هیچ کلاسی بدون انتخاب شما ضبط نمی‌شود. {{portal_url}}'),
+            'consent.guardian_required.guardian'=>array('Guardian Consent Required','consent_required','guardian','guardian','email','website','portal_url',array('portal_url'),'درود، برای هنرجوی زیر ۱۸ سال، تصمیم دربارهٔ ضبط کلاس و پژوهش نیازمند تأیید سرپرست دارای اختیار است. لطفاً از حساب کاربری اقدام کنید. {{portal_url}}'),
+            'consent.recorded.teacher'=>array('Teacher Consent Recorded','consent_recorded','teacher','teacher','website','website','teacher_portal_url',array('teacher_portal_url'),'درود، انتخاب شما ثبت شد. تاریخچهٔ تصمیم‌ها در پرتال مدرس قابل مشاهده است. {{teacher_portal_url}}'),
+            'consent.recorded.student'=>array('Student Consent Recorded','consent_recorded','student','student','website','website','portal_url',array('portal_url'),'درود، انتخاب شما ثبت شد. تاریخچهٔ تصمیم‌ها در حساب کاربری قابل مشاهده است. {{portal_url}}'),
+            'consent.policy_updated.student'=>array('Student Consent Policy Updated','consent_policy_updated','student','student','email','website','portal_url',array('portal_url'),'درود، اطلاعیهٔ ضبط یا پژوهش به‌روزرسانی شده است. لطفاً نسخهٔ تازه را در حساب کاربری بررسی کنید. {{portal_url}}'),
+            'consent.policy_updated.teacher'=>array('Teacher Consent Policy Updated','consent_policy_updated','teacher','teacher','email','website','teacher_portal_url',array('teacher_portal_url'),'درود، اطلاعیهٔ ضبط یا پژوهش به‌روزرسانی شده است. لطفاً نسخهٔ تازه را در پرتال مدرس بررسی کنید. {{teacher_portal_url}}'),
+            'consent.withdrawal_confirmed.teacher'=>array('Teacher Consent Withdrawal Confirmed','consent_withdrawal','teacher','teacher','email','website','teacher_portal_url',array('teacher_portal_url'),'درود، درخواست پس گرفتن رضایت ثبت شد. پردازش‌های آیندهٔ وابسته متوقف می‌شود. {{teacher_portal_url}}'),
+            'consent.withdrawal_confirmed.student'=>array('Student Consent Withdrawal Confirmed','consent_withdrawal','student','student','email','website','portal_url',array('portal_url'),'درود، درخواست پس گرفتن رضایت ثبت شد. پردازش‌های آیندهٔ وابسته متوقف می‌شود. {{portal_url}}'),
+            'consent.admin_attention.admin'=>array('Consent Action Required','consent_attention','admin','admin','website','website','when',array('when'),'درود، یک مورد رضایت یا پردازش پس از پس گرفتن نیازمند بررسی مدیر است. زمان: {{when}}'),
+        );
+        $out=array();
+        foreach($definitions as$key=>$definition){
+            [$label,$template,$category,$audience,$channel,$consent,$variable,$variables,$body]=$definition;
+            $channels=array_values(array_unique(array($channel,'website')));
+            $out[]=self::event($key,$label,$category==='admin'?'account':'account',$audience,'ConsentNotificationService','queue',$channels,$consent,false,$variables,$template,array(
+                self::PRIMARY_LOCALE=>array('website'=>array('subject'=>$label,'body'=>$body),'email'=>array('subject'=>'دلنوازان · '.$label,'body'=>$body)),
+                'en'=>array('website'=>array('subject'=>$label,'body'=>$label.' — open your account to review the current choice.'),'email'=>array('subject'=>'Delnavazan · '.$label,'body'=>$label.' — open your account to review the current choice.')),
+            ));
+            $out[count($out)-1]['implementation']='partial';
         }
         return $out;
     }

@@ -73,18 +73,18 @@ dzn_rda_ui_assert($unlinkedModel['available']===false,'unlinked account must be 
 wp_set_current_user($teacherUser);$teacherModel=$ui->teacher();
 dzn_rda_ui_assert($teacherModel['available']===true&&$teacherModel['accepted']===false&&count($teacherModel['notices'])===2,'linked Teacher must see both published language versions');
 $teacherHtml=dzn_rda_ui_render_teacher($teacherModel);
-foreach(array('Teacher recording terms','Accept these teacher recording terms','English','فارسی','version 1')as$text)dzn_rda_ui_assert(str_contains($teacherHtml,$text),'teacher component missing '.$text);
+foreach(array('Recorded-work terms','Lesson recording','Research and model training','English','فارسی')as$text)dzn_rda_ui_assert(str_contains($teacherHtml,$text),'teacher component missing '.$text);
 $accepted=$service->acceptTeacherTerms($teacherEn['uid'],'en','ui-runtime-terms-01');
 $teacherModel=$ui->teacher();dzn_rda_ui_assert($teacherModel['accepted']===true&&!empty($teacherModel['accepted_at']),'teacher acceptance must expose its recorded date');
 $teacherHtml=dzn_rda_ui_render_teacher($teacherModel);
-dzn_rda_ui_assert(str_contains($teacherHtml,'Recorded:')&&str_contains($teacherHtml,'version 1'),'teacher component must show recorded date and terms version');
+dzn_rda_ui_assert(str_contains($teacherHtml,'پذیرفته شده')&&str_contains($teacherHtml,'<time'),'teacher component must show recorded date and current decision');
 wp_set_current_user($unlinkedUser);$missing=$ui->teacher();$missingHtml=dzn_rda_ui_render_teacher($missing);
-dzn_rda_ui_assert($missing['available']===false&&str_contains($missingHtml,'available only to an active Teacher account')&&!str_contains($missingHtml,'Accept these teacher recording terms'),'unlinked Teacher must get no acceptance form');
+dzn_rda_ui_assert($missing['available']===false&&str_contains($missingHtml,'available only to an active Teacher account')&&!str_contains($missingHtml,'name="choice"'),'unlinked Teacher must get no acceptance form');
 
 // No approved publication: acceptance and recording forms are unavailable, with no fabricated record.
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s",RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS));
 wp_set_current_user($teacherUser);$noTerms=$ui->teacher();$noTermsHtml=dzn_rda_ui_render_teacher($noTerms);
-dzn_rda_ui_assert($noTerms['available']===false&&str_contains($noTermsHtml,'Acceptance is unavailable')&&!str_contains($noTermsHtml,'Accept these teacher recording terms'),'missing teacher publication must not render acceptance');
+dzn_rda_ui_assert($noTerms['available']===false&&str_contains($noTermsHtml,'ثبت رضایت در دسترس نیست')&&!str_contains($noTermsHtml,'name="choice"'),'missing teacher publication must not render acceptance');
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS));
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 wp_set_current_user($adultUser);$noRecording=$ui->student('enrolment','en');$noRecordingHtml=dzn_rda_ui_render_student($noRecording);

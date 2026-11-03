@@ -842,6 +842,7 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	if ( ! in_array( $delivery_state, array( 'completed', 'delivered', 'presumed_completed', 'cancelled' ), true ) && isset( $attendance_labels[ $attendance_state ] ) ) {
 		$outcome = $attendance_labels[ $attendance_state ];
 	}
+	$recording_fields = function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $row['lesson_uid'] ?? '' ) ) : array();
 	return array(
 		'kind' => $is_booking ? 'intro' : 'term',
 		'lesson_kind' => (string) ( $row['lesson_kind'] ?? '' ),
@@ -906,6 +907,10 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
 		'lesson_uid' => (string) ( $row['lesson_uid'] ?? '' ),
 		'schedule_version_uid' => (string) ( $row['schedule_version_uid'] ?? '' ),
+		'recording_uid' => (string) ( $recording_fields['recording_uid'] ?? '' ),
+		'recording_available' => ! empty( $recording_fields['recording_available'] ),
+		'recording_status_label' => (string) ( $recording_fields['recording_status_label'] ?? '' ),
+		'recording_state' => (string) ( $recording_fields['recording_state'] ?? '' ),
 	);
 }
 
@@ -1501,6 +1506,10 @@ function dzn_theme_platform_student_model( $screen ) {
 		'absence_nonce' => wp_create_nonce( 'dzn_student_report_absence' ),
 		'lesson_uid' => (string) ( $next['lesson_uid'] ?? '' ),
 		'schedule_version_uid' => (string) ( $next['schedule_version_uid'] ?? '' ),
+		'recording_uid' => (string) ( ( function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $next['lesson_uid'] ?? '' ) ) : array() )['recording_uid'] ?? '' ),
+		'recording_available' => ! empty( ( function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $next['lesson_uid'] ?? '' ) ) : array() )['recording_available'] ),
+		'recording_status_label' => (string) ( ( function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $next['lesson_uid'] ?? '' ) ) : array() )['recording_status_label'] ?? '' ),
+		'recording_state' => (string) ( ( function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $next['lesson_uid'] ?? '' ) ) : array() )['recording_state'] ?? '' ),
 		'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'student', $next ),
 		'notice' => $is_booking ? 'کلاس آشناییٔ رایگان شما تأیید شده است.' : ( 'in_progress' === dzn_theme_platform_lesson_temporal_state( $next, $now ) ? 'این کلاس همین حالا در جریان است.' : ( ( $upcoming_livekit_available || $upcoming_join_available ) ? 'دسترسی ورود برای این کلاس مجاز است؛ پیوند امن در مرحلهٔ اتصال اقدام ارائه می‌شود.' : '' ) ),
 		'owed_session_label' => '',
@@ -2093,6 +2102,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		} elseif ( $soon ) {
 			$status_label = 'به‌زودی شروع می‌شود';
 		}
+		$recording_fields = function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $lesson['lesson_uid'] ?? '' ) ) : array();
 		$class = array(
 			'ref' => $reference,
 			'start_available' => $livekit_ready || $join_ready,
@@ -2162,6 +2172,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'course' => $course_label,
 			'progress' => $is_booking ? 'کلاس آشنایی' : 'کلاس ترم',
 			'status' => $status_label,
+			'recording_uid' => (string) ( $recording_fields['recording_uid'] ?? '' ),
+			'recording_available' => ! empty( $recording_fields['recording_available'] ),
+			'recording_status_label' => (string) ( $recording_fields['recording_status_label'] ?? '' ),
+			'recording_state' => (string) ( $recording_fields['recording_state'] ?? '' ),
 		);
 		// Replacement allowance is canonical Enrolment data. The teacher Lesson read does not
 		// project it today, so only carry it when the read actually supplies it; never derive it.
@@ -2232,6 +2246,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'outcome' => '' !== $class['completion_outcome'] ? $class['completion_outcome'] : $class['status'],
 			'tone' => $class['completion_tone'],
 			'starts_at_utc' => $class['starts_at_utc'],
+			'recording_uid' => $class['recording_uid'],
+			'recording_available' => $class['recording_available'],
+			'recording_status_label' => $class['recording_status_label'],
+			'recording_state' => $class['recording_state'],
 		);
 		if ( $class['completion_completed'] ) {
 			// A completed or recorded occurrence is history, never an actionable Today row.
@@ -2291,6 +2309,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				$history_progress = $history_completed > 0
 					? dzn_theme_platform_persian_digits( (int) ( $history_lesson['term_lesson_completed'] ?? 0 ) ) . ' از ' . dzn_theme_platform_persian_digits( $history_completed ) . ' جلسه · ' . dzn_theme_platform_persian_digits( (int) ( $history_lesson['term_lesson_remaining'] ?? 0 ) ) . ' جلسه باقی‌مانده'
 					: '';
+				$history_recording = function_exists( 'dzn_theme_recording_playback_fields' ) ? dzn_theme_recording_playback_fields( (string) ( $history_lesson['lesson_uid'] ?? '' ) ) : array();
 				$past_classes[] = array(
 					'ref' => $history_ref,
 					'date' => dzn_theme_platform_calendar_time( (string) ( $history_lesson['starts_at_utc'] ?? '' ), $history_timezone, $teacher_calendar, $teacher_locale, 'weekday_month_day' ),
@@ -2304,6 +2323,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 						: ( $history_outcome_labels[ $history_outcome ] ?? 'وضعیت برگزاری ثبت شده' ),
 					'tone' => in_array( $history_outcome, array( 'completed', 'delivered' ), true ) ? 'success' : 'muted',
 					'starts_at_utc' => (string) ( $history_lesson['starts_at_utc'] ?? '' ),
+					'recording_uid' => (string) ( $history_recording['recording_uid'] ?? '' ),
+					'recording_available' => ! empty( $history_recording['recording_available'] ),
+					'recording_status_label' => (string) ( $history_recording['recording_status_label'] ?? '' ),
+					'recording_state' => (string) ( $history_recording['recording_state'] ?? '' ),
 				);
 			}
 		}

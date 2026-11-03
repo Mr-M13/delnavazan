@@ -1,6 +1,6 @@
 # Recording and Persian Music Research: Architecture and Decision Log
 
-**Status:** proposed; capture and research export are disabled.  This document is not a consent notice,
+**Status:** consent lifecycle implemented; capture and research export are disabled until the activation gates below are approved.  This document is not a consent notice,
 legal advice, or authorisation to collect material.
 
 ## Release boundary
@@ -50,7 +50,7 @@ or principal IDs are ignored.
 | --- | --- | --- | --- |
 | Teacher terms acceptance | Canonical Teacher | recorded-work terms | Exact terms version, language, acceptance actor/time; required before assignment to recorded work |
 | Student recording preference or approved default-on evidence | Canonical Student | future lesson capture | Explicit allow or decline; or, only for a legally approved cohort, archived notice + completed enrolment + no opt-out. Unanswered is not allow unless that exact approved default applies. |
-| Guardian recording decision | Authorised guardian acting for Canonical Student | future lesson capture | Required where capacity rules require it; authority is revalidated |
+| Guardian recording decision | Authorised guardian acting for Canonical Student | future lesson capture | Required where capacity rules require it; the mutation, gate and dataset evaluator revalidate the canonical grant |
 | Student research participation | Canonical Student or authorised guardian | research and model training | Separate active opt-in; never inferred from recording permission |
 | Guardian research decision | Authorised guardian acting for Canonical Student | research and model training | Separate from recording decision |
 | Policy/notice snapshot | Capture/use event | scope and retention | Exact policy, notice, language and effective version used at that event |

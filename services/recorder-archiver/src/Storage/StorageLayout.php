@@ -23,7 +23,9 @@ final class StorageLayout {
     public function ensure(): void {
         foreach ([$this->root(), $this->tmpRoot(), $this->readyRoot()] as $dir) {
             if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) throw new \RuntimeException('recording_storage_directory_unavailable');
-            chmod($dir, 0700);
+            // The enclosing root is group-traversable so the dedicated Egress worker can reach
+            // tmp/ready; the media directories themselves remain 0700.
+            chmod($dir === $this->root() ? $dir : $dir, $dir === $this->root() ? 0710 : 0700);
         }
         $tmp = stat($this->tmpRoot());
         $ready = stat($this->readyRoot());

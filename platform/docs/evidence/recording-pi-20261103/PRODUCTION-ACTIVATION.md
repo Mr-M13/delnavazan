@@ -1,8 +1,8 @@
 # Production Activation — Recording and Pi Archival
 
-**Activated:** 2026-11-03 UTC  
-**Production build:** `main-6aeac51fdd8a` (main SHA `6aeac51fdd8af1e605c9494f7d9f695cc7dc29dc`)  
-**WordPress target:** `https://delnavazan.com`  
+**Activated:** 2026-11-03 UTC
+**Production build:** `main-6aeac51fdd8a` (main SHA `6aeac51fdd8af1e605c9494f7d9f695cc7dc29dc`)
+**WordPress target:** `https://delnavazan.com`
 **Posture:** capture enabled for consenting lessons; research export remains disabled.
 
 ## Code and migration state
@@ -27,7 +27,7 @@ Backups: `/home/delnavaz/backups/dzn-production/<timestamp>-<sha>/` (application
 | Playback gateway | `delnavazan-playback-prod`, loopback `:8092` |
 | Public playback TLS | `https://rtc.delnavazan.com:8443` via Caddy L4 |
 
-Recording storage: `/srv/delnavazan-recordings` (tmp/ready, 0710/0700, same filesystem).  
+Recording storage: `/srv/delnavazan-recordings` (tmp/ready, 0710/0700, same filesystem).
 Pi mount: `/mnt/delnavazan-pi-archive`, read-only SSHFS.
 
 ## Secure Pi connectivity

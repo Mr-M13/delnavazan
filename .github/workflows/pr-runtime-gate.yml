@@ -116,6 +116,7 @@ jobs:
           php platform/tests/booking-teacher-response-contract.php
           php platform/tests/booking-teacher-response-unit.php
           php platform/tests/student-occupancy-authority-contract.php
+          php platform/tests/confirmed-intro-cancellation-contract.php
           php platform/tests/booking-upcoming-classes-contract.php
           php platform/tests/booking-upcoming-classes-unit.php
           php platform/tests/booking-upcoming-classes-theme-unit.php

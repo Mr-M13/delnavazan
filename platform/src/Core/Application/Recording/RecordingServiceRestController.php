@@ -93,6 +93,10 @@ final class RecordingServiceRestController {
                 'egress_cpu_percent'=>(float)($payload['egress_cpu_percent']??0),
                 'egress_memory_bytes'=>(int)($payload['egress_memory_bytes']??0),
                 'oldest_queue_age_seconds'=>(int)($payload['oldest_queue_age_seconds']??0),
+                'host_load_per_cpu'=>(float)($payload['host_load_per_cpu']??0),
+                'host_memory_available_bytes'=>(int)($payload['host_memory_available_bytes']??0),
+                'emergency_stop_active'=>($payload['emergency_stop_active']??false)===true,
+                'queue_states'=>is_array($payload['queue_states']??null)?$payload['queue_states']:array(),
                 'recorder_version'=>(string)($payload['recorder_version']??''),
             ),false);
             return new \WP_REST_Response(array('ok'=>true),200);

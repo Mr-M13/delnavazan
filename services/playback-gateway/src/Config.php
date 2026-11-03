@@ -19,6 +19,7 @@ final class Config {
             'runtime_dir' => (string) ($env['DZN_PLAYBACK_RUNTIME_DIR'] ?? '/run/delnavazan-playback'),
             'access_log' => (string) ($env['DZN_PLAYBACK_ACCESS_LOG'] ?? '/var/log/delnavazan/playback-access.jsonl'),
             'bind' => (string) ($env['DZN_PLAYBACK_BIND'] ?? '127.0.0.1:8092'),
+            'admin_token' => (string) ($env['DZN_PLAYBACK_ADMIN_TOKEN'] ?? ''),
             'global_concurrency' => (int) ($env['DZN_PLAYBACK_GLOBAL_CONCURRENCY'] ?? 8),
             'user_concurrency' => (int) ($env['DZN_PLAYBACK_USER_CONCURRENCY'] ?? 2),
             'bandwidth_bytes_per_second' => (int) ($env['DZN_PLAYBACK_BANDWIDTH_BPS'] ?? 0),

@@ -45,6 +45,9 @@ $retraction = $wpdb->get_results("SELECT state,COUNT(*) total,MIN(updated_at) ol
 $recoveryAuditRows = $wpdb->get_results("SELECT id,aggregate_id,reason_code,safe_detail,occurred_at FROM {$p}platform_audit_events WHERE event_type='booking_request.notification_recovery' ORDER BY id DESC LIMIT 5", ARRAY_A) ?: array();
 $deliveryEvidence = $wpdb->get_results("SELECT delivery_state,applied,COUNT(*) total,MIN(occurred_at) oldest,MAX(occurred_at) newest FROM {$p}notification_deliveries GROUP BY delivery_state,applied ORDER BY delivery_state,applied", ARRAY_A) ?: array();
 $canonicalNotifications = $wpdb->get_results("SELECT audience,state,COUNT(*) total FROM {$p}notifications GROUP BY audience,state ORDER BY audience,state", ARRAY_A) ?: array();
+$telnyxMessages = $wpdb->get_results("SELECT channel,state,COUNT(*) total,MIN(created_at) oldest,MAX(updated_at) newest FROM {$p}telnyx_messages GROUP BY channel,state ORDER BY channel,state", ARRAY_A) ?: array();
+$telnyxMessageRecent = $wpdb->get_results("SELECT id,channel,notification_id,attempt_id,provider_template_name,state,created_at,updated_at FROM {$p}telnyx_messages ORDER BY id DESC LIMIT 15", ARRAY_A) ?: array();
+$telnyxEvents = $wpdb->get_results("SELECT event_type,delivery_state,outcome_code,COUNT(*) total,MAX(occurred_at) newest FROM {$p}telnyx_events GROUP BY event_type,delivery_state,outcome_code ORDER BY total DESC LIMIT 20", ARRAY_A) ?: array();
 $attemptOutcomes = $wpdb->get_results("SELECT state,outcome_code,failure_class,COUNT(*) total,MAX(updated_at) newest FROM {$p}notification_attempts GROUP BY state,outcome_code,failure_class ORDER BY total DESC LIMIT 20", ARRAY_A) ?: array();
 
 $cron = _get_cron_array();
@@ -82,6 +85,9 @@ echo json_encode(array(
     'recovery_audit_recent' => $recoveryAuditRows,
     'delivery_evidence' => $deliveryEvidence,
     'canonical_notifications' => $canonicalNotifications,
+    'telnyx_messages' => $telnyxMessages,
+    'telnyx_message_recent' => $telnyxMessageRecent,
+    'telnyx_events' => $telnyxEvents,
     'notification_attempt_outcomes' => $attemptOutcomes,
     'provider_readiness' => array('telnyx' => $whatsapp, 'google_oauth' => $google),
 ), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT), "\n";

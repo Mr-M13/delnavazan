@@ -42,7 +42,10 @@ $failedCodes = $wpdb->get_results("SELECT last_error_code label,COUNT(*) total,M
 $failedRecent = $wpdb->get_results("SELECT n.id,n.notification_kind,n.state,n.attempt_count,n.last_error_code,n.updated_at FROM {$p}booking_request_student_notifications n WHERE n.state='failed' ORDER BY n.updated_at DESC,n.id DESC LIMIT 10", ARRAY_A) ?: array();
 $overdue = $wpdb->get_results("SELECT id,notification_kind,state,attempt_count,next_attempt_at,last_error_code,updated_at FROM {$p}booking_request_student_notifications WHERE state IN ('queued','retryable') AND (next_attempt_at IS NULL OR next_attempt_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 15 MINUTE)) ORDER BY updated_at ASC,id ASC LIMIT 10", ARRAY_A) ?: array();
 $retraction = $wpdb->get_results("SELECT state,COUNT(*) total,MIN(updated_at) oldest,MAX(updated_at) newest FROM {$p}booking_request_provider_retraction_jobs GROUP BY state ORDER BY state", ARRAY_A) ?: array();
-$recoveryAudit = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE event_type='booking_request.notification_recovery'");
+$recoveryAuditRows = $wpdb->get_results("SELECT id,aggregate_id,reason_code,safe_detail,occurred_at FROM {$p}platform_audit_events WHERE event_type='booking_request.notification_recovery' ORDER BY id DESC LIMIT 5", ARRAY_A) ?: array();
+$deliveryEvidence = $wpdb->get_results("SELECT delivery_state,applied,COUNT(*) total,MIN(occurred_at) oldest,MAX(occurred_at) newest FROM {$p}notification_deliveries GROUP BY delivery_state,applied ORDER BY delivery_state,applied", ARRAY_A) ?: array();
+$canonicalNotifications = $wpdb->get_results("SELECT audience,state,COUNT(*) total FROM {$p}notifications GROUP BY audience,state ORDER BY audience,state", ARRAY_A) ?: array();
+$attemptOutcomes = $wpdb->get_results("SELECT state,outcome_code,failure_class,COUNT(*) total,MAX(updated_at) newest FROM {$p}notification_attempts GROUP BY state,outcome_code,failure_class ORDER BY total DESC LIMIT 20", ARRAY_A) ?: array();
 
 $cron = _get_cron_array();
 $bookingCron = array();
@@ -75,6 +78,10 @@ echo json_encode(array(
     'failed_recent' => $failedRecent,
     'overdue_queued_or_retryable' => $overdue,
     'retraction_jobs' => $retraction,
-    'recovery_audit_events' => $recoveryAudit,
+    'recovery_audit_events' => count($recoveryAuditRows),
+    'recovery_audit_recent' => $recoveryAuditRows,
+    'delivery_evidence' => $deliveryEvidence,
+    'canonical_notifications' => $canonicalNotifications,
+    'notification_attempt_outcomes' => $attemptOutcomes,
     'provider_readiness' => array('telnyx' => $whatsapp, 'google_oauth' => $google),
 ), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT), "\n";

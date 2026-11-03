@@ -37,9 +37,9 @@ function dzn_gw_curl(string $method, string $url, array $headers = [], ?string $
 function dzn_gw_grant(string $secret, string $kid, array $payload, int $ttl = 300, string $audience = 'recording-playback-gateway'): array {
     return Signer::sign($payload, $secret, $kid, $audience, time(), $ttl);
 }
-function dzn_gw_wait(string $url): bool {
+function dzn_gw_wait(string $url, array $headers = []): bool {
     for ($i = 0; $i < 40; $i++) {
-        $r = dzn_gw_curl('GET', $url);
+        $r = dzn_gw_curl('GET', $url, $headers);
         if ($r['status'] === 200) return true;
         usleep(100000);
     }
@@ -60,7 +60,7 @@ try {
     $final = $mbox . '/' . $objectKey;
     mkdir(dirname($final), 0700, true);
     copy($fixture, $final); chmod($final, 0600);
-    $secret = str_repeat('p', 64); $kid = 'test-playback-v1';
+    $secret = str_repeat('p', 64); $kid = 'test-playback-v1'; $adminToken = str_repeat('a', 48);
     $probe = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
     if (!is_resource($probe)) throw new RuntimeException('free port probe failed');
     $socketName = stream_socket_get_name($probe, false);
@@ -71,13 +71,18 @@ try {
         'DZN_ARCHIVE_ROOT' => $mbox, 'DZN_ARCHIVE_MOUNT_MARKER' => $mbox . '/.dzn-mount',
         'DZN_PLAYBACK_RUNTIME_DIR' => $root . '/run', 'DZN_PLAYBACK_ACCESS_LOG' => $root . '/access.jsonl',
         'DZN_PLAYBACK_GLOBAL_CONCURRENCY' => '1', 'DZN_PLAYBACK_USER_CONCURRENCY' => '1',
-        'DZN_PLAYBACK_BANDWIDTH_BPS' => '0', 'DZN_PLAYBACK_CHUNK_BYTES' => '32768',
+        'DZN_PLAYBACK_BANDWIDTH_BPS' => '0', 'DZN_PLAYBACK_CHUNK_BYTES' => '32768', 'DZN_PLAYBACK_ADMIN_TOKEN' => $adminToken,
     ]);
     $cmd = escapeshellarg(PHP_BINARY) . ' -S 127.0.0.1:' . $port . ' ' . escapeshellarg(__DIR__ . '/../bin/router.php');
     $server = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $env);
     foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
-    dzn_gw_assert(dzn_gw_wait('http://127.0.0.1:' . $port . '/health'), 'gateway must start');
     $base = 'http://127.0.0.1:' . $port;
+    dzn_gw_assert(dzn_gw_wait($base . '/health', ['Authorization: Bearer ' . $adminToken]), 'gateway must start');
+    dzn_gw_assert(dzn_gw_curl('GET', $base . '/health')['status'] === 404, 'health must be hidden without the admin token');
+    $health = dzn_gw_curl('GET', $base . '/health', ['Authorization: Bearer ' . $adminToken]);
+    dzn_gw_assert($health['status'] === 200, 'health must accept the admin token');
+    $metrics = dzn_gw_curl('GET', $base . '/metrics', ['Authorization: Bearer ' . $adminToken]);
+    dzn_gw_assert($metrics['status'] === 200 && str_contains($metrics['body'], 'dzn_playback_service_up 1'), 'metrics must accept the admin token');
     $payload = [
         'iss' => 'https://delnavazan.test/', 'aud' => 'recording-playback-gateway', 'sub' => '42',
         'principal_type' => 'student', 'principal_id' => 22, 'recording_uid' => $recording,

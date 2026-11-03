@@ -8,5 +8,8 @@ scrape_configs:
       - targets: ['127.0.0.1:8091']
   - job_name: delnavazan-playback
     scrape_interval: 30s
+    authorization:
+      type: Bearer
+      credentials_file: /etc/delnavazan-prod/prometheus-playback-token
     static_configs:
       - targets: ['127.0.0.1:8092']

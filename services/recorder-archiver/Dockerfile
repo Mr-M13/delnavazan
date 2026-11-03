@@ -1,6 +1,7 @@
 FROM php:8.3-cli-alpine
-RUN apk add --no-cache postgresql-client rsync openssh-client tzdata \
-    && docker-php-ext-install pdo_pgsql pdo_sqlite
+RUN apk add --no-cache postgresql-client postgresql-dev sqlite-dev rsync openssh-client tzdata $PHPIZE_DEPS \
+    && docker-php-ext-install pdo_pgsql pdo_sqlite \
+    && apk del postgresql-dev sqlite-dev $PHPIZE_DEPS
 WORKDIR /opt/delnavazan-recorder
 COPY src ./src
 COPY bin ./bin

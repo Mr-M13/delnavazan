@@ -131,7 +131,20 @@ def perform(payload: dict) -> dict:
 def main() -> int:
     command = os.environ.get("SSH_ORIGINAL_COMMAND", "")
     if command.startswith("rsync "):
-        os.execv("/usr/bin/rrsync", ["rrsync", "-wo", ROOT])
+        try:
+            args = shlex.split(command)
+        except ValueError:
+            print("archive rsync command invalid", file=sys.stderr)
+            return 2
+        if not args or args[0] != "rsync" or "--server" not in args or "--sender" in args:
+            print("archive rsync mode refused", file=sys.stderr)
+            return 2
+        for argument in args[1:]:
+            if argument.startswith("/") or ".." in argument or "\x00" in argument:
+                print("archive rsync path refused", file=sys.stderr)
+                return 2
+        os.chdir(ROOT)
+        os.execv("/usr/bin/rsync", args)
     if not command.startswith("dzn-archive-op "):
         print("archive operation refused", file=sys.stderr)
         return 2

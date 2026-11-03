@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\BookingNotificationRecipient;
+use Delnavazan\Platform\Core\Application\BookingNotificationRelevance;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -23,7 +25,12 @@ final class BookingStudentNotificationWorker {
             $stale=$state==='sending'&&$row->lease_expires_at!==null&&strtotime((string)$row->lease_expires_at.' UTC')<=time();
             $due=in_array($state,array('queued','retryable'),true)&&($row->next_attempt_at===null||strtotime((string)$row->next_attempt_at.' UTC')<=time());
             if(!$due&&!$stale)throw new \InvalidArgumentException('Booking notification is not dispatchable');
-            if(!is_email((string)$row->email)){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
+            if(!BookingNotificationRelevance::isStillRelevant($row)){
+                $repository->updateNotification($notificationId,$state,array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'invitation_stale','updated_at'=>$now));
+                $repository->commit();
+                return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);
+            }
+            if(!is_email(self::recipientEmail($row))){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             if($stale&&(int)$row->attempt_count>=self::MAX_ATTEMPTS){$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'handoff_outcome_unknown','updated_at'=>$now),(string)$row->lease_token_digest);$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
             $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
@@ -92,7 +99,7 @@ final class BookingStudentNotificationWorker {
         return array('Content-Type: text/plain; charset=UTF-8','Message-ID: <'.$identity.'>','X-Delnavazan-Notification-ID: '.(string)$row->uid);
     }
 
-    private static function recipientEmail(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?($row->teacher_email??''):($row->student_email??$row->email??''));}
+    private static function recipientEmail(object $row):string{return BookingNotificationRecipient::email($row);}
     private static function portalLabel(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
 
     private static function message(object $row):array{

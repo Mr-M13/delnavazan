@@ -21,9 +21,12 @@ final class NotificationDeliveryStatusReadService {
     public function forBookingRequest(int $bookingRequestId):array{
         if($bookingRequestId<1)return $this->empty();
         $rows=$this->query(
-            "SELECT n.notification_kind AS event_key,n.state,n.attempt_count,n.handed_off_at,n.last_error_code,n.updated_at,d.booking_request_id AS subject_id
+            "SELECT n.id notification_id,n.notification_kind AS event_key,n.state,n.attempt_count,n.handed_off_at,n.last_error_code,n.updated_at,d.booking_request_id AS subject_id,d.teacher_id,r.student_id,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,COALESCE(NULLIF(st.display_name,''),NULLIF(st.first_name,''),st.last_name) student_name
              FROM {$this->table('booking_request_student_notifications')} n
              INNER JOIN {$this->table('booking_request_teacher_deliveries')} d ON d.id=n.delivery_id
+             INNER JOIN {$this->table('booking_requests')} r ON r.id=d.booking_request_id
+             LEFT JOIN {$this->table('teachers')} t ON t.id=d.teacher_id
+             LEFT JOIN {$this->table('students')} st ON st.id=r.student_id
              WHERE d.booking_request_id=%d
              ORDER BY n.id DESC LIMIT 100",
             $bookingRequestId
@@ -136,8 +139,10 @@ final class NotificationDeliveryStatusReadService {
             $out['summary'][$category]=(int)($out['summary'][$category]??0)+1;
             $out['rows'][]=array(
                 'source'=>$source,
+                'notification_id'=>(int)($row->notification_id??0),
                 'event_key'=>(string)($row->event_key??''),
-                'audience'=>(string)($row->audience??''),
+                'audience'=>isset($row->audience)&&$row->audience!==''?(string)$row->audience:(str_contains((string)($row->event_key??''),'teacher')?'teacher':'student'),
+                'recipient'=>str_contains((string)($row->event_key??''),'teacher')?(string)($row->teacher_name??('Teacher #'.(int)($row->teacher_id??0))):(string)($row->student_name??('Student #'.(int)($row->student_id??0))),
                 'channel'=>(string)($row->channel??'email'),
                 'state'=>$state,
                 'category'=>$category,

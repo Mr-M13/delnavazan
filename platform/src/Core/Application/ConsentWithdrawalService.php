@@ -71,6 +71,10 @@ final class ConsentWithdrawalService {
                 $result=$this->gate->authoriseLesson((int)$lessonId,ConsentPurposeRegistry::STUDENT_RECORDING,$actor);
                 if(!$result['authorised']) $jobs[]=$this->queueJob('recording_disposition',$subjectType,$subjectId,$purpose,'lesson',(int)$lessonId,$actor,array('decision_id'=>$decisionId,'reason'=>$result['reason']));
             }
+            // The recording control plane owns stop/quarantine/playback revocation. It is invoked
+            // through a durable action after this append-only decision; a failure cannot undo the
+            // withdrawal and remains visible to the retry worker.
+            do_action('dzn_recording_withdrawal_requested',$subjectType,$subjectId,$purpose,$decisionId,$actor);
         }
         $this->event(null,$subjectType,$subjectId,$purpose,'withdrawal_recorded',$this->reason($purpose),$actor);
         return array('jobs'=>$jobs);

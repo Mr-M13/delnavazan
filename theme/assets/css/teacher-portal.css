@@ -1091,6 +1091,82 @@
   margin-block-start: 0;
 }
 
+/* Confirmed intro management spans the full class card instead of one grid cell. */
+.dzn-tp-intro-actions {
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  padding-block-start: .5rem;
+}
+
+.dzn-tp-intro-actions > summary {
+  cursor: pointer;
+  padding-block: .3rem;
+  color: var(--dzn-color-action-secondary);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.dzn-tp-intro-actions[open] > summary {
+  margin-block-end: .5rem;
+}
+
+.dzn-tp-intro-actions__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .75rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-intro-actions__card {
+  display: grid;
+  align-content: start;
+  gap: .5rem;
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .75rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .9rem;
+}
+
+.dzn-tp-intro-actions__card--danger {
+  border-color: color-mix(in srgb, var(--dzn-color-error) 38%, var(--dzn-tp-border));
+}
+
+.dzn-tp-intro-actions__card h4 {
+  margin: 0;
+  font-size: .92rem;
+}
+
+.dzn-tp-intro-actions__card p {
+  margin: 0;
+  font-size: .86rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-intro-actions label {
+  display: grid;
+  gap: .3rem;
+  min-inline-size: 0;
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+.dzn-tp-intro-actions label input,
+.dzn-tp-intro-actions label select {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+@media (min-width: 900px) {
+  .dzn-tp-intro-actions__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* -------------------------------------------------------------------------
    Reschedule form.
    ------------------------------------------------------------------------- */

@@ -23,7 +23,9 @@ header('Referrer-Policy: no-referrer');
 if ($path === '/metrics') {
     header('Content-Type: text/plain; version=0.0.4; charset=utf-8');
     try {
-        $health = (new Worker($config, $repository, $storage, new \Delnavazan\Recorder\Provider\LiveKitEgressClient($config), new \Delnavazan\Recorder\Archive\LocalArchiveAdapter($config), new \Delnavazan\Recorder\Media\MediaVerifier(), new \Delnavazan\Recorder\SystemClock()))->health();
+        $transport = (string) $config->get('archive_transport');
+        $archive = $transport === 'local' ? new \Delnavazan\Recorder\Archive\LocalArchiveAdapter($config) : new \Delnavazan\Recorder\Archive\RsyncArchiveAdapter($config);
+        $health = (new Worker($config, $repository, $storage, new \Delnavazan\Recorder\Provider\LiveKitEgressClient($config), $archive, new \Delnavazan\Recorder\Media\MediaVerifier(), new \Delnavazan\Recorder\SystemClock()))->health();
         $lines = [];
         $metric = static function (string $name, string $help, int|float $value) use (&$lines): void { $lines[] = '# HELP ' . $name . ' ' . $help; $lines[] = '# TYPE ' . $name . ' gauge'; $lines[] = $name . ' ' . $value; };
         $metric('dzn_recorder_service_up', 'Recorder process healthy', 1);

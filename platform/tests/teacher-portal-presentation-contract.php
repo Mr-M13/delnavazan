@@ -146,6 +146,8 @@ namespace {
     $check('a claimed class is non-actionable but still visible', str_contains($claimedHtml, 'گزارش ثبت شده — در انتظار بررسی') && ! str_contains($claimedHtml, 'name="lesson_uid" value="LESSON-UID"') && str_contains($claimedHtml, 'در انتظار بررسی مدیر است'));
 
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
+    $classesAttn = $render('classes', $model(array('attention' => array($request()))));
+    $check('pending booking requests stay visible on the default classes screen', str_contains($classesAttn, 'id="tp-attention"') && str_contains($classesAttn, 'name="delivery_uid" value="DELIVERY-UID"') && str_contains($classesAttn, 'name="decision" value="accept"'));
     $attn = $render('home', $model(array('attention' => array($request()))));
     $check('accept and decline forms keep nonce, response key, delivery uid and decision', substr_count($attn, 'name="_wpnonce" value="nonce-response"') === 2 && substr_count($attn, 'name="response_key" value="11111111-2222-4333-8444-555555555555"') === 2 && substr_count($attn, 'name="delivery_uid" value="DELIVERY-UID"') === 2 && str_contains($attn, 'name="decision" value="accept"') && str_contains($attn, 'name="decision" value="decline"'));
     $check('request is distinguished from a confirmed class and provider-first rule is stated', str_contains($attn, 'درخواست در انتظار بررسی') && str_contains($attn, 'فقط پس از موفقیت هر دو'));

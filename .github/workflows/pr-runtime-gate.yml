@@ -56,6 +56,7 @@ jobs:
             platform/tests/legal-pages-contract.php
             platform/tests/recording-research-architecture-contract.php
             platform/tests/recording-decision-authority-contract.php
+            platform/tests/recording-archive-contract.php
             platform/tests/recording-choices-ui-contract.php
             platform/tests/fresh-install-capability-bootstrap.php
             platform/tests/integration-settings-runtime.php
@@ -88,6 +89,8 @@ jobs:
           for contract in "${contracts[@]}"; do
             php "$contract"
           done
+          php platform/tests/recording-archive-policy-unit.php
+          php platform/tests/recording-archive-contract.php
           php platform/tests/phase-2a3-iran-quiet-hours.php
           php platform/tests/phase-2a3-day-availability-contract.php
           php platform/tests/booking-availability-timezone-dst-contract.php
@@ -405,6 +408,41 @@ jobs:
           export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-choices-ui
           export DZN_WP_PORT=18083
           platform/runtime/bin/destroy.sh YES
+
+
+  recording-archive-runtime:
+    name: Recording archive runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - run: platform/runtime/bin/run-recording-archive-runtime.sh
+      - name: Dispose recording archive runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-archive
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-archive
+          export DZN_WP_PORT=18088
+          platform/runtime/bin/destroy.sh YES
+
+  recording-services:
+    name: Recording recorder/archive and playback services
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, curl, mbstring
+          coverage: none
+      - run: bash services/tests/run-all.sh
 
   stripe-runtime-e2e:
     name: Stripe runtime E2E

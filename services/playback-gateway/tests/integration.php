@@ -120,7 +120,7 @@ try {
 
     // M-Box offline response.
     unlink($mbox . '/.dzn-mount');
-    $r = dzn_gw_curl('POST', $base . '/session', ['Content-Type: application/json'], json_encode(['grant' => dzn_gw_grant($secret, $kid, array_merge($payload, ['jti' => bin2hex(random_bytes(16))]))])); 
+    $r = dzn_gw_curl('POST', $base . '/session', ['Content-Type: application/json'], json_encode(['grant' => dzn_gw_grant($secret, $kid, array_merge($payload, ['jti' => bin2hex(random_bytes(16))]))]));
     dzn_gw_assert($r['status'] === 503, 'offline M-Box must return an accurate temporary-unavailability response');
     file_put_contents($mbox . '/.dzn-mount', 'mbox-test-node');
 

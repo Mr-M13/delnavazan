@@ -97,5 +97,10 @@ namespace {
     $assert($teacherResult['state']==='handed_off'&&end($mailCalls)['to']==='teacher@example.test','A requested booking must hand off the teacher alert to the Teacher address.');
     $portal=array_values(array_filter(\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls,static fn(array $call):bool=>$call['audience']==='teacher'));
     $assert(count($portal)===1&&$portal[0]['event']==='booking.new.teacher'&&$portal[0]['id']===12,'A teacher booking alert must create a separate portal notification before email handoff is recorded.');
+    $aliasFree=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    unset($aliasFree->row->email);
+    $aliasResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$aliasFree);
+    $assert($aliasResult['state']==='handed_off'&&$aliasFree->row->last_error_code===null,'A payload without the legacy email alias must use student_email and remain deliverable.');
+    $assert($mailCalls[1]['to']==='student@example.test','The Student recipient must come from student_email.');
     echo "Booking student notification unit passed\n";
 }

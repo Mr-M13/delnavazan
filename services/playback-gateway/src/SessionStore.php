@@ -42,6 +42,15 @@ final class SessionStore {
         }
         return $record['payload'];
     }
+    public function activeCount(): int {
+        $count = 0;
+        foreach (@glob($this->dir . '/*.json') ?: [] as $path) {
+            $record = json_decode((string) @file_get_contents($path), true);
+            if (is_array($record) && (int) ($record['expires_at'] ?? 0) > time()) $count++;
+        }
+        return $count;
+    }
+
     public function sweep(): void {
         foreach (@glob($this->dir . '/*.json') ?: [] as $path) {
             $record = json_decode((string) @file_get_contents($path), true);

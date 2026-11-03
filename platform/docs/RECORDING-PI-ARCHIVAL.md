@@ -65,7 +65,12 @@ grants without touching archive media.
 - `RecordingDecisionAuthorityService::RESEARCH_EXPORT_ENABLED=false` remains unchanged.
 - Staging capture additionally requires `DZN_RECORDING_CAPTURE_STAGING_ENABLED=true`, a
   `local`/`development`/`staging` environment, and an explicit `dzn_recording_staging_cohort`
-  lesson/all-staging cohort. Production can never satisfy the environment condition.
+  lesson/`all-staging` cohort.
+- Production capture requires the explicit `DZN_RECORDING_CAPTURE_APPROVED=true` constant, the
+  `production` environment, and a lesson cohort in `dzn_recording_staging_cohort` (explicit lesson
+  IDs or `all-approved`). The build kill-switch remains false and is never changed by configuration.
+  Setting `DZN_RECORDING_EMERGENCY_STOP=true` or engaging the admin emergency stop overrides all of
+  the above.
 - Recording consent never satisfies ML/research eligibility; `MlDatasetEligibilityService` remains a
   separate gate and no recording/playback code writes `consent_dataset_items`.
 
@@ -107,7 +112,10 @@ a free-byte/percentage gate.
 
 ## 7. Pi transfer and deletion
 
-- Tailscale-only dedicated identities; ACL example in `services/infra/tailscale-acl.example.hujson`.
+- Dedicated identities, no public archive exposure; ACL example in
+  `services/infra/tailscale-acl.example.hujson`. The current staging path uses a Pi-initiated
+  reverse SSH tunnel to OVH loopback with restricted forced commands and read-only SSHFS; Tailscale
+  remains the preferred production transport once an OVH auth key is available.
 - Restricted `delnavazan-archive` account and `/mnt/mbox/DelnavazanRecordings`; mount identity is
   verified before every write. No root-filesystem fallback.
 - Restricted rsync over SSH to a recording-specific temporary filename, `--append-verify` resume,
@@ -118,6 +126,11 @@ a free-byte/percentage gate.
 - Deletion derives the path from the database, checks archive confirmation/destination digest,
   legal hold, traversal/symlink, device/inode/size/digest, opens the trusted directory, unlinks the
   basename, flushes the directory and appends a receipt. Request paths are ignored.
+- Queue claims return the post-claim CAS version, so completion and retry updates cannot silently
+  fail after a claim. A crash between `unlink()` and the bookkeeping update reconciles only when
+  durable evidence proves the delete already happened (`delete_archive`, WordPress state
+  `archived_vps_deleted`, or an existing `source_deleted` outbox event); otherwise the row fails
+  closed and the job remains retryable.
 
 ## 8. Playback
 
@@ -131,15 +144,29 @@ ticket, and streams from the private Pi mount with `HEAD` and byte ranges. It en
 and global concurrency, optional bandwidth limits and allow/refuse/start/complete/abort logging.
 Pi offline returns `503 recording_temporarily_unavailable`; it never restores a deleted VPS copy.
 
-## 9. Administration and monitoring
+## 9. Administration, monitoring and emergency stop
 
 Settings → Recordings (inside the existing consolidated shell) shows currently recording, finalising,
 awaiting transfer, transferring, retry pending, archive verification, archived, VPS deletion pending,
 unavailable, quarantined, consent block (24 h) and storage warning. Retry/reconcile/legal-hold are
 capability-gated. There is no consent override and no filesystem-path field.
 
-Health covers VPS/Pi storage, mount identity, Tailscale, oldest queue age, repeated failures,
+Health covers VPS/Pi storage, mount identity, secure transport, oldest queue age, repeated failures,
 Egress CPU/RAM, completion failures, checksum mismatches, deletion failures and playback saturation.
+The recorder and playback gateway expose Prometheus text metrics:
+
+- Recorder (template/health router, loopback `:8091`): `/metrics` with readiness, storage, archive
+  availability, emergency-stop state, oldest queue age and per-state queue depth.
+- Playback gateway (loopback `:8092`): `/metrics` with archive mount state, active sessions and
+  allow/refuse/unavailable counters for the last hour.
+
+**Emergency stop.** Settings → Recordings has a capability-gated red button. Engaging it writes a
+durable `dzn_recording_emergency_stop` option, refuses every new capture request and queues a `stop`
+command for every `recording_requested`/`recording_active` recording. Releasing it only clears the
+kill switch; the normal consent/authority/readiness gates still apply. A second, host-local hard stop
+is available through `DZN_RECORDER_EMERGENCY_STOP_FILE` (default
+`/run/delnavazan-recorder/emergency-stop`): when present, the recorder refuses every new start even
+if WordPress is unreachable, and reports `emergency_stop_active=1` in health and metrics.
 
 ## 10. Tests and evidence
 

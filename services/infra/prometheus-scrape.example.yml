@@ -1,0 +1,12 @@
+# Example Prometheus scrape configuration for the OVH recording hosts.
+# Both endpoints are loopback-only; scrape them from an agent on the same host or
+# through the private operational network. Never publish these ports through Caddy.
+scrape_configs:
+  - job_name: delnavazan-recorder
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['127.0.0.1:8091']
+  - job_name: delnavazan-playback
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['127.0.0.1:8092']

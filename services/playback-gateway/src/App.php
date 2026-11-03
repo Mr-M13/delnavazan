@@ -32,6 +32,7 @@ final class App {
         if ($method === 'POST' && $path === '/session') { $this->session($body); return; }
         if (($method === 'GET' || $method === 'HEAD') && preg_match('#^/stream/([a-f0-9]{48})$#D', $path, $m) === 1) { $this->stream($method, $m[1], $range); return; }
         if ($method === 'GET' && $path === '/health') { $this->health(); return; }
+        if ($method === 'GET' && $path === '/metrics') { $this->metrics(); return; }
         if ($path === '/favicon.ico') { http_response_code(204); return; }
         $this->json(404, ['error' => 'not_found']);
     }
@@ -51,7 +52,7 @@ final class App {
   var grant;try{grant=JSON.parse(decodeURIComponent(escape(atob(b64))));}catch(e){el.textContent='The playback grant is invalid.';return;}
   history.replaceState(null,document.title,location.pathname);
   fetch('/session',{method:'POST',credentials:'omit',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({grant:grant})}).then(function(r){if(!r.ok)throw new Error('unavailable');return r.json();}).then(function(data){
-    video.src=data.stream_url;el.textContent='Authorised. The archive is streamed from the private M-Box mount.';
+    video.src=data.stream_url;el.textContent='Authorised. The archive is streamed from the private Pi archive.';
     video.play().catch(function(){});
   }).catch(function(){el.textContent='This recording is temporarily unavailable or the grant is no longer valid.';});
 })();
@@ -98,6 +99,28 @@ HTML;
     private function health(): void {
         $state = $this->archive->state();
         $this->json($state['available'] ? 200 : 503, ['ready' => $state['available'], 'archive' => $state['reason'], 'identity' => $state['identity']]);
+    }
+
+    private function metrics(): void {
+        $state = $this->archive->state();
+        $sessions = $this->sessions->activeCount();
+        $access = $this->log->summary(3600);
+        header('Content-Type: text/plain; version=0.0.4; charset=utf-8');
+        $lines = [
+            '# HELP dzn_playback_service_up Playback gateway process healthy',
+            '# TYPE dzn_playback_service_up gauge',
+            'dzn_playback_service_up 1',
+            '# HELP dzn_playback_archive_mounted Pi archive mount available',
+            '# TYPE dzn_playback_archive_mounted gauge',
+            'dzn_playback_archive_mounted ' . ($state['available'] ? 1 : 0),
+            '# HELP dzn_playback_active_sessions Unexpired stream tickets',
+            '# TYPE dzn_playback_active_sessions gauge',
+            'dzn_playback_active_sessions ' . $sessions,
+            '# HELP dzn_playback_events_total Playback access events in the last hour',
+            '# TYPE dzn_playback_events_total counter',
+        ];
+        foreach ($access as $event => $count) $lines[] = 'dzn_playback_events_total{event="' . $event . '"} ' . (int) $count;
+        echo implode("\n", $lines) . "\n";
     }
 
     private function json(int $status, array $payload): void {

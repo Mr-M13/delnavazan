@@ -20,6 +20,33 @@ header('Cache-Control: no-store, private, max-age=0');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 
+if ($path === '/metrics') {
+    header('Content-Type: text/plain; version=0.0.4; charset=utf-8');
+    try {
+        $health = (new Worker($config, $repository, $storage, new \Delnavazan\Recorder\Provider\LiveKitEgressClient($config), new \Delnavazan\Recorder\Archive\LocalArchiveAdapter($config), new \Delnavazan\Recorder\Media\MediaVerifier(), new \Delnavazan\Recorder\SystemClock()))->health();
+        $lines = [];
+        $metric = static function (string $name, string $help, int|float $value) use (&$lines): void { $lines[] = '# HELP ' . $name . ' ' . $help; $lines[] = '# TYPE ' . $name . ' gauge'; $lines[] = $name . ' ' . $value; };
+        $metric('dzn_recorder_service_up', 'Recorder process healthy', 1);
+        $metric('dzn_recorder_ready', 'Recorder ready to accept capture', ($health['ready'] ?? false) === true ? 1 : 0);
+        $metric('dzn_recorder_storage_free_bytes', 'VPS recording storage free bytes', (int) ($health['storage_free_bytes'] ?? 0));
+        $metric('dzn_recorder_storage_free_percent', 'VPS recording storage free percent', (float) ($health['storage_free_percent'] ?? 0));
+        $metric('dzn_recorder_archive_available', 'Pi archive mount available', ($health['archive_available'] ?? false) === true ? 1 : 0);
+        $metric('dzn_recorder_archive_free_bytes', 'Pi archive free bytes', (int) ($health['archive_free_bytes'] ?? 0));
+        $metric('dzn_recorder_emergency_stop_active', 'Local emergency stop file present', ($health['emergency_stop_active'] ?? false) === true ? 1 : 0);
+        $metric('dzn_recorder_oldest_queue_age_seconds', 'Oldest durable queue age', (int) ($health['oldest_queue_age_seconds'] ?? 0));
+        foreach ((array) ($health['queue_states'] ?? []) as $queue => $states) {
+            foreach ((array) $states as $state => $count) {
+                $lines[] = 'dzn_recorder_queue{queue="' . preg_replace('/[^a-z_]/', '', (string) $queue) . '",state="' . preg_replace('/[^a-z_]/', '', (string) $state) . '"} ' . (int) $count;
+            }
+        }
+        echo implode("\n", $lines) . "\n";
+    } catch (Throwable $error) {
+        http_response_code(503);
+        echo "dzn_recorder_service_up 0\n";
+    }
+    return;
+}
+
 if ($path === '/health' || $path === '/status') {
     try {
         $transport = (string) $config->get('archive_transport');

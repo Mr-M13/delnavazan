@@ -41,8 +41,11 @@ $need(!str_contains($authorizer, 'Egress'), 'participant authorizer must not own
 
 $need(str_contains($decision, 'CAPTURE_ENABLED=false'), 'build capture flag must remain disabled');
 $need(str_contains($decision, 'RESEARCH_EXPORT_ENABLED=false'), 'build research-export flag must remain disabled');
-$need(str_contains($flags, "in_array(wp_get_environment_type(),array('local','development','staging')"), 'staging-only capture override must be environment bound');
-$need(str_contains($flags, 'STAGING_COHORT_OPTION'), 'capture must require an explicit staging cohort');
+$need(str_contains($flags, 'in_array($environment,array(\'local\',\'development\',\'staging\'),true)'), 'staging capture override must be environment bound');
+$need(str_contains($flags, "PRODUCTION_APPROVAL_CONSTANT"), 'production activation must require an explicit owner approval constant');
+$need(str_contains($flags, "\$environment==='production'"), 'production activation must be production-environment bound');
+$need(str_contains($flags, 'STAGING_COHORT_OPTION'), 'capture must require an explicit cohort');
+$need(str_contains($flags, 'emergencyStop'), 'capture must honour the emergency stop');
 $need(!str_contains($flags, 'RESEARCH_EXPORT_ENABLED=true'), 'research export must not be enabled by recording code');
 
 foreach (['recording_requested','recording_active','recording_finalising','recording_verified','awaiting_archive','transferring','transfer_retry_pending','archive_verification','archived','vps_deletion_pending','archived_vps_deleted','failed','quarantined','deletion_required'] as $state) $need(str_contains($lifecycle, $state), 'missing canonical state ' . $state);
@@ -74,6 +77,13 @@ foreach (['archive_mount_absent','recording_source_path_invalid','recording_arch
 $need(!preg_match('/unlink\s*\(\s*\$(payload|command|request)/', $worker), 'deletion must not unlink a request-supplied path');
 $need(str_contains($read('../services/recorder-archiver/src/Archive/RsyncArchiveAdapter.php'), 'BatchMode=yes'), 'archive SSH must be non-interactive');
 $need(str_contains($read('../services/recorder-archiver/src/Archive/RsyncArchiveAdapter.php'), 'StrictHostKeyChecking=yes'), 'archive SSH must verify host keys');
+$need(str_contains($worker, 'recording_emergency_stop_active'), 'recorder must honour the local emergency stop');
+$need(str_contains($worker, 'queue_states'), 'recorder health must expose queue depth');
+$need(str_contains($read('../services/recorder-archiver/bin/router.php'), "/metrics"), 'recorder must expose Prometheus metrics');
+$need(str_contains($read('../services/playback-gateway/src/App.php'), "/metrics"), 'playback gateway must expose Prometheus metrics');
+$need(str_contains($read('src/Core/Application/Recording/RecordingFeatureFlags.php'), 'EMERGENCY_STOP_OPTION'), 'WordPress must expose the durable emergency stop');
+$need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'engageEmergencyStop'), 'control plane must engage the emergency stop');
+$need(str_contains($read('src/Admin/Controller/RecordingOperationsController.php'), 'emergency_stop'), 'admin must expose the emergency stop');
 
 $gateway = $read('../services/playback-gateway/src/RangeStreamer.php');
 foreach (['Accept-Ranges: bytes','Content-Range','206','416'] as $x) $need(str_contains($gateway, $x), 'gateway range support missing ' . $x);

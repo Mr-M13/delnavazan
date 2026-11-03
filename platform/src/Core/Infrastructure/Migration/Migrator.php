@@ -3043,7 +3043,7 @@ final class Migrator {
 	}
 
 	/**
-	 * Delnavazan recording and M-Box archival authority (Schema 066).
+	 * Delnavazan recording and Pi archival authority (Schema 066).
 	 *
 	 * Additive only. It creates the canonical recording lifecycle, append-only event evidence, a
 	 * durable provider-command outbox, independently verified archive confirmations and playback

@@ -270,6 +270,30 @@ final class RecordingControlPlane {
         return $this->enqueueCommandInternal($recordingId,(int)$recording->content_version,'stop',$this->commandKey('stop|'.$recordingId.'|'.$reason),array('recording_uid'=>(string)$recording->uid,'content_version'=>(int)$recording->content_version,'reason'=>$reason),$recording->lifecycle_state,$actor,$this->now());
     }
 
+    /**
+     * Repository-wide capture kill switch. It is durable in the options table, blocks every new
+     * capture request and queues a stop for every recording that can still be active.
+     */
+    public function engageEmergencyStop(int $actor,string $reason='classroom_performance'):array{
+        $now=$this->now();
+        $state=array('engaged'=>true,'reason'=>$reason,'actor'=>$actor,'at'=>$now);
+        update_option(RecordingFeatureFlags::EMERGENCY_STOP_OPTION,$state,false);
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $ids=(array)$wpdb->get_col("SELECT id FROM {$p}recordings WHERE lifecycle_state IN ('recording_requested','recording_active') ORDER BY id");
+        $stopped=array();
+        foreach($ids as $id){try{$this->requestStop((int)$id,$actor,'emergency_stop');$stopped[]=(int)$id;}catch(\Throwable $error){}}
+        return $state+array('stopped'=>$stopped);
+    }
+
+    /** Release the kill switch. Existing stops remain queued; new capture resumes only through the normal gates. */
+    public function releaseEmergencyStop(int $actor):array{
+        $state=array('engaged'=>false,'reason'=>'released','actor'=>$actor,'at'=>$this->now());
+        update_option(RecordingFeatureFlags::EMERGENCY_STOP_OPTION,$state,false);
+        return $state;
+    }
+
+    public function emergencyStopStatus():array{return RecordingFeatureFlags::emergencyStop();}
+
     public function reconcile(int $recordingId,int $actor):array{
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $recording=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recordings WHERE id=%d LIMIT 1",$recordingId));

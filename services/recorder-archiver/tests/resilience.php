@@ -87,7 +87,39 @@ try {
     $second = $worker2->runOnce(false);
     dzn_assert_true($second['inbox_completed'] === 1, 'restart must recover the pending command');
     dzn_assert_true(($repo->job($uid)['state'] ?? '') === 'archived_vps_deleted', 'restart must complete verification, archive and deletion');
+    $transfer = (array) $db->fetch('SELECT * FROM transfer_jobs WHERE recording_uid=?', [$uid]);
+    $deletion = (array) $db->fetch('SELECT * FROM deletion_jobs WHERE recording_uid=?', [$uid]);
+    dzn_assert_true(($transfer['state'] ?? '') === 'archived', 'claimed transfer must be marked archived, not left leased');
+    dzn_assert_true(($deletion['state'] ?? '') === 'completed', 'claimed deletion must be marked completed, not left leased');
     echo "Egress crash/restart: PASS\n";
+} finally { dzn_cleanup($root); }
+
+// 2b. Crash after unlink must reconcile the durable deletion row instead of leaving it leased.
+$root = dzn_tmp('deletion-reconcile');
+try {
+    [$config, $db, $repo, $storage, $client] = dzn_environment($root);
+    $uid = Support::uid();
+    dzn_command($client, 'start', dzn_start_payload($uid), hash('sha256', 'deletion-reconcile-start'), 'recording_requested');
+    $worker = dzn_worker($config, $repo, $storage, new FakeEgress(3000), new LocalArchiveAdapter($config), $client);
+    $worker->runOnce(true, true); // complete capture + archive, skip deletion
+    $job = (array) $repo->job($uid);
+    $asset = (array) $repo->asset($uid, 1);
+    dzn_assert_true(($job['state'] ?? '') === 'archived', 'archive must complete before the deletion crash simulation');
+    $source = $storage->readyPath($uid, 1, (string) $asset['sha256']);
+    dzn_assert_true(is_file($source), 'source must exist before the simulated crash');
+    unlink($source); // simulate crash after unlink(), before the bookkeeping update
+    $now = $db->now();
+    $db->execute('UPDATE recording_jobs SET state=?,version=version+1,updated_at=? WHERE recording_uid=?', ['archived_vps_deleted', $now, $uid]);
+    $repo->outboxEnqueue('source_deleted', $uid, 1, ['event' => 'source_deleted', 'recording_uid' => $uid, 'content_version' => 1, 'idempotency_key' => hash('sha256', 'source-deleted-' . $uid)], hash('sha256', 'source-deleted-' . $uid));
+    $db->execute('UPDATE deletion_jobs SET state=?,available_at=?,lease_token_digest=NULL,lease_expires_at=NULL WHERE recording_uid=?', ['pending', $now, $uid]);
+    $worker2 = dzn_worker($config, $repo, $storage, new FakeEgress(3000), new LocalArchiveAdapter($config), $client);
+    $stats = $worker2->runOnce(false);
+    $deletion = (array) $db->fetch('SELECT * FROM deletion_jobs WHERE recording_uid=?', [$uid]);
+    dzn_assert_true($stats['deletions'] === 1, 'reconciliation must complete the deletion row');
+    dzn_assert_true(($deletion['state'] ?? '') === 'completed', 'reconciled deletion must not remain leased');
+    dzn_assert_true(str_contains((string) ($deletion['deletion_receipt'] ?? ''), 'source_missing=1'), 'reconciled receipt must record the missing source');
+    dzn_assert_true(!is_file($source), 'the VPS source must remain deleted');
+    echo "Deletion crash reconciliation: PASS\n";
 } finally { dzn_cleanup($root); }
 
 // 3. Pi offline keeps the complete VPS copy, then reconnect resumes.
@@ -241,6 +273,25 @@ try {
     dzn_assert_true($stats['inbox_failed'] === 1 && $egress->startCalls === 0, 'host pressure must refuse capture before Egress');
     dzn_assert_true($repo->job($uid) === null, 'host-pressure refusal must not create a job');
     echo "Host pressure admission: PASS\n";
+} finally { dzn_cleanup($root); }
+
+// 6d. Local emergency stop file refuses capture even if WordPress keeps sending commands.
+$root = dzn_tmp('emergency-stop');
+try {
+    [$config, $db, $repo, $storage, $client] = dzn_environment($root);
+    file_put_contents((string) $config->get('emergency_stop_file'), "operator stop\n");
+    $uid = Support::uid();
+    dzn_command($client, 'start', dzn_start_payload($uid), hash('sha256', 'emergency-stop-start'), 'recording_requested');
+    $egress = new FakeEgress();
+    $worker = dzn_worker($config, $repo, $storage, $egress, new LocalArchiveAdapter($config), $client);
+    $stats = $worker->runOnce(true);
+    dzn_assert_true($stats['inbox_failed'] === 1 && $egress->startCalls === 0, 'emergency stop must refuse capture before Egress');
+    dzn_assert_true($repo->job($uid) === null, 'emergency-stop refusal must not create a job');
+    $health = $worker->health();
+    dzn_assert_true(($health['emergency_stop_active'] ?? false) === true, 'health must expose the emergency stop');
+    dzn_assert_true(isset($health['queue_states']['deletion_jobs']), 'health must expose per-state queue depth');
+    unlink((string) $config->get('emergency_stop_file'));
+    echo "Emergency stop file: PASS\n";
 } finally { dzn_cleanup($root); }
 
 // 7. Storage threshold refuses new capture.

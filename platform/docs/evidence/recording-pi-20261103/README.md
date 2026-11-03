@@ -104,6 +104,23 @@ is recommended before production activation; no purchase or resize was performed
 - Production WordPress still reports schema `57` and has no `066_recording_archive_authority` ledger
   entry. The feature branch was not deployed there.
 
+## Hardening pass (same day, after the first staging run)
+
+No new real lesson was recorded in this pass. The following changes were applied and verified with
+the service suite and the disposable WordPress runtime:
+
+| Change | Verification |
+| --- | --- |
+| Queue claims now return the post-claim CAS version, so transfer/deletion completion cannot be left `leased` by an off-by-one update. | `Egress crash/restart` asserts transfer `archived` and deletion `completed`. |
+| Crash-after-unlink deletion reconciliation completes only with durable proof (`delete_archive`, `archived_vps_deleted`, or an existing `source_deleted` event). | `Deletion crash reconciliation` creates a missing source plus `source_deleted`, then asserts `completed` and a `source_missing=1` receipt. |
+| Pi-offline retention remains fail-closed. | `Pi offline/reconnect` asserts the complete VPS copy and no deletion job while the archive mount is absent, then transfer/confirm/delete on reconnect. |
+| Durable WordPress emergency stop blocks new capture and queues stops for active/requested recordings. | Recording archive WordPress runtime asserts the stop command, a blocked new request and release. |
+| Host-local recorder emergency stop file refuses capture even if WordPress is unreachable. | `Emergency stop file` asserts zero Egress starts and health `emergency_stop_active`. |
+| Prometheus metrics on the recorder and playback gateway. | Contract test asserts `/metrics`; health carries per-state queue depth and emergency-stop state. |
+
+Commands: `bash services/tests/run-all.sh`, `php platform/tests/recording-archive-contract.php`,
+`DZN_TARGET_REF=… platform/runtime/bin/run-recording-archive-runtime.sh` — all PASS.
+
 ## Remaining staging anomalies / gaps
 
 1. The staging deletion job row remained `leased` even though the `source_deleted` outbox contains the

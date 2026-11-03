@@ -16,21 +16,46 @@ final class RecordingFeatureFlags {
     public const STAGING_COHORT_OPTION='dzn_recording_staging_cohort';
     public const SERVICE_HEALTH_OPTION='dzn_recording_service_health';
     public const LEGAL_HOLD_OPTION_PREFIX='dzn_recording_legal_hold_';
+    public const EMERGENCY_STOP_OPTION='dzn_recording_emergency_stop';
+    public const EMERGENCY_STOP_CONSTANT='DZN_RECORDING_EMERGENCY_STOP';
+    public const PRODUCTION_APPROVAL_CONSTANT='DZN_RECORDING_CAPTURE_APPROVED';
 
     public static function captureEnabledForLesson(int $lessonId):bool{
-        if(RecordingDecisionAuthorityService::CAPTURE_ENABLED!==false)return false;
-        if(!defined(self::STAGING_CONSTANT)||constant(self::STAGING_CONSTANT)!==true)return false;
-        if(!function_exists('wp_get_environment_type'))return false;
-        if(!in_array(wp_get_environment_type(),array('local','development','staging'),true))return false;
+        if(self::emergencyStop()['engaged']===true)return false;
         if($lessonId<1)return false;
+        $environment=function_exists('wp_get_environment_type')?wp_get_environment_type():'production';
+        // Production activation is a separate, explicit owner decision. The build kill-switch
+        // (CAPTURE_ENABLED=false) still governs the staging path and is never flipped by config.
+        $productionApproved=$environment==='production'
+            &&defined(self::PRODUCTION_APPROVAL_CONSTANT)
+            &&constant(self::PRODUCTION_APPROVAL_CONSTANT)===true;
+        $stagingApproved=RecordingDecisionAuthorityService::CAPTURE_ENABLED===false
+            &&in_array($environment,array('local','development','staging'),true)
+            &&defined(self::STAGING_CONSTANT)
+            &&constant(self::STAGING_CONSTANT)===true;
+        if(!$productionApproved&&!$stagingApproved)return false;
         $cohort=function_exists('get_option')?get_option(self::STAGING_COHORT_OPTION,array()):array();
         if(is_string($cohort))$cohort=array_map('trim',explode(',',$cohort));
         if(!is_array($cohort)||$cohort===array())return false;
         foreach($cohort as $entry){
-            if((string)$entry==='all-staging')return true;
+            if($stagingApproved&&(string)$entry==='all-staging')return true;
+            if($productionApproved&&(string)$entry==='all-approved')return true;
             if(ctype_digit((string)$entry)&&(int)$entry===$lessonId)return true;
         }
         return false;
+    }
+
+    /** Repository-wide emergency stop. A true constant or the stored option engages it. */
+    public static function emergencyStop():array{
+        $option=function_exists('get_option')?get_option(self::EMERGENCY_STOP_OPTION,array()):array();
+        $engaged=defined(self::EMERGENCY_STOP_CONSTANT)&&constant(self::EMERGENCY_STOP_CONSTANT)===true;
+        if(is_array($option)&&($option['engaged']??false)===true)$engaged=true;
+        return array(
+            'engaged'=>$engaged,
+            'reason'=>is_array($option)?(string)($option['reason']??''):'',
+            'actor'=>is_array($option)?(int)($option['actor']??0):0,
+            'at'=>is_array($option)?(int)($option['at']??0):0,
+        );
     }
 
     public static function researchExportEnabled():bool{

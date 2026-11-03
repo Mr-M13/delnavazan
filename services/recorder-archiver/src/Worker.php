@@ -108,6 +108,7 @@ final class Worker {
     }
 
     private function handleStart(array $payload): void {
+        if ($this->emergencyStopActive()) throw new \RuntimeException('recording_emergency_stop_active');
         $resource = $this->metrics->admission();
         if (!$resource['allowed']) throw new \RuntimeException('recording_' . $resource['reason']);
         $check = $this->storage->canAccept();
@@ -318,9 +319,20 @@ final class Worker {
                 $deleteArchive = $deletion['delete_archive'] === true || $deletion['delete_archive'] === 1 || $deletion['delete_archive'] === '1' || $deletion['delete_archive'] === 't';
                 $path = $this->storage->readyRoot() . '/' . $relative;
                 if (!is_file($path) && !is_link($path)) {
-                    if (!$deleteArchive) throw new \RuntimeException('recording_source_missing');
-                    $this->archive->delete((string) $confirmation['destination_object_key']);
-                    $receipt = 'source_missing=1;size=' . (int) $asset['bytes'] . ';sha256=' . $asset['sha256'] . ';archive_deleted=1;deleted_at=' . $this->dbNow();
+                    // A crash between unlink() and the bookkeeping update must reconcile, not fail.
+                    // Reconcile only when durable evidence proves this worker already deleted the
+                    // source: delete_archive was explicitly requested, WordPress already advanced to
+                    // archived_vps_deleted, or a source_deleted callback is already in the outbox.
+                    $alreadyDeleted = $deleteArchive
+                        || (string) ($job['state'] ?? '') === 'archived_vps_deleted'
+                        || $this->repository->outboxEventExists('source_deleted', $recordingUid, $contentVersion);
+                    if (!$alreadyDeleted) throw new \RuntimeException('recording_source_missing');
+                    $archiveDeleted = false;
+                    if ($deleteArchive) {
+                        $this->archive->delete((string) $confirmation['destination_object_key']);
+                        $archiveDeleted = true;
+                    }
+                    $receipt = 'source_missing=1;size=' . (int) $asset['bytes'] . ';sha256=' . $asset['sha256'] . ';archive_deleted=' . ($archiveDeleted ? '1' : '0') . ';deleted_at=' . $this->dbNow();
                     $deletionFields = ['state' => 'completed', 'deletion_receipt' => $receipt];
                     if (!$this->repository->deletionUpdate((int) $deletion['id'], (int) $deletion['version'], $deletionFields)) {
                         $freshDeletion = $this->repository->deletion($recordingUid, $contentVersion);
@@ -328,7 +340,7 @@ final class Worker {
                     }
                     $this->repository->jobUpdate($recordingUid, (int) $job['version'], ['state' => 'archived_vps_deleted']);
                     $this->repository->assetUpsert(['recording_uid' => $recordingUid, 'content_version' => $contentVersion, 'path_relative' => $relative, 'state' => 'deleted', 'bytes' => (int) $asset['bytes'], 'sha256' => (string) $asset['sha256'], 'duration_ms' => $asset['duration_ms'], 'width' => $asset['width'], 'height' => $asset['height'], 'video_codec' => $asset['video_codec'], 'audio_codec' => $asset['audio_codec'], 'video_streams' => $asset['video_streams'], 'audio_streams' => $asset['audio_streams'], 'sync_offset_ms' => $asset['sync_offset_ms'], 'verified_at' => $asset['verified_at']]);
-                    $this->outboxEnqueue('source_deleted', $recordingUid, $contentVersion, $this->callbackPayload('source_deleted', $job, ['deleted_source_bytes' => (int) $asset['bytes'], 'deleted_source_sha256' => (string) $asset['sha256'], 'deletion_receipt' => $receipt, 'archive_deleted' => true]), $this->eventKey('source_deleted|' . $recordingUid . '|' . $contentVersion));
+                    $this->outboxEnqueue('source_deleted', $recordingUid, $contentVersion, $this->callbackPayload('source_deleted', $job, ['deleted_source_bytes' => (int) $asset['bytes'], 'deleted_source_sha256' => (string) $asset['sha256'], 'deletion_receipt' => $receipt, 'archive_deleted' => $archiveDeleted]), $this->eventKey('source_deleted|' . $recordingUid . '|' . $contentVersion));
                     $this->stats['deletions']++;
                     continue;
                 }
@@ -466,9 +478,17 @@ final class Worker {
             'egress_cpu_percent' => (float) $this->config->get('egress_cpu_percent'),
             'egress_memory_bytes' => (int) $this->config->get('egress_memory_bytes'),
             'oldest_queue_age_seconds' => $this->repository->oldestQueueAge(),
+            'emergency_stop_active' => $this->emergencyStopActive(),
+            'queue_states' => $this->repository->queueStates(),
             'recorder_version' => 'recorder-archiver-1.0.0', 'queue_counts' => $this->repository->counts(),
             'received_at' => $this->clock->now(),
         ];
+    }
+
+    /** Local hard stop used by operators even when WordPress is unreachable. */
+    public function emergencyStopActive(): bool {
+        $file = (string) $this->config->get('emergency_stop_file');
+        return $file !== '' && is_file($file);
     }
 
     private function tailscaleConnected(): bool {

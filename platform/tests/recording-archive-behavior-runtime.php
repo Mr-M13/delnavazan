@@ -168,6 +168,23 @@ dzn_ra_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}reco
 // Disabled cohort and stale readiness fail closed.
 $uncohort = dzn_ra_lesson($teacher, $student);
 dzn_ra_assert((int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}recordings") === 1, 'only the authorised recording exists so far');
+
+// Emergency stop is durable, blocks new capture and queues a stop for active/requested work.
+$emergencyLesson = dzn_ra_lesson($teacher, $student);
+update_option(RecordingFeatureFlags::STAGING_COHORT_OPTION, array($emergencyLesson['lesson_id']), false);
+dzn_ra_health();
+$emergencyRecording = $control->requestRecording($emergencyLesson['lesson_id'], 'emergency-stop-request-0001', 1);
+$engaged = $control->engageEmergencyStop(1, 'classroom_performance');
+dzn_ra_assert(($engaged['engaged'] ?? false) === true, 'emergency stop must persist');
+dzn_ra_assert(RecordingFeatureFlags::emergencyStop()['engaged'] === true, 'emergency stop must be visible to the capture gate');
+dzn_ra_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_commands WHERE recording_id=%d AND command_type='stop'", $emergencyRecording['recording_id'])) >= 1, 'emergency stop must queue a stop command');
+$blockedLesson = dzn_ra_lesson($teacher, $student);
+update_option(RecordingFeatureFlags::STAGING_COHORT_OPTION, array($blockedLesson['lesson_id']), false);
+$refused = false;
+try { $control->requestRecording($blockedLesson['lesson_id'], 'emergency-blocked-0001', 1); } catch (RuntimeException $error) { $refused = $error->getMessage() === 'recording_capture_disabled'; }
+dzn_ra_assert($refused, 'emergency stop must refuse every new capture');
+$control->releaseEmergencyStop(1);
+dzn_ra_assert(RecordingFeatureFlags::emergencyStop()['engaged'] === false, 'emergency stop must be releasable');
 $refused = false;
 try { $control->requestRecording($uncohort['lesson_id'], 'uncohort-request-0001', 1); } catch (RuntimeException $error) { $refused = $error->getMessage() === 'recording_capture_disabled'; }
 dzn_ra_assert($refused, 'lesson outside the staging cohort must be refused');

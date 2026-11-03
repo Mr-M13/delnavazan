@@ -102,16 +102,35 @@ without proven headroom.
 
 ## Tailscale / Pi
 
-Apply only the reviewed ACL in `tailscale-acl.example.hujson`. No public SSH/SMB/NFS/storage port,
-no home-router port forwarding, no general Orchestra credential. Playback mounts the archive through
-a read-only restricted identity; Pi is never exposed through Caddy or WordPress.
+Apply only the reviewed ACL in `tailscale-acl.example.hujson` when Tailscale is available. The
+supported staging fallback is a Pi-initiated reverse SSH tunnel to OVH loopback with a restricted
+archive account (forced rsync/verify/commit/delete operations), a restricted playback account
+(chrooted read-only SFTP) and read-only SSHFS. No public SSH/SMB/NFS/storage port, no home-router
+port forwarding, no general Orchestra credential. Playback mounts the archive through a read-only
+restricted identity; Pi is never exposed through Caddy or WordPress.
 
-## Monitoring
+## Monitoring and emergency stop
 
 WordPress Settings → Recordings shows recording/finalising/transfer/retry/verification/archive/
 deletion states, consent blocks and storage warnings, plus retry/reconcile/legal-hold operations.
 The recorder health callback carries storage free bytes/percent, archive mount identity/availability,
-Tailscale state, oldest queue age, Egress CPU/RAM and queue counts.
+secure transport state, oldest queue age, Egress CPU/RAM, per-state queue depth and the emergency-stop
+state. Prometheus text metrics are served at:
+
+- recorder template/health router: `http://127.0.0.1:8091/metrics`
+- playback gateway: `http://127.0.0.1:8092/metrics`
+
+The WordPress emergency stop is durable, refuses new capture and queues stops for active recordings.
+Set `DZN_RECORDER_EMERGENCY_STOP_FILE=/run/delnavazan-recorder/emergency-stop` and create that file
+for a host-local hard stop that works even when WordPress is unreachable.
+
+## Deletion reconciliation
+
+Queue claims return the post-claim CAS version, so a successful transfer/deletion cannot be left
+`leased` by an off-by-one version update. If a worker crashes after unlinking the VPS copy, the
+deletion job reconciles to `completed` only when durable evidence already proves deletion
+(`delete_archive`, WordPress `archived_vps_deleted`, or a `source_deleted` outbox event). Any other
+missing source fails closed and stays retryable.
 
 ## Rollback
 

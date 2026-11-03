@@ -43,6 +43,8 @@ final class RecordingOperationsReadService {
         return (array)$wpdb->get_results($wpdb->prepare("SELECT c.*,r.uid recording_uid FROM {$p}recording_commands c INNER JOIN {$p}recordings r ON r.id=c.recording_id ORDER BY c.id DESC LIMIT %d",$limit),ARRAY_A);
     }
 
+    public function emergencyStop():array{return RecordingFeatureFlags::emergencyStop();}
+
     public function health():array{
         $health=RecordingFeatureFlags::serviceHealth();
         $now=time();
@@ -60,6 +62,10 @@ final class RecordingOperationsReadService {
             'egress_cpu_percent'=>(float)($health['egress_cpu_percent']??0),
             'egress_memory_bytes'=>(int)($health['egress_memory_bytes']??0),
             'oldest_queue_age_seconds'=>(int)($health['oldest_queue_age_seconds']??0),
+            'emergency_stop_active'=>($health['emergency_stop_active']??false)===true,
+            'queue_states'=>is_array($health['queue_states']??null)?$health['queue_states']:array(),
+            'host_load_per_cpu'=>(float)($health['host_load_per_cpu']??0),
+            'host_memory_available_bytes'=>(int)($health['host_memory_available_bytes']??0),
         );
     }
 }

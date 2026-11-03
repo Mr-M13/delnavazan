@@ -199,6 +199,10 @@ final class Repository {
 
     public function deletionClaim(int $limit = 10): array { return $this->claim('deletion_jobs', ['state' => 'pending'], $limit); }
     public function deletion(string $recordingUid, int $contentVersion): ?array { return $this->db->fetch('SELECT * FROM deletion_jobs WHERE recording_uid=? AND content_version=?', [$recordingUid, $contentVersion]); }
+    /** True when a durable callback already attests that the VPS source was deleted. */
+    public function outboxEventExists(string $eventType, string $recordingUid, int $contentVersion): bool {
+        return (int) $this->db->scalar('SELECT COUNT(*) FROM service_outbox WHERE event_type=? AND recording_uid=? AND content_version=?', [$eventType, $recordingUid, $contentVersion]) > 0;
+    }
     public function deletionUpdate(int $id, int $version, array $fields): bool {
         $fields['updated_at'] = $this->db->now(); $fields['version'] = $version + 1;
         return $this->db->update('deletion_jobs', $fields, ['id' => $id, 'version' => $version]) === 1;
@@ -214,6 +218,18 @@ final class Repository {
             if ($count > 0) $recovered[$table] = $count;
         }
         return $recovered;
+    }
+
+    /** Per-state queue depth for monitoring and Prometheus output. */
+    public function queueStates(): array {
+        $out = [];
+        foreach (['recording_jobs', 'transfer_jobs', 'deletion_jobs'] as $table) {
+            $out[$table] = [];
+            foreach ($this->db->fetchAll('SELECT state,COUNT(*) AS total FROM ' . $table . ' GROUP BY state') as $row) {
+                $out[$table][(string) $row['state']] = (int) $row['total'];
+            }
+        }
+        return $out;
     }
 
     public function counts(): array {
@@ -257,6 +273,9 @@ final class Repository {
                 if (in_array('updated_at', array_keys($row), true)) $fields['updated_at'] = $now;
                 $updated = $db->update($table, $fields, ['id' => $row['id'], 'version' => $row['version']]);
                 if ($updated !== 1) continue;
+                // claim() increments the persisted version; callers must use the current version for
+                // their subsequent optimistic update or every completion/retry would be rejected.
+                $row['version'] = (int) $row['version'] + 1;
                 $row['_lease_token'] = $token;
                 $out[] = $row;
             }

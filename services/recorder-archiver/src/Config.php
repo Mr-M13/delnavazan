@@ -49,6 +49,7 @@ final class Config {
             'lease_seconds' => (int) ($env['DZN_RECORDER_LEASE_SECONDS'] ?? 300),
             'max_attempts' => (int) ($env['DZN_RECORDER_MAX_ATTEMPTS'] ?? 8),
             'http_bind' => (string) ($env['DZN_RECORDER_HTTP_BIND'] ?? '127.0.0.1:8091'),
+            'emergency_stop_file' => (string) ($env['DZN_RECORDER_EMERGENCY_STOP_FILE'] ?? '/run/delnavazan-recorder/emergency-stop'),
             'tailscale_binary' => (string) ($env['DZN_TAILSCALE_BINARY'] ?? '/usr/bin/tailscale'),
             'secure_transport' => (string) ($env['DZN_SECURE_TRANSPORT'] ?? 'tailscale'),
             'secure_transport_connected_override' => $env['DZN_SECURE_TRANSPORT_CONNECTED'] ?? null,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Delnavazan\Gateway;
 
 /**
- * Resolve an archived object only inside the verified M-Box mount. A missing mount is an accurate
+ * Resolve an archived object only inside the verified Pi archive mount. A missing mount is an accurate
  * temporary-unavailability condition, never a fallback to the PixelBox root filesystem.
  */
 final class ArchiveResolver {

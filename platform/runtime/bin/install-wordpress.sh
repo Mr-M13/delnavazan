@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "$BASH_SOURCE")/common.sh"
 dzn_candidate
 core_ready=false
-for _ in $(seq 1 60); do
+for _ in $(seq 1 180); do
   if [ -f "$DZN_WP_DIR/wp-config.php" ] && dzn_wp core version >/dev/null 2>&1; then core_ready=true; break; fi
   sleep 1
 done

@@ -67,6 +67,9 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\PortalNotificationController::register();
 	Delnavazan\Platform\Core\Application\PortalNotificationRecorder::register();
 	Delnavazan\Platform\Core\Application\ConsentNotificationService::register();
+	Delnavazan\Platform\Core\Application\Recording\RecordingInvalidationListener::register();
+	Delnavazan\Platform\Core\Application\Recording\RecordingWithdrawalListener::register();
+	Delnavazan\Platform\Core\Application\Recording\RecordingReconciliationWorker::register();
 	// The admin-editable copy store is the canonical copy source once a template version is published.
 	// Registering definitions never installs a transport binding, so delivery stays behind its own gate.
 	add_filter( 'dzn_notification_copy_definitions', static function ( $definitions ) {
@@ -95,6 +98,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\LegalPagesController::register();
 	Delnavazan\Platform\Admin\Controller\RecordingNoticeAdminController::register();
 	Delnavazan\Platform\Admin\Controller\PoliciesController::register();
+	Delnavazan\Platform\Admin\Controller\RecordingOperationsController::register();
 	Delnavazan\Platform\Core\Application\ConsentLifecycleWorker::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceAdminController::register();
@@ -161,6 +165,7 @@ add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Notific
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitTokenRestController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitWebhookController', 'register' ) );
+add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Core\\Application\\Recording\\RecordingServiceRestController', 'register' ) );
 
 add_action( 'dzn_teacher_activated', static function ( int $teacherId ): void {
 	try {

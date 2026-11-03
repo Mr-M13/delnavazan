@@ -212,23 +212,37 @@ The gateway suite proves authorised student stream, authorised teacher stream, u
 
 The WordPress runtime proves canonical consent denials, guardian-authority denial, reschedule invalidation, withdrawal before/after capture, duplicate and out-of-order provider events, transfer retry, archive signature verification, signed deletion authorisation, legal hold refusal, playback allow/deny/offline, admin non-override and recording-vs-research separation.
 
+## 10b. Production activation (2026-11-03)
+
+Production `https://delnavazan.com` was deployed at main `6aeac51fdd8af1e605c9494f7d9f695cc7dc29dc`
+with migrations `066_consent_lifecycle_authority` and `067_recording_archive_authority` applied.
+OVH runs PostgreSQL, the recorder/archiver, Egress `v1.13.0`, the template router and the playback
+gateway. Playback is served over TLS at `https://rtc.delnavazan.com:8443`; admin health/metrics
+require a bearer token. Pi connectivity uses the hardened reverse-SSH tunnel (Tailscale is still
+unavailable on OVH). Capture is gated by `DZN_RECORDING_CAPTURE_APPROVED=true` plus the
+`dzn_recording_staging_cohort` cohort; research export remains false. Emergency stop was exercised
+in production. Full activation evidence and rollback steps:
+`platform/docs/evidence/recording-pi-20261103/PRODUCTION-ACTIVATION.md`.
+
 ## 11. Known gaps and blockers
 
 1. A real staging run produced a real Egress MP4, transferred it to the Pi, independently verified
-   SHA-256, archived it, deleted the VPS source with a receipt and played it back. Evidence:
-   `platform/docs/evidence/recording-pi-20261103/README.md`. Production WordPress deployment and
-   real-lesson activation remain blocked.
-2. PostgreSQL 16 staging schema was exercised against the real recorder service; the synthetic suite
-   still uses SQLite WAL for speed.
+   SHA-256, archived it, deleted the VPS source with a receipt and played it back. Production was
+   deployed and activated at main `6aeac51f`; a production test lesson with approved test identities
+   is still recommended before relying on it for real lessons. Evidence:
+   `platform/docs/evidence/recording-pi-20261103/`.
+2. PostgreSQL 16 is now the production recorder database; the synthetic suite still uses SQLite WAL
+   for speed.
 3. Egress consumed ~97–188% of one core and ~400–424 MiB RSS on the 2-vCPU/4-GB OVH host. Classroom
    reliability headroom is insufficient; a separate Egress worker or larger VPS is recommended.
-4. The custom Egress template still uses the external LiveKit client CDN. It was validated in staging;
-   vendor or pin it before production.
-5. Playback was validated with a staging read-only SSHFS mount over a dedicated reverse-SSH fallback.
-   OVH has no Tailscale client and no dedicated auth key was available; the final Tailscale path
-   remains blocked on a dedicated key and ACL application.
-6. Legal/owner approval of notices, retention, guardian rules and provider agreement remains from
-   PR #512.
+   Host admission and the emergency stop are the current mitigations.
+4. The custom Egress template still uses the external LiveKit client CDN. Vendor or pin it before
+   relying on the template for long-term production capture.
+5. OVH has no Tailscale client and no dedicated auth key was available. The hardened reverse-SSH
+   tunnel with restricted forced-command accounts and read-only SSHFS is the active secure transport;
+   Tailscale remains a future hardening option.
+6. Owner authorisation for production activation was recorded on 2026-11-03. Legal notice, retention
+   and guardian-policy approvals should remain documented in the normal operational record.
 7. Orchestra inventory could not be collected from the host; only a read-only rehearsal script and
    shared-resource declaration exist.
 

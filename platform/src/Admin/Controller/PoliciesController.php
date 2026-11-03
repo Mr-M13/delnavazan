@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
+use Delnavazan\Platform\Core\Application\CommercialPolicyService;
 use Delnavazan\Platform\Core\Application\ConsentLifecycleWorker;
 use Delnavazan\Platform\Core\Application\ConsentNotificationService;
 use Delnavazan\Platform\Core\Application\ConsentOperationsReadService;
@@ -21,6 +22,7 @@ final class PoliciesController {
     public const MENU_SLUG='dzn-policies';
     public const CAPABILITY=ConsentOperationsReadService::CAPABILITY;
     public const VIEW_CAPABILITY=ConsentOperationsReadService::VIEW_CAPABILITY;
+    public const ACTION_COMMERCIAL_POLICY='dzn_policies_commercial_update';
     public const ACTION_REMINDER='dzn_consent_reminder';
     public const ACTION_RETRY='dzn_consent_retry_job';
     public const ACTION_REEVALUATE='dzn_consent_reevaluate';
@@ -29,6 +31,7 @@ final class PoliciesController {
 
     public static function register():void{
         add_action('admin_menu',array(__CLASS__,'menu'));
+        add_action('admin_post_'.self::ACTION_COMMERCIAL_POLICY,array(__CLASS__,'saveCommercialPolicy'));
         foreach(array(self::ACTION_REMINDER,self::ACTION_RETRY,self::ACTION_REEVALUATE,self::ACTION_WORKER,self::ACTION_EXPORT)as$action)add_action('admin_post_'.$action,array(__CLASS__,'command'));
     }
 
@@ -91,14 +94,105 @@ final class PoliciesController {
         $status=sanitize_key((string)($_GET['dzn_consent']??''));
         echo '<div class="wrap dzn-settings-page dzn-policies-page" dir="ltr">';
         echo '<h1>Policies</h1>';
-        echo '<p class="dzn-settings-lede">Consent policy versions, collection status, eligibility exceptions and withdrawal processing. This page reads authoritative evidence; it cannot create or override a person\'s decision.</p>';
+        echo '<p class="dzn-settings-lede">One-page operational policy reference. Editable values are written through their existing versioned authority; structural rules remain locked.</p>';
         self::flash($status);
+        self::operationalPolicies();
         self::indicators($counts);
         self::policyLibrary($service);
         self::consentOperations($service,$counts);
         self::jobs($service);
         self::evidenceInspector();
         echo '</div>';
+    }
+
+
+    /** One-page, English-only catalogue. Never introduce a parallel policy store. */
+    private static function operationalPolicies():void{
+        $sections=array(
+            'Booking and teacher allocation'=>array(
+                array('Introductory booking horizon','INTRO_BOOKING_HORIZON','weeks','How far ahead an introductory lesson can be requested.','editable'),
+                array('Teacher offer response window',null,'24 hours','Agreed operational target; verify runtime enforcement before making configurable.','review'),
+                array('Unassigned request escalation',null,'3 days','Agreed operational target; verify runtime enforcement before making configurable.','review'),
+                array('Teacher allocation order',null,'Round-robin','Agreed allocation workflow; implementation authority must be verified.','review'),
+            ),
+            'Terms and lessons'=>array(
+                array('Lessons per term',null,'12 sessions','Structural term commitment; not an editable commercial policy.','locked'),
+                array('Payment instalment structure',null,'Sessions 1–6 and 7–12','Structural commercial instalment boundaries.','locked'),
+            ),
+            'Attendance and replacements'=>array(
+                array('Replacement allowance',null,'2 per term','The term-recorded allowance is authoritative; changing it here would create conflicting state.','locked'),
+                array('Replacement acceptance',null,'Teacher proposes; student accepts','Rescheduling must use the canonical schedule revision service.','review'),
+            ),
+            'Teachers and availability'=>array(
+                array('Availability for new bookings',null,'Selected teaching hours only','Unselected hours are unavailable; existing bookings are preserved.','review'),
+            ),
+            'Finance, renewals and payments'=>array(
+                array('Manual renewal slot guarantee','MANUAL_RENEWAL_SLOT_GUARANTEE_WEEKS','weeks','Versioned commercial renewal protection window.','editable'),
+                array('Automatic renewal charge lead time','AUTOMATIC_RENEWAL_CHARGE_LEAD_TIME','duration','Versioned lead time in seconds; leave unset unless approved.','editable'),
+                array('Payment recovery policy','PAYMENT_RECOVERY_POLICY','policy_reference','Approved policy reference, not arbitrary free-form rules.','editable'),
+                array('Instalment due date policy','INSTALMENT_DUE_DATE_POLICY','policy_reference','Approved policy reference; unset means no policy has been activated.','editable'),
+            ),
+            'Notifications and communications'=>array(
+                array('Mandatory account and financial notices',null,'Always required','Manage templates and delivery in Settings → Notifications.','locked'),
+            ),
+        );
+        echo '<section class="dzn-settings-card" id="operational-policy-centre"><h2>Operational policies and rules</h2>';
+        echo '<p>Search the policy register or jump to a category. A rule marked Review is an operational requirement that has not been verified as a configurable runtime policy. Do not mistake a documented target for a deployed control.</p>';
+        echo '<p><label for="dzn-policy-search">Search policies</label> <input type="search" id="dzn-policy-search" class="regular-text" placeholder="Search rules and descriptions"></p>';
+        echo '<nav aria-label="Policy categories">';
+        $index=0;
+        foreach(array_keys($sections) as $title){echo '<a class="button button-small" style="margin:0 6px 6px 0" href="#dzn-policy-section-'.esc_attr((string)$index).'">'.esc_html($title).'</a>'; $index++;}
+        echo ' <a class="button button-small" href="#dzn-consent-policy-library">Privacy and consent</a></nav>';
+        $service=new CommercialPolicyService();
+        $index=0;
+        foreach($sections as $title=>$rows){
+            echo '<div class="dzn-policy-category" id="dzn-policy-section-'.esc_attr((string)$index).'"><h3>'.esc_html($title).'</h3>';
+            foreach($rows as $rule){
+                [$label,$key,$unit,$description,$kind]=$rule;
+                $state=null;
+                if($key!==null){try{$state=$service->current($key);}catch(\Throwable $e){$state=array('set'=>false,'version'=>null,'value'=>null,'read_error'=>true);}}
+                $value=$key!==null?(!empty($state['set'])?(string)$state['value'].' '.($unit==='weeks'?'weeks':($unit==='duration'?'seconds':'')):'Not configured'):$unit;
+                echo '<article class="dzn-policy-rule" style="border-top:1px solid #dcdcde;padding:12px 0" data-policy-search="'.esc_attr(strtolower($label.' '.$description.' '.$title)).'">';
+                echo '<strong>'.esc_html($label).'</strong> <span class="dzn-settings-meta">('.esc_html($kind==='editable'?'Versioned':($kind==='locked'?'Fixed':'Review required')).')</span>';
+                echo '<p style="margin:4px 0">'.esc_html($description).'</p><p><strong>Current:</strong> '.esc_html($value);
+                if($state!==null&&!empty($state['version']))echo ' <span class="dzn-settings-meta">Version '.esc_html((string)$state['version']).'</span>';
+                echo '</p>';
+                if($key!==null&&empty($state['read_error'])&&current_user_can('dzn_manage_commercial_policies')){
+                    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="'.esc_attr(self::ACTION_COMMERCIAL_POLICY).'"><input type="hidden" name="policy_key" value="'.esc_attr($key).'">';
+                    wp_nonce_field(self::ACTION_COMMERCIAL_POLICY);
+                    echo '<label>New value <input name="policy_value" type="'.($unit==='weeks'||$unit==='duration'?'number':'text').'" '.($unit==='weeks'?'min="1" max="104"':($unit==='duration'?'min="1"':'' )).' value="'.esc_attr(!empty($state['set'])?(string)$state['value']:'').'"></label> ';
+                    echo '<button class="button button-secondary" type="submit">Record new version</button></form>';
+                }
+                echo '</article>';
+            }
+            echo '</div>';
+            $index++;
+        }
+        if(isset($_GET['dzn_policy_status']))echo '<p role="status">'.esc_html(sanitize_text_field(wp_unslash((string)$_GET['dzn_policy_status']))).'</p>';
+        echo '<script>document.addEventListener("DOMContentLoaded",function(){var q=document.getElementById("dzn-policy-search");if(!q)return;q.addEventListener("input",function(){var term=q.value.toLowerCase().trim();document.querySelectorAll(".dzn-policy-rule").forEach(function(el){el.hidden=!!term&&!el.dataset.policySearch.includes(term)});document.querySelectorAll(".dzn-policy-category").forEach(function(el){el.hidden=!!term&&!el.querySelector(".dzn-policy-rule:not([hidden])")})})});</script>';
+        echo '</section>';
+    }
+
+    public static function saveCommercialPolicy():never{
+        if('POST'!==strtoupper((string)($_SERVER['REQUEST_METHOD']??'')))wp_die('Method not allowed','Delnavazan',array('response'=>405));
+        if(!current_user_can('dzn_manage_commercial_policies'))wp_die('Forbidden','Delnavazan',array('response'=>403));
+        check_admin_referer(self::ACTION_COMMERCIAL_POLICY);
+        $types=array('INTRO_BOOKING_HORIZON'=>'weeks','MANUAL_RENEWAL_SLOT_GUARANTEE_WEEKS'=>'weeks','AUTOMATIC_RENEWAL_CHARGE_LEAD_TIME'=>'duration','PAYMENT_RECOVERY_POLICY'=>'policy_reference','INSTALMENT_DUE_DATE_POLICY'=>'policy_reference');
+        $key=sanitize_text_field(wp_unslash((string)($_POST['policy_key']??'')));
+        if(!isset($types[$key]))wp_die('Unknown policy','Delnavazan',array('response'=>400));
+        $value=sanitize_text_field(wp_unslash((string)($_POST['policy_value']??'')));
+        $message='Policy version recorded';
+        try{
+            $now=gmdate('Y-m-d H:i:s');
+            (new CommercialPolicyService())->set($key,array(
+                'policy_value'=>$value,'value_type'=>$types[$key],
+                'evidence_channel'=>'authenticated_platform',
+                'evidence_reference'=>'settings-policies:'.get_current_user_id().':'.wp_generate_uuid4(),
+                'evidence_at'=>$now,
+            ),'settings-policies-'.$key.'-'.wp_generate_uuid4());
+        }catch(\Throwable $error){$message='Policy not changed. Check the value and your policy permissions.';}
+        wp_safe_redirect(add_query_arg(array('page'=>self::MENU_SLUG,'dzn_policy_status'=>$message),admin_url('admin.php')).'#operational-policy-centre');
+        exit;
     }
 
     private static function indicators(array $counts):void{

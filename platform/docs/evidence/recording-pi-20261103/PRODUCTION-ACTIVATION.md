@@ -55,6 +55,21 @@ Tailscale is **not installed on OVH** and no dedicated auth key was available. T
 - Crash-after-unlink reconciliation completes only with durable proof (`delete_archive`, WordPress `archived_vps_deleted`, or an existing `source_deleted` event); otherwise it fails closed.
 - Pi-offline retention is covered by the `Pi offline/reconnect` service test and by the earlier real staging run: the complete VPS copy and no deletion job are retained while the archive mount is absent; transfer/confirm/delete proceed after reconnect.
 
+## Production Pi-outage drill
+
+The production Pi tunnel was stopped and the OVH SSHFS mount removed, without creating or deleting
+any recording:
+
+| Check | Result |
+| --- | --- |
+| Recorder health | `ready=false`, `archive_available=false`, empty mount identity |
+| Playback health (admin token) | `503`, `archive_mount_absent` |
+| New capture readiness | refused by the recorder `ready` gate |
+| Reconnect | tunnel active, mount restored, recorder `ready=true`, archive identity `/dev/sdb1`, playback `200` |
+
+This confirms the production fail-closed behaviour; the transfer-level retention proof is the
+`Pi offline/reconnect` service test and the earlier real staging run.
+
 ## Activation state
 
 ```

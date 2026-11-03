@@ -115,7 +115,6 @@ final class Worker {
         $job = $this->repository->jobCreate($payload);
         if (in_array((string) $job['state'], ['recording_active', 'recording_finalising', 'recording_verified', 'awaiting_archive', 'archived', 'archived_vps_deleted'], true)) return;
         $this->storage->ensure();
-        $this->storage->ensureDirectory($this->storage->tmpDirectory((string) $job['recording_uid'], (int) $job['content_version']));
         $path = $this->storage->tmpCapturePath((string) $job['recording_uid'], (int) $job['content_version']);
         $started = $this->egress->start([
             'recording_uid' => $job['recording_uid'], 'content_version' => (int) $job['content_version'],

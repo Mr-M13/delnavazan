@@ -212,6 +212,18 @@ The gateway suite proves authorised student stream, authorised teacher stream, u
 
 The WordPress runtime proves canonical consent denials, guardian-authority denial, reschedule invalidation, withdrawal before/after capture, duplicate and out-of-order provider events, transfer retry, archive signature verification, signed deletion authorisation, legal hold refusal, playback allow/deny/offline, admin non-override and recording-vs-research separation.
 
+## 10b. Production activation (2026-11-03)
+
+Production `https://delnavazan.com` was deployed at main `6aeac51fdd8af1e605c9494f7d9f695cc7dc29dc`
+with migrations `066_consent_lifecycle_authority` and `067_recording_archive_authority` applied.
+OVH runs PostgreSQL, the recorder/archiver, Egress `v1.13.0`, the template router and the playback
+gateway. Playback is served over TLS at `https://rtc.delnavazan.com:8443`; admin health/metrics
+require a bearer token. Pi connectivity uses the hardened reverse-SSH tunnel (Tailscale is still
+unavailable on OVH). Capture is gated by `DZN_RECORDING_CAPTURE_APPROVED=true` plus the
+`dzn_recording_staging_cohort` cohort; research export remains false. Emergency stop was exercised
+in production. Full activation evidence and rollback steps:
+`platform/docs/evidence/recording-pi-20261103/PRODUCTION-ACTIVATION.md`.
+
 ## 11. Known gaps and blockers
 
 1. A real staging run produced a real Egress MP4, transferred it to the Pi, independently verified

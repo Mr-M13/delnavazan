@@ -357,7 +357,7 @@ final class EnrolmentWorkspaceView {
         echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel introductory lesson</strong><br><small>Admin, Teacher or Student action. The case and financial history remain; the portals stop showing the cancelled class.</small></summary><div class="dzn-action-panel__body">';
         self::formStart('intro_cancel', array('request_id' => (int) $case['id']));
         echo '<input type="hidden" name="expected_confirmation_id" value="' . esc_attr((string) ($confirmation['confirmation_id'] ?? 0)) . '"><input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) ($confirmation['version'] ?? 0)) . '">';
-        echo '<p><label>Reason<select name="reason_code"><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';
+        echo '<p><label>Reason<select name="reason_code"><option value="duplicate_request">Duplicate request</option><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';
         echo '<button class="button" onclick="return confirm(\'Cancel this introductory lesson? The case and its history remain.\')">Cancel introductory lesson</button></form>';
         echo '</div></details>';
     }

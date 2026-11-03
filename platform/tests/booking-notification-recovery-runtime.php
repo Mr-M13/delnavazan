@@ -16,8 +16,7 @@ $start=gmdate('Y-m-d H:i:s',strtotime('+10 days 10:00:00 UTC'));$end=gmdate('Y-m
 $wpdb->insert($p.'booking_request_contact_snapshots',array('booking_request_id'=>$request,'snapshot_sequence'=>1,'full_name'=>'Synthetic Student','email'=>'rec-student-'.$suffix.'@example.invalid','mobile'=>'+61400000000','country'=>'AU','city'=>'Brisbane','timezone'=>'UTC','communication_language'=>'en','whatsapp_same_as_mobile'=>1,'whatsapp_number'=>'+61400000000','privacy_notice_version'=>'2026-09-05','privacy_notice_accepted'=>1,'privacy_notice_accepted_at'=>$now,'submission_source'=>'synthetic_recovery','created_at'=>$now));
 $wpdb->insert($p.'booking_request_requested_times',array('booking_request_id'=>$request,'sequence_number'=>1,'local_date'=>substr($start,0,10),'local_start_time'=>substr($start,11),'timezone'=>'UTC','starts_at_utc'=>$start,'instructional_ends_at_utc'=>$end,'occupied_ends_at_utc'=>$occupied,'instructional_duration_minutes'=>30,'buffer_minutes'=>15,'version'=>1,'created_at'=>$now));$time=(int)$wpdb->insert_id;
 $wpdb->insert($p.'booking_request_teacher_deliveries',array('uid'=>Identifier::uid(),'booking_request_id'=>$request,'requested_time_id'=>$time,'teacher_id'=>$teacher,'state'=>'pending_request','match_strength'=>'strong','created_at'=>$now,'updated_at'=>$now));$delivery=(int)$wpdb->insert_id;
-$notification=function(string $kind,string $state,string $error)use($wpdb,$p,$delivery,$now):int{$wpdb->insert($p.'booking_request_student_notifications',array('uid'=>Identifier::uid(),'delivery_id'=>$delivery,'confirmation_id'=>null,'notification_kind'=>$kind,'state'=>$state,'attempt_count'=>1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>$error,'handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now));return(int)$wpdb->insert_id;};
-$failed=$notification('requested_teacher','failed','contact_unusable');
+$wpdb->insert($p.'booking_request_student_notifications',array('uid'=>Identifier::uid(),'delivery_id'=>$delivery,'confirmation_id'=>null,'notification_kind'=>'requested_teacher','state'=>'failed','attempt_count'=>1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now));$failed=(int)$wpdb->insert_id;
 $user=new WP_User(1);$user->add_cap('dzn_operate_notification_dispatch');wp_set_current_user(1);
 $service=new BookingNotificationRecoveryService();
 $preview=$service->preview($failed);$assert(!empty($preview['eligible']),'A relevant failed notification with a valid recipient was not eligible.');
@@ -29,17 +28,17 @@ $replay=$service->recover($failed,$suffix.'-recovery-command-000');
 $assert(!empty($replay['replayed']),'Recovery replay was not idempotent.');
 $assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE event_type='booking_request.notification_recovery'")===1,'Recovery audit was duplicated.');
 
-$stale=$notification('requested_teacher','failed','contact_unusable');
+$wpdb->update($p.'booking_request_student_notifications',array('state'=>'failed','last_error_code'=>'contact_unusable','attempt_count'=>1),array('id'=>$failed));
 $wpdb->update($p.'booking_requests',array('lifecycle_status'=>'closed','resolution_state'=>'cancelled'),array('id'=>$request));
 $wpdb->update($p.'booking_request_teacher_deliveries',array('state'=>'cancelled'),array('id'=>$delivery));
-$staleResult=$service->recover($stale,$suffix.'-recovery-command-001');
+$staleResult=$service->recover($failed,$suffix.'-recovery-command-001');
 $assert(($staleResult['state']??'')==='failed'&&($staleResult['reason']??'')==='invitation_stale','A stale invitation was recovered.');
-$assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}booking_request_student_notifications WHERE id=%d",$stale))==='failed','A stale invitation was requeued.');
+$assert((string)$wpdb->get_var($wpdb->prepare("SELECT state FROM {$p}booking_request_student_notifications WHERE id=%d",$failed))==='failed','A stale invitation was requeued.');
 
 $wpdb->update($p.'booking_requests',array('lifecycle_status'=>'submitted','resolution_state'=>'unresolved'),array('id'=>$request));
 $wpdb->update($p.'booking_request_teacher_deliveries',array('state'=>'pending_request'),array('id'=>$delivery));
 $wpdb->update($p.'teachers',array('email'=>'invalid-address'),array('id'=>$teacher));
-$invalid=$notification('requested_teacher','failed','contact_unusable');
-$invalidResult=$service->recover($invalid,$suffix.'-recovery-command-002');
+$wpdb->update($p.'booking_request_student_notifications',array('state'=>'failed','last_error_code'=>'contact_unusable','attempt_count'=>1),array('id'=>$failed));
+$invalidResult=$service->recover($failed,$suffix.'-recovery-command-002');
 $assert(($invalidResult['state']??'')==='failed'&&($invalidResult['reason']??'')==='recipient_contact_unusable','An invalid recipient was recovered.');
 echo wp_json_encode(array('eligible'=>'queued','replay'=>'idempotent','stale'=>'refused','invalid_recipient'=>'refused','booking_state'=>'unchanged')) . "\n";

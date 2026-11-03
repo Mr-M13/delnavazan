@@ -464,8 +464,7 @@ final class Worker {
         $storage = $this->storage->describe();
         $archive = $this->archive->identity();
         $tailscale = $this->tailscaleConnected();
-        $transportOverride = $this->config->get('secure_transport_connected_override');
-        $transportConnected = $transportOverride !== null && $transportOverride !== '' ? in_array(strtolower((string) $transportOverride), ['1','true','yes'], true) : $tailscale;
+        $transportConnected = $this->secureTransportConnected($tailscale);
         $ready = $storage['accepting'] && $archive['mounted'] && $transportConnected;
         return [
             'event' => 'health', 'ready' => $ready, 'service_id' => (string) $this->config->get('service_id'),
@@ -489,6 +488,22 @@ final class Worker {
     public function emergencyStopActive(): bool {
         $file = (string) $this->config->get('emergency_stop_file');
         return $file !== '' && is_file($file);
+    }
+
+    /** Verify the active transport, not just a configured override. */
+    private function secureTransportConnected(bool $tailscale): bool {
+        $transport = (string) $this->config->get('secure_transport');
+        if ($transport === 'ssh-reverse-tunnel') {
+            $host = (string) $this->config->get('archive_ssh_host');
+            $port = (int) $this->config->get('archive_ssh_port', 22);
+            if ($host === '' || $port < 1) return false;
+            $socket = @fsockopen($host, $port, $errno, $errstr, 2);
+            if (is_resource($socket)) { fclose($socket); return true; }
+            return false;
+        }
+        $override = $this->config->get('secure_transport_connected_override');
+        if ($override !== null && $override !== '') return in_array(strtolower((string) $override), ['1','true','yes'], true);
+        return $tailscale;
     }
 
     private function tailscaleConnected(): bool {

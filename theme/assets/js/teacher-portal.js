@@ -112,27 +112,6 @@
     select.addEventListener('change', apply);
     apply();
   });
-  // After a quick-start step jumps to the real portal screen, highlight the exact section and
-  // keep the compact explanation banner visible. This never fabricates a section.
-  document.querySelectorAll('[data-dzn-auto-highlight]').forEach((banner) => {
-    const selector = banner.dataset.dznAutoHighlight || '';
-    let candidates = [];
-    try { candidates = selector ? Array.from(document.querySelectorAll(selector)) : []; } catch (e) { candidates = []; }
-    let target = candidates.find((element) => element.getClientRects().length > 0) || candidates[0] || null;
-    // A Teacher may have no class or attention card today; still highlight the relevant section
-    // so the explanation has a visible anchor.
-    if (!target) { target = document.querySelector('#tp-classes'); }
-    if (!target) return;
-    target.classList.add('is-dzn-induction-highlight');
-    if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    window.setTimeout(() => target.classList.remove('is-dzn-induction-highlight'), 6000);
-  });
-  document.querySelectorAll('[data-dzn-tp-highlight-close]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const banner = button.closest('.dzn-tp-highlight-banner');
-      if (banner) banner.hidden = true;
-    });
-  });
   // The compact dashboard card is optional after the first days. The full induction screen stays
   // reachable from Settings and from the card's own links.
   document.querySelectorAll('[data-dzn-tp-induction-skip]').forEach((button) => {
@@ -152,24 +131,12 @@
     try { skipped = window.localStorage.getItem('dznInductionCardSkipped') || ''; } catch (e) {}
     if (skipped === today) card.hidden = true;
   });
-})();
-
-(() => {
-  'use strict';
-  const banner = document.querySelector('[data-dzn-notification-banner]');
-  if (!banner) return;
-  const storageKey = `dzn-notification-banner:${banner.dataset.notificationId || 'latest'}`;
-  try {
-    if (window.sessionStorage.getItem(storageKey) === 'dismissed') banner.hidden = true;
-  } catch (error) {
-    // Storage may be unavailable; the banner still works for this render.
-  }
-  banner.querySelector('[data-dzn-notification-close]')?.addEventListener('click', () => {
-    banner.hidden = true;
-    try {
-      window.sessionStorage.setItem(storageKey, 'dismissed');
-    } catch (error) {
-      // Session dismissal is a convenience, never a business write.
-    }
+  // A notification without a read action can still be dismissed for this visit. When the
+  // read action exists, the close control is its submit button and marks the item read.
+  document.querySelectorAll('[data-dzn-notification-close][type="button"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const banner = button.closest('[data-dzn-notification-banner]');
+      if (banner) banner.hidden = true;
+    });
   });
 })();

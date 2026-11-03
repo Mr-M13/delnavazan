@@ -1704,22 +1704,6 @@ function dzn_theme_platform_teacher_induction_url( string $moduleId = '' ): stri
 	return add_query_arg( 'teacher-view', 'induction', home_url( '/teacher-portal/' ) );
 }
 
-/**
- * The one-page quick-start highlight marker for the current portal screen.
- *
- * It is read-only; progress is written only by the nonce-protected step controller.
- */
-function dzn_theme_platform_teacher_induction_highlight( string $screen ): ?array {
-	$stepId = isset( $_GET['induction-highlight'] ) ? sanitize_key( wp_unslash( $_GET['induction-highlight'] ) ) : '';
-	if ( '' === $stepId ) { return null; }
-	$class = '\\Delnavazan\\Platform\\Core\\Application\\Induction\\TeacherInductionCurriculum';
-	if ( ! class_exists( $class ) ) { return null; }
-	$step = $class::module( $stepId );
-	if ( ! is_array( $step ) || (string) ( $step['portal_screen'] ?? '' ) !== $screen ) { return null; }
-	$step['back_url'] = add_query_arg( 'teacher-view', 'induction', home_url( '/teacher-portal/' ) );
-	return $step;
-}
-
 /** Teacher-scoped pending booking deliveries; requests are never projected as confirmed classes. */
 function dzn_theme_platform_teacher_booking_requests() {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\BookingTeacherDeliveryService';
@@ -1860,14 +1844,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'induction' => $hub,
 			'induction_hub_url' => $base,
 			'induction_continue_url' => $continue_url,
-			'induction_actions' => array(
-				'complete_url' => admin_url( 'admin-post.php?action=dzn_teacher_induction_complete' ),
-				'complete_nonce' => wp_create_nonce( 'dzn_teacher_induction_complete' ),
-			),
 			'induction_support_url' => dzn_theme_whatsapp_link( 'درود، از راهنمای سریع تدریس پرتال مدرس دلنوازان پیام می‌دهم و به راهنمایی نیاز دارم.' ),
 		);
 	}
-	$induction_highlight = dzn_theme_platform_teacher_induction_highlight( (string) $screen );
 	$teacher_timezone = (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
 	if ( ! in_array( $teacher_timezone, timezone_identifiers_list(), true ) ) { $teacher_timezone = wp_timezone_string() ?: 'UTC'; }
 	$teacher_locale = (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' );
@@ -1908,7 +1887,6 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'induction' => $induction_hub,
 			'induction_hub_url' => dzn_theme_platform_teacher_induction_url(),
 			'induction_continue_url' => dzn_theme_platform_teacher_induction_url( (string) ( is_array( $induction_hub ) ? ( $induction_hub['next_module_id'] ?? '' ) : '' ) ),
-			'induction_highlight' => $induction_highlight,
 			'teacher_timezone' => $teacher_timezone, 'teacher_calendar' => $teacher_calendar, 'teacher_locale' => $teacher_locale,
 		);
 	}
@@ -1936,7 +1914,6 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'induction' => $induction_hub,
 			'induction_hub_url' => dzn_theme_platform_teacher_induction_url(),
 			'induction_continue_url' => dzn_theme_platform_teacher_induction_url( (string) ( is_array( $induction_hub ) ? ( $induction_hub['next_module_id'] ?? '' ) : '' ) ),
-			'induction_highlight' => $induction_highlight,
 			'profile' => array( 'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ), 'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ), 'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ), 'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ), 'locale' => (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' ), 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => dzn_theme_platform_timezone_label( (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ) ), 'calendar' => in_array( (string) ( $onboarding['profile']['calendar_preference'] ?? '' ), array( 'gregorian', 'persian' ), true ) ? (string) $onboarding['profile']['calendar_preference'] : 'gregorian' ),
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'golden_bonus' => (array) ( $availability_summary['golden'] ?? $golden_bonus ),
@@ -2520,7 +2497,6 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'induction' => $induction_hub,
 		'induction_hub_url' => dzn_theme_platform_teacher_induction_url(),
 		'induction_continue_url' => dzn_theme_platform_teacher_induction_url( (string) ( is_array( $induction_hub ) ? ( $induction_hub['next_module_id'] ?? '' ) : '' ) ),
-		'induction_highlight' => $induction_highlight,
 		'notifications' => $teacher_inbox['items'],
 		'notifications_available' => $teacher_inbox['available'],
 		'notification_unread_count' => $teacher_inbox['unread'],

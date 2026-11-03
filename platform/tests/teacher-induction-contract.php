@@ -23,7 +23,6 @@ $files = array(
     'notifications' => $read( $theme . '/template-parts/teacher-portal/notifications.php' ),
     'finance' => $read( $theme . '/template-parts/teacher-portal/finance.php' ),
     'tip' => $read( $theme . '/template-parts/teacher-portal/help-tip.php' ),
-    'highlight' => $read( $theme . '/template-parts/teacher-portal/induction-highlight.php' ),
     'classes' => $read( $theme . '/template-parts/teacher-portal/classes.php' ),
     'onboarding' => $read( $theme . '/template-parts/teacher-portal/onboarding.php' ),
     'css' => $read( $theme . '/assets/css/teacher-portal.css' ),
@@ -44,13 +43,13 @@ $check( 'the migration stores content and acknowledgement versions', str_contain
 $check( 'the curriculum is separately versioned and code-owned', str_contains( $files['curriculum'], 'platform/content/induction' ) || str_contains( $files['curriculum'], '/content/induction' ) );
 $check( 'the curriculum has nine stable quick-start steps', str_contains( $files['curriculum'], "'today'" ) && str_contains( $files['curriculum'], "'new-enrolment'" ) && str_contains( $files['curriculum'], "'golden-hour'" ) );
 $check( 'content stays out of the template', ! str_contains( $files['hub'], 'سهمیهٔ پیش‌فرض هر هنرجو' ) && ! str_contains( $files['hub'], 'کوتاهی مدرس' ) );
-$check( 'the hub renders compact steps and their action labels', str_contains( $files['hub'], 'foreach ( $steps as $step )' ) && str_contains( $files['hub'], "['action_label']" ) && ! str_contains( $files['hub'], "['sections']" ) );
-$check( 'the progress bar is accessible', str_contains( $files['hub'], 'role="progressbar"' ) && str_contains( $files['hub'], 'aria-valuenow' ) );
-$check( 'completion posts a nonce and module id only', str_contains( $files['hub'], 'dzn_teacher_induction_complete' ) && str_contains( $files['hub'], 'name="module_id"' ) && ! str_contains( $files['hub'], 'name="teacher_id"' ) );
+$check( 'the hub renders the grouped read-only review steps', str_contains( $files['hub'], 'foreach ( $groups as $group_id' ) && str_contains( $files['hub'], 'foreach ( $group_steps as $step )' ) && ! str_contains( $files['hub'], "['action_label']" ) && ! str_contains( $files['hub'], '<form' ) );
+$check( 'the hub does not show progress or completion state', ! str_contains( $files['hub'], 'role="progressbar"' ) && ! str_contains( $files['hub'], 'aria-valuenow' ) && ! str_contains( $files['hub'], 'دیده شده' ) );
+$check( 'the guide renders no step action forms', ! str_contains( $files['hub'], 'dzn_teacher_induction_complete' ) && ! str_contains( $files['hub'], 'name="module_id"' ) && ! str_contains( $files['hub'], 'data-dzn-tp-submit' ) );
 $check( 'induction is a dedicated screen', str_contains( $files['routes'], "'induction'" ) && str_contains( $files['portal'], "'induction'" ) && str_contains( $files['shell'], "component( 'induction'" ) );
-$check( 'settings and home link to the dedicated hub', str_contains( $files['home'], 'induction-card' ) && str_contains( $files['settings'], 'induction_continue_url' ) );
-$check( 'a step click jumps to the real screen with a highlight marker', str_contains( $files['controller'], 'induction-highlight' ) && str_contains( $files['curriculum'], 'highlight_selector' ) && str_contains( $files['highlight'], 'data-dzn-auto-highlight' ) );
-$check( 'the compact home card does not render the full curriculum', ! str_contains( $files['card'], "['sections']" ) && str_contains( $files['card'], 'role="progressbar"' ) );
+$check( 'settings and home link to the dedicated guide', str_contains( $files['home'], 'induction-card' ) && str_contains( $files['settings'], 'induction_hub_url' ) );
+$check( 'the guide keeps explanation only, with no jump or highlight marker', ! str_contains( $files['hub'], 'data-dzn-auto-highlight' ) && ! str_contains( $files['shell'], 'induction-highlight' ) && ! str_contains( $files['controller'], 'induction-highlight' ) );
+$check( 'the compact home card does not render the full curriculum or progress', ! str_contains( $files['card'], "['sections']" ) && ! str_contains( $files['card'], 'role="progressbar"' ) && ! str_contains( $files['card'], 'دیده شده' ) );
 $check( 'no competing portal tour is mounted on the quick-start home', ! str_contains( $files['home'], "component( 'tour'" ) );
 $check( 'contextual help is inline and reusable', str_contains( $files['tip'], '<details' ) && str_contains( $files['tip'], 'راهنمای تدریس' ) );
 $check( 'availability has contextual guidance', str_contains( $files['settings'], "'settings'" ) );
@@ -59,8 +58,7 @@ $check( 'absence guidance explains the term allowance', str_contains( $files['at
 $check( 'notification guidance distinguishes read from resolve', str_contains( $files['notifications'], 'خواندن اعلان، درخواست را حل نمی‌کند' ) );
 $check( 'finance guidance separates illustrative and paid amounts', str_contains( $files['finance'], 'توزیع توضیحی درآمد قطعی نیست' ) );
 $check( 'mobile and desktop quick-start styles exist', str_contains( $files['css'], '.dzn-tp-quickstart-card' ) && str_contains( $files['css'], '@media (max-width:47.99rem)' ) );
-$check( 'the jump marker highlights an existing element without fetching data', str_contains( $files['js'], 'data-dzn-auto-highlight' ) && ! str_contains( $files['js'], 'fetch(' ) );
-$check( 'step jump targets exist in real portal templates', str_contains( $files['classes'], 'data-dzn-highlight="join"' ) && str_contains( $files['classes'], 'data-dzn-highlight="attendance"' ) && str_contains( $files['reschedule'], 'data-dzn-highlight="reschedule"' ) );
+$check( 'the guide does not fetch portal data or add jump behaviour', ! str_contains( $files['js'], 'data-dzn-auto-highlight' ) && ! str_contains( $files['js'], 'fetch(' ) );
 $check( 'guides target existing navigation elements', str_contains( $files['shell'], 'data-dzn-nav-screen' ) && str_contains( $files['shell'], 'data-dzn-nav-notifications' ) );
 $check( 'onboarding status labels are honest', str_contains( $files['onboarding'], "'pending_review' => 'در انتظار بررسی مدیر'" ) && str_contains( $files['onboarding'], "'rejected' => 'پذیرفته نشد'" ) );
 $check( 'onboarding shows safe review notes and no raw reason code', str_contains( $files['onboarding'], "['review_note']" ) && ! str_contains( $files['onboarding'], 'review_reason_code' ) );

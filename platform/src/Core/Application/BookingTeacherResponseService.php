@@ -77,6 +77,15 @@ final class BookingTeacherResponseService {
     /** @return array{0:int,1:bool,2:?string} */
     private function confirmDelivery(object $delivery,object $teacher,int $actor,string $keyDigest,string $payloadDigest,string $now):array{
         $deliveryId=(int)$delivery->id;
+        $studentId=(int)($delivery->student_id??0);
+        if($studentId<1)throw new \InvalidArgumentException('Resolve the student identity before confirming a booking');
+        // Acceptance serializes against every other Student scheduling change. The
+        // lock is held until this method's caller commits the confirmation.
+        $this->repository->ensureAndLockStudentRoot($studentId,$now,$actor);
+        do_action('dzn_booking_student_root_held','acceptance',$studentId);
+        $occupiedEnd=(string)($delivery->occupied_ends_at_utc??'');
+        if($occupiedEnd==='')throw new \RuntimeException('Booking requested time is unavailable');
+        if($this->repository->studentOccupancyConflicts($studentId,array(array('starts_at_utc'=>(string)$delivery->starts_at_utc,'occupied_ends_at_utc'=>$occupiedEnd)),array('exclude_booking_request_id'=>(int)$delivery->booking_request_id)))throw new \InvalidArgumentException('student_slot_conflict');
         if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
         $connection=$this->repository->activeConnection((int)$teacher->id,true);if(!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
         $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));

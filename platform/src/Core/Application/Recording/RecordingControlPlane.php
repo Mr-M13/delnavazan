@@ -261,6 +261,15 @@ final class RecordingControlPlane {
         return array('recording_id'=>$recordingId,'legal_hold_state'=>$active?'active':'none');
     }
 
+    /** Queue a server-side stop at lesson end. No browser input participates. */
+    public function requestStop(int $recordingId,int $actor,string $reason='lesson_end'):array{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $recording=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recordings WHERE id=%d LIMIT 1",$recordingId));
+        if(!$recording)throw new \RuntimeException('recording_not_found');
+        if(!in_array((string)$recording->lifecycle_state,array(RecordingLifecycle::RECORDING_REQUESTED,RecordingLifecycle::RECORDING_ACTIVE),true))return array('command_id'=>0,'state'=>(string)$recording->lifecycle_state,'idempotent'=>true);
+        return $this->enqueueCommandInternal($recordingId,(int)$recording->content_version,'stop',$this->commandKey('stop|'.$recordingId.'|'.$reason),array('recording_uid'=>(string)$recording->uid,'content_version'=>(int)$recording->content_version,'reason'=>$reason),$recording->lifecycle_state,$actor,$this->now());
+    }
+
     public function reconcile(int $recordingId,int $actor):array{
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $recording=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recordings WHERE id=%d LIMIT 1",$recordingId));

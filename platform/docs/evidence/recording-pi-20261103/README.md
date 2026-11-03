@@ -78,6 +78,18 @@ Playback audit rows include student/teacher `allow`, and an administrator `refus
 headroom to guarantee classroom quality while recording. A separate Egress worker or a larger VPS
 is recommended before production activation; no purchase or resize was performed.
 
+## Final staging database snapshot (after the run)
+
+| Table | Observed value |
+| --- | --- |
+| `recording_jobs` | `archived_vps_deleted`, provider `EG_J5wog7aaMTrX` |
+| `recording_assets` | `verified`, `2,714,872` bytes, SHA-256 `5859…` |
+| `archive_confirmations` | source = destination bytes, `sha_match = true`, node `/dev/sdb1` |
+| `deletion_jobs` | `leased`, attempts `4` (see anomaly 1 below) |
+| `service_outbox` `source_deleted` | `sent`, receipt `dev=2049;ino=1773546;…;archive_deleted=0` |
+| VPS `ready/` copy | absent |
+| Pi archive object | present, SHA-256 `5859428124ad6559ec42751e8583afef02bfa6fa7e58f972da413f1feb619450` |
+
 ## Connectivity and service state
 
 - Pi Tailscale is running (`100.70.11.93`).

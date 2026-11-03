@@ -36,7 +36,8 @@ final class MediaVerifier {
         if ($duration < 1) throw new \RuntimeException('media_duration_missing');
         if ($scheduledDurationSeconds > 0) {
             $scheduled = $scheduledDurationSeconds * 1000;
-            if ($duration < (int) floor($scheduled * 0.90) || $duration > (int) ceil($scheduled * 1.10) + 5000) throw new \RuntimeException('media_duration_implausible');
+            $lower = max(1000, (int) floor($scheduled * 0.10));
+            if ($duration < $lower || $duration > (int) ceil($scheduled * 1.10) + 5000) throw new \RuntimeException('media_duration_implausible');
         }
         return [
             'verified' => true, 'path' => $path, 'bytes' => $after, 'sha256' => $digest,

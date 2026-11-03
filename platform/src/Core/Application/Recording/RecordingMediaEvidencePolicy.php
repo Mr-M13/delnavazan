@@ -31,7 +31,7 @@ final class RecordingMediaEvidencePolicy {
         if($durationMs<1)return self::deny('duration_missing');
         if($scheduledDurationSeconds>0){
             $scheduledMs=$scheduledDurationSeconds*1000;
-            $lower=(int)floor($scheduledMs*0.90);
+            $lower=max(1000,(int)floor($scheduledMs*0.10));
             $upper=(int)ceil($scheduledMs*1.10)+5000;
             if($durationMs<$lower||$durationMs>$upper)return self::deny('duration_implausible');
         }

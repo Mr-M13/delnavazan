@@ -227,20 +227,22 @@ in production. Full activation evidence and rollback steps:
 ## 11. Known gaps and blockers
 
 1. A real staging run produced a real Egress MP4, transferred it to the Pi, independently verified
-   SHA-256, archived it, deleted the VPS source with a receipt and played it back. Evidence:
-   `platform/docs/evidence/recording-pi-20261103/README.md`. Production WordPress deployment and
-   real-lesson activation remain blocked.
-2. PostgreSQL 16 staging schema was exercised against the real recorder service; the synthetic suite
-   still uses SQLite WAL for speed.
+   SHA-256, archived it, deleted the VPS source with a receipt and played it back. Production was
+   deployed and activated at main `6aeac51f`; a production test lesson with approved test identities
+   is still recommended before relying on it for real lessons. Evidence:
+   `platform/docs/evidence/recording-pi-20261103/`.
+2. PostgreSQL 16 is now the production recorder database; the synthetic suite still uses SQLite WAL
+   for speed.
 3. Egress consumed ~97–188% of one core and ~400–424 MiB RSS on the 2-vCPU/4-GB OVH host. Classroom
    reliability headroom is insufficient; a separate Egress worker or larger VPS is recommended.
-4. The custom Egress template still uses the external LiveKit client CDN. It was validated in staging;
-   vendor or pin it before production.
-5. Playback was validated with a staging read-only SSHFS mount over a dedicated reverse-SSH fallback.
-   OVH has no Tailscale client and no dedicated auth key was available; the final Tailscale path
-   remains blocked on a dedicated key and ACL application.
-6. Legal/owner approval of notices, retention, guardian rules and provider agreement remains from
-   PR #512.
+   Host admission and the emergency stop are the current mitigations.
+4. The custom Egress template still uses the external LiveKit client CDN. Vendor or pin it before
+   relying on the template for long-term production capture.
+5. OVH has no Tailscale client and no dedicated auth key was available. The hardened reverse-SSH
+   tunnel with restricted forced-command accounts and read-only SSHFS is the active secure transport;
+   Tailscale remains a future hardening option.
+6. Owner authorisation for production activation was recorded on 2026-11-03. Legal notice, retention
+   and guardian-policy approvals should remain documented in the normal operational record.
 7. Orchestra inventory could not be collected from the host; only a read-only rehearsal script and
    shared-resource declaration exist.
 

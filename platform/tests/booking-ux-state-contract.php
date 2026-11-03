@@ -29,4 +29,5 @@ $expect( strpos( $js, 'timezoneRefreshPending || availabilityPreviewPending' ) !
 $expect( strpos( $js, "goTo('availability');\n        showError(availabilityPreviewFailed" ) !== false, 'Availability failure explanation must be shown after navigation clears prior errors.' );
 $expect( strpos( $js, 'return await consumeResponse(response);' ) !== false && substr_count( $js, 'async (response) => ({ response, result: await response.json() })' ) === 2, 'Preview and submit timeouts must cover response body parsing.' );
 $expect( strpos( $validation, '! $city' ) !== false, 'City remains required by the canonical booking intake contract.' );
+$expect( strpos( $js, 'const keepViewport =' ) !== false && strpos( $js, 'window.scrollTo(scrollX, scrollY)' ) !== false && strpos( $js, 'heading.focus({ preventScroll: true })' ) !== false, 'Booking step and preference re-renders must preserve the viewport instead of jumping.' );
 echo "Booking UX transition and timezone contract passed\n";

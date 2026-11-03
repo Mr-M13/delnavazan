@@ -26,6 +26,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
                 'lease_token_digest'=>$state==='sending'?hash('sha256','old-lease'):null,
                 'lease_expires_at'=>$state==='sending'?gmdate('Y-m-d H:i:s',time()-60):null,
                 'last_error_code'=>null,'handed_off_at'=>null,'updated_at'=>gmdate('Y-m-d H:i:s'),
+                'delivery_state'=>'declined','lifecycle_status'=>'closed','resolution_state'=>'teacher_declined','confirmation_state'=>'',
                 'email'=>'student@example.test','student_email'=>'student@example.test','student_id'=>55,'full_name'=>'Student','teacher_name'=>'Teacher','course_name'=>'Course',
                 'confirmation_record_id'=>null,'student_timezone'=>'Australia/Brisbane','schedule_timezone'=>'Australia/Brisbane',
                 'starts_at_utc'=>null,'ends_at_utc'=>null,
@@ -77,6 +78,7 @@ namespace {
     $confirmed=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $confirmed->row->id=82;
     $confirmed->row->notification_kind='confirmed';
+    $confirmed->row->confirmation_state='confirmed';
     $confirmed->row->confirmation_record_id=44;
     $confirmed->row->course_name='سه تار';
     $confirmed->row->teacher_name='نیما';
@@ -92,11 +94,15 @@ namespace {
     $assert(!str_contains($mailCalls[2]['body'],'meet.google.com')&&!str_contains($mailCalls[2]['body'],'Google Meet'),'The confirmation email must not expose the Google Meet backup link.');
 
     $teacher=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
-    $teacher->row->notification_kind='requested_teacher';$teacher->row->teacher_id=12;$teacher->row->teacher_email='teacher@example.test';$teacher->row->teacher_timezone='Australia/Brisbane';$teacher->row->starts_at_utc='2026-11-04 08:00:00';$teacher->row->ends_at_utc='2026-11-04 08:30:00';
+    $teacher->row->notification_kind='requested_teacher';$teacher->row->delivery_state='pending_request';$teacher->row->lifecycle_status='submitted';$teacher->row->resolution_state='unresolved';$teacher->row->teacher_id=12;$teacher->row->teacher_email='teacher@example.test';$teacher->row->teacher_timezone='Australia/Brisbane';$teacher->row->starts_at_utc='2026-11-04 08:00:00';$teacher->row->ends_at_utc='2026-11-04 08:30:00';
     $teacherResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$teacher);
     $assert($teacherResult['state']==='handed_off'&&end($mailCalls)['to']==='teacher@example.test','A requested booking must hand off the teacher alert to the Teacher address.');
     $portal=array_values(array_filter(\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls,static fn(array $call):bool=>$call['audience']==='teacher'));
     $assert(count($portal)===1&&$portal[0]['event']==='booking.new.teacher'&&$portal[0]['id']===12,'A teacher booking alert must create a separate portal notification before email handoff is recorded.');
+    $staleInvite=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $staleInvite->row->notification_kind='requested_teacher';$staleInvite->row->delivery_state='cancelled';$staleInvite->row->lifecycle_status='closed';$staleInvite->row->resolution_state='cancelled';
+    $staleResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$staleInvite);
+    $assert($staleResult['state']==='failed'&&$staleInvite->row->last_error_code==='invitation_stale','A stale invitation must be terminally refused without replaying it.');
     $aliasFree=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     unset($aliasFree->row->email);
     $aliasResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$aliasFree);

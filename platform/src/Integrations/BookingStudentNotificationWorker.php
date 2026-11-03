@@ -23,6 +23,16 @@ final class BookingStudentNotificationWorker {
             $stale=$state==='sending'&&$row->lease_expires_at!==null&&strtotime((string)$row->lease_expires_at.' UTC')<=time();
             $due=in_array($state,array('queued','retryable'),true)&&($row->next_attempt_at===null||strtotime((string)$row->next_attempt_at.' UTC')<=time());
             if(!$due&&!$stale)throw new \InvalidArgumentException('Booking notification is not dispatchable');
+            // A durable outbox row is not itself authority to contact someone.  In
+            // particular, an invitation that was queued before an authorised
+            // cancellation must never be replayed after the booking has moved on.
+            // This terminal refusal is intentionally local to the notification row:
+            // it never changes the request or Teacher-delivery state.
+            if(!self::isStillRelevant($row)){
+                $repository->updateNotification($notificationId,$state,array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'invitation_stale','updated_at'=>$now));
+                $repository->commit();
+                return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);
+            }
             if(!is_email(self::recipientEmail($row))){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             if($stale&&(int)$row->attempt_count>=self::MAX_ATTEMPTS){$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'handoff_outcome_unknown','updated_at'=>$now),(string)$row->lease_token_digest);$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
@@ -93,6 +103,15 @@ final class BookingStudentNotificationWorker {
     }
 
     private static function recipientEmail(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?($row->teacher_email??''):($row->student_email??$row->email??''));}
+    /** A retry may only send the notification which the current booking state still authorises. */
+    private static function isStillRelevant(object $row):bool{
+        $kind=(string)$row->notification_kind;$delivery=(string)($row->delivery_state??'');$lifecycle=(string)($row->lifecycle_status??'');$resolution=(string)($row->resolution_state??'');$confirmation=(string)($row->confirmation_state??'');
+        if(in_array($kind,array('requested_student','requested_teacher'),true))return $delivery==='pending_request'&&$lifecycle==='submitted'&&$resolution==='unresolved';
+        if(in_array($kind,array('cancelled','cancelled_teacher'),true))return $delivery==='cancelled'&&$lifecycle==='closed'&&$resolution==='cancelled'&&$confirmation==='cancelled';
+        if($kind==='declined')return $delivery==='declined'&&$lifecycle==='closed'&&$resolution==='teacher_declined';
+        if($kind==='confirmed')return in_array($confirmation,array('confirmed','awaiting_payment'),true);
+        return true;
+    }
     private static function portalLabel(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
 
     private static function message(object $row):array{

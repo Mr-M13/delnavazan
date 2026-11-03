@@ -189,6 +189,16 @@ final class AcademyOperationsController {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
             $items[] = array('label' => 'Teacher booking requests pending response', 'count' => $count, 'page' => 'dzn-booking-requests', 'action' => 'Review request delivery', 'args' => array(), 'description' => 'A teacher has not yet answered a booking request.', 'urgent' => false, 'anchor' => '');
         }
+        if (current_user_can('dzn_manage_post_intro_automation')) {
+            $outcomesDue = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_confirmations c INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id LEFT JOIN {$p}booking_request_intro_outcomes o ON o.confirmation_id=c.id WHERE c.state='confirmed' AND c.ends_at_utc<UTC_TIMESTAMP() AND r.privacy_erased_at IS NULL AND o.id IS NULL");
+            $items[] = array('label' => 'Intro class outcomes due', 'count' => $outcomesDue, 'page' => 'dzn-enrolment-workspace', 'action' => 'Record intro outcome', 'args' => array('stage' => 'intro_outcome'), 'description' => 'A confirmed introductory class has ended without a Teacher or administrator outcome. Payment and continuation cannot start until it is recorded.', 'urgent' => $outcomesDue > 0, 'anchor' => '');
+            $postIntroAttention = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}post_intro_preparations p LEFT JOIN {$p}post_intro_activation_jobs j ON j.preparation_id=p.id WHERE p.state='exception' OR j.state='failed' OR (p.state='payment_received' AND (j.id IS NULL OR (j.state IN ('queued','retryable') AND (j.next_attempt_at IS NULL OR j.next_attempt_at<UTC_TIMESTAMP() - INTERVAL 15 MINUTE))))");
+            $items[] = array('label' => 'Post-intro enrolments needing attention', 'count' => $postIntroAttention, 'page' => 'dzn-post-intro', 'action' => 'Review post-intro diagnostics', 'args' => array(), 'description' => 'A recorded outcome, verified payment or controlled activation is stuck. Review the preparation and retry only from its protected diagnostics.', 'urgent' => $postIntroAttention > 0, 'anchor' => '');
+        }
+        if (current_user_can('dzn_manage_payment_execution')) {
+            $refusedProviderEvents = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_event_receipts WHERE provider_key='stripe' AND verification_state='refused' AND received_at>=UTC_TIMESTAMP() - INTERVAL 24 HOUR");
+            $items[] = array('label' => 'Payment webhooks refused', 'count' => $refusedProviderEvents, 'page' => 'dzn-finance', 'action' => 'Review payment events', 'args' => array('tab' => 'payments'), 'description' => 'Stripe delivered an event that failed verification or was refused. A paid Checkout can be recovered from its retained attempt after the signing secret and event are reviewed.', 'urgent' => $refusedProviderEvents > 0, 'anchor' => '');
+        }
         if (current_user_can('dzn_manage_canonical_attendance_review')) {
             // Pending/accepted proposals are still owned by the Teacher and Student. The absence
             // queue must not ask an administrator to intervene before the parties have resolved it.

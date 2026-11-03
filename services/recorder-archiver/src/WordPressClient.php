@@ -13,25 +13,25 @@ class WordPressClient {
     public function pull(int $limit): array {
         $payload = ['service_id' => (string) $this->config->get('service_id'), 'limit' => max(1, min(100, $limit)), 'requested_at' => time()];
         $envelope = Signer::sign($payload, $this->config->requireSecret('wordpress_service_secret'), (string) $this->config->get('wordpress_service_key_id'), 'recording-service-command-pull', time(), 120);
-        $response = $this->post('/wp-json/delnavazan-platform/v1/recording-service/pull', $envelope);
+        $response = $this->post('/wp-json/delnavazan-platform/v1/recording-service/pull/', $envelope);
         return (array) ($response['commands'] ?? []);
     }
 
     public function callback(array $payload): void {
         $envelope = Signer::sign($payload, $this->config->requireSecret('wordpress_service_secret'), (string) $this->config->get('wordpress_service_key_id'), 'wordpress-recording-callback', time(), 300);
-        $this->post('/wp-json/delnavazan-platform/v1/recording-service/callback', $envelope);
+        $this->post('/wp-json/delnavazan-platform/v1/recording-service/callback/', $envelope);
     }
 
     public function health(array $payload): void {
         $envelope = Signer::sign($payload, $this->config->requireSecret('wordpress_service_secret'), (string) $this->config->get('wordpress_service_key_id'), 'wordpress-recording-callback', time(), 300);
-        $this->post('/wp-json/delnavazan-platform/v1/recording-service/health', $envelope);
+        $this->post('/wp-json/delnavazan-platform/v1/recording-service/health/', $envelope);
     }
 
     /** Fresh signed authorisation obtained immediately before VPS source deletion. */
     public function deletionAuthorisation(string $recordingUid, int $contentVersion, string $destinationSha256): array {
         $payload = ['recording_uid' => $recordingUid, 'content_version' => $contentVersion, 'destination_sha256' => $destinationSha256, 'requested_at' => time()];
         $envelope = Signer::sign($payload, $this->config->requireSecret('wordpress_service_secret'), (string) $this->config->get('wordpress_service_key_id'), 'recording-deletion-authorisation', time(), 120);
-        $response = $this->post('/wp-json/delnavazan-platform/v1/recording-service/deletion-authorisation', $envelope);
+        $response = $this->post('/wp-json/delnavazan-platform/v1/recording-service/deletion-authorisation/', $envelope);
         $verified = Signer::verify($response, $this->config->requireSecret('wordpress_service_secret'), 'recording-deletion-authorisation-response', time());
         $payload = $verified['payload'];
         if ((string) ($payload['recording_uid'] ?? '') !== $recordingUid || (int) ($payload['content_version'] ?? 0) !== $contentVersion || !hash_equals($destinationSha256, (string) ($payload['destination_sha256'] ?? ''))) {

@@ -74,7 +74,7 @@ $notification=static function(string $kind,string $state,?int $confirmationId=nu
 $queuedInvitation=$notification('requested_teacher','queued');
 
 // A verified provider receipt is read alongside the booking notification without changing its state.
-$wpdb->insert($p.'booking_request_student_notifications',array('uid'=>Identifier::uid(),'delivery_id'=>$delivery,'confirmation_id'=>null,'notification_kind'=>'requested_teacher','state'=>'handed_off','attempt_count'=>1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>$now,'created_at'=>$now,'updated_at'=>$now));
+$wpdb->insert($p.'booking_request_student_notifications',array('uid'=>Identifier::uid(),'delivery_id'=>$delivery,'confirmation_id'=>$confirmation,'notification_kind'=>'rescheduled_teacher','state'=>'handed_off','attempt_count'=>1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>$now,'created_at'=>$now,'updated_at'=>$now));
 $receiptNotification=(int)$wpdb->insert_id;
 $wpdb->insert($p.'telnyx_messages',array('uid'=>Identifier::uid(),'provider'=>'telnyx','channel'=>'whatsapp','message_reference_digest'=>hash('sha256',$suffix.'-receipt'),'notification_id'=>$receiptNotification,'attempt_id'=>0,'provider_template_name'=>'delnavazan_teacher_new_booking_fa','provider_template_language'=>'fa','state'=>'delivered','created_at'=>$now,'updated_at'=>$now));
 $receiptStatus=(new NotificationDeliveryStatusReadService())->forBookingRequest($original['request_id']);

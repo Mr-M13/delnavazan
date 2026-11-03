@@ -1113,8 +1113,7 @@
   }
 
   .dzn-appbar {
-    position: sticky;
-    inset-block-start: 0;
+    position: static;
     z-index: 20;
     display: block;
     border-block-end: 1px solid var(--dzn-color-border);

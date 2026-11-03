@@ -59,6 +59,7 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 		<?php if ( ! empty( $model['is_demo'] ) ) : ?>
 			<p class="dzn-portal__demo-label" role="status"><?php esc_html_e( 'پیش‌نمایش نمایشی — اطلاعات ساختگی و غیرقابل ذخیره', 'delnavazan-theme' ); ?></p>
 		<?php endif; ?>
+		<?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'student' ) ); ?>
 
 		<?php if ( 'signed_out' === $state ) : ?>
 			<?php
@@ -139,7 +140,6 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 			<?php dzn_theme_portal_component( 'support', array() ); ?>
 		<?php endif; ?>
 	</div>
-	<?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'student' ) ); ?>
 	<?php if ( $navigation ) : ?>
 		<nav id="dzn-portal-nav-mobile" class="dzn-portal-tabs" aria-label="<?php esc_attr_e( 'پیمایش هنرجو', 'delnavazan-theme' ); ?>">
 			<ul>

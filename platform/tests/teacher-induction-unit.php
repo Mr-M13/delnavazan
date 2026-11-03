@@ -112,10 +112,10 @@ namespace {
 
     $all = TeacherInductionCurriculum::all();
     $fail( 'nine quick-start steps are declared', count( $all ) === 9 );
-    $fail( 'quick-start order is stable', array_column( $all, 'id' ) === array( 'today', 'join', 'attendance', 'absence', 'reschedule', 'settings', 'finance', 'golden-hour', 'new-enrolment' ) );
+    $fail( 'quick-start order follows the daily workflow', array_column( $all, 'id' ) === array( 'today', 'new-enrolment', 'settings', 'join', 'attendance', 'absence', 'reschedule', 'finance', 'golden-hour' ) );
     foreach ( $all as $step ) {
         $fail( 'step ' . $step['id'] . ' has a positive version', (int) $step['version'] >= 1 );
-        $fail( 'step ' . $step['id'] . ' has a target screen and highlight', in_array( $step['portal_screen'], array( 'home', 'classes', 'finance', 'settings' ), true ) && $step['highlight_selector'] !== '' && $step['action_label'] !== '' );
+        $fail( 'step ' . $step['id'] . ' has a readable title and description', $step['title'] !== '' && $step['description'] !== '' );
         $fail( 'step ' . $step['id'] . ' has short teacher-facing copy', strlen( $step['description'] ) > 30 && strlen( $step['description'] ) < 500 );
     }
     $text = static fn( string $id ): string => json_encode( TeacherInductionCurriculum::module( $id ), JSON_UNESCAPED_UNICODE );

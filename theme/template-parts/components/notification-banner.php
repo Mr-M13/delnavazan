@@ -3,8 +3,9 @@
  * Narrow, dismissible portal notification banner.
  *
  * Only the newest unread notification is shown. No unread notification means
- * no banner. Closing the banner is a presentation decision for this browser
- * session; it never marks a business event read or resolved.
+ * no banner. The close control is the same action as acknowledging the
+ * notification: it marks the business event read. The details link still takes
+ * the reader to the area the notification is about.
  *
  * @package DelnavazanTheme
  */
@@ -48,10 +49,11 @@ $scope = 'teacher' === $role ? 'داشبورد مدرس' : 'حساب هنرجو'
 					<input type="hidden" name="action" value="dzn_portal_notification_read">
 					<input type="hidden" name="notification" value="<?php echo esc_attr( (string) $id ); ?>">
 					<?php dzn_theme_nonce_field( 'dzn_portal_notification_read' ); ?>
-					<button class="dzn-notification-banner__link" type="submit"><?php esc_html_e( 'خوانده شد', 'delnavazan-theme' ); ?></button>
+					<button class="dzn-notification-banner__close" type="submit" data-dzn-notification-close aria-label="<?php esc_attr_e( 'خوانده شد و بستن اعلان', 'delnavazan-theme' ); ?>" title="<?php esc_attr_e( 'خوانده شد و بستن اعلان', 'delnavazan-theme' ); ?>"><span class="dzn-notification-banner__dismiss-label"><?php esc_html_e( 'خوانده شد', 'delnavazan-theme' ); ?></span><span aria-hidden="true">×</span></button>
 				</form>
+			<?php else : ?>
+				<button class="dzn-notification-banner__close" type="button" data-dzn-notification-close aria-label="<?php esc_attr_e( 'بستن اعلان', 'delnavazan-theme' ); ?>"><span aria-hidden="true">×</span></button>
 			<?php endif; ?>
-			<button class="dzn-notification-banner__close" type="button" data-dzn-notification-close aria-label="<?php esc_attr_e( 'بستن اعلان', 'delnavazan-theme' ); ?>"><span aria-hidden="true">×</span></button>
 		</div>
 	</div>
 </aside>

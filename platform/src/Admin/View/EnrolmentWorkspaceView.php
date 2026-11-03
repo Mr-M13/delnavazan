@@ -386,7 +386,19 @@ final class EnrolmentWorkspaceView {
         echo '</div>';
         if (!empty($case['notification_rows'])) {
             echo '<ul class="dzn-timeline dzn-timeline--compact">';
-            foreach (array_slice($case['notification_rows'], 0, 8) as $row) echo '<li><span class="dzn-timeline__dot"></span><strong>' . esc_html((string) $row['label']) . '</strong><small>' . esc_html((string) $row['at']) . '</small><p>' . esc_html((string) $row['detail']) . '</p></li>';
+            foreach (array_slice($case['notification_rows'], 0, 8) as $row) {
+                echo '<li><span class="dzn-timeline__dot"></span><strong>' . esc_html((string) $row['label']) . '</strong><small>' . esc_html((string) $row['at']) . '</small><p>' . esc_html((string) $row['detail']) . '</p>';
+                if ((string) ($row['category'] ?? '') === 'failed') {
+                    echo '<p class="description"><strong>Recipient:</strong> ' . esc_html((string) ($row['audience'] ?: 'unknown') . ((string) ($row['recipient'] ?? '') !== '' ? ' · ' . (string) $row['recipient'] : '')) . ' · <strong>Channel:</strong> ' . esc_html((string) ($row['channel'] ?? 'email')) . ' · <strong>Attempts:</strong> ' . esc_html((string) ($row['attempt_count'] ?? 0)) . ' · <strong>Last attempt:</strong> ' . esc_html((string) ($row['last_attempt'] ?? '')) . '</p>';
+                    if (!empty($row['recovery_available']) && (int) ($row['notification_id'] ?? 0) > 0 && current_user_can('dzn_operate_notification_dispatch')) {
+                        self::formStart('recover_booking_notification', array('request_id' => (int) $case['id'], 'notification_id' => (int) $row['notification_id']));
+                        echo '<button class="button button-secondary" onclick="return confirm(\'Requeue this failed booking notification? The booking state will be revalidated first.\')">Recover notification</button></form>';
+                    } elseif ((string) ($row['recovery_reason'] ?? '') !== '') {
+                        echo '<p class="description">Recovery unavailable: ' . esc_html((string) $row['recovery_reason']) . '</p>';
+                    }
+                }
+                echo '</li>';
+            }
             echo '</ul>';
         }
         echo '</section>';

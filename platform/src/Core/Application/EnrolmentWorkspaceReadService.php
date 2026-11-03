@@ -977,24 +977,53 @@ final class EnrolmentWorkspaceReadService {
     private function bookingNotifications(int $requestId): array {
         $status = (new NotificationDeliveryStatusReadService())->forBookingRequest($requestId);
         $rows = array();
+        $recovery = current_user_can(BookingNotificationRecoveryService::CAPABILITY) ? new BookingNotificationRecoveryService() : null;
         foreach ((array) $status['rows'] as $row) {
             $category = (string) ($row['category'] ?? 'unknown');
+            $preview = null;
+            if ($recovery !== null && $category === 'failed' && (int) ($row['notification_id'] ?? 0) > 0) {
+                try { $preview = $recovery->preview((int) $row['notification_id']); } catch (\Throwable) { $preview = null; }
+            }
             $rows[] = array(
                 'label' => $this->notificationLabel($category),
                 'category' => $category,
                 'at' => (string) ($row['updated_at'] ?? ''),
                 'detail' => $this->notificationDetail($category, $row),
+                'notification_id' => (int) ($row['notification_id'] ?? 0),
+                'audience' => (string) ($row['audience'] ?? ''),
+                'recipient' => (string) ($row['recipient'] ?? ''),
+                'channel' => (string) ($row['channel'] ?? 'email'),
+                'state' => (string) ($row['state'] ?? ''),
+                'attempt_count' => (int) ($row['attempt_count'] ?? 0),
+                'failure_reason' => (string) ($row['last_error_code'] ?? ''),
+                'last_attempt' => (string) ($row['updated_at'] ?? ''),
+                'recovery_available' => !empty($preview['eligible']),
+                'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
         }
         $post = $this->postIntroNotifications($requestId);
         foreach ($post as $row) {
             $category = $this->notificationCategory((string) $row->state, $row->handed_off_at);
             $status['summary'][$category] = (int) ($status['summary'][$category] ?? 0) + 1;
+            $preview = null;
+            if ($recovery !== null && $category === 'failed') {
+                try { $preview = $recovery->preview((int) $row->id); } catch (\Throwable) { $preview = null; }
+            }
             $rows[] = array(
                 'label' => $this->notificationLabel($category) . ' · ' . $this->postIntroNotificationKind((string) $row->notification_kind),
                 'category' => $category,
                 'at' => (string) $row->updated_at,
                 'detail' => $this->notificationDetail($category, array('state' => (string) $row->state, 'attempt_count' => (int) $row->attempt_count, 'last_error_code' => $row->last_error_code)),
+                'notification_id' => (int) $row->id,
+                'audience' => str_contains((string) $row->notification_kind, 'teacher') ? 'teacher' : 'student',
+                'recipient' => '',
+                'channel' => 'email',
+                'state' => (string) $row->state,
+                'attempt_count' => (int) $row->attempt_count,
+                'failure_reason' => (string) ($row->last_error_code ?? ''),
+                'last_attempt' => (string) $row->updated_at,
+                'recovery_available' => !empty($preview['eligible']),
+                'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
         }
         return array('summary' => $status['summary'] + array('unknown' => 0), 'rows' => $rows);

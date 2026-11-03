@@ -32,7 +32,7 @@ final class BookingStudentAccountService {
                 $user = $this->resolveAccount( $email, $password, $normalized['contact']['full_name'], $sessionUserId, $createdUserId );
                 $userId = (int) $user->ID;
                 $studentId = $this->resolveStudent( $userId, $normalized['contact'] );
-                $result = $this->submissions->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate );
+                $result = $this->submissions->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId );
                 $this->bindBooking( (int) $result['request_id'], $studentId, $userId );
                 $this->accounts->commit();
                 return array( 'success' => true, 'request_reference' => (string) $result['request_reference'], 'user_id' => $userId, 'replayed' => ! empty( $result['replayed'] ) );

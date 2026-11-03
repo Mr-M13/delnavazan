@@ -7,6 +7,10 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonScheduleR
 final class LessonScheduleService {
     private const LEGACY_BUFFER_MINUTES = 15;
 
+    public function __construct(private ?StudentOccupancyAuthority $studentOccupancy=null){
+        $this->studentOccupancy??=new StudentOccupancyAuthority();
+    }
+
     public function initial(int $lesson,array $input,bool $withinTransaction=false):int{return $this->apply($lesson,$input,true,$withinTransaction);}
     public function reschedule(int $lesson,array $input):int{return $this->apply($lesson,$input,false);}
     /**
@@ -27,10 +31,15 @@ final class LessonScheduleService {
         if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$date)||!preg_match('/^\d{2}:\d{2}:\d{2}$/D',$time))throw new \InvalidArgumentException('Confirmed occurrence wall clock required');
         $zone=new \DateTimeZone($timezone);$local=(new \DateTimeImmutable($start,new \DateTimeZone('UTC')))->setTimezone($zone);
         if($local->format('Y-m-d')!==$date||$local->format('H:i:s')!==$time)throw new \InvalidArgumentException('Confirmed occurrence wall clock mismatch');
+        $hint=$lessons->find($lessonId);
+        if(!$hint||(int)($hint->student_id??0)<1)throw new \InvalidArgumentException('confirmed_intro_lesson_required');
         $capacity->begin();
         try{
+            $capacity->ensureAndLockStudentRoot((int)$hint->student_id,gmdate('Y-m-d H:i:s'),get_current_user_id()?:0);
+            do_action('dzn_booking_student_root_held','confirmed_intro_occurrence',(int)$hint->student_id);
             $lesson=$lessons->locked($lessonId);
             if(!$lesson||($lesson->record_model??null)!=='legacy_phase1'||(string)$lesson->lesson_type!=='introductory'||(int)($lesson->booking_request_id??0)!==$bookingRequestId||$lesson->enrolment_id!==null||$lesson->term_id!==null||$lesson->archived_at!==null)throw new \InvalidArgumentException('confirmed_intro_lesson_required');
+            if((int)$lesson->student_id!==(int)$hint->student_id)throw new \RuntimeException('Lesson Student changed concurrently');
             $current=$schedules->current($lessonId,true);
             if($current){
                 if((string)$current->starts_at_utc!==$start||(string)$current->ends_at_utc!==$end||(string)$current->schedule_timezone!==$timezone||(string)$current->local_wall_date!==$date||(string)$current->local_wall_time!==$time){throw new \InvalidArgumentException('confirmed_occurrence_conflict');}
@@ -40,6 +49,8 @@ final class LessonScheduleService {
             if(in_array((string)$lesson->status,array('archived','cancelled','completed'),true))throw new \InvalidArgumentException('Lesson not schedulable');
             $now=gmdate('Y-m-d H:i:s');$actor=get_current_user_id()?:0;
             $capacity->ensureAndLockTeacherRoot((int)$lesson->teacher_id,$now,$actor);
+            $occupiedEnd=(new \DateTimeImmutable($start,new \DateTimeZone('UTC')))->modify('+'.self::LEGACY_BUFFER_MINUTES.' minutes')->format('Y-m-d H:i:s');
+            $this->studentOccupancy->assertLessonIntervalAvailable((int)$lesson->student_id,$start,$occupiedEnd,$lessonId,$bookingRequestId);
             if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$lesson->teacher_id,$start,$end,$lessonId))throw new \InvalidArgumentException('teacher_slot_conflict');
             CanonicalContinuationCapacityAuthority::assertNoActiveHold((int)$lesson->teacher_id,$start,$end);
             CommercialCapacityAuthority::assertNoConflictingClaim((int)$lesson->teacher_id,$start,$end);
@@ -63,8 +74,14 @@ final class LessonScheduleService {
 
         if(!$withinTransaction)$capacity->begin();
         try{
+            // Student scheduling root precedes the Lesson row and Teacher root.
+            $studentIdHint=(int)$lesson->student_id;
+            if($studentIdHint<1)throw new \InvalidArgumentException('Lesson Student required');
+            $capacity->ensureAndLockStudentRoot($studentIdHint,gmdate('Y-m-d H:i:s'),get_current_user_id()?:0);
+            do_action('dzn_booking_student_root_held','legacy_schedule',$studentIdHint);
             $locked=$lessons->locked($id);
             if(!$locked||($locked->record_model??null)!=='legacy_phase1'||$locked->archived_at||in_array($locked->status,array('archived','completed','cancelled'),true))throw new \InvalidArgumentException('Lesson not schedulable');
+            if((int)$locked->student_id!==$studentIdHint)throw new \RuntimeException('Lesson Student changed concurrently');
             $current=$schedules->current($id,true);
             $this->assertPointer($locked,$current);
             if($initial&&$current)throw new \InvalidArgumentException('Schedule already exists');
@@ -75,6 +92,7 @@ final class LessonScheduleService {
             $now=gmdate('Y-m-d H:i:s');$actor=get_current_user_id()?:0;
             $capacity->ensureAndLockTeacherRoot((int)$locked->teacher_id,$now,$actor);
             $occupiedEnd=(new \DateTimeImmutable($end,new \DateTimeZone('UTC')))->modify('+'.self::LEGACY_BUFFER_MINUTES.' minutes')->format('Y-m-d H:i:s');
+            $this->studentOccupancy->assertLessonIntervalAvailable($studentIdHint,$start,$occupiedEnd,$id,(int)($locked->booking_request_id??0));
             if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$locked->teacher_id,$start,$occupiedEnd,$id))throw new \InvalidArgumentException('teacher_slot_conflict');
             CanonicalContinuationCapacityAuthority::assertNoActiveHold((int)$locked->teacher_id,$start,$occupiedEnd);
             CommercialCapacityAuthority::assertNoConflictingClaim((int)$locked->teacher_id,$start,$occupiedEnd);

@@ -62,7 +62,7 @@ final class AdministratorIntroBookingService {
                 'local_start_time' => $time,
                 'timezone' => $this->safeTimezone($timezone),
             )),
-        ), $requestKey);
+        ), $requestKey, null, $studentId);
         $requestId = (int) ($submission['request_id'] ?? 0);
         if ($requestId < 1) {
             $requestId = (int) $wpdb->get_var($wpdb->prepare(

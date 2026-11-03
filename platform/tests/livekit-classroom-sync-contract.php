@@ -55,7 +55,7 @@ $check('music mode never marks attendance', !str_contains($js, 'attendance') && 
 /* -------------------------------------------------------------------------
  * Student exit versus teacher finish
  * ---------------------------------------------------------------------- */
-$check('the teacher finish button exists once and is hidden by default', substr_count($template, 'id="dzn-classroom-finish"') === 1 && str_contains($template, 'id="dzn-classroom-finish"') && str_contains($template, '>پایان کلاس<') && str_contains($template, 'disabled hidden'));
+$check('the teacher finish button exists once and is hidden by default', substr_count($template, 'id="dzn-classroom-finish"') === 1 && str_contains($template, 'id="dzn-classroom-finish"') && str_contains($template, 'aria-label="پایان کلاس"') && str_contains($template, 'disabled hidden'));
 $check('the finish button is gated on canonical identifiers', str_contains($js, 'function teacherFinishAvailable') && str_contains($js, "session.role !== 'teacher'") && str_contains($js, 'UID_PATTERN.test(String(session.lesson_uid') && str_contains($js, 'UID_PATTERN.test(String(session.schedule_version_uid'));
 $check('a session without identifiers does not render a fake finish action', str_contains($js, 'finishButton.hidden = !teacherFinishAvailable(session)'));
 $check('the classroom template never embeds canonical identifiers', !str_contains($template, 'lesson_uid') && !str_contains($template, 'schedule_version_uid'));
@@ -88,14 +88,32 @@ $check('rotation cycles in four steps', str_contains($js, 'state.rotation = (sta
 $check('rotation is driven by the CSS custom property', str_contains($js, "stage.style.setProperty('--dzn-rotation', angle + 'deg')") && str_contains($css, '--dzn-rotation'));
 $check('rotation is exposed as a data attribute', str_contains($js, "stage.setAttribute('data-rotation', String(angle))"));
 $check('geometry swaps only for quarter turns', str_contains($js, 'if (angle !== 90 && angle !== 270)') && str_contains($js, "tile.style.setProperty('--dzn-rotate-width', rect.height + 'px')"));
-$check('the button label shows the current angle', str_contains($js, "'چرخش: ' + toPersianDigits(state.rotation) + '°'"));
+$check('the button exposes the current angle in its accessible label', str_contains($js, "'چرخش نمایش ویدئو: ' + rotationLabel(state.rotation)"));
 $check('the button exposes aria-pressed and an aria-label', str_contains($js, "rotateButton.setAttribute('aria-pressed'") && str_contains($js, "rotateButton.setAttribute('aria-label'"));
-$check('the initial Persian label is rendered server-side', str_contains($template, 'چرخش: ۰°') && str_contains($template, 'aria-label="چرخش نمایش ویدئو: بدون چرخش'));
+$check('the initial Persian label is rendered server-side', str_contains($template, 'aria-label="چرخش نمایش ویدئو: بدون چرخش'));
 foreach (array(90, 180, 270) as $angle) {
     $check('the stylesheet implements ' . $angle . ' degrees', str_contains($css, '.dzn-classroom__stage[data-rotation="' . $angle . '"] .dzn-classroom__tile video'));
 }
 $check('both the local preview and the remote tile rotate locally', str_contains($css, '.dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile--local video') && str_contains($css, '.dzn-classroom__stage[data-rotation="180"] .dzn-classroom__tile--local video'));
 $check('fullscreen keeps the quarter-turn geometry', str_contains($css, ':is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="90"] .dzn-classroom__tile video') && str_contains($css, ':is(:fullscreen, .is-faux-fullscreen) .dzn-classroom__stage[data-rotation="270"] .dzn-classroom__tile video'));
 $check('rotation never claims the transmitted camera orientation changed', str_contains($js, 'جهت دوربین ارسالی تغییر نمی‌کند') && str_contains($template, 'جهت دوربین ارسالی را تغییر نمی‌دهد'));
+
+/* -------------------------------------------------------------------------
+ * Tap-to-toggle controls and device fullscreen
+ * ---------------------------------------------------------------------- */
+$check('single tap toggles the immersive controls', str_contains($js, 'function toggleControls') && (str_contains($js, 'function hideControls') && str_contains($js, 'function revealControls')) && str_contains($css, '.is-immersive.is-controls-visible .dzn-classroom__controls'));
+$check('pointer movement alone does not keep controls visible', !str_contains($js, "stage.addEventListener('pointermove', revealControls)"));
+$check('hover and focus-within do not pin touch controls open', !str_contains($css, '.is-immersive:hover .dzn-classroom__controls') && !str_contains($css, '.is-immersive:focus-within .dzn-classroom__controls'));
+$check('double tap toggles fullscreen', str_contains($js, 'now - lastTap < 300') && str_contains($js, 'toggleFullscreen()'));
+$check('fullscreen requests the device viewport where supported', str_contains($js, 'navigationUI: \'hide\'') && str_contains($js, "screen.orientation.lock('landscape')"));
+$check('iOS uses native video fullscreen for the whole device', str_contains($js, 'function isIOS') && str_contains($js, 'webkitEnterFullscreen'));
+$check('fullscreen state tracks native video fullscreen', str_contains($js, 'webkitbeginfullscreen') && str_contains($js, 'webkitendfullscreen'));
+
+/* -------------------------------------------------------------------------
+ * Music clarity defaults
+ * ---------------------------------------------------------------------- */
+$check('music mode is the safe default for instrument lessons', str_contains($js, 'musicOn: true') && str_contains($js, 'if (music) music.checked = state.musicOn'));
+$check('Opus redundancy is enabled for lossy networks', str_contains($js, 'red: true') && !str_contains($js, 'red: false'));
+$check('music capture disables browser speech processing', str_contains($js, 'echoCancellation: false') && str_contains($js, 'noiseSuppression: false') && str_contains($js, 'autoGainControl: false'));
 
 echo "LiveKit classroom sync contract passed\n";

@@ -84,6 +84,14 @@ $need(str_contains($read('../services/playback-gateway/src/App.php'), "/metrics"
 $need(str_contains($read('src/Core/Application/Recording/RecordingFeatureFlags.php'), 'EMERGENCY_STOP_OPTION'), 'WordPress must expose the durable emergency stop');
 $need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'engageEmergencyStop'), 'control plane must engage the emergency stop');
 $need(str_contains($read('src/Admin/Controller/RecordingOperationsController.php'), 'emergency_stop'), 'admin must expose the emergency stop');
+$need(str_contains($read('src/Core/Application/Recording/RecordingFeatureFlags.php'), 'GLOBAL_CAPTURE_OPTION'), 'WordPress must expose the normal global capture switch');
+$need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'setGlobalCapture'), 'control plane must implement the global capture switch');
+$need(str_contains($read('src/Admin/Controller/GeneralSettingsController.php'), 'ACTION_RECORDING_CAPTURE'), 'Settings must expose the global recording switch');
+$need(str_contains($read('src/Integrations/LiveKit/LiveKitWebhookController.php'), 'maybeStartRecording'), 'LiveKit admission must request recording for canonical lessons');
+$need(str_contains($read('src/Integrations/LiveKit/LiveKitWebhookController.php'), 'requestStopForLesson'), 'LiveKit room finish must stop the lesson recording');
+$need(str_contains($read('../theme/assets/js/music-classroom.js'), "now - lastTap < 300"), 'classroom must distinguish single tap from double tap');
+$need(str_contains($read('../theme/assets/js/music-classroom.js'), 'webkitEnterFullscreen'), 'classroom must use native video fullscreen on iOS');
+$need(str_contains($read('../theme/assets/js/music-classroom.js'), 'red: true'), 'classroom must enable Opus redundancy');
 
 $gateway = $read('../services/playback-gateway/src/RangeStreamer.php');
 foreach (['Accept-Ranges: bytes','Content-Range','206','416'] as $x) $need(str_contains($gateway, $x), 'gateway range support missing ' . $x);

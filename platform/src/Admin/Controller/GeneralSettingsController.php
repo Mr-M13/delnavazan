@@ -4,6 +4,8 @@ namespace Delnavazan\Platform\Admin\Controller;
 use Delnavazan\Platform\Core\Application\CommercialPolicyService;
 use Delnavazan\Platform\Core\Application\DiagnosticsService;
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
+use Delnavazan\Platform\Core\Application\Recording\RecordingControlPlane;
+use Delnavazan\Platform\Core\Application\Recording\RecordingFeatureFlags;
 
 /**
  * Settings → General: academy information, public presence, pages, policy and access.
@@ -16,6 +18,7 @@ final class GeneralSettingsController {
     public const MENU_SLUG = 'dzn-general';
     public const CAPABILITY = 'manage_options';
     public const ACTION_BOOKING_HORIZON = 'dzn_general_booking_horizon';
+    public const ACTION_RECORDING_CAPTURE = 'dzn_general_recording_capture';
 
     /**
      * Business details verified against the approved repository record:
@@ -30,6 +33,7 @@ final class GeneralSettingsController {
 
     public static function register(): void {
         add_action('admin_post_' . self::ACTION_BOOKING_HORIZON, [self::class, 'saveBookingHorizon']);
+        add_action('admin_post_' . self::ACTION_RECORDING_CAPTURE, [self::class, 'saveRecordingCapture']);
     }
 
     public static function render(): void {
@@ -51,6 +55,7 @@ final class GeneralSettingsController {
         }
         self::renderLegalPages();
         self::renderBookingHorizon();
+        self::renderRecordingCapture();
         StaffAccessController::renderPanel(true);
         echo '<section class="dzn-settings-card" id="account-removal" dir="rtl">';
         echo '<h2>بررسی حذف حساب</h2>';
@@ -234,6 +239,39 @@ final class GeneralSettingsController {
             echo '</tbody></table></details>';
         }
         echo '<p><a class="button button-small" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#finance-policies')) . '">Open full policy history in Finance</a></p>';
+        echo '</section>';
+    }
+
+    public static function saveRecordingCapture(): never {
+        if (!current_user_can(self::CAPABILITY)) wp_die('Forbidden', 403);
+        check_admin_referer(self::ACTION_RECORDING_CAPTURE);
+        $enabled = (string) ($_POST['enabled'] ?? '') === '1';
+        try {
+            (new RecordingControlPlane())->setGlobalCapture($enabled, (int) get_current_user_id(), 'general_settings');
+            self::redirectNotice('success', $enabled ? 'Recording capture is now enabled for authorised lessons.' : 'Recording capture is now disabled. Active recordings were asked to stop.');
+        } catch (\Throwable) {
+            self::redirectNotice('error', 'The recording capture setting was not changed.');
+        }
+    }
+
+    private static function renderRecordingCapture(): void {
+        $enabled = RecordingFeatureFlags::globalCaptureEnabled();
+        $emergency = RecordingFeatureFlags::emergencyStop();
+        echo '<section class="dzn-settings-card" id="recording-capture">';
+        echo '<h2>Recording capture</h2>';
+        echo '<p class="dzn-settings-note">Global switch for new LiveKit lesson recordings. Consent, teacher/student authority, the lesson schedule and the archive health gate are still checked for every lesson. Turning this off also asks active recordings to stop; it does not delete archived media.</p>';
+        echo '<p><strong>Current state:</strong> <span class="dzn-status-badge ' . ($enabled ? 'is-ok' : 'is-warn') . '">' . esc_html($enabled ? 'Enabled' : 'Disabled') . '</span>';
+        if (($emergency['engaged'] ?? false) === true) {
+            echo ' <span class="dzn-status-badge is-warn">Emergency stop engaged</span>';
+        }
+        echo '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-settings-inline-form">';
+        wp_nonce_field(self::ACTION_RECORDING_CAPTURE);
+        echo '<input type="hidden" name="action" value="' . esc_attr(self::ACTION_RECORDING_CAPTURE) . '">';
+        echo '<input type="hidden" name="enabled" value="' . ($enabled ? '0' : '1') . '">';
+        echo '<p><button class="button ' . ($enabled ? 'button-secondary' : 'button-primary') . '" type="submit">' . esc_html($enabled ? 'Disable recording globally' : 'Enable recording globally') . '</button></p>';
+        echo '</form>';
+        echo '<p class="dzn-settings-meta">The emergency stop remains available on the <a href="' . esc_url(admin_url('admin.php?page=dzn-recordings')) . '">Recordings</a> page for immediate incident response.</p>';
         echo '</section>';
     }
 

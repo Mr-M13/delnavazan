@@ -298,6 +298,30 @@ final class RecordingControlPlane {
 
     public function emergencyStopStatus():array{return RecordingFeatureFlags::emergencyStop();}
 
+    /**
+     * Normal global capture switch. Disabling it refuses new capture immediately and queues a stop
+     * for every recording that can still be active. Enabling it only restores the normal gates.
+     */
+    public function setGlobalCapture(bool $enabled,int $actor,string $reason='administrator_setting'):array{
+        update_option(RecordingFeatureFlags::GLOBAL_CAPTURE_OPTION,$enabled?'1':'0',false);
+        $stopped=array();
+        if(!$enabled){
+            global $wpdb;$p=$wpdb->prefix.'dzn_';
+            $ids=(array)$wpdb->get_col("SELECT id FROM {$p}recordings WHERE lifecycle_state IN ('recording_requested','recording_active') ORDER BY id");
+            foreach($ids as $id){try{$this->requestStop((int)$id,$actor,'global_capture_disabled');$stopped[]=(int)$id;}catch(\Throwable $error){}}
+        }
+        return array('enabled'=>$enabled,'stopped'=>$stopped,'reason'=>$reason);
+    }
+
+    /** Stop the current recording for a lesson when LiveKit reports the room has finished. */
+    public function requestStopForLesson(int $lessonId,int $actor,string $reason='room_finished'):array{
+        if($lessonId<1)return array('command_id'=>0,'state'=>'none','idempotent'=>true);
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}recordings WHERE lesson_id=%d AND lifecycle_state IN ('recording_requested','recording_active') ORDER BY id DESC LIMIT 1",$lessonId));
+        if($id<1)return array('command_id'=>0,'state'=>'none','idempotent'=>true);
+        return $this->requestStop($id,$actor,$reason);
+    }
+
     public function reconcile(int $recordingId,int $actor):array{
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $recording=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recordings WHERE id=%d LIMIT 1",$recordingId));

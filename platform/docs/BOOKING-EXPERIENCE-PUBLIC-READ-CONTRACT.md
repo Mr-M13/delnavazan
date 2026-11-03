@@ -23,6 +23,8 @@ The response contains the submitted sequence number, one status, and, where curr
 
 POST /wp-json/delnavazan-platform/v1/booking-requests remains the only public intake write. Its strict field allowlist, IANA wall-time conversion, DST checks, 24-month private contact snapshot retention, idempotency, rate limit and opaque REQ-* reference remain authoritative. A successful request is submitted / unresolved; it does not create a Student, Lesson, Teacher assignment, payment, notification or reserved slot.
 
+An account-aware submission additionally refuses an occupied interval that overlaps an existing open or already-confirmed introductory booking for the same canonical Student. The check runs inside the intake transaction after the per-Student scheduling root is acquired, so two concurrent duplicate requests cannot both be accepted. A confirmed introductory booking is Student occupancy even before the post-intro workflow creates a canonical Lesson. Contact-only duplicate signals remain non-blocking review flags.
+
 The free introductory meeting carries no payment choice at this stage. The 01:00–06:00 Iran-time blackout is an application rule in the existing normalization and validation paths; it adds no database table, migration, new route or booking authority. Later continuation/payment flows remain governed by their separate Platform authorities.
 
 

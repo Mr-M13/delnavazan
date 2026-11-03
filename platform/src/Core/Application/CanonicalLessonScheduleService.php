@@ -31,10 +31,11 @@ final class CanonicalLessonScheduleService {
     private const CHANNELS=array('staff_record','authenticated_platform','document_reference');
     private const MAX_DURATION=1440;
     private const MAX_BUFFER=480;
-    public function __construct(private ?CanonicalLessonScheduleRepository $repository=null,private ?CanonicalLessonAuthorityRepository $lessons=null,private ?CanonicalTeacherOccupancyReadService $occupancy=null){
+    public function __construct(private ?CanonicalLessonScheduleRepository $repository=null,private ?CanonicalLessonAuthorityRepository $lessons=null,private ?CanonicalTeacherOccupancyReadService $occupancy=null,private ?StudentOccupancyAuthority $studentOccupancy=null){
         $this->repository??=new CanonicalLessonScheduleRepository();
         $this->lessons??=new CanonicalLessonAuthorityRepository();
         $this->occupancy??=new CanonicalTeacherOccupancyReadService($this->repository,$this->lessons);
+        $this->studentOccupancy??=new StudentOccupancyAuthority();
     }
     public function schedule(int $lessonId,int $expectedAssignmentId,array $input,string $key):array{return $this->apply('schedule_initial',$lessonId,$expectedAssignmentId,$input,$key);}
     /** Initial schedule inside a caller-owned transaction (used when issuing a replacement Lesson). */
@@ -75,6 +76,9 @@ final class CanonicalLessonScheduleService {
             if($operation==='schedule_revise'&&$this->unchanged($applicable,$resolved))throw new \InvalidArgumentException('schedule_unchanged');
 
             $assignment=$this->assertApplicableAssignment($lesson,$expectedAssignmentId);
+            // Student occupancy is part of canonical scheduling authority, not only a
+            // caller-side precheck. The Student root is already held by lockAggregate().
+            $this->assertStudentCapacity($lesson,$resolved['starts_at_utc'],$resolved['occupied_ends_at_utc']);
             $this->repository->ensureAndLockTeacherRoot((int)$lesson->teacher_id,$now,$actor);
             do_action('dzn_phase_2a2n_teacher_root_held',$operation,$lessonId,(int)$lesson->teacher_id);
             // The exact commercial interval identity travels with the schedule: only the same
@@ -306,6 +310,12 @@ final class CanonicalLessonScheduleService {
         // Phase 2A.2-R1: an active protected claim interval is real Teacher capacity too, and the
         // interval that authorises THIS Lesson is excluded so its own successor never blocks it.
         if($lesson!==null)CommercialCapacityAuthority::assertScheduleAllowed($lesson,$schedule??array(),null,$allowMoveIntervalId);
+    }
+
+    /** The single Student occupancy rule also governs canonical schedule writes. */
+    private function assertStudentCapacity(object $lesson,string $startsAt,string $occupiedEnd):void{
+        $bookingRequestId=(int)($lesson->booking_request_id??0);
+        $this->studentOccupancy->assertLessonIntervalAvailable((int)$lesson->student_id,$startsAt,$occupiedEnd,(int)$lesson->id,$bookingRequestId);
     }
 
     /** Availability is an upstream constraint, never scheduling authority. */

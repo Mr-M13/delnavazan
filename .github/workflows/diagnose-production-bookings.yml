@@ -2,6 +2,8 @@ name: Diagnose production booking blockers (read-only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [diag/booking-blockers-20261104]
 
 permissions:
   contents: read

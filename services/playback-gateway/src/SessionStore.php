@@ -15,7 +15,7 @@ final class SessionStore {
         $id = bin2hex(random_bytes(24));
         $record = ['payload' => $payload, 'expires_at' => time() + (int) $this->config->get('ticket_ttl_seconds')];
         $path = $this->dir . '/' . $id . '.json';
-        if (file_put_contents($path, json_encode($record, JSON_THROW_ON_ERROR), LOCK_EX) === false) throw new \RuntimeException('playback_session_store_unavailable');
+        if (@file_put_contents($path, json_encode($record, JSON_THROW_ON_ERROR), LOCK_EX) === false) throw new \RuntimeException('playback_session_store_unavailable');
         chmod($path, 0600);
         return $id;
     }
@@ -24,7 +24,7 @@ final class SessionStore {
         $dir = $this->dir . '/jti';
         if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) throw new \RuntimeException('playback_session_store_unavailable');
         $path = $dir . '/' . hash('sha256', $jti) . '.json';
-        $handle = fopen($path, 'x');
+        $handle = @fopen($path, 'x');
         if (!is_resource($handle)) throw new \RuntimeException('playback_grant_replayed');
         fwrite($handle, json_encode(['created_at' => time()], JSON_THROW_ON_ERROR));
         fclose($handle);
@@ -35,7 +35,7 @@ final class SessionStore {
         if (preg_match('/^[a-f0-9]{48}$/D', $id) !== 1) throw new \RuntimeException('playback_ticket_invalid');
         $path = $this->dir . '/' . $id . '.json';
         if (!is_file($path)) throw new \RuntimeException('playback_ticket_invalid');
-        $record = json_decode((string) file_get_contents($path), true);
+        $record = json_decode((string) @file_get_contents($path), true);
         if (!is_array($record) || (int) ($record['expires_at'] ?? 0) <= time() || !is_array($record['payload'] ?? null)) {
             @unlink($path);
             throw new \RuntimeException('playback_ticket_expired');
@@ -43,7 +43,7 @@ final class SessionStore {
         return $record['payload'];
     }
     public function sweep(): void {
-        foreach (glob($this->dir . '/*.json') ?: [] as $path) {
+        foreach (@glob($this->dir . '/*.json') ?: [] as $path) {
             $record = json_decode((string) @file_get_contents($path), true);
             if (!is_array($record) || (int) ($record['expires_at'] ?? 0) <= time()) @unlink($path);
         }

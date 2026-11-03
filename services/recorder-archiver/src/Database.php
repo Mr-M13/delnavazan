@@ -90,7 +90,14 @@ final class Database {
 
     public function execute(string $sql, array $params = []): int {
         $statement = $this->pdo->prepare($sql);
-        $statement->execute($params);
+        foreach ($params as $key => $value) {
+            $name = is_int($key) ? $key + 1 : (str_starts_with((string) $key, ':') ? (string) $key : ':' . $key);
+            if (is_bool($value)) $statement->bindValue($name, $value, PDO::PARAM_BOOL);
+            elseif ($value === null) $statement->bindValue($name, null, PDO::PARAM_NULL);
+            elseif (is_int($value)) $statement->bindValue($name, $value, PDO::PARAM_INT);
+            else $statement->bindValue($name, $value);
+        }
+        $statement->execute();
         return $statement->rowCount();
     }
 

@@ -130,6 +130,11 @@ def perform(payload: dict) -> dict:
 
 def main() -> int:
     command = os.environ.get("SSH_ORIGINAL_COMMAND", "")
+    try:
+        with open("/tmp/dzn-archive-shell.log", "a", encoding="utf-8") as log:
+            log.write("CMD=" + command + "\n")
+    except Exception:
+        pass
     if command.startswith("rsync "):
         try:
             args = shlex.split(command)

@@ -85,7 +85,7 @@ final class RecordingOperationsController {
         $tone=$health['fresh']&&$health['ready']&&$health['tailscale_connected']&&$health['archive_available']?'notice-success':'notice-warning';
         echo '<div class="notice '.esc_attr($tone).'"><p><strong>Recorder/archive health.</strong> ';
         echo 'fresh '.esc_html($health['fresh']?'yes':'no').' · ready '.esc_html($health['ready']?'yes':'no');
-        echo ' · Tailscale '.esc_html($health['tailscale_connected']?'connected':'unavailable');
+        echo ' · '.esc_html((string)($health['secure_transport']??'Tailscale')).' '.esc_html(($health['secure_transport_connected']??$health['tailscale_connected'])?'connected':'unavailable');
         echo ' · M-Box '.esc_html($health['archive_available']?'available':'unavailable');
         echo ' · mount '.esc_html($health['archive_mount_identity']!==''?$health['archive_mount_identity']:'unverified');
         echo ' · VPS free '.esc_html(self::bytes($health['storage_free_bytes'])).' ('.esc_html(number_format($health['storage_free_percent'],1)).'%)';

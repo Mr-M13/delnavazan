@@ -50,6 +50,8 @@ final class Config {
             'max_attempts' => (int) ($env['DZN_RECORDER_MAX_ATTEMPTS'] ?? 8),
             'http_bind' => (string) ($env['DZN_RECORDER_HTTP_BIND'] ?? '127.0.0.1:8091'),
             'tailscale_binary' => (string) ($env['DZN_TAILSCALE_BINARY'] ?? '/usr/bin/tailscale'),
+            'secure_transport' => (string) ($env['DZN_SECURE_TRANSPORT'] ?? 'tailscale'),
+            'secure_transport_connected_override' => $env['DZN_SECURE_TRANSPORT_CONNECTED'] ?? null,
             'egress_cpu_percent' => (float) ($env['DZN_EGRESS_CPU_PERCENT'] ?? 0.0),
             'egress_memory_bytes' => (int) ($env['DZN_EGRESS_MEMORY_BYTES'] ?? 0),
             'transient_prefix' => (string) ($env['DZN_RECORDER_TRANSIENT_PREFIX'] ?? ''),

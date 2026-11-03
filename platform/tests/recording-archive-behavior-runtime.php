@@ -83,7 +83,7 @@ function dzn_ra_health(array $overrides = array()): void {
     update_option(RecordingFeatureFlags::SERVICE_HEALTH_OPTION, array_merge(array(
         'received_at' => time(), 'ready' => true, 'storage_free_bytes' => 107374182400, 'storage_free_percent' => 50.0,
         'archive_mount_identity' => 'mbox-test-node', 'archive_available' => true, 'archive_free_bytes' => 1099511627776,
-        'tailscale_connected' => true, 'egress_cpu_percent' => 4.0, 'egress_memory_bytes' => 134217728,
+        'tailscale_connected' => true, 'secure_transport' => 'tailscale', 'secure_transport_connected' => true, 'egress_cpu_percent' => 4.0, 'egress_memory_bytes' => 134217728,
         'oldest_queue_age_seconds' => 0,
     ), $overrides), false);
 }

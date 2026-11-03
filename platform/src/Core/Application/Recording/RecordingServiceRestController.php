@@ -88,6 +88,8 @@ final class RecordingServiceRestController {
                 'archive_available'=>($payload['archive_available']??false)===true,
                 'archive_free_bytes'=>(int)($payload['archive_free_bytes']??0),
                 'tailscale_connected'=>($payload['tailscale_connected']??false)===true,
+                'secure_transport'=>(string)($payload['secure_transport']??'tailscale'),
+                'secure_transport_connected'=>($payload['secure_transport_connected']??($payload['tailscale_connected']??false))===true,
                 'egress_cpu_percent'=>(float)($payload['egress_cpu_percent']??0),
                 'egress_memory_bytes'=>(int)($payload['egress_memory_bytes']??0),
                 'oldest_queue_age_seconds'=>(int)($payload['oldest_queue_age_seconds']??0),

@@ -55,6 +55,8 @@ final class RecordingOperationsReadService {
             'archive_available'=>($health['archive_available']??false)===true,
             'archive_free_bytes'=>(int)($health['archive_free_bytes']??0),
             'tailscale_connected'=>($health['tailscale_connected']??false)===true,
+            'secure_transport'=>(string)($health['secure_transport']??'tailscale'),
+            'secure_transport_connected'=>($health['secure_transport_connected']??($health['tailscale_connected']??false))===true,
             'egress_cpu_percent'=>(float)($health['egress_cpu_percent']??0),
             'egress_memory_bytes'=>(int)($health['egress_memory_bytes']??0),
             'oldest_queue_age_seconds'=>(int)($health['oldest_queue_age_seconds']??0),

@@ -445,12 +445,15 @@ final class Worker {
         $storage = $this->storage->describe();
         $archive = $this->archive->identity();
         $tailscale = $this->tailscaleConnected();
-        $ready = $storage['accepting'] && $archive['mounted'] && $tailscale;
+        $transportOverride = $this->config->get('secure_transport_connected_override');
+        $transportConnected = $transportOverride !== null && $transportOverride !== '' ? in_array(strtolower((string) $transportOverride), ['1','true','yes'], true) : $tailscale;
+        $ready = $storage['accepting'] && $archive['mounted'] && $transportConnected;
         return [
             'event' => 'health', 'ready' => $ready, 'service_id' => (string) $this->config->get('service_id'),
             'storage_free_bytes' => $storage['free_bytes'], 'storage_free_percent' => $storage['free_percent'],
             'archive_mount_identity' => $archive['identity'], 'archive_available' => $archive['mounted'],
             'archive_free_bytes' => $archive['free_bytes'], 'tailscale_connected' => $tailscale,
+            'secure_transport' => (string) $this->config->get('secure_transport'), 'secure_transport_connected' => $transportConnected,
             'host_load_per_cpu' => $this->metrics->snapshot()['load_per_cpu'],
             'host_memory_available_bytes' => $this->metrics->snapshot()['memory_available_bytes'],
             'egress_cpu_percent' => (float) $this->config->get('egress_cpu_percent'),

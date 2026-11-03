@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
-use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonScheduleRepository,ConfirmedIntroBookingCancellationRepository,LessonRescheduleRepository};
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
@@ -17,11 +17,12 @@ use Delnavazan\Platform\Portals\PortalPrincipalResolver;
  * queues the same durable notification rows as the rest of the booking lifecycle.
  */
 final class IntroLessonLifecycleService {
-    public const REASONS = array('student_requested', 'teacher_requested', 'operational_change');
+    public const REASONS = array('student_requested', 'teacher_requested', 'operational_change', 'duplicate_request');
 
     private string $p;
 
-    public function __construct(private ?BookingCalendarProjectionService $projector = null) {
+    public function __construct(private ?BookingCalendarProjectionService $projector = null, private ?ConfirmedIntroBookingCancellationRepository $cancellations = null) {
+        $this->cancellations ??= new ConfirmedIntroBookingCancellationRepository();
         global $wpdb;
         $this->p = $wpdb->prefix . 'dzn_';
     }
@@ -33,88 +34,116 @@ final class IntroLessonLifecycleService {
         $idempotencyKey = trim($idempotencyKey);
         if ($idempotencyKey === '') throw new \InvalidArgumentException('A command key is required');
         global $wpdb;
-        $request = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_requests WHERE id=%d AND privacy_erased_at IS NULL", $requestId));
-        if (!$request) throw new \InvalidArgumentException('Introductory booking not found');
-        $confirmation = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1", $requestId));
-        if (!$confirmation) throw new \InvalidArgumentException('intro_booking_confirmation_required');
-        [$actorId, $actorType] = $this->authorise($actorRole, $request, $confirmation);
-        if ($expectedId > 0 && (int) $confirmation->id !== $expectedId) throw new \RuntimeException('Booking confirmation changed concurrently');
-        if ($expectedVersion > 0 && (int) $confirmation->version !== $expectedVersion) throw new \RuntimeException('Booking confirmation changed concurrently');
-        if ((string) $confirmation->state === 'cancelled') {
+        $repository = $this->cancellations;
+        $keyDigest = hash_hmac('sha256', 'intro-cancel-command:' . $idempotencyKey, wp_salt('dzn_intro_cancellation'));
+        $evidenceDigest = hash_hmac('sha256', 'intro-cancel-evidence:' . $idempotencyKey, wp_salt('dzn_intro_cancellation'));
+        $payloadDigest = hash_hmac('sha256', 'intro-cancel-payload:' . $requestId . '|' . $reason . '|' . $expectedId . '|' . $expectedVersion, wp_salt('dzn_intro_cancellation'));
+        $repository->begin();
+        try {
+            if ($winner = $repository->command($keyDigest)) {
+                $result = $this->replayCancellation($winner, $payloadDigest);
+                $repository->commit();
+                return $result;
+            }
+            $request = $repository->requestForUpdate($requestId);
+            if (!$request || $request->privacy_erased_at !== null) throw new \InvalidArgumentException('Introductory booking not found');
+            $confirmation = $repository->confirmationForRequest($requestId, true);
+            if (!$confirmation) throw new \InvalidArgumentException('intro_booking_confirmation_required');
+            [$actorId, $actorType] = $this->authorise($actorRole, $request, $confirmation);
+            if ($expectedId > 0 && (int) $confirmation->id !== $expectedId) throw new \RuntimeException('Booking confirmation changed concurrently');
+            if ($expectedVersion > 0 && (int) $confirmation->version !== $expectedVersion) throw new \RuntimeException('Booking confirmation changed concurrently');
+            if ((string) $confirmation->state === 'cancelled') {
+                $existing = $repository->cancellationForConfirmation((int) $confirmation->id, true);
+                $repository->commit();
+                return array('confirmation_id' => (int) $confirmation->id, 'state' => 'cancelled', 'message' => 'This introductory lesson was already cancelled. No duplicate cancellation, notice or retraction job was created.', 'provider_sync' => 'not_required');
+            }
+            $studentId = (int) ($confirmation->student_id ?? 0);
+            if ($studentId < 1) throw new \InvalidArgumentException('Resolved Student required');
+            // Serialise cancellation with intake, acceptance and scheduling before releasing the slot.
+            (new CanonicalLessonScheduleRepository())->ensureAndLockStudentRoot($studentId, gmdate('Y-m-d H:i:s'), $actorId);
+            $now = gmdate('Y-m-d H:i:s');
+            $cancellationId = $repository->insertCancellation(array(
+                'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+                'confirmation_id' => (int) $confirmation->id,
+                'booking_request_id' => $requestId,
+                'delivery_id' => (int) $confirmation->delivery_id,
+                'teacher_id' => (int) $confirmation->teacher_id,
+                'student_id' => $studentId,
+                'reason_code' => $reason,
+                'evidence_reference_digest' => $evidenceDigest,
+                'previous_confirmation_state' => (string) $confirmation->state,
+                'previous_delivery_state' => (string) $confirmation->delivery_state,
+                'previous_request_lifecycle' => (string) $confirmation->lifecycle_status,
+                'previous_request_resolution' => (string) $confirmation->resolution_state,
+                'cancelled_at' => $now,
+                'cancelled_by' => $actorId,
+                'command_key_digest' => $keyDigest,
+                'created_at' => $now,
+            ));
+            $repository->transitionConfirmation((int) $confirmation->id, (int) $confirmation->version, (string) $confirmation->state, 'cancelled', $now, $actorId);
+            $repository->transitionDelivery((int) $confirmation->delivery_id, (string) $confirmation->delivery_state, 'cancelled', $now);
+            $repository->cancelRequest($requestId, (string) $confirmation->lifecycle_status, (string) $confirmation->resolution_state, 'cancelled', $now, $actorId);
+            $repository->closeCoordinationCase($requestId, $now, $actorId);
+            $this->queueNotification((int) $confirmation->delivery_id, (int) $confirmation->id, 'cancelled', $now, false);
+            $this->queueNotification((int) $confirmation->delivery_id, (int) $confirmation->id, 'cancelled_teacher', $now, false);
+            $secret = $repository->projectionSecret((int) $confirmation->id);
+            $jobId = $repository->insertRetractionJob(array(
+                'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+                'cancellation_id' => $cancellationId,
+                'confirmation_id' => (int) $confirmation->id,
+                'connection_id' => (int) $confirmation->connection_id,
+                'teacher_id' => (int) $confirmation->teacher_id,
+                'state' => 'queued',
+                'idempotency_key' => hash_hmac('sha256', 'intro-cancel-retraction:' . $cancellationId, wp_salt('dzn_intro_cancellation')),
+                'attempt_count' => 0,
+                'next_attempt_at' => $now,
+                'lease_token_digest' => null,
+                'lease_expires_at' => null,
+                'last_error_code' => null,
+                'completed_at' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ));
+            $repository->insertCommand(array(
+                'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+                'command_key_digest' => $keyDigest,
+                'command_payload_digest' => $payloadDigest,
+                'cancellation_id' => $cancellationId,
+                'result_state' => 'cancelled',
+                'created_at' => $now,
+                'created_by' => $actorId,
+            ));
+            $this->audit($requestId, 'booking_request.intro_cancelled', $actorType, $actorId, $reason, array(
+                'confirmation_id' => (int) $confirmation->id,
+                'actor_role' => $actorRole,
+                'cancellation_id' => $cancellationId,
+                'retraction_job_id' => $jobId,
+                'starts_at_utc' => (string) $confirmation->starts_at_utc,
+                'timezone' => (string) $confirmation->schedule_timezone,
+                'provider_sync' => 'queued',
+            ), 'intro-cancel:' . $idempotencyKey, $now);
+            $repository->commit();
+            $providerSync = $secret ? 'queued' : 'not_required';
             return array(
                 'confirmation_id' => (int) $confirmation->id,
                 'state' => 'cancelled',
-                'message' => 'This introductory lesson was already cancelled. No duplicate cancellation or notification was created.',
-                'provider_sync' => 'not_required',
-            );
-        }
-        $now = gmdate('Y-m-d H:i:s');
-        $providerSync = 'not_required';
-        if ((string) $confirmation->state === 'confirmed') {
-            try {
-                $this->projector()->cancel((int) $confirmation->id);
-                $providerSync = 'cancelled';
-            } catch (\Throwable $exception) {
-                // The local authority remains the source of truth. A provider removal can be
-                // retried from support; it must never leave the portal showing a cancelled class.
-                $providerSync = 'pending:' . $this->safeProviderCode($exception);
-            }
-        }
-        $wpdb->query('START TRANSACTION');
-        try {
-            $locked = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_confirmations WHERE id=%d FOR UPDATE", (int) $confirmation->id));
-            if (!$locked) throw new \RuntimeException('Booking confirmation changed concurrently');
-            if ((string) $locked->state === 'cancelled') {
-                $wpdb->query('COMMIT');
-                return array(
-                    'confirmation_id' => (int) $locked->id,
-                    'state' => 'cancelled',
-                    'message' => 'This introductory lesson was already cancelled. No duplicate cancellation or notification was created.',
-                    'provider_sync' => $providerSync,
-                );
-            }
-            $updated = $wpdb->query($wpdb->prepare(
-                "UPDATE {$this->p}booking_request_confirmations SET state='cancelled',version=version+1,failure_reason_code=%s,updated_at=%s,updated_by=%d WHERE id=%d AND version=%d",
-                'cancelled_' . $actorType,
-                $now,
-                $actorId,
-                (int) $locked->id,
-                (int) $locked->version
-            ));
-            if ($updated !== 1) throw new \RuntimeException('Booking confirmation changed concurrently');
-            $wpdb->query($wpdb->prepare(
-                "UPDATE {$this->p}booking_request_teacher_deliveries SET state='cancelled',updated_at=%s WHERE id=%d AND state<>'cancelled'",
-                $now,
-                (int) $locked->delivery_id
-            ));
-            $wpdb->query($wpdb->prepare(
-                "UPDATE {$this->p}booking_requests SET lifecycle_status='closed',resolution_state='cancelled',version=version+1,updated_at=%s,updated_by=%d WHERE id=%d",
-                $now,
-                $actorId,
-                $requestId
-            ));
-            $this->queueNotification((int) $locked->delivery_id, (int) $locked->id, 'cancelled', $now, false);
-            $this->queueNotification((int) $locked->delivery_id, (int) $locked->id, 'cancelled_teacher', $now, false);
-            $this->audit($requestId, 'booking_request.intro_cancelled', $actorType, $actorId, $reason, array(
-                'confirmation_id' => (int) $locked->id,
-                'actor_role' => $actorRole,
-                'starts_at_utc' => (string) $locked->starts_at_utc,
-                'timezone' => (string) $locked->schedule_timezone,
+                'message' => $secret
+                    ? 'Introductory lesson cancelled. The Student and Teacher notices are queued; Google Calendar/Meet retraction is queued for the provider worker.'
+                    : 'Introductory lesson cancelled. The Student and Teacher notices are queued; no active provider projection required retraction.',
                 'provider_sync' => $providerSync,
-            ), 'intro-cancel:' . $idempotencyKey, $now);
-            $wpdb->query('COMMIT');
+            );
         } catch (\Throwable $exception) {
-            $wpdb->query('ROLLBACK');
+            $repository->rollback();
+            if ($winner = $repository->command($keyDigest)) return $this->replayCancellation($winner, $payloadDigest);
             throw $exception;
         }
-        return array(
-            'confirmation_id' => (int) $confirmation->id,
-            'state' => 'cancelled',
-            'message' => $providerSync === 'cancelled' || $providerSync === 'not_required'
-                ? 'Introductory lesson cancelled. The Student and Teacher were notified and the case remains in history.'
-                : 'Introductory lesson cancelled and the portals were updated. The provider calendar cancellation is pending and requires support follow-up.',
-            'provider_sync' => $providerSync,
-        );
+    }
+
+    private function replayCancellation(object $command, string $payloadDigest): array {
+        if (!hash_equals((string) $command->command_payload_digest, $payloadDigest)) throw new IdempotencyConflictException('Idempotency conflict');
+        $cancellation = $this->cancellations->cancellation((int) $command->cancellation_id);
+        if (!$cancellation) throw new \RuntimeException('Contaminated cancellation command');
+        return array('confirmation_id' => (int) $cancellation->confirmation_id, 'state' => 'cancelled', 'message' => 'This introductory lesson was already cancelled. No duplicate cancellation, notice or retraction job was created.', 'provider_sync' => 'not_required');
     }
 
     /** @return array{confirmation_id:int,state:string,local_label:string,provider_sync:string} */

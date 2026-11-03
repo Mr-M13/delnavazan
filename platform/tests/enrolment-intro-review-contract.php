@@ -110,7 +110,7 @@ $contains($lifecycle, array(
     'dzn_manage_booking_request_coordination',
     'CanonicalTeacherOccupancyReadService',
     'LessonRescheduleRepository',
-    "queueNotification((int) \$locked->delivery_id, (int) \$locked->id, 'cancelled'",
+    "queueNotification((int) \$confirmation->delivery_id, (int) \$confirmation->id, 'cancelled'",
     "'rescheduled_teacher'",
     'platform_audit_events',
 ), 'Intro lifecycle must enforce actor scope, real collisions, audit and notifications');

@@ -187,6 +187,15 @@ $control->releaseEmergencyStop(1);
 dzn_ra_assert(RecordingFeatureFlags::emergencyStop()['engaged'] === false, 'emergency stop must be releasable');
 // Restore the cohort used by the following readiness assertions.
 update_option(RecordingFeatureFlags::STAGING_COHORT_OPTION, array($lessonNoTeacher['lesson_id'], $lessonMinor['lesson_id'], $emergencyLesson['lesson_id']), false);
+
+// The normal global switch is separate from the emergency stop and queues stops when disabled.
+$globalOff = $control->setGlobalCapture(false, 1, 'runtime_test');
+dzn_ra_assert(($globalOff['enabled'] ?? true) === false, 'global capture switch must disable capture');
+dzn_ra_assert(RecordingFeatureFlags::captureEnabledForLesson($lessonNoTeacher['lesson_id']) === false, 'disabled global capture must refuse new capture');
+dzn_ra_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_commands WHERE recording_id=%d AND command_type='stop'", $emergencyRecording['recording_id'])) >= 1, 'disabling global capture must queue a stop');
+$globalOn = $control->setGlobalCapture(true, 1, 'runtime_test');
+dzn_ra_assert(($globalOn['enabled'] ?? false) === true, 'global capture switch must re-enable capture');
+dzn_ra_assert(RecordingFeatureFlags::captureEnabledForLesson($lessonNoTeacher['lesson_id']) === true, 'enabled global capture must restore the normal gates');
 $refused = false;
 try { $control->requestRecording($uncohort['lesson_id'], 'uncohort-request-0001', 1); } catch (RuntimeException $error) { $refused = $error->getMessage() === 'recording_capture_disabled'; }
 dzn_ra_assert($refused, 'lesson outside the staging cohort must be refused');

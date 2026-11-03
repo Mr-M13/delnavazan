@@ -48,6 +48,17 @@ namespace Delnavazan\Platform\Portals {
 				'booking_classes' => array(
 					array(
 						'version' => 'teacher_booking_class_v1',
+						'confirmation_uid' => 'CONF-ACTIVE',
+						'confirmation_state' => 'confirmed',
+						'course_name' => 'سه‌تار',
+						'teacher_display_reference' => 'استاد',
+						'student_display_reference' => 'Student ACTIVE',
+						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 600 ),
+						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now + 600 ),
+						'join_available' => true,
+					),
+					array(
+						'version' => 'teacher_booking_class_v1',
 						'confirmation_uid' => 'CONF-LATE',
 						'confirmation_state' => 'confirmed',
 						'course_name' => 'سه‌تار',
@@ -160,6 +171,8 @@ namespace {
 	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && in_array( 'REF-ACTIVE', $today_refs, true ) && ( ! $recent_is_today || ( 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) ) ) );
 	// The fixture is relative to wall-clock time. Near Tehran midnight its start
 	// belongs to yesterday, which the Classes view intentionally excludes.
+	$active_intro_starts_today = ( $fixture_now - 600 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$check( 'an in-progress intro stays on the today screen with its class button', ! $active_intro_starts_today || ( ! empty( $classes_by_ref['CONF-ACTIVE']['is_today'] ) && true === ( $classes_by_ref['CONF-ACTIVE']['start_available'] ?? null ) ) );
 	$late_intro_starts_today = ( $fixture_now - 5400 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
 	$check( 'a just-ended intro keeps the teacher late join window when it starts today', ! $late_intro_starts_today || true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
 	$check( 'a previous-day intro does not leak into today', $late_intro_starts_today || ! isset( $classes_by_ref['CONF-LATE'] ) );
@@ -181,6 +194,7 @@ namespace {
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
+	$check( 'an in-progress intro renders its classroom re-entry action', ! $active_intro_starts_today || ( str_contains( $html, 'name="confirmation_uid" value="CONF-ACTIVE"' ) && str_contains( $html, 'ورود با گوگل میت (پشتیبان)' ) ) );
 	$check( 'a today intro keeps its classroom re-entry action', ! $late_intro_starts_today || ( str_contains( $html, 'name="confirmation_uid" value="CONF-LATE"' ) && str_contains( $html, 'ورود با گوگل میت (پشتیبان)' ) ) );
 	$teacherCss = (string) file_get_contents( ABSPATH . 'theme/assets/css/teacher-portal.css' );
 	$check( 'intro management spans the full class card', str_contains( $teacherCss, '.dzn-tp-intro-actions {' ) && str_contains( $teacherCss, 'grid-column: 1 / -1;' ) && str_contains( $teacherCss, '.dzn-tp-intro-actions__body {' ) && str_contains( $teacherCss, 'grid-template-columns: repeat(2, minmax(0, 1fr));' ) );

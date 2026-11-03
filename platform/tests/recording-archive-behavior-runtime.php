@@ -185,6 +185,8 @@ try { $control->requestRecording($blockedLesson['lesson_id'], 'emergency-blocked
 dzn_ra_assert($refused, 'emergency stop must refuse every new capture');
 $control->releaseEmergencyStop(1);
 dzn_ra_assert(RecordingFeatureFlags::emergencyStop()['engaged'] === false, 'emergency stop must be releasable');
+// Restore the cohort used by the following readiness assertions.
+update_option(RecordingFeatureFlags::STAGING_COHORT_OPTION, array($lessonNoTeacher['lesson_id'], $lessonMinor['lesson_id'], $emergencyLesson['lesson_id']), false);
 $refused = false;
 try { $control->requestRecording($uncohort['lesson_id'], 'uncohort-request-0001', 1); } catch (RuntimeException $error) { $refused = $error->getMessage() === 'recording_capture_disabled'; }
 dzn_ra_assert($refused, 'lesson outside the staging cohort must be refused');

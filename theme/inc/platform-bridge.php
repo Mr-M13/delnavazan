@@ -1422,7 +1422,18 @@ function dzn_theme_platform_student_model( $screen ) {
 	$next = $all_future[0] ?? null;
 	$is_booking = is_array( $next ) && 'student_booking_class_v1' === ( $next['version'] ?? '' );
 	$next_start = $next ? dzn_theme_platform_utc_timestamp( $next['starts_at_utc'] ?? '' ) : false;
-	$enrolment = $next && ! $is_booking ? current( array_filter( $enrolments, static fn( $row ) => ( $row['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) ) : ( $enrolments[0] ?? null );
+	$enrolment = array();
+	if ( $next && ! $is_booking ) {
+		foreach ( $enrolments as $candidate ) {
+			if ( is_array( $candidate ) && ( $candidate['enrolment_uid'] ?? '' ) === ( $next['enrolment_uid'] ?? '' ) ) { $enrolment = $candidate; break; }
+		}
+	}
+	if ( ! $enrolment ) {
+		foreach ( $enrolments as $candidate ) {
+			if ( is_array( $candidate ) && in_array( (string) ( $candidate['lifecycle_state'] ?? '' ), array( 'current', 'authorised' ), true ) ) { $enrolment = $candidate; break; }
+		}
+	}
+	if ( ! $enrolment ) { $enrolment = is_array( $enrolments[0] ?? null ) ? $enrolments[0] : array(); }
     $next_end = $next ? dzn_theme_platform_utc_timestamp( $next['ends_at_utc'] ?? '' ) : false;
     $within_join_window = dzn_theme_platform_within_join_window( $next_start, $next_end, $now );
 	// Lesson schedules are UTC facts. Students always see them in their own

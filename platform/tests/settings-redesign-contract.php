@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings redesign contract: four visible sections, protected legacy routes, and the
+ * Settings redesign contract: five visible sections, protected legacy routes, and the
  * responsibility split between event choice, provider configuration, runtime evidence
  * and academy information/access.
  */
@@ -19,8 +19,8 @@ $menu = $read('src/Admin/Controller/Menu.php');
 $plugin = $read('../platform/delnavazan-platform.php');
 $fail = static function (bool $ok, string $message): void { if (!$ok) throw new \RuntimeException($message); };
 
-/* Four sections exactly. */
-foreach (array("'general' => ['General'", "'notifications' => ['Notifications'", "'integrations' => ['Integrations'", "'diagnostics' => ['Diagnostics'") as $needle) {
+/* Five sections exactly. */
+foreach (array("'general' => ['General'", "'policies' => ['Policies'", "'notifications' => ['Notifications'", "'integrations' => ['Integrations'", "'diagnostics' => ['Diagnostics'") as $needle) {
     $fail(str_contains($shell, $needle), 'Missing Settings section: ' . $needle);
 }
 foreach (array("'messaging' =>", "'access' =>", "'system' =>", 'dzn-admin-shell__subtabs--pages') as $removed) {

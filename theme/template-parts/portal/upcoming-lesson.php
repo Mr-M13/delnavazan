@@ -65,6 +65,7 @@ $has_lesson = $state_is_valid && 'none' !== $state && ! empty( $lesson['course']
 				<button class="dzn-button dzn-button--secondary" type="button" data-dzn-dialog-open="dzn-absence-dialog"><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></button>
 			<?php endif; ?>
 			<?php if ( ! empty( $lesson['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action" href="<?php echo esc_url( (string) $lesson['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
+			<?php if ( function_exists( 'dzn_theme_recording_playback_button' ) ) { echo dzn_theme_recording_playback_button( $lesson, 'student' ); } ?>
 		</div>
 		<?php if ( empty( $lesson['absence_available'] ) && ! empty( $lesson['absence_message'] ) ) : ?><p class="dzn-portal-help"><?php echo esc_html( (string) $lesson['absence_message'] ); ?></p><?php endif; ?>
 	<?php endif; ?>

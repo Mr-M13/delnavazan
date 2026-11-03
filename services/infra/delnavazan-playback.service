@@ -1,0 +1,24 @@
+[Unit]
+Description=Delnavazan playback gateway (Tailscale-bound)
+After=network-online.target mnt-mbox.mount
+Wants=network-online.target
+RequiresMountsFor=/mnt/mbox
+
+[Service]
+Type=simple
+User=delnavazan-playback
+Group=delnavazan-playback
+EnvironmentFile=/etc/delnavazan/playback.env
+ExecStart=/usr/bin/php -S ${DZN_PLAYBACK_BIND} /opt/delnavazan-playback/bin/router.php
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/mnt/mbox/DelnavazanRecordings
+ReadWritePaths=/run/delnavazan-playback /var/log/delnavazan
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

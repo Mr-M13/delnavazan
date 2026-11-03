@@ -1,0 +1,51 @@
+// Delnavazan recording/archive Tailscale ACL example (review and apply in the tailnet admin console).
+// This file is intentionally narrow: it never grants Orchestra, admin, WordPress or general-purpose
+// access. Replace OWNER_EMAIL and the host names with the approved tailnet identities.
+{
+  "tagOwners": {
+    "tag:delnavazan-recorder": ["OWNER_EMAIL"],
+    "tag:delnavazan-playback": ["OWNER_EMAIL"],
+    "tag:delnavazan-archive": ["OWNER_EMAIL"]
+  },
+  "acls": [
+    // OVH recorder -> Pi archive over SSH only (restricted archive account + rrsync).
+    {
+      "action": "accept",
+      "src": ["tag:delnavazan-recorder"],
+      "dst": ["tag:delnavazan-archive:22"]
+    },
+    // OVH playback gateway -> Pi archive over SSH only for the read-only sshfs/rrsync mount.
+    {
+      "action": "accept",
+      "src": ["tag:delnavazan-playback"],
+      "dst": ["tag:delnavazan-archive:22"]
+    },
+    // The WordPress host may reach the recorder/playback loopback-documented HTTPS endpoints only
+    // through the explicit private ports below. No tailnet-wide wildcard is granted.
+    {
+      "action": "accept",
+      "src": ["tag:delnavazan-wordpress"],
+      "dst": ["tag:delnavazan-recorder:8091", "tag:delnavazan-playback:8092"]
+    }
+  ],
+  "ssh": [
+    {
+      "action": "check",
+      "src": ["tag:delnavazan-recorder", "tag:delnavazan-playback"],
+      "dst": ["tag:delnavazan-archive"],
+      "users": ["delnavazan-archive"]
+    }
+  ],
+  "tests": [
+    {
+      "src": "tag:delnavazan-recorder",
+      "accept": ["tag:delnavazan-archive:22"],
+      "deny": ["tag:delnavazan-archive:445", "tag:delnavazan-archive:2049", "tag:delnavazan-archive:80", "tag:delnavazan-archive:443", "tag:delnavazan-archive:3389"]
+    },
+    {
+      "src": "tag:delnavazan-playback",
+      "accept": ["tag:delnavazan-archive:22"],
+      "deny": ["tag:delnavazan-archive:445", "tag:delnavazan-archive:2049", "tag:delnavazan-archive:80", "tag:delnavazan-archive:443"]
+    }
+  ]
+}

@@ -67,7 +67,8 @@
     musicChangedBy: '',
     musicStamp: { at: 0, sender: '' },
     musicApplyToken: 0,
-    ending: false
+    ending: false,
+    controlsTimer: null
   };
   state.ticketClaim = readTicketClaim(state.ticket);
 
@@ -106,7 +107,7 @@
       adaptiveStream: true,
       dynacast: true,
       audioCaptureDefaults: captureOptions(),
-      videoCaptureDefaults: { resolution: { width: 1280, height: 720, frameRate: 24 } },
+      videoCaptureDefaults: cameraCaptureOptions(),
       publishDefaults: {
         audioPreset: preset,
         dtx: false,
@@ -144,6 +145,16 @@
       red: false,
       forceStereo: state.musicOn
     };
+  }
+
+  // Ask capable cameras for 1080p/30fps; LiveKit adapts the published layer to the
+  // subscriber and network. Constrained connections keep the existing 720p/24fps ceiling.
+  function cameraCaptureOptions() {
+    var network = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    var constrained = !!(network && (network.saveData || /(^|-)2g/.test(String(network.effectiveType || ''))));
+    return constrained
+      ? { resolution: { width: 1280, height: 720, frameRate: 24 } }
+      : { resolution: { width: 1920, height: 1080, frameRate: 30 } };
   }
 
   async function connect(isReconnect) {
@@ -186,6 +197,8 @@
     }
     await connectWithTimeout(room, session);
     if (state.room !== room) return;
+    root.classList.add('is-immersive');
+    revealControls();
     // Publish the connected state before requesting media: a slow device-permission or capture
     // prompt must not leave the classroom looking disconnected after the LiveKit session is live.
     setConnection('کلاس متصل است.', 'connected');
@@ -272,7 +285,7 @@
     room.on(LK.RoomEvent.TrackSubscribed, function (track, publication, participant) {
       if (state.room !== room) return;
       if (track.kind === LK.Track.Kind.Video) attachRemoteVideo(track);
-      if (track.kind === LK.Track.Kind.Audio) attachRemoteAudio(track);
+      if (track.kind === LK.Track.Kind.Audio) attachRemoteAudio(track, participant);
       if (participant) updateParticipants(participant);
     });
     room.on(LK.RoomEvent.TrackUnsubscribed, function (track) {
@@ -345,7 +358,7 @@
   async function enableCamera() {
     if (!state.room) return;
     try {
-      await state.room.localParticipant.setCameraEnabled(true, { resolution: { width: 1280, height: 720, frameRate: 24 } });
+      await state.room.localParticipant.setCameraEnabled(true, cameraCaptureOptions());
       state.cameraOn = true;
       attachLocalCamera();
     } catch (error) {
@@ -372,7 +385,7 @@
   async function setCamera(on) {
     if (!state.room) return;
     try {
-      await state.room.localParticipant.setCameraEnabled(on, { resolution: { width: 1280, height: 720, frameRate: 24 } });
+      await state.room.localParticipant.setCameraEnabled(on, cameraCaptureOptions());
       state.cameraOn = on;
       if (on) attachLocalCamera();
       else detachLocalCamera();
@@ -532,8 +545,9 @@
     if (remotePlaceholder) remotePlaceholder.hidden = true;
   }
 
-  function attachRemoteAudio(track) {
+  function attachRemoteAudio(track, participant) {
     if (!remoteAudio) return;
+    if (participant && state.room && state.room.localParticipant && String(participant.identity) === String(state.room.localParticipant.identity)) return;
     remoteAudio.replaceChildren();
     var element = document.createElement('audio');
     element.autoplay = true;
@@ -598,8 +612,6 @@
 
   function syncRotationButton() {
     if (!rotateButton) return;
-    var label = rotateButton.querySelector('span');
-    if (label) label.textContent = 'چرخش: ' + toPersianDigits(state.rotation) + '°';
     rotateButton.setAttribute('aria-pressed', String(state.rotation !== 0));
     rotateButton.setAttribute('aria-label', 'چرخش نمایش ویدئو: ' + rotationLabel(state.rotation) + ' (فقط نمایش محلی)');
     rotateButton.title = 'چرخش نمایش ویدئو: ' + rotationLabel(state.rotation) + ' — جهت دوربین ارسالی تغییر نمی‌کند';
@@ -641,9 +653,18 @@
     if (!fullscreenButton || !root) return;
     var active = !!nativeFullscreenElement() || root.classList.contains('is-faux-fullscreen');
     fullscreenButton.setAttribute('aria-pressed', String(active));
-    var label = fullscreenButton.querySelector('span');
-    if (label) label.textContent = active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه';
+    fullscreenButton.setAttribute('aria-label', active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه');
     fullscreenButton.title = active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه';
+  }
+
+  function revealControls() {
+    if (!root) return;
+    root.classList.add('is-controls-visible');
+    if (state.controlsTimer) window.clearTimeout(state.controlsTimer);
+    state.controlsTimer = window.setTimeout(function () {
+      if (root && document.activeElement && root.contains(document.activeElement)) return;
+      root.classList.remove('is-controls-visible');
+    }, 3200);
   }
 
   function enterFauxFullscreen() {
@@ -740,25 +761,22 @@
     if (!micButton) return;
     micButton.setAttribute('aria-pressed', String(state.micOn));
     micButton.classList.toggle('is-off', !state.micOn);
-    micButton.querySelector('span').textContent = state.micOn ? 'میکروفن روشن' : 'میکروفن خاموش';
+    micButton.setAttribute('aria-label', state.micOn ? 'میکروفن روشن' : 'میکروفن خاموش');
+    micButton.title = state.micOn ? 'میکروفن روشن' : 'میکروفن خاموش';
   }
 
   function updateCameraButton() {
     if (!cameraButton) return;
     cameraButton.setAttribute('aria-pressed', String(state.cameraOn));
     cameraButton.classList.toggle('is-off', !state.cameraOn);
-    cameraButton.querySelector('span').textContent = state.cameraOn ? 'دوربین روشن' : 'دوربین خاموش';
+    cameraButton.setAttribute('aria-label', state.cameraOn ? 'دوربین روشن' : 'دوربین خاموش');
+    cameraButton.title = state.cameraOn ? 'دوربین روشن' : 'دوربین خاموش';
   }
 
   function updateMusicLabel() {
     if (!music) return;
     var toggle = music.closest('.dzn-classroom__switch');
-    var small = toggle ? toggle.querySelector('small') : null;
-    if (small) {
-      small.textContent = state.musicOn
-        ? 'حالت مشترک روشن: درخواست استریو و کیفیت بالاتر بدون حذف نویز؛ دستگاه شما ممکن است همه را نپذیرد.'
-        : 'حالت مشترک خاموش: کیفیت گفت‌وگو با حذف نویز و کنترل خودکار صدا.';
-    }
+    if (toggle) toggle.title = state.musicOn ? 'حالت موسیقی روشن' : 'حالت موسیقی خاموش';
     if (!musicStatus) return;
     if (!state.musicOn) {
       musicStatus.hidden = true;
@@ -1001,6 +1019,14 @@
     if (event.key === 'Escape' && root && root.classList.contains('is-faux-fullscreen')) exitFauxFullscreen();
   });
   window.addEventListener('resize', updateRotationGeometry);
+  if (stage) {
+    stage.addEventListener('pointerdown', revealControls);
+    stage.addEventListener('pointermove', revealControls);
+    stage.addEventListener('dblclick', function (event) {
+      if (event.target.closest('.dzn-classroom__tile')) toggleFullscreen();
+    });
+  }
+  if (root) root.addEventListener('focusin', revealControls);
   if (window.ResizeObserver && stage) {
     state.rotationObserver = new ResizeObserver(function () { updateRotationGeometry(); });
     state.rotationObserver.observe(stage);

@@ -8,13 +8,13 @@
     "tag:delnavazan-archive": ["OWNER_EMAIL"]
   },
   "acls": [
-    // OVH recorder -> PixelBox archive over SSH only (restricted archive account + rrsync).
+    // OVH recorder -> Pi archive over SSH only (restricted archive account + rrsync).
     {
       "action": "accept",
       "src": ["tag:delnavazan-recorder"],
       "dst": ["tag:delnavazan-archive:22"]
     },
-    // OVH playback gateway -> PixelBox archive over SSH only for the read-only sshfs/rrsync mount.
+    // OVH playback gateway -> Pi archive over SSH only for the read-only sshfs/rrsync mount.
     {
       "action": "accept",
       "src": ["tag:delnavazan-playback"],

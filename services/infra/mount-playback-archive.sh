@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mount the M-Box archive read-only for the playback gateway over Tailscale SSH.
+# Mount the Pi archive read-only for the playback gateway over Tailscale SSH.
 set -Eeuo pipefail
 remote="${DZN_ARCHIVE_SSH_USER:-delnavazan-archive}@${DZN_ARCHIVE_SSH_HOST:?set DZN_ARCHIVE_SSH_HOST}"
 local="${DZN_ARCHIVE_ROOT:-/mnt/mbox/DelnavazanRecordings}"

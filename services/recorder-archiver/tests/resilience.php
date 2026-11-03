@@ -90,7 +90,7 @@ try {
     echo "Egress crash/restart: PASS\n";
 } finally { dzn_cleanup($root); }
 
-// 3. M-Box offline keeps the complete VPS copy, then reconnect resumes.
+// 3. Pi offline keeps the complete VPS copy, then reconnect resumes.
 $root = dzn_tmp('offline');
 try {
     [$config, $db, $repo, $storage, $client] = dzn_environment($root);
@@ -99,7 +99,7 @@ try {
     unlink($config->get('archive_mount_marker'));
     $worker = dzn_worker($config, $repo, $storage, new FakeEgress(3000), new LocalArchiveAdapter($config), $client);
     $first = $worker->runOnce(true);
-    dzn_assert_true($first['transfer_failures'] >= 1, 'offline M-Box must record a transfer failure');
+    dzn_assert_true($first['transfer_failures'] >= 1, 'offline Pi must record a transfer failure');
     $asset = $repo->asset($uid, 1);
     dzn_assert_true($asset !== null && (string) $asset['state'] === 'verified', 'source must remain verified while archive is offline');
     $source = $storage->readyPath($uid, 1, (string) $asset['sha256']);
@@ -111,7 +111,7 @@ try {
     $second = $worker2->runOnce(false);
     dzn_assert_true($second['transfers'] === 1 && $second['deletions'] === 1, 'reconnect must transfer, confirm and delete');
     dzn_assert_true(!is_file($source), 'source is deleted only after successful reconnect');
-    echo "M-Box offline/reconnect: PASS\n";
+    echo "Pi offline/reconnect: PASS\n";
 } finally { dzn_cleanup($root); }
 
 // 4. Mid-transfer disconnect and safe resume.
@@ -214,7 +214,7 @@ try {
     echo "Withdrawal archive deletion: PASS\n";
 } finally { dzn_cleanup($root); }
 
-// 6b. M-Box capacity threshold refuses transfer without deleting the VPS source.
+// 6b. Pi capacity threshold refuses transfer without deleting the VPS source.
 $root = dzn_tmp('mbox-full');
 try {
     [$config, $db, $repo, $storage, $client] = dzn_environment($root, ['archive_min_free_bytes' => PHP_INT_MAX]);
@@ -222,11 +222,11 @@ try {
     dzn_command($client, 'start', dzn_start_payload($uid), hash('sha256', 'mbox-full-start'), 'recording_requested');
     $worker = dzn_worker($config, $repo, $storage, new FakeEgress(3000), new LocalArchiveAdapter($config), $client);
     $stats = $worker->runOnce(true);
-    dzn_assert_true($stats['transfer_failures'] >= 1, 'M-Box capacity threshold must refuse transfer');
+    dzn_assert_true($stats['transfer_failures'] >= 1, 'Pi capacity threshold must refuse transfer');
     $asset = $repo->asset($uid, 1);
-    dzn_assert_true($asset !== null && is_file($storage->readyPath($uid, 1, (string) $asset['sha256'])), 'VPS source must be retained when M-Box is full');
-    dzn_assert_true($repo->confirmationFor($uid, 1) === null && $repo->deletion($uid, 1) === null, 'full M-Box must not produce a confirmation or deletion job');
-    echo "M-Box capacity threshold: PASS\n";
+    dzn_assert_true($asset !== null && is_file($storage->readyPath($uid, 1, (string) $asset['sha256'])), 'VPS source must be retained when Pi is full');
+    dzn_assert_true($repo->confirmationFor($uid, 1) === null && $repo->deletion($uid, 1) === null, 'full Pi must not produce a confirmation or deletion job');
+    echo "Pi capacity threshold: PASS\n";
 } finally { dzn_cleanup($root); }
 
 // 6c. Host pressure admission refuses capture before Egress starts.

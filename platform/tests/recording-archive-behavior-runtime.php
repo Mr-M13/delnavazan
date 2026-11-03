@@ -252,7 +252,7 @@ dzn_ra_assert($refused, 'legal hold must refuse source deletion');
 $control->setLegalHold($first['recording_id'], false, 1, 'legal_release');
 $deleted = dzn_ra_event($control, array('event' => 'source_deleted', 'recording_uid' => $uid, 'content_version' => 1, 'idempotency_key' => hash('sha256', 'source-deleted'), 'deleted_source_bytes' => $bytes, 'deleted_source_sha256' => $sha, 'source' => 'recorder'));
 dzn_ra_assert(($deleted['state'] ?? '') === RecordingLifecycle::ARCHIVED_VPS_DELETED, 'verified deletion must enter archived_vps_deleted');
-dzn_ra_assert((string) $wpdb->get_var($wpdb->prepare("SELECT authoritative_location FROM {$p}recordings WHERE id=%d", $first['recording_id'])) === 'mbox', 'authoritative location must become M-Box');
+dzn_ra_assert((string) $wpdb->get_var($wpdb->prepare("SELECT authoritative_location FROM {$p}recordings WHERE id=%d", $first['recording_id'])) === 'mbox', 'authoritative location must become the Pi archive');
 
 // A reschedule before capture invalidates; a started recording is never re-bound.
 $rescheduleLesson = dzn_ra_lesson($teacher, $student);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify the expected M-Box mount before any write or playback. Never fall back to the root FS.
+# Verify the expected Pi archive mount before any write or playback. Never fall back to the root FS.
 set -Eeuo pipefail
 root="${DZN_ARCHIVE_ROOT:-/mnt/mbox/DelnavazanRecordings}"
 marker="${DZN_ARCHIVE_MOUNT_MARKER:-/mnt/mbox/.delnavazan-mount}"

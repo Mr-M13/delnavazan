@@ -4,7 +4,7 @@ Four boundaries:
 
 1. WordPress control plane (canonical lesson/consent authority, outbox, callback reconciliation).
 2. `recorder-archiver` on OVH (Egress, private storage, verification, resumable transfer, deletion).
-3. PixelBox/M-Box archive (Tailscale-only, restricted account, dedicated root).
+3. Pi archive (Tailscale-only, restricted account, dedicated root).
 4. `playback-gateway` on OVH (short-lived grant validation, Range streaming, limits, audit).
 
 ## Host layout
@@ -28,7 +28,7 @@ parent-directory fsync. New jobs are refused below the configured absolute/perce
 
 ```bash
 # 1. Install PostgreSQL (production requirement) or explicitly justify SQLite WAL.
-# 2. Create the restricted archive account and verify the M-Box mount.
+# 2. Create the restricted archive account and verify the Pi mount.
 sudo services/infra/mbox-provision.sh
 sudo services/infra/verify-mbox-mount.sh
 
@@ -46,11 +46,11 @@ systemctl enable --now delnavazan-recorder.service delnavazan-playback.service
 ss -lntp | grep -E '8091|8092'
 ```
 
-## M-Box mount identity
+## Pi mount identity
 
 The recorder and gateway both require `/mnt/mbox/.delnavazan-mount` and a non-root mount source.
 If the mount disappears they return a temporary-unavailability condition; they never write to the
-PixelBox root filesystem and never restore a deleted VPS copy.
+Pi root filesystem and never restore a deleted VPS copy.
 
 ## Transfer sequence
 
@@ -100,11 +100,11 @@ CPU steal, PSI/memory pressure, OOM events, disk latency, packet loss/RTT/jitter
 Default recommendation is a separate Egress worker; do not co-locate Egress on the 2-vCPU/4-GB VPS
 without proven headroom.
 
-## Tailscale / M-Box
+## Tailscale / Pi
 
 Apply only the reviewed ACL in `tailscale-acl.example.hujson`. No public SSH/SMB/NFS/storage port,
 no home-router port forwarding, no general Orchestra credential. Playback mounts the archive through
-a read-only restricted identity; M-Box is never exposed through Caddy or WordPress.
+a read-only restricted identity; Pi is never exposed through Caddy or WordPress.
 
 ## Monitoring
 
@@ -117,7 +117,7 @@ Tailscale state, oldest queue age, Egress CPU/RAM and queue counts.
 
 1. Disable the staging capture constant/cohort and stop the recorder unit.
 2. Leave all recording evidence, outbox rows, archive confirmations and media in place.
-3. Do not delete VPS or M-Box media; do not revoke shared credentials.
+3. Do not delete VPS or Pi media; do not revoke shared credentials.
 4. Revert the plugin/migration only through the normal additive migration rollback policy; never
    drop audit tables.
 5. Playback can be disabled independently by rotating the playback key (which invalidates all

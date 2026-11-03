@@ -20,7 +20,7 @@ collect(){ printf '### %s\n' "$1"; shift; "$@" 2>&1 || true; printf '\n'; }
   collect 'credential references (paths only)' bash -c "find /etc /opt /srv -maxdepth 4 -type f \\( -iname '*orchestra*' -o -iname '*livekit*' -o -iname '*stripe*' -o -iname '*telnyx*' \\) 2>/dev/null | sed 's#^#path: #' || true"
   printf '## Shared-resource declaration\n'
   printf -- '- Tailscale: SHARED until a dedicated Delnavazan identity is proven.\n'
-  printf -- '- M-Box mount and backup storage: SHARED until mount ownership is proven.\n'
+  printf -- '- Pi archive mount and backup storage: SHARED until mount ownership is proven.\n'
   printf -- '- Orchestra credentials: NOT revoked by this rehearsal.\n'
   printf -- '- Required proof before shutdown: recorder/playback use only the dedicated archive identity; no Orchestra service, timer, tunnel or backup is a dependency.\n'
 } > "${out:-/dev/stdout}"

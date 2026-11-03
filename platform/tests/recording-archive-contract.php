@@ -1,9 +1,9 @@
 <?php
 /**
- * Static source contract for the recording/M-Box boundary.
+ * Static source contract for the recording/Pi boundary.
  *
  * It proves the declared safeguards are present in the source. It does not prove a real provider,
- * VPS, PixelBox or production end-to-end run.
+ * VPS, Pi or production end-to-end run.
  */
 $root = dirname(__DIR__);
 $read = static fn(string $path): string => (string) file_get_contents($root . '/' . $path);
@@ -64,8 +64,8 @@ $need(is_file($serviceRoot . '/recorder-archiver/src/Worker.php'), 'recorder wor
 $need(is_file($serviceRoot . '/playback-gateway/src/RangeStreamer.php'), 'playback range streamer missing');
 $need(is_file($serviceRoot . '/playback-gateway/src/ConcurrencyLimiter.php'), 'playback concurrency limiter missing');
 $need(is_file($serviceRoot . '/infra/tailscale-acl.example.hujson'), 'Tailscale ACL example missing');
-$need(is_file($serviceRoot . '/infra/mbox-provision.sh'), 'M-Box provisioning script missing');
-$need(is_file($root . '/docs/RECORDING-MBOX-ARCHIVAL.md'), 'recording implementation/runbook documentation missing');
+$need(is_file($serviceRoot . '/infra/mbox-provision.sh'), 'Pi provisioning script missing');
+$need(is_file($root . '/docs/RECORDING-PI-ARCHIVAL.md'), 'recording implementation/runbook documentation missing');
 
 $storage = $read('../services/recorder-archiver/src/Storage/StorageLayout.php');
 foreach (['0700','0600','same_filesystem','fsync','atomic','promote'] as $x) $need(str_contains($storage, $x), 'storage safety missing ' . $x);
@@ -78,7 +78,7 @@ $need(str_contains($read('../services/recorder-archiver/src/Archive/RsyncArchive
 $gateway = $read('../services/playback-gateway/src/RangeStreamer.php');
 foreach (['Accept-Ranges: bytes','Content-Range','206','416'] as $x) $need(str_contains($gateway, $x), 'gateway range support missing ' . $x);
 $need(str_contains($gateway, "'HEAD'"), 'gateway must support HEAD');
-$need(str_contains($read('../services/playback-gateway/src/ArchiveResolver.php'), 'archive_mount_absent'), 'gateway must fail closed without the M-Box mount');
+$need(str_contains($read('../services/playback-gateway/src/ArchiveResolver.php'), 'archive_mount_absent'), 'gateway must fail closed without the Pi mount');
 $need(str_contains($read('../services/playback-gateway/src/AccessLog.php'), 'unset($entry'), 'gateway log must strip raw grant/token fields');
 $need(!str_contains($read('../services/playback-gateway/src/App.php'), 'wp_upload_dir'), 'gateway must not use WordPress uploads');
 

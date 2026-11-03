@@ -10,8 +10,8 @@ commands required on the VPS/tailnet. It does not claim that Orchestra is unused
 
 | Resource | Current treatment | Proof required before any shutdown |
 | --- | --- | --- |
-| Tailscale tailnet and ACLs | Shared | Dedicated OVH recorder/playback and PixelBox archive identities exist, with ACL tests passing and Orchestra devices unchanged. |
-| PixelBox M-Box mount `/mnt/mbox` | Shared | Mount UUID/source and the dedicated archive root are recorded; Delnavazan never writes outside `DelnavazanRecordings`. |
+| Tailscale tailnet and ACLs | Shared | Dedicated OVH recorder/playback and Pi archive identities exist, with ACL tests passing and Orchestra devices unchanged. |
+| Pi archive mount `/mnt/mbox` | Shared | Mount UUID/source and the dedicated archive root are recorded; Delnavazan never writes outside `DelnavazanRecordings`. |
 | Backup infrastructure | Shared | Delnavazan archive has its own retention/backup path; no Orchestra backup job owns it. |
 | Credentials | Shared | Delnavazan has distinct keys; no Orchestra key is reused; no credential is revoked by this rehearsal. |
 | LiveKit/Redis/Caddy | Shared host services | Delnavazan recording uses its own Egress credential/worker and does not change classroom audio publication. |

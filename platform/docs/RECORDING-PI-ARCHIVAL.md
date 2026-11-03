@@ -1,4 +1,4 @@
-# Delnavazan Lesson Recording and M-Box Archival
+# Delnavazan Lesson Recording and Pi Archival
 
 **Branch:** `feat/recording-mbox-archival-20261103`
 **Base:** PR #512 `feat/consent-lifecycle-complete` at `3f738464b491205159ed56111c996bb1733432e0`
@@ -105,7 +105,7 @@ payload-digest conflict refusal, bounded exponential backoff and safe lease take
 uses `tmp`/`ready` on the same filesystem, directories `0700`, files `0600`, atomic rename, fsync and
 a free-byte/percentage gate.
 
-## 7. M-Box transfer and deletion
+## 7. Pi transfer and deletion
 
 - Tailscale-only dedicated identities; ACL example in `services/infra/tailscale-acl.example.hujson`.
 - Restricted `delnavazan-archive` account and `/mnt/mbox/DelnavazanRecordings`; mount identity is
@@ -114,7 +114,7 @@ a free-byte/percentage gate.
   remote size/SHA-256 verification, file and directory sync, atomic rename.
 - Signed confirmation persisted on OVH then sent to WordPress; only then is VPS deletion queued.
 - Existing same content is idempotent; different content is quarantined and never overwritten.
-- Offline M-Box preserves the complete VPS copy, queue entry, bounded retry and alert.
+- Offline Pi preserves the complete VPS copy, queue entry, bounded retry and alert.
 - Deletion derives the path from the database, checks archive confirmation/destination digest,
   legal hold, traversal/symlink, device/inode/size/digest, opens the trusted directory, unlinks the
   basename, flushes the directory and appends a receipt. Request paths are ignored.
@@ -122,14 +122,14 @@ a free-byte/percentage gate.
 ## 8. Playback
 
 WordPress checks the signed-in canonical principal, lesson ownership, teacher/student/guardian
-restriction, current withdrawal policy, archive state and M-Box availability. It issues a keyed
+restriction, current withdrawal policy, archive state and Pi availability. It issues a keyed
 ≤300-second grant bound to one recording/content version, gateway audience, principal, key id,
 not-before/expiry/issuer and jti, and appends allow/refuse audit.
 
 The OVH gateway validates the grant independently, exchanges it for an opaque short-lived stream
-ticket, and streams from the private M-Box mount with `HEAD` and byte ranges. It enforces per-user
+ticket, and streams from the private Pi mount with `HEAD` and byte ranges. It enforces per-user
 and global concurrency, optional bandwidth limits and allow/refuse/start/complete/abort logging.
-M-Box offline returns `503 recording_temporarily_unavailable`; it never restores a deleted VPS copy.
+Pi offline returns `503 recording_temporarily_unavailable`; it never restores a deleted VPS copy.
 
 ## 9. Administration and monitoring
 
@@ -138,7 +138,7 @@ awaiting transfer, transferring, retry pending, archive verification, archived, 
 unavailable, quarantined, consent block (24 h) and storage warning. Retry/reconcile/legal-hold are
 capability-gated. There is no consent override and no filesystem-path field.
 
-Health covers VPS/M-Box storage, mount identity, Tailscale, oldest queue age, repeated failures,
+Health covers VPS/Pi storage, mount identity, Tailscale, oldest queue age, repeated failures,
 Egress CPU/RAM, completion failures, checksum mismatches, deletion failures and playback saturation.
 
 ## 10. Tests and evidence
@@ -154,7 +154,7 @@ bash platform/runtime/bin/run-pure-tests.sh
 ```
 
 Service tests cover successful capture/finalisation, synthetic media tracks, online transfer,
-matching checksums, verified deletion, offline M-Box retention/reconnect, mid-transfer resume,
+matching checksums, verified deletion, offline Pi retention/reconnect, mid-transfer resume,
 checksum mismatch, legal hold, path injection, storage threshold, Egress crash/restart, duplicate
 command replay, payload conflict, duplicate worker, concurrent leases, provider replay and WordPress
 offline outbox retention.
@@ -169,8 +169,9 @@ legal hold, migration idempotency and recording-vs-research separation.
 | --- | --- |
 | `bash services/tests/run-all.sh` | PASS: cross-boundary signature contract, LiveKit Egress adapter unit, recorder/archiver integration, resilience suite, playback gateway integration. |
 | `php platform/tests/recording-archive-policy-unit.php` | PASS: all 15 states, compare-and-swap, replay, conflicts, playback policy, media evidence and signature bounds. |
-| `php platform/tests/recording-archive-contract.php` | PASS: source safeguards, migration, Admin consolidation, no Egress authority in WordPress, no upload path, gateway Range/HEAD, M-Box fail-closed. |
+| `php platform/tests/recording-archive-contract.php` | PASS: source safeguards, migration, Admin consolidation, no Egress authority in WordPress, no upload path, gateway Range/HEAD, Pi fail-closed. |
 | `platform/runtime/bin/run-recording-archive-runtime.sh` (disposable WordPress/MariaDB) | PASS: migration and behaviour runtime. |
+| Real OVH Egress → Pi archive → WordPress → playback staging run | PASS: 2,714,872-byte MP4, H.264/AAC, SHA-256 match, Pi confirmation, VPS deletion receipt, Range/HEAD playback, offline 503, reconnect playback. |
 | `platform/runtime/bin/run-pure-tests.sh` with `DZN_TARGET_REF` at the feature commit | PASS, including all pre-existing pure/contract tests. |
 | `platform/runtime/bin/run-consent-lifecycle-runtime.sh` | PASS (PR #512 consent suite preserved). |
 | `platform/runtime/bin/run-recording-decision-migration-runtime.sh` | PASS. |
@@ -178,25 +179,27 @@ legal hold, migration idempotency and recording-vs-research separation.
 | `php platform/tests/admin-shell-route-capability-runtime.php` | PASS (consolidated Settings navigation preserved). |
 | `services/infra/orchestra-decommission-rehearsal.sh plan/verify` | PASS (plan only; nothing removed). |
 
-The recorder resilience suite proves duplicate command/worker handling, conflicting payload refusal, Egress crash/restart, offline M-Box retention/reconnect, mid-transfer resume, checksum mismatch, M-Box capacity, VPS capacity, legal hold (local and WordPress-authorised), request-path injection rejection, expired lease takeover, concurrent inbox claims, concurrent transfer claims and withdrawal archive deletion.
+The recorder resilience suite proves duplicate command/worker handling, conflicting payload refusal, Egress crash/restart, offline Pi retention/reconnect, mid-transfer resume, checksum mismatch, Pi capacity, VPS capacity, legal hold (local and WordPress-authorised), request-path injection rejection, expired lease takeover, concurrent inbox claims, concurrent transfer claims and withdrawal archive deletion.
 
-The gateway suite proves authorised student stream, authorised teacher stream, unauthorised/other principal rejection, exact Range bytes, suffix range, unsatisfiable 416, HEAD metadata, M-Box-offline 503, concurrency 429, grant replay refusal and access-log allow/refuse/start/complete.
+The gateway suite proves authorised student stream, authorised teacher stream, unauthorised/other principal rejection, exact Range bytes, suffix range, unsatisfiable 416, HEAD metadata, Pi-offline 503, concurrency 429, grant replay refusal and access-log allow/refuse/start/complete.
 
 The WordPress runtime proves canonical consent denials, guardian-authority denial, reschedule invalidation, withdrawal before/after capture, duplicate and out-of-order provider events, transfer retry, archive signature verification, signed deletion authorisation, legal hold refusal, playback allow/deny/offline, admin non-override and recording-vs-research separation.
 
 ## 11. Known gaps and blockers
 
-1. No real LiveKit Egress run, OVH VPS, PixelBox, Tailscale identity or M-Box mount was available.
-   Real-provider capture, real transfer, outage recovery and independently verified real deletion
-   remain required before activation.
-2. PostgreSQL execution was not run in this environment; only SQLite WAL was exercised.
-3. Resource measurements on the stated 2-vCPU/4-GB/40-GB VPS were not possible. Run
-   `services/infra/resource-measure.sh` and a real one-lesson load test; default remains a separate
-   Egress worker.
-4. Custom Egress template depends on the external LiveKit client script and the recorder's loopback
-   HTTP service; validate in staging.
-5. Playback gateway sshfs/mount provisioning for PixelBox must be completed and tested on the real
-   tailnet.
+1. A real staging run produced a real Egress MP4, transferred it to the Pi, independently verified
+   SHA-256, archived it, deleted the VPS source with a receipt and played it back. Evidence:
+   `platform/docs/evidence/recording-pi-20261103/README.md`. Production WordPress deployment and
+   real-lesson activation remain blocked.
+2. PostgreSQL 16 staging schema was exercised against the real recorder service; the synthetic suite
+   still uses SQLite WAL for speed.
+3. Egress consumed ~97–188% of one core and ~400–424 MiB RSS on the 2-vCPU/4-GB OVH host. Classroom
+   reliability headroom is insufficient; a separate Egress worker or larger VPS is recommended.
+4. The custom Egress template still uses the external LiveKit client CDN. It was validated in staging;
+   vendor or pin it before production.
+5. Playback was validated with a staging read-only SSHFS mount over a dedicated reverse-SSH fallback.
+   OVH has no Tailscale client and no dedicated auth key was available; the final Tailscale path
+   remains blocked on a dedicated key and ACL application.
 6. Legal/owner approval of notices, retention, guardian rules and provider agreement remains from
    PR #512.
 7. Orchestra inventory could not be collected from the host; only a read-only rehearsal script and
@@ -206,5 +209,5 @@ The WordPress runtime proves canonical consent denials, guardian-authority denia
 
 Disable the staging constant/cohort and stop the recorder/playback units. Leave all evidence, media,
 queue rows and confirmations in place. Rotate the playback key to invalidate outstanding grants.
-Do not delete VPS/M-Box media or revoke shared credentials. Do not drop audit tables; the migration is
+Do not delete VPS/Pi media or revoke shared credentials. Do not drop audit tables; the migration is
 additive and its evidence must be preserved.

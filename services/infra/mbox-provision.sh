@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Provision the restricted PixelBox archive account and dedicated archive root.
-# Run only on PixelBox with an already-verified mounted filesystem.
+# Provision the restricted Pi archive account and dedicated archive root.
+# Run only on the Pi with an already-verified mounted filesystem.
 set -Eeuo pipefail
 account="${DZN_ARCHIVE_ACCOUNT:-delnavazan-archive}"
 root="${DZN_ARCHIVE_ROOT:-/mnt/mbox/DelnavazanRecordings}"
 marker="${DZN_ARCHIVE_MOUNT_MARKER:-/mnt/mbox/.delnavazan-mount}"
 key_file="${DZN_ARCHIVE_AUTHORIZED_KEYS:-/home/${account}/.ssh/authorized_keys}"
 
-[[ $EUID -eq 0 ]] || { echo 'error: run as root on PixelBox' >&2; exit 1; }
+[[ $EUID -eq 0 ]] || { echo 'error: run as root on the Pi' >&2; exit 1; }
 [[ "$root" == /mnt/mbox/* ]] || { echo 'error: archive root must be under /mnt/mbox' >&2; exit 1; }
 [[ -d /mnt/mbox ]] || { echo 'error: /mnt/mbox is absent; refusing to create it on the root filesystem' >&2; exit 1; }
 mount_source="$(findmnt -n -o SOURCE -T /mnt/mbox || true)"
@@ -15,7 +15,7 @@ mount_target="$(findmnt -n -o TARGET -T /mnt/mbox || true)"
 root_device="$(stat -c %d / 2>/dev/null || true)"
 mbox_device="$(stat -c %d /mnt/mbox 2>/dev/null || true)"
 [[ -n "$mount_source" && -n "$mount_target" ]] || { echo 'error: /mnt/mbox is not a mounted filesystem' >&2; exit 1; }
-[[ "$mount_target" != "/" ]] || { echo 'error: /mnt/mbox resolves to the PixelBox root filesystem' >&2; exit 1; }
+[[ "$mount_target" != "/" ]] || { echo 'error: /mnt/mbox resolves to the Pi root filesystem' >&2; exit 1; }
 [[ "$root_device" != "$mbox_device" ]] || { echo 'error: /mnt/mbox is on the root filesystem' >&2; exit 1; }
 
 getent group "$account" >/dev/null || groupadd --system "$account"

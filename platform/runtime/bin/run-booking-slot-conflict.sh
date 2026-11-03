@@ -8,38 +8,49 @@ dzn_assert_runtime_paths
 plugin_root="$(dzn_plugin_source_from_worktree "$DZN_PLUGIN_WORKTREE")"
 gate="$DZN_WP_DIR/slot-conflict-gate"
 gate_container="/var/www/html/slot-conflict-gate"
-rm -rf "$gate"; mkdir -p "$gate"
+# The WordPress volume is owned by the container user on Linux CI, so every
+# mutation of the shared gate directory runs as root in a disposable CLI
+# container. Host-side logs stay outside the mounted volume.
+logs="$DZN_RUNTIME_STATE_DIR/slot-conflict-logs"
+rm -rf "$logs"; mkdir -p "$logs"
+gate_exec(){ docker run --rm --pull=never -v "$DZN_WP_DIR:/var/www/html" --entrypoint sh "$DZN_CLI_IMAGE" -c "$1"; }
+gate_reset(){ gate_exec "rm -rf '/var/www/html/slot-conflict-gate' && mkdir -p '/var/www/html/slot-conflict-gate'"; }
+gate_prepare(){ gate_exec "mkdir -p '/var/www/html/slot-conflict-gate/$1' && rm -f '/var/www/html/slot-conflict-gate/$1'/*"; }
+gate_release(){ gate_exec ": > '/var/www/html/slot-conflict-gate/$1'"; }
+gate_reset
 wp(){ dzn_wp --user=1 "$@"; }
 worker(){
   local race="$1" name="$2" action="$3"
-  mkdir -p "$gate/$race"
+  gate_exec "mkdir -p '/var/www/html/slot-conflict-gate/$race'"
   dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_WORKER=$name" "DZN_SLOT_ACTION=$action" "DZN_SLOT_GATE_DIR=$gate_container/$race" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-worker.php"
 }
 waitfor(){ local path="$1" i=0; while [ ! -f "$path" ] && [ $i -lt 1200 ]; do i=$((i+1)); sleep 0.1; done; [ -f "$path" ]; }
 run_race(){
-  local race="$1" action="$2"
-  mkdir -p "$gate/$race"; rm -f "$gate/$race"/*
-  worker "$race" w1 "$action" >"$gate/$race/w1.out" 2>&1 & local p1=$!
+  local race="$1" action="$2" out="$logs/$1"
+  mkdir -p "$out"
+  gate_prepare "$race"
+  worker "$race" w1 "$action" >"$out/w1.out" 2>&1 & local p1=$!
   waitfor "$gate/$race/w1.locked" || { echo "race=$race holder=FAIL"; kill "$p1" 2>/dev/null || true; return 1; }
-  worker "$race" w2 "$action" >"$gate/$race/w2.out" 2>&1 & local p2=$!
+  worker "$race" w2 "$action" >"$out/w2.out" 2>&1 & local p2=$!
   waitfor "$gate/$race/w2.started" || { echo "race=$race contender=FAIL"; kill "$p1" "$p2" 2>/dev/null || true; return 1; }
-  [ ! -f "$gate/$race/w2.result" ] || { echo "race=$race contender=FAIL finished before release"; : >"$gate/$race/release"; wait "$p1" "$p2" 2>/dev/null || true; return 1; }
-  dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_GATE_DIR=$gate_container/$race" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-wait.php" >"$gate/$race/wait.out" 2>&1 & local pw=$!
+  [ ! -f "$gate/$race/w2.result" ] || { echo "race=$race contender=FAIL finished before release"; gate_release "$race/release"; wait "$p1" "$p2" 2>/dev/null || true; return 1; }
+  dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_GATE_DIR=$gate_container/$race" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-wait.php" >"$out/wait.out" 2>&1 & local pw=$!
   sleep 2
-  : >"$gate/$race/release"
+  gate_release "$race/release"
   wait "$p1" 2>/dev/null || true
   wait "$p2" 2>/dev/null || true
   wait "$pw" 2>/dev/null || true
-  if grep -Eiq 'deadlock|lock wait timeout|WordPress database error' "$gate/$race/w1.out" "$gate/$race/w2.out"; then
+  if grep -Eiq 'deadlock|lock wait timeout|WordPress database error' "$out/w1.out" "$out/w2.out"; then
     echo "race=$race stability=FAIL database contention error"; return 1
   fi
   [ -f "$gate/$race/w1.result" ] && [ -f "$gate/$race/w2.result" ] || { echo "race=$race artefacts=FAIL"; return 1; }
   echo "race=$race PASS"
 }
 run_single(){
-  local race="$1" action="$2"
-  mkdir -p "$gate/$race"; rm -f "$gate/$race"/*
-  worker "$race" w2 "$action" >"$gate/$race/w2.out" 2>&1
+  local race="$1" action="$2" out="$logs/$1"
+  mkdir -p "$out"
+  gate_prepare "$race"
+  worker "$race" w2 "$action" >"$out/w2.out" 2>&1
   [ -f "$gate/$race/w2.result" ] || { echo "single=$race artefacts=FAIL"; return 1; }
   echo "single=$race PASS"
 }

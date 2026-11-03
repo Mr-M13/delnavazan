@@ -81,10 +81,13 @@ if ($path === '/egress/template' || $path === '/egress/template/') {
       if(id)track.attach(document.getElementById('video-'+id));
       var label=document.querySelector('#participant-'+id+' .name');if(label)label.textContent=participant.name||participant.identity;
     }else{
-      track.attach();
+      document.body.appendChild(track.attach());
     }
   });
-  room.connect(url,token).catch(function(){document.getElementById('missing').style.display='grid';});
+  room.on(window.LivekitClient.RoomEvent.Disconnected,function(){console.log('END_RECORDING');});
+  room.connect(url,token).then(function(){
+    setTimeout(function(){console.log('START_RECORDING');},1500);
+  }).catch(function(){document.getElementById('missing').style.display='grid';});
 })();
 </script>
 </body>

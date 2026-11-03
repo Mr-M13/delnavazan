@@ -67,7 +67,9 @@ PAGE = r'''<!doctype html><html><head><meta charset="utf-8"><title>DZN E2E parti
       var vstream=canvas.captureStream(30);
       await room.localParticipant.publishTrack(vstream.getVideoTracks()[0],{name:'e2e-video',source:LivekitClient.Track.Source.Camera});
       await room.localParticipant.publishTrack(dest.stream.getAudioTracks()[0],{name:'e2e-audio',source:LivekitClient.Track.Source.Microphone});
+      room.on(LivekitClient.RoomEvent.Disconnected,function(){console.log('END_RECORDING');});
       status.textContent='connected as '+role+' · room '+room.name+' · participants '+room.numParticipants;
+      setTimeout(function(){console.log('START_RECORDING');},1500);
     }catch(e){status.textContent='failed: '+e.message;}
   };
 })();

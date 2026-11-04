@@ -72,6 +72,7 @@ $contains($provider, array('recentRefusals', "verification_state<>'verified'"), 
 
 $contains($bridge, array('dzn_theme_platform_provisioning_notice', 'payment_received_classes_preparing', "empty( \$enrolment['payment_verified'] )", 'enrolment_awaiting_payment_confirmation'), 'Portal payment messaging must be gated by authoritative payment_verified state');
 $contains($shell, array('dzn-portal__provisioning', "role=\"status\""), 'The Student Portal must render a partial provisioning notice instead of failing');
+$contains($shell, array("'next_instalment_due'", "'payments' === \$screen"), 'The instalment-due notice must be scoped to the payments destination');
 
 $contains($checkoutService, array("(string) \$offer->uid . ':' . (int) \$obligation->obligation_sequence", "CommercialIdempotency"), 'New Checkout metadata must carry the canonical raw obligation reference');
 $assert(!str_contains($checkoutService, 'CommercialSupport::obligationReference'), 'Checkout metadata must not carry an already-keyed obligation digest');

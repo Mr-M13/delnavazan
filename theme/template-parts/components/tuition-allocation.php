@@ -19,8 +19,7 @@ if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\TuitionAllocat
 ?>
 <section class="dzn-allocation dzn-allocation--transparency" aria-labelledby="<?php echo esc_attr( $id ); ?>">
 	<div class="dzn-allocation__heading">
-		<div><p class="dzn-allocation__kicker">اطلاعات مالی</p><h2 id="<?php echo esc_attr( $id ); ?>">تخصیص برآوردی شهریه</h2></div>
-		<span class="dzn-allocation__estimate">برآوردی</span>
+		<h2 id="<?php echo esc_attr( $id ); ?>">شهریهٔ پرداخت‌شدهٔ این ترم چگونه هزینه و تخصیص می‌یابد؟</h2>
 	</div>
 	<p class="dzn-allocation__notice" role="note">این اطلاعات صرفاً برآوردی است و فقط سهم درصدی از شهریه را نشان می‌دهد؛ نه صورت‌حساب، سند هزینه، مالیات پرداخت‌شده یا تسویه‌حساب مدرس. درآمد و هزینه واقعی هر دوره می‌تواند متفاوت باشد.</p>
 	<?php if ( $categories ) : ?>
@@ -46,7 +45,6 @@ if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\TuitionAllocat
 					<tfoot><tr><th scope="row">جمع</th><td dir="ltr">100.0%</td></tr></tfoot>
 				</table>
 			</div>
-			<p class="dzn-allocation__gst-note" role="note">درصد GST سهم برآوردی از درآمد است و به‌معنای مالیات قابل پرداخت یا مالیات پرداخت‌شده نیست؛ محاسبهٔ واقعی GST به قوانین مالیاتی و وضعیت ثبت کسب‌وکار بستگی دارد.</p>
 		</details>
 	<?php else : ?>
 		<p class="dzn-allocation__empty" role="status">جزئیات برآوردی تخصیص شهریه در حال حاضر در دسترس نیست.</p>

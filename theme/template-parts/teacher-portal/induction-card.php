@@ -15,7 +15,7 @@ if ( '' === $guide_url ) { return; }
 	<div class="dzn-tp-heading">
 		<div><p class="dzn-tp-kicker">راهنمای سریع</p><h2 id="tp-induction-card-title">شروع تدریس در دلنوازان</h2></div>
 	</div>
-	<p class="dzn-tp-help">یک مرور کوتاه از جریان کار: کلاس امروز، درخواست تازه، ورود، حضور، غیبت، تغییر زمان، تنظیمات، مالی و ساعت طلایی.</p>
+	<p class="dzn-tp-help">از اولین درخواست هنرجو تا برگزاری کلاس و پیگیری آن؛ در هر گام بدانید هنرجو چه می‌بیند و کار شما چیست.</p>
 	<div class="dzn-tp-actions">
 		<a class="dzn-button" href="<?php echo esc_url( $guide_url ); ?>">مرور راهنمای تدریس</a>
 		<button class="dzn-button dzn-button--secondary" type="button" data-dzn-tp-induction-skip>فعلاً رد کن</button>

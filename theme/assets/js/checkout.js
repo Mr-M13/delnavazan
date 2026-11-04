@@ -91,7 +91,7 @@
 	}
 	function planLabel(row, plan) {
 		const term = termLabel(row);
-		if (plan === 'full') return term + ' · پرداخت کامل';
+		if (plan === 'full') return term;
 		if (plan === 'two_instalments') return term + ' · پرداخت در دو قسط';
 		return term + ' · طرح پرداخت';
 	}
@@ -128,18 +128,15 @@
 		if (plan === 'two_instalments' && Number(row.obligation_sequence) === 2) return 'سررسید: پیش از شروع جلسهٔ ۷';
 		return '';
 	}
-	function stateLabel(row, plan, lapsed) {
-		const term = termLabel(row);
+	function stateBadge(row, lapsed) {
 		if (row.payment_state === 'paid') {
-			if (row.term_paid) return term + ' پرداخت شد.';
-			return 'قسط ' + faDigits(row.obligation_sequence) + ' از ۲ پرداخت شد.';
+			return row.term_paid ? ['تسویه شد', 'success'] : ['پرداخت شد', 'success'];
 		}
-		if (row.payment_state === 'paid_prerequisite_pending') return 'پرداخت ثبت شد؛ پس از پرداخت قسط ۱ فعال می‌شود.';
-		if (row.payment_state === 'prerequisite_pending') return 'پس از پرداخت قسط ۱ قابل پرداخت است.';
-		if (row.payment_state === 'processing') return messages.processing;
-		if (row.payment_state === 'required') return plan === 'full' ? 'پرداخت ترم ثبت نشده است.' : 'پرداخت این قسط ثبت نشده است.';
-		if (lapsed) return 'این طرح منقضی شده است.';
-		return messages.unavailable;
+		if (row.payment_state === 'paid_prerequisite_pending') return ['ثبت شد؛ پس از قسط ۱ فعال می‌شود', 'warning'];
+		if (row.payment_state === 'prerequisite_pending') return ['پس از قسط ۱ قابل پرداخت است', 'muted'];
+		if (row.payment_state === 'processing') return ['در حال بررسی', 'information'];
+		if (row.payment_state === 'required') return [lapsed ? 'منقضی شده' : 'در انتظار پرداخت', lapsed ? 'muted' : 'warning'];
+		return ['در دسترس نیست', 'muted'];
 	}
 	function renderPlan(group) {
 		const first = group.rows[0];
@@ -157,7 +154,9 @@
 		if (Number.isFinite(base) && Number.isFinite(discount) && discount > 0) {
 			addText(heading, 'span', 'dzn-checkout__plan-original', 'مبلغ اصلی: ' + formatAmount(base, currency));
 		}
-		addText(heading, 'span', 'dzn-checkout__plan-total', formatAmount(total, currency));
+		if (!(plan === 'full' && group.rows.length === 1)) {
+			addText(heading, 'span', 'dzn-checkout__plan-total', formatAmount(total, currency));
+		}
 		if (Number.isFinite(discount) && discount > 0) {
 			const saving = document.createElement('span');
 			saving.className = 'dzn-checkout__plan-saving';
@@ -168,7 +167,6 @@
 		section.appendChild(heading);
 		const meta = [];
 		if (Number(first.committed_sessions) > 0) meta.push('تعداد جلسات: ' + faDigits(first.committed_sessions));
-		if (first.offer_reference) meta.push('کد طرح: ' + String(first.offer_reference));
 		if (Number(first.outstanding_minor) > 0) meta.push('مانده: ' + formatAmount(first.outstanding_minor, first.offer_currency));
 		if (meta.length) addText(section, 'p', 'dzn-checkout__plan-meta', meta.join(' · '));
 		group.rows.forEach(function (row) {
@@ -178,7 +176,8 @@
 			addText(card, 'span', 'dzn-checkout__amount', amount(row));
 			const sessions = sessionsLabel(row);
 			addText(card, 'p', 'dzn-checkout__row-detail', [sessions, dueLabel(row, plan, lapsed)].filter(Boolean).join(' · '));
-			addText(card, 'p', 'dzn-checkout__row-status', stateLabel(row, plan, lapsed));
+			const badge = stateBadge(row, lapsed);
+			addText(card, 'p', 'dzn-checkout__row-status dzn-status dzn-status--' + badge[1], badge[0]);
 			if (Object.prototype.hasOwnProperty.call(labels, row.action)) {
 				const button = addText(card, 'button', 'dzn-checkout__button', labels[row.action]);
 				button.type = 'button';
@@ -187,7 +186,7 @@
 			section.appendChild(card);
 		});
 		if (first.term_paid) {
-			addText(section, 'p', 'dzn-checkout__next-term', 'پرداخت ترم بعد: با ثبت پرداخت کامل ترم جدید.');
+			addText(section, 'p', 'dzn-checkout__next-term', 'پرداخت ترم بعد: پس از صدور طرح جدید از سوی آموزشگاه.');
 		}
 		return section;
 	}
@@ -204,7 +203,7 @@
 	}
 	function render(rows) {
 		list.replaceChildren();
-		if (!Array.isArray(rows) || rows.length === 0) { say(messages.empty); return; }
+		if (!Array.isArray(rows) || rows.length === 0) { say(messages.empty); syncPromotionUi([]); return; }
 		const groups = [];
 		const byOffer = Object.create(null);
 		rows.forEach(function (row) {
@@ -212,16 +211,11 @@
 			if (!byOffer[key]) { byOffer[key] = { uid: key, rows: [] }; groups.push(byOffer[key]); }
 			byOffer[key].rows.push(row);
 		});
-		let payable = false;
 		groups.forEach(function (group) {
 			list.appendChild(renderPlan(group));
-			group.rows.forEach(function (row) {
-				if (Object.prototype.hasOwnProperty.call(labels, row.action)) payable = true;
-			});
 		});
-		if (payable) say('برای پرداخت، گزینهٔ موردنظر را انتخاب کنید.');
-		else if (rows.some(function (row) { return row.payment_state === 'processing'; })) say(messages.processing);
-		else say('وضعیت پرداخت ترم در بالا نمایش داده شده است.');
+		if (rows.some(function (row) { return row.payment_state === 'processing'; })) say(messages.processing);
+		else say('');
 		syncPromotionUi(rows);
 	}
 	function start(row, button) {
@@ -264,6 +258,8 @@
 		if (!promotionCodeInput || !promotionApplyBtn || !promotionStatus) return;
 		const applied = promotionAppliedRow(rows);
 		const payable = payableRow(rows);
+		const summary = root.querySelector('.dzn-checkout__promotion summary');
+		if (summary) summary.textContent = applied ? 'کد تخفیف اعمال شده' : 'کد تخفیف دارید؟';
 		if (applied) {
 			promotionCodeInput.disabled = true;
 			promotionApplyBtn.disabled = true;
@@ -271,12 +267,9 @@
 			promotionStatus.textContent = 'کد تخفیف اعمال شده است. ' + promotionSummary(applied);
 			return;
 		}
-		promotionCodeInput.disabled = false;
+		promotionCodeInput.disabled = !payable;
 		promotionApplyBtn.textContent = 'اعمال';
 		promotionApplyBtn.disabled = promotionBusy || !payable;
-		if (!payable) {
-			promotionStatus.textContent = 'طرح قابل پرداختی برای اعمال کد تخفیف وجود ندارد.';
-		}
 	}
 	function promotionErrorMessage(error) {
 		const reason = error && error.payload && error.payload.reason ? String(error.payload.reason) : '';

@@ -15,7 +15,10 @@ $assert(!str_contains($service,'lessons')&&!str_contains($service,'DELETE FROM')
 $assert(str_contains($account,"dzn_theme_teacher_portal_component('golden-hours'")&&str_contains($account,'availability_summary'),'Golden Hours and the consolidated summary must be integrated.');
 $assert(str_contains($account,'dzn_theme_instrument_image($instrument_name)')&&str_contains($account,'width="80" height="80"')&&str_contains($account,'تصویر ساز'),'Teacher instruments must reuse public booking artwork at accessible reduced dimensions.');
 $assert(!str_contains($account,'راهنمای کلاس')&&!str_contains($calendar,'نگاه پیش رو')&&str_contains($calendar,'تقویم کلاس‌های آینده'),'Redundant presentation must be removed without removing the canonical calendar.');
-$assert(str_contains($finance,'این اطلاعات صرفاً برآوردی')&&str_contains($finance,'100.0%')&&str_contains($finance,'تخصیص شهریه'),'Both portals must use the shared illustrative allocation component.');
+$assert(str_contains($finance,'شهریهٔ پرداخت‌شدهٔ این ترم چگونه هزینه و تخصیص می‌یابد؟')&&str_contains($finance,'100.0%')&&str_contains($finance,'این اطلاعات صرفاً برآوردی'),'Both portals must use the shared illustrative allocation component with the spending-and-allocation heading.');
+$assert(str_contains($read($root.'/src/Core/Application/Finance/TuitionAllocationEstimator.php'),"'Google Workspace'"),'The shared allocation must include the Google Workspace share.');
+$financeCss=$read($theme.'/assets/css/theme.css');
+$assert(str_contains($financeCss,'.dzn-allocation__table-wrap{overflow-x:visible')&&str_contains($financeCss,'.dzn-allocation__table th:last-child'),'The allocation table must fit the viewport so percentages stay visible without horizontal scrolling.');
 $assert(substr_count($bridge,"dzn_theme_platform_tuition_allocations( 'student' )")>=2&&str_contains($bridge,"dzn_theme_platform_tuition_allocations( 'teacher' )"),'Student settings/payments and Teacher finance must receive the shared model.');
 $assert(str_contains($termRead,"resolve('student')")&&str_contains($termRead,"resolve('teacher')")&&str_contains($termRead,'hasActiveTeacherAuthority'),'Allocation reads must be scoped to authenticated portal principals.');
 $assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i',$termRead),'The illustrative allocation reader must remain read-only.');

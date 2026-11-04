@@ -85,6 +85,40 @@ final class TeacherAvailabilityService {
         $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$id=$this->repo->saveException($d,$now,get_current_user_id());$this->repo->commit();return$id;}catch(\Throwable $e){$this->repo->rollback();throw$e;}
     }
     public function retireActiveOwnException(int $exceptionId): void { $teacher=$this->selfServiceTeacher();$id=Normalizer::id($exceptionId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnException($id,$teacher,$now,get_current_user_id());$this->repo->commit();}catch(\Throwable $e){$this->repo->rollback();throw$e;} }
+
+    /**
+     * Record one confirmed reschedule window while the caller owns the transaction.
+     *
+     * Confirmation is not a scheduling override: it becomes an ordinary dated `requestable`
+     * availability exception for the Teacher's own local wall clock. Canonical scheduling still
+     * evaluates availability, so an explicit blocked day off or any other stronger block still
+     * wins. The caller must roll back if this window does not make the proposed Lesson covered.
+     */
+    public function recordConfirmedRescheduleAvailabilityWithinTransaction(int $teacherId,string $startDate,string $startTime,string $endDate,string $endTime,string $timezone): void {
+        $teacher=$this->selfServiceTeacher();
+        if($teacher!==$teacherId)throw new \InvalidArgumentException('portal_object_not_owned');
+        $timezone=$this->timezone($timezone);
+        $startDate=AvailabilityLocalTime::date($startDate);
+        $endDate=AvailabilityLocalTime::date($endDate);
+        $startTime=$this->time($startTime);
+        $endTime=$this->time($endTime);
+        if($endDate<$startDate||($endDate===$startDate&&$endTime<=$startTime))throw new \InvalidArgumentException('Invalid availability window');
+        $profile=$this->profileForMutation($teacher,$timezone);
+        $now=current_time('mysql',true);
+        $actor=(int)get_current_user_id();
+        $windows=array(array($startDate,$startTime,$startDate===$endDate?$endTime:'24:00:00'));
+        if($startDate!==$endDate){
+            $cursor=(new \DateTimeImmutable($startDate,new \DateTimeZone('UTC')))->modify('+1 day');
+            $last=new \DateTimeImmutable($endDate,new \DateTimeZone('UTC'));
+            while($cursor<$last){$windows[]=array($cursor->format('Y-m-d'),'00:00:00','24:00:00');$cursor=$cursor->modify('+1 day');}
+            if($endTime!=='00:00:00')$windows[]=array($endDate,'00:00:00',$endTime);
+        }
+        foreach($windows as $window){
+            $d=$this->exception(array('teacher_id'=>$teacher,'local_date'=>$window[0],'all_day'=>0,'local_start_time'=>$window[1],'local_end_time'=>$window[2],'state'=>'requestable','timezone'=>$timezone,'status'=>'active','reason_code'=>'teacher_reschedule_confirmation'));
+            $d['profile_id']=(int)$profile->id;
+            $this->repo->saveException($d,$now,$actor);
+        }
+    }
     public function upcomingOwnExceptions(int $limit=30): array { $teacher=$this->selfServiceTeacher();$profile=$this->repo->profile($teacher);$timezone=$profile?$this->authorityTimezone($profile->timezone):null;if(!$timezone)return array();$from=(new \DateTimeImmutable('today',new \DateTimeZone($timezone)))->format('Y-m-d');$until=(new \DateTimeImmutable($from,new \DateTimeZone($timezone)))->modify('+1 year')->format('Y-m-d');$rows=array_filter($this->repo->activeExceptions($teacher,$from,$until),static fn($row)=>(int)$row->all_day===1&&(string)$row->state==='blocked');return array_slice(array_values($rows),0,max(1,min(100,$limit))); }
 
     /** @return list<array{state:string,starts_at_utc:string,ends_at_utc:string,source:string}> */

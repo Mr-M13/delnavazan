@@ -111,7 +111,7 @@ final class PoliciesController {
         $sections=array(
             'Booking and teacher allocation'=>array(
                 array('Introductory booking horizon','INTRO_BOOKING_HORIZON','weeks','How far ahead an introductory lesson can be requested.','editable'),
-                array('Teacher offer response window',null,'24 hours','Agreed operational target; verify runtime enforcement before making configurable.','review'),
+                array('Teacher offer response window',null,'24 hours','Enforced: unanswered offers expire and are reassigned to the next eligible Teacher; the Teacher portal shows the remaining time.','locked'),
                 array('Unassigned request escalation',null,'3 days','Agreed operational target; verify runtime enforcement before making configurable.','review'),
                 array('Teacher allocation order',null,'Round-robin','Agreed allocation workflow; implementation authority must be verified.','review'),
             ),

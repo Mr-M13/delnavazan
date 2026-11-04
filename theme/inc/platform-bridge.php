@@ -1717,6 +1717,17 @@ function dzn_theme_platform_teacher_booking_requests() {
 	try { return ( new $class() )->ownPending(); } catch ( Throwable ) { return array(); }
 }
 
+/** Persian remaining-time label for the 24-hour Teacher response window. */
+function dzn_theme_platform_teacher_response_remaining_label( int $seconds ): string {
+	if ( $seconds <= 0 ) { return 'مهلت پاسخ گذشته است'; }
+	$hours = intdiv( $seconds, 3600 );
+	$minutes = intdiv( $seconds % 3600, 60 );
+	if ( $hours > 0 ) {
+		return dzn_theme_platform_persian_digits( $hours ) . ' ساعت و ' . dzn_theme_platform_persian_digits( $minutes ) . ' دقیقه مانده';
+	}
+	return dzn_theme_platform_persian_digits( max( 1, $minutes ) ) . ' دقیقه مانده';
+}
+
 /**
  * Resume onboarding at the first incomplete server step.
  *
@@ -2321,8 +2332,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$teacherZone=new DateTimeZone((string)($onboarding['profile']['timezone']??'UTC'));$month=(new DateTimeImmutable('now',$teacherZone))->format('Y-m');$monthRows=array_filter($all_scheduled_classes,static function($row)use($teacherZone,$month){$at=new DateTimeImmutable((string)$row['starts_at_utc'],new DateTimeZone('UTC'));return $at->setTimezone($teacherZone)->format('Y-m')===$month;});$seconds=0;foreach($monthRows as$row){$a=dzn_theme_platform_utc_timestamp($row['starts_at_utc']??'');$b=dzn_theme_platform_utc_timestamp($row['ends_at_utc']??'');if($a&&$b&&$b>$a)$seconds+=$b-$a;}$studentNames=array_unique(array_filter(array_map(static fn($row)=>(string)($row['student_name']??$row['student_display_reference']??''),$all_scheduled_classes)));
 	$bookingAttention=array_map(static function($request)use($teacher_timezone,$teacher_calendar,$teacher_locale){
 		$teacherTime=dzn_theme_platform_calendar_time((string)$request->starts_at_utc,$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');
-		$deadline=dzn_theme_platform_calendar_time((string)$request->response_deadline_at,$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');
-		$remaining=max(0,(int)ceil((strtotime((string)$request->response_deadline_at.' UTC')-time())/60));
+		$deadlineUtc=(string)($request->response_deadline_utc??$request->response_deadline_at??'');
+		$deadline=dzn_theme_platform_calendar_time($deadlineUtc,$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');
+		$remainingSeconds=''!==$deadlineUtc?max(0,(int)((dzn_theme_platform_utc_timestamp($deadlineUtc)?:time())-time())):0;
+		$remaining=max(0,(int)ceil($remainingSeconds/60));
 		$remainingText=dzn_theme_platform_persian_digits((int)floor($remaining/60)).' ساعت و '.dzn_theme_platform_persian_digits($remaining%60).' دقیقه';
 		$preferences=array();
 		foreach((array)($request->requested_times??array()) as $preference){
@@ -2333,8 +2346,15 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'ref'=>(string)$request->delivery_uid,'action_available'=>true,'authoritative_request'=>true,'state'=>'intro_request',
 			'title'=>'درخواست تازهٔ کلاس آشنایی',
 			'context'=>(string)$request->full_name.' · '.(string)($request->instrument_name?:$request->course_name),
-			'message'=>$teacherTime.' به وقت شما · مهلت پاسخ: '.$deadline.' به وقت شما. زمان باقی‌مانده: '.$remainingText.'. این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.'.$preferenceText,
-			'due'=>'پاسخ تا '.$deadline,'primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
+			'message'=>$teacherTime.' به وقت شما · مهلت پاسخ ۲۴ ساعت است (تا '.$deadline.'). زمان باقی‌مانده: '.$remainingText.'. اگر تا پایان این مهلت پاسخ ندهید، درخواست به مدرس در دسترس بعدی ارجاع می‌شود. این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.'.$preferenceText,
+			'due'=>'پاسخ تا '.$deadline,
+			'response_deadline_utc'=>$deadlineUtc,
+			'response_deadline_iso'=>''!==$deadlineUtc?dzn_theme_platform_iso_instant($deadlineUtc):'',
+			'response_remaining_seconds'=>$remainingSeconds,
+			'response_expired'=>$remainingSeconds<=0,
+			'response_deadline_label'=>$deadline,
+			'response_window_label'=>'مهلت پاسخ: ۲۴ ساعت',
+			'primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());
 	$absenceAttention = array();

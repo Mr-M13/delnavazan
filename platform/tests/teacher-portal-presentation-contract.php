@@ -38,6 +38,9 @@ namespace {
         $file = ABSPATH . 'theme/' . $slug . '.php';
         (static function () use ($file, $args) { include $file; })();
     }
+    function dzn_theme_platform_teacher_response_remaining_label(int $seconds): string {
+        return $seconds > 0 ? '۱ ساعت مانده' : 'مهلت پاسخ گذشته است';
+    }
 
     require_once $theme . '/inc/brand.php';
     require_once $theme . '/inc/teacher-portal.php';
@@ -70,6 +73,7 @@ namespace {
             'title' => 'درخواست تازهٔ کلاس آشنایی', 'context' => 'Neda · Setar', 'message' => 'Sunday 4 October، 18:30 به وقت شما · این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.',
             'due' => 'در انتظار پاسخ', 'primary' => 'مشاهدهٔ درخواست',
             'response_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_response', 'response_nonce' => 'nonce-response', 'delivery_uid' => 'DELIVERY-UID',
+            'response_deadline_iso' => '2026-11-05T10:00:00Z', 'response_remaining_seconds' => 3600, 'response_expired' => false, 'response_window_label' => 'مهلت پاسخ: ۲۴ ساعت',
         ), $o);
     };
     $nav = array(
@@ -149,6 +153,9 @@ namespace {
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
     $classesAttn = $render('classes', $model(array('attention' => array($request()))));
     $check('pending booking requests stay visible on the default classes screen', str_contains($classesAttn, 'id="tp-attention"') && str_contains($classesAttn, 'name="delivery_uid" value="DELIVERY-UID"') && str_contains($classesAttn, 'name="decision" value="accept"'));
+    $check('pending booking requests show the 24-hour response countdown', str_contains($classesAttn, 'data-dzn-response-deadline="2026-11-05T10:00:00Z"') && str_contains($classesAttn, 'مهلت پاسخ: ۲۴ ساعت') && str_contains($classesAttn, 'data-dzn-response-countdown'));
+    $expiredAttn = $render('home', $model(array('attention' => array($request(array('response_expired' => true, 'response_remaining_seconds' => 0))))));
+    $check('an expired booking request hides its actions and explains reassignment', str_contains($expiredAttn, 'مهلت پاسخ گذشته است') && str_contains($expiredAttn, 'مدرس در دسترس بعدی') && !str_contains($expiredAttn, 'name="decision" value="accept"'));
     $attn = $render('home', $model(array('attention' => array($request()))));
     $check('accept and decline forms keep nonce, response key, delivery uid and decision', substr_count($attn, 'name="_wpnonce" value="nonce-response"') === 2 && substr_count($attn, 'name="response_key" value="11111111-2222-4333-8444-555555555555"') === 2 && substr_count($attn, 'name="delivery_uid" value="DELIVERY-UID"') === 2 && str_contains($attn, 'name="decision" value="accept"') && str_contains($attn, 'name="decision" value="decline"'));
     $check('request is distinguished from a confirmed class and provider-first rule is stated', str_contains($attn, 'درخواست در انتظار بررسی') && str_contains($attn, 'فقط پس از موفقیت هر دو'));
@@ -224,7 +231,7 @@ namespace {
     $_GET = array();
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
-    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 8 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 9 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
     $rescheduleController = (string) file_get_contents($root . '/platform/src/Portals/LessonRescheduleController.php');
     $teacherMessages = substr($rescheduleController, (int) strpos($rescheduleController, 'private static function teacher_message'), (int) strpos($rescheduleController, 'private static function student_message') - (int) strpos($rescheduleController, 'private static function teacher_message'));
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $teacherMessages, $rescheduleFound);

@@ -41,7 +41,7 @@ namespace {
     $student = (object) array('id' => 81, 'student_id' => 7, 'student_whatsapp' => '09123456789', 'student_mobile' => '09123456789', 'teacher_id' => 9, 'teacher_whatsapp' => '', 'teacher_phone' => '+61412345678');
     $confirmedVariables = array('name' => 'باران', 'teacher' => 'استاد ندا', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان، ۱۷:۰۰', 'join_url' => 'https://meet.example/abc', 'portal_url' => 'https://delnavazan.com/student-portal/');
     $requestedVariables = array('name' => 'باران', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان، ۱۷:۰۰', 'portal_url' => 'https://delnavazan.com/student-portal/');
-    $teacherVariables = array('teacher' => 'استاد ندا', 'course' => 'تار', 'student' => 'باران', 'when' => 'شنبه ۱۰ آبان، ۱۷:۰۰', 'teacher_portal_url' => 'https://delnavazan.com/teacher-portal/');
+    $teacherVariables = array('teacher' => 'استاد ندا', 'course' => 'تار', 'student' => 'باران', 'when' => 'شنبه ۱۰ آبان، ۱۷:۰۰', 'teacher_portal_url' => 'https://delnavazan.com/teacher-portal/', 'response_window' => '۲۴ ساعت', 'response_deadline' => 'یکشنبه ۱۱ آبان، ۱۷:۰۰');
 
     $policy = static fn(string $eventKey, string $channel, bool $fallback): bool => true;
     $notSuppressed = static fn(string $audience, int $id, string $eventKey): bool => false;

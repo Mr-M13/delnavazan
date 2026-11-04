@@ -51,6 +51,9 @@ final class BookingStudentNotificationWorker {
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
             }
+            if($eventKey==='booking.new.teacher'&&!str_contains((string)$copy['body'],'مهلت پاسخ')){
+                $copy['body']=rtrim((string)$copy['body'])."\n\n".'لطفاً حداکثر تا '.$variables['response_window'].' ('.$variables['response_deadline'].') پاسخ دهید. اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.';
+            }
             // The portal is an independent first-party notice.  A missing or invalid editable
             // email template must not hide the operational booking alert from the Teacher.
             self::recordInbox($row,$eventKey,$variables);
@@ -128,7 +131,10 @@ final class BookingStudentNotificationWorker {
         if((string)$row->notification_kind==='requested_teacher'){
             $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
             $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
-            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+            $createdAt=trim((string)($row->delivery_created_at??($row->created_at??'')));
+            $deadlineUtc=$createdAt!==''?gmdate('Y-m-d H:i:s',strtotime($createdAt.' UTC')+86400):gmdate('Y-m-d H:i:s',time()+86400);
+            $deadline=self::formatInstant($deadlineUtc,$timezone);
+            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nPlease respond within 24 hours, by {$deadline}. If no response is received, the request will be offered to the next available Teacher.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when,'response_window'=>'۲۴ ساعت','response_deadline'=>$deadline));
         }
         if((string)$row->notification_kind==='cancelled'){
             $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
@@ -191,5 +197,13 @@ final class BookingStudentNotificationWorker {
             }catch(\Throwable){}
         }
         return $start->format('l j F Y, H:i').'–'.$end->format('H:i').' '.$timezone;
+    }
+
+    private static function formatInstant(string $utc,string $timezone):string{
+        try{
+            $zone=new \DateTimeZone($timezone);
+            $at=(new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->setTimezone($zone);
+            return $at->format('l j F Y, H:i').' '.$timezone;
+        }catch(\Throwable){return trim($utc.' '.$timezone);}
     }
 }

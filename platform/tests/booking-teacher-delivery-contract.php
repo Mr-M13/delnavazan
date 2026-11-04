@@ -9,6 +9,10 @@ $plugin = (string) file_get_contents($root . '/delnavazan-platform.php');
 $dashboard = (string) file_get_contents($root . '/src/Admin/Controller/AcademyOperationsController.php');
 $bridge = (string) file_get_contents(dirname($root) . '/theme/inc/platform-bridge.php');
 $attention = (string) file_get_contents(dirname($root) . '/theme/template-parts/teacher-portal/attention.php');
+$teacher_js = (string) file_get_contents(dirname($root) . '/theme/assets/js/teacher-portal.js');
+$teacher_css = (string) file_get_contents(dirname($root) . '/theme/assets/css/teacher-portal.css');
+$allocation_notice = (string) file_get_contents($root . '/src/Integrations/BookingAllocationNotificationWorker.php');
+$catalogue = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php');
 $assert = static function (bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException($message);
 };
@@ -31,6 +35,9 @@ $assert(str_contains($repo, 'r.id booking_request_id') && str_contains($service,
 $assert(str_contains($service, 'requested_times = $this->deliveries->requestedTimes') && str_contains($bridge, "' اولویت‌های هنرجو: '"), 'Teacher presentation must show all ranked preferences without changing the authoritative selected-time action.');
 $assert(!str_contains($service, 'new CanonicalLesson') && !str_contains($service, 'new Google') && !str_contains($service, '->project('), 'Intake delivery must not create lessons or provider projections.');
 $assert(str_contains($bridge, 'ownPending()') && str_contains($bridge, "'authoritative_request'=>true"), 'Teacher portal must use the teacher-scoped delivery read model.');
+$assert(str_contains($repo, 'offer.deadline_at response_deadline_at') && str_contains($service, 'response_deadline_utc') && str_contains($service, 'response_remaining_seconds'), 'The Teacher inbox must expose the active offer deadline and remaining seconds.');
+$assert(str_contains($bridge, 'response_deadline_iso') && str_contains($bridge, 'مهلت پاسخ ۲۴ ساعت') && str_contains($attention, 'data-dzn-response-deadline') && str_contains($teacher_js, 'data-dzn-response-deadline') && str_contains($teacher_css, '.dzn-tp-response-window'), 'The Teacher portal must render a live countdown for the 24-hour response window.');
+$assert(str_contains($allocation_notice, "'response_window'") && str_contains($allocation_notice, 'مدرس در دسترس بعدی') && str_contains($catalogue, 'response_window') && str_contains($catalogue, 'response_deadline'), 'The booking notification must state the 24-hour window and reassignment consequence.');
 $assert(str_contains($attention, 'درخواست در انتظار بررسی') && str_contains($attention, 'فقط پس از موفقیت هر دو'), 'Teacher portal must distinguish a request from a confirmed class.');
 $assert(str_contains($dashboard, "current_user_can('dzn_manage_onboarding')") && str_contains($dashboard, "state='pending_review'"), 'Academy approval alert must be narrowly capability-gated and count pending review submissions.');
 echo "Booking teacher delivery contract passed\n";

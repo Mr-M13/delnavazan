@@ -94,6 +94,7 @@ final class NotificationCatalogue {
             'invitation_code'=>'[one-time code]','payment_url'=>'https://example.invalid/pay/','amount'=>'۲٬۵۰۰٬۰۰۰ تومان','due_date'=>'۱۵ آبان ۱۴۰۵',
             'paid_date'=>'۱۲ آبان ۱۴۰۵','previous_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰','new_when'=>'یکشنبه ۱۱ آبان ۱۴۰۵، ساعت ۱۸:۰۰','current_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
+            'response_window'=>'۲۴ ساعت','response_deadline'=>'پنجشنبه ۶ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
         );
         $out=array();
         foreach(self::variables($eventKey) as $variable)$out[$variable]=$examples[$variable]??'['.$variable.']';
@@ -260,12 +261,12 @@ final class NotificationCatalogue {
                 'email'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>"درود،\n\nبرای شما دعوت‌نامهٔ همکاری با آکادمی موسیقی دلنوازان صادر شده است.\n\nبرای شروع، پیوند زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n{{claim_url}}\n\nکد دعوت: {{invitation_code}}\n\nاین کد فقط یک‌بار قابل استفاده است و باید محرمانه بماند. اگر این دعوت را انتظار نداشتید، این پیام را نادیده بگیرید.\n\nبا احترام، دلنوازان"),
             ),
         ));
-        $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'booking.new.teacher',array(
+        $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url','response_window','response_deadline'),'booking.new.teacher',array(
             self::PRIMARY_LOCALE=>array(
-                'email'=>array('subject'=>'دلنوازان · رزرو تازه برای کلاس شما','body'=>"درود {{teacher}}،\n\nرزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} ثبت شد.\n\nزمان کلاس: {{when}}\n\nبرای بررسی جزئیات به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
-                'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد.'),
-                'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. برای بررسی جزئیات به پرتال مدرس مراجعه کنید: {{teacher_portal_url}}'),
-                'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
+                'email'=>array('subject'=>'دلنوازان · رزرو تازه برای کلاس شما','body'=>"درود {{teacher}}،\n\nرزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} ثبت شد.\n\nزمان کلاس: {{when}}\n\nلطفاً حداکثر تا {{response_window}} (تا {{response_deadline}}) پاسخ دهید. اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.\n\nبرای بررسی جزئیات به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد. لطفاً تا {{response_window}} ({{response_deadline}}) پاسخ دهید؛ در غیر این صورت درخواست به مدرس در دسترس بعدی ارجاع می‌شود.'),
+                'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. مهلت پاسخ {{response_window}} است؛ در غیر این صورت درخواست به مدرس بعدی ارجاع می‌شود. پرتال مدرس: {{teacher_portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. مهلت پاسخ {{response_window}}. پرتال مدرس: {{teacher_portal_url}}'),
             ),
         ));
         $out[]=self::event('booking.expired.teacher','Intro Offer Expired','booking','teacher','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.expired.teacher',array(

@@ -41,6 +41,12 @@ final class BookingTeacherDeliveryService {
             // response action, while the read projection exposes every ranked
             // preference for the teacher's informed choice.
             $delivery->requested_times = $this->deliveries->requestedTimes((int) $delivery->booking_request_id);
+            $deadline = trim((string) ($delivery->response_deadline_at ?? ''));
+            if ($deadline !== '') {
+                $delivery->response_deadline_utc = $deadline;
+                $delivery->response_remaining_seconds = max(0, (new \DateTimeImmutable($deadline, new \DateTimeZone('UTC')))->getTimestamp() - time());
+                $delivery->response_expired = $delivery->response_remaining_seconds <= 0;
+            }
         }
         return $deliveries;
     }

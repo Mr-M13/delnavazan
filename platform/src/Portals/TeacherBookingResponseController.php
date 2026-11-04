@@ -18,7 +18,7 @@ final class TeacherBookingResponseController {
 
             self::redirect($notice,$state==='failed');
         }catch(\Throwable $error){
-            $message=$error->getMessage();$notice=str_contains($message,'student_slot_conflict')?'این زمان با کلاس یا درخواست دیگری از این هنرجو تداخل دارد؛ درخواست پذیرفته نشد.':((str_contains($message,'Google Calendar')||str_starts_with($message,'meet_')||str_starts_with($message,'provider_'))?'ساخت کلاس با حساب سازمانی دلنوازان ممکن نشد؛ لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.':'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.');
+            $message=$error->getMessage();$notice=str_contains($message,'Booking offer expired or reassigned')?'مهلت ۲۴ ساعتهٔ پاسخ به پایان رسیده است. این درخواست برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.':(str_contains($message,'student_slot_conflict')?'این زمان با کلاس یا درخواست دیگری از این هنرجو تداخل دارد؛ درخواست پذیرفته نشد.':((str_contains($message,'Google Calendar')||str_starts_with($message,'meet_')||str_starts_with($message,'provider_'))?'ساخت کلاس با حساب سازمانی دلنوازان ممکن نشد؛ لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.':'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.'));
             self::redirect($notice,true);
         }
     }

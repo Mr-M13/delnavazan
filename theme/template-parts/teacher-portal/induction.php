@@ -20,32 +20,32 @@ foreach ( $steps as $step ) {
 }
 $groups = array(
 	'prep' => array(
-		'title' => 'آماده شدن برای کلاس',
-		'description' => 'روز را با کلاس‌های امروز شروع کنید و درخواست‌ها و زمان‌های تدریس را مرتب نگه دارید.',
-		'ids' => array( 'today', 'new-enrolment', 'settings' ),
+		'title' => 'از شروع همکاری تا برنامهٔ کلاس',
+		'description' => 'ابتدا حساب و زمان‌های تدریس را آماده کنید؛ سپس درخواست آشنایی و برنامهٔ روزانه را پیگیری کنید.',
+		'ids' => array( 'settings', 'new-enrolment', 'today' ),
 	),
 	'class' => array(
 		'title' => 'برگزاری کلاس',
-		'description' => 'ورود به کلاس و ثبت حضور، دو کار اصلی هر جلسه هستند.',
+		'description' => 'با هنرجو وارد جلسه شوید و نتیجهٔ واقعی آن را ثبت کنید.',
 		'ids' => array( 'join', 'attendance' ),
 	),
 	'changes' => array(
 		'title' => 'تغییرها و موارد خاص',
-		'description' => 'وقتی هنرجو غیبت می‌کند یا زمان کلاس باید عوض شود، از همان کارت کلاس اقدام کنید.',
+		'description' => 'تغییر زمان با پیشنهاد مدرس و پذیرش هنرجو انجام می‌شود.',
 		'ids' => array( 'absence', 'reschedule' ),
 	),
 	'followup' => array(
-		'title' => 'مالی و پیگیری',
-		'description' => 'ساعت‌ها، صورت‌حساب‌ها و ساعت طلایی را در تب «مالی» و «تنظیمات» ببینید.',
+		'title' => 'پیگیری ساعت‌ها و مالی',
+		'description' => 'کار ثبت‌شده و صورت‌حساب را بررسی کنید و زمان‌های پرتقاضا را بشناسید.',
 		'ids' => array( 'finance', 'golden-hour' ),
 	),
 );
 ?>
 <section class="dzn-tp-section dzn-tp-quickstart" aria-labelledby="tp-quickstart-title">
 	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">راهنمای تدریس</p><h2 id="tp-quickstart-title">مرور سریع جریان کار</h2></div>
+		<div><p class="dzn-tp-kicker">راهنمای تدریس</p><h2 id="tp-quickstart-title">مسیر همکاری با دلنوازان</h2></div>
 	</div>
-	<p class="dzn-tp-help">این راهنما فقط برای مرور است. ترتیب بخش‌ها همان مسیر کار روزانهٔ شماست: آماده شدن، برگزاری کلاس، رسیدگی به تغییرها و پیگیری مالی. هیچ اقدامی از این صفحه ثبت نمی‌شود.</p>
+	<p class="dzn-tp-help">از آماده‌سازی حساب تا برگزاری و پیگیری کلاس، در هر گام می‌بینید هنرجو چه تجربه‌ای دارد و مسئولیت شما چیست. کارهای واقعی را از بخش مربوط در پرتال انجام دهید.</p>
 	<?php foreach ( $groups as $group_id => $group ) : ?>
 		<?php
 		$group_steps = array();
@@ -66,8 +66,8 @@ $groups = array(
 						<div class="dzn-tp-quickstart-card__number" aria-hidden="true"><?php echo esc_html( number_format_i18n( (int) ( $step['order'] ?? 0 ) ) ); ?></div>
 						<div class="dzn-tp-quickstart-card__body">
 							<h4><?php echo esc_html( (string) ( $step['title'] ?? '' ) ); ?></h4>
-							<p><?php echo esc_html( (string) ( $step['description'] ?? '' ) ); ?></p>
-							<?php if ( ! empty( $step['points'] ) ) : ?><ul><?php foreach ( (array) $step['points'] as $point ) : ?><li><?php echo esc_html( (string) $point ); ?></li><?php endforeach; ?></ul><?php endif; ?>
+							<p><strong>مسیر هنرجو:</strong> <?php echo esc_html( (string) ( $step['student_side'] ?? '' ) ); ?></p>
+							<p><strong>کار شما:</strong> <?php echo esc_html( (string) ( $step['description'] ?? '' ) ); ?></p>
 						</div>
 					</li>
 				<?php endforeach; ?>

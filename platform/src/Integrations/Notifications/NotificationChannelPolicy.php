@@ -15,8 +15,7 @@ final class NotificationChannelPolicy {
         if($event===null)return false;
         if(!(new NotificationTemplateLibrary())->eventEnabled($eventKey))return false;
         if(!in_array($channel,(array)$event['channels'],true))return false;
-        $policy=(new NotificationTemplateLibrary())->channelPolicy((string)$event['category']);
-        return !empty($policy[$channel]);
+        return (new NotificationTemplateLibrary())->channelPermitted($eventKey,$channel);
     }
 
     /** SMS is only ever a constrained fallback and only when the event and the category permit it. */

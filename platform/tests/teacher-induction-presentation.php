@@ -46,7 +46,7 @@ namespace {
     $order = 0;
     foreach ( $ids as $id => $title ) {
         ++$order;
-        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
+        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'student_side' => 'هنرجو گام مربوط به ' . $title . ' را در پرتال دنبال می‌کند.', 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
     }
     $hub = array( 'modules' => $steps, 'completed_count' => 1, 'started_count' => 0, 'total_count' => 9, 'percent' => 11, 'state' => 'in_progress', 'next_module_id' => 'join' );
     $base = array(
@@ -57,10 +57,15 @@ namespace {
         'induction_continue_url' => 'https://example.invalid/?teacher-view=induction',
         'induction_support_url' => 'https://wa.me/000',
     );
+    $fail( 'complete student perspectives satisfy the display contract', dzn_theme_teacher_portal_validate_model( $base, 'induction' ) );
+    $missing_student_side = $base;
+    unset( $missing_student_side['induction']['modules'][0]['student_side'] );
+    $fail( 'missing student perspective fails the display contract', ! dzn_theme_teacher_portal_validate_model( $missing_student_side, 'induction' ) );
     $hub_html = $render( 'induction', $base );
-    $fail( 'quick-start renders the review heading', str_contains( $hub_html, 'مرور سریع جریان کار' ) );
+    $fail( 'quick-start renders the journey heading', str_contains( $hub_html, 'مسیر همکاری با دلنوازان' ) );
     $fail( 'quick-start renders all nine steps as one read-only page', substr_count( $hub_html, 'class="dzn-tp-quickstart-card"' ) === 9 );
     $fail( 'steps are grouped by the daily workflow', str_contains( $hub_html, 'tp-phase-prep' ) && str_contains( $hub_html, 'tp-phase-class' ) && str_contains( $hub_html, 'tp-phase-changes' ) && str_contains( $hub_html, 'tp-phase-followup' ) );
+    $fail( 'the guide explains both sides', substr_count( $hub_html, 'مسیر هنرجو:</strong> هنرجو گام مربوط به' ) === 9 && substr_count( $hub_html, 'کار شما:' ) === 9 );
     $fail( 'the guide shows no step buttons or completion forms', ! str_contains( $hub_html, '<form' ) && ! str_contains( $hub_html, 'name="module_id"' ) && ! str_contains( $hub_html, 'دیده شده' ) );
     $fail( 'the guide shows no progress or highlight machinery', ! str_contains( $hub_html, 'role="progressbar"' ) && ! str_contains( $hub_html, 'data-dzn-auto-highlight' ) );
     $fail( 'stable anchors remain for contextual help', str_contains( $hub_html, 'id="tp-step-today"' ) && str_contains( $hub_html, 'id="tp-step-join"' ) );

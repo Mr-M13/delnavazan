@@ -9,7 +9,7 @@ $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) 
 $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navigation;
 $notification_unread = isset( $model['notification_unread_count'] ) ? max( 0, (int) $model['notification_unread_count'] ) : 0;
 $notifications_available = ! empty( $model['notifications_available'] );
-$notification_url = home_url( '/teacher-portal/' ) . '#dzn-notification-banner';
+$notification_url = home_url( '/teacher-portal/' ) . '#dzn-tp-notifications';
 ?>
 <main id="main-content" class="site-main dzn-teacher-portal dzn-teacher-portal--<?php echo esc_attr( $screen ); ?>" tabindex="-1" dir="rtl">
  <header class="dzn-tp-appbar">
@@ -23,7 +23,6 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-notification-banner';
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
  <?php if ( ! empty( $model['available'] ) ) : foreach ( dzn_theme_teacher_portal_notices( $screen ) as $notice ) : ?><p class="dzn-tp-notice is-<?php echo esc_attr( $notice[0] ); ?>" role="<?php echo 'error' === $notice[0] ? 'alert' : 'status'; ?>"><?php echo esc_html( $notice[1] ); ?></p><?php endforeach; endif; ?>
- <?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'teacher' ) ); ?>
  <?php if ( empty( $model['available'] ) ) :
   $state = (string) ( $model['state'] ?? 'error' );
   $messages = array(

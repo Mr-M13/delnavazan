@@ -202,6 +202,7 @@ namespace {
 	$check( 'the classes screen offers the post-intro outcome form', str_contains( $html, 'id="dzn-tp-post-intro"' ) && str_contains( $html, 'name="confirmation_uid" value="CONF-OUTCOME"' ) && str_contains( $html, 'name="outcome"' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'future class cards are restored with their reschedule action', str_contains( $html, 'tp-classes-upcoming' ) && str_contains( $html, 'کلاس‌های آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
+	$check( 'reschedule form exposes the outside-availability confirmation', str_contains( $html, 'name="confirm_outside_availability"' ) );
 	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
 	$check( 'future classes can be filtered by student', str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );

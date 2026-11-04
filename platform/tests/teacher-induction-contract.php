@@ -56,7 +56,7 @@ $check( 'availability has contextual guidance', str_contains( $files['settings']
 $check( 'rescheduling has contextual guidance', str_contains( $files['reschedule'], "'reschedule'" ) );
 $check( 'absence guidance explains the term allowance', str_contains( $files['attention'], "'absence'" ) );
 $check( 'notification guidance distinguishes read from resolve', str_contains( $files['notifications'], 'خواندن اعلان، درخواست را حل نمی‌کند' ) );
-$check( 'finance guidance separates illustrative and paid amounts', str_contains( $files['finance'], 'توزیع توضیحی درآمد قطعی نیست' ) );
+$check( 'finance keeps the allocation section without the removed income notice', ! str_contains( $files['finance'], 'توزیع توضیحی درآمد قطعی نیست' ) && str_contains( $files['finance'], "'tuition-allocation'" ) );
 $check( 'mobile and desktop quick-start styles exist', str_contains( $files['css'], '.dzn-tp-quickstart-card' ) && str_contains( $files['css'], '@media (max-width:47.99rem)' ) );
 $check( 'the guide does not fetch portal data or add jump behaviour', ! str_contains( $files['js'], 'data-dzn-auto-highlight' ) && ! str_contains( $files['js'], 'fetch(' ) );
 $check( 'guides target existing navigation elements', str_contains( $files['shell'], 'data-dzn-nav-screen' ) && str_contains( $files['shell'], 'data-dzn-nav-notifications' ) );

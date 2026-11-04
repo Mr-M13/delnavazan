@@ -67,7 +67,7 @@ foreach ( array( 'profile', 'account-status', 'payments', 'recording-choices' ) 
 	$account_previous = $at;
 }
 $check( 'account puts status directly beneath profile and consent at the very bottom', $account_ordered );
-$check( 'the notification card is replaced by the shared unread-only banner', ! str_contains( $account, "dzn_theme_portal_component( 'notifications'" ) && ! str_contains( $home, "dzn_theme_portal_component( 'notifications'" ) && str_contains( $shell, 'template-parts/components/notification-banner' ) );
+$check( 'the notification card is replaced by the persistent inbox destination', ! str_contains( $account, "dzn_theme_portal_component( 'notifications'" ) && ! str_contains( $home, "dzn_theme_portal_component( 'notifications'" ) && ! str_contains( $shell, 'template-parts/components/notification-banner' ) && str_contains( $shell, '#dzn-portal-notifications' ) );
 $check( 'the always-rendered future-orders placeholder is gone', ! str_contains( $shell, "'future-orders'" ) );
 
 /* 3. History dates are machine-readable instants. */

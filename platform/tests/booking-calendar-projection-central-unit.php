@@ -40,7 +40,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public array $notifications=array();
         public int $secrets=0;
         public function __construct(){
-            $this->confirmationRow=(object)array('id'=>70,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','delivery_id'=>41,'connection_id'=>0,'state'=>'pending_projection','version'=>1,'starts_at_utc'=>'2026-11-02 08:00:00','ends_at_utc'=>'2026-11-02 08:45:00','schedule_timezone'=>'Australia/Brisbane','attempt_count'=>0);
+            $this->confirmationRow=(object)array('id'=>70,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','booking_request_id'=>12,'delivery_id'=>41,'connection_id'=>0,'state'=>'pending_projection','version'=>1,'starts_at_utc'=>'2026-11-02 08:00:00','ends_at_utc'=>'2026-11-02 08:45:00','schedule_timezone'=>'Australia/Brisbane','attempt_count'=>0);
             $this->deliveryRow=(object)array('id'=>41,'booking_request_id'=>12,'state'=>'accepting','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null);
             $this->credentialRow=(object)array('valid_until_utc'=>null);
         }
@@ -58,6 +58,10 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function closeRequest(int $id,string $resolution,string $now,int $actor): void { $this->deliveryRow->lifecycle_status='closed';$this->deliveryRow->resolution_state=$resolution; }
         public function notificationForDeliveryKind(int $deliveryId,string $kind): ?object { return $this->notifications[$deliveryId.'|'.$kind]??null; }
         public function insertNotification(array $data): int { $this->notifications[$data['delivery_id'].'|'.$data['notification_kind']]=(object)$data;return count($this->notifications); }
+    }
+    final class BookingAllocationRepository {
+        public static array $referrals=array();
+        public function referral(int $requestId,string $reason,string $now): void { self::$referrals[]=array($requestId,$reason,$now); }
     }
 }
 namespace Delnavazan\Platform\Integrations {

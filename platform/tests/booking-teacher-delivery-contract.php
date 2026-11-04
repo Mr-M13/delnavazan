@@ -1,6 +1,7 @@
 <?php
 $root = dirname(__DIR__);
 $service = (string) file_get_contents($root . '/src/Core/Application/BookingTeacherDeliveryService.php');
+$allocation = (string) file_get_contents($root . '/src/Core/Application/BookingAllocationService.php');
 $repo = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/BookingTeacherDeliveryRepository.php');
 $submission = (string) file_get_contents($root . '/src/Core/Application/BookingRequestSubmissionService.php');
 $migrator = (string) file_get_contents($root . '/src/Core/Infrastructure/Migration/Migrator.php');
@@ -21,7 +22,7 @@ $deliveryWrite = strpos($submission, 'BookingTeacherDeliveryService())->deliver'
 $transactionalBody = substr($submission, strpos($submission, 'public function submitWithinTransaction'));
 $assert($timeWrite !== false && $deliveryWrite > $timeWrite && str_contains($submission, '$this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId )') && str_contains($transactionalBody, 'completeSubmissionKey'), 'Delivery must be created after requested times and inside the intake transaction.');
 foreach (array('eligibleTeachers($courseId', 'effective($teacherId', 'overlapping(', 'assertNoActiveHold', "'pending_request'") as $needle) {
-    $assert(str_contains($service, $needle), 'Teacher matching authority missing: ' . $needle);
+    $assert(str_contains($service.$allocation, $needle), 'Teacher matching authority missing: ' . $needle);
 }
 $assert(str_contains($repo, 'WHERE d.teacher_id=%d') && str_contains($repo, "d.state='pending_request'"), 'Teacher inbox reads must be scoped to the signed-in Teacher and pending state.');
 $assert(str_contains($repo, "r.resolution_state='unresolved'") && str_contains($repo, 'r.privacy_erased_at IS NULL'), 'Resolved or erased requests must not remain in the Teacher inbox.');

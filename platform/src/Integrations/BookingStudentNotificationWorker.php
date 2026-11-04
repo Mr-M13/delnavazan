@@ -67,7 +67,12 @@ final class BookingStudentNotificationWorker {
         try{
             $locked=$repository->notificationPayload($notificationId,true);if(!$locked||(string)$locked->state!=='sending'||!hash_equals($leaseDigest,(string)$locked->lease_token_digest))throw new \RuntimeException('Booking notification lease changed concurrently');$now=gmdate('Y-m-d H:i:s');
             $clear=array('lease_token_digest'=>null,'lease_expires_at'=>null,'updated_at'=>$now);
-            if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>null),$leaseDigest);}
+            // Email/portal hand-off remains independent from mobile delivery, but a mobile refusal must
+            // stay visible on the durable queue row. Previously the worker discarded this result and
+            // an email success made an unmapped WhatsApp event indistinguishable from a fully-routed
+            // notification.
+            $mobileDiagnostic=self::mobileDiagnostic($mobile);
+            if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>$mobileDiagnostic),$leaseDigest);}
             elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
             else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
             $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false,'mobile'=>$mobile);
@@ -90,6 +95,15 @@ final class BookingStudentNotificationWorker {
         if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
         try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
         catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
+    }
+
+    /** A bounded, contact-free mobile outcome for the existing booking queue diagnostic field. */
+    private static function mobileDiagnostic(array $mobile):?string{
+        if((string)($mobile['state']??'')==='accepted')return null;
+        $reason=(string)($mobile['reason']??'');
+        if($reason==='')$reason=(string)($mobile['state']??'unknown');
+        $reason=preg_replace('/[^a-z0-9_]+/','_',strtolower($reason))??'unknown';
+        return substr('mobile_'.trim($reason,'_'),0,64);
     }
 
     private static function headers(object $row):array{

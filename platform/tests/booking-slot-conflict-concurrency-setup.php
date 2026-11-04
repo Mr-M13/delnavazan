@@ -76,7 +76,15 @@ $wpdb->insert( $p . 'teachers', array(
 ) );
 $teacher = (int) $wpdb->insert_id;
 $wpdb->insert( $p . 'teacher_principal_links', array( 'teacher_id' => $teacher, 'wordpress_user_id' => $teacherUser, 'status' => 'active', 'linked_at' => $now, 'linked_by' => 1 ) );
+$wpdb->insert( $p . 'teacher_course_eligibilities', array( 'teacher_id' => $teacher, 'course_id' => $course, 'status' => 'active', 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1 ) );
 $wpdb->insert( $p . 'teacher_onboarding_states', array( 'teacher_id' => $teacher, 'state' => 'active', 'readiness_state' => 'ready', 'profile_state' => 'complete', 'availability_state' => 'complete', 'agreement_state' => 'not_required', 'activated_at' => $now, 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1 ) );
+$availabilityProfile = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$p}teacher_availability_profiles WHERE teacher_id=%d AND status='active' LIMIT 1", $teacher ) );
+if ( $availabilityProfile < 1 ) {
+    $wpdb->insert( $p . 'teacher_availability_profiles', array( 'teacher_id' => $teacher, 'timezone' => 'UTC', 'status' => 'active', 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1 ) );
+    $availabilityProfile = (int) $wpdb->insert_id;
+}
+$weekday = (int) $atDateTime->format( 'N' );
+$wpdb->insert( $p . 'teacher_availability_rules', array( 'profile_id' => $availabilityProfile, 'teacher_id' => $teacher, 'weekday' => $weekday, 'local_start_time' => '00:00:00', 'local_end_time' => '24:00:00', 'state' => 'preferred', 'timezone' => 'UTC', 'status' => 'active', 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1 ) );
 $scope = Delnavazan\Platform\Core\Application\ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE;
 $wpdb->insert( $p . 'integration_connections', array( 'uid' => Identifier::uid(), 'provider_code' => 'google_calendar', 'teacher_id' => $teacher, 'lifecycle_sequence' => 1, 'connection_state' => 'connected', 'connection_version' => 1, 'active_slot' => 1, 'scope_snapshot' => $scope, 'identity_state' => 'verified', 'created_at' => $now, 'created_by' => 1, 'updated_at' => $now, 'updated_by' => 1 ) );
 $connection = (int) $wpdb->insert_id;
@@ -90,6 +98,15 @@ $request = static function ( string $label ) use ( $wpdb, $p, $acceptanceStudent
     $timeId = (int) $wpdb->insert_id;
     $wpdb->insert( $p . 'booking_request_teacher_deliveries', array( 'uid' => Identifier::uid(), 'booking_request_id' => $id, 'requested_time_id' => $timeId, 'teacher_id' => $teacher, 'state' => 'pending_request', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now ) );
     $deliveryId = (int) $wpdb->insert_id;
+    // Teacher acceptance now requires the active allocation offer that owns this
+    // actionable delivery; the delivery row alone is no longer sufficient.
+    $wpdb->insert( $p . 'booking_allocation_offers', array(
+        'booking_request_id' => $id, 'delivery_id' => $deliveryId, 'teacher_id' => $teacher,
+        'requested_time_id' => $timeId, 'offer_sequence' => 1, 'state' => 'pending', 'active_slot' => 1,
+        'match_strength' => 'strong', 'offered_at' => $now,
+        'deadline_at' => gmdate( 'Y-m-d H:i:s', strtotime( $now . ' UTC +24 hours' ) ),
+        'responded_at' => null, 'reason_code' => null,
+    ) );
     return array( 'request_id' => $id, 'delivery_id' => $deliveryId, 'delivery_uid' => (string) $wpdb->get_var( $wpdb->prepare( "SELECT uid FROM {$p}booking_request_teacher_deliveries WHERE id=%d", $deliveryId ) ) );
 };
 $first = $request( 'A' );

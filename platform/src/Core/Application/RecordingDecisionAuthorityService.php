@@ -117,6 +117,51 @@ final class RecordingDecisionAuthorityService {
         return $this->studentState((int)$grant->student_id,'guardian',$grant);
     }
 
+    /**
+     * Lesson-scoped recording eligibility used by the Google Meet classroom authority.
+     *
+     * Read-only legal gate. Recording may be configured only when all purposes that the canonical
+     * ConsentPurposeRegistry marks as required for recording are current and positive for the exact
+     * Lesson participants: Teacher terms, Teacher lesson-recording consent and Student
+     * lesson-recording consent (the Student row may be recorded by a valid guardian grant).
+     * Research permission is independent and never enables recording or export.
+     */
+    public function lessonRecordingEligibility(int $lessonId):array {
+        global $wpdb; $p=$wpdb->prefix.'dzn_';
+        $lesson=$wpdb->get_row($wpdb->prepare("SELECT id,student_id,teacher_id FROM {$p}lessons WHERE id=%d AND archived_at IS NULL LIMIT 1",$lessonId));
+        if(!$lesson)return $this->eligibility(false,'lesson_not_found',null,null);
+        $required=array(
+            ConsentPurposeRegistry::TEACHER_TERMS,
+            ConsentPurposeRegistry::TEACHER_RECORDING,
+            ConsentPurposeRegistry::STUDENT_RECORDING,
+        );
+        foreach($required as $purpose){
+            if(!ConsentPurposeRegistry::requiresRecordingConsent($purpose))return $this->eligibility(false,'recording_purpose_not_required',null,null);
+        }
+        $teacherTerms=$this->latestDecision('teacher',(int)$lesson->teacher_id,ConsentPurposeRegistry::TEACHER_TERMS,false);
+        if(!$teacherTerms||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::TEACHER_TERMS,(string)$teacherTerms->decision_code)||!$this->noticeIsCurrent((int)$teacherTerms->notice_version_id))return $this->eligibility(false,'teacher_terms_not_current',$teacherTerms,null);
+        $teacherRecording=$this->latestDecision('teacher',(int)$lesson->teacher_id,ConsentPurposeRegistry::TEACHER_RECORDING,false);
+        if(!$teacherRecording||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::TEACHER_RECORDING,(string)$teacherRecording->decision_code)||!$this->noticeIsCurrent((int)$teacherRecording->notice_version_id))return $this->eligibility(false,'teacher_recording_not_allowed',$teacherRecording,null);
+        $student=$this->latestDecision('student',(int)$lesson->student_id,ConsentPurposeRegistry::STUDENT_RECORDING,false);
+        if(!$student||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::STUDENT_RECORDING,(string)$student->decision_code)||!$this->noticeIsCurrent((int)$student->notice_version_id))return $this->eligibility(false,'student_recording_not_allowed',$student,null);
+        $capacity=(string)$wpdb->get_var($wpdb->prepare("SELECT c.classification FROM {$p}students s LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE s.id=%d AND s.status='active' AND s.archived_at IS NULL LIMIT 1",(int)$lesson->student_id));
+        $guardianGrantId=(int)($student->guardian_authority_grant_id??0);
+        $guardianVersion=(int)($student->guardian_authority_version??0);
+        $guardianActor=(int)($student->guardian_actor_user_id??0);
+        if($capacity==='minor'){
+            if($guardianGrantId<1||$guardianActor<1)return $this->eligibility(false,'student_guardian_authority_required',$student,$teacherRecording);
+            $grant=$wpdb->get_row($wpdb->prepare("SELECT id,student_id,version,state,active_slot,effective_from,effective_until FROM {$p}student_acceptance_authority_grants WHERE id=%d LIMIT 1",$guardianGrantId));
+            if(!$grant||(int)$grant->student_id!==(int)$lesson->student_id||(string)$grant->state!=='active'||(int)$grant->active_slot!==1||(int)$grant->version!==$guardianVersion)return $this->eligibility(false,'student_guardian_authority_not_current',$student,$teacherRecording);
+            $now=gmdate('Y-m-d H:i:s');
+            if((string)$grant->effective_from>$now||($grant->effective_until!==null&&(string)$grant->effective_until<=$now))return $this->eligibility(false,'student_guardian_authority_not_current',$student,$teacherRecording);
+        }elseif($capacity!=='adult'){
+            return $this->eligibility(false,'student_capacity_unavailable',$student,$teacherRecording);
+        }elseif($guardianGrantId>0||$guardianActor>0){
+            return $this->eligibility(false,'student_guardian_authority_invalid',$student,$teacherRecording);
+        }
+        return $this->eligibility(true,null,$student,$teacherRecording);
+    }
+
     /** Current published notice for a supported audience, or null when none is approved. */
     public function publishedNotice(string $audience,string $language):?array {
         $audiences=array(
@@ -282,6 +327,19 @@ final class RecordingDecisionAuthorityService {
         $rows=(array)$wpdb->get_results($wpdb->prepare("SELECT g.id,g.version,s.id student_id,c.classification FROM {$p}student_acceptance_authority_grants g INNER JOIN {$p}students s ON s.id=g.student_id LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE g.id=%d AND g.student_id=%d AND g.acting_wordpress_user_id=%d AND g.authority_type='guardian_representative' AND g.authority_scope=%s AND g.state='active' AND g.active_slot=1 AND g.effective_from<=%s AND (g.effective_until IS NULL OR g.effective_until>%s) AND s.status='active' AND s.archived_at IS NULL FOR UPDATE",$grantId,$student,$actor,self::GUARDIAN_SCOPE,$now,$now));
         if(count($rows)!==1)throw new \RuntimeException('recording_guardian_authority_required');
         if((string)$rows[0]->classification!=='minor')throw new \RuntimeException('recording_guardian_authority_invalid');
+    }
+
+    private function eligibility(bool $eligible,?string $reason,?object $student,?object $teacher):array{
+        return array(
+            'eligible'=>$eligible,'reason'=>$reason,'evaluated_at'=>gmdate('Y-m-d H:i:s'),
+            'student_decision_id'=>$student?(int)$student->id:null,
+            'student_notice_uid'=>$student?(string)$student->notice_uid:null,
+            'student_notice_version'=>$student?(int)$student->notice_version_number:null,
+            'teacher_decision_id'=>$teacher?(int)$teacher->id:null,
+            'teacher_notice_uid'=>$teacher?(string)$teacher->notice_uid:null,
+            'teacher_notice_version'=>$teacher?(int)$teacher->notice_version_number:null,
+            'research_export_enabled'=>self::RESEARCH_EXPORT_ENABLED,
+        );
     }
 
     private function latestDecision(string $subjectType,int $subjectId,string $purpose,bool $guardian):?object{

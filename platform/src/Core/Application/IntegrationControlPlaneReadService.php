@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Core\Application;
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepository;
 use Delnavazan\Platform\Integrations\GoogleOAuthController;
+use Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService;
 use Delnavazan\Platform\Integrations\Notifications\NotificationRuntimeFactory;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
@@ -39,7 +40,7 @@ final class IntegrationControlPlaneReadService {
         $dispatchActor=(int)get_option(NotificationSystemActor::USER_OPTION,0);
         $dispatchActorValid=$dispatchActor>0&&($user=get_user_by('id',$dispatchActor)) instanceof \WP_User&&user_can($user,NotificationSystemActor::CAPABILITY);
         $googleConfigured=GoogleOAuthController::configured();
-        $googleRedirectUri=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
+        $googleRedirectUri=GoogleWorkspaceOAuthService::callbackUrl();
         if(!is_string($googleRedirectUri)||!str_starts_with($googleRedirectUri,'https://'))$googleRedirectUri='';
         $invitationTransportConfigured=(bool)apply_filters('dzn_teacher_invitation_email_transport_configured',false);
 
@@ -78,11 +79,14 @@ final class IntegrationControlPlaneReadService {
                 ),
             ),
             'google_calendar'=>array(
-                'capability'=>'teacher Google Calendar event projection and Google Meet join links',
+                'capability'=>'Delnavazan-owned Google Workspace classroom (organizer creates the Meet space)',
                 'oauth_client'=> $googleConfigured?'configured':'not_configured',
                 'configuration_source'=>'Admin-managed encrypted OAuth client settings, or deployment constants',
                 'authorized_redirect_uri'=>$googleRedirectUri!==''?$googleRedirectUri:'unavailable: HTTPS site URL required',
                 'test_connection'=>'not_run',
+                'organizer_classroom'=>(new GoogleWorkspaceOAuthService())->health(),
+                'recording_alerts'=>(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->alerts('open',10),
+                'blocked_classrooms'=>(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->blockedClassrooms(10),
                 'projection_states'=>$googleProjectionStates,
             ),
             'stripe'=>array(

@@ -388,6 +388,12 @@ final class EnrolmentWorkspaceView {
             echo '<ul class="dzn-timeline dzn-timeline--compact">';
             foreach (array_slice($case['notification_rows'], 0, 8) as $row) {
                 echo '<li><span class="dzn-timeline__dot"></span><strong>' . esc_html((string) $row['label']) . '</strong><small>' . esc_html((string) $row['at']) . '</small><p>' . esc_html((string) $row['detail']) . '</p>';
+                $receipt = (string) ($row['provider_receipt_state'] ?? '');
+                if ($receipt !== '') {
+                    echo '<p class="description"><strong>Provider receipt:</strong> ' . esc_html($receipt) . ' · ' . esc_html((string) ($row['provider_channel'] ?? 'mobile')) . ' · ' . esc_html((string) ($row['provider_receipt_at'] ?? '')) . '</p>';
+                } elseif ((string) ($row['category'] ?? '') === 'handed_off' && (string) ($row['channel'] ?? '') === 'email') {
+                    echo '<p class="description">Email hand-off recorded; no email delivery receipt is available.</p>';
+                }
                 if ((string) ($row['category'] ?? '') === 'failed') {
                     echo '<p class="description"><strong>Recipient:</strong> ' . esc_html((string) ($row['audience'] ?: 'unknown') . ((string) ($row['recipient'] ?? '') !== '' ? ' · ' . (string) $row['recipient'] : '')) . ' · <strong>Channel:</strong> ' . esc_html((string) ($row['channel'] ?? 'email')) . ' · <strong>Attempts:</strong> ' . esc_html((string) ($row['attempt_count'] ?? 0)) . ' · <strong>Last attempt:</strong> ' . esc_html((string) ($row['last_attempt'] ?? '')) . '</p>';
                     if (!empty($row['recovery_available']) && (int) ($row['notification_id'] ?? 0) > 0 && current_user_can('dzn_operate_notification_dispatch')) {
@@ -675,12 +681,12 @@ final class EnrolmentWorkspaceView {
 
     private static function classroomActions(string $kind, array $classroom): void {
         if ($kind === 'unavailable') return;
-        echo '<div class="dzn-classroom"><p><strong>LiveKit:</strong> ' . esc_html(!empty($classroom['livekit_available']) ? 'Available for administrator testing outside the participant window' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Google Meet:</strong> ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</p>';
+        echo '<div class="dzn-classroom"><p><strong>Google Meet:</strong> ' . esc_html(!empty($classroom['meet_available']) ? 'provisioned' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Co-host:</strong> ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</p>';
         echo '<div class="dzn-classroom__actions">';
-        if (!empty($classroom['livekit_available'])) {
+        if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-inline-form">';
-            wp_nonce_field('dzn_admin_livekit_class');
-            echo '<input type="hidden" name="action" value="dzn_admin_livekit_class"><input type="hidden" name="kind" value="' . esc_attr((string) $kind) . '">';
+            wp_nonce_field('dzn_admin_meet_class');
+            echo '<input type="hidden" name="action" value="dzn_admin_meet_class"><input type="hidden" name="kind" value="' . esc_attr((string) $kind) . '">';
             if ($kind === 'booking') echo '<input type="hidden" name="confirmation_uid" value="' . esc_attr((string) ($classroom['confirmation_uid'] ?? '')) . '">';
             else echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) ($classroom['lesson_id'] ?? 0)) . '">';
             echo '<button class="button button-primary" type="submit">Open administrator classroom</button></form>';

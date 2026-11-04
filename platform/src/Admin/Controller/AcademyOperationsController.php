@@ -8,7 +8,7 @@ use Delnavazan\Platform\Core\Application\CoreReadService;
 use Delnavazan\Platform\Core\Application\LessonOperationsReadService;
 use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
 use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
-use Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomService;
+use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
  * Read-only academy operations dashboard. It joins canonical/authoritative
@@ -248,10 +248,7 @@ final class AcademyOperationsController {
     private static function classroomNotice(string $status): void {
         $status = sanitize_key($status);
         if (!in_array($status, array('livekit_unavailable', 'meet_unavailable'), true)) return;
-        $message = $status === 'livekit_unavailable'
-            ? 'The LiveKit classroom could not be opened. Its provisioning state is shown below; no link was invented.'
-            : 'The backup Google Meet link is not available. Its provisioning state is shown below; no link was invented.';
-        echo '<div class="notice notice-error inline"><p>' . esc_html($message) . '</p></div>';
+        echo '<div class="notice notice-error inline"><p>The Google Meet classroom could not be opened. Its provisioning state is shown below; no link was invented.</p></div>';
     }
 
     private static function classActionNotice(string $status, string $message = ''): void {
@@ -280,12 +277,12 @@ final class AcademyOperationsController {
         $completed = $row->completed_class_count ?? null;
         $remaining = $row->remaining_class_count ?? null;
         $replacement = $row->replacement_remaining ?? null;
-        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($time) . '</bdi>' . ($timezone !== '' ? '<small>' . esc_html($timezone) . '</small>' : '') . '</span><span class="dzn-list__body"><a class="dzn-list__title" href="' . esc_url($url) . '">' . esc_html($student) . '</a><span class="dzn-list__meta">' . esc_html($instrument) . ' · ' . esc_html($teacher) . '</span><span class="dzn-class-facts"><span><b>' . ($completed === null ? '—' : esc_html((string) (int) $completed)) . '</b> completed</span><span><b>' . ($remaining === null ? '—' : esc_html((string) (int) $remaining)) . '</b> remaining</span><span><b>' . ($replacement === null ? '—' : esc_html((string) (int) $replacement)) . '</b> replacements left</span><span><b>' . esc_html($term) . '</b></span></span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">LiveKit: ' . esc_html(self::livekitStateLabel($classroom)) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
+        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($time) . '</bdi>' . ($timezone !== '' ? '<small>' . esc_html($timezone) . '</small>' : '') . '</span><span class="dzn-list__body"><a class="dzn-list__title" href="' . esc_url($url) . '">' . esc_html($student) . '</a><span class="dzn-list__meta">' . esc_html($instrument) . ' · ' . esc_html($teacher) . '</span><span class="dzn-class-facts"><span><b>' . ($completed === null ? '—' : esc_html((string) (int) $completed)) . '</b> completed</span><span><b>' . ($remaining === null ? '—' : esc_html((string) (int) $remaining)) . '</b> remaining</span><span><b>' . ($replacement === null ? '—' : esc_html((string) (int) $replacement)) . '</b> replacements left</span><span><b>' . esc_html($term) . '</b></span></span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">Classroom: ' . esc_html(self::livekitStateLabel($classroom)) . ' · Co-host: ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
         echo '<details class="dzn-class-actions"><summary class="button button-small">Classroom &amp; actions</summary><div class="dzn-class-actions__panel">';
-        if (!empty($classroom['livekit_available'])) {
+        if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-class-actions__form">';
-            wp_nonce_field('dzn_admin_livekit_class');
-            echo '<input type="hidden" name="action" value="dzn_admin_livekit_class"><input type="hidden" name="kind" value="' . esc_attr((string) $classroom['kind']) . '">';
+            wp_nonce_field('dzn_admin_meet_class');
+            echo '<input type="hidden" name="action" value="dzn_admin_meet_class"><input type="hidden" name="kind" value="' . esc_attr((string) $classroom['kind']) . '">';
             if (($classroom['kind'] ?? '') === 'booking') echo '<input type="hidden" name="confirmation_uid" value="' . esc_attr((string) $classroom['confirmation_uid']) . '">';
             else echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) $classroom['lesson_id']) . '">';
             echo '<button class="button button-primary button-small" type="submit">Join Class</button></form>';
@@ -319,13 +316,13 @@ final class AcademyOperationsController {
         echo '</div></details></div></li>';
     }
 
-    /** Contextual canonical attendance confirmation. Joining LiveKit is never used as evidence. */
+    /** Contextual canonical attendance confirmation. Joining Google Meet is never used as evidence. */
     private static function attendanceAction(object $row): void {
         if (!empty($row->attendance_action_available)) {
             echo '<details class="dzn-class-op"><summary>Mark attended</summary><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-class-op__form">';
             wp_nonce_field('dzn_academy_mark_attended');
             echo '<input type="hidden" name="action" value="dzn_academy_mark_attended"><input type="hidden" name="lesson_id" value="' . esc_attr((string) (int) $row->id) . '"><input type="hidden" name="schedule_version_id" value="' . esc_attr((string) (int) ($row->schedule_version_id ?? 0)) . '"><input type="hidden" name="idempotency_key" value="' . esc_attr(wp_generate_uuid4()) . '"><input type="hidden" name="evidence_channel" value="staff_record"><input type="hidden" name="evidence_at" value="' . esc_attr(gmdate('Y-m-d H:i:s')) . '">';
-            echo '<label>Evidence reference<input type="text" name="evidence_reference" required maxlength="191" placeholder="Attendance note or support reference"></label><button class="button button-primary button-small" type="submit">Record attended</button><p class="dzn-class-actions__unavailable">Records explicit administrator evidence and applies the canonical attendance decision. It does not use LiveKit presence as proof.</p></form></details>';
+            echo '<label>Evidence reference<input type="text" name="evidence_reference" required maxlength="191" placeholder="Attendance note or support reference"></label><button class="button button-primary button-small" type="submit">Record attended</button><p class="dzn-class-actions__unavailable">Records explicit administrator evidence and applies the canonical attendance decision. It does not use Meet presence as proof.</p></form></details>';
             return;
         }
         if (current_user_can('dzn_manage_canonical_attendance_review')) {
@@ -353,7 +350,7 @@ final class AcademyOperationsController {
             ? 'booking:' . (string) ($row->confirmation_uid ?? '')
             : 'lesson:' . (int) ($row->id ?? 0);
         if (isset(self::$classroomCache[$key])) return self::$classroomCache[$key];
-        $service = new LiveKitAdministratorClassroomService();
+        $service = new MeetAdministratorClassroomService();
         try {
             if ($model === 'confirmed_intro_booking_v1') {
                 $context = $service->forBooking((string) ($row->confirmation_uid ?? ''));
@@ -389,15 +386,16 @@ final class AcademyOperationsController {
             'not_joinable' => 'not joinable',
             'not_supported' => 'not available for this class type',
             'not_found' => 'not provisioned',
+            'blocked' => 'co-host blocked',
             default => 'unavailable',
         };
     }
 
     private static function livekitUnavailableMessage(array $context): string {
         return match ((string) ($context['state'] ?? 'unavailable')) {
-            'missing_schedule' => 'LiveKit needs a current class schedule before an administrator can test it. Open the class to schedule it.',
-            'not_joinable' => 'This class is not in an authorised state, so a LiveKit room cannot be opened.',
-            'not_supported' => 'LiveKit is available for canonical term lessons and confirmed introductory bookings only.',
+            'missing_schedule' => 'Google Meet needs a current class schedule before an administrator can test it. Open the class to schedule it.',
+            'not_joinable' => 'This class is not in an authorised state, so the Meet classroom cannot be opened.',
+            'not_supported' => 'The Meet classroom is available for canonical term lessons and confirmed introductory bookings only.',
             'not_found' => 'No classroom resource is provisioned yet. Use the existing class or booking workflow to provision it.',
             default => 'The classroom provisioning state could not be read. No link was invented.',
         };

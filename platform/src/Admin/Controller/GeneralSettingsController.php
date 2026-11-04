@@ -259,7 +259,7 @@ final class GeneralSettingsController {
         $emergency = RecordingFeatureFlags::emergencyStop();
         echo '<section class="dzn-settings-card" id="recording-capture">';
         echo '<h2>Recording capture</h2>';
-        echo '<p class="dzn-settings-note">Global switch for new LiveKit lesson recordings. Consent, teacher/student authority, the lesson schedule and the archive health gate are still checked for every lesson. Turning this off also asks active recordings to stop; it does not delete archived media.</p>';
+        echo '<p class="dzn-settings-note">Legacy LiveKit recording control plane, retained for historical archive operations only. New lessons use Google Meet recording configured from the canonical consent gate; LiveKit routes are retired. Turning this off also asks active recordings to stop; it does not delete archived media.</p>';
         echo '<p><strong>Current state:</strong> <span class="dzn-status-badge ' . ($enabled ? 'is-ok' : 'is-warn') . '">' . esc_html($enabled ? 'Enabled' : 'Disabled') . '</span>';
         if (($emergency['engaged'] ?? false) === true) {
             echo ' <span class="dzn-status-badge is-warn">Emergency stop engaged</span>';

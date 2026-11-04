@@ -4,7 +4,6 @@ $model = $args['model'] ?? array();
 $onboarding = (array) ( $model['onboarding'] ?? array() );
 $profile_complete = 'complete' === (string) ( $onboarding['profile_state'] ?? '' );
 $availability_complete = 'complete' === (string) ( $onboarding['availability_state'] ?? '' );
-$google_connected = 'connected' === (string) ( $model['google_state'] ?? '' );
 $state = (string) ( $onboarding['state'] ?? 'linked_pending' );
 $ready = 'active' === $state && 'ready' === (string) ( $onboarding['readiness_state'] ?? '' );
 $state_labels = array(
@@ -14,7 +13,6 @@ $state_labels = array(
 $missing = array();
 if ( ! $profile_complete ) { $missing[] = 'اطلاعات و منطقهٔ زمانی'; }
 if ( ! $availability_complete ) { $missing[] = 'دست‌کم یک زمان واقعی برای تدریس'; }
-if ( ! $google_connected ) { $missing[] = 'اتصال Google Calendar'; }
 ?>
 
 <section class="dzn-tp-section dzn-tp-account-setup" aria-labelledby="tp-onboarding">
@@ -22,13 +20,12 @@ if ( ! $google_connected ) { $missing[] = 'اتصال Google Calendar'; }
 		<div><p class="dzn-tp-kicker">حساب مدرس دلنوازان</p><h2 id="tp-onboarding">راه‌اندازی حساب شما</h2></div>
 		<span><?php echo esc_html( $state_labels[ $state ] ?? 'وضعیت نامشخص' ); ?></span>
 	</div>
-	<p>همهٔ اطلاعات حساب، زمان‌های تدریس و اتصال تقویم در همین صفحه قرار دارد. موارد لازم را تکمیل کنید و در پایان برای بررسی مدیر بفرستید.</p>
+	<p>همهٔ اطلاعات حساب و زمان‌های تدریس در همین صفحه قرار دارد. موارد لازم را تکمیل کنید و در پایان برای بررسی مدیر بفرستید.</p>
 	<div class="dzn-tp-setup-progress" role="list" aria-label="وضعیت راه‌اندازی حساب">
 		<a class="<?php echo $profile_complete ? 'is-complete' : 'is-current'; ?>" href="#tp-profile" role="listitem"><span aria-hidden="true"><?php echo $profile_complete ? '✓' : '۱'; ?></span><strong>اطلاعات حساب</strong><small><?php echo $profile_complete ? 'کامل' : 'نیازمند تکمیل'; ?></small></a>
 		<a class="<?php echo $availability_complete ? 'is-complete' : ( $profile_complete ? 'is-current' : 'is-pending' ); ?>" href="#tp-availability" role="listitem"><span aria-hidden="true"><?php echo $availability_complete ? '✓' : '۲'; ?></span><strong>زمان‌های تدریس</strong><small><?php echo $availability_complete ? 'کامل' : 'نیازمند تکمیل'; ?></small></a>
-		<a class="<?php echo $google_connected ? 'is-complete' : ( $profile_complete && $availability_complete ? 'is-current' : 'is-pending' ); ?>" href="#tp-google" role="listitem"><span aria-hidden="true"><?php echo $google_connected ? '✓' : '۳'; ?></span><strong>تقویم Google</strong><small><?php echo $google_connected ? 'متصل' : 'متصل نیست'; ?></small></a>
 	</div>
-	<p class="dzn-tp-help">اتصال Google Calendar بخشی از سیاست آمادگی فعلی است و پیش از ارسال حساب برای بررسی باید کامل شود.</p>
+	<p class="dzn-tp-help">کلاس‌ها به‌صورت متمرکز توسط دلنوازان در Google Meet ساخته می‌شوند و نیازی به اتصال حساب Google شما نیست.</p>
 	<?php if ( isset( $_GET['dzn_notice'] ) ) : ?><p class="dzn-tp-notice <?php echo ( $_GET['dzn_error'] ?? '' ) === '1' ? 'is-error' : 'is-success'; ?>" role="status"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['dzn_notice'] ) ) ); ?></p><?php endif; ?>
 	<?php if ( in_array( $state, array( 'returned', 'rejected' ), true ) ) : ?><div class="dzn-tp-review-note is-warning"><strong>یادداشت بررسی</strong><p><?php echo esc_html( (string) ( $onboarding['review_note'] ?? 'اطلاعات برای اصلاح برگردانده شده است.' ) ); ?></p></div><?php endif; ?>
 </section>

@@ -185,8 +185,9 @@ final class TeacherOnboardingService {
             && (bool) Normalizer::locale( $teacher->locale )
             && in_array( (string) $teacher->calendar_preference, array( 'auto', 'gregorian', 'persian' ), true );
         $availability = $profile && $this->repo->hasUsableAvailability( (int) $teacher->id, (string) $teacher->timezone );
-        $google = $this->repo->hasUsableGoogleConnection( (int) $teacher->id );
-        return array( 'profile_state' => $profile ? 'complete' : 'incomplete', 'availability_state' => $availability ? 'complete' : 'incomplete', 'google_state' => $google ? 'connected' : 'not_connected', 'ready_for_activation' => $profile && $availability && $google );
+        // The classroom is managed by the single Delnavazan Workspace organizer. A Teacher never
+        // authorizes Delnavazan against a personal Google account, so this is not an onboarding gate.
+        return array( 'profile_state' => $profile ? 'complete' : 'incomplete', 'availability_state' => $availability ? 'complete' : 'incomplete', 'google_state' => 'managed_centrally', 'ready_for_activation' => $profile && $availability );
     }
 
     /** A safe teacher-facing correction note; raw internal reason codes are never echoed. */

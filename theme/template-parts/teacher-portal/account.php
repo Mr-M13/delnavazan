@@ -29,4 +29,3 @@
 <?php if ( $show_recording_terms ) : ?>
 <?php dzn_theme_teacher_portal_component( 'recording-terms', array( 'recording' => $m['recording_terms'] ?? array() ) ); ?>
 <?php endif; ?>
-<?php dzn_theme_teacher_portal_component('help'); ?>

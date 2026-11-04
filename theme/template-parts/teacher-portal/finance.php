@@ -34,15 +34,12 @@ $format_instant = static function ( string $utc ) use ( $timezone, $calendar, $l
 	return dzn_theme_platform_calendar_time( $utc, $timezone ?: ( wp_timezone_string() ?: 'UTC' ), $calendar, $locale, 'datetime' );
 };
 $ending_terms = is_array( $summary['ending_terms'] ?? null ) ? $summary['ending_terms'] : array();
-$next_lesson  = is_array( $summary['next_lesson'] ?? null ) ? $summary['next_lesson'] : null;
 $hours_month  = number_format_i18n( ( (int) ( $summary['completed_minutes_month'] ?? $summary['minutes_month'] ?? 0 ) ) / 60, 1 );
 $scheduled_hours_month = number_format_i18n( ( (int) ( $summary['scheduled_minutes_month'] ?? 0 ) ) / 60, 1 );
 $remuneration = is_array( $summary['remuneration'] ?? null ) ? $summary['remuneration'] : array();
 $rate         = is_array( $remuneration['rate'] ?? null ) ? $remuneration['rate'] : array( 'state' => 'unavailable' );
-$earned       = is_array( $remuneration['earned'] ?? null ) ? $remuneration['earned'] : array( 'state' => 'unavailable' );
 $golden       = is_array( $remuneration['golden_hour'] ?? null ) ? $remuneration['golden_hour'] : array( 'state' => 'unavailable' );
 $expected     = is_array( $remuneration['expected_total'] ?? null ) ? $remuneration['expected_total'] : array( 'state' => 'unavailable' );
-$payout       = is_array( $remuneration['payout'] ?? null ) ? $remuneration['payout'] : array( 'state' => 'unavailable', 'reason' => 'payout_ledger_unavailable' );
 $format_percentage = static function ( int $basis_points ): string {
 	return rtrim( rtrim( number_format( $basis_points / 100, 2, '.', '' ), '0' ), '.' );
 };
@@ -55,7 +52,6 @@ $format_percentage = static function ( int $basis_points ): string {
 		</div>
 		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
 	</div>
-	<?php dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'توزیع توضیحی درآمد قطعی نیست', 'text' => 'مبلغ توضیحی شهریه با مبلغ تعلق‌گرفته، صورت‌حساب صادرشده و پرداخت واقعی تفاوت دارد. اختلاف را از مسیر پشتیبانی گزارش کنید.', 'module' => 'finance' ) ); ?>
 	<?php if ( 'available' === $summary_state ) : ?>
 		<div class="dzn-tp-stats dzn-tp-stats--finance">
 			<div><span>هنرجویان فعال</span><strong><?php echo esc_html( number_format_i18n( (int) ( $summary['active_students'] ?? 0 ) ) ); ?></strong></div>
@@ -66,7 +62,6 @@ $format_percentage = static function ( int $basis_points ): string {
 		</div>
 		<section class="dzn-tp-finance-remuneration" aria-labelledby="teacher-finance-remuneration">
 			<h3 id="teacher-finance-remuneration">دستمزد و پاداش</h3>
-			<p class="dzn-tp-help">این ارقام از دستمزد توافق‌شده و صورت‌حساب‌های صادرشده خوانده می‌شوند. مبلغ برآوردی یا صورت‌حساب، به‌تنهایی به‌معنای پرداخت‌شده بودن نیست.</p>
 			<ul class="dzn-tp-rule-list dzn-tp-finance-remuneration__list">
 				<li>
 					<strong>دستمزد توافقی</strong>
@@ -76,16 +71,6 @@ $format_percentage = static function ( int $basis_points ): string {
 						<span> · چند نرخ فعال هم‌زمان ثبت شده است؛ برای جلوگیری از حدس، نرخ واحد نمایش داده نمی‌شود.</span>
 					<?php else : ?>
 						<span> · نرخ توافق‌شدهٔ فعالی ثبت نشده است.</span>
-					<?php endif; ?>
-				</li>
-				<li>
-					<strong>درآمد ثبت‌شده در صورت‌حساب‌ها</strong>
-					<?php if ( 'available' === (string) ( $earned['state'] ?? '' ) ) : ?>
-						<span> · <bdi dir="ltr"><?php echo esc_html( $format_money( (int) $earned['amount_minor'], (string) $earned['currency'] ) ); ?></bdi> از <?php echo esc_html( number_format_i18n( (int) ( $earned['statement_count'] ?? 0 ) ) ); ?> صورت‌حساب دورهٔ تکمیل‌شده</span>
-					<?php elseif ( 'no_issued_statement' === (string) ( $earned['reason'] ?? '' ) ) : ?>
-						<span> · هنوز صورت‌حساب صادرشده‌ای برای یک دورهٔ تکمیل‌شده ثبت نشده است.</span>
-					<?php else : ?>
-						<span> · مبلغ قابل اتکا از صورت‌حساب‌ها در دسترس نیست.</span>
 					<?php endif; ?>
 				</li>
 				<li>
@@ -110,39 +95,8 @@ $format_percentage = static function ( int $basis_points ): string {
 						<span> · در دسترس نیست.</span>
 					<?php endif; ?>
 				</li>
-				<li>
-					<strong>وضعیت پرداخت</strong>
-					<?php
-					$payout_labels = array( 'up_to_date' => 'تسویه‌شده', 'pending' => 'در انتظار پرداخت', 'overdue' => 'پرداخت معوق', 'not_due' => 'موردی برای پرداخت نیست', 'unavailable' => 'در دسترس نیست' );
-					$payout_status = (string) ( $payout['status'] ?? 'unavailable' );
-					?>
-					<span> · <?php echo esc_html( $payout_labels[ $payout_status ] ?? 'در دسترس نیست' ); ?></span>
-				</li>
-				<li>
-					<strong>پرداخت‌های واقعی</strong>
-					<?php if ( 'available' === (string) ( $payout['state'] ?? '' ) ) : ?>
-						<span> · <bdi dir="ltr"><?php echo esc_html( $format_money( (int) ( $payout['paid_minor'] ?? 0 ), (string) ( $payout['currency'] ?? $rate['currency'] ?? '' ) ) ); ?></bdi></span>
-					<?php else : ?>
-						<span> · در دسترس نیست.</span>
-					<?php endif; ?>
-				</li>
-				<li>
-					<strong>ماندهٔ پرداخت‌نشده</strong>
-					<?php if ( 'available' === (string) ( $payout['state'] ?? '' ) ) : ?>
-						<span> · <bdi dir="ltr"><?php echo esc_html( $format_money( (int) ( $payout['unpaid_minor'] ?? 0 ), (string) ( $payout['currency'] ?? $rate['currency'] ?? '' ) ) ); ?></bdi></span>
-					<?php else : ?>
-						<span> · در دسترس نیست.</span>
-					<?php endif; ?>
-				</li>
 			</ul>
 		</section>
-		<?php if ( $next_lesson ) : ?>
-			<section class="dzn-tp-finance-next" aria-labelledby="teacher-finance-next">
-				<h3 id="teacher-finance-next">کلاس بعدی</h3>
-				<p><strong><?php echo esc_html( (string) ( $next_lesson['student'] ?? '' ) ); ?></strong><?php if ( '' !== (string) ( $next_lesson['course'] ?? '' ) ) : ?> · <?php echo esc_html( (string) $next_lesson['course'] ); ?><?php endif; ?></p>
-				<p class="dzn-tp-help"><?php echo esc_html( $format_instant( (string) ( $next_lesson['starts_at_utc'] ?? '' ) ) ); ?></p>
-			</section>
-		<?php endif; ?>
 		<section class="dzn-tp-finance-terms" aria-labelledby="teacher-finance-terms">
 			<h3 id="teacher-finance-terms">ترم‌های نزدیک به پایان</h3>
 			<?php if ( ! $ending_terms ) : ?>

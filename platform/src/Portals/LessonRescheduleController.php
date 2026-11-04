@@ -34,6 +34,7 @@ final class LessonRescheduleController {
                     'jalali_year'=>$post['jalali_year']??null,
                     'jalali_month'=>$post['jalali_month']??null,
                     'jalali_day'=>$post['jalali_day']??null,
+                    'confirm_outside_availability'=>!empty($post['confirm_outside_availability']),
                 ),
                 (string)($post['request_key']??'')
             );
@@ -67,6 +68,8 @@ final class LessonRescheduleController {
             'reschedule_notice_too_short'=>'برای تغییر زمان، دست‌کم یک ساعت پیش از شروع کلاس اقدام کنید.',
             'reschedule_start_not_future'=>'زمان جدید باید در آینده باشد.',
             'teacher_unavailable'=>'این زمان خارج از زمان‌های در دسترس شماست. زمان دیگری انتخاب کنید.',
+            'teacher_availability_confirmation_required'=>'زمان انتخاب‌شده خارج از ساعات در دسترس شماست. اگر می‌خواهید این زمان به‌صورت استثنایی ثبت شود، گزینهٔ «تأیید زمان خارج از ساعات در دسترس» را انتخاب کنید و دوباره بفرستید.',
+            'teacher_availability_confirmation_blocked'=>'این زمان با یک روز تعطیل یا محدودیت دیگری در ساعات در دسترس شما تداخل دارد و به‌صورت استثنایی قابل ثبت نیست. ابتدا محدودیت را از تنظیمات بردارید یا زمان دیگری انتخاب کنید.',
             'reschedule_lesson_in_progress'=>'این کلاس در حال برگزاری است و زمان آن قابل تغییر نیست.',
             'reschedule_lesson_not_eligible'=>'این جلسه قابل تغییر زمان یا ثبت جلسهٔ جبرانی نیست.',
             'stale_schedule_version'=>'زمان کلاس هم‌زمان تغییر کرده است. صفحه را تازه کنید و دوباره تلاش کنید.',

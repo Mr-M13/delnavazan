@@ -41,6 +41,6 @@ $assert(str_contains($migration, "'issued','paid','superseded'"), 'The statement
 $controller = $read('src/Admin/Controller/FinanceAdminController.php');
 $assert(str_contains($controller, "'record_payment'") && str_contains($controller, 'TeacherStatementPaymentService'), 'The administrator surface must expose the settlement command through the canonical service.');
 $assert(str_contains($controller, 'Mark paid') && str_contains($controller, 'payment_reference'), 'The administrator must provide an external settlement reference.');
-$assert(str_contains($template, 'وضعیت پرداخت') && str_contains($template, 'ماندهٔ پرداخت‌نشده'), 'The Teacher finance template must show payment status and unpaid balance.');
+$assert(!str_contains($template, 'درآمد ثبت‌شده در صورت‌حساب‌ها') && !str_contains($template, '<strong>وضعیت پرداخت</strong>') && !str_contains($template, 'پرداخت‌های واقعی') && !str_contains($template, 'ماندهٔ پرداخت‌نشده'), 'The Teacher finance template must not present the removed income and payment-status blocks.');
 
 echo "teacher-statement-payment-contract: OK\n";

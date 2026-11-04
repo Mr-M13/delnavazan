@@ -62,7 +62,7 @@ $check( 'the guide does not fetch portal data or add jump behaviour', ! str_cont
 $check( 'guides target existing navigation elements', str_contains( $files['shell'], 'data-dzn-nav-screen' ) && str_contains( $files['shell'], 'data-dzn-nav-notifications' ) );
 $check( 'onboarding status labels are honest', str_contains( $files['onboarding'], "'pending_review' => 'در انتظار بررسی مدیر'" ) && str_contains( $files['onboarding'], "'rejected' => 'پذیرفته نشد'" ) );
 $check( 'onboarding shows safe review notes and no raw reason code', str_contains( $files['onboarding'], "['review_note']" ) && ! str_contains( $files['onboarding'], 'review_reason_code' ) );
-$check( 'onboarding makes the authoritative Google requirement explicit', str_contains( $files['onboarding'], 'اتصال Google Calendar بخشی از سیاست آمادگی فعلی است' ) );
+$check( 'onboarding states that the classroom is centrally managed', str_contains( $files['onboarding'], 'به‌صورت متمرکز توسط دلنوازان' ) );
 $check( 'induction adds no absence, schedule, finance or notification authority', ! str_contains( $files['service'], 'replacement_allowance' ) && ! str_contains( $files['repository'], 'replacement_allowance' ) && ! str_contains( $files['repository'], 'notification' ) && ! str_contains( $files['service'], 'INSERT INTO' ) );
 $check( 'the architecture document describes the one-page quick-start', str_contains( $files['docs'], 'one page' ) && str_contains( $files['docs'], 'nine' ) && str_contains( $files['docs'], 'teacher_induction_progress' ) );
 

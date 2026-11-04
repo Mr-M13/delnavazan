@@ -18,7 +18,7 @@ $first_name = ( 'ok' === $state && isset( $student['first_name'] ) ) ? (string) 
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $notification_unread = isset( $model['notification_unread_count'] ) ? max( 0, (int) $model['notification_unread_count'] ) : 0;
 $notifications_available = ! empty( $model['notifications_available'] );
-$notification_classes_url = home_url( '/student-portal/' ) . '#dzn-notification-banner';
+$notification_classes_url = home_url( '/student-portal/' ) . '#dzn-portal-notifications';
 $screen_title = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت' : 'کلاس‌ها' );
 $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $screen ? 'پرداخت و اشتراک' : ( 'درود بر شما' . ( '' !== $first_name ? '، ' . $first_name : '' ) ) );
 ?>
@@ -59,7 +59,6 @@ $heading = 'account' === $screen ? 'حساب کاربری' : ( 'payments' === $s
 		<?php if ( ! empty( $model['is_demo'] ) ) : ?>
 			<p class="dzn-portal__demo-label" role="status"><?php esc_html_e( 'پیش‌نمایش نمایشی — اطلاعات ساختگی و غیرقابل ذخیره', 'delnavazan-theme' ); ?></p>
 		<?php endif; ?>
-		<?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'student' ) ); ?>
 
 		<?php if ( 'signed_out' === $state ) : ?>
 			<?php

@@ -463,7 +463,7 @@ function dzn_theme_render_recording_information_route() {
 	get_template_part( 'template-parts/recording/research-information' );
 }
 
-function dzn_theme_render_music_classroom_route() { get_template_part( 'template-parts/classroom/music' ); }
+function dzn_theme_render_music_classroom_route() { get_template_part( 'template-parts/classroom/meet' ); }
 
 /**
  * Legacy `/booking/` links remain temporary entry points.
@@ -561,24 +561,9 @@ function dzn_theme_route_assets() {
 	if ( dzn_theme_is_route( 'student-portal' ) || dzn_theme_is_route( 'dashboard' ) ) { dzn_theme_enqueue_portal_assets(); }
 	if ( dzn_theme_is_route( 'teacher-portal' ) ) { dzn_theme_enqueue_teacher_portal_assets(); }
 	if ( dzn_theme_is_route( 'music-classroom' ) ) {
-		$css = get_theme_file_path( 'assets/css/music-classroom.css' );
-		$js = get_theme_file_path( 'assets/js/music-classroom.js' );
-		$sdk = get_theme_file_path( 'assets/js/vendor/livekit-client.umd.min.js' );
+		$css = get_theme_file_path( 'assets/css/meet-classroom.css' );
 		$version = file_exists( $css ) ? (string) filemtime( $css ) : wp_get_theme()->get( 'Version' );
-		wp_enqueue_style( 'delnavazan-music-classroom', get_theme_file_uri( 'assets/css/music-classroom.css' ), array( 'delnavazan-theme' ), $version );
-		wp_enqueue_script( 'delnavazan-livekit-client', get_theme_file_uri( 'assets/js/vendor/livekit-client.umd.min.js' ), array(), file_exists( $sdk ) ? (string) filemtime( $sdk ) : wp_get_theme()->get( 'Version' ), array( 'in_footer' => true ) );
-		wp_enqueue_script( 'delnavazan-music-classroom', get_theme_file_uri( 'assets/js/music-classroom.js' ), array( 'delnavazan-livekit-client' ), file_exists( $js ) ? (string) filemtime( $js ) : wp_get_theme()->get( 'Version' ), array( 'in_footer' => true ) );
-		wp_localize_script(
-			'delnavazan-music-classroom',
-			'dznMusicClassroom',
-			array(
-				'sessionUrl' => esc_url_raw( rest_url( 'delnavazan-platform/v1/livekit/session' ) ),
-				'nonce' => wp_create_nonce( 'wp_rest' ),
-				'logoUrl' => get_theme_file_uri( 'assets/images/delnavazan-logo.png' ),
-				'meetActionUrl' => admin_url( 'admin-post.php?action=dzn_livekit_meet_fallback' ),
-				'meetNonce' => wp_create_nonce( 'dzn_livekit_meet_fallback' ),
-			)
-		);
+		wp_enqueue_style( 'delnavazan-meet-classroom', get_theme_file_uri( 'assets/css/meet-classroom.css' ), array( 'delnavazan-theme' ), $version );
 	}
 }
 add_action( 'wp_enqueue_scripts', 'dzn_theme_route_assets', 21 );

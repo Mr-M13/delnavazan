@@ -76,8 +76,31 @@ final class RecordingDecisionAuthorityService {
         );
     }
 
-    /** The current published notice for a supported audience, or null when none is approved. */
-    public function publishedNotice(string $audience,string $language):?array {
+    /**
+     * Lesson-scoped recording eligibility used by the Google Meet classroom authority.
+     *
+     * This is a read-only legal gate, not a capture action. Recording may be configured only when
+     * the Student's latest `lesson_recording` decision is `allow` under the currently published
+     * notice and the Teacher's `teacher_terms` acceptance is current. A Student who is not a
+     * verified adult cannot authorize through this path, so recording stays off. Research permission is
+     * deliberately independent and never enables recording or export.
+     */
+    public function lessonRecordingEligibility(int $lessonId):array {
+        global $wpdb; $p=$wpdb->prefix.'dzn_'; $now=gmdate('Y-m-d H:i:s');
+        $lesson=$wpdb->get_row($wpdb->prepare("SELECT id,student_id,teacher_id FROM {$p}lessons WHERE id=%d AND archived_at IS NULL LIMIT 1",$lessonId));
+        if(!$lesson)return $this->eligibility(false,'lesson_not_found',null);
+        $capacity=(string)$wpdb->get_var($wpdb->prepare("SELECT c.classification FROM {$p}students s LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE s.id=%d AND s.status='active' AND s.archived_at IS NULL LIMIT 1",(int)$lesson->student_id));
+        if($capacity!=='adult')return $this->eligibility(false,'student_capacity_unavailable',null);
+        $student=$wpdb->get_row($wpdb->prepare("SELECT d.id,d.decision_code,d.notice_uid,d.notice_language_code,d.notice_version_number,d.notice_version_id,d.decided_at FROM {$p}recording_decisions d WHERE d.subject_type='student' AND d.subject_id=%d AND d.purpose_code='lesson_recording' ORDER BY d.decided_at DESC,d.id DESC LIMIT 1",(int)$lesson->student_id));
+        if(!$student||(string)$student->decision_code!=='allow')return $this->eligibility(false,'student_recording_not_allowed',$student);
+        if(!$this->noticeIsCurrent((int)$student->notice_version_id))return $this->eligibility(false,'student_notice_not_current',$student);
+        $teacher=$wpdb->get_row($wpdb->prepare("SELECT d.id,d.decision_code,d.notice_uid,d.notice_language_code,d.notice_version_number,d.notice_version_id,d.decided_at FROM {$p}recording_decisions d WHERE d.subject_type='teacher' AND d.subject_id=%d AND d.purpose_code='teacher_terms' ORDER BY d.decided_at DESC,d.id DESC LIMIT 1",(int)$lesson->teacher_id));
+        if(!$teacher||(string)$teacher->decision_code!=='accepted')return $this->eligibility(false,'teacher_terms_not_accepted',$student,$teacher);
+        if(!$this->noticeIsCurrent((int)$teacher->notice_version_id))return $this->eligibility(false,'teacher_notice_not_current',$student,$teacher);
+        return $this->eligibility(true,null,$student,$teacher);
+    }
+
+    /** The current published notice for a supported audience, or null when none is approved. */    public function publishedNotice(string $audience,string $language):?array {
         if(!in_array($audience,array(self::AUDIENCE_TEACHER_TERMS,self::AUDIENCE_STUDENT_RECORDING,self::AUDIENCE_STUDENT_RESEARCH),true))throw new \InvalidArgumentException('recording_notice_audience_invalid');
         if(!in_array($language,array('en','fa'),true))throw new \InvalidArgumentException('recording_decision_language_invalid');
         global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
@@ -140,7 +163,19 @@ final class RecordingDecisionAuthorityService {
     private function lockAdultStudent(int $student,int $actor):void{global $wpdb;$p=$wpdb->prefix.'dzn_';$rows=(array)$wpdb->get_results($wpdb->prepare("SELECT s.id,c.classification FROM {$p}student_principal_links l INNER JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE l.wordpress_user_id=%d AND l.student_id=%d AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL AND s.status='active' AND s.archived_at IS NULL FOR UPDATE",$actor,$student));if(count($rows)===0)throw new \RuntimeException('recording_student_principal_required');if(count($rows)!==1)throw new \RuntimeException('recording_student_principal_ambiguous');if((string)$rows[0]->classification!=='adult')throw new \RuntimeException('recording_student_capacity_unavailable');}
     private function latestDecision(string $subjectType,int $subjectId,string $purpose):?object{global $wpdb;$p=$wpdb->prefix.'dzn_';return$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_decisions WHERE subject_type=%s AND subject_id=%d AND purpose_code=%s ORDER BY decided_at DESC,id DESC LIMIT 1",$subjectType,$subjectId,$purpose));}
     private function noticeIsCurrent(int $noticeId):bool{global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');$row=$wpdb->get_row($wpdb->prepare("SELECT audience_code,language_code,version_number FROM {$p}recording_notice_versions WHERE id=%d AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$noticeId,$now,$now));if(!$row)return false;return$this->noticeVersionIsCurrent((string)$row->audience_code,(string)$row->language_code,(int)$row->version_number);}
-    private function emptyChoice():array{return array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null);}
-    private function choiceState(?object $row):array{return $row?array('decision'=>(string)$row->decision_code,'decided_at'=>(string)$row->decided_at,'notice_uid'=>(string)$row->notice_uid,'notice_version'=>(int)$row->notice_version_number,'language'=>(string)$row->notice_language_code):$this->emptyChoice();}
+    private function eligibility(bool $eligible,?string $reason,?object $student,?object $teacher=null):array{
+        return array(
+            'eligible'=>$eligible,'reason'=>$reason,'evaluated_at'=>gmdate('Y-m-d H:i:s'),
+            'student_decision_id'=>$student?(int)$student->id:null,
+            'student_notice_uid'=>$student?(string)$student->notice_uid:null,
+            'student_notice_version'=>$student?(int)$student->notice_version_number:null,
+            'teacher_decision_id'=>$teacher?(int)$teacher->id:null,
+            'teacher_notice_uid'=>$teacher?(string)$teacher->notice_uid:null,
+            'teacher_notice_version'=>$teacher?(int)$teacher->notice_version_number:null,
+            'research_export_enabled'=>self::RESEARCH_EXPORT_ENABLED,
+        );
+    }
+
+    private function emptyChoice():array{return array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null);}    private function choiceState(?object $row):array{return $row?array('decision'=>(string)$row->decision_code,'decided_at'=>(string)$row->decided_at,'notice_uid'=>(string)$row->notice_uid,'notice_version'=>(int)$row->notice_version_number,'language'=>(string)$row->notice_language_code):$this->emptyChoice();}
     private function digest(string $value):string{return hash('sha256',self::EVIDENCE_KEY_VERSION."\n".$value);}
 }

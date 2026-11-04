@@ -163,17 +163,17 @@ return array(
 			'google_state'       => 'not_connected',
 			'expected_step'      => 3,
 		),
-		'first_incomplete_google' => array(
+		'profile_and_availability_complete_review' => array(
 			'profile_state'      => 'complete',
 			'availability_state' => 'complete',
-			'google_state'       => 'not_connected',
+			'google_state'       => 'managed_centrally',
 			'expected_step'      => 4,
 		),
 		'ready' => array(
 			'profile_state'      => 'complete',
 			'availability_state' => 'complete',
-			'google_state'       => 'connected',
-			'expected_step'      => 5,
+			'google_state'       => 'managed_centrally',
+			'expected_step'      => 4,
 		),
 		'query_may_not_skip_ahead' => array(
 			'profile_state'      => 'complete',

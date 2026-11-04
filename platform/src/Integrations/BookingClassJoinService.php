@@ -23,6 +23,10 @@ final class BookingClassJoinService {
         if (preg_match('/^[0-9A-Z]{26}$/D', $confirmationUid) !== 1 || !in_array($role, array('teacher','student'), true)) {
             throw new \InvalidArgumentException('portal_object_not_portal_visible');
         }
+        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService')){
+            $central=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService())->forBooking($confirmationUid,$role);
+            if($central!==null)return $central;
+        }
         $principal = (new PortalPrincipalResolver())->resolve($role);
         $row = $this->repository->confirmedForParticipant($confirmationUid, $role, (int) $principal['id']);
         if (!$row) throw new \InvalidArgumentException('portal_object_not_owned');

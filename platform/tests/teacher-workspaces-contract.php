@@ -40,7 +40,7 @@ $expect(!str_contains($screen, "self::formStart('update_teacher_profile')"), 'Te
 $contains($screen, array("self::formStart('issue_teacher_invitation_by_email')"), 'Invitation creation remains a deliberate invitation action.');
 $expect(!str_contains($screen, 'teacherArchiveActions('), 'Teacher lifecycle must not retain a parallel archive form.');
 $expect(!str_contains($screen, 'name="command_key"'), 'Invitation idempotency keys must be generated server-side, not exposed in the form.');
-$contains($screen, array('Google account', 'Calendar', 'Meet', 'Blockers / next action', 'meet_caveat', 'generation_expires_at', 'invitation_form_id', 'teacherAnchor'), 'Onboarding must render Google account, Calendar, Meet, blockers, next action, invitation expiry and human anchors with the Meet caveat.');
+$contains($screen, array('Classroom', 'Blockers / next action', 'generation_expires_at', 'invitation_form_id', 'teacherAnchor'), 'Onboarding must render the centrally managed classroom, blockers, next action, invitation expiry and human anchors.');
 $expect(!str_contains($screen, "'#dzn-teacher-onboarding-' . (int)"), 'Onboarding anchors must not expose raw Teacher identifiers.');
 
 $contains($registry, array(
@@ -74,8 +74,8 @@ $contains($onboarding, array(
     'meet_caveat',
     'calendar',
     'meeting',
-    'A Google account connection does not prove that Google Meet is operational.',
-), 'Onboarding must show progress, blockers, next action, Google account, Calendar and Meet evidence separately.');
+    'Classroom managed centrally by Delnavazan',
+), 'Onboarding must show progress, blockers, next action and the central classroom state.');
 $contains($repository, array(
     'workspaceRows',
     'googleConnection',

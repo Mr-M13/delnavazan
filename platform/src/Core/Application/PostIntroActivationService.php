@@ -245,6 +245,13 @@ final class PostIntroActivationService {
     }
 
     private function projectCalendar(int $lessonId, int $scheduleVersionId, string $uid, int $sequence, string $evidenceAt): void {
+        // Primary classroom: one Delnavazan-owned Google Meet space, with the Teacher as external
+        // co-host. If the organizer is not configured, the preserved legacy projection remains the
+        // fallback so a rollback needs no schema change.
+        if (class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService') && \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()) {
+            (new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->ensureForLesson($lessonId, $scheduleVersionId);
+            return;
+        }
         $projection = (new ProviderIntegrationService(
             null,
             null,

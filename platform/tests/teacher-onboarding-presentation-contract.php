@@ -62,10 +62,9 @@ $check( 'the raw review reason code is not echoed at the teacher', ! str_contain
 $check( 'returned/rejected states still explain the correction path', str_contains( $onboarding, 'برای اصلاح برگردانده شده است' ) );
 $check( 'can_edit still gates profile writes', str_contains( $onboarding, '$editable' ) );
 $check( 'can_submit still gates submission', str_contains( $onboarding, "! empty( \$onboarding['can_submit'] )" ) );
-$check( 'Google connect keeps its nonce', str_contains( $onboarding, 'google_nonce' ) );
-$check( 'Google disconnect keeps its nonce', str_contains( $onboarding, 'google_disconnect_nonce' ) );
-$check( 'Google unavailable is stated honestly', str_contains( $onboarding, "=== ( \$model['google_state'] ?? '' )" ) && str_contains( $onboarding, 'در دسترس نیست' ) );
-$check( 'forward links respect the server maximum step', str_contains( $onboarding, '$max_step >= 4' ) && str_contains( $onboarding, '$max_step >= 5' ) );
+$check( 'Teacher Google authorization is no longer requested', ! str_contains( $onboarding, 'google_nonce' ) && ! str_contains( $onboarding, 'google_disconnect_nonce' ) );
+$check( 'Central classroom management is stated honestly', str_contains( $onboarding, 'به‌صورت متمرکز توسط دلنوازان' ) );
+$check( 'forward links respect the server maximum step', str_contains( $onboarding, '$max_step >= 4' ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Teacher onboarding presentation contract failed: ' . implode( '; ', $failures ) );

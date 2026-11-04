@@ -14,6 +14,10 @@ final class TeacherClassJoinService {
     public function target(string $lessonUid,string $scheduleUid):string{
         $lessonUid=trim($lessonUid);$scheduleUid=trim($scheduleUid);
         if($lessonUid===''||$scheduleUid==='')throw new \InvalidArgumentException('portal_object_not_portal_visible');
+        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService')){
+            $central=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService())->forLesson($lessonUid,$scheduleUid,'teacher');
+            if($central!==null)return $central;
+        }
         $principal=(new PortalPrincipalResolver())->resolve('teacher');
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $lesson=$wpdb->get_row($wpdb->prepare("SELECT id,record_model,lifecycle_state FROM {$p}lessons WHERE uid=%s AND archived_at IS NULL LIMIT 1",$lessonUid));

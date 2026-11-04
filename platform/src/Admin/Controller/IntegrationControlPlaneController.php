@@ -186,8 +186,8 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google OAuth / Calendar');
-        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration separately from Google OAuth discovery reachability. It does not authorize or impersonate a teacher.');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google Workspace classroom');
+        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration. The organizer connection is authorized separately and only by an administrator.');
         $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         echo '<div class="wrap"><h1>'.esc_html($labels[$provider]??$provider).'</h1><p>Credentials are encrypted at rest and never displayed. Leave a secret blank to keep its current value.</p>';
@@ -201,6 +201,22 @@ final class IntegrationControlPlaneController {
         }
         if($provider==='email'){
             echo '<p>The dedicated teacher invitation email has its own one-time-secret delivery authority. <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Open the Teacher invitation template</a>.</p>';
+        }
+        if($provider==='google'){
+            $health=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService())->health();
+            $state=(string)($health['state']??'not_connected');
+            echo '<h2>Delnavazan Workspace organizer</h2><p>The single organizer account creates every Meet space. Teachers are invited as external co-hosts and never authorize Delnavazan against their personal Google account.</p>';
+            echo '<table class="widefat striped"><tbody><tr><th>Organizer</th><td><code>'.esc_html((string)($health['organizer_email']??'')).'</code></td></tr><tr><th>Connection</th><td>'.esc_html($state).'</td></tr><tr><th>Required scopes</th><td>'.esc_html(!empty($health['scope_match'])?'exact match':'re-consent required').'</td></tr><tr><th>Credential</th><td>'.esc_html(!empty($health['credential_valid'])?'valid':'missing or expired').'</td></tr><tr><th>Last checked</th><td>'.esc_html((string)($health['last_checked_at']??'never')).'</td></tr></tbody></table>';
+            echo '<p><strong>Authorized redirect URI:</strong> <code>'.esc_html((string)($health['callback_url']??'')).'</code></p>';
+            echo '<p>Granted scopes: Calendar events, Meet spaces and members, Meet space settings, Meet conference records, Drive read-only, and organizer e-mail identity. Recording is configured only when the Student recording decision and Teacher terms are both current.</p>';
+            if(in_array($state,array('connected','refresh_failed'),true)){
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_connect">';wp_nonce_field('dzn_meet_connect');echo '<button class="button">Re-authorize organizer</button></form> ';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_disconnect">';wp_nonce_field('dzn_meet_disconnect');echo '<button class="button">Disconnect locally</button></form> ';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_revoke">';wp_nonce_field('dzn_meet_revoke');echo '<button class="button button-link-delete">Revoke Google grant</button></form>';
+            }else{
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_meet_connect">';wp_nonce_field('dzn_meet_connect');echo '<button class="button button-primary">Connect organizer account</button></form>';
+            }
+            if(isset($_GET['meet_result']))echo '<div class="notice notice-info inline"><p>'.esc_html(sanitize_text_field((string)$_GET['meet_result'])).'</p></div>';
         }
         if(in_array($provider,array('sms','whatsapp'),true)){
             $keyCheck=(array)get_option('dzn_telnyx_public_key_sync_result',array());
@@ -235,7 +251,7 @@ final class IntegrationControlPlaneController {
         if($provider==='email'&&!empty($last['diagnostic'])&&is_array($last['diagnostic']))self::renderEmailDiagnostic($last['diagnostic']);
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_save"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_save_'.$provider);
         echo '<table class="form-table"><tbody>';
-        foreach($schema as $field=>$type){$label=ucwords(str_replace('_',' ',$field));$secret=$type==='secret';$value=$configs[$field]??'';if($provider==='email'&&$field==='from_email'&&$value==='')$value='no-reply@delnavazan.com';if($provider==='email'&&$field==='from_name'&&$value==='')$value='Delnavazan';if($provider==='google'&&$field==='redirect_uri'&&$value==='')$value=admin_url('admin-post.php?action=dzn_google_oauth_callback');
+        foreach($schema as $field=>$type){$label=ucwords(str_replace('_',' ',$field));$secret=$type==='secret';$value=$configs[$field]??'';if($provider==='email'&&$field==='from_email'&&$value==='')$value='no-reply@delnavazan.com';if($provider==='email'&&$field==='from_name'&&$value==='')$value='Delnavazan';if($provider==='google'&&$field==='redirect_uri'&&$value==='')$value=admin_url('admin-post.php?action=dzn_google_oauth_callback');if($provider==='google'&&$field==='meet_redirect_uri'&&$value==='')$value=admin_url('admin-post.php?action=dzn_meet_oauth_callback');
             echo '<tr><th><label for="dzn-'.esc_attr($field).'">'.esc_html($label).'</label></th><td>';
             if($field==='mode')echo '<select id="dzn-mode" name="settings[mode]"><option value="host_mail"'.selected((string)$value,'host_mail',false).'>Host mail</option><option value="smtp"'.selected((string)$value,'smtp',false).'>SMTP</option></select>';
             elseif($field==='encryption')echo '<select id="dzn-encryption" name="settings[encryption]"><option value="tls"'.selected((string)$value,'tls',false).'>TLS</option><option value="ssl"'.selected((string)$value,'ssl',false).'>SSL</option><option value="none"'.selected((string)$value,'none',false).'>None</option></select>';
@@ -307,9 +323,16 @@ final class IntegrationControlPlaneController {
         echo '<tr><th>Telnyx webhook signature</th><td>'.esc_html((string)($webhook['signature']??'not_configured')).'</td></tr>';
         echo '<tr><th>Telnyx WhatsApp templates</th><td>'.esc_html((string)(int)($telnyx['whatsapp']['templates']['approved']??0)).' approved · '.esc_html((string)(int)($telnyx['whatsapp']['templates']['mapped']??0)).' mapped · '.esc_html((string)(int)($telnyx['whatsapp']['templates']['unmapped']??0)).' unmapped</td></tr>';
         foreach(array('copy_definitions'=>'Notification copy definitions','dispatch_actor'=>'Notification dispatch actor','student_route_filter'=>'Student route authority','student_consent_filter'=>'Student consent authority','student_guardian_filter'=>'Guardian authority') as $key=>$label)echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)($telnyx['routing'][$key]??'not_configured')).'</td></tr>';
-        echo '<tr><th>Google teacher calendar</th><td>'.esc_html((string)$r['google_calendar']['oauth_client']).'</td></tr></tbody></table><h2>Google teacher connection</h2><p>Teachers connect or disconnect their own account from their account settings. Calendar entries are projections of Delnavazan’s canonical schedule; Delnavazan remains authoritative.</p><table class="widefat striped"><tbody>';
+        echo '<tr><th>Google Workspace organizer</th><td>'.esc_html((string)$r['google_calendar']['oauth_client']).' · '.esc_html((string)($r['google_calendar']['organizer_classroom']['state']??'not_connected')).'</td></tr></tbody></table><h2>Google Meet classroom</h2><p>Delnavazan’s organizer account creates and owns every lesson space. Teachers are external co-hosts and do not connect personal Google accounts. Legacy Teacher grants are retained only for already-scheduled events.</p><table class="widefat striped"><tbody><tr><th>Organizer</th><td><code>'.esc_html((string)($r['google_calendar']['organizer_classroom']['organizer_email']??'')).'</code></td></tr><tr><th>Scopes</th><td>'.esc_html(!empty($r['google_calendar']['organizer_classroom']['scope_match'])?'exact match':'re-consent required').'</td></tr><tr><th>Credential</th><td>'.esc_html(!empty($r['google_calendar']['organizer_classroom']['credential_valid'])?'valid':'missing or expired').'</td></tr>';
         foreach($r['google_calendar']['projection_states'] as $state=>$count)echo '<tr><th>Calendar projection: '.esc_html((string)$state).'</th><td>'.esc_html((string)$count).'</td></tr>';
-        echo '</tbody></table><h2>Stripe</h2><div class="card"><p>Configure Stripe sandbox credentials and check connectivity. Live credentials and production payment execution remain prohibited.</p>';
+        $meetAlerts=(array)($r['google_calendar']['recording_alerts']??array());
+        echo '</tbody></table><h2>Recording health alerts</h2>';
+        if($meetAlerts){
+            echo '<table class="widefat striped"><thead><tr><th>Classroom</th><th>Alert</th><th>Detail</th><th>Created</th></tr></thead><tbody>';
+            foreach($meetAlerts as $alert)echo '<tr><td>#'.(int)($alert->classroom_id??0).'</td><td>'.esc_html((string)($alert->alert_code??'')).'</td><td>'.esc_html((string)($alert->detail_code??'')).'</td><td>'.esc_html((string)($alert->created_at??'')).'</td></tr>';
+            echo '</tbody></table>';
+        }else echo '<p>No open recording alerts. Recording start/stop remains a Google participant control; Delnavazan monitors artifacts and alerts administrators when an expected recording is absent or unreadable.</p>';
+        echo '<h2>Stripe</h2><div class="card"><p>Configure Stripe sandbox credentials and check connectivity. Live credentials and production payment execution remain prohibited.</p>';
         if(current_user_can(PaymentExecutionController::CAPABILITY)){
             $stripeReadiness=(new StripeTestModeReadinessService())->read();
             echo '<p>Checkout readiness: <strong>'.esc_html($stripeReadiness['ready']?'Ready':'Setup is incomplete').'</strong></p><p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-stripe-settings')).'">Configure Stripe test mode</a></p>';

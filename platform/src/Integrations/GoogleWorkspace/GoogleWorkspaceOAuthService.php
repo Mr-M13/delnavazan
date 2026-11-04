@@ -165,7 +165,15 @@ final class GoogleWorkspaceOAuthService {
         try{
             $refreshed=$this->transport->refresh(array('credential_material'=>$material,'scope_snapshot'=>(string)$connection->scope_snapshot,'now_utc'=>gmdate('Y-m-d H:i:s')));
         }catch(\Throwable $error){
-            $this->repository->updateConnection($connectionId,array('connection_state'=>'refresh_failed','active_slot'=>null,'connection_version'=>(int)$connection->connection_version+1,'failure_reason_code'=>'credential_refresh_failed','updated_at'=>gmdate('Y-m-d H:i:s'),'updated_by'=>0),array('id'=>$connectionId));
+            // A transient refresh failure must not disconnect a healthy organizer grant or clear its
+            // active slot. Keep the existing credential and retry on the next provider operation; the
+            // failure reason remains visible without forcing a manual re-consent.
+            $failedAt=gmdate('Y-m-d H:i:s');
+            $this->repository->updateConnection($connectionId,array(
+                'connection_state'=>'connected','active_slot'=>1,
+                'failure_reason_code'=>'credential_refresh_failed',
+                'last_checked_at'=>$failedAt,'updated_at'=>$failedAt,'updated_by'=>0,
+            ),array('id'=>$connectionId));
             $this->audit($connectionId,'oauth_refresh','refresh_failed','credential_refresh_failed',null);
             throw $error;
         }

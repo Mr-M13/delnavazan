@@ -1,9 +1,10 @@
 # Google Meet classroom migration (LiveKit → Delnavazan-owned Workspace)
 
-Status: **source implementation complete on branch `feat/google-meet-classroom-20261104`. Production
-deployment and live-provider acceptance have not been performed from this workspace.** This document
-separates what the code does, what Google officially supports, and what still needs a real tenant
-test. No claim below should be read as a passed production test.
+Status: **source implementation merged in PR #533 and the OAuth scope correction in PR #534;
+production recovery is prepared by `GOOGLE-MEET-RECONCILIATION-2026-11-04.md`.** The recovery dry run,
+production-wide backfill and live-provider acceptance have not been executed from this workspace.
+This document separates what the code does, what Google officially supports, and what still needs a
+real tenant test. No claim below should be read as a passed production test.
 
 ## 1. Archive of the previous classroom
 
@@ -200,14 +201,36 @@ administrator adjudication remain in the existing Phase-O/P workflows.
 
 ```sh
 wp dzn-meet status
-wp dzn-meet migrate --limit=50 --dry-run
-wp dzn-meet migrate --limit=50
+wp dzn-meet repair --dry-run --limit=100 --json
+wp dzn-meet repair --limit=100
+wp dzn-meet worker --discover --limit=25
+wp dzn-meet retry-booking --confirmation_id=123
 wp dzn-meet reconcile --limit=20
 wp dzn-meet legacy-grants
 wp dzn-meet map-account --role=student --participant_id=123 --account_key=users/abc123
 wp dzn-meet replace-teacher --lesson_id=456 --teacher_id=789
 wp dzn-meet rollback
 ```
+
+`repair --dry-run` is the production approval gate. It lists every future authorised Lesson and
+confirmed introductory booking without an active organizer classroom, stale schedule projections,
+Teacher mismatch, retryable/failed booking projection and blocked co-host row. It performs no Google
+call and writes no row. `repair` applies the same bounded candidate set, reusing deterministic event
+ids and the one-active-classroom invariant.
+
+`worker --discover` additionally allows the five-minute worker to discover rows that do not yet
+exist. Scheduled discovery is deliberately opt-in: set `DZN_MEET_AUTO_RECONCILE=true`, or
+`wp option update dzn_meet_auto_reconcile 1`, only after the dry run is reviewed. Existing rows with
+a bounded transient failure and accepted booking retries run regardless, because those records have
+already been created.
+
+`retry-booking` is the explicit administrator recovery for a terminal projection failure. It resets
+only that confirmation (and its accepting delivery) to retryable, then dispatches it through the same
+idempotent provider path; the Teacher does not have to accept the request again.
+
+Permanent co-host refusals are never retried automatically. Correct the tenant policy and run
+`wp dzn-meet retry-classroom --lesson_id=456`, or record a documented exception with
+`wp dzn-meet approve-cohost-exception`.
 
 - **Migrate** provisions future canonical lessons and confirmed bookings; it does not change canonical
   state and does not revoke legacy grants.

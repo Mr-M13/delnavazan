@@ -1,9 +1,10 @@
 <?php
 namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 
-/** Bounded WP-Cron worker for classroom provisioning, recording and attendance reconciliation. */
+/** Bounded WP-Cron worker for classroom provisioning, booking recovery, recording and attendance. */
 final class GoogleWorkspaceWorker {
     public const HOOK='dzn_google_meet_classroom_worker';
+    private const LOCK='dzn_meet_classroom_worker';
 
     public static function register():void{
         add_filter('cron_schedules',static function(array $schedules):array{
@@ -22,29 +23,53 @@ final class GoogleWorkspaceWorker {
         if(!GoogleWorkspaceOAuthService::configured())return;
         $health=(new GoogleWorkspaceOAuthService())->health();
         if((string)($health['state']??'')!=='connected')return;
-        $repository=new GoogleWorkspaceRepository();
-        // Re-evaluate consent and artifact configuration for soon-upcoming classrooms at most hourly.
-        foreach($repository->upcoming(25) as $classroom){
+        if(!self::acquireLock())return;
+        try{
+            // 1. Recover accepted bookings and any already-created classroom whose bounded retry is
+            //    due. Missing-row discovery stays opt-in after an approved dry run.
+            $reconciler=new GoogleWorkspaceClassroomReconciler();
             try{
-                $last=(string)($classroom->recording_consent_at??'');
-                if($last!==''&&strtotime($last.' UTC')>time()-3600)continue;
-                (new GoogleWorkspaceClassroomService())->syncRecordingConfiguration((int)$classroom->id);
-            }catch(\Throwable $error){do_action('dzn_meet_configuration_failed',(int)$classroom->id,get_class($error));}
+                $repair=$reconciler->run(15,GoogleWorkspaceClassroomReconciler::automaticEnabled(),false);
+                do_action('dzn_meet_reconciliation_completed',$repair);
+            }catch(\Throwable $error){
+                do_action('dzn_meet_reconciliation_failed',0,get_class($error));
+            }
+
+            $repository=new GoogleWorkspaceRepository();
+            // 2. Re-evaluate consent and artifact configuration for soon-upcoming classrooms at most hourly.
+            foreach($repository->upcoming(25) as $classroom){
+                try{
+                    $last=(string)($classroom->recording_consent_at??'');
+                    if($last!==''&&strtotime($last.' UTC')>time()-3600)continue;
+                    (new GoogleWorkspaceClassroomService())->syncRecordingConfiguration((int)$classroom->id);
+                }catch(\Throwable $error){do_action('dzn_meet_configuration_failed',(int)$classroom->id,get_class($error));}
+            }
+            // 3. Reconcile ended classrooms: official recording artifacts and participant sessions.
+            foreach($repository->dueReconciliation(10) as $classroom){
+                try{
+                    $recording=(new MeetRecordingService($repository))->reconcileClassroom((int)$classroom->id);
+                    $record=is_array($recording)&&!empty($recording['reconciled'])?($recording['conference_record_id']??null):null;
+                    if($record!==null)(new MeetAttendanceService($repository))->reconcileClassroom((int)$classroom->id);
+                }catch(\Throwable $error){do_action('dzn_meet_reconciliation_failed',(int)$classroom->id,get_class($error));}
+            }
+        }finally{
+            self::releaseLock();
         }
-        // Retry classroom provisioning that previously failed or was waiting for a conference.
-        foreach($repository->upcoming(25) as $classroom){
-            if(!in_array((string)$classroom->classroom_state,array('provisioning','failed'),true))continue;
-            if((int)$classroom->lesson_id<1||(int)$classroom->schedule_version_id<1)continue;
-            try{(new GoogleWorkspaceClassroomService())->ensureForLesson((int)$classroom->lesson_id,(int)$classroom->schedule_version_id);}
-            catch(\Throwable $error){do_action('dzn_meet_provisioning_failed',(int)$classroom->id,get_class($error));}
-        }
-        // Reconcile ended classrooms: official recording artifacts and participant sessions.
-        foreach($repository->dueReconciliation(10) as $classroom){
-            try{
-                $recording=(new MeetRecordingService($repository))->reconcileClassroom((int)$classroom->id);
-                $record=is_array($recording)&&!empty($recording['reconciled'])?($recording['conference_record_id']??null):null;
-                if($record!==null)(new MeetAttendanceService($repository))->reconcileClassroom((int)$classroom->id);
-            }catch(\Throwable $error){do_action('dzn_meet_reconciliation_failed',(int)$classroom->id,get_class($error));}
-        }
+    }
+
+    /** Manual operator entry point used by `wp dzn-meet worker`. */
+    public static function dispatchNow(bool $discover=false,bool $dryRun=false,int $limit=25):array{
+        return (new GoogleWorkspaceClassroomReconciler())->run($limit,$discover,$dryRun);
+    }
+
+    private static function acquireLock():bool{
+        global $wpdb;
+        if(!isset($wpdb)||!is_object($wpdb))return true;
+        return (int)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,0)',self::LOCK))===1;
+    }
+
+    private static function releaseLock():void{
+        global $wpdb;
+        if(isset($wpdb)&&is_object($wpdb))$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',self::LOCK));
     }
 }

@@ -18,6 +18,15 @@ namespace Delnavazan\Platform\Core\Application\Finance\Pricing {
 	}
 }
 
+namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
+	final class MeetClassroomJoinService {
+		public function readyForRow( array $row, bool $is_booking ): bool { return ! empty( $row['join_available'] ); }
+		public function readinessForRow( array $row, bool $is_booking ): array {
+			return ! empty( $row['join_available'] ) ? array( 'state' => 'ready', 'reason' => 'ready' ) : array( 'state' => 'missing', 'reason' => 'classroom_missing' );
+		}
+	}
+}
+
 namespace {
 
 define( 'ABSPATH', dirname( __DIR__ ) . '/' );

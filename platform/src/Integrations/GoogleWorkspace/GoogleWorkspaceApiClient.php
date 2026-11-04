@@ -207,6 +207,7 @@ final class GoogleWorkspaceApiClient {
         $message=$body['error']['message']??null;
         if(!is_string($message)||trim($message)==='')return null;
         $message=preg_replace('/[\x00-\x1F\x7F]+/u',' ',trim($message))??'';
+        $message=preg_replace('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i','[redacted-email]',$message)??'';
         return function_exists('mb_substr')?mb_substr($message,0,240,'UTF-8'):substr($message,0,240);
     }
 }

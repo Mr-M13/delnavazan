@@ -1251,6 +1251,23 @@
   min-width: 0;
 }
 
+.dzn-tp-reschedule__confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.dzn-tp-reschedule input[type="checkbox"] {
+  flex: 0 0 auto;
+  inline-size: 1.15rem;
+  width: 1.15rem;
+  block-size: 1.15rem;
+  min-block-size: 0;
+  margin-block-start: .3rem;
+}
+
 .dzn-tp-form input[type="checkbox"],
 .dzn-tp-form input[type="radio"] {
   inline-size: 1.15rem;

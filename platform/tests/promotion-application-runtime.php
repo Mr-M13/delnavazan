@@ -57,7 +57,9 @@ $scenario=function(int $index,string $label,int $slotOffsetDays=7) use($sources,
             $occurrence=$wpdb->get_row($wpdb->prepare("SELECT v.* FROM {$p}lesson_schedule_versions v INNER JOIN {$p}lessons l ON l.id=v.lesson_id AND l.current_schedule_version_id=v.id WHERE v.lesson_id=%d AND v.superseded_at IS NULL",$lessonId));
             $scheduled=$occurrence!==null;
         }catch(\InvalidArgumentException$error){
-            if($error->getMessage()!=='teacher_slot_conflict')throw $error;
+            // Synthetic occupancy from an earlier scenario is not a lifecycle
+            // failure; retry with another bounded synthetic wall time.
+            if(!in_array($error->getMessage(),array('teacher_slot_conflict','student_slot_conflict'),true))throw $error;
         }
     }
     dzn_promo_assert($scheduled&&$occurrence!==null,'introductory occurrence fixture missing');

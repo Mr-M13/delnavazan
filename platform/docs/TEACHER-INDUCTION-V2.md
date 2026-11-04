@@ -14,7 +14,7 @@ access.
 The page follows the lifecycle of a Student and Teacher together:
 
 1. **از شروع همکاری تا برنامهٔ کلاس**
-   - **آماده‌سازی حساب و زمان‌ها** — approved profile, calendar and truthful availability against the Student’s chosen time.
+   - **آماده‌سازی حساب و زمان‌ها** — approved profile and truthful availability against the Student’s chosen time; the classroom is managed centrally.
    - **از درخواست تا کلاس آشنایی** — the Student requests an introduction; acceptance alone does not confirm a class or term enrolment.
    - **برنامهٔ روز و کلاس‌های آینده** — each side sees the scheduled class in its own timezone; the Teacher checks today and upcoming work.
 2. **برگزاری کلاس**

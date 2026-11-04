@@ -139,4 +139,45 @@
       if (banner) banner.hidden = true;
     });
   });
+  // Teacher booking-request response window. The server owns acceptance; this only shows the
+  // remaining time and closes the already-rendered action controls when the window elapses.
+  const responseWindows = Array.from(document.querySelectorAll('[data-dzn-response-deadline]'));
+  if (responseWindows.length) {
+    const fa = (value) => Number(value).toLocaleString('fa-IR');
+    const remainingLabel = (seconds) => {
+      if (seconds <= 0) return 'مهلت پاسخ گذشته است';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return hours > 0 ? fa(hours) + ' ساعت و ' + fa(minutes) + ' دقیقه مانده' : fa(Math.max(1, minutes)) + ' دقیقه مانده';
+    };
+    let timer = null;
+    const tick = () => {
+      let active = 0;
+      responseWindows.forEach((windowEl) => {
+        const deadline = Date.parse(windowEl.dataset.dznResponseDeadline || '');
+        if (!Number.isFinite(deadline)) return;
+        const remaining = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+        const countdown = windowEl.querySelector('[data-dzn-response-countdown]');
+        if (countdown) countdown.textContent = remainingLabel(remaining);
+        if (remaining > 0) { active++; return; }
+        windowEl.classList.add('is-expired');
+        windowEl.dataset.dznResponseExpired = '1';
+        const card = windowEl.closest('.dzn-tp-attention-card');
+        if (!card) return;
+        card.querySelectorAll('form[data-dzn-tp-submit] button[type="submit"]').forEach((button) => {
+          button.disabled = true;
+          button.setAttribute('aria-disabled', 'true');
+        });
+        if (!card.querySelector('.dzn-tp-response-expired')) {
+          const note = document.createElement('p');
+          note.className = 'dzn-tp-help dzn-tp-response-expired';
+          note.textContent = 'مهلت ۲۴ ساعتهٔ پاسخ به پایان رسیده است؛ درخواست برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.';
+          windowEl.insertAdjacentElement('afterend', note);
+        }
+      });
+      if (active === 0 && timer !== null) window.clearInterval(timer);
+    };
+    tick();
+    timer = window.setInterval(tick, 1000);
+  }
 })();

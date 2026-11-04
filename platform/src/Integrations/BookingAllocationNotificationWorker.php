@@ -32,13 +32,16 @@ final class BookingAllocationNotificationWorker {
         $portal=home_url('/teacher-portal/');$zone=(string)($row->teacher_timezone?:'UTC');
         try{$when=(new \DateTimeImmutable((string)$row->starts_at_utc,new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone($zone))->format('Y-m-d H:i').' '.$zone;}
         catch(\Throwable){$when=(string)$row->starts_at_utc.' UTC';}
-        $variables=array('teacher'=>(string)$row->teacher_name,'course'=>(string)$row->course_name,'student'=>(string)$row->full_name,'when'=>$when,'teacher_portal_url'=>$portal);
+        try{$deadlineLocal=(new \DateTimeImmutable((string)$row->deadline_at,new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone($zone))->format('Y-m-d H:i').' '.$zone;}
+        catch(\Throwable){$deadlineLocal=(string)$row->deadline_at.' UTC';}
+        $variables=array('teacher'=>(string)$row->teacher_name,'course'=>(string)$row->course_name,'student'=>(string)$row->full_name,'when'=>$when,'teacher_portal_url'=>$portal,'response_window'=>'۲۴ ساعت','response_deadline'=>$deadlineLocal);
         PortalNotificationRecorder::teacher((int)$row->teacher_id,'booking.new.teacher','booking_offer',(int)$row->offer_id,$variables,$portal);
         $user=$row->wordpress_user_id?get_userdata((int)$row->wordpress_user_id):null;
         $accepted=false;
         if($user&&is_email((string)$user->user_email)){
-            $fallback=array('subject'=>'دلنوازان · درخواست تازهٔ کلاس آشنایی','body'=>"درود {$row->teacher_name}،\n\nدرخواست تازه‌ای برای کلاس «{$row->course_name}» با هنرجو {$row->full_name} در {$when} ثبت شد.\nمهلت پاسخ: {$row->deadline_at} UTC\n\n{$portal}\n\nدلنوازان");
+            $fallback=array('subject'=>'دلنوازان · درخواست تازهٔ کلاس آشنایی','body'=>"درود {$row->teacher_name}،\n\nدرخواست تازه‌ای برای کلاس «{$row->course_name}» با هنرجو {$row->full_name} در {$when} ثبت شد.\nمهلت پاسخ ۲۴ ساعت است (تا {$deadlineLocal}). اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.\n\n{$portal}\n\nدلنوازان");
             $copy=NotificationCopyResolver::email('booking.new.teacher',NotificationCatalogue::PRIMARY_LOCALE,$variables,$fallback);
+            if(!str_contains((string)$copy['body'],'مهلت پاسخ'))$copy['body']=rtrim((string)$copy['body'])."\n\n".'لطفاً حداکثر تا '.$variables['response_window'].' ('.$variables['response_deadline'].') پاسخ دهید. اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.';
             $host=strtolower((string)wp_parse_url(home_url('/'),PHP_URL_HOST));
             if(!preg_match('/^[a-z0-9.-]+$/D',$host))$host='delnavazan.invalid';
             $headers=array('Message-ID: <booking-offer-'.(int)$row->offer_id.'@'.$host.'>','X-Delnavazan-Offer-ID: '.(int)$row->offer_id);

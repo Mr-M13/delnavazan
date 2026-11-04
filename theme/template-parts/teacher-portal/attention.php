@@ -17,11 +17,18 @@ if ( ! $items ) { return; }
 <?php foreach ( $items as $index => $item ) :
 	$valid      = dzn_theme_teacher_portal_attention_valid( $item );
 	$authored   = $valid && 'intro_request' === $item['state'] && ! empty( $item['authoritative_request'] );
+	$response_expired = $authored && ! empty( $item['response_expired'] );
 	$reschedule = $valid && ! empty( $item['reschedule_available'] ) && ! empty( $item['lesson_uid'] ) && ! empty( $item['schedule_version_uid'] );
-	$actionable = $valid && ( $authored || $reschedule || $demo );
+	$actionable = $valid && ( ( $authored && ! $response_expired ) || $reschedule || $demo );
 	?>
 	<article class="dzn-tp-attention-card is-<?php echo esc_attr( $valid ? $item['state'] : 'unknown' ); ?>"><p class="dzn-tp-state"><span aria-hidden="true">◆</span> <?php echo esc_html( $valid ? ( $item['due'] ?? 'نیازمند بررسی' ) : 'وضعیت ناشناخته' ); ?></p><h3><?php echo esc_html( $valid ? ( $item['title'] ?? '' ) : 'این مورد در دسترس نیست' ); ?></h3><p class="dzn-tp-attention-context"><strong><?php echo esc_html( $valid ? ( $item['context'] ?? '' ) : '' ); ?></strong></p><p class="dzn-tp-attention-msg"><?php echo esc_html( $valid ? ( $item['message'] ?? '' ) : 'برای امنیت، همهٔ اقدام‌ها پنهان شدند.' ); ?></p>
-	<?php if ( $valid && ! $actionable ) : ?><p class="dzn-tp-help">این مورد فقط برای اطلاع نمایش داده می‌شود؛ اقدام روی آن هنوز از همین پرتال فعال نیست.</p><?php endif; ?>
+	<?php if ( $authored && ! empty( $item['response_deadline_iso'] ) ) : ?>
+		<p class="dzn-tp-response-window<?php echo $response_expired ? ' is-expired' : ''; ?>" data-dzn-response-deadline="<?php echo esc_attr( (string) $item['response_deadline_iso'] ); ?>" data-dzn-response-expired="<?php echo $response_expired ? '1' : '0'; ?>" role="timer" aria-live="polite">
+			<span class="dzn-tp-response-window__label"><?php echo esc_html( (string) ( $item['response_window_label'] ?? 'مهلت پاسخ: ۲۴ ساعت' ) ); ?></span>
+			<strong data-dzn-response-countdown><?php echo esc_html( $response_expired ? 'مهلت پاسخ گذشته است' : dzn_theme_platform_teacher_response_remaining_label( (int) ( $item['response_remaining_seconds'] ?? 0 ) ) ); ?></strong>
+		</p>
+	<?php endif; ?>
+	<?php if ( $response_expired ) : ?><p class="dzn-tp-help dzn-tp-response-expired">مهلت ۲۴ ساعتهٔ پاسخ به پایان رسیده است؛ درخواست برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.</p><?php elseif ( $valid && ! $actionable ) : ?><p class="dzn-tp-help">این مورد فقط برای اطلاع نمایش داده می‌شود؛ اقدام روی آن هنوز از همین پرتال فعال نیست.</p><?php endif; ?>
 	<?php if ( $actionable ) : ?><div class="dzn-tp-actions"><button class="dzn-button" type="button" aria-haspopup="dialog" data-dzn-tp-open="tp-action-<?php echo esc_attr( $index ); ?>"><?php echo esc_html( $item['primary'] ); ?></button><?php if ( dzn_theme_teacher_portal_text( $item['secondary'] ?? null ) ) : ?><button class="dzn-button dzn-button--secondary" type="button" aria-haspopup="dialog" data-dzn-tp-open="tp-action-<?php echo esc_attr( $index ); ?>"><?php echo esc_html( $item['secondary'] ); ?></button><?php endif; ?></div>
 	<dialog id="tp-action-<?php echo esc_attr( $index ); ?>" class="dzn-tp-dialog" aria-labelledby="tp-action-title-<?php echo esc_attr( $index ); ?>" aria-modal="true"><div><button type="button" class="dzn-tp-close" data-dzn-tp-close aria-label="بستن">×</button><h2 id="tp-action-title-<?php echo esc_attr( $index ); ?>"><?php echo esc_html( $item['title'] ?? '' ); ?></h2>
 	<?php if ( $reschedule ) : ?><p><?php echo esc_html( $item['message'] ?? '' ); ?></p><?php dzn_theme_teacher_portal_component( 'reschedule-form', array( 'item' => $item, 'timezone' => (string) ( $item['reschedule_timezone'] ?? '' ), 'index' => $index, 'demo' => $demo ) ); ?>

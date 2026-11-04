@@ -31,9 +31,14 @@ dzn_settings_assert($settings->ready('sms'),'Telnyx API key and messaging profil
 dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'sms-runtime-key'),'Telnyx API key must not persist in plaintext');
 
 $callback=admin_url('admin-post.php?action=dzn_meet_oauth_callback');
+$legacyCallback=admin_url('admin-post.php?action=dzn_google_oauth_callback');
 $settings->save('google',array('client_id'=>'google-client','client_secret'=>'google-runtime-secret','meet_redirect_uri'=>$callback));
 dzn_settings_assert($settings->ready('google'),'Google readiness must accept the exact HTTPS callback');
 dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'google-runtime-secret'),'Google client secret must not persist in plaintext');
+$settings->save('google',array('meet_redirect_uri'=>$legacyCallback));
+dzn_settings_assert(!$settings->ready('google'),'Google readiness must reject the legacy teacher OAuth callback for the organizer');
+$settings->save('google',array('redirect_uri'=>$legacyCallback,'meet_redirect_uri'=>''));
+dzn_settings_assert($settings->ready('google'),'An empty Meet callback must resolve to the central Meet callback, not the legacy teacher callback');
 $settings->save('google',array('meet_redirect_uri'=>'https://attacker.example/callback'));
 dzn_settings_assert(!$settings->ready('google'),'Google readiness must reject a callback that differs from the exact registered URI');
 

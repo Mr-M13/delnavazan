@@ -39,6 +39,24 @@ final class GoogleWorkspaceClassroomRule {
         'email',
     );
     public const SCOPE_SNAPSHOT='https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/meetings.space.created https://www.googleapis.com/auth/meetings.space.settings https://www.googleapis.com/auth/meetings.space.readonly https://www.googleapis.com/auth/drive.readonly openid email';
+
+    /**
+     * Google normalises OpenID Connect shorthand scopes when it returns the grant.
+     *
+     * The authorization response and token response can contain the canonical userinfo URL in
+     * addition to (or instead of) the shorthand requested in the `scope` parameter. Google's
+     * OpenID Connect documentation shows `scope=openid email
+     * https://www.googleapis.com/auth/userinfo.email` for a request that only asked for
+     * `openid email`. Both spellings denote the same permission, so they are canonicalised
+     * before the exact set comparison. `openid` has no full-URL equivalent and stays literal.
+     *
+     * @var array<string,string>
+     */
+    private const SCOPE_EQUIVALENTS=array(
+        'email'=>'https://www.googleapis.com/auth/userinfo.email',
+        'profile'=>'https://www.googleapis.com/auth/userinfo.profile',
+    );
+
     public const ORGANIZER_EMAIL_DEFAULT='classroom@delnavazan.com';
     public const CONSENT_VERSION='google_workspace_classroom_v1';
     public const CALENDAR_ORIGIN='https://www.googleapis.com';
@@ -56,18 +74,57 @@ final class GoogleWorkspaceClassroomRule {
         return self::SCOPE_SNAPSHOT;
     }
 
-    /** Exact ordered scope-set comparison; an extra grant requires a new consent. */
+    /**
+     * Exact canonical scope-set comparison; any missing or extra grant requires new consent.
+     *
+     * Google may return the shorthand `email` scope and/or its full
+     * `https://www.googleapis.com/auth/userinfo.email` equivalent, so both spellings are
+     * canonicalised first. Every other permission must match exactly: a missing API scope fails
+     * closed, and an unexpected grant (for example `profile`, full Drive or full Calendar) also
+     * fails closed rather than being silently tolerated.
+     */
     public static function scopeSetMatches(string $granted):bool {
-        $granted=self::normaliseScopes($granted);
-        $requested=self::normaliseScopes(self::SCOPE_SNAPSHOT);
-        return $granted!==''&&hash_equals($requested,$granted);
+        $diagnostics=self::scopeDiagnostics($granted);
+        return $diagnostics['requested']!==array()
+            &&$diagnostics['missing']===array()
+            &&$diagnostics['unexpected']===array();
+    }
+
+    /**
+     * Secret-free comparison evidence for logs and tests.
+     *
+     * @return array{requested:array<int,string>,granted:array<int,string>,missing:array<int,string>,unexpected:array<int,string>}
+     */
+    public static function scopeDiagnostics(string $granted):array {
+        $requested=self::scopeList(self::SCOPE_SNAPSHOT);
+        $provided=self::scopeList($granted);
+        return array(
+            'requested'=>$requested,
+            'granted'=>$provided,
+            'missing'=>array_values(array_diff($requested,$provided)),
+            'unexpected'=>array_values(array_diff($provided,$requested)),
+        );
     }
 
     public static function normaliseScopes(string $scopes):string {
+        return implode(' ',self::scopeList($scopes));
+    }
+
+    /** @return array<int,string> */
+    private static function scopeList(string $scopes):array {
         $parts=preg_split('/\s+/',trim($scopes))?:array();
-        $parts=array_values(array_filter(array_map('trim',$parts),static fn(string $scope):bool=>$scope!==''));
-        sort($parts,SORT_STRING);
-        return implode(' ',$parts);
+        $canonical=array();
+        foreach($parts as $scope){
+            $scope=trim($scope);
+            if($scope==='')continue;
+            // Google may echo both spellings. Canonicalising and de-duplicating them preserves
+            // strict set equality without granting any additional permission.
+            $scope=self::SCOPE_EQUIVALENTS[$scope]??$scope;
+            $canonical[$scope]=true;
+        }
+        $canonical=array_keys($canonical);
+        sort($canonical,SORT_STRING);
+        return array_values($canonical);
     }
 
     public static function connectionState(string $state):string {

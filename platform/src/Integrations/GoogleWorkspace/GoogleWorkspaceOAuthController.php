@@ -67,6 +67,7 @@ final class GoogleWorkspaceOAuthController {
         return match($error->getMessage()){
             'meet_oauth_not_configured'=>'meet_not_configured',
             'meet_oauth_https_redirect_required'=>'meet_redirect_https_required',
+            'meet_oauth_redirect_mismatch'=>'meet_redirect_mismatch',
             'meet_oauth_scope_mismatch'=>'meet_scope_mismatch',
             'meet_oauth_organizer_mismatch'=>'meet_organizer_mismatch',
             'meet_oauth_state_expired','meet_oauth_state_settled','meet_oauth_state_invalid','meet_oauth_callback_invalid','meet_oauth_verifier_unavailable'=>'meet_callback_invalid',

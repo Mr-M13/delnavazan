@@ -38,6 +38,16 @@ foreach (array(
 ) as $scope) $check('least-privilege scope present: ' . $scope, str_contains($rule, $scope));
 $check('full Drive scope is not requested', !str_contains($rule, "'https://www.googleapis.com/auth/drive'"));
 $check('organizer defaults to classroom@delnavazan.com', str_contains($rule, "ORGANIZER_EMAIL_DEFAULT='classroom@delnavazan.com'"));
+$check('scope comparison canonicalises Google identity aliases', str_contains($rule, 'SCOPE_EQUIVALENTS') && str_contains($rule, 'userinfo.email'));
+
+$oauthService = $read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceOAuthService.php');
+$oauthController = $read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceOAuthController.php');
+$integrationSettings = $read('platform/src/Core/Application/IntegrationSettingsService.php');
+$check('Meet OAuth uses the organizer callback action', str_contains($oauthService, "CALLBACK_ACTION='dzn_meet_oauth_callback'"));
+$check('Meet OAuth callback action is registered', str_contains($oauthController, 'admin_post_dzn_meet_oauth_callback'));
+$check('Meet redirect is pinned to the organizer callback', str_contains($oauthService, 'meet_oauth_redirect_mismatch') && str_contains($oauthService, 'hash_equals($expected,$configured)'));
+$check('Readiness resolves an empty Meet callback to the central callback', str_contains($integrationSettings, '$redirect=$central') && str_contains($integrationSettings, 'action=dzn_meet_oauth_callback'));
+$check('Readiness never accepts the legacy teacher callback', !str_contains($integrationSettings, 'dzn_google_oauth_callback'));
 
 $service = $read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomService.php');
 $check('Calendar event id is deterministic', str_contains($service, 'GoogleWorkspaceClassroomRule::eventId($identity)'));

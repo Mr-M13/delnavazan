@@ -63,10 +63,13 @@ final class IntegrationSettingsService {
             if($provider==='google'){
                 $client=$v('client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');
                 $secret=$v('client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');
-                $redirect=$v('meet_redirect_uri')?:$v('redirect_uri');
                 $central=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_meet_oauth_callback'):'';
-                $legacy=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
-                return $client!==''&&$secret!==''&&$redirect!==''&&in_array($redirect,array($central,$legacy),true);
+                $redirect=trim($v('meet_redirect_uri'));
+                if($redirect==='')$redirect=$central;
+                // The organizer consent flow always returns to the Meet callback. The legacy
+                // teacher callback is a different grant and must never satisfy this readiness
+                // check, even when it is otherwise a valid HTTPS URL.
+                return $client!==''&&$secret!==''&&str_starts_with($central,'https://')&&hash_equals($central,$redirect);
             }
             return false;
         }catch(\Throwable){return false;}

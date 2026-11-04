@@ -21,7 +21,29 @@ $assert(!str_contains(Rule::SCOPE_SNAPSHOT, 'auth/calendar '), 'Full Calendar sc
 
 $assert(Rule::scopeSetMatches(Rule::SCOPE_SNAPSHOT), 'Exact granted scope set was refused.');
 $assert(Rule::scopeSetMatches('email openid https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/meetings.space.readonly https://www.googleapis.com/auth/meetings.space.settings https://www.googleapis.com/auth/meetings.space.created https://www.googleapis.com/auth/calendar.events'), 'Order-independent exact scope set was refused.');
-$assert(!Rule::scopeSetMatches(Rule::SCOPE_SNAPSHOT . ' https://www.googleapis.com/auth/drive'), 'An extra grant must force re-consent.');
+
+// Google's authorization/token response may return `email` as the equivalent full userinfo scope
+// URL, and may echo both spellings. Both forms denote the same single permission.
+$normalised = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/meetings.space.created https://www.googleapis.com/auth/meetings.space.settings https://www.googleapis.com/auth/meetings.space.readonly https://www.googleapis.com/auth/drive.readonly openid https://www.googleapis.com/auth/userinfo.email';
+$assert(Rule::scopeSetMatches($normalised), 'Google-normalised e-mail identity scope was refused.');
+$assert(Rule::scopeSetMatches($normalised . ' email'), 'Google echoing both e-mail scope spellings was refused.');
+$assert(Rule::normaliseScopes('email') === Rule::normaliseScopes('https://www.googleapis.com/auth/userinfo.email'), 'Equivalent identity scopes were not canonicalised.');
+
+$required = explode(' ', $normalised);
+foreach ($required as $missingScope) {
+    $granted = implode(' ', array_values(array_filter($required, static fn(string $scope): bool => $scope !== $missingScope)));
+    $assert(!Rule::scopeSetMatches($granted), 'A grant missing a required permission was accepted: ' . $missingScope);
+}
+
+foreach (array('https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/userinfo.profile', 'profile', 'https://www.googleapis.com/auth/gmail.readonly') as $extraScope) {
+    $assert(!Rule::scopeSetMatches($normalised . ' ' . $extraScope), 'An unexpected extra grant was accepted: ' . $extraScope);
+}
+
+$diagnostics = Rule::scopeDiagnostics($normalised);
+$assert($diagnostics['missing'] === array() && $diagnostics['unexpected'] === array(), 'A valid normalised grant must have no diagnostic differences.');
+$partial = Rule::scopeDiagnostics('openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive');
+$assert($partial['missing'] !== array() && in_array('https://www.googleapis.com/auth/calendar.events', $partial['missing'], true), 'Diagnostics must report every missing required permission.');
+$assert($partial['unexpected'] !== array() && in_array('https://www.googleapis.com/auth/drive', $partial['unexpected'], true), 'Diagnostics must report unexpected permissions.');
 
 $assert(Rule::eventId('lesson:42') === Rule::eventId('lesson:42'), 'Event id is not deterministic.');
 $assert(Rule::eventId('lesson:42') !== Rule::eventId('lesson:43'), 'Different lessons collided on one event id.');

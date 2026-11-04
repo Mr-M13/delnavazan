@@ -37,6 +37,14 @@ Minimum scope set requested by `GoogleWorkspaceClassroomRule::SCOPE_SNAPSHOT`:
 
 Full `drive`, full `calendar`, `gmail`, `admin.directory` and browser automation are not requested.
 
+Google may return the OIDC shorthand scopes in their canonical form. In particular, a token
+response for `openid email` can contain `openid email https://www.googleapis.com/auth/userinfo.email`
+(see Google's OpenID Connect documentation). `GoogleWorkspaceClassroomRule::scopeSetMatches()`
+canonicalises `email`/`userinfo.email` (and the equivalent `profile` spellings) before an exact set
+comparison. Missing API scopes and unexpected extra grants still fail closed; only equivalent
+spellings of the same permission are accepted. `GoogleWorkspaceClassroomRule::scopeDiagnostics()`
+returns the requested, granted, missing and unexpected sets without any credential material.
+
 OAuth state and PKCE verifier are one-time, digest-only in `meet_workspace_authorizations` (the verifier
 also lives in a short server-side transient), and the callback verifies the verified organizer email.
 Credentials are sealed with `IntegrationSecretService` and rotated on refresh. Connection health is
@@ -48,7 +56,9 @@ Authorized redirect URI to register in Google Cloud:
 https://<production-host>/wp-admin/admin-post.php?action=dzn_meet_oauth_callback
 ```
 
-The settings page displays the exact value.
+The settings page displays the exact value. Readiness accepts only that central Meet callback; the
+legacy teacher callback (`dzn_google_oauth_callback`) is never a valid organizer redirect, even if it
+is already saved as the teacher OAuth redirect URI.
 
 ## 3. Classroom creation workflow
 

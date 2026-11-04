@@ -25,14 +25,18 @@ final class GoogleWorkspaceWorker {
         if((string)($health['state']??'')!=='connected')return;
         if(!self::acquireLock())return;
         try{
-            // 1. Recover accepted bookings and any already-created classroom whose bounded retry is
-            //    due. Missing-row discovery stays opt-in after an approved dry run.
-            $reconciler=new GoogleWorkspaceClassroomReconciler();
-            try{
-                $repair=$reconciler->run(15,GoogleWorkspaceClassroomReconciler::automaticEnabled(),false);
-                do_action('dzn_meet_reconciliation_completed',$repair);
-            }catch(\Throwable $error){
-                do_action('dzn_meet_reconciliation_failed',0,get_class($error));
+            // 1. Provisioning/retries honour the emergency stop. Recording/attendance reconciliation
+            //    below remains active so a paused provisioning window does not lose lesson evidence.
+            if(GoogleWorkspaceClassroomService::enabled()){
+                $reconciler=new GoogleWorkspaceClassroomReconciler();
+                try{
+                    $repair=$reconciler->run(15,GoogleWorkspaceClassroomReconciler::automaticEnabled(),false);
+                    do_action('dzn_meet_reconciliation_completed',$repair);
+                }catch(\Throwable $error){
+                    do_action('dzn_meet_reconciliation_failed',0,get_class($error));
+                }
+            }else{
+                do_action('dzn_meet_provisioning_paused');
             }
 
             $repository=new GoogleWorkspaceRepository();

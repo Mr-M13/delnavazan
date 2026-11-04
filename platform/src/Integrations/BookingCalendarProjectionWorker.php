@@ -24,8 +24,11 @@ final class BookingCalendarProjectionWorker {
     }
 
     public static function run():void{
-        $central=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')
-            &&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured();
+        $installed=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');
+        // A deliberate pause must not silently fall back to legacy Teacher-owned events.
+        if($installed&&!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::enabled())return;
+        $central=$installed&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured();
+        if($installed&&!$central)return;
         if(!$central&&(!GoogleOAuthController::configured()||ProviderProjectionWorkerContext::principalId()<1))return;
         $work=static function():void{
             $repository=new BookingTeacherResponseRepository();

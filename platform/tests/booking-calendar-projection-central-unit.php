@@ -13,9 +13,12 @@ namespace Delnavazan\Platform\Core\Support {
 namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
     final class GoogleWorkspaceClassroomService {
         public static bool $configured=true;
+        public static bool $enabled=true;
         public static ?string $throws=null;
         public static array $calls=array();
-        public static function configured(): bool { return self::$configured; }
+        public static function enabled(): bool { return self::$enabled; }
+        public static function organizerConnected(): bool { return self::$configured; }
+        public static function configured(): bool { return self::$enabled && self::$configured; }
         public function ensureForBooking(int $id): array {
             self::$calls[]=array('ensureForBooking',$id);
             if(self::$throws!==null)throw new \RuntimeException(self::$throws);
@@ -106,7 +109,18 @@ namespace {
     $assert($transient['state']==='retryable'&&$transientRepo->confirmationRow->state==='retryable','A pending Meet conference must remain retryable.');
     $assert(!empty($transientRepo->confirmationRow->next_attempt_at),'A retryable failure must carry a durable next-attempt instant.');
 
-    Central::$throws=null;Central::$calls=array();
+    Central::$throws=null;Central::$calls=array();Central::$enabled=false;
+    $pausedRepo=new BookingTeacherResponseRepository();
+    $paused=(new BookingCalendarProjectionService($pausedRepo))->dispatch(70);
+    $assert($paused['state']==='retryable'&&$pausedRepo->confirmationRow->state==='retryable','A paused organizer must keep the accepted booking retryable.');
+    $assert(Central::$calls===array()&&$pausedRepo->secrets===0,'A paused organizer must not call Google or create a legacy vault secret.');
+
+    Central::$enabled=true;Central::$configured=false;
+    $offlineRepo=new BookingTeacherResponseRepository();
+    $offline=(new BookingCalendarProjectionService($offlineRepo))->dispatch(70);
+    $assert($offline['state']==='retryable'&&$offlineRepo->confirmationRow->state==='retryable','A re-authorising organizer must keep the accepted booking retryable.');
+
+    Central::$configured=true;Central::$calls=array();Central::$throws=null;
     $recoveryRepo=new BookingTeacherResponseRepository();
     $recoveryRepo->confirmationRow->state='failed';$recoveryRepo->confirmationRow->attempt_count=6;
     $recoveryRepo->deliveryRow->state='pending_request';

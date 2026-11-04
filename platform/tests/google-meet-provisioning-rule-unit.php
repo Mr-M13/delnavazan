@@ -30,6 +30,8 @@ $assert(Rule::isRetryableCode('meet_cohost_assignment_retryable'), 'A transient 
 $assert(Rule::isPermanentCode('meet_cohost_assignment_blocked'), 'A permanent co-host block must be terminal.');
 $assert(Rule::isPermanentCode('meet_space_config_refused'), 'A permanent config refusal must be terminal.');
 $assert(Rule::isRetryableBookingFailure('meet_conference_pending'), 'A pending conference must keep the accepted booking recoverable.');
+$assert(Rule::isRetryableBookingFailure('meet_organizer_not_connected'), 'A temporarily unavailable organizer must keep the accepted booking recoverable.');
+$assert(Rule::isRetryableBookingFailure('meet_classroom_paused'), 'A deliberate provisioning pause must keep the accepted booking recoverable.');
 $assert(!Rule::isRetryableBookingFailure('meet_cohost_assignment_blocked'), 'A blocked co-host must require an explicit administrator action.');
 $assert(Rule::isRetryableBookingFailure('provider_projection_retryable'), 'Unknown transient provider failure must stay recoverable.');
 

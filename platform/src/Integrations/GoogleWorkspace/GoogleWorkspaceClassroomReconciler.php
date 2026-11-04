@@ -4,12 +4,13 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 
 /**
- * Bounded dry-run and recovery for missing or incomplete organizer classrooms.
+ * Deterministic, approval-bound dry-run and recovery for organizer classrooms.
  *
- * The report is deliberately descriptive and secret-free: it returns database identities, UTC
- * instants and controlled state/reason codes, never e-mail addresses, provider object ids, Meet URLs
- * or credentials. Discovery is opt-in so a deployment cannot trigger a production-wide backfill
- * before its dry run has been reviewed.
+ * Dry-run and apply share plan(). Every operation carries the exact record version/fingerprint that
+ * authorised it. Apply re-reads those facts immediately before mutation and refuses stale or
+ * conflicting operations. The report is secret-free: no e-mails, Meet URLs, provider ids or
+ * credentials. Missing-row discovery remains opt-in so deployment cannot trigger a production-wide
+ * backfill before an operator approves a specific plan digest.
  */
 final class GoogleWorkspaceClassroomReconciler {
     public function __construct(
@@ -20,7 +21,7 @@ final class GoogleWorkspaceClassroomReconciler {
         $this->repository??=new GoogleWorkspaceRepository();
     }
 
-    /** Whether the scheduled worker may discover and repair rows that do not yet exist. */
+    /** Whether the scheduled worker may discover missing rows without an interactive plan. */
     public static function automaticEnabled():bool{
         if(defined('DZN_MEET_AUTO_RECONCILE')){
             $value=strtolower(trim((string)constant('DZN_MEET_AUTO_RECONCILE')));
@@ -33,232 +34,411 @@ final class GoogleWorkspaceClassroomReconciler {
     }
 
     /**
-     * Exact affected records and intended changes. No provider call or database mutation occurs.
+     * The single deterministic plan used by preview and apply.
      *
-     * @return array<string,mixed>
+     * @return array{generated_at:string,plan_id:string,plan_digest:string,limit:int,discover:bool,operations:array<int,array>,interventions:array<int,array>,counts:array<string,int>}
      */
-    public function report(int $limit=100):array{
+    public function plan(int $limit=100,bool $discover=true):array{
         $limit=max(1,min(500,$limit));
-        $missingLessons=$this->repository->missingLessonClassrooms($limit);
-        $missingBookings=$this->repository->missingBookingClassrooms($limit);
-        $staleLessons=$this->repository->staleLessonClassrooms($limit);
-        $staleBookings=$this->repository->staleBookingClassrooms($limit);
-        $teacherMismatches=$this->repository->teacherMismatchClassrooms($limit);
-        $retryable=$this->retryableClassrooms($limit);
-        $unconfirmed=$this->repository->unconfirmedBookingProjections($limit);
-        $failedBookings=$this->repository->failedBookingProjections($limit);
-        $blocked=$this->repository->blockedClassrooms($limit);
+        // Read enough candidates from each category that dedupe can still fill the single total limit.
+        $fetchLimit=min(500,max($limit+10,$limit*2));
+        $operations=array();
+        if($discover){
+            foreach($this->repository->missingLessonClassrooms($fetchLimit) as $row)$operations[]=$this->missingLessonOperation($row);
+            foreach($this->repository->missingBookingClassrooms($fetchLimit) as $row)$operations[]=$this->missingBookingOperation($row);
+        }
+        // Existing provider projections are repaired even while missing-row discovery is paused:
+        // stale schedules, stale booking instants and Teacher mismatch are not a backfill.
+        foreach($this->repository->staleLessonClassrooms($fetchLimit) as $row)$operations[]=$this->staleLessonOperation($row);
+        foreach($this->repository->staleBookingClassrooms($fetchLimit) as $row)$operations[]=$this->staleBookingOperation($row);
+        foreach($this->repository->teacherMismatchClassrooms($fetchLimit) as $row)$operations[]=$this->teacherMismatchOperation($row);
+        foreach($this->retryableClassrooms($fetchLimit) as $row){
+            if((int)$row->lesson_id>0){
+                $version=$this->repository->currentScheduleVersion((int)$row->lesson_id);
+                if(!$version||(int)$version->applicable_slot!==1||$version->superseded_at!==null)continue;
+                $operations[]=$this->retryLessonOperation($row,$version);
+            }elseif((int)$row->booking_confirmation_id>0&&(string)($row->booking_confirmation_state??'')==='confirmed'){
+                $operations[]=$this->retryBookingOperation($row);
+            }
+        }
+        foreach($this->repository->unconfirmedBookingProjections($fetchLimit) as $row)$operations[]=$this->resumeBookingOperation($row);
 
+        $operations=MeetReconciliationPlan::normalise($operations,$limit);
+        foreach($operations as &$operation)$operation['executable']=true;
+        unset($operation);
+
+        $interventions=array();
+        foreach($this->repository->failedBookingProjections($fetchLimit) as $row)$interventions[]=$this->failedBookingIntervention($row);
+        foreach($this->classroomInterventions($fetchLimit) as $row)$interventions[]=$this->classroomIntervention($row);
+        $interventions=MeetReconciliationPlan::normalise($interventions,$limit);
+
+        $digest=MeetReconciliationPlan::digest($operations,$limit,$discover);
         return array(
             'generated_at'=>gmdate('Y-m-d H:i:s'),
-            'automatic_reconciliation'=>self::automaticEnabled()?'enabled':'disabled',
-            'counts'=>array(
-                'missing_lesson_classrooms'=>count($missingLessons),
-                'missing_booking_classrooms'=>count($missingBookings),
-                'stale_lesson_classrooms'=>count($staleLessons),
-                'stale_booking_classrooms'=>count($staleBookings),
-                'teacher_mismatch_classrooms'=>count($teacherMismatches),
-                'retryable_classrooms'=>count($retryable),
-                'unconfirmed_booking_projections'=>count($unconfirmed),
-                'failed_booking_projections'=>count($failedBookings),
-                'blocked_or_failed_classrooms'=>count($blocked),
-            ),
-            'missing_lesson_classrooms'=>$this->lessonRows($missingLessons,'create_organizer_event_space_and_cohost'),
-            'missing_booking_classrooms'=>$this->bookingRows($missingBookings,'create_organizer_event_space_and_cohost'),
-            'stale_lesson_classrooms'=>$this->staleRows($staleLessons,'patch_existing_event_to_current_schedule'),
-            'stale_booking_classrooms'=>$this->staleBookingRows($staleBookings,'patch_existing_booking_event_to_current_instant'),
-            'teacher_mismatch_classrooms'=>$this->classroomRows($teacherMismatches,'assign_current_teacher_as_cohost_and_update_event'),
-            'retryable_classrooms'=>$this->classroomRows($retryable,'bounded_retry_existing_provider_projection'),
-            'unconfirmed_booking_projections'=>$this->bookingRows($unconfirmed,'resume_booking_projection'),
-            'failed_booking_projections'=>$this->bookingRows($failedBookings,'manual_administrator_retry_required'),
-            'blocked_or_failed_classrooms'=>$this->classroomRows($blocked,'administrator_action_required'),
+            'plan_id'=>'meet-'.substr($digest,0,16),
+            'plan_digest'=>$digest,
+            'limit'=>$limit,
+            'discover'=>$discover,
+            'operations'=>$operations,
+            'interventions'=>$interventions,
+            'counts'=>$this->counts($operations,$interventions,$limit),
         );
     }
 
     /**
-     * Provision missing eligible rows, retry bounded transient failures, and optionally discover new
-     * missing classrooms. A dry run never calls Google and never mutates local state.
+     * Preview and apply entry point. Identical eligibility, ordering and total operation limit apply.
      *
-     * @return array{discover:bool,dry_run:bool,attempted:int,succeeded:int,failed:int,skipped:int,actions:array<int,array>}
+     * @return array{discover:bool,dry_run:bool,plan_id:string,plan_digest:string,limit:int,planned:int,attempted:int,succeeded:int,failed:int,skipped:int,actions:array<int,array>,interventions:array<int,array>}
      */
-    public function run(int $limit=25,bool $discover=false,bool $dryRun=false):array{
-        $limit=max(1,min(100,$limit));
+    public function run(int $limit=25,bool $discover=false,bool $dryRun=false,?string $approvedDigest=null):array{
+        $plan=$this->plan($limit,$discover);
+        if($approvedDigest!==null)MeetReconciliationPlan::assertApproved($plan['plan_digest'],$approvedDigest);
+        if($dryRun){
+            return array(
+                'discover'=>$discover,'dry_run'=>true,'plan_id'=>$plan['plan_id'],'plan_digest'=>$plan['plan_digest'],
+                'limit'=>$plan['limit'],'planned'=>count($plan['operations']),'attempted'=>0,'succeeded'=>0,'failed'=>0,'skipped'=>0,
+                'actions'=>$plan['operations'],'interventions'=>$plan['interventions'],
+            );
+        }
         $actions=array();$attempted=0;$succeeded=0;$failed=0;$skipped=0;
-        $seenBookings=array();
-
-        if($discover){
-            foreach($this->repository->missingLessonClassrooms($limit) as $row){
-                $actions[]=$this->act($dryRun,'lesson',(int)$row->lesson_id,'create',
-                    fn()=>($this->classrooms??=new GoogleWorkspaceClassroomService())->ensureForLesson((int)$row->lesson_id,(int)$row->schedule_version_id),
-                    $attempted,$succeeded,$failed,$skipped);
-            }
-            foreach($this->repository->staleLessonClassrooms($limit) as $row){
-                $actions[]=$this->act($dryRun,'lesson',(int)$row->lesson_id,'reschedule',
-                    fn()=>($this->classrooms??=new GoogleWorkspaceClassroomService())->rescheduleLesson((int)$row->lesson_id,(int)$row->current_schedule_version_id),
-                    $attempted,$succeeded,$failed,$skipped);
-            }
-            foreach($this->repository->staleBookingClassrooms($limit) as $row){
-                $id=(int)$row->booking_confirmation_id;
-                $actions[]=$this->act($dryRun,'booking',$id,'reschedule',
-                    fn()=>($this->classrooms??=new GoogleWorkspaceClassroomService())->rescheduleForBooking(
-                        $id,(string)$row->current_starts_at_utc,(string)$row->current_ends_at_utc,(string)$row->current_schedule_timezone
-                    ),
-                    $attempted,$succeeded,$failed,$skipped);
-            }
-            foreach($this->repository->teacherMismatchClassrooms($limit) as $row){
-                $actions[]=$this->act($dryRun,'lesson',(int)$row->lesson_id,'replace_teacher',
-                    fn()=>($this->classrooms??=new GoogleWorkspaceClassroomService())->replaceTeacher((int)$row->lesson_id,(int)$row->current_teacher_id),
-                    $attempted,$succeeded,$failed,$skipped);
-            }
-            foreach($this->repository->missingBookingClassrooms($limit) as $row){
-                $id=(int)$row->confirmation_id;
-                $actions[]=$this->act($dryRun,'booking',$id,'create',
-                    fn()=>($this->classrooms??=new GoogleWorkspaceClassroomService())->ensureForBooking($id),
-                    $attempted,$succeeded,$failed,$skipped);
-            }
-        }
-
-        foreach($this->retryableClassrooms($limit) as $row){
-            if((int)$row->lesson_id>0){
-                $version=$this->repository->currentScheduleVersion((int)$row->lesson_id);
-                if(!$version||(int)$version->applicable_slot!==1||$version->superseded_at!==null){$skipped++;continue;}
-                $lessonId=(int)$row->lesson_id;$versionId=(int)$version->id;
-                $actions[]=$this->act($dryRun,'lesson',$lessonId,'retry',
-                    fn()=>($this->classrooms??=new GoogleWorkspaceClassroomService())->ensureForLesson($lessonId,$versionId),
-                    $attempted,$succeeded,$failed,$skipped);
-            }elseif((int)$row->booking_confirmation_id>0){
-                $id=(int)$row->booking_confirmation_id;
-                if(isset($seenBookings[$id])){continue;}
-                $seenBookings[$id]=true;
-                $actions[]=$this->act($dryRun,'booking',$id,'retry',
-                    fn()=>($this->bookings??=new BookingCalendarProjectionService())->dispatch($id),
-                    $attempted,$succeeded,$failed,$skipped);
-            }else{
+        foreach($plan['operations'] as $operation){
+            if(!$this->isCurrent($operation)){
+                $operation['state']='stale';
+                $operation['reason_code']='stale_plan';
+                $actions[]=$operation;
                 $skipped++;
+                continue;
             }
+            $attempted++;
+            try{
+                $result=$this->execute($operation);
+                $operation['state']='completed';
+                $operation['result_state']=is_array($result)?(string)($result['state']??($result['cancelled']??false?'cancelled':'completed')):'completed';
+                $succeeded++;
+            }catch(\Throwable $error){
+                $message=trim($error->getMessage());
+                $operation['state']='failed';
+                $operation['reason_code']=preg_match('/^[a-z0-9_]{3,64}$/D',$message)?$message:'provisioning_failed';
+                $failed++;
+            }
+            $actions[]=$operation;
         }
-
-        foreach($this->repository->unconfirmedBookingProjections($limit) as $row){
-            $id=(int)$row->confirmation_id;
-            if(isset($seenBookings[$id]))continue;
-            $seenBookings[$id]=true;
-            $actions[]=$this->act($dryRun,'booking',$id,'resume',
-                fn()=>($this->bookings??=new BookingCalendarProjectionService())->dispatch($id),
-                $attempted,$succeeded,$failed,$skipped);
-        }
-
         return array(
-            'discover'=>$discover,'dry_run'=>$dryRun,
-            'attempted'=>$attempted,'succeeded'=>$succeeded,'failed'=>$failed,'skipped'=>$skipped,
-            'actions'=>$actions,
+            'discover'=>$discover,'dry_run'=>false,'plan_id'=>$plan['plan_id'],'plan_digest'=>$plan['plan_digest'],
+            'limit'=>$plan['limit'],'planned'=>count($plan['operations']),'attempted'=>$attempted,
+            'succeeded'=>$succeeded,'failed'=>$failed,'skipped'=>$skipped,
+            'actions'=>$actions,'interventions'=>$plan['interventions'],
         );
     }
 
-    /** Existing rows only; safe for the recurring worker while broad discovery remains opt-in. */
+    /**
+     * Secret-free approval report. Grouped keys are retained for operator tooling; operations is the
+     * exact execution set and interventions are never auto-executed.
+     *
+     * @return array<string,mixed>
+     */
+    public function report(int $limit=100):array{
+        $plan=$this->plan($limit,true);
+        $group=static function(string $kind,string $operation,array $operations):array{
+            return array_values(array_filter($operations,static fn(array $op):bool=>$op['kind']===$kind&&$op['operation']===$operation));
+        };
+        $ops=$plan['operations'];$interventions=$plan['interventions'];
+        return array_merge($plan,array(
+            'automatic_reconciliation'=>self::automaticEnabled()?'enabled':'disabled',
+            'missing_lesson_classrooms'=>$group('lesson','create',$ops),
+            'missing_booking_classrooms'=>$group('booking','create',$ops),
+            'stale_lesson_classrooms'=>$group('lesson','reschedule',$ops),
+            'stale_booking_classrooms'=>$group('booking','reschedule',$ops),
+            'teacher_mismatch_classrooms'=>$group('lesson','replace_teacher',$ops),
+            'retryable_classrooms'=>array_values(array_filter($ops,static fn(array $op):bool=>$op['operation']==='retry')),
+            'unconfirmed_booking_projections'=>$group('booking','resume',$ops),
+            'failed_booking_projections'=>array_values(array_filter($interventions,static fn(array $row):bool=>$row['operation']==='retry_booking')),
+            'blocked_or_failed_classrooms'=>array_values(array_filter($interventions,static fn(array $row):bool=>$row['operation']==='administrator_intervention')),
+        ));
+    }
+
+    private function missingLessonOperation(object $row):array{
+        return $this->operation('lesson',(int)$row->lesson_id,'create',10,(string)$row->starts_at_utc,
+            'classroom_missing','ready',null,array(
+                'lesson_id'=>(int)$row->lesson_id,'lesson_uid'=>(string)$row->lesson_uid,
+                'schedule_version_id'=>(int)$row->schedule_version_id,'teacher_id'=>(int)$row->teacher_id,
+                'student_id'=>(int)$row->student_id,'starts_at_utc'=>(string)$row->starts_at_utc,
+                'ends_at_utc'=>(string)$row->ends_at_utc,'schedule_timezone'=>(string)$row->schedule_timezone,
+            ));
+    }
+
+    private function missingBookingOperation(object $row):array{
+        return $this->operation('booking',(int)$row->confirmation_id,'create',10,(string)$row->starts_at_utc,
+            'classroom_missing','ready',null,array(
+                'confirmation_id'=>(int)$row->confirmation_id,'confirmation_uid'=>(string)$row->confirmation_uid,
+                'confirmation_version'=>(int)$row->confirmation_version,'booking_request_id'=>(int)$row->booking_request_id,
+                'teacher_id'=>(int)$row->teacher_id,'starts_at_utc'=>(string)$row->starts_at_utc,
+                'ends_at_utc'=>(string)$row->ends_at_utc,'schedule_timezone'=>(string)$row->schedule_timezone,
+            ));
+    }
+
+    private function staleLessonOperation(object $row):array{
+        return $this->operation('lesson',(int)$row->lesson_id,'reschedule',20,(string)$row->current_starts_at_utc,
+            'schedule_'.(int)$row->schedule_version_id,'rescheduled','stale_schedule_version',array(
+                'lesson_id'=>(int)$row->lesson_id,'lesson_uid'=>(string)$row->lesson_uid,
+                'classroom_id'=>(int)$row->id,'classroom_version'=>(int)$row->version,
+                'current_schedule_version_id'=>(int)$row->current_schedule_version_id,
+                'starts_at_utc'=>(string)$row->current_starts_at_utc,
+            ));
+    }
+
+    private function staleBookingOperation(object $row):array{
+        return $this->operation('booking',(int)$row->booking_confirmation_id,'reschedule',20,(string)$row->current_starts_at_utc,
+            'booking_'.(string)$row->starts_at_utc,'rescheduled','stale_booking_instant',array(
+                'confirmation_id'=>(int)$row->booking_confirmation_id,'confirmation_uid'=>(string)$row->confirmation_uid,
+                'confirmation_version'=>(int)$row->confirmation_version,
+                'classroom_id'=>(int)$row->id,'classroom_version'=>(int)$row->version,
+                'teacher_id'=>(int)$row->confirmation_teacher_id,
+                'starts_at_utc'=>(string)$row->current_starts_at_utc,
+                'ends_at_utc'=>(string)$row->current_ends_at_utc,
+                'schedule_timezone'=>(string)$row->current_schedule_timezone,
+            ));
+    }
+
+    private function teacherMismatchOperation(object $row):array{
+        return $this->operation('lesson',(int)$row->lesson_id,'replace_teacher',40,(string)$row->starts_at_utc,
+            'teacher_'.(int)$row->teacher_id,'teacher_'.(int)$row->current_teacher_id,'teacher_mismatch',array(
+                'lesson_id'=>(int)$row->lesson_id,'lesson_uid'=>(string)$row->lesson_uid,
+                'classroom_id'=>(int)$row->id,'classroom_version'=>(int)$row->version,
+                'classroom_teacher_id'=>(int)$row->teacher_id,'current_teacher_id'=>(int)$row->current_teacher_id,
+                'schedule_version_id'=>(int)$row->schedule_version_id,
+            ));
+    }
+
+    private function retryLessonOperation(object $row,object $version):array{
+        return $this->operation('lesson',(int)$row->lesson_id,'retry',30,(string)$row->starts_at_utc,
+            'classroom_'.(string)$row->classroom_state.'_'.(string)($row->cohost_state??MeetCoHostRule::PENDING),
+            'ready',trim((string)($row->failure_reason_code??''))?:'bounded_retry',array(
+                'lesson_id'=>(int)$row->lesson_id,'classroom_id'=>(int)$row->id,
+                'classroom_version'=>(int)$row->version,'schedule_version_id'=>(int)$version->id,
+                'starts_at_utc'=>(string)$row->starts_at_utc,
+            ));
+    }
+
+    private function retryBookingOperation(object $row):array{
+        return $this->operation('booking',(int)$row->booking_confirmation_id,'retry',30,(string)$row->starts_at_utc,
+            'classroom_'.(string)$row->classroom_state.'_'.(string)($row->cohost_state??MeetCoHostRule::PENDING),
+            'confirmed',trim((string)($row->failure_reason_code??''))?:'bounded_retry',array(
+                'confirmation_id'=>(int)$row->booking_confirmation_id,
+                'confirmation_version'=>(int)$row->booking_confirmation_version,
+                'classroom_id'=>(int)$row->id,'classroom_version'=>(int)$row->version,
+                'teacher_id'=>(int)$row->confirmation_teacher_id,'starts_at_utc'=>(string)$row->starts_at_utc,
+            ));
+    }
+
+    private function resumeBookingOperation(object $row):array{
+        return $this->operation('booking',(int)$row->confirmation_id,'resume',25,(string)$row->starts_at_utc,
+            'confirmation_'.(string)$row->state,'confirmed',trim((string)($row->failure_reason_code??''))?:'projection_pending',array(
+                'confirmation_id'=>(int)$row->confirmation_id,'confirmation_uid'=>(string)$row->confirmation_uid,
+                'confirmation_version'=>(int)$row->confirmation_version,'teacher_id'=>(int)$row->teacher_id,
+                'starts_at_utc'=>(string)$row->starts_at_utc,'ends_at_utc'=>(string)$row->ends_at_utc,
+            ));
+    }
+
+    private function failedBookingIntervention(object $row):array{
+        return $this->operation('booking',(int)$row->confirmation_id,'retry_booking',90,(string)$row->starts_at_utc,
+            'failed','confirmed',trim((string)($row->failure_reason_code??''))?:'administrator_retry_required',array(
+                'confirmation_id'=>(int)$row->confirmation_id,'confirmation_uid'=>(string)$row->confirmation_uid,
+                'confirmation_version'=>(int)$row->confirmation_version,'attempt_count'=>(int)$row->attempt_count,
+            ),'requires_admin',false);
+    }
+
+    private function classroomIntervention(object $row):array{
+        return $this->operation((int)$row->lesson_id>0?'lesson':'booking',
+            (int)$row->lesson_id>0?(int)$row->lesson_id:(int)$row->booking_confirmation_id,
+            'administrator_intervention',90,(string)$row->starts_at_utc,
+            'classroom_'.(string)$row->classroom_state.'_'.(string)($row->cohost_state??MeetCoHostRule::PENDING),
+            'ready',trim((string)($row->failure_reason_code??$row->cohost_error_code??''))?:'administrator_action_required',
+            array('classroom_id'=>(int)$row->id,'classroom_version'=>(int)$row->version),
+            'requires_admin',false);
+    }
+
+    private function operation(string $kind,int $recordId,string $operation,int $priority,string $startsAt,
+        string $currentState,string $expectedState,?string $reasonCode,array $context,
+        string $mode='automatic',bool $executable=true):array{
+        $fingerprint=hash('sha256',json_encode(array(
+            'kind'=>$kind,'record_id'=>$recordId,'operation'=>$operation,
+            'current_state'=>$currentState,'context'=>$context,
+        ),JSON_UNESCAPED_SLASHES) ?: '');
+        $timestamp=strtotime($startsAt.' UTC');
+        return array(
+            'key'=>$kind.':'.$recordId,'kind'=>$kind,'record_id'=>$recordId,'operation'=>$operation,
+            'mode'=>$mode,'executable'=>$executable,'priority'=>$priority,'starts_at_utc'=>$startsAt,
+            'imminent_24h'=>$timestamp!==false&&$timestamp<=time()+86400,
+            'current_state'=>$currentState,'expected_state'=>$expectedState,
+            'reason_code'=>$reasonCode,'fingerprint'=>$fingerprint,'context'=>$context,'state'=>'planned',
+        );
+    }
+
+    /** @return array<string,int> */
+    private function counts(array $operations,array $interventions,int $limit):array{
+        $count=static function(string $kind,string $operation)use($operations):int{
+            return count(array_filter($operations,static fn(array $op):bool=>$op['kind']===$kind&&$op['operation']===$operation));
+        };
+        return array(
+            'limit'=>$limit,
+            'total_operations'=>count($operations),
+            'operations_within_24h'=>count(array_filter($operations,static fn(array $op):bool=>!empty($op['imminent_24h']))),
+            'automatic_operations'=>count(array_filter($operations,static fn(array $op):bool=>$op['mode']==='automatic')),
+            'administrator_interventions'=>count($interventions),
+            'missing_lesson_classrooms'=>$count('lesson','create'),
+            'missing_booking_classrooms'=>$count('booking','create'),
+            'stale_lesson_classrooms'=>$count('lesson','reschedule'),
+            'stale_booking_classrooms'=>$count('booking','reschedule'),
+            'teacher_mismatch_classrooms'=>$count('lesson','replace_teacher'),
+            'retryable_classrooms'=>count(array_filter($operations,static fn(array $op):bool=>$op['operation']==='retry')),
+            'unconfirmed_booking_projections'=>$count('booking','resume'),
+            'failed_booking_projections'=>count(array_filter($interventions,static fn(array $row):bool=>$row['operation']==='retry_booking')),
+            'blocked_or_failed_classrooms'=>count(array_filter($interventions,static fn(array $row):bool=>$row['operation']==='administrator_intervention')),
+        );
+    }
+
     private function retryableClassrooms(int $limit):array{
         $now=time();
         return array_values(array_filter(
             $this->repository->retryableClassrooms($limit),
             static fn(object $row):bool=>MeetProvisioningRule::mayAutoRetryClassroom(
-                (string)$row->classroom_state,
-                (string)($row->cohost_state??MeetCoHostRule::PENDING),
+                (string)$row->classroom_state,(string)($row->cohost_state??MeetCoHostRule::PENDING),
                 trim((string)($row->failure_reason_code??''))?:null,
                 trim((string)($row->cohost_next_attempt_at??''))?:null,
-                (int)($row->cohost_attempt_count??0),
-                $now
+                (int)($row->cohost_attempt_count??0),$now
             )
         ));
     }
 
-    private function act(bool $dryRun,string $kind,int $id,string $operation,callable $call,int &$attempted,int &$succeeded,int &$failed,int &$skipped):array{
-        $action=array('kind'=>$kind,'id'=>$id,'operation'=>$operation,'state'=>$dryRun?'would_run':'pending');
-        if($dryRun)return $action;
-        $attempted++;
-        try{
-            $result=$call();
-            $action['state']='completed';
-            $action['result_state']=is_array($result)?(string)($result['state']??($result['cancelled']??false?'cancelled':'completed')):'completed';
-            $succeeded++;
-        }catch(\Throwable $error){
-            $message=trim($error->getMessage());
-            $action['state']='failed';
-            $action['reason_code']=preg_match('/^[a-z0-9_]{3,64}$/D',$message)?$message:'provisioning_failed';
-            $failed++;
+    private function classroomInterventions(int $limit):array{
+        $rows=$this->repository->blockedClassrooms($limit);
+        $cutoff=gmdate('Y-m-d H:i:s',time()-7200);
+        return array_values(array_filter($rows,static function(object $row)use($cutoff):bool{
+            if((string)($row->starts_at_utc??'')<$cutoff)return false;
+            if(in_array((string)$row->classroom_state,array('cancelled','retired'),true))return false;
+            if((string)$row->classroom_state==='blocked'||(string)($row->cohost_state??'')===MeetCoHostRule::BLOCKED)return true;
+            if(MeetProvisioningRule::isPermanentCode($row->failure_reason_code??null))return true;
+            return (int)($row->cohost_attempt_count??0)>=GoogleWorkspaceClassroomRule::MAX_ATTEMPTS
+                &&!in_array((string)($row->cohost_state??''),array(MeetCoHostRule::VERIFIED,MeetCoHostRule::EXCEPTION_APPROVED),true);
+        }));
+    }
+
+    /** Apply revalidation: exact live facts must still satisfy the approved operation. */
+    private function isCurrent(array $operation):bool{
+        $context=$operation['context'];
+        if($operation['kind']==='lesson')return $this->lessonOperationIsCurrent($operation,$context);
+        return $this->bookingOperationIsCurrent($operation,$context);
+    }
+
+    private function lessonOperationIsCurrent(array $operation,array $context):bool{
+        $lessonId=(int)($context['lesson_id']??0);
+        $lesson=$this->repository->lessonWithParticipants($lessonId);
+        $version=$this->repository->currentScheduleVersion($lessonId);
+        $active=$this->repository->activeClassroomForLesson($lessonId);
+        if(!$lesson||(string)($lesson->lifecycle_state??'')!=='authorised'||$lesson->archived_at!==null||(string)$lesson->status==='cancelled')return false;
+        if(!$version||(int)$version->applicable_slot!==1||$version->superseded_at!==null||(string)$version->ends_at_utc<gmdate('Y-m-d H:i:s',time()-7200))return false;
+        $expectedStart=(string)($context['starts_at_utc']??$context['current_starts_at_utc']??'');
+        if($expectedStart!==''&&(string)$version->starts_at_utc!==$expectedStart)return false;
+        if(in_array($operation['operation'],array('create','reschedule'),true)&&(int)$version->id!==(int)($context['schedule_version_id']??$context['current_schedule_version_id']??0))return false;
+        if($operation['operation']==='create'){
+            return $active===null
+                &&(int)$lesson->teacher_id===(int)($context['teacher_id']??0)
+                &&(int)$lesson->student_id===(int)($context['student_id']??0);
         }
-        return $action;
+        if($operation['operation']==='reschedule'){
+            return $active!==null&&(int)$active->id===(int)($context['classroom_id']??0)
+                &&(int)$active->version===(int)($context['classroom_version']??0)
+                &&(int)$active->schedule_version_id!==(int)$version->id;
+        }
+        if($operation['operation']==='replace_teacher'){
+            return $active!==null&&(int)$active->id===(int)($context['classroom_id']??0)
+                &&(int)$active->version===(int)($context['classroom_version']??0)
+                &&(int)$active->schedule_version_id===(int)($context['schedule_version_id']??0)
+                &&(int)$version->id===(int)($context['schedule_version_id']??0)
+                &&(int)$active->teacher_id===(int)($context['classroom_teacher_id']??0)
+                &&(int)$lesson->teacher_id===(int)($context['current_teacher_id']??0);
+        }
+        if($operation['operation']==='retry'){
+            return $active!==null&&(int)$active->id===(int)($context['classroom_id']??0)
+                &&(int)$active->version===(int)($context['classroom_version']??0)
+                &&(int)$version->id===(int)($context['schedule_version_id']??0)
+                &&MeetProvisioningRule::mayAutoRetryClassroom(
+                    (string)$active->classroom_state,(string)($active->cohost_state??MeetCoHostRule::PENDING),
+                    trim((string)($active->failure_reason_code??''))?:null,
+                    trim((string)($active->cohost_next_attempt_at??''))?:null,
+                    (int)($active->cohost_attempt_count??0),time()
+                );
+        }
+        return false;
     }
 
-    private function lessonRows(array $rows,string $intent):array{
-        return array_map(static fn(object $row):array=>array(
-            'lesson_id'=>(int)$row->lesson_id,
-            'lesson_uid'=>(string)$row->lesson_uid,
-            'schedule_version_id'=>(int)$row->schedule_version_id,
-            'teacher_id'=>(int)$row->teacher_id,
-            'student_id'=>(int)$row->student_id,
-            'starts_at_utc'=>(string)$row->starts_at_utc,
-            'ends_at_utc'=>(string)$row->ends_at_utc,
-            'schedule_timezone'=>(string)$row->schedule_timezone,
-            'intent'=>$intent,
-        ),$rows);
+    private function bookingOperationIsCurrent(array $operation,array $context):bool{
+        $confirmationId=(int)($context['confirmation_id']??0);
+        $confirmation=$this->repository->bookingConfirmation($confirmationId);
+        if(!$confirmation||(int)$confirmation->version!==(int)($context['confirmation_version']??0))return false;
+        $active=$this->repository->activeClassroomForBooking($confirmationId);
+        $start=(string)$confirmation->starts_at_utc;
+        if($start<gmdate('Y-m-d H:i:s',time()-7200))return false;
+        if($operation['operation']==='create'){
+            return (string)$confirmation->state==='confirmed'&&$active===null
+                &&$start===(string)($context['starts_at_utc']??'')
+                &&(string)$confirmation->ends_at_utc===(string)($context['ends_at_utc']??'')
+                &&(int)$confirmation->teacher_id===(int)($context['teacher_id']??0);
+        }
+        if($operation['operation']==='resume'){
+            return in_array((string)$confirmation->state,array('pending_projection','retryable','awaiting_conference'),true)
+                &&$start===(string)($context['starts_at_utc']??'')
+                &&(string)$confirmation->ends_at_utc===(string)($context['ends_at_utc']??'')
+                &&(int)$confirmation->teacher_id===(int)($context['teacher_id']??0);
+        }
+        if($operation['operation']==='retry'){
+            return (string)$confirmation->state==='confirmed'&&$active!==null
+                &&(int)$active->id===(int)($context['classroom_id']??0)
+                &&(int)$active->version===(int)($context['classroom_version']??0)
+                &&$start===(string)($context['starts_at_utc']??'')
+                &&(int)$confirmation->teacher_id===(int)($context['teacher_id']??0);
+        }
+        if($operation['operation']==='reschedule'){
+            return (string)$confirmation->state==='confirmed'&&$active!==null
+                &&(int)$active->id===(int)($context['classroom_id']??0)
+                &&(int)$active->version===(int)($context['classroom_version']??0)
+                &&$start===(string)($context['starts_at_utc']??'')
+                &&(string)$confirmation->ends_at_utc===(string)($context['ends_at_utc']??'')
+                &&((string)$active->starts_at_utc!==$start||(string)$active->ends_at_utc!==(string)$confirmation->ends_at_utc);
+        }
+        return false;
     }
 
-    private function bookingRows(array $rows,string $intent):array{
-        return array_map(static fn(object $row):array=>array(
-            'confirmation_id'=>(int)$row->confirmation_id,
-            'confirmation_uid'=>(string)$row->confirmation_uid,
-            'teacher_id'=>(int)$row->teacher_id,
-            'booking_request_id'=>(int)($row->booking_request_id??0),
-            'starts_at_utc'=>(string)$row->starts_at_utc,
-            'ends_at_utc'=>(string)$row->ends_at_utc,
-            'schedule_timezone'=>(string)$row->schedule_timezone,
-            'state'=>(string)($row->state??$row->confirmation_state??''),
-            'failure_reason_code'=>($row->failure_reason_code??null)!==null?(string)$row->failure_reason_code:null,
-            'attempt_count'=>(int)($row->attempt_count??0),
-            'intent'=>$intent,
-        ),$rows);
-    }
-
-    private function staleRows(array $rows,string $intent):array{
-        return array_map(static fn(object $row):array=>array(
-            'classroom_id'=>(int)$row->id,
-            'lesson_id'=>(int)$row->lesson_id,
-            'lesson_uid'=>(string)$row->lesson_uid,
-            'provider_schedule_version_id'=>(int)$row->schedule_version_id,
-            'current_schedule_version_id'=>(int)$row->current_schedule_version_id,
-            'current_starts_at_utc'=>(string)$row->current_starts_at_utc,
-            'current_ends_at_utc'=>(string)$row->current_ends_at_utc,
-            'current_schedule_timezone'=>(string)$row->current_schedule_timezone,
-            'intent'=>$intent,
-        ),$rows);
-    }
-
-    private function staleBookingRows(array $rows,string $intent):array{
-        return array_map(static fn(object $row):array=>array(
-            'classroom_id'=>(int)$row->id,
-            'confirmation_id'=>(int)$row->booking_confirmation_id,
-            'confirmation_uid'=>(string)$row->confirmation_uid,
-            'provider_starts_at_utc'=>(string)$row->starts_at_utc,
-            'current_starts_at_utc'=>(string)$row->current_starts_at_utc,
-            'current_ends_at_utc'=>(string)$row->current_ends_at_utc,
-            'current_schedule_timezone'=>(string)$row->current_schedule_timezone,
-            'intent'=>$intent,
-        ),$rows);
-    }
-
-    private function classroomRows(array $rows,string $intent):array{
-        return array_map(static fn(object $row):array=>array(
-            'classroom_id'=>(int)$row->id,
-            'lesson_id'=>(int)($row->lesson_id??0),
-            'booking_confirmation_id'=>(int)($row->booking_confirmation_id??0),
-            'teacher_id'=>(int)$row->teacher_id,
-            'classroom_state'=>(string)$row->classroom_state,
-            'cohost_state'=>(string)($row->cohost_state??MeetCoHostRule::PENDING),
-            'failure_reason_code'=>($row->failure_reason_code??null)!==null?(string)$row->failure_reason_code:null,
-            'cohost_error_code'=>($row->cohost_error_code??null)!==null?(string)$row->cohost_error_code:null,
-            'cohost_attempt_count'=>(int)($row->cohost_attempt_count??0),
-            'cohost_next_attempt_at'=>($row->cohost_next_attempt_at??null)!==null?(string)$row->cohost_next_attempt_at:null,
-            'starts_at_utc'=>(string)$row->starts_at_utc,
-            'intent'=>$intent,
-        ),$rows);
+    private function execute(array $operation):array{
+        $c=$operation['context'];
+        if($operation['kind']==='lesson'){
+            if($operation['operation']==='create'||$operation['operation']==='retry'){
+                return ($this->classrooms??=new GoogleWorkspaceClassroomService())
+                    ->ensureForLesson((int)$c['lesson_id'],(int)$c['schedule_version_id']);
+            }
+            if($operation['operation']==='reschedule'){
+                return ($this->classrooms??=new GoogleWorkspaceClassroomService())
+                    ->rescheduleLesson((int)$c['lesson_id'],(int)$c['current_schedule_version_id']);
+            }
+            if($operation['operation']==='replace_teacher'){
+                return ($this->classrooms??=new GoogleWorkspaceClassroomService())
+                    ->replaceTeacher((int)$c['lesson_id'],(int)$c['current_teacher_id']);
+            }
+        }else{
+            if($operation['operation']==='create'){
+                return ($this->classrooms??=new GoogleWorkspaceClassroomService())->ensureForBooking((int)$c['confirmation_id']);
+            }
+            if($operation['operation']==='reschedule'){
+                return ($this->classrooms??=new GoogleWorkspaceClassroomService())->rescheduleForBooking(
+                    (int)$c['confirmation_id'],(string)$c['starts_at_utc'],(string)$c['ends_at_utc'],(string)$c['schedule_timezone']
+                );
+            }
+            if($operation['operation']==='retry'){
+                return ($this->classrooms??=new GoogleWorkspaceClassroomService())->ensureForBooking((int)$c['confirmation_id']);
+            }
+            return ($this->bookings??=new BookingCalendarProjectionService())->dispatch((int)$c['confirmation_id']);
+        }
+        throw new \RuntimeException('meet_reconciliation_operation_unsupported');
     }
 }

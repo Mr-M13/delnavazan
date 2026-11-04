@@ -24,10 +24,19 @@ final class BookingCalendarProjectionService {
             if((string)$confirmation->state==='confirmed')return array('confirmation_id'=>$confirmationId,'state'=>'confirmed','idempotent'=>true);
             if((string)$confirmation->state==='awaiting_payment')throw new \InvalidArgumentException('intro_payment_required');
             if(!in_array((string)$confirmation->state,array('pending_projection','awaiting_conference','retryable'),true))throw new \InvalidArgumentException('Booking confirmation is not projectable');
-            // The central Delnavazan Workspace classroom is the production path. The legacy Teacher
-            // calendar path remains available only while no organizer connection is configured, so a
-            // rollback does not require a code change.
-            if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()){
+            $centralInstalled=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');
+            if($centralInstalled&&!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::enabled()){
+                $state=$this->retry($confirmation,'meet_classroom_paused',true);
+                return array('confirmation_id'=>$confirmationId,'state'=>$state,'failure_reason_code'=>'meet_classroom_paused','retryable'=>true);
+            }
+            // The central Delnavazan Workspace classroom is the production path. Once the central
+            // code is deployed, the legacy Teacher calendar path is not used; a paused or
+            // re-authorising organizer leaves the accepted booking durably retryable.
+            if($centralInstalled){
+                if(!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()){
+                    $state=$this->retry($confirmation,'meet_organizer_not_connected',true);
+                    return array('confirmation_id'=>$confirmationId,'state'=>$state,'failure_reason_code'=>'meet_organizer_not_connected','retryable'=>true);
+                }
                 try{
                     $provider=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->ensureForBooking($confirmationId);
                     return $this->confirm($confirmation,$provider,false);
@@ -63,6 +72,8 @@ final class BookingCalendarProjectionService {
 
     /** Explicit administrator recovery for a terminal booking projection failure. */
     public function retryFailed(int $confirmationId):array{
+        if(function_exists('current_user_can')&&!current_user_can('dzn_manage_lessons')&&!current_user_can('manage_options'))throw new \RuntimeException('Unauthorized');
+        if(function_exists('get_current_user_id')&&(int)get_current_user_id()<1)throw new \RuntimeException('Unauthorized');
         $observed=$this->repository->confirmation($confirmationId);
         if(!$observed||(string)$observed->state!=='failed')throw new \InvalidArgumentException('Booking confirmation is not failed');
         $now=gmdate('Y-m-d H:i:s');$this->repository->begin();
@@ -89,7 +100,7 @@ final class BookingCalendarProjectionService {
         $confirmation=$this->repository->confirmation($confirmationId);
         if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
         if((string)$confirmation->state!=='confirmed')throw new \InvalidArgumentException('Booking confirmation is not provider-confirmed');
-        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()){
+        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::organizerConnected()){
             $provider=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->rescheduleForBooking($confirmationId,$startsAtUtc,$endsAtUtc,$timezone);
             return array(
                 'confirmation_id'=>$confirmationId,
@@ -117,7 +128,7 @@ final class BookingCalendarProjectionService {
     public function cancel(int $confirmationId):array{
         $confirmation=$this->repository->confirmation($confirmationId);
         if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
-        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()){
+        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::organizerConnected()){
             $result=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->cancelForBooking($confirmationId);
             if(!empty($result['cancelled']))return array('confirmation_id'=>$confirmationId,'state'=>'cancelled','idempotent'=>false);
         }

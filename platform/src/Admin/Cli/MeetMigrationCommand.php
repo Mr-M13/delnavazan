@@ -25,6 +25,7 @@ final class MeetMigrationCommand {
         \WP_CLI::log('Automatic discovery: '.(!empty($report['automatic_reconciliation'])?$report['automatic_reconciliation']:'disabled'));
         \WP_CLI::log('Open recording alerts: '.count($repository->alerts('open',200)));
         \WP_CLI::log('Worker scheduled: '.(wp_next_scheduled(\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceWorker::HOOK)?'yes':'no'));
+        \WP_CLI::log('Booking projection worker scheduled: '.(wp_next_scheduled(\Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::HOOK)?'yes':'no'));
     }
 
     /**
@@ -35,11 +36,13 @@ final class MeetMigrationCommand {
      *
      * ## OPTIONS
      * [--limit=<n>]
-     * : Maximum rows per kind. Default 50.
+     * : Total operation limit across all categories. Default 50.
      * [--dry-run]
      * : Report exact records and intended changes without calling Google or changing local state.
      * [--json]
      * : Emit the complete secret-free dry-run report as JSON.
+     * [--plan=<digest>]
+     * : Required for apply. The exact plan_digest printed by the reviewed dry run.
      */
     public function migrate(array $args,array $assoc):void{
         $limit=isset($assoc['limit'])?max(1,min(500,(int)$assoc['limit'])):50;
@@ -49,12 +52,19 @@ final class MeetMigrationCommand {
             $report=$reconciler->report($limit);
             if(!empty($assoc['json'])){\WP_CLI::log((string)wp_json_encode($report,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));return;}
             self::printReport($report);
-            \WP_CLI::success('Dry run only. No Google call or database mutation was performed.');
+            \WP_CLI::success('Dry run only. Approve plan '.$report['plan_digest'].' explicitly before applying.');
             return;
         }
-        $result=$reconciler->run($limit,true,false);
+        $approved=trim((string)($assoc['plan']??''));
+        if($approved==='')\WP_CLI::error('--plan=<plan_digest> is required. Run repair --dry-run, review the exact record set, then pass that digest.');
+        try{
+            $result=$reconciler->run($limit,true,false,$approved);
+        }catch(\Throwable $error){
+            if($error->getMessage()==='meet_reconciliation_plan_stale')\WP_CLI::error('The approved plan is stale. The current records no longer match the reviewed plan digest; generate a new dry run.');
+            throw $error;
+        }
         self::printActions($result['actions'],false);
-        \WP_CLI::success('Attempted: '.(int)$result['attempted'].' · succeeded: '.(int)$result['succeeded'].' · failed: '.(int)$result['failed'].' · skipped: '.(int)$result['skipped']);
+        \WP_CLI::success('Plan '.$result['plan_id'].' · planned '.(int)$result['planned'].' · attempted '.(int)$result['attempted'].' · succeeded '.(int)$result['succeeded'].' · failed '.(int)$result['failed'].' · skipped '.(int)$result['skipped']);
     }
 
     /** Alias with an explicit name for the production reconciliation approval step. */
@@ -67,11 +77,19 @@ final class MeetMigrationCommand {
      *
      * ## OPTIONS
      * --confirmation_id=<id>
+     *
+     * ## EXAMPLES
+     * wp dzn-meet retry-booking --confirmation_id=123 --user=1
      */
     public function retry_booking(array $args,array $assoc):void{
         $id=(int)($assoc['confirmation_id']??0);
         if($id<1)\WP_CLI::error('--confirmation_id is required.');
-        $result=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService())->retryFailed($id);
+        try{
+            $result=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService())->retryFailed($id);
+        }catch(\Throwable $error){
+            if(trim($error->getMessage())==='Unauthorized')\WP_CLI::error('Administrator authorization is required. Re-run with --user=<administrator_id>.');
+            throw $error;
+        }
         \WP_CLI::success('Booking '.$id.' projection state: '.(string)($result['state']??'unknown').(!empty($result['failure_reason_code'])?' · '.$result['failure_reason_code']:''));
     }
 
@@ -91,7 +109,7 @@ final class MeetMigrationCommand {
         $dry=!empty($assoc['dry-run']);
         $result=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->run($limit,$discover,$dry);
         self::printActions($result['actions'],$dry);
-        \WP_CLI::success(($dry?'Planned: ':'Attempted: ').(int)$result['attempted'].' · succeeded: '.(int)$result['succeeded'].' · failed: '.(int)$result['failed'].' · skipped: '.(int)$result['skipped']);
+        \WP_CLI::success('Plan '.$result['plan_id'].' · '.($dry?'planned ':'attempted ').($dry?(int)$result['planned']:(int)$result['attempted']).' · succeeded '.(int)$result['succeeded'].' · failed '.(int)$result['failed'].' · skipped '.(int)$result['skipped']);
     }
 
     /**
@@ -117,6 +135,9 @@ final class MeetMigrationCommand {
      * --lesson_id=<id>
      * --reason=<text>
      * [--reason_code=<code>]
+     *
+     * ## EXAMPLES
+     * wp dzn-meet approve-cohost-exception --lesson_id=456 --reason="Documented operational exception" --user=1
      */
     public function approve_cohost_exception(array $args,array $assoc):void{
         $lessonId=(int)($assoc['lesson_id']??0);$reason=trim((string)($assoc['reason']??''));$code=(string)($assoc['reason_code']??'operator_exception');
@@ -126,23 +147,32 @@ final class MeetMigrationCommand {
     }
 
     /**
-     * Retry a blocked/retryable co-host assignment after the tenant policy is corrected.
+     * Explicitly retry one eligible lesson projection after its cause is corrected.
      *
      * ## OPTIONS
      * --lesson_id=<id>
+     * --reason=<text>
+     * : Required audited administrator reason (12–255 characters).
+     * [--reason_code=<code>]
+     *
+     * ## EXAMPLES
+     * wp dzn-meet retry-classroom --lesson_id=456 --reason="Workspace tenant co-host policy corrected" --user=1
      */
     public function retry_classroom(array $args,array $assoc):void{
         $lessonId=(int)($assoc['lesson_id']??0);
-        if($lessonId<1)\WP_CLI::error('--lesson_id is required.');
-        global $wpdb;$p=$wpdb->prefix.'dzn_';
-        $classroom=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}meet_classrooms WHERE lesson_id=%d ORDER BY id DESC LIMIT 1",$lessonId));
-        if(!$classroom)\WP_CLI::error('No classroom found.');
-        if((string)$classroom->classroom_state==='cancelled')\WP_CLI::error('A cancelled classroom cannot be retried.');
-        $wpdb->update($p.'meet_classrooms',array('classroom_state'=>'provisioning','active_slot'=>1,'cohost_state'=>'pending','cohost_error_code'=>null,'cohost_error_detail'=>null,'cohost_next_attempt_at'=>null,'cohost_attempt_count'=>0,'failure_reason_code'=>null,'last_provider_response_code'=>null,'cohost_exception_state'=>null,'cohost_exception_approved_by'=>null,'cohost_exception_approved_at'=>null,'cohost_exception_reason'=>null,'updated_at'=>gmdate('Y-m-d H:i:s')),array('id'=>(int)$classroom->id));
-        $version=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->currentScheduleVersion($lessonId);
-        if(!$version)\WP_CLI::error('No current schedule version.');
-        (new GoogleWorkspaceClassroomService())->ensureForLesson($lessonId,(int)$version->id);
-        \WP_CLI::success('Classroom retried for lesson '.$lessonId.'.');
+        $reason=trim((string)($assoc['reason']??''));
+        $reasonCode=(string)($assoc['reason_code']??'manual_retry_authorized');
+        if($lessonId<1||strlen($reason)<12)\WP_CLI::error('--lesson_id and an audited --reason (12+ chars) are required. Use --user=<administrator>.');
+        try{
+            $result=(new GoogleWorkspaceClassroomService())->retryClassroom($lessonId,(int)get_current_user_id(),$reason,$reasonCode);
+        }catch(\Throwable $error){
+            $message=trim($error->getMessage());
+            if(in_array($message,array('meet_lesson_required','meet_lesson_archived','meet_lesson_not_authorised','meet_lesson_cancelled','meet_lesson_completed','schedule_version_unusable','lesson_ended','meet_classroom_schedule_stale','meet_classroom_history_not_retryable','meet_classroom_retry_conflict','meet_retry_busy','meet_retry_reason_required','Unauthorized'),true)){
+                \WP_CLI::error($message);
+            }
+            throw $error;
+        }
+        \WP_CLI::success('Classroom '.(int)$result['classroom_id'].' retried for lesson '.$lessonId.' · state '.(string)$result['state'].' · reset '.($result['reset']?'yes':'no'));
     }
 
     /** Reconcile ended classrooms' recordings and participant sessions. */
@@ -183,11 +213,16 @@ final class MeetMigrationCommand {
     /** Print the exact secret-free reconciliation report. */
     private static function printReport(array $report):void{
         \WP_CLI::log('Generated: '.$report['generated_at'].' · automatic discovery: '.$report['automatic_reconciliation']);
+        \WP_CLI::log('Plan: '.$report['plan_id'].' · digest: '.$report['plan_digest'].' · total operation limit: '.(int)$report['limit']);
         foreach($report['counts'] as $key=>$count)\WP_CLI::log('  '.$key.': '.(int)$count);
-        foreach(array('missing_lesson_classrooms','missing_booking_classrooms','stale_lesson_classrooms','stale_booking_classrooms','teacher_mismatch_classrooms','retryable_classrooms','unconfirmed_booking_projections','failed_booking_projections','blocked_or_failed_classrooms') as $section){
+        foreach(array('missing_lesson_classrooms','missing_booking_classrooms','stale_lesson_classrooms','stale_booking_classrooms','teacher_mismatch_classrooms','retryable_classrooms','unconfirmed_booking_projections') as $section){
             if(empty($report[$section]))continue;
             \WP_CLI::log('['.$section.']');
             foreach($report[$section] as $row)self::printRow($row,true);
+        }
+        if(!empty($report['interventions'])){
+            \WP_CLI::log('[administrator_interventions — never auto-executed]');
+            foreach($report['interventions'] as $row)self::printRow($row,true);
         }
     }
 
@@ -196,8 +231,10 @@ final class MeetMigrationCommand {
     }
 
     private static function printRow(array $row,bool $dryRun):void{
+        $context=is_array($row['context']??null)?$row['context']:array();
+        $row=array_merge($context,$row);
         $parts=array();
-        foreach(array('lesson_id','lesson_uid','schedule_version_id','confirmation_id','confirmation_uid','classroom_id','teacher_id','starts_at_utc','current_starts_at_utc','classroom_state','cohost_state','state','failure_reason_code','reason_code','intent','operation') as $field){
+        foreach(array('key','lesson_id','lesson_uid','schedule_version_id','confirmation_id','confirmation_uid','classroom_id','teacher_id','starts_at_utc','current_starts_at_utc','imminent_24h','classroom_state','cohost_state','current_state','expected_state','mode','operation','state','failure_reason_code','reason_code','result_state') as $field){
             if(array_key_exists($field,$row)&&$row[$field]!==null&&$row[$field]!=='')$parts[]=$field.'='.$row[$field];
         }
         \WP_CLI::log(($dryRun?'[dry-run] ':'').implode(' · ',$parts));
@@ -212,7 +249,12 @@ final class MeetMigrationCommand {
         \WP_CLI::warning('These grants are preserved. Revoke only after every event created under them has been migrated and confirmed.');
     }
 
-    /** Safe rollback: stop using the organizer, keep every row and recording reference. */
+    /**
+     * Emergency full organizer rollback: disconnect locally, preserve every row and recording.
+     *
+     * Do not use this for one failed reconciliation batch. Pause automatic recovery with
+     * `wp option update dzn_meet_auto_reconcile 0` first.
+     */
     public function rollback():void{
         (new GoogleWorkspaceOAuthService())->disconnect(false);
         \WP_CLI::success('Organizer disconnected locally. Central rows, legacy grants and recordings were preserved. Theme/portal code must be redeployed to the archived LiveKit tag only after an explicit change window.');

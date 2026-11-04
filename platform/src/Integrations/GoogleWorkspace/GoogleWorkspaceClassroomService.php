@@ -41,13 +41,18 @@ final class GoogleWorkspaceClassroomService {
         return true;
     }
 
-    public static function configured():bool{
+    /** Whether the organizer grant is usable, independent of the provisioning pause switch. */
+    public static function organizerConnected():bool{
         try{
-            if(!self::enabled())return false;
             if(!GoogleWorkspaceOAuthService::configured())return false;
             $health=(new GoogleWorkspaceOAuthService())->health();
             return (string)($health['state']??'')==='connected';
         }catch(\Throwable){return false;}
+    }
+
+    /** New provisioning is allowed only while both the organizer and the emergency switch permit it. */
+    public static function configured():bool{
+        return self::enabled()&&self::organizerConnected();
     }
 
     /** Ensure a canonical term lesson has one ready organizer-owned Meet classroom. */
@@ -265,7 +270,8 @@ final class GoogleWorkspaceClassroomService {
     /** Cancel the provider event but keep the classroom history and recording artifacts. */
     public function cancelLesson(int $lessonId):array{
         $classroom=$this->repository->activeClassroomForLesson($lessonId);
-        if(!$classroom)return array('cancelled'=>false,'reason'=>'classroom_not_found');
+        if(!$classroom)$classroom=$this->repository->latestClassroomForLesson($lessonId);
+        if(!$classroom||(string)$classroom->classroom_state==='cancelled')return array('cancelled'=>false,'reason'=>'classroom_not_found');
         $references=$this->openReferences($classroom);
         if($references!==null){
             $response=$this->api->cancelCalendarEvent((string)$references['provider_object_reference']);
@@ -286,7 +292,8 @@ final class GoogleWorkspaceClassroomService {
     /** Cancel an introductory booking classroom without deleting its history. */
     public function cancelForBooking(int $confirmationId):array{
         $classroom=$this->repository->activeClassroomForBooking($confirmationId);
-        if(!$classroom)return array('cancelled'=>false,'reason'=>'classroom_not_found');
+        if(!$classroom)$classroom=$this->repository->latestClassroomForBooking($confirmationId);
+        if(!$classroom||(string)$classroom->classroom_state==='cancelled')return array('cancelled'=>false,'reason'=>'classroom_not_found');
         $references=$this->openReferences($classroom);
         if($references!==null){
             $response=$this->api->cancelCalendarEvent((string)$references['provider_object_reference']);
@@ -504,7 +511,81 @@ final class GoogleWorkspaceClassroomService {
         return null;
     }
 
-    /** Explicit administrator-approved exception; never an automatic fallback. */
+    /**
+     * Explicit, audited retry of one lesson projection.
+     *
+     * Preconditions are checked while the lesson and applicable schedule are locked. An active row is
+     * reset with a version compare-and-swap; an inactive historical row is never reactivated. When no
+     * active row exists, a new idempotent projection is created after the transaction commits.
+     */
+    public function retryClassroom(int $lessonId,int $actorUserId,string $reason,string $reasonCode='manual_retry_authorized'):array{
+        if(!function_exists('current_user_can')||(!current_user_can('dzn_manage_lessons')&&!current_user_can('manage_options')))throw new \RuntimeException('Unauthorized');
+        if(!MeetClassroomRetryRule::reasonRequired($actorUserId,$reason))throw new \InvalidArgumentException('meet_retry_reason_required');
+        $reasonCode=preg_match('/^[a-z0-9_]{3,64}$/D',$reasonCode)?$reasonCode:'manual_retry_authorized';
+        $lock='dzn_meet_retry_lesson_'.$lessonId;
+        if(!$this->repository->acquireLock($lock,10))throw new \RuntimeException('meet_retry_busy');
+        try{
+            $classroomId=0;$reset=false;$alreadyReady=false;
+            $this->repository->begin();
+            try{
+                $lesson=$this->repository->lessonWithParticipants($lessonId,true);
+                if(!$lesson||(string)($lesson->record_model??'')!=='canonical_term_lesson_v1')throw new \InvalidArgumentException('meet_lesson_required');
+                $version=$this->repository->currentScheduleVersion($lessonId,true);
+                $active=$this->repository->activeClassroomForLesson($lessonId,true);
+                $latest=$this->repository->latestClassroomForLesson($lessonId);
+                $eligibility=MeetClassroomRetryRule::lessonEligibility(
+                    (string)($lesson->lifecycle_state??''),(string)$lesson->status,$lesson->archived_at!==null,
+                    $version!==null?(string)$version->ends_at_utc:null,time(),$version!==null
+                );
+                if($eligibility!==MeetClassroomRetryRule::ELIGIBLE)throw new \InvalidArgumentException($eligibility);
+                $scheduleRow=$active?:$latest;
+                if($scheduleRow&&(int)$scheduleRow->schedule_version_id!==(int)$version->id)throw new \InvalidArgumentException('meet_classroom_schedule_stale');
+                $selection=MeetClassroomRetryRule::classroomSelection($active,$latest);
+                if($selection==='reject_history')throw new \InvalidArgumentException('meet_classroom_history_not_retryable');
+                if($selection==='already_ready'){
+                    $alreadyReady=true;
+                    $classroomId=(int)$active->id;
+                }elseif($selection===MeetClassroomRetryRule::RESET_ACTIVE){
+                    $classroomId=(int)$active->id;
+                    $updated=$this->repository->updateClassroom($classroomId,array(
+                        'classroom_state'=>'provisioning','cohost_state'=>MeetCoHostRule::PENDING,
+                        'cohost_error_code'=>null,'cohost_error_detail'=>null,'cohost_next_attempt_at'=>null,
+                        'cohost_attempt_count'=>0,'failure_reason_code'=>null,'last_provider_response_code'=>null,
+                        'cohost_exception_state'=>null,'cohost_exception_approved_by'=>null,
+                        'cohost_exception_approved_at'=>null,'cohost_exception_reason'=>null,
+                        'version'=>(int)$active->version+1,'updated_at'=>gmdate('Y-m-d H:i:s'),'updated_by'=>$actorUserId,
+                    ),array('id'=>$classroomId,'version'=>(int)$active->version,'active_slot'=>1));
+                    if($updated!==1)throw new \RuntimeException('meet_classroom_retry_conflict');
+                    $reset=true;
+                    $this->auditRetry($classroomId,$actorUserId,$reasonCode,$reason,'provisioning');
+                }
+                $this->repository->commit();
+            }catch(\Throwable $error){
+                $this->repository->rollback();
+                throw $error;
+            }
+            if($alreadyReady){
+                return array('lesson_id'=>$lessonId,'classroom_id'=>$classroomId,'state'=>'ready','idempotent'=>true,'reset'=>false);
+            }
+            try{
+                $result=$this->ensureForLesson($lessonId,(int)$version->id);
+            }catch(\Throwable $error){
+                if($classroomId<1){
+                    $failedRow=$this->repository->latestClassroomForLesson($lessonId);
+                    $classroomId=$failedRow?(int)$failedRow->id:0;
+                }
+                if($classroomId>0)$this->auditRetry($classroomId,$actorUserId,$reasonCode,$reason,'failed');
+                throw $error;
+            }
+            $classroomId=(int)($result['classroom_id']??$classroomId);
+            $this->auditRetry($classroomId,$actorUserId,$reasonCode,$reason,(string)($result['state']??'ready'));
+            return array('lesson_id'=>$lessonId,'classroom_id'=>$classroomId,'state'=>(string)($result['state']??'ready'),'idempotent'=>false,'reset'=>$reset);
+        }finally{
+            $this->repository->releaseLock($lock);
+        }
+    }
+
+    /** Administrator-approved exception; never an automatic fallback. */
     public function approveCoHostException(int $lessonId,int $approverUserId,string $reasonCode,string $reasonText):array{
         if(!function_exists('current_user_can')||(!current_user_can('dzn_manage_lessons')&&!current_user_can('manage_options')))throw new \RuntimeException('Unauthorized');
         $classroom=$this->repository->activeClassroomForLesson($lessonId);
@@ -673,6 +754,20 @@ final class GoogleWorkspaceClassroomService {
                 'state'=>'open','created_at'=>gmdate('Y-m-d H:i:s'),'acknowledged_at'=>null,'acknowledged_by'=>null,
             ));
             if(function_exists('do_action'))do_action('dzn_meet_classroom_alert',$classroomId,$code,$detail,$detailText);
+        }catch(\Throwable){}
+    }
+
+    private function auditRetry(int $classroomId,int $actorUserId,string $reasonCode,string $reason,string $state):void{
+        try{
+            $this->repository->insertEvent(array(
+                'uid'=>Identifier::uid(),'classroom_id'=>$classroomId,'operation'=>'retry_classroom',
+                'command_digest'=>hash('sha256','meet-retry:'.$classroomId.':'.$actorUserId.':'.microtime(true).':'.random_int(1,PHP_INT_MAX)),
+                'result_state'=>$state,'reason_code'=>$reasonCode,
+                'provider_http_status'=>null,'provider_error_class'=>null,
+                'provider_detail'=>substr(trim($reason),0,255),
+                'payload_digest'=>hash('sha256','retry|'.$classroomId.'|'.$reasonCode.'|'.$state),
+                'created_at'=>gmdate('Y-m-d H:i:s'),'created_by'=>$actorUserId,
+            ));
         }catch(\Throwable){}
     }
 

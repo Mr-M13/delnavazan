@@ -143,6 +143,8 @@ jobs:
           php platform/tests/google-meet-classroom-contract.php
           php platform/tests/google-meet-hardening-unit.php
           php platform/tests/google-meet-provisioning-rule-unit.php
+          php platform/tests/google-meet-reconciliation-plan-unit.php
+          php platform/tests/google-meet-classroom-retry-rule-unit.php
           php platform/tests/google-meet-reconciliation-contract.php
           php platform/tests/meet-classroom-join-window-unit.php
           php platform/tests/booking-calendar-projection-central-unit.php

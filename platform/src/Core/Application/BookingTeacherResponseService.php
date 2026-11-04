@@ -103,9 +103,12 @@ final class BookingTeacherResponseService {
         if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
         // The central Delnavazan Workspace organizer creates the classroom. A Teacher personal
         // Google grant is required only while the caller has explicitly rolled back to legacy.
-        $central=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured();
-        $connection=$central?null:$this->repository->activeConnection((int)$teacher->id,true);
-        if(!$central&&!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
+        $centralInstalled=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');
+        // The central code path owns the booking even while the organizer is temporarily paused or
+        // re-authorising. Persist acceptance as retryable instead of rejecting it or falling back to
+        // a Teacher-owned Calendar event.
+        $connection=$centralInstalled?null:$this->repository->activeConnection((int)$teacher->id,true);
+        if(!$centralInstalled&&!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
         $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));
         $pricing=$this->introPricing!==null?($this->introPricing)((int)$delivery->booking_request_id):(new IntroPricingService())->forBooking((int)$delivery->booking_request_id);
         $paid=$pricing['mode']==='paid';

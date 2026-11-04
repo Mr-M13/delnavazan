@@ -17,6 +17,8 @@ final class GoogleWorkspaceRepository {
     public function begin():void{global $wpdb;if($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')===false||$wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('meet_transaction_start_failed');}
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('meet_transaction_commit_failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
+    public function acquireLock(string $name,int $timeout=5):bool{global $wpdb;return (int)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,%d)',$name,$timeout))===1;}
+    public function releaseLock(string $name):void{global $wpdb;$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',$name));}
 
     // ---- Workspace connection ---------------------------------------------------------------
     public function activeConnection(bool $lock=false):?object{
@@ -116,7 +118,8 @@ final class GoogleWorkspaceRepository {
         $limit=max(1,min(500,$limit));
         return $this->rows(
             "SELECT c.id AS confirmation_id,c.uid AS confirmation_uid,c.teacher_id,c.booking_request_id,
-                    c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.state AS confirmation_state
+                    c.version AS confirmation_version,c.starts_at_utc,c.ends_at_utc,
+                    c.schedule_timezone,c.state AS confirmation_state
              FROM {$this->p}booking_request_confirmations c
              LEFT JOIN {$this->p}meet_classrooms m
                     ON m.booking_confirmation_id=c.id AND m.active_slot=1
@@ -131,6 +134,7 @@ final class GoogleWorkspaceRepository {
         $limit=max(1,min(500,$limit));
         return $this->rows(
             "SELECT m.*,c.uid AS confirmation_uid,c.state AS confirmation_state,
+                    c.version AS confirmation_version,c.teacher_id AS confirmation_teacher_id,
                     c.starts_at_utc AS current_starts_at_utc,c.ends_at_utc AS current_ends_at_utc,
                     c.schedule_timezone AS current_schedule_timezone
              FROM {$this->p}meet_classrooms m
@@ -188,13 +192,16 @@ final class GoogleWorkspaceRepository {
         $limit=max(1,min(500,$limit));
         $now=gmdate('Y-m-d H:i:s');
         return $this->rows(
-            "SELECT * FROM {$this->p}meet_classrooms
-             WHERE starts_at_utc>=%s
-               AND classroom_state IN ('provisioning','failed','blocked','ready','rescheduled')
-               AND cohost_state<>'blocked'
-               AND (failure_reason_code IS NULL
-                    OR failure_reason_code NOT IN ('meet_calendar_projection_refused','meet_space_lookup_refused','meet_space_config_refused','meet_cohost_assignment_blocked','meet_cohost_assignment_refused'))
-             ORDER BY starts_at_utc ASC,id ASC LIMIT ".$limit,
+            "SELECT c.*,b.version AS booking_confirmation_version,b.state AS booking_confirmation_state,
+                    b.teacher_id AS confirmation_teacher_id
+             FROM {$this->p}meet_classrooms c
+             LEFT JOIN {$this->p}booking_request_confirmations b ON b.id=c.booking_confirmation_id
+             WHERE c.starts_at_utc>=%s
+               AND c.classroom_state IN ('provisioning','failed','blocked','ready','rescheduled')
+               AND c.cohost_state<>'blocked'
+               AND (c.failure_reason_code IS NULL
+                    OR c.failure_reason_code NOT IN ('meet_calendar_projection_refused','meet_space_lookup_refused','meet_space_config_refused','meet_cohost_assignment_blocked','meet_cohost_assignment_refused'))
+             ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
             $now
         );
     }
@@ -204,11 +211,12 @@ final class GoogleWorkspaceRepository {
         $limit=max(1,min(500,$limit));
         return $this->rows(
             "SELECT c.id AS confirmation_id,c.uid AS confirmation_uid,c.teacher_id,c.booking_request_id,
-                    c.state,c.failure_reason_code,c.attempt_count,c.next_attempt_at,
+                    c.version AS confirmation_version,c.state,c.failure_reason_code,c.attempt_count,c.next_attempt_at,
                     c.starts_at_utc,c.ends_at_utc,c.schedule_timezone
              FROM {$this->p}booking_request_confirmations c
              WHERE c.state IN ('pending_projection','retryable','awaiting_conference')
                AND c.starts_at_utc>=%s
+               AND (c.next_attempt_at IS NULL OR c.next_attempt_at<=UTC_TIMESTAMP())
              ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
             gmdate('Y-m-d H:i:s')
         );
@@ -219,7 +227,8 @@ final class GoogleWorkspaceRepository {
         $limit=max(1,min(500,$limit));
         return $this->rows(
             "SELECT c.id AS confirmation_id,c.uid AS confirmation_uid,c.teacher_id,c.booking_request_id,
-                    c.failure_reason_code,c.attempt_count,c.starts_at_utc,c.ends_at_utc,c.schedule_timezone
+                    c.version AS confirmation_version,c.failure_reason_code,c.attempt_count,
+                    c.starts_at_utc,c.ends_at_utc,c.schedule_timezone
              FROM {$this->p}booking_request_confirmations c
              WHERE c.state='failed' AND c.starts_at_utc>=%s
              ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
@@ -276,7 +285,7 @@ final class GoogleWorkspaceRepository {
 
     /** Classrooms blocked, failed or awaiting co-host recovery, for Settings → Integrations. */
     public function blockedClassrooms(int $limit=25):array{
-        $limit=max(1,min(100,$limit));
+        $limit=max(1,min(500,$limit));
         return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state IN ('blocked','failed') OR (classroom_state='provisioning' AND failure_reason_code IS NOT NULL) OR cohost_state IN ('pending','retryable','blocked') ORDER BY id DESC LIMIT ".$limit);
     }
 

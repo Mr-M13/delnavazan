@@ -19,6 +19,8 @@ final class MeetProvisioningRule {
         'meet_space_config_retryable',
         'meet_cohost_assignment_retryable',
         'meet_organizer_refresh_failed',
+        'meet_organizer_not_connected',
+        'meet_classroom_paused',
         'meet_conference_pending',
         'meet_classroom_projection_retryable',
         'booking_projection_busy',
@@ -41,7 +43,6 @@ final class MeetProvisioningRule {
         'meet_booking_confirmation_required',
         'meet_lesson_not_active',
         'meet_schedule_version_unusable',
-        'meet_organizer_not_connected',
         'meet_provisioning_blocked',
         'meet_conference_timeout',
         'meet_booking_not_active',
@@ -97,7 +98,7 @@ final class MeetProvisioningRule {
         if($cohostState===MeetCoHostRule::BLOCKED)return false;
         if(self::isPermanentCode($failureCode))return false;
         if($classroomState==='blocked'&&!self::isRetryableCode($failureCode))return false;
-        if($attemptCount>=GoogleWorkspaceClassroomRule::MAX_ATTEMPTS&&$cohostState!==MeetCoHostRule::VERIFIED)return false;
+        if($attemptCount>=GoogleWorkspaceClassroomRule::MAX_ATTEMPTS)return false;
         if($nextAttemptAt!==null&&$nextAttemptAt!==''){
             $next=strtotime($nextAttemptAt.' UTC');
             if($next!==false&&$next>$now)return false;

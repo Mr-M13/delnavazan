@@ -201,46 +201,55 @@ administrator adjudication remain in the existing Phase-O/P workflows.
 
 ```sh
 wp dzn-meet status
-wp dzn-meet repair --dry-run --limit=100 --json
-wp dzn-meet repair --limit=100
+wp dzn-meet repair --dry-run --limit=500 --json
+wp dzn-meet repair --limit=500 --plan=<plan_digest>
 wp dzn-meet worker --discover --limit=25
-wp dzn-meet retry-booking --confirmation_id=123
+wp dzn-meet retry-booking --confirmation_id=123 --user=<administrator_id>
 wp dzn-meet reconcile --limit=20
 wp dzn-meet legacy-grants
 wp dzn-meet map-account --role=student --participant_id=123 --account_key=users/abc123
 wp dzn-meet replace-teacher --lesson_id=456 --teacher_id=789
-wp dzn-meet rollback
+wp dzn-meet retry-classroom --lesson_id=456 --reason="Documented policy correction" --user=<administrator_id>
+# Emergency only: wp dzn-meet rollback --user=<administrator_id>
 ```
 
 `repair --dry-run` is the production approval gate. It lists every future authorised Lesson and
 confirmed introductory booking without an active organizer classroom, stale schedule projections,
 Teacher mismatch, retryable/failed booking projection and blocked co-host row. It performs no Google
-call and writes no row. `repair` applies the same bounded candidate set, reusing deterministic event
-ids and the one-active-classroom invariant.
+call and writes no row. Preview and apply share one planner, one total operation limit and one
+deterministic ordering. `repair --plan=<plan_digest>` applies exactly the reviewed record set;
+changed versions or records are refused as stale. Reusing deterministic event ids and the
+one-active-classroom invariant keeps reruns idempotent.
 
 `worker --discover` additionally allows the five-minute worker to discover rows that do not yet
 exist. Scheduled discovery is deliberately opt-in: set `DZN_MEET_AUTO_RECONCILE=true`, or
 `wp option update dzn_meet_auto_reconcile 1`, only after the dry run is reviewed. Existing rows with
-a bounded transient failure and accepted booking retries run regardless, because those records have
-already been created.
+a bounded transient failure, stale schedule/booking instant, Teacher mismatch and accepted booking
+retry continue while provisioning is enabled, because those records have already been created. The
+discovery flag controls missing-row backfill only. `DZN_MEET_CLASSROOM_ENABLED=false` pauses that
+background provisioning too while recording/attendance reconciliation continues.
 
 `retry-booking` is the explicit administrator recovery for a terminal projection failure. It resets
 only that confirmation (and its accepting delivery) to retryable, then dispatches it through the same
 idempotent provider path; the Teacher does not have to accept the request again.
 
 Permanent co-host refusals are never retried automatically. Correct the tenant policy and run
-`wp dzn-meet retry-classroom --lesson_id=456`, or record a documented exception with
-`wp dzn-meet approve-cohost-exception`.
+`wp dzn-meet retry-classroom --lesson_id=456 --reason="Documented policy correction" --user=<id>`,
+or record a documented exception with `wp dzn-meet approve-cohost-exception`. The retry command
+validates the current lesson/schedule and never revives cancelled or retired classroom history.
 
-- **Migrate** provisions future canonical lessons and confirmed bookings; it does not change canonical
-  state and does not revoke legacy grants.
+- **Migrate/repair** provisions future canonical lessons and confirmed bookings; it does not change
+  canonical state and does not revoke legacy grants.
 - **Reconcile** reads recordings and participant sessions for ended classrooms.
 - **Legacy grants** lists Teacher Google connections for a controlled retirement decision. Nothing is
   revoked automatically.
-- **Rollback** disconnects the organizer locally without deleting rows or recordings.
+- **Rollback** disconnects the organizer locally without deleting rows or recordings. Use it only as
+  an explicitly approved emergency action; the default response to a failed batch is
+  `wp option update dzn_meet_auto_reconcile 0`.
 
-Emergency switch: define `DZN_MEET_CLASSROOM_ENABLED=false` to stop new provisioning while existing
-Meet links remain usable; redeploy the archival LiveKit tag only as a separate, explicit rollback.
+Emergency switch: define `DZN_MEET_CLASSROOM_ENABLED=false` to stop both interactive and background
+new provisioning while existing Meet links remain usable. Verify Join Class before using it; redeploy
+the archival LiveKit tag only as a separate, explicit rollback.
 
 ## 7a. Required Google Cloud / Workspace configuration
 
@@ -294,13 +303,21 @@ tests, and the full CI gate. These are source/unit contracts; they do not prove 
 - OVH/Pi infrastructure is untouched; do not cancel or delete until remaining dependencies are
   confirmed.
 
-## 10. Rollback
+## 10. Rollback (least destructive first)
 
-1. Define `DZN_MEET_CLASSROOM_ENABLED=false` (or run `wp dzn-meet rollback`) to stop new provisioning.
-2. Keep `meet_classrooms`, `meet_classroom_references`, `meet_recording_artifacts` and legacy
-   `integration_*` rows. Do not drop tables or delete Drive files.
-3. Existing central Meet links continue to open through the join services.
-4. To restore the previous classroom UI, deploy the archival tag/branch, restore the previous
-   `DZN_LIVEKIT_*` credentials from the protected production config, and re-register the LiveKit
-   webhook. This is a separate change window and has not been performed here.
-5. Re-run the full verification matrix before declaring either direction complete.
+1. **Pause automatic recovery:** `wp option update dzn_meet_auto_reconcile 0`. This leaves the
+   organizer connected, existing links usable and current lessons untouched. It is the default
+   response to a failed reconciliation batch.
+2. **Pause new provisioning only when necessary:** define `DZN_MEET_CLASSROOM_ENABLED=false`.
+   Interactive and background provisioning stop; recording/attendance reconciliation continues.
+   Verify Join Class behavior before applying it in production.
+3. **Emergency full organizer rollback only with explicit approval:**
+   `wp dzn-meet rollback --user=<administrator_id>`. This disconnects the organizer and is not a
+   default response to one failed batch.
+4. Keep `meet_classrooms`, `meet_classroom_references`, `meet_recording_artifacts`, consent evidence
+   and legacy `integration_*` rows. Do not drop tables or delete Drive files.
+5. Existing central Meet links continue to open through the join services while the organizer remains
+   connected. To restore the previous classroom UI, deploy the archival tag/branch, restore the
+   previous `DZN_LIVEKIT_*` credentials from the protected production config, and re-register the
+   LiveKit webhook. This is a separate change window and has not been performed here.
+6. Re-run the full verification matrix before declaring either direction complete.

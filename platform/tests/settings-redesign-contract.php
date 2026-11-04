@@ -80,7 +80,7 @@ $fail(str_contains($notifications, 'draft') && str_contains($notifications, 'Pub
 $fail(str_contains($notifications, 'check_admin_referer') && str_contains($notifications, 'wp_safe_redirect'), 'Notification mutations must be nonce-protected and same-site redirected');
 
 /* Integrations is provider configuration/readiness. */
-foreach (array('Provider configuration and readiness', 'Email', 'WhatsApp', 'SMS', 'Google authentication, Calendar and Meet', 'Stripe', 'LiveKit classroom', 'Credentials stored', 'Last explicit verification', 'Frontline WhatsApp contact', 'Twilio WhatsApp is not implemented', 'dzn-finance&tab=settings#stripe', 'Advanced provider controls') as $needle) {
+foreach (array('Provider configuration and readiness', 'Email', 'WhatsApp', 'SMS', 'Google Workspace classroom', 'Stripe', 'Google Meet classroom', 'Credentials stored', 'Last explicit verification', 'Frontline WhatsApp contact', 'Twilio WhatsApp is not implemented', 'dzn-finance&tab=settings#stripe', 'Advanced provider controls') as $needle) {
     $fail(str_contains($integrations, $needle), 'Integrations is missing: ' . $needle);
 }
 $fail(!str_contains($integrations, "'secret_key']") && !str_contains($integrations, 'access_token]'), 'Integrations screen must not render secret values');

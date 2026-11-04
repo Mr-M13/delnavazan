@@ -139,6 +139,8 @@ jobs:
           php platform/tests/booking-notification-recovery-contract.php
           php platform/tests/google-oauth-scope-policy-unit.php
           php platform/tests/google-oauth-transport-unit.php
+          php platform/tests/google-meet-classroom-unit.php
+          php platform/tests/google-meet-classroom-contract.php
           php platform/tests/oauth-scope-exact-matching-contract.php
           php platform/tests/renewal-historical-upgrade-contract.php
           php platform/tests/renewal-historical-upgrade-unit.php

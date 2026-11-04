@@ -520,7 +520,7 @@ final class Migrator {
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) && in_array( '066_consent_lifecycle_authority', $completed, true ) && in_array( '067_recording_archive_authority', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) && in_array( '066_consent_lifecycle_authority', $completed, true ) && in_array( '067_recording_archive_authority', $completed, true ) && in_array( '068_google_meet_classroom_authority', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -643,7 +643,11 @@ final class Migrator {
 				self::install_recording_archive_authority();self::verify_recording_archive_authority_schema();
 				$done[]='067_recording_archive_authority';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();self::verify_finance_notification_outbox_schema();self::verify_teacher_induction_progress_schema();self::verify_confirmed_intro_cancellation_schema();self::verify_recording_archive_authority_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('068_google_meet_classroom_authority',$done,true)){
+				self::install_google_meet_classroom_authority();self::verify_google_meet_classroom_authority_schema();
+				$done[]='068_google_meet_classroom_authority';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();self::verify_finance_notification_outbox_schema();self::verify_teacher_induction_progress_schema();self::verify_confirmed_intro_cancellation_schema();self::verify_recording_archive_authority_schema();self::verify_google_meet_classroom_authority_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -928,9 +932,10 @@ final class Migrator {
 		$required[] = '065_confirmed_intro_cancellation';
 		$required[] = '066_consent_lifecycle_authority';
 		$required[] = '067_recording_archive_authority';
+		$required[] = '068_google_meet_classroom_authority';
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema(); self::verify_statement_email_outbox_schema(); self::verify_statement_batch_runs_schema(); self::verify_finance_notification_outbox_schema(); self::verify_teacher_induction_progress_schema(); self::verify_consent_lifecycle_authority_schema(); self::verify_recording_archive_authority_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema(); self::verify_statement_email_outbox_schema(); self::verify_statement_batch_runs_schema(); self::verify_finance_notification_outbox_schema(); self::verify_teacher_induction_progress_schema(); self::verify_consent_lifecycle_authority_schema(); self::verify_recording_archive_authority_schema(); self::verify_google_meet_classroom_authority_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -1947,6 +1952,297 @@ final class Migrator {
 	 * provider key or a plaintext credential: every provider reference is stored as a keyed digest and
 	 * every reusable credential as an authenticated ciphertext with a key and cipher version.
 	 */
+	/**
+	 * Schema 068: Delnavazan-owned Google Workspace classroom authority.
+	 *
+	 * Additive only. It creates the organizer connection, classroom, sealed reference, recording,
+	 * attendance and alert storage. It does not read or revoke a Teacher's legacy Google grant.
+	 */
+	private static function install_google_meet_classroom_authority():void{
+		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
+		$tables = array(
+			"CREATE TABLE {$p}meet_workspace_connections (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				organizer_email varchar(254) NOT NULL,
+				connection_state varchar(16) NOT NULL,
+				connection_version int unsigned NOT NULL,
+				active_slot tinyint unsigned NULL,
+				scope_snapshot varchar(512) NOT NULL,
+				consent_version varchar(48) NOT NULL,
+				identity_digest char(64) NULL,
+				identity_state varchar(16) NOT NULL DEFAULT 'unverified',
+				failure_reason_code varchar(64) NULL,
+				authorized_at datetime NULL,
+				connected_at datetime NULL,
+				last_checked_at datetime NULL,
+				disconnected_at datetime NULL,
+				revoked_at datetime NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				updated_at datetime NOT NULL,
+				updated_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY active_slot (active_slot),
+				KEY connection_state (connection_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_workspace_credentials (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				connection_id bigint unsigned NOT NULL,
+				credential_sequence int unsigned NOT NULL,
+				state varchar(16) NOT NULL,
+				key_version varchar(32) NOT NULL,
+				cipher_version varchar(32) NOT NULL,
+				nonce varchar(64) NOT NULL,
+				ciphertext text NOT NULL,
+				valid_until_utc datetime NULL,
+				quarantined_at datetime NULL,
+				quarantine_reason_code varchar(64) NULL,
+				revoked_at datetime NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY connection_sequence (connection_id,credential_sequence),
+				KEY connection_credential (connection_id,state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_workspace_authorizations (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				connection_id bigint unsigned NOT NULL,
+				principal_user_id bigint unsigned NOT NULL,
+				client_reference varchar(64) NOT NULL,
+				redirect_uri varchar(255) NOT NULL,
+				scope_snapshot varchar(512) NOT NULL,
+				state_digest char(64) NOT NULL,
+				verifier_digest char(64) NOT NULL,
+				authorization_state varchar(16) NOT NULL,
+				issued_at datetime NOT NULL,
+				expires_at datetime NOT NULL,
+				consumed_at datetime NULL,
+				consumption_result varchar(32) NULL,
+				failure_reason_code varchar(64) NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY state_digest (state_digest),
+				KEY connection_authorization (connection_id,authorization_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_classrooms (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				lesson_id bigint unsigned NULL,
+				schedule_version_id bigint unsigned NULL,
+				booking_confirmation_id bigint unsigned NULL,
+				classroom_kind varchar(32) NOT NULL,
+				teacher_id bigint unsigned NOT NULL,
+				student_id bigint unsigned NOT NULL,
+				teacher_email_digest char(64) NOT NULL,
+				student_email_digest char(64) NULL,
+				organizer_email varchar(254) NOT NULL,
+				calendar_id varchar(254) NOT NULL,
+				event_id_digest char(64) NULL,
+				space_name varchar(191) NULL,
+				meet_uri_digest char(64) NULL,
+				conference_record_name varchar(200) NULL,
+				classroom_state varchar(16) NOT NULL,
+				active_slot tinyint unsigned NULL,
+				recording_state varchar(16) NOT NULL,
+				recording_consent_digest char(64) NULL,
+				recording_consent_at datetime NULL,
+				starts_at_utc datetime NOT NULL,
+				ends_at_utc datetime NOT NULL,
+				schedule_timezone varchar(64) NOT NULL,
+				version int unsigned NOT NULL,
+				failure_reason_code varchar(64) NULL,
+				last_provider_response_code int NULL,
+				cancelled_at datetime NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				updated_at datetime NOT NULL,
+				updated_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY lesson_active (lesson_id,active_slot),
+				UNIQUE KEY booking_active (booking_confirmation_id,active_slot),
+				KEY classroom_state (classroom_state,starts_at_utc),
+				KEY recording_due (classroom_state,ends_at_utc,recording_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_classroom_references (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				state varchar(16) NOT NULL,
+				key_version varchar(32) NOT NULL,
+				cipher_version varchar(32) NOT NULL,
+				nonce varchar(64) NOT NULL,
+				ciphertext text NOT NULL,
+				active_slot tinyint unsigned NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				retired_at datetime NULL,
+				retired_by bigint unsigned NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY classroom_active (classroom_id,active_slot),
+				KEY classroom_reference (classroom_id,state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_classroom_events (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NULL,
+				operation varchar(32) NOT NULL,
+				command_digest char(64) NOT NULL,
+				result_state varchar(32) NOT NULL,
+				reason_code varchar(64) NULL,
+				provider_http_status int NULL,
+				provider_error_class varchar(64) NULL,
+				provider_detail varchar(255) NULL,
+				payload_digest char(64) NOT NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY command_digest (command_digest),
+				KEY classroom_operation (classroom_id,operation)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_conference_records (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				conference_record_name varchar(200) NOT NULL,
+				space_name varchar(191) NULL,
+				start_time datetime NULL,
+				end_time datetime NULL,
+				recording_expected tinyint NOT NULL DEFAULT 0,
+				discovered_at datetime NOT NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY conference_record_name (conference_record_name),
+				KEY classroom_record (classroom_id,start_time)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_recording_artifacts (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				conference_record_id bigint unsigned NOT NULL,
+				recording_name varchar(255) NOT NULL,
+				state varchar(24) NOT NULL,
+				drive_file_id varchar(200) NULL,
+				export_uri_digest char(64) NULL,
+				start_time datetime NULL,
+				end_time datetime NULL,
+				file_verified_at datetime NULL,
+				playback_verified_at datetime NULL,
+				publicly_shared tinyint NOT NULL DEFAULT 0,
+				consent_snapshot_digest char(64) NULL,
+				failure_reason_code varchar(64) NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY recording_name (recording_name),
+				KEY classroom_artifact (classroom_id,state),
+				KEY verified_artifact (playback_verified_at)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_participant_sessions (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				conference_record_id bigint unsigned NOT NULL,
+				participant_name varchar(191) NOT NULL,
+				participant_type varchar(24) NOT NULL,
+				participant_account_digest char(64) NOT NULL,
+				participant_session_name varchar(255) NOT NULL,
+				join_at_utc datetime NULL,
+				leave_at_utc datetime NULL,
+				observed_at datetime NOT NULL,
+				mapped_role varchar(16) NULL,
+				mapped_participant_id bigint unsigned NULL,
+				mapping_state varchar(32) NOT NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY participant_session_name (participant_session_name),
+				KEY classroom_session (classroom_id,join_at_utc),
+				KEY account_lookup (participant_account_digest,mapping_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_recording_alerts (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				alert_code varchar(64) NOT NULL,
+				detail_code varchar(64) NOT NULL,
+				state varchar(16) NOT NULL,
+				created_at datetime NOT NULL,
+				acknowledged_at datetime NULL,
+				acknowledged_by bigint unsigned NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY open_alert (classroom_id,alert_code,state),
+				KEY alert_state (state,id)
+			) ENGINE=InnoDB $c",
+		);
+		foreach ( $tables as $sql ) { dbDelta( self::dbdelta_sql( $sql ) ); if ( $wpdb->last_error !== '' ) throw new \RuntimeException('Google Meet classroom migration failed: ' . $wpdb->last_error); }
+	}
+
+	/** Fail closed unless the organizer classroom storage is exactly as designed. */
+	private static function verify_google_meet_classroom_authority_schema():void{
+		global $wpdb; $p = $wpdb->prefix . 'dzn_';
+		$spec = array(
+			'meet_workspace_connections' => array('uid','organizer_email','connection_state','connection_version','active_slot','scope_snapshot','consent_version','identity_digest','identity_state','failure_reason_code','authorized_at','connected_at','last_checked_at','disconnected_at','revoked_at'),
+			'meet_workspace_credentials' => array('uid','connection_id','credential_sequence','state','key_version','cipher_version','nonce','ciphertext','valid_until_utc','quarantined_at','quarantine_reason_code','revoked_at'),
+			'meet_workspace_authorizations' => array('uid','connection_id','principal_user_id','client_reference','redirect_uri','scope_snapshot','state_digest','verifier_digest','authorization_state','issued_at','expires_at','consumed_at','consumption_result','failure_reason_code'),
+			'meet_classrooms' => array('uid','lesson_id','schedule_version_id','booking_confirmation_id','classroom_kind','teacher_id','student_id','teacher_email_digest','student_email_digest','organizer_email','calendar_id','event_id_digest','space_name','meet_uri_digest','conference_record_name','classroom_state','active_slot','recording_state','recording_consent_digest','recording_consent_at','starts_at_utc','ends_at_utc','schedule_timezone','version','failure_reason_code','last_provider_response_code','cancelled_at'),
+			'meet_classroom_references' => array('uid','classroom_id','state','key_version','cipher_version','nonce','ciphertext','active_slot','created_at','created_by','retired_at','retired_by'),
+			'meet_classroom_events' => array('uid','classroom_id','operation','command_digest','result_state','reason_code','provider_http_status','provider_error_class','provider_detail','payload_digest','created_at','created_by'),
+			'meet_conference_records' => array('uid','classroom_id','conference_record_name','space_name','start_time','end_time','recording_expected','discovered_at','created_at'),
+			'meet_recording_artifacts' => array('uid','classroom_id','conference_record_id','recording_name','state','drive_file_id','export_uri_digest','start_time','end_time','file_verified_at','playback_verified_at','publicly_shared','consent_snapshot_digest','failure_reason_code','created_at','updated_at'),
+			'meet_participant_sessions' => array('uid','classroom_id','conference_record_id','participant_name','participant_type','participant_account_digest','participant_session_name','join_at_utc','leave_at_utc','observed_at','mapped_role','mapped_participant_id','mapping_state','created_at'),
+			'meet_recording_alerts' => array('uid','classroom_id','alert_code','detail_code','state','created_at','acknowledged_at','acknowledged_by'),
+		);
+		foreach ( $spec as $table => $columns ) {
+			$physical = $p . $table;
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $physical ) ) !== $physical ) throw new \RuntimeException('Migration verification failed: missing '.$table);
+			$engine = $wpdb->get_var( $wpdb->prepare( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $physical ) );
+			if ( ! is_string( $engine ) || strcasecmp( $engine, 'InnoDB' ) !== 0 ) throw new \RuntimeException('Migration verification failed: Meet classroom storage must use InnoDB: '.$table);
+			foreach ( $columns as $column ) if ( ! $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '{$column}'" ) ) throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			foreach ( array('access_token','refresh_token','client_secret','authorization_code','raw_payload','provider_payload') as $forbidden ) if ( $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '%{$forbidden}%'" ) ) throw new \RuntimeException('Migration verification failed: Meet classroom storage must not persist plaintext provider secrets: '.$table.'.'.$forbidden);
+		}
+		foreach ( array(
+			array('meet_workspace_connections','uid',true,array('uid')),
+			array('meet_workspace_connections','active_slot',true,array('active_slot')),
+			array('meet_workspace_credentials','connection_sequence',true,array('connection_id','credential_sequence')),
+			array('meet_workspace_authorizations','state_digest',true,array('state_digest')),
+			array('meet_classrooms','lesson_active',true,array('lesson_id','active_slot')),
+			array('meet_classrooms','booking_active',true,array('booking_confirmation_id','active_slot')),
+			array('meet_classroom_references','classroom_active',true,array('classroom_id','active_slot')),
+			array('meet_classroom_events','command_digest',true,array('command_digest')),
+			array('meet_conference_records','conference_record_name',true,array('conference_record_name')),
+			array('meet_recording_artifacts','recording_name',true,array('recording_name')),
+			array('meet_participant_sessions','participant_session_name',true,array('participant_session_name')),
+			array('meet_recording_alerts','open_alert',true,array('classroom_id','alert_code','state')),
+		) as $index ) if ( ! self::has_index( $p.$index[0], $index[1], $index[2] ) ) throw new \RuntimeException('Migration verification failed: Meet classroom index '.$index[1]);
+		foreach ( array('meet_classroom_events') as $table ) foreach ( array('updated_at','updated_by') as $mutable ) if ( $wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE '{$mutable}'") ) throw new \RuntimeException('Migration verification failed: Meet classroom evidence must be append-only: '.$table.'.'.$mutable);
+		foreach ( array(
+			array('meet_workspace_authorizations','state_digest'),array('meet_workspace_authorizations','verifier_digest'),
+			array('meet_classrooms','event_id_digest'),array('meet_classrooms','meet_uri_digest'),
+			array('meet_classroom_events','command_digest'),array('meet_classroom_events','payload_digest'),
+			array('meet_participant_sessions','participant_account_digest'),
+		) as $shape ) {
+			$row = $wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");
+			if ( ! $row || strtolower( $row->Type ) !== 'char(64)' ) throw new \RuntimeException('Migration verification failed: Meet classroom digest structure '.$shape[0].'.'.$shape[1]);
+		}
+		foreach ( array('key_version'=>'varchar(32)','cipher_version'=>'varchar(32)','nonce'=>'varchar(64)','ciphertext'=>'text') as $column => $type ) {
+			$row = $wpdb->get_row("SHOW COLUMNS FROM {$p}meet_workspace_credentials LIKE '{$column}'");
+			if ( ! $row || strtolower( $row->Type ) !== $type || $row->Null !== 'NO' ) throw new \RuntimeException('Migration verification failed: Meet credential column '.$column);
+		}
+	}
+
 	private static function install_google_calendar_meet_provider_integration():void{
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
 		$tables = array(

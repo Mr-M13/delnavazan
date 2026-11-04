@@ -101,7 +101,7 @@ function dzn_ra_media_payload(string $uid, string $key, string $sha, int $bytes,
     );
 }
 
-dzn_ra_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '57', 'behavior runtime requires the current package schema');
+dzn_ra_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '58', 'behavior runtime requires the current package schema');
 $noticeService = new RecordingNoticePublicationService();
 $notice = array();
 foreach (array(

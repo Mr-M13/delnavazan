@@ -21,7 +21,11 @@ final class NotificationDeliveryStatusReadService {
     public function forBookingRequest(int $bookingRequestId):array{
         if($bookingRequestId<1)return $this->empty();
         $rows=$this->query(
-            "SELECT n.id notification_id,n.notification_kind AS event_key,n.state,n.attempt_count,n.handed_off_at,n.last_error_code,n.updated_at,d.booking_request_id AS subject_id,d.teacher_id,r.student_id,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,COALESCE(NULLIF(st.display_name,''),NULLIF(st.first_name,''),st.last_name) student_name
+            "SELECT n.id notification_id,n.notification_kind AS event_key,n.state,n.attempt_count,n.handed_off_at,n.last_error_code,n.updated_at,d.booking_request_id AS subject_id,d.teacher_id,r.student_id,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,COALESCE(NULLIF(st.display_name,''),NULLIF(st.first_name,''),st.last_name) student_name,
+                    (SELECT tm.state FROM {$this->table('telnyx_messages')} tm WHERE tm.notification_id=n.id AND tm.attempt_id=0 ORDER BY tm.id DESC LIMIT 1) provider_receipt_state,
+                    (SELECT tm.updated_at FROM {$this->table('telnyx_messages')} tm WHERE tm.notification_id=n.id AND tm.attempt_id=0 ORDER BY tm.id DESC LIMIT 1) provider_receipt_at,
+                    (SELECT tm.channel FROM {$this->table('telnyx_messages')} tm WHERE tm.notification_id=n.id AND tm.attempt_id=0 ORDER BY tm.id DESC LIMIT 1) provider_channel,
+                    (SELECT tm.provider_template_name FROM {$this->table('telnyx_messages')} tm WHERE tm.notification_id=n.id AND tm.attempt_id=0 ORDER BY tm.id DESC LIMIT 1) provider_template
              FROM {$this->table('booking_request_student_notifications')} n
              INNER JOIN {$this->table('booking_request_teacher_deliveries')} d ON d.id=n.delivery_id
              INNER JOIN {$this->table('booking_requests')} r ON r.id=d.booking_request_id
@@ -151,6 +155,10 @@ final class NotificationDeliveryStatusReadService {
                 'handed_off_at'=>isset($row->handed_off_at)&&$row->handed_off_at!==null?(string)$row->handed_off_at:(isset($row->sent_at)&&$row->sent_at!==null?(string)$row->sent_at:null),
                 'delivery_confirmed_at'=>$category===self::DELIVERY_CONFIRMED?$deliveredAt:null,
                 'last_error_code'=>isset($row->last_error_code)&&$row->last_error_code!==null?(string)$row->last_error_code:null,
+                'provider_receipt_state'=>isset($row->provider_receipt_state)&&$row->provider_receipt_state!==null?(string)$row->provider_receipt_state:null,
+                'provider_receipt_at'=>isset($row->provider_receipt_at)&&$row->provider_receipt_at!==null?(string)$row->provider_receipt_at:null,
+                'provider_channel'=>isset($row->provider_channel)&&$row->provider_channel!==null?(string)$row->provider_channel:null,
+                'provider_template'=>isset($row->provider_template)&&$row->provider_template!==null?(string)$row->provider_template:null,
                 'updated_at'=>(string)($row->updated_at??''),
             );
         }

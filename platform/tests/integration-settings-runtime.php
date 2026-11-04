@@ -30,11 +30,11 @@ $settings->save('sms',array('messaging_profile_id'=>'telnyx-profile','api_key'=>
 dzn_settings_assert($settings->ready('sms'),'Telnyx API key and messaging profile must be locally ready');
 dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'sms-runtime-key'),'Telnyx API key must not persist in plaintext');
 
-$callback=admin_url('admin-post.php?action=dzn_google_oauth_callback');
-$settings->save('google',array('client_id'=>'google-client','client_secret'=>'google-runtime-secret','redirect_uri'=>$callback));
+$callback=admin_url('admin-post.php?action=dzn_meet_oauth_callback');
+$settings->save('google',array('client_id'=>'google-client','client_secret'=>'google-runtime-secret','meet_redirect_uri'=>$callback));
 dzn_settings_assert($settings->ready('google'),'Google readiness must accept the exact HTTPS callback');
 dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'google-runtime-secret'),'Google client secret must not persist in plaintext');
-$settings->save('google',array('redirect_uri'=>'https://attacker.example/callback'));
+$settings->save('google',array('meet_redirect_uri'=>'https://attacker.example/callback'));
 dzn_settings_assert(!$settings->ready('google'),'Google readiness must reject a callback that differs from the exact registered URI');
 
 $stored=get_option($settingsClass::OPTION);$stored['google']['client_secret']='v1:'.base64_encode(random_bytes(40));

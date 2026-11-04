@@ -69,10 +69,13 @@ $contains($dashboard, array(
     'Classes ready to schedule',
     'Classes needing schedule or integrity review',
     'Class time changes needing a decision',
+    'Intro class outcomes due',
+    'Post-intro enrolments needing attention',
+    'Payment webhooks refused',
     'self::rescheduleQueue()',
     'id="dzn-pending-reschedules"',
     '>Class time decisions<',
-), 'Pending work must combine class issues and class-time decisions.');
+), 'Pending work must combine class issues, intro outcomes, post-intro recovery, refused payment webhooks and class-time decisions.');
 $notContains($dashboard, array('id="dzn-academy-attention"', '>Attention needed<', 'id="dzn-academy-reschedules"'), 'The separate Attention and Class time panels must be removed.');
 $contains($screenOptions, array(
     "'actions' => 'Pending work'",

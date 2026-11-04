@@ -1001,6 +1001,10 @@ final class EnrolmentWorkspaceReadService {
                 'attempt_count' => (int) ($row['attempt_count'] ?? 0),
                 'failure_reason' => (string) ($row['last_error_code'] ?? ''),
                 'last_attempt' => (string) ($row['updated_at'] ?? ''),
+                'provider_receipt_state' => (string) ($row['provider_receipt_state'] ?? ''),
+                'provider_receipt_at' => (string) ($row['provider_receipt_at'] ?? ''),
+                'provider_channel' => (string) ($row['provider_channel'] ?? ''),
+                'provider_template' => (string) ($row['provider_template'] ?? ''),
                 'recovery_available' => !empty($preview['eligible']),
                 'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
@@ -1026,6 +1030,10 @@ final class EnrolmentWorkspaceReadService {
                 'attempt_count' => (int) $row->attempt_count,
                 'failure_reason' => (string) ($row->last_error_code ?? ''),
                 'last_attempt' => (string) $row->updated_at,
+                'provider_receipt_state' => '',
+                'provider_receipt_at' => '',
+                'provider_channel' => '',
+                'provider_template' => '',
                 'recovery_available' => !empty($preview['eligible']),
                 'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );

@@ -52,14 +52,6 @@ add_action( 'plugins_loaded', static function () {
 	if ( (string) get_option( 'dzn_platform_schema_version' ) !== (string) DZN_PLATFORM_SCHEMA_VERSION ) {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
-	// Feature-local, additive LiveKit attendance correlation. It never advances the platform-wide
-	// schema option and is safe to install while attendance capture remains disabled.
-	try {
-		Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceSchema::maybeInstall();
-	} catch ( \Throwable $error ) {
-		do_action( 'dzn_livekit_attendance_schema_failed', get_class( $error ), (string) $error->getMessage() );
-	}
-	Delnavazan\Platform\Integrations\LiveKit\LiveKitAttendanceReconciliationWorker::register();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\AccountRemovalController::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
@@ -138,10 +130,13 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
 	Delnavazan\Platform\Integrations\StudentClassJoinController::register();
 	Delnavazan\Platform\Integrations\BookingClassJoinController::register();
-	Delnavazan\Platform\Integrations\LiveKit\LiveKitLaunchController::register();
-	Delnavazan\Platform\Integrations\LiveKit\LiveKitMeetFallbackController::register();
-	Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomController::register();
-	Delnavazan\Platform\Integrations\LiveKit\LiveKitRoomRevocationListener::register();
+	// Google Meet is the primary classroom. LiveKit remains archived in source and is no longer
+	// registered on any active route.
+	Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthController::register();
+	Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceWorker::register();
+	Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomLifecycleListener::register();
+	Delnavazan\Platform\Integrations\GoogleWorkspace\MeetRecordingPlaybackController::register();
+	Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorJoinController::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
@@ -152,7 +147,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
 	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();
-	if ( defined( 'WP_CLI' ) && WP_CLI ) { Delnavazan\Platform\Admin\Cli\PostIntroRecoveryCommand::register(); Delnavazan\Platform\Admin\Cli\LegalPagesCommand::register(); }
+	if ( defined( 'WP_CLI' ) && WP_CLI ) { Delnavazan\Platform\Admin\Cli\PostIntroRecoveryCommand::register(); Delnavazan\Platform\Admin\Cli\LegalPagesCommand::register(); Delnavazan\Platform\Admin\Cli\MeetMigrationCommand::register(); }
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureCapability(new Delnavazan\Platform\Core\Application\CanonicalLessonPortalCapabilityOwner());
 	require_once DZN_PLATFORM_DIR . 'src/Core/Application/PortalOwnerReadPorts.php';
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureReadPorts(new Delnavazan\Platform\Core\Application\CanonicalTeacherAssignmentPortalReadPort(),new Delnavazan\Platform\Core\Application\CanonicalLessonSchedulePortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryPortalReadPortImpl(),new Delnavazan\Platform\Core\Application\CanonicalAttendancePortalReadPortImpl());
@@ -164,8 +159,7 @@ add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\BookingDayAva
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Payment\\Stripe\\StripeWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\Notifications\\TelnyxWebhookController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\PortalPublicActionController', 'register' ) );
-add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitTokenRestController', 'register' ) );
-add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Integrations\\LiveKit\\LiveKitWebhookController', 'register' ) );
+// Retired LiveKit REST endpoints (token + webhook) are intentionally not registered.
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Core\\Application\\Recording\\RecordingServiceRestController', 'register' ) );
 
 add_action( 'dzn_teacher_activated', static function ( int $teacherId ): void {

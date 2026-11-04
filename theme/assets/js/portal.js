@@ -77,20 +77,12 @@
 
 (() => {
   'use strict';
-  const banner = document.querySelector('[data-dzn-notification-banner]');
-  if (!banner) return;
-  const storageKey = `dzn-notification-banner:${banner.dataset.notificationId || 'latest'}`;
-  try {
-    if (window.sessionStorage.getItem(storageKey) === 'dismissed') banner.hidden = true;
-  } catch (error) {
-    // Storage may be unavailable; the banner still works for this render.
-  }
-  banner.querySelector('[data-dzn-notification-close]')?.addEventListener('click', () => {
-    banner.hidden = true;
-    try {
-      window.sessionStorage.setItem(storageKey, 'dismissed');
-    } catch (error) {
-      // Session dismissal is a convenience, never a business write.
-    }
+  // A notification without a read action can still be dismissed for this visit. When the
+  // read action exists, the close control is its submit button and marks the item read.
+  document.querySelectorAll('[data-dzn-notification-close][type="button"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const banner = button.closest('[data-dzn-notification-banner]');
+      if (banner) banner.hidden = true;
+    });
   });
 })();

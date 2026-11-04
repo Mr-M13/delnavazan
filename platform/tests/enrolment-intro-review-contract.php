@@ -143,6 +143,8 @@ $contains($banner, array(
     'خوانده شد',
     'بستن اعلان',
 ), 'Notification banner must be unread-only, linked and closable');
+$contains($banner, array('type="submit" data-dzn-notification-close'), 'The close control must be the same action as acknowledging the notification');
+$contains($banner, array('مشاهدهٔ جزئیات'), 'The notification banner must keep the link to the area it is about');
 $contains($themeCss, array('.dzn-notification-banner{position:fixed', '.dzn-notification-banner[hidden]{display:none', '@media(max-width:47.99rem)'), 'Notification banner must sit at the bottom and hide on close');
 
 echo "enrolment intro review contract passed\n";

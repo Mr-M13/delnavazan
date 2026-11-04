@@ -16,12 +16,8 @@ $contains = static function (string $source, array $needles, string $message) us
 $dashboard = $read('src/Admin/Controller/AcademyOperationsController.php');
 $dashboardRead = $read('src/Core/Application/AcademyDashboardReadService.php');
 $financeRead = $read('src/Core/Application/Finance/Read/FinanceAdminReadService.php');
-$policy = $read('src/Integrations/LiveKit/LiveKitClassroomGrantPolicy.php');
-$adminService = $read('src/Integrations/LiveKit/LiveKitAdministratorClassroomService.php');
-$adminController = $read('src/Integrations/LiveKit/LiveKitAdministratorClassroomController.php');
-$launch = $read('src/Integrations/LiveKit/LiveKitLaunchController.php');
-$ticket = $read('src/Integrations/LiveKit/LiveKitLaunchTicket.php');
-$fallback = $read('src/Integrations/LiveKit/LiveKitMeetFallbackController.php');
+$adminService = $read('src/Integrations/GoogleWorkspace/MeetAdministratorClassroomService.php');
+$adminController = $read('src/Integrations/GoogleWorkspace/MeetAdministratorJoinController.php');
 $css = $read('src/Admin/Assets/admin.css');
 $js = $read('src/Admin/Assets/admin.js');
 
@@ -76,44 +72,26 @@ $expect(!str_contains($dashboard, 'net_financial_position'), 'The dashboard must
 
 // Classroom: administrator actions are separate from shareable participant links.
 $contains($dashboard, array(
-    'dzn_admin_livekit_class',
+    'dzn_admin_meet_class',
     'dzn_admin_classroom_meet',
     'data-dzn-copy',
     'data-dzn-meet-copy',
-    'LiveKit: ',
+    'Classroom: ',
     'Meet: ',
-), 'Today’s classes must expose administrator LiveKit, participant-copy and Meet controls.');
+), 'Today’s classes must expose administrator Meet, participant-copy and Meet-link controls.');
 $contains($adminService, array(
-    'public const CAPABILITY = \'dzn_manage_lessons\'',
-    'admin_classroom.livekit_access',
-    'admin_classroom.meet_link_accessed',
-    'participantEntryUrl',
+    'dzn_manage_lessons',
     'forLesson',
     'forBooking',
-), 'The administrator classroom service must authorise, audit and expose participant portal links.');
+    'joinUriForLesson',
+    'joinUriForBooking',
+), 'The administrator classroom service must authorise and expose the central Meet classroom.');
 $contains($adminController, array(
-    'dzn_admin_classroom_meet',
-    '/admin/classroom/meet-link',
-    "wp_verify_nonce(\$nonce, 'wp_rest')",
+    'dzn_admin_meet_class',
+    'MeetAdministratorClassroomService',
+    "check_admin_referer('dzn_admin_meet_class')",
     'Referrer-Policy: no-referrer',
-), 'Meet open and copy must be authenticated, nonce-protected and referrer-safe.');
-$contains($launch, array(
-    'dzn_admin_livekit_class',
-    'launchAdministrator',
-    'administrator',
-), 'Administrator LiveKit launch must use its own action and ticket role.');
-$contains($ticket, array("array('teacher', 'student', 'administrator')"), 'The launch ticket must support the administrator role without changing participant roles.');
-$contains($fallback, array('LiveKitAdministratorClassroomService'), 'The classroom Meet fallback must support the administrator ticket.');
-
-// Participant restrictions remain exactly as before.
-$contains($policy, array(
-    'public const EARLY_SECONDS = ParticipantJoinWindow::EARLY_SECONDS',
-    'public const LATE_SECONDS = ParticipantJoinWindow::LATE_SECONDS',
-    'ParticipantJoinWindow::contains',
-    'authorizeAdministrator',
-), 'Participant window enforcement must remain the shared 30-minute window beside the administrator grant.');
-$adminMethod = substr($policy, strpos($policy, 'public function authorizeAdministrator'));
-$expect(!str_contains($adminMethod, 'EARLY_SECONDS') && !str_contains($adminMethod, 'LATE_SECONDS') && !str_contains($adminMethod, 'ParticipantJoinWindow'), 'Administrator access must not silently reuse the participant window.');
+), 'Meet opening must be authenticated, nonce-protected and referrer-safe.');
 
 // No privileged material is rendered by the dashboard.
 $expect(!str_contains($dashboard, 'api_secret') && !str_contains($dashboard, 'apiSecret'), 'The dashboard must not expose provider credentials.');

@@ -53,7 +53,7 @@ $check( 'the nested account copy does not duplicate recording terms', str_contai
 $check( 'the account workspace keeps one timezone selector', 1 === substr_count( $account, 'wp_timezone_choice' ) );
 $check( 'the setup summary links to profile', str_contains( $onboarding, 'href="#tp-profile"' ) );
 $check( 'the setup summary links to availability', str_contains( $onboarding, 'href="#tp-availability"' ) );
-$check( 'the setup summary links to Google', str_contains( $onboarding, 'href="#tp-google"' ) );
+$check( 'the setup summary does not link to a Teacher Google step', ! str_contains( $onboarding, 'href="#tp-google"' ) && str_contains( $onboarding, 'به‌صورت متمرکز توسط دلنوازان' ) );
 
 /* 4. Current native time inputs keep the canonical field names and are adapted server-side. */
 $check( 'start time keeps the canonical field name', str_contains( $account, 'name="local_start_time"' ) );
@@ -67,9 +67,7 @@ $check( 'the setup status is exposed as a labelled list', str_contains( $onboard
 $check( 'the raw review reason code is not echoed at the teacher', ! str_contains( $onboarding, 'review_reason_code' ) );
 $check( 'returned/rejected states still explain the correction path', str_contains( $onboarding, 'برای اصلاح برگردانده شده است' ) );
 $check( 'can_submit still gates submission', str_contains( $onboarding, "! empty( \$onboarding['can_submit'] )" ) );
-$check( 'Google connect keeps its nonce', str_contains( $google, 'google_nonce' ) );
-$check( 'Google disconnect keeps its nonce', str_contains( $google, 'google_disconnect_nonce' ) );
-$check( 'Google unavailable is stated honestly', str_contains( $google, "\$state==='unavailable'" ) || str_contains( $google, "\$state!=='unavailable'" ) );
+$check( 'no Teacher Google authorization notice remains', ! str_contains( $onboarding, 'google_nonce' ) && ! str_contains( $onboarding, 'google_disconnect' ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Teacher onboarding presentation contract failed: ' . implode( '; ', $failures ) );

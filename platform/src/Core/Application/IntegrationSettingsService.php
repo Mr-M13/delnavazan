@@ -61,10 +61,12 @@ final class IntegrationSettingsService {
             }
             if($provider==='sms')return $v('api_key')!==''&&($v('messaging_profile_id')!==''||$v('sender_id')!=='');
             if($provider==='google'){
-                $expected=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
                 $client=$v('client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');
                 $secret=$v('client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');
-                return $client!==''&&$secret!==''&&$expected!==''&&hash_equals($expected,$v('redirect_uri'));
+                $redirect=$v('meet_redirect_uri')?:$v('redirect_uri');
+                $central=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_meet_oauth_callback'):'';
+                $legacy=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
+                return $client!==''&&$secret!==''&&$redirect!==''&&in_array($redirect,array($central,$legacy),true);
             }
             return false;
         }catch(\Throwable){return false;}
@@ -74,7 +76,7 @@ final class IntegrationSettingsService {
         'email'=>array('mode'=>'text','host'=>'text','port'=>'text','encryption'=>'text','username'=>'text','password'=>'secret','from_name'=>'text','from_email'=>'email'),
         'whatsapp'=>array('app_id'=>'text','business_account_id'=>'text','phone_number_id'=>'text','sender_id'=>'text','waba_id'=>'text','messaging_profile_id'=>'text','webhook_public_key'=>'text','test_template_name'=>'text','test_template_language'=>'text','access_token'=>'secret','app_secret'=>'secret','verify_token'=>'secret'),
         'sms'=>array('messaging_profile_id'=>'text','sender_id'=>'text','webhook_public_key'=>'text','api_key'=>'secret'),
-        'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url'),
+        'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url','meet_redirect_uri'=>'url'),
     );}
     private function valueRaw(string $provider,string $field):string{$all=(array)get_option(self::OPTION,array());$row=(array)($all[$provider]??array());return (string)($row[$field]??'');}
     private function seal(string $provider,string $field,string $plain):string{

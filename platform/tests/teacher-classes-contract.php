@@ -118,6 +118,7 @@ namespace {
 	function home_url( string $path = '' ): string { return 'https://example.invalid' . $path; }
 	function admin_url( string $path = '' ): string { return 'https://example.invalid/wp-admin/' . $path; }
 	function add_query_arg( $key, $value = null, $url = null ): string {
+		if ( is_array( $key ) ) { $base = (string) $value; return $base . ( str_contains( $base, '?' ) ? '&' : '?' ) . http_build_query( $key ); }
 		return rtrim( (string) $url, '/' ) . '/?' . rawurlencode( (string) $key ) . '=' . rawurlencode( (string) $value );
 	}
 	function wp_create_nonce( string $action ): string { return 'nonce-' . $action; }
@@ -182,11 +183,23 @@ namespace {
 	$check( 'classes is the first and current navigation item', ! empty( $model['navigation'][0]['current'] ) && 'classes' === ( $model['navigation'][0]['screen'] ?? '' ) );
 	$check( 'the Today tab is removed', ! array_filter( (array) ( $model['navigation'] ?? array() ), static fn( $item ) => 'home' === ( $item['screen'] ?? '' ) ) );
 	$check( 'the classes model passes its display contract', dzn_theme_teacher_portal_validate_model( $model, 'classes' ) );
+	$model['post_intro_outcomes'] = array(
+		array(
+			'confirmation_uid' => 'CONF-OUTCOME',
+			'student' => 'Student Outcome',
+			'course' => 'Setar',
+			'when' => 'Saturday 3 October، 10:00–10:30',
+			'timezone' => 'Asia/Tehran',
+			'action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_post_intro_outcome',
+			'nonce' => 'nonce-intro-outcome',
+		),
+	);
 
 	ob_start();
 	dzn_theme_render_teacher_portal( 'classes', $model );
 	$html = (string) ob_get_clean();
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
+	$check( 'the classes screen offers the post-intro outcome form', str_contains( $html, 'id="dzn-tp-post-intro"' ) && str_contains( $html, 'name="confirmation_uid" value="CONF-OUTCOME"' ) && str_contains( $html, 'name="outcome"' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'future class cards are restored with their reschedule action', str_contains( $html, 'tp-classes-upcoming' ) && str_contains( $html, 'کلاس‌های آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
@@ -194,8 +207,8 @@ namespace {
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
-	$check( 'an in-progress intro renders its classroom re-entry action', ! $active_intro_starts_today || ( str_contains( $html, 'name="confirmation_uid" value="CONF-ACTIVE"' ) && str_contains( $html, 'ورود با گوگل میت (پشتیبان)' ) ) );
-	$check( 'a today intro keeps its classroom re-entry action', ! $late_intro_starts_today || ( str_contains( $html, 'name="confirmation_uid" value="CONF-LATE"' ) && str_contains( $html, 'ورود با گوگل میت (پشتیبان)' ) ) );
+	$check( 'an in-progress intro renders its classroom re-entry action', ! $active_intro_starts_today || ( str_contains( $html, 'confirmation_uid=CONF-ACTIVE' ) && str_contains( $html, 'ورود به کلاس Google Meet' ) ) );
+	$check( 'a today intro keeps its classroom re-entry action', ! $late_intro_starts_today || ( str_contains( $html, 'confirmation_uid=CONF-LATE' ) && str_contains( $html, 'ورود به کلاس Google Meet' ) ) );
 	$teacherCss = (string) file_get_contents( ABSPATH . 'theme/assets/css/teacher-portal.css' );
 	$check( 'intro management spans the full class card', str_contains( $teacherCss, '.dzn-tp-intro-actions {' ) && str_contains( $teacherCss, 'grid-column: 1 / -1;' ) && str_contains( $teacherCss, '.dzn-tp-intro-actions__body {' ) && str_contains( $teacherCss, 'grid-template-columns: repeat(2, minmax(0, 1fr));' ) );
 	$check( 'teacher first tab ends with WhatsApp support', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/home.php' ), "'support'" ) && str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/support.php' ), 'dzn_theme_whatsapp_link' ) );

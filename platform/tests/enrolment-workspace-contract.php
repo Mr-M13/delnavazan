@@ -44,7 +44,7 @@ $contains($menu, array(
     "['Courses', 'dzn_manage_courses', 'dzn-course'",
     "['Instruments', 'dzn_manage_courses', 'dzn-instrument'",
 ), 'Every protected legacy route and its original capability must remain registered.');
-$contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'LiveKitAdministratorClassroomController::register()'), 'The workspace and administrator classroom boundaries must be registered.');
+$contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'MeetAdministratorJoinController::register()'), 'The workspace and administrator classroom boundaries must be registered.');
 
 $contains($view, array(
     'Action needed',

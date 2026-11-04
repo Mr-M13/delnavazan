@@ -10,17 +10,17 @@ namespace Delnavazan\Platform\Core\Application\Induction;
  * acknowledgement_version only when previously completed teachers must explicitly re-acknowledge.
  */
 final class TeacherInductionCurriculum {
-    /** Canonical learning order. */
+    /** Canonical review order, grouped by the daily workflow. */
     private const ORDER = array(
         'today',
+        'new-enrolment',
+        'settings',
         'join',
         'attendance',
         'absence',
         'reschedule',
-        'settings',
         'finance',
         'golden-hour',
-        'new-enrolment',
     );
 
     /** @var array<string, array<string, mixed>>|null */
@@ -80,7 +80,7 @@ final class TeacherInductionCurriculum {
     }
 
     private static function validate( array $module, string $id ): void {
-        foreach ( array( 'id', 'title', 'short_title', 'description', 'portal_screen', 'highlight_selector', 'action_label', 'completion_criteria' ) as $field ) {
+        foreach ( array( 'id', 'title', 'short_title', 'description', 'completion_criteria' ) as $field ) {
             if ( ! isset( $module[ $field ] ) || ! is_string( $module[ $field ] ) || '' === trim( $module[ $field ] ) ) {
                 throw new \RuntimeException( 'Induction step ' . $id . ' is missing ' . $field );
             }
@@ -90,9 +90,6 @@ final class TeacherInductionCurriculum {
         }
         if ( ! isset( $module['version'] ) || (int) $module['version'] < 1 ) {
             throw new \RuntimeException( 'Induction step ' . $id . ' must declare a positive content version' );
-        }
-        if ( ! in_array( $module['portal_screen'], array( 'home', 'classes', 'finance', 'settings' ), true ) ) {
-            throw new \RuntimeException( 'Induction step ' . $id . ' targets an unsupported portal screen' );
         }
         if ( isset( $module['points'] ) && ! is_array( $module['points'] ) ) {
             throw new \RuntimeException( 'Induction step ' . $id . ' has invalid points' );

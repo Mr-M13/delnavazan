@@ -87,7 +87,11 @@ final class BookingTeacherResponseService {
         if($occupiedEnd==='')throw new \RuntimeException('Booking requested time is unavailable');
         if($this->repository->studentOccupancyConflicts($studentId,array(array('starts_at_utc'=>(string)$delivery->starts_at_utc,'occupied_ends_at_utc'=>$occupiedEnd)),array('exclude_booking_request_id'=>(int)$delivery->booking_request_id)))throw new \InvalidArgumentException('student_slot_conflict');
         if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
-        $connection=$this->repository->activeConnection((int)$teacher->id,true);if(!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
+        // The central Delnavazan Workspace organizer creates the classroom. A Teacher personal
+        // Google grant is required only while the caller has explicitly rolled back to legacy.
+        $central=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured();
+        $connection=$central?null:$this->repository->activeConnection((int)$teacher->id,true);
+        if(!$central&&!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
         $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));
         $pricing=$this->introPricing!==null?($this->introPricing)((int)$delivery->booking_request_id):(new IntroPricingService())->forBooking((int)$delivery->booking_request_id);
         $paid=$pricing['mode']==='paid';
@@ -97,7 +101,7 @@ final class BookingTeacherResponseService {
             $confirmationId=(int)$prior->id;
             $resume=$paid?'awaiting_payment':($prior->provider_event_digest===null?'pending_projection':'awaiting_conference');
             $this->repository->updateConfirmation($confirmationId,(int)$prior->version,array(
-                'connection_id'=>(int)$connection->id,'state'=>$resume,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,
+                'connection_id'=>$connection?(int)$connection->id:0,'state'=>$resume,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,
                 'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
                 'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
                 'updated_at'=>$now,'updated_by'=>$actor,
@@ -105,7 +109,7 @@ final class BookingTeacherResponseService {
         }else{
             $confirmationId=$this->repository->insertConfirmation(array(
                 'uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'booking_request_id'=>(int)$delivery->booking_request_id,'requested_time_id'=>(int)$delivery->requested_time_id,
-                'teacher_id'=>(int)$teacher->id,'connection_id'=>(int)$connection->id,'state'=>$paid?'awaiting_payment':'pending_projection','version'=>1,
+                'teacher_id'=>(int)$teacher->id,'connection_id'=>$connection?(int)$connection->id:0,'state'=>$paid?'awaiting_payment':'pending_projection','version'=>1,
                 'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
                 'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
                 'provider_code'=>'google_calendar','provider_event_digest'=>null,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,'confirmed_at'=>null,

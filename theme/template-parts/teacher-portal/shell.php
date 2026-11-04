@@ -23,7 +23,7 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-notification-banner';
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
  <?php if ( ! empty( $model['available'] ) ) : foreach ( dzn_theme_teacher_portal_notices( $screen ) as $notice ) : ?><p class="dzn-tp-notice is-<?php echo esc_attr( $notice[0] ); ?>" role="<?php echo 'error' === $notice[0] ? 'alert' : 'status'; ?>"><?php echo esc_html( $notice[1] ); ?></p><?php endforeach; endif; ?>
- <?php if ( ! empty( $model['induction_highlight'] ) ) : dzn_theme_teacher_portal_component( 'induction-highlight', array( 'step' => $model['induction_highlight'] ) ); endif; ?>
+ <?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'teacher' ) ); ?>
  <?php if ( empty( $model['available'] ) ) :
   $state = (string) ( $model['state'] ?? 'error' );
   $messages = array(
@@ -43,12 +43,11 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-notification-banner';
  ?><section class="dzn-tp-section dzn-tp-unavailable dzn-tp-unavailable--<?php echo esc_attr( $state ); ?>" role="<?php echo 'error' === $state ? 'alert' : 'status'; ?>"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><div class="dzn-tp-unavailable__actions"><?php if ( isset( $recovery[ $state ] ) ) : ?><a class="dzn-button" href="<?php echo esc_url( $recovery[ $state ][1] ); ?>"><?php echo esc_html( $recovery[ $state ][0] ); ?></a><?php endif; ?><?php if ( 'not_linked' === $state ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a><?php endif; ?></div></section>
  <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) );
  elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
- elseif ( 'classes' === $screen ) : dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) ); dzn_theme_teacher_portal_component( 'classes', array( 'items' => array(), 'today_items' => $model['today_classes'] ?? array(), 'upcoming_items' => $model['upcoming_classes'] ?? array(), 'past_items' => $model['past_classes'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) );
+ elseif ( 'classes' === $screen ) : dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) ); dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array() ) ); dzn_theme_teacher_portal_component( 'classes', array( 'items' => array(), 'today_items' => $model['today_classes'] ?? array(), 'upcoming_items' => $model['upcoming_classes'] ?? array(), 'past_items' => $model['past_classes'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );
  elseif ( 'induction' === $screen ) : dzn_theme_teacher_portal_component( 'induction', array( 'model' => $model ) );
  else : dzn_theme_teacher_portal_component( 'home', array( 'model' => $model ) ); endif; ?>
  </div>
- <?php get_template_part( 'template-parts/components/notification-banner', null, array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'teacher' ) ); ?>
  <?php if ( $show_tabs ) : ?>
  <nav id="dzn-tp-nav-mobile" class="dzn-tp-tabs" aria-label="پیمایش پرتال مدرس">
   <ul>

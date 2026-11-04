@@ -1,7 +1,8 @@
 # Teacher quick-start (induction v2)
 
 Teacher induction is a **one page**, read-only review of the Delnavazan teaching workflow, not a
-course. It gives an approved Teacher nine concise steps in plain Persian, each pairing the Student journey with the Teacher’s responsibility. The guide
+course. It gives an approved Teacher nine concise steps in plain Persian, each pairing the Student
+journey with the Teacher’s responsibility. The guide
 does not jump to portal sections, highlight controls or ask the Teacher to complete anything.
 
 It is not a second identity, activation, access, scheduling, absence, finance or notification
@@ -17,24 +18,24 @@ The page follows the lifecycle of a Student and Teacher together:
    - **از درخواست تا کلاس آشنایی** — the Student requests an introduction; acceptance alone does not confirm a class or term enrolment.
    - **برنامهٔ روز و کلاس‌های آینده** — each side sees the scheduled class in its own timezone; the Teacher checks today and upcoming work.
 2. **برگزاری کلاس**
-   - **ورود به کلاس** — the join button, and Google Meet as the available backup.
-   - **حضور و پایان کلاس** — when to record delivery/attendance and what presumed completion means.
+   - **برگزاری کلاس** — both parties join the scheduled session; the Teacher uses the available Meet backup when offered.
+   - **ثبت نتیجهٔ جلسه** — the Teacher records delivery and attendance for review; presumed completion is distinct.
 3. **تغییرها و موارد خاص**
-   - **اطلاع غیبت هنرجو** — the absence card, replacement proposal, term allowance and when to
-     escalate.
-   - **تغییر زمان کلاس** — propose a new time; nothing changes until the Student accepts; three
-     rejections escalate.
+   - **غیبت و جبران** — the Student reports an absence and sees remaining replacements; the Teacher proposes a make-up time only from an eligible card.
+   - **تغییر زمان با توافق** — the Student accepts or declines the Teacher’s proposal; three rejections escalate.
 4. **مالی و پیگیری**
-   - **مالی و ساعت‌ها** — teaching hours, statements and the illustrative-only tuition wording.
-   - **ساعت طلایی** — potential bonus, not guaranteed income.
+   - **ساعت‌ها و امور مالی** — the Teacher checks hours and statements; payment and tuition illustrations have separate meanings.
+   - **ساعت‌های پرتقاضا** — optional availability and potential bonus, never guaranteed income.
 
 Content is code-owned in `platform/content/induction/*.php`. Each step declares a stable id, title,
-short Teacher responsibility, required Student perspective, content version and acknowledgement version. Rendering
+short Teacher responsibility, required Student perspective, content version and acknowledgement
+version. Rendering
 never defines policy.
 
 ## Presentation
 
-- The guide is a static list grouped by workflow stage. Each card explicitly names the Student perspective and Teacher responsibility. It contains no action buttons, POST forms or
+- The guide is a static list grouped by workflow stage. Each card explicitly names the Student perspective and Teacher responsibility. It contains no
+  action buttons, POST forms or
   per-step completion state.
 - Each step keeps a stable `#tp-step-<id>` anchor so contextual help can link to the explanation.
 - The dashboard card and the Settings entry are compact links to the one-page guide. They do not show

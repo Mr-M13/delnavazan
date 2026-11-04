@@ -1,0 +1,51 @@
+# LiveKit archive manifest
+
+Archived main commit: `cbd2c5ad` · tag `livekit-classroom-final-main-20261104`
+
+| Path | SHA-256 |
+| --- | --- |
+| `acceptance/fixtures/livekit-staging.php` | `72dd307ecca0ff32da9b64f8c94bde1c64cd4e94298a15d1f0be41eecaa55c05` |
+| `platform/docs/RECORDING-PI-ARCHIVAL.md` | `1979ad7483142743d9e198b7a7cbbfeda12c276a70a04d49de6f33971bc3f430` |
+| `platform/runtime/browser/livekit-classroom-browser-test.js` | `36f0f8ccae433f28cf0f8e58f352ce1656cd0413ac8155937f9c145863acde70` |
+| `platform/src/Integrations/LiveKit/LiveKitAdministratorClassroomController.php` | `8e89a322c2e697df77afeb3a6d0320cf96bd3820b075a0118c99d20de8e48b09` |
+| `platform/src/Integrations/LiveKit/LiveKitAdministratorClassroomService.php` | `3ff032e164905e2aa7623ef205f2f820feed4800629de68e2ebc71af36afb081` |
+| `platform/src/Integrations/LiveKit/LiveKitAttendanceEvent.php` | `5675add49d5b0f0de32fd55c418a4e860bcf283e125f2861ec1bc2040b75d47a` |
+| `platform/src/Integrations/LiveKit/LiveKitAttendanceIdempotency.php` | `612d51dd40aaf9abdb0923b267fdd7eb9bffd226b277df6512e4dfc34b95c13a` |
+| `platform/src/Integrations/LiveKit/LiveKitAttendanceIntegration.php` | `0a16b16d5d110ddbf033e940802d4b2d5e3d720c1346201fac23e9945e7486a7` |
+| `platform/src/Integrations/LiveKit/LiveKitAttendanceReconciliationWorker.php` | `377e269cb44f180dea8f773986050bb7ca83c132dfd36caace857e91f49b6eda` |
+| `platform/src/Integrations/LiveKit/LiveKitAttendanceRepository.php` | `77c7981dbc471f4de16e9654f20c358184a69b5059263ff42a308608360a8690` |
+| `platform/src/Integrations/LiveKit/LiveKitAttendanceSchema.php` | `9f3dcf81e76a41586295516b7972a46770738d6b2c355b7b59a174f81f65fcdb` |
+| `platform/src/Integrations/LiveKit/LiveKitClassroomAuthorizer.php` | `98a42bfd0f7016dbf3bc1f716e15f9e35ae879d58790e3fa179ed5e0e276a2e4` |
+| `platform/src/Integrations/LiveKit/LiveKitClassroomGrantPolicy.php` | `6435d4b868d2031e052ce3b8136e660f6eb8e79ee4e8b5028bed63a4bb310e3e` |
+| `platform/src/Integrations/LiveKit/LiveKitClassroomSessionService.php` | `add552309277edcd1a7d4d4c68698c992329881dcd3358d93b979ee46975e2f6` |
+| `platform/src/Integrations/LiveKit/LiveKitConfiguration.php` | `7566062a7073faab27f0f4534d66d6c310663fe3527558bba0e019927d0a9884` |
+| `platform/src/Integrations/LiveKit/LiveKitJwtIssuer.php` | `2655fe00bcc729c42ce225415b3b38927616baffecf0334ca03deecf3d5d4c68` |
+| `platform/src/Integrations/LiveKit/LiveKitLaunchController.php` | `7af86a19924715428fba3e38c92a104c912f6f77b5794051f535b04b28bf107d` |
+| `platform/src/Integrations/LiveKit/LiveKitLaunchTicket.php` | `76ddafb4d4ab316f41ba741bef502b2f2ef0b5b97f8ba98d9d2a7feca88e3a11` |
+| `platform/src/Integrations/LiveKit/LiveKitMeetFallbackController.php` | `90665068a270f6850fcbd36ac00e23d2257df309dc961647ec36d1ad56a8eca6` |
+| `platform/src/Integrations/LiveKit/LiveKitMeetFallbackService.php` | `b7d10be58ae3f8095d4ad483a3721b40ec94f15a3832a9e6391d0611bc3ef6fe` |
+| `platform/src/Integrations/LiveKit/LiveKitRoomRegistry.php` | `f99e4b873bd197f86faaf54fedf63751306d469a20501d82e4b742f82037f3fd` |
+| `platform/src/Integrations/LiveKit/LiveKitRoomRevocationListener.php` | `dd6e3b963a2ade639a0beadc2f565077558b4f196380561956439a7dcf5a87b6` |
+| `platform/src/Integrations/LiveKit/LiveKitRoomRevoker.php` | `bcd5c2c876403e5e734e816c9499d406fe8ad8bf0dc4cf7870c38174b3b07107` |
+| `platform/src/Integrations/LiveKit/LiveKitRoomServiceClient.php` | `a0b34b34dcb7743cde8b917a58fc250d58a6339718c15f2478d48513754bcf33` |
+| `platform/src/Integrations/LiveKit/LiveKitTokenRestController.php` | `4116ece9c08438c312f4146adc9c44fdcbbb51e1c58a23c2d6a33a377ef992e4` |
+| `platform/src/Integrations/LiveKit/LiveKitWebhookController.php` | `3c5d0782c569e88887c001d1e8e37efe5330c31d7e543860c2d65ef9a36cb11a` |
+| `platform/src/Integrations/LiveKit/LiveKitWebhookVerifier.php` | `3828f6377d4897f0fe858e754b6f162fcc14b511dfe28efbdf2a9da8aa103041` |
+| `platform/tests/livekit-administrator-classroom-unit.php` | `26717fa2313adec6d9009fedac204d8c37dfeb91d7ee95e620e46a4eda216249` |
+| `platform/tests/livekit-attendance-concurrency-verify.php` | `6b2e5671edd397948710b7dc5cd9ab4615cfbd4e389faf7f29d9cd219c51662f` |
+| `platform/tests/livekit-attendance-concurrency-worker.php` | `083a06d4011724f4c8e12e279a6fe92101a7076785f2f320968d7c683a0bf85a` |
+| `platform/tests/livekit-attendance-contract.php` | `540bfd354603c72f5ab297126e60424b2e67c093427a6102be5fc785e357c62a` |
+| `platform/tests/livekit-attendance-runtime.php` | `a6aaa96ef4d951aaadf4a31937b41c08275f8f73d19f5073bc77352d91ae2aeb` |
+| `platform/tests/livekit-attendance-threshold-unit.php` | `ee9b6f1ffe219d77ee90e0fa1b141972a3ee48654032daf1e40152dc0aaf5108` |
+| `platform/tests/livekit-classroom-authorization-unit.php` | `e9966006b7d92d54ae1c11a503524bc99626f994bb07b94784e8a7724872144f` |
+| `platform/tests/livekit-classroom-runtime.php` | `739ef9fca8d62d8b503df306f487dba73f47a682c5b99b6e20c7eadce0597071` |
+| `platform/tests/livekit-classroom-sync-contract.php` | `053a7fd14ede181527be3442c242dc7a47e843ab9bc52e4725f6bcd60c4fac9b` |
+| `platform/tests/livekit-jwt-issuer-unit.php` | `48921053c5f5aa1f0038f2b2ca4f6de455f5e761d48b0a22d1441b30a250207b` |
+| `platform/tests/livekit-portal-integration-contract.php` | `4d809acf7fa4aebae0cd91ff43354df11884dba65865cc754a317dc88826a7bb` |
+| `services/infra/__pycache__/livekit-e2e-server.cpython-313.pyc` | `5968c3c4dfc4a8d828edba4d2c9e856b8c52e020d43088ebc68b1bc07cd63637` |
+| `services/infra/livekit-e2e-server.py` | `9d369d4f6ec8972c8cbe014e3dcebd6f2f9822ae10d4cbbde355d3fd84784faa` |
+| `services/recorder-archiver/src/Provider/LiveKitEgressClient.php` | `37930a741454949c4fb44959df4dc333326f698406e68d4e3573aa8432784d29` |
+| `theme/assets/css/music-classroom.css` | `fb461bc62715ec2473e7e9f71c01686fbde6bf584b0dc38927273ae8741ec672` |
+| `theme/assets/js/music-classroom.js` | `1b583d3cf65438c4ce7d5f5d7131dbc78b57dd53c6778b911a84c75e9a2d6706` |
+| `theme/assets/js/vendor/livekit-client.LICENSE` | `09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b` |
+| `theme/assets/js/vendor/livekit-client.umd.min.js` | `54274d602e7095a156c7db603244f9b78b3ef5678b92d8a820be962aff326dd0` |

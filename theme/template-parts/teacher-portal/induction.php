@@ -44,6 +44,20 @@ $sections = array(
  <p class="dzn-tp-help">درود و خوش آمدید! این راهنما مسیر همکاری، مسئولیت‌های شما و تجربهٔ هنرجو را به زبان ساده توضیح می‌دهد.</p>
  <?php foreach ( $sections as $index => $section ) : ?>
  <section class="dzn-tp-quickstart-phase" aria-labelledby="tp-phase-<?php echo (int) $index; ?>">
+ <?php
+ $anchor_groups = array(
+  array( 'settings', 'golden-hour' ),
+  array(),
+  array( 'new-enrolment', 'today' ),
+  array( 'join', 'attendance' ),
+  array( 'absence', 'reschedule' ),
+  array( 'finance' ),
+  array(),
+ );
+ foreach ( $anchor_groups[$index] ?? array() as $anchor_id ) :
+ ?>
+ <span id="tp-step-<?php echo esc_attr( $anchor_id ); ?>"></span>
+ <?php endforeach; ?>
  <div class="dzn-tp-quickstart-phase__heading"><h3 id="tp-phase-<?php echo (int) $index; ?>"><?php echo esc_html( (string) $section[0] ); ?></h3></div>
  <ol class="dzn-tp-quickstart-list">
  <?php foreach ( $section[1] as $paragraph ) : ?>

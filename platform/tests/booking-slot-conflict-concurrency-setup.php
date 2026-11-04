@@ -76,6 +76,7 @@ $wpdb->insert( $p . 'teachers', array(
 ) );
 $teacher = (int) $wpdb->insert_id;
 $wpdb->insert( $p . 'teacher_principal_links', array( 'teacher_id' => $teacher, 'wordpress_user_id' => $teacherUser, 'status' => 'active', 'linked_at' => $now, 'linked_by' => 1 ) );
+$wpdb->insert( $p . 'teacher_course_eligibilities', array( 'teacher_id' => $teacher, 'course_id' => $course, 'status' => 'active', 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1 ) );
 $wpdb->insert( $p . 'teacher_onboarding_states', array( 'teacher_id' => $teacher, 'state' => 'active', 'readiness_state' => 'ready', 'profile_state' => 'complete', 'availability_state' => 'complete', 'agreement_state' => 'not_required', 'activated_at' => $now, 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1 ) );
 $availabilityProfile = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$p}teacher_availability_profiles WHERE teacher_id=%d AND status='active' LIMIT 1", $teacher ) );
 if ( $availabilityProfile < 1 ) {

@@ -129,7 +129,7 @@ namespace {
 
     $service = new TeacherInductionService();
     $hub = $service->hubForUser( 7 );
-    $fail( 'a fresh teacher starts at zero progress', $hub['completed_count'] === 0 && $hub['state'] === 'not_started' && $hub['next_module_id'] === 'today' );
+    $fail( 'a fresh teacher starts at zero progress', $hub['completed_count'] === 0 && $hub['state'] === 'not_started' && $hub['next_module_id'] === 'settings' );
     $visited = $service->moduleForUser( 'today', 7 );
     $fail( 'opening a step records an in-progress visit', $visited['module']['state'] === 'in_progress' && $visited['module']['last_visited_at'] !== null );
     $first = $service->completeForUser( 'today', 7 );

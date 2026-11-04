@@ -629,31 +629,12 @@ function dzn_theme_platform_calendar_export_url( $role, array $row ) {
 	} catch ( Throwable ) { return ''; }
 }
 
-/** Central Google Meet classroom readiness. LiveKit is archived and never advertised. */
+/** Central Google Meet classroom readiness. The theme never queries principals or provider storage. */
 function dzn_theme_platform_meet_classroom_ready( array $row, $is_booking ) {
-	global $wpdb;
-	if ( ! is_object( $wpdb ) || ! isset( $wpdb->prefix ) ) { return false; }
-	$p = $wpdb->prefix . 'dzn_';
-	if ( $is_booking ) {
-		$uid = trim( (string) ( $row['confirmation_uid'] ?? '' ) );
-		if ( ! preg_match( '/^[0-9A-Z]{26}$/D', $uid ) ) { return false; }
-		return (bool) $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}booking_request_confirmations b ON b.id=c.booking_confirmation_id
-			 WHERE b.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') LIMIT 1",
-			$uid
-		) );
-	}
-	$lesson_uid = trim( (string) ( $row['lesson_uid'] ?? '' ) );
-	$schedule_uid = trim( (string) ( $row['schedule_version_uid'] ?? '' ) );
-	if ( ! preg_match( '/^[0-9A-Z]{26}$/D', $lesson_uid ) || ! preg_match( '/^[0-9A-Z]{26}$/D', $schedule_uid ) ) { return false; }
-	return (bool) $wpdb->get_var( $wpdb->prepare(
-		"SELECT COUNT(*) FROM {$p}meet_classrooms c
-		 INNER JOIN {$p}lessons l ON l.id=c.lesson_id
-		 INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id
-		 WHERE l.uid=%s AND v.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') LIMIT 1",
-		$lesson_uid,
-		$schedule_uid
-	) );
+	$class = '\\Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService';
+	if ( ! class_exists( $class ) ) { return false; }
+	try { return ( new $class() )->readyForRow( $row, (bool) $is_booking ); }
+	catch ( Throwable $e ) { return false; }
 }
 
 /** Availability of the centralized Google Meet classroom. */

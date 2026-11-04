@@ -83,12 +83,10 @@ if ( $is_booking ) {
 }
 $join_available = $has_details && $owned && in_array( $role, array( 'teacher', 'student' ), true );
 $recording_available = false;
-if ( $owned && is_object( $lesson ) && (int) ( $lesson->id ?? 0 ) > 0 ) {
-	$recording_available = (bool) $wpdb->get_var( $wpdb->prepare(
-		"SELECT COUNT(*) FROM {$p}meet_recording_artifacts a INNER JOIN {$p}meet_classrooms c ON c.id=a.classroom_id
-		 WHERE c.lesson_id=%d AND c.active_slot=1 AND a.drive_file_id IS NOT NULL AND a.playback_verified_at IS NOT NULL LIMIT 1",
-		(int) $lesson->id
-	) );
+$join_service_class = '\\Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService';
+if ( $owned && '' !== $lesson_uid && class_exists( $join_service_class ) ) {
+	try { $recording_available = ( new $join_service_class() )->hasPlayableRecordingForLessonUid( $lesson_uid ); }
+	catch ( Throwable $e ) { $recording_available = false; }
 }
 ?>
 <main id="main-content" class="dzn-meet-entry" tabindex="-1">

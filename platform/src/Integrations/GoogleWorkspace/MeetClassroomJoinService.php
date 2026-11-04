@@ -58,10 +58,30 @@ final class MeetClassroomJoinService {
         return $this->openUri($classroom);
     }
 
+    /** Read-model availability check used by the theme; no provider reference is returned. */
+    public function readyForRow(array $row,bool $isBooking):bool{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        if($isBooking){
+            $uid=trim((string)($row['confirmation_uid']??''));
+            if(!preg_match('/^[0-9A-Z]{26}$/D',$uid))return false;
+            return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}booking_request_confirmations b ON b.id=c.booking_confirmation_id WHERE b.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') LIMIT 1",$uid));
+        }
+        $lessonUid=trim((string)($row['lesson_uid']??''));$scheduleUid=trim((string)($row['schedule_version_uid']??''));
+        if(!preg_match('/^[0-9A-Z]{26}$/D',$lessonUid)||!preg_match('/^[0-9A-Z]{26}$/D',$scheduleUid))return false;
+        return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}lessons l ON l.id=c.lesson_id INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id WHERE l.uid=%s AND v.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') LIMIT 1",$lessonUid,$scheduleUid));
+    }
+
     /** Whether a ready central classroom exists (used by the read models to label the card). */
     public function availableForLesson(int $lessonId,int $scheduleVersionId):bool{
         $classroom=$this->repository->activeClassroomForLesson($lessonId);
         return $classroom&&in_array((string)$classroom->classroom_state,array('ready','rescheduled'),true)&&(int)$classroom->schedule_version_id===$scheduleVersionId;
+    }
+
+    public function hasPlayableRecordingForLessonUid(string $lessonUid):bool{
+        $lessonUid=trim($lessonUid);
+        if(!preg_match('/^[0-9A-Z]{26}$/D',$lessonUid))return false;
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_recording_artifacts a INNER JOIN {$p}meet_classrooms c ON c.id=a.classroom_id INNER JOIN {$p}lessons l ON l.id=c.lesson_id WHERE l.uid=%s AND c.active_slot=1 AND a.drive_file_id IS NOT NULL AND a.playback_verified_at IS NOT NULL LIMIT 1",$lessonUid));
     }
 
     private function openUri(object $classroom):?string{

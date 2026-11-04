@@ -45,7 +45,7 @@ $check('preview performs no provider call', str_contains($reconciler, "if(\$dryR
 $check('plan deduplicates, orders and applies one total limit', str_contains($reconciler, 'MeetReconciliationPlan::normalise') && str_contains($planClass, 'array_slice($operations,0,$limit)') && str_contains($planClass, "strcmp((string)(\$a['starts_at_utc']"));
 $check('plan digest binds the exact operation set', str_contains($planClass, 'function digest(') && str_contains($planClass, "'fingerprint'") && str_contains($planClass, 'function assertApproved('));
 $check('apply checks the approved digest', str_contains($reconciler, 'MeetReconciliationPlan::assertApproved') && str_contains($cli, "--plan=<plan_digest> is required"));
-$check('apply revalidates every operation immediately before mutation', str_contains($reconciler, 'function isCurrent(') && str_contains($reconciler, "if(!\$this->isCurrent(\$operation))") && str_contains($reconciler, "reason_code']='stale_plan'"));
+$check('apply revalidates every operation immediately before mutation', str_contains($reconciler, 'function isCurrent(') && str_contains($reconciler, '$current=$this->isCurrent($operation)') && str_contains($reconciler, "reason_code']='stale_plan'"));
 $check('reconciler provisions lesson rows', str_contains($reconciler, 'ensureForLesson((int)$c'));
 $check('reconciler provisions booking rows', str_contains($reconciler, 'ensureForBooking((int)$c'));
 $check('reconciler patches stale schedules', str_contains($reconciler, 'rescheduleLesson((int)$c'));

@@ -57,6 +57,7 @@ final class GoogleWorkspaceClassroomService {
 
     /** Ensure a canonical term lesson has one ready organizer-owned Meet classroom. */
     public function ensureForLesson(int $lessonId,int $scheduleVersionId):array{
+        if(!self::enabled())throw new \RuntimeException('meet_classroom_paused');
         $lesson=$this->repository->lessonWithParticipants($lessonId);
         if(!$lesson)throw new \InvalidArgumentException('meet_lesson_required');
         $version=$this->repository->scheduleVersion($scheduleVersionId);
@@ -103,6 +104,7 @@ final class GoogleWorkspaceClassroomService {
 
     /** Ensure an introductory booking has one organizer-owned Meet classroom. */
     public function ensureForBooking(int $confirmationId):array{
+        if(!self::enabled())throw new \RuntimeException('meet_classroom_paused');
         $confirmation=$this->repository->bookingConfirmation($confirmationId);
         if(!$confirmation)throw new \InvalidArgumentException('meet_booking_confirmation_required');
         if((string)$confirmation->state==='cancelled')throw new \InvalidArgumentException('meet_booking_not_active');

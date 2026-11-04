@@ -102,7 +102,16 @@ final class GoogleWorkspaceClassroomReconciler {
         }
         $actions=array();$attempted=0;$succeeded=0;$failed=0;$skipped=0;
         foreach($plan['operations'] as $operation){
-            if(!$this->isCurrent($operation)){
+            try{
+                $current=$this->isCurrent($operation);
+            }catch(\Throwable $error){
+                $operation['state']='failed';
+                $operation['reason_code']='revalidation_failed';
+                $actions[]=$operation;
+                $failed++;
+                continue;
+            }
+            if(!$current){
                 $operation['state']='stale';
                 $operation['reason_code']='stale_plan';
                 $actions[]=$operation;

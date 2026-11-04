@@ -46,6 +46,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_provider_mapping',array(__CLASS__,'saveProviderMapping'));
         add_action('admin_post_dzn_notification_channel_policy',array(__CLASS__,'saveChannelPolicy'));
         add_action('admin_post_dzn_notification_event_toggle',array(__CLASS__,'toggleEvent'));
+        add_action('admin_post_dzn_notification_event_channel_toggle',array(__CLASS__,'toggleEventChannel'));
         add_action('admin_post_dzn_notification_email_appearance',array(__CLASS__,'saveEmailAppearance'));
         add_action('admin_post_dzn_notification_manual_retry',array(__CLASS__,'manualRetry'));
         add_action('admin_post_dzn_notification_inbox_prune',array(__CLASS__,'pruneInbox'));
@@ -90,9 +91,9 @@ final class NotificationManagementController {
         $latest=(new NotificationEventReadService())->latestByEvent();
         $eventFilter=isset($_GET['event'])&&is_scalar($_GET['event'])?sanitize_text_field(wp_unslash((string)$_GET['event'])):'';
         $channelFilter=isset($_GET['channel'])&&is_scalar($_GET['channel'])?sanitize_key(wp_unslash((string)$_GET['channel'])):'';
-        $audienceFilter=isset($_GET['audience'])&&is_scalar($_GET['audience'])?sanitize_key(wp_unslash((string)$_GET['audience'])):'';
+        $audienceFilter=isset($_GET['audience'])&&is_scalar($_GET['audience'])?sanitize_key(wp_unslash((string)$_GET['audience'])):'student';
         $problemFilter=isset($_GET['problem'])?sanitize_key(wp_unslash((string)$_GET['problem'])):'';
-        echo '<h2>Notification events</h2>';
+        echo '<h2>Notification events</h2><nav class="nav-tab-wrapper"><a class="nav-tab'.($audienceFilter==='student'?' nav-tab-active':'').'" href="'.esc_url(self::url(array('tab'=>'events','audience'=>'student'))).'">Student notifications</a><a class="nav-tab'.($audienceFilter==='teacher'?' nav-tab-active':'').'" href="'.esc_url(self::url(array('tab'=>'events','audience'=>'teacher'))).'">Teacher notifications</a></nav>';
         echo '<p>Each row is one business event. The opening view is the event table, not provider setup or raw diagnostics.</p>';
         self::renderChannelHealth();
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="events">';
@@ -100,7 +101,7 @@ final class NotificationManagementController {
         echo '<label>Channel <select name="channel"><option value="">All</option>';
         foreach(array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($channelFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
         echo '</select></label><label>Audience <select name="audience"><option value="">All</option>';
-        foreach(array('student'=>'Student','teacher'=>'Teacher','admin'=>'Administrator') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($audienceFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
+        foreach(array('student'=>'Student','teacher'=>'Teacher') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($audienceFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
         echo '</select></label><label>Problem state <select name="problem"><option value="">All</option><option value="needs_action"'.($problemFilter==='needs_action'?' selected':'').'>Needs action</option><option value="failed"'.($problemFilter==='failed'?' selected':'').'>Failed delivery</option><option value="disabled"'.($problemFilter==='disabled'?' selected':'').'>Disabled</option><option value="ready"'.($problemFilter==='ready'?' selected':'').'>Ready</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
 
         $rows=array();
@@ -128,24 +129,14 @@ final class NotificationManagementController {
             $rows[]=array('key'=>$eventKey,'event'=>$event,'permitted'=>$permitted,'enabled'=>$enabled,'mandatory'=>$mandatory,'issues'=>$issues,'last'=>$last,'needs'=>$needs);
         }
         if($rows===array()){echo '<p>No notification event matches these filters.</p>';self::renderDeliveryRules($library);return;}
-        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Mandatory security, account and financial notices cannot be disabled.</p>';
-        echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Purpose</th><th>Audience</th><th>Active channels</th><th>Enabled</th><th>Template readiness</th><th>Latest delivery</th><th>Action needed</th><th>Actions</th></tr></thead><tbody>';
+        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Delivery controls apply to each event; consent and legally required delivery safeguards remain enforced.</p>';
+        echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Purpose</th><th>Audience</th><th>Delivery channels</th><th>Template readiness</th><th>Latest delivery</th><th>Action needed</th><th>Actions</th></tr></thead><tbody>';
         foreach($rows as $row){
             $eventKey=$row['key'];$event=$row['event'];$last=$row['last'];
             echo '<tr><td><strong>'.esc_html((string)($event['label']??$eventKey)).'</strong><br><code dir="ltr">'.esc_html($eventKey).'</code><br><span class="dzn-notif-meta">'.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]['label']??'')).'</span></td>';
             echo '<td>'.esc_html(self::audienceLabel((string)($event['audience']??''))).'</td><td>';
-            if($row['permitted']===array())echo '<span class="dzn-badge is-warn">None offered</span>';
-            else foreach($row['permitted'] as $channel)echo '<span class="dzn-badge '.($row['enabled']?'is-ok':'is-warn').'">'.esc_html(self::channelLabel($channel)).'</span> ';
-            if(in_array('sms',$row['permitted'],true))echo '<div class="dzn-notif-meta">SMS is fallback-only after a verified terminal WhatsApp failure.</div>';
-            echo '</td><td>';
-            if($row['mandatory'])echo '<span class="dzn-badge is-locked">Mandatory — always on</span>';
-            elseif(!self::canEdit())echo '<span class="dzn-badge '.($row['enabled']?'is-ok':'is-locked').'">'.esc_html($row['enabled']?'Enabled':'Disabled').'</span>';
-            else{
-                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($row['enabled']?'0':'1').'">';
-                wp_nonce_field('dzn_notification_event_toggle');
-                echo '<span class="dzn-badge '.($row['enabled']?'is-ok':'is-locked').'">'.esc_html($row['enabled']?'Enabled':'Disabled').'</span> <button class="button button-small">'.($row['enabled']?'Disable':'Enable').'</button></form>';
-            }
-            echo '</td><td>';
+            foreach((array)($event['channels']??array()) as $channel){$active=$library->eventChannelEnabled($eventKey,$channel);$locked=NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true);echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';wp_nonce_field('dzn_notification_event_channel_toggle');echo '<span class="dzn-badge '.($active?'is-ok':'is-locked').'">'.esc_html(self::channelLabel($channel)).'</span>';if(self::canEdit()&&!$locked)echo ' <button class="button button-small">'.($active?'Off':'On').'</button>';echo '</form>';}
+            echo '<div class="dzn-notif-meta">SMS is fallback-only after a verified terminal WhatsApp failure.</div></td><td>';
             if($row['issues']===array())echo '<span class="dzn-badge is-ok">Ready</span>';
             else{echo '<span class="dzn-badge is-warn">'.esc_html((string)count($row['issues'])).' issue(s)</span><ul class="dzn-notif-list">';foreach($row['issues'] as $issue)echo '<li>'.esc_html($issue).'</li>';echo '</ul>';}
             echo '</td><td>';
@@ -626,6 +617,17 @@ final class NotificationManagementController {
             (new NotificationTemplateLibrary())->saveEventEnabled($eventKey,$enabled);
             self::flash('success',$enabled?'Optional notification event enabled.':'Optional notification event disabled.');
         }catch(\Throwable $error){self::flash('error',self::eventToggleError($error->getMessage()));}
+        self::redirectBack('events');
+    }
+
+    public static function toggleEventChannel():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_event_channel_toggle');
+        $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
+        $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'';
+        $enabled=isset($_POST['enabled'])&&(string)$_POST['enabled']==='1';
+        try{(new NotificationTemplateLibrary())->saveEventChannel($eventKey,$channel,$enabled);self::flash('success',self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.'));}
+        catch(\Throwable $error){self::flash('error','This delivery channel is required for the notification safeguard or is not available for this event.');}
         self::redirectBack('events');
     }
 

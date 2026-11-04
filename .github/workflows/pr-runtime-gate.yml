@@ -116,6 +116,7 @@ jobs:
           php platform/tests/booking-student-account-contract.php
           php platform/tests/booking-teacher-delivery-contract.php
           php platform/tests/booking-teacher-delivery-unit.php
+          php platform/tests/booking-allocation-unit.php
           php platform/tests/booking-teacher-response-contract.php
           php platform/tests/booking-teacher-response-unit.php
           php platform/tests/student-occupancy-authority-contract.php

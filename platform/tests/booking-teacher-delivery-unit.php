@@ -1,5 +1,15 @@
 <?php
 namespace Delnavazan\Platform\Core\Infrastructure\Repository {
+    final class BookingAllocationRepository {
+        public static int $cursorId=0;
+        public array $referrals=array();
+        public array $offers=array();
+        public function delivery(int $requestId):?object{return null;}
+        public function cursor(int $courseId,string $now):int{return self::$cursorId;}
+        public function advanceCursor(int $courseId,int $teacherId,string $now):void{self::$cursorId=$teacherId;}
+        public function addOffer(int $requestId,int $deliveryId,array $candidate,int $sequence,string $now,string $deadline):void{$this->offers[]=compact('requestId','deliveryId','candidate','sequence','deadline');}
+        public function referral(int $requestId,string $reason,string $now):void{$this->referrals[]=$requestId;}
+    }
     final class BookingRequestMatchAssessmentRepository {
         public array $teachers;
         public function __construct() {
@@ -34,6 +44,7 @@ namespace Delnavazan\Platform\Core\Support {
     final class Identifier { public static function uid(): string { return '01TESTBOOKINGDELIVERY00001'; } }
 }
 namespace {
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingAllocationService.php';
     require_once dirname(__DIR__) . '/src/Core/Application/BookingTeacherDeliveryService.php';
     $matches = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository();
     $deliveries = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository();
@@ -48,8 +59,10 @@ namespace {
     $row = $deliveries->created[0] ?? array();
     if (($row['teacher_id'] ?? null) !== 11 || ($row['requested_time_id'] ?? null) !== 202) throw new RuntimeException('The strongest eligible Teacher/time pair was not selected.');
     if (($row['state'] ?? null) !== 'pending_request' || ($row['match_strength'] ?? null) !== 'strong') throw new RuntimeException('Delivery must remain a pending request.');
+    $second=$service->deliver(11,4,$times,'2026-10-14 00:00:00');
+    if(($second['teacher_id']??null)!==22)throw new RuntimeException('The next request must rotate to the next eligible Teacher.');
     $matches->teachers = array();
     if ($service->deliver(10, 4, $times, '2026-10-14 00:00:00') !== null) throw new RuntimeException('No eligible Teacher must produce no delivery.');
-    if (count($deliveries->created) !== 1) throw new RuntimeException('No-candidate intake must not persist a delivery.');
+    if (count($deliveries->created) !== 2) throw new RuntimeException('No-candidate intake must not persist a delivery.');
     echo "Booking teacher delivery unit passed\n";
 }

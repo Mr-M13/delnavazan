@@ -65,7 +65,7 @@ $assert(str_contains($migration, "'058_golden_hour_pay_snapshot_details'") && st
 $assert(str_contains($migration, "UNIQUE KEY snapshot_version_reference") && str_contains($migration, 'Golden-hour duplicate snapshot detail'), 'The detail table must enforce one record per canonical snapshot version.');
 $assert(str_contains($migration, 'legacy_golden_hour_v1') && str_contains($migration, 'without recalculation'), 'Legacy lesson-level records must migrate idempotently without recalculation.');
 $assert(str_contains($migration, "DELETE FROM") || str_contains($migration, "finance_settings"), 'Legacy lesson-level settings rows must be moved out, not left as a parallel authority.');
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '57'"), 'The migration must publish Schema 57.');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '58'"), 'The migration must publish Schema 57.');
 $assert(str_contains($repository, 'finance_golden_hour_details') && str_contains($repository, 'insertDetail'), 'A dedicated repository must own the immutable detail rows.');
 $assert(!str_contains($repository, 'function update') && !str_contains($repository, 'function delete') && !str_contains($repository, 'UPDATE '), 'Normal operations must not expose an update or delete of committed details.');
 $assert(str_contains($pay, 'captureForSnapshot') && str_contains($pay, 'committedTotal') && str_contains($pay, 'detailsForVersion') && str_contains($pay, 'forLessonIds'), 'One pay service must own capture, committed totals and teacher presentation.');

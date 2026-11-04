@@ -22,6 +22,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         global $wpdb;
         $limit = max(1, min(50, $limit));
         $sql = "SELECT d.uid delivery_uid,d.state delivery_state,d.match_strength,d.created_at,
+                       offer.deadline_at response_deadline_at,
                        r.id booking_request_id,r.reference_code request_reference,s.full_name,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
                        COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,
@@ -29,6 +30,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                        rt.starts_at_utc,rt.instructional_ends_at_utc,
                        p.timezone teacher_timezone
                 FROM {$this->prefix}booking_request_teacher_deliveries d
+                INNER JOIN {$this->prefix}booking_allocation_offers offer ON offer.booking_request_id=d.booking_request_id AND offer.delivery_id=d.id AND offer.teacher_id=d.teacher_id AND offer.active_slot=1 AND offer.state='pending' AND offer.deadline_at>UTC_TIMESTAMP()
                 INNER JOIN {$this->prefix}booking_requests r ON r.id=d.booking_request_id
                 INNER JOIN {$this->prefix}booking_request_requested_times rt ON rt.id=d.requested_time_id AND rt.booking_request_id=r.id
                 INNER JOIN {$this->prefix}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
@@ -43,19 +45,30 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         return is_array($rows) ? $rows : array();
     }
 
+    public function transitionForAllocation(int $id,string $from,string $to,string $now):void {
+        global $wpdb;
+        if($wpdb->update($this->prefix.'booking_request_teacher_deliveries',array('state'=>$to,'updated_at'=>$now,'responded_at'=>$now),array('id'=>$id,'state'=>$from))!==1)throw new \RuntimeException('Booking allocation changed concurrently');
+    }
+
     /**
      * Re-point one still-pending inbox delivery to a staff-selected Teacher and requested time.
      * The unique booking_request_id index deliberately permits only one delivery per request.
      */
     public function reassignPending(int $bookingRequestId, int $requestedTimeId, int $teacherId, string $now): void {
         global $wpdb;
-        $changed = $wpdb->update(
-            $this->prefix . 'booking_request_teacher_deliveries',
-            array('requested_time_id' => $requestedTimeId, 'teacher_id' => $teacherId, 'match_strength' => 'manual', 'updated_at' => $now),
-            array('booking_request_id' => $bookingRequestId, 'state' => 'pending_request')
-        );
+        // A single multi-table update retires the old actionable offer with the
+        // manual reassignment. A stale Teacher UID cannot accept afterward.
+        $changed=$wpdb->query($wpdb->prepare(
+            "UPDATE {$this->prefix}booking_request_teacher_deliveries d
+             LEFT JOIN {$this->prefix}booking_allocation_offers o ON o.booking_request_id=d.booking_request_id AND o.active_slot=1
+             SET d.uid=%s,d.requested_time_id=%d,d.teacher_id=%d,d.match_strength='manual',d.updated_at=%s,
+                 o.state='superseded',o.active_slot=NULL,o.responded_at=%s,o.reason_code='administrator_agreement'
+             WHERE d.booking_request_id=%d AND d.state='pending_request'",
+            \Delnavazan\Platform\Core\Support\Identifier::uid(),$requestedTimeId,$teacherId,$now,$now,$bookingRequestId
+        ));
         if ($changed === false) throw new \RuntimeException('Booking Teacher delivery reassignment failed');
-        if ($changed === 1) return;
+        // MySQL counts both changed tables when an active offer is retired.
+        if ($changed > 0) return;
         $exists = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$this->prefix}booking_request_teacher_deliveries WHERE booking_request_id=%d LIMIT 1",
             $bookingRequestId

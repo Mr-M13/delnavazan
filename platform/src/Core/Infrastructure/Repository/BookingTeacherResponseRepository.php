@@ -30,9 +30,9 @@ final class BookingTeacherResponseRepository {
     public function insertCommand(array $data):int{return $this->insert('booking_request_teacher_commands',$data);}
     public function insertSecret(array $data):int{return $this->insert('provider_projection_secrets',$data);}
     public function insertNotification(array $data):int{return $this->insert('booking_request_student_notifications',$data);}
-    /** Queue the two booking-intake notices atomically with the matched Teacher delivery. */
+    /** Student receipt is stable across offer rotation; Teacher notices use the offer ledger. */
     public function queueRequestedNotifications(int $deliveryId,string $now):void{
-        foreach(array('requested_student','requested_teacher') as $kind)$this->insertNotification(array(
+        foreach(array('requested_student') as $kind)$this->insertNotification(array(
             'uid'=>\Delnavazan\Platform\Core\Support\Identifier::uid(),'delivery_id'=>$deliveryId,'confirmation_id'=>null,
             'notification_kind'=>$kind,'state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,
             'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>null,

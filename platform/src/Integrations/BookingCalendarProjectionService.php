@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\{IntegrationSecretService,ProviderIntegrationIdempotency,ProviderReferenceVault};
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Idempotently creates the Calendar event/Meet link before an introductory booking may confirm. */
@@ -121,6 +122,7 @@ final class BookingCalendarProjectionService {
             if($attempt>=self::MAX_ATTEMPTS){
                 $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>'provider_conference_unavailable','attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));
                 $this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);
+                (new BookingAllocationRepository())->referral((int)$row->booking_request_id,'provider_conference_unavailable',$now);
                 $this->repository->commit();return array('confirmation_id'=>(int)$row->id,'state'=>'failed','failure_reason_code'=>'provider_conference_unavailable','retryable'=>false);
             }
             $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'awaiting_conference','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>null,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+120),'updated_at'=>$now,'updated_by'=>$actor));
@@ -147,7 +149,7 @@ final class BookingCalendarProjectionService {
 
     private function retry(object $observed,string $reason):string{
         $now=gmdate('Y-m-d H:i:s');$actor=(int)get_current_user_id();$this->repository->begin();
-        try{$state='retryable';$row=$this->repository->confirmation((int)$observed->id,true);if($row&&in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true)){$attempt=(int)$row->attempt_count+1;if($attempt>=self::MAX_ATTEMPTS){$state='failed';$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));$this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);}else{$delay=min(3600,60*(2**min(5,$attempt)));$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'retryable','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+$delay),'updated_at'=>$now,'updated_by'=>$actor));}}$this->repository->commit();return $state;}catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        try{$state='retryable';$row=$this->repository->confirmation((int)$observed->id,true);if($row&&in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true)){$attempt=(int)$row->attempt_count+1;if($attempt>=self::MAX_ATTEMPTS){$state='failed';$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));$this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);(new BookingAllocationRepository())->referral((int)$row->booking_request_id,'provider_projection_failed',$now);}else{$delay=min(3600,60*(2**min(5,$attempt)));$this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'retryable','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+$delay),'updated_at'=>$now,'updated_by'=>$actor));}}$this->repository->commit();return $state;}catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
     private function rfc3339(string $utc):string{return str_replace(' ','T',substr($utc,0,19)).'Z';}
 }

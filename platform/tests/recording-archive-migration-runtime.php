@@ -16,7 +16,7 @@ function dzn_ra_m_index(string $table, string $name): bool {
     return $row !== null;
 }
 
-dzn_ra_m_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '57', 'migration runtime requires schema 57');
+dzn_ra_m_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '58', 'migration runtime requires schema 57');
 $completed = (array) get_option('dzn_platform_completed_migrations', array());
 dzn_ra_m_assert(count(array_keys($completed, '067_recording_archive_authority', true)) === 1, 'ledger must contain 067 exactly once');
 $tables = array('recordings','recording_events','recording_commands','recording_archive_confirmations','recording_playback_access');

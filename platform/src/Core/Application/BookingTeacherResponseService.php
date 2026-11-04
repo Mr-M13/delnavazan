@@ -8,7 +8,7 @@ use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Teacher-owned Accept/Decline authority for one delivered introductory booking request. */
 final class BookingTeacherResponseService {
-    public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null){$this->repository??=new BookingTeacherResponseRepository();}
+    public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null,private ?BookingAllocationService $allocation=null){$this->repository??=new BookingTeacherResponseRepository();$this->allocation??=new BookingAllocationService();}
 
     public function respond(string $deliveryUid,string $decision,string $commandKey):array{
         $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
@@ -27,14 +27,15 @@ final class BookingTeacherResponseService {
             if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
             if(!$delivery||(int)$delivery->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');
             if((string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            $this->allocation->assertPending($delivery,$now);
             if($decision==='decline'){
-                $this->repository->transitionDelivery($deliveryId,'pending_request','declined',$now);
-                $this->repository->closeRequest((int)$delivery->booking_request_id,'teacher_declined',$now,$actor);
-                $this->queueNotification($deliveryId,null,'declined',$now);
+                $next=$this->allocation->advanceLocked($delivery,'declined',$now);
                 $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'decline','result_state'=>'declined','result_confirmation_id'=>null,'created_at'=>$now,'created_by'=>$actor));
-                $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','idempotent'=>false);
+                $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','next_offer'=>$next,'idempotent'=>false);
             }
+            $this->allocation->assertAcceptable($delivery,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
+            $this->allocation->acceptedLocked($delivery,$now);
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
@@ -67,6 +68,7 @@ final class BookingTeacherResponseService {
             $teacher=$this->repository->teacherForAdministrator((int)$delivery->teacher_id,true);
             if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
+            $this->allocation->administratorAcceptedLocked($delivery,$now);
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);

@@ -45,7 +45,11 @@ $check('Calendar event creates a Meet conference', str_contains($service, "'conf
 $check('Teacher and Student are Calendar attendees', str_contains($service, 'attendanceEmails($facts)'));
 $check('Teacher is assigned COHOST', str_contains($service, "createMember(\$space,\$email,'COHOST')"));
 $check('co-host refusal reports the exact provider response', str_contains($service, "'meet_cohost_assignment_refused'") && str_contains($service, "'response'=>\$response"));
-$check('supported co-host fallback turns moderation off', str_contains($service, "'fallback_mode'=>'participant_with_moderation_off'"));
+$check('co-host membership is explicitly verified', str_contains($service, 'verifyCoHostMember') && str_contains($service, "'cohost_verified'"));
+$check('failed co-host assignment blocks readiness', str_contains($service, "MeetCoHostRule::BLOCKED") && str_contains($service, "'classroom_state'=>\$retryable?'provisioning':'blocked'"));
+$check('no silent moderation downgrade exists', !str_contains($service, "'fallback_mode'=>'participant_with_moderation_off'") && !str_contains($service, "'moderation'=>'OFF'"));
+$check('temporary co-host failures retry with bounded backoff', str_contains($service, 'MeetCoHostRule::retryDelaySeconds'));
+$check('administrator exception is explicit and audited', str_contains($service, 'approveCoHostException') && str_contains($service, 'cohost_exception_reason'));
 $check('organizer absence is supported by OPEN access', str_contains($rule, "return in_array(\$configured,array('OPEN','TRUSTED','RESTRICTED'),true)?\$configured:'OPEN';"));
 $check('recording config is consent-gated', str_contains($service, 'lessonRecordingEligibility'));
 $check('recording auto-generation is explicitly ON or OFF', str_contains($service, "'autoRecordingGeneration'=>\$recordingOn?'ON':'OFF'"));
@@ -59,7 +63,9 @@ $check('conference records are read through the official API', str_contains($rec
 $check('recordings are read through the official API', str_contains($recording, 'listRecordings') && str_contains($read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceApiClient.php'), 'recordings?'));
 $check('Drive file id is persisted for playback', str_contains($recording, "'drive_file_id'=>\$fileId"));
 $check('recording playability is verified with a byte-range probe', str_contains($recording, 'driveProbe'));
-$check('public Drive sharing is detected and alerted', str_contains($recording, 'recording_publicly_shared'));
+$check('Drive permissions are fetched explicitly', str_contains($recording, 'driveFilePermissions'));
+$check('missing permissions data is not treated as private', str_contains($recording, 'drive_permissions_missing') && str_contains($recording, 'MeetRecordingPrivacyRule'));
+$check('public and broad sharing are denied and alerted', str_contains($recording, 'recording_privacy_public') || str_contains($recording, 'recording_privacy_not_private'));
 $check('missing recording raises an administrator alert', str_contains($recording, 'recording_missing'));
 $check('unexpected recording end raises an administrator alert', str_contains($recording, 'recording_ended_unexpectedly'));
 
@@ -67,6 +73,7 @@ $playback = $read('platform/src/Integrations/GoogleWorkspace/MeetRecordingPlayba
 $check('playback is authenticated', str_contains($playback, 'is_user_logged_in()'));
 $check('playback is nonce-protected', str_contains($playback, "check_admin_referer('dzn_meet_recording_play')"));
 $check('playback never returns a Drive URL or token to the browser', !str_contains($playback, 'webViewLink') && !str_contains($playback, 'exportUri'));
+$check('playback uses the audited access service', str_contains($playback, 'MeetRecordingAccessService') && str_contains($playback, 'access_purpose'));
 
 $attendance = $read('platform/src/Integrations/GoogleWorkspace/MeetAttendanceService.php');
 $check('participant sessions are read from Meet', str_contains($attendance, 'listParticipantSessions'));
@@ -76,11 +83,15 @@ $check('attendance never writes completion directly', !str_contains($attendance,
 
 $migration = $read('platform/src/Core/Infrastructure/Migration/Migrator.php');
 $check('migration 068 is wired', str_contains($migration, '068_google_meet_classroom_authority'));
-foreach (array('meet_workspace_connections','meet_workspace_credentials','meet_workspace_authorizations','meet_classrooms','meet_classroom_references','meet_classroom_events','meet_conference_records','meet_recording_artifacts','meet_participant_sessions','meet_recording_alerts') as $table) {
+foreach (array('meet_workspace_connections','meet_workspace_credentials','meet_workspace_authorizations','meet_classrooms','meet_classroom_references','meet_classroom_events','meet_conference_records','meet_recording_artifacts','meet_recording_access_events','meet_participant_sessions','meet_recording_alerts') as $table) {
     $check('migration creates ' . $table, str_contains($migration, $table));
 }
 $check('Meet storage rejects plaintext provider secrets', str_contains($migration, "Meet classroom storage must not persist plaintext provider secrets"));
 $check('Meet evidence is append-only', str_contains($migration, "Meet classroom evidence must be append-only"));
+$check('recording privacy state is persisted', str_contains($migration, 'privacy_state varchar(24)') && str_contains($migration, 'privacy_checked_at'));
+$check('co-host readiness state is persisted', str_contains($migration, 'cohost_state varchar(24)') && str_contains($migration, 'cohost_exception_reason'));
+$check('recording access audit is persisted', str_contains($migration, 'meet_recording_access_events'));
+$check('playback policy has no broad administrator bypass', !str_contains($playback, 'manage_options') || str_contains($playback, 'MeetRecordingAccessService'));
 
 $onboarding = $read('theme/template-parts/teacher-portal/onboarding.php');
 $check('Teacher onboarding no longer requests Google authorization', !str_contains($onboarding, 'dzn_google_connect') && !str_contains($onboarding, 'google_action_url') && !str_contains($onboarding, 'اتصال Google Calendar'));

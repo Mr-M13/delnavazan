@@ -49,17 +49,21 @@ final class MeetAdministratorClassroomService {
     }
 
     private function context(object $classroom,string $kind,array $extra):array{
-        $ready=in_array((string)$classroom->classroom_state,array('ready','rescheduled'),true);
+        $state=(string)$classroom->classroom_state;
+        $cohost=(string)($classroom->cohost_state??MeetCoHostRule::PENDING);
+        $ready=in_array($state,array('ready','rescheduled'),true)&&MeetCoHostRule::isReady($state,$cohost);
         $uri=$ready?$this->openUri($classroom):null;
         return array_merge($extra,array(
-            'kind'=>$kind,'state'=>$ready?'ready':'not_found','available'=>$uri!==null,
+            'kind'=>$kind,'state'=>$ready?'ready':($state==='blocked'?'blocked':'not_found'),'available'=>$uri!==null,
             'livekit_available'=>$uri!==null,'meet_available'=>$uri!==null,
             'classroom_id'=>(int)$classroom->id,'join_uri'=>$uri,
+            'cohost_state'=>(string)($classroom->cohost_state??MeetCoHostRule::PENDING),
+            'cohost_ready'=>MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??'')),
         ));
     }
 
     private function missing(string $state,array $extra):array{
-        return array_merge($extra,array('state'=>$state,'available'=>false,'livekit_available'=>false,'meet_available'=>false,'join_uri'=>null));
+        return array_merge($extra,array('state'=>$state,'available'=>false,'livekit_available'=>false,'meet_available'=>false,'join_uri'=>null,'cohost_state'=>MeetCoHostRule::PENDING,'cohost_ready'=>false));
     }
 
     private function openUri(object $classroom):?string{

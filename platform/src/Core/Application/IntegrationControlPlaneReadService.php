@@ -86,6 +86,7 @@ final class IntegrationControlPlaneReadService {
                 'test_connection'=>'not_run',
                 'organizer_classroom'=>(new GoogleWorkspaceOAuthService())->health(),
                 'recording_alerts'=>(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->alerts('open',10),
+                'blocked_classrooms'=>(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->blockedClassrooms(10),
                 'projection_states'=>$googleProjectionStates,
             ),
             'stripe'=>array(

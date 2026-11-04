@@ -121,6 +121,58 @@ disable noise cancellation when it colours the instrument, and choose the music/
 when the client offers it. Workspace administrators can set organization-level defaults in the Google
 Admin console, but those settings are outside this application and are not asserted by code.
 
+## 5a. Recording privacy, co-host readiness and playback policy (hardening)
+
+**Drive privacy verification.** Metadata and permissions are separate calls. The service calls
+`driveFile` and then `driveFilePermissions`, and classifies the explicit permission list:
+
+| State | Meaning | Playback |
+| --- | --- | --- |
+| `verified_private` | non-empty permission list, organizer only | allowed |
+| `public_shared` | any `anyone` permission | denied + alert |
+| `domain_shared` | any domain-wide permission | denied + alert |
+| `shared_with_others` | any other user/group or unexpected permission type | denied + alert |
+| `verification_failed` | API refusal, transport failure, empty or malformed permissions | denied + alert |
+
+Missing permissions data is never treated as private. The actual HTTP status/error class/message is
+stored in the alert evidence.
+
+**Playback access.** Media is returned only for:
+
+- the owning Student or Teacher with current recording consent and `verified_private` storage;
+- a named compliance capability (`dzn_manage_recording_operations` or
+  `dzn_manage_recording_legal_hold`) with a documented purpose and reason. This exceptional access is
+  appended to `meet_recording_access_events`.
+
+An ordinary administrator receives metadata only and cannot bypass consent. Research/dataset access
+is refused here and remains a separate authority. Every allow/deny decision is audited.
+
+**Guardian authority.** For a minor Student, the latest recording decision must reference an active,
+current `student_acceptance_authority_grants` row with the matching version. A missing, stale or
+wrong-student grant makes recording ineligible.
+
+**Co-host readiness.** A classroom is `ready` only when the teacher is verified as a `COHOST` member
+(or an administrator explicitly approved a documented exception). A failed assignment is `blocked`
+and visible in Settings → Integrations. Transport/429/5xx failures retry with bounded backoff; a
+permanent refusal does not. There is no automatic moderation downgrade or silent participant
+fallback. Approval:
+
+```sh
+wp dzn-meet approve-cohost-exception --lesson_id=456 --reason="Documented operational exception"
+```
+
+**Meeting access.** `OPEN` remains the least-permissive setting that reliably admits an external
+teacher co-host and a Student without a Google account while the organizer is absent. `TRUSTED` and
+`RESTRICTED` can require sign-in/knocking and are not safe defaults for that exact participation
+pattern. Compensating controls: the Meet URI is vaulted and only released to an authenticated,
+ownership-checked participant inside the join window; links are not rendered in public pages; access
+is audited. Hiding a link in WordPress does not prevent anyone who obtains the URL from joining —
+this limitation is explicit.
+
+**Processing delays.** Missing/unplayable recording alerts wait two hours after the lesson. Early
+termination is alerted when provider state says the recording ended while the lesson was still in
+progress. Existing files and consent evidence are never deleted.
+
 ## 6. Attendance and completion
 
 `MeetAttendanceService` stores every participant session in `meet_participant_sessions`:
@@ -155,6 +207,19 @@ wp dzn-meet rollback
 
 Emergency switch: define `DZN_MEET_CLASSROOM_ENABLED=false` to stop new provisioning while existing
 Meet links remain usable; redeploy the archival LiveKit tag only as a separate, explicit rollback.
+
+## 7a. Required Google Cloud / Workspace configuration
+
+- Enable Calendar API, Meet REST API and Drive API in the Google Cloud project.
+- Register the exact organizer callback URI and keep the OAuth client secret in encrypted settings or
+  protected deployment constants.
+- Enable Meet recording for the Workspace organizational unit and allow external co-hosts/participants
+  as required by policy.
+- Set Drive sharing so recordings are not public/domain-wide; Delnavazan verifies and alerts but the
+  `drive.readonly` scope cannot rewrite sharing.
+- Confirm the organizer account has a Workspace licence that includes Meet recording.
+- Confirm the tenant permits `spaces.members` COHOST assignment to external users. If not, use the
+  explicit administrator exception workflow and record the limitation.
 
 ## 8. Verification still required on the real tenant
 

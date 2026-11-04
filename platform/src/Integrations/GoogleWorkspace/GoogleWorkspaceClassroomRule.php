@@ -11,7 +11,7 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 final class GoogleWorkspaceClassroomRule {
     public const PROVIDER_CODE='google_meet_workspace';
     public const CONNECTION_STATES=array('disconnected','authorizing','connected','refresh_failed','revoking','revoke_failed','revoked');
-    public const CLASSROOM_STATES=array('provisioning','ready','rescheduled','cancelled','failed','retired');
+    public const CLASSROOM_STATES=array('provisioning','ready','rescheduled','blocked','cancelled','failed','retired');
     public const RECORDING_STATES=array('STARTED','ENDED','FILE_GENERATED');
     public const OPERATIONS=array('create','update','cancel','replace_teacher','sync_recording','cancel_recording');
     public const MAX_ATTEMPTS=8;

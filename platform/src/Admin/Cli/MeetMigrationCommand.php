@@ -79,6 +79,21 @@ final class MeetMigrationCommand {
         \WP_CLI::success('Co-host updated for classroom '.(int)$result['classroom_id'].'.');
     }
 
+    /**
+     * Explicitly approve a documented co-host exception for one lesson.
+     *
+     * ## OPTIONS
+     * --lesson_id=<id>
+     * --reason=<text>
+     * [--reason_code=<code>]
+     */
+    public function approve_cohost_exception(array $args,array $assoc):void{
+        $lessonId=(int)($assoc['lesson_id']??0);$reason=trim((string)($assoc['reason']??''));$code=(string)($assoc['reason_code']??'operator_exception');
+        if($lessonId<1||strlen($reason)<12)\WP_CLI::error('--lesson_id and a documented --reason (12+ chars) are required.');
+        $result=(new GoogleWorkspaceClassroomService())->approveCoHostException($lessonId,(int)get_current_user_id(),$code,$reason);
+        \WP_CLI::success('Co-host exception approved for classroom '.(int)$result['classroom_id'].'.');
+    }
+
     /** Reconcile ended classrooms' recordings and participant sessions. */
     public function reconcile(array $args,array $assoc):void{
         $limit=isset($assoc['limit'])?max(1,min(100,(int)$assoc['limit'])):20;

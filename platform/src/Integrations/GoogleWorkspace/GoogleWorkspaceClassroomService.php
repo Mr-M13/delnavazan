@@ -62,8 +62,12 @@ final class GoogleWorkspaceClassroomService {
         if(!GoogleWorkspaceClassroomRule::validEmail($teacherEmail))throw new \InvalidArgumentException('meet_teacher_email_required');
         $existing=$this->repository->activeClassroomForLesson($lessonId);
         if($existing&&in_array((string)$existing->classroom_state,array('ready','rescheduled'),true)&&(int)$existing->schedule_version_id===$scheduleVersionId){
-            $references=$this->openReferences($existing);
-            if($references!==null)return $this->result($existing,$references,true);
+            if(MeetCoHostRule::isReady((string)$existing->classroom_state,(string)$existing->cohost_state)){
+                $references=$this->openReferences($existing);
+                if($references!==null)return $this->result($existing,$references,true);
+            }elseif((string)$existing->classroom_state==='blocked'){
+                throw new \RuntimeException('meet_cohost_assignment_blocked');
+            }
         }
         $identity='lesson:'.$lessonId;
         $classroom=$existing?:$this->createClassroomRow(array(
@@ -98,7 +102,7 @@ final class GoogleWorkspaceClassroomService {
         if(!$confirmation)throw new \InvalidArgumentException('meet_booking_confirmation_required');
         if((string)$confirmation->state==='confirmed'){
             $existing=$this->repository->activeClassroomForBooking($confirmationId);
-            if($existing){
+            if($existing&&MeetCoHostRule::isReady((string)$existing->classroom_state,(string)$existing->cohost_state)){
                 $references=$this->openReferences($existing);
                 if($references!==null)return $this->result($existing,$references,true);
             }
@@ -146,10 +150,12 @@ final class GoogleWorkspaceClassroomService {
         ));
         $this->assertOk($event,'meet_calendar_update_failed');
         $now=gmdate('Y-m-d H:i:s');
+        $state=MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??''))?'ready':(string)$classroom->classroom_state;
         $this->repository->updateClassroom((int)$classroom->id,array(
             'schedule_version_id'=>$scheduleVersionId,'starts_at_utc'=>(string)$version->starts_at_utc,
             'ends_at_utc'=>(string)$version->ends_at_utc,'schedule_timezone'=>(string)$version->schedule_timezone,
-            'classroom_state'=>'ready','version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+            'classroom_state'=>$state,'active_slot'=>in_array($state,array('ready','rescheduled'),true)?1:null,
+            'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
         ),array('id'=>(int)$classroom->id));
         $this->audit((int)$classroom->id,'update','ready',null,$event);
         $fresh=$this->repository->classroom((int)$classroom->id);
@@ -165,14 +171,32 @@ final class GoogleWorkspaceClassroomService {
         $email=$this->repository->teacherEmail($newTeacherId);
         if(!GoogleWorkspaceClassroomRule::validEmail($email))throw new \InvalidArgumentException('meet_teacher_email_required');
         $space=$this->spaceFor($references);
-        $this->removeOtherCoHosts($space,$email);
         $member=$this->assignCoHost($space,$email);
         $now=gmdate('Y-m-d H:i:s');
+        if(($member['state']??'')!==MeetCoHostRule::VERIFIED){
+            $retryable=($member['state']??'')===MeetCoHostRule::RETRYABLE;
+            $this->repository->updateClassroom((int)$classroom->id,array(
+                'classroom_state'=>$retryable?'provisioning':'blocked','active_slot'=>$retryable?1:null,
+                'cohost_state'=>$retryable?MeetCoHostRule::RETRYABLE:MeetCoHostRule::BLOCKED,
+                'cohost_error_code'=>$member['reason']??'meet_cohost_assignment_failed',
+                'cohost_error_detail'=>substr((string)($member['detail']??''),0,255),
+                'cohost_attempt_count'=>(int)$classroom->cohost_attempt_count+1,
+                'cohost_next_attempt_at'=>$retryable?gmdate('Y-m-d H:i:s',time()+MeetCoHostRule::retryDelaySeconds((int)$classroom->cohost_attempt_count+1)):null,
+                'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+            ),array('id'=>(int)$classroom->id));
+            $this->audit((int)$classroom->id,'replace_teacher',$retryable?'retryable':'blocked',$member['reason']??'meet_cohost_assignment_failed',$member['response']??null);
+            $this->raiseClassroomAlert((int)$classroom->id,'cohost_assignment_failed',$member['reason']??'meet_cohost_assignment_failed',$member['detail']??null);
+            throw new \RuntimeException($retryable?'meet_cohost_assignment_retryable':'meet_cohost_assignment_blocked');
+        }
+        $this->removeOtherCoHosts($space,$email);
         $this->repository->updateClassroom((int)$classroom->id,array(
             'teacher_id'=>$newTeacherId,'teacher_email_digest'=>$this->digestEmail($email),
+            'classroom_state'=>'ready','active_slot'=>1,'cohost_state'=>MeetCoHostRule::VERIFIED,
+            'cohost_verified_at'=>$now,'cohost_error_code'=>null,'cohost_error_detail'=>null,
+            'cohost_next_attempt_at'=>null,'cohost_exception_state'=>null,
             'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
         ),array('id'=>(int)$classroom->id));
-        $this->audit((int)$classroom->id,'replace_teacher',empty($member['warning'])?'ready':'warning',$member['reason']??null,$member['response']??null);
+        $this->audit((int)$classroom->id,'replace_teacher','ready',$member['reason']??null,$member['response']??null);
         return array('classroom_id'=>(int)$classroom->id,'cohost'=>$member);
     }
 
@@ -217,6 +241,9 @@ final class GoogleWorkspaceClassroomService {
     public function syncRecordingConfiguration(int $classroomId):array{
         $classroom=$this->repository->classroom($classroomId);
         if(!$classroom||(int)$classroom->lesson_id<1)return array('updated'=>false,'reason'=>'classroom_not_found');
+        if(!MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)$classroom->cohost_state)){
+            return array('updated'=>false,'reason'=>'classroom_not_ready');
+        }
         $eligibility=$this->recording->lessonRecordingEligibility((int)$classroom->lesson_id);
         $references=$this->openReferences($classroom);
         if($references===null)return array('updated'=>false,'reason'=>'reference_unavailable');
@@ -225,15 +252,22 @@ final class GoogleWorkspaceClassroomService {
             'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
             'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>!empty($eligibility['eligible'])?'ON':'OFF')),
         )));
-        if($response['status']<200||$response['status']>=300){
-            $this->audit($classroomId,'sync_recording','failed',$eligibility['reason']??'meet_space_patch_failed',$response);
-            return array('updated'=>false,'reason'=>'meet_space_patch_failed','response_status'=>$response['status'],'error_class'=>$response['error_class']??null);
-        }
         $now=gmdate('Y-m-d H:i:s');
+        if($response['status']<200||$response['status']>=300){
+            $detail=$this->providerDetail($response);
+            $this->repository->updateClassroom($classroomId,array(
+                'recording_state'=>'reconciliation_failed','failure_reason_code'=>'meet_recording_config_failed',
+                'updated_at'=>$now,'updated_by'=>0,
+            ),array('id'=>$classroomId));
+            $this->audit($classroomId,'sync_recording','failed','meet_recording_config_failed',$response);
+            $this->raiseClassroomAlert($classroomId,'recording_config_failed','meet_recording_config_failed',$detail);
+            return array('updated'=>false,'reason'=>'meet_recording_config_failed','response_status'=>$response['status'],'error_class'=>$response['error_class']??null,'detail'=>$detail);
+        }
         $this->repository->updateClassroom($classroomId,array(
             'recording_state'=>!empty($eligibility['eligible'])?'configured':'disabled',
             'recording_consent_digest'=>hash('sha256',wp_json_encode($eligibility,JSON_UNESCAPED_SLASHES) ?: ''),
-            'recording_consent_at'=>$now,'updated_at'=>$now,'updated_by'=>0,
+            'recording_consent_at'=>$now,'failure_reason_code'=>null,
+            'updated_at'=>$now,'updated_by'=>0,
         ),array('id'=>$classroomId));
         $this->audit($classroomId,'update',!empty($eligibility['eligible'])?'recording_enabled':'recording_disabled',$eligibility['reason']??null,$response);
         return array('updated'=>true,'recording_state'=>!empty($eligibility['eligible'])?'configured':'disabled','eligibility'=>$eligibility);
@@ -245,41 +279,59 @@ final class GoogleWorkspaceClassroomService {
         if($references===null)$references=$this->createOrConvergeEvent($classroom,$identity,$facts);
         $space=$this->spaceFor($references);
         $cohost=$this->assignCoHost($space,(string)$facts['teacher_email']);
+        $now=gmdate('Y-m-d H:i:s');
+        if(($cohost['state']??'')!==MeetCoHostRule::VERIFIED){
+            $attempt=(int)$classroom->cohost_attempt_count+1;
+            $retryable=($cohost['state']??'')===MeetCoHostRule::RETRYABLE;
+            $next=$retryable?gmdate('Y-m-d H:i:s',time()+MeetCoHostRule::retryDelaySeconds($attempt)):null;
+            $this->repository->updateClassroom((int)$classroom->id,array(
+                'classroom_state'=>$retryable?'provisioning':'blocked','active_slot'=>$retryable?1:null,
+                'cohost_state'=>$retryable?MeetCoHostRule::RETRYABLE:MeetCoHostRule::BLOCKED,
+                'cohost_error_code'=>$cohost['reason']??'meet_cohost_assignment_failed',
+                'cohost_error_detail'=>substr((string)($cohost['detail']??''),0,255),
+                'cohost_attempt_count'=>$attempt,'cohost_next_attempt_at'=>$next,
+                'recording_state'=>'disabled','failure_reason_code'=>$retryable?'meet_cohost_assignment_retryable':'meet_cohost_assignment_blocked',
+                'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+            ),array('id'=>(int)$classroom->id));
+            $this->audit((int)$classroom->id,'create',$retryable?'retryable':'blocked',$cohost['reason']??'meet_cohost_assignment_failed',$cohost['response']??null);
+            $this->raiseClassroomAlert((int)$classroom->id,'cohost_assignment_failed',$cohost['reason']??'meet_cohost_assignment_failed',$cohost['detail']??null);
+            throw new \RuntimeException($retryable?'meet_cohost_assignment_retryable':'meet_cohost_assignment_blocked');
+        }
         $recordingOn=!empty($eligibility['eligible']);
-        $moderation=empty($cohost['warning'])?'ON':'OFF';
         $configResponse=$this->api->patchSpace($space,array('config'=>array(
             'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
-            'moderation'=>$moderation,
+            'moderation'=>'ON',
             'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>$recordingOn?'ON':'OFF')),
         )),'config.accessType,config.moderation,config.artifactConfig.recordingConfig.autoRecordingGeneration');
-        $warning=null;
         if($configResponse['status']<200||$configResponse['status']>=300){
-            // A tenant may restrict moderation or artifact policy. Keep the classroom usable and
-            // report the exact refusal; recording stays off unless the patch is proven.
-            $warning=array('code'=>'meet_space_config_refused','response'=>$configResponse);
-            $this->api->patchSpace($space,array('config'=>array(
-                'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
-                'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>'OFF')),
-            )),'config.accessType,config.artifactConfig.recordingConfig.autoRecordingGeneration');
-            $recordingOn=false;
+            $detail=$this->providerDetail($configResponse);
+            $this->repository->updateClassroom((int)$classroom->id,array(
+                'classroom_state'=>'blocked','active_slot'=>null,
+                'cohost_state'=>MeetCoHostRule::VERIFIED,'cohost_verified_at'=>$now,
+                'recording_state'=>'disabled','failure_reason_code'=>'meet_space_config_failed',
+                'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+            ),array('id'=>(int)$classroom->id));
+            $this->audit((int)$classroom->id,'create','blocked','meet_space_config_failed',$configResponse);
+            $this->raiseClassroomAlert((int)$classroom->id,'meeting_access_config_failed','meet_space_config_failed',$detail);
+            throw new \RuntimeException('meet_space_config_failed');
         }
-        $now=gmdate('Y-m-d H:i:s');
         $this->repository->updateClassroom((int)$classroom->id,array(
             'classroom_state'=>'ready','active_slot'=>1,
-            'space_name'=>$space,
+            'space_name'=>$space,'cohost_state'=>MeetCoHostRule::VERIFIED,
+            'cohost_verified_at'=>$now,'cohost_error_code'=>null,'cohost_error_detail'=>null,
+            'cohost_attempt_count'=>(int)$classroom->cohost_attempt_count+1,'cohost_next_attempt_at'=>null,
             'recording_state'=>$recordingOn?'configured':'disabled',
             'recording_consent_digest'=>hash('sha256',wp_json_encode($eligibility,JSON_UNESCAPED_SLASHES) ?: ''),
             'recording_consent_at'=>$now,'version'=>(int)$classroom->version+1,
-            'failure_reason_code'=>$warning['code']??null,'updated_at'=>$now,'updated_by'=>0,
+            'failure_reason_code'=>null,'updated_at'=>$now,'updated_by'=>0,
         ),array('id'=>(int)$classroom->id));
-        $this->audit((int)$classroom->id,'create','ready',$warning['code']??null,$configResponse);
-        if(!empty($cohost['warning']))$this->audit((int)$classroom->id,'create','warning',$cohost['reason']??'cohost_assignment_refused',$cohost['response']??null);
+        $this->audit((int)$classroom->id,'create','ready',null,$configResponse);
         $fresh=$this->repository->classroom((int)$classroom->id);
         $result=$this->result($fresh,$references,false);
         $result['cohost']=$cohost;
         $result['recording_configured']=$recordingOn;
         $result['recording_eligibility']=$eligibility;
-        $result['warnings']=$warning!==null?array($warning):array();
+        $result['warnings']=array();
         return $result;
     }
 
@@ -352,22 +404,49 @@ final class GoogleWorkspaceClassroomService {
     private function assignCoHost(string $space,string $email):array{
         $email=GoogleWorkspaceClassroomRule::email($email);
         $response=$this->api->createMember($space,$email,'COHOST');
-        if($response['status']>=200&&$response['status']<300)return array('assigned'=>true,'response'=>$response);
-        // A repeated create is idempotent for our purposes if the member already exists.
+        if($response['status']>=200&&$response['status']<300){
+            $verified=$this->verifyCoHostMember($space,$email);
+            if($verified!==null)return $verified;
+            return array('state'=>MeetCoHostRule::RETRYABLE,'reason'=>'cohost_membership_not_visible','response'=>$response,'detail'=>$this->providerDetail($response));
+        }
         if($response['status']===409){
-            $members=$this->api->listMembers($space);
-            foreach((array)($members['body']['members']??array()) as $member){
-                if(is_array($member)&&strtolower((string)($member['email']??''))===$email&&(string)($member['role']??'')==='COHOST')return array('assigned'=>true,'response'=>$members);
+            $verified=$this->verifyCoHostMember($space,$email);
+            if($verified!==null)return $verified;
+        }
+        if(MeetCoHostRule::isRetryableStatus((int)$response['status'])||MeetCoHostRule::isRetryableErrorClass($response['error_class']??null)){
+            return array('state'=>MeetCoHostRule::RETRYABLE,'reason'=>'meet_cohost_assignment_retryable','response'=>$response,'detail'=>$this->providerDetail($response));
+        }
+        return array('state'=>MeetCoHostRule::BLOCKED,'reason'=>'meet_cohost_assignment_refused','response'=>$response,'detail'=>$this->providerDetail($response));
+    }
+
+    private function verifyCoHostMember(string $space,string $email):?array{
+        $members=$this->api->listMembers($space);
+        if($members['status']<200||$members['status']>=300)return null;
+        foreach((array)($members['body']['members']??array()) as $member){
+            if(!is_array($member))continue;
+            if(strtolower((string)($member['email']??''))===strtolower($email)&&(string)($member['role']??'')==='COHOST'){
+                return array('state'=>MeetCoHostRule::VERIFIED,'reason'=>'cohost_verified','response'=>$members);
             }
         }
-        // Supported alternative: keep the teacher as a Calendar invitee/participant and turn off
-        // moderation so host-only restrictions do not block an absent-organizer lesson. The exact
-        // provider response is reported, never hidden or replaced with browser automation.
-        $fallback=$this->api->patchSpace($space,array('config'=>array('moderation'=>'OFF')),'config.moderation');
-        return array(
-            'assigned'=>false,'warning'=>true,'reason'=>'meet_cohost_assignment_refused',
-            'response'=>$response,'fallback'=>$fallback,'fallback_mode'=>'participant_with_moderation_off',
-        );
+        return null;
+    }
+
+    /** Explicit administrator-approved exception; never an automatic fallback. */
+    public function approveCoHostException(int $lessonId,int $approverUserId,string $reasonCode,string $reasonText):array{
+        if(!function_exists('current_user_can')||(!current_user_can('dzn_manage_lessons')&&!current_user_can('manage_options')))throw new \RuntimeException('Unauthorized');
+        $classroom=$this->repository->activeClassroomForLesson($lessonId);
+        if(!$classroom)throw new \InvalidArgumentException('meet_classroom_required');
+        if(!MeetCoHostRule::exceptionAllowed($approverUserId,$reasonText,'1'))throw new \InvalidArgumentException('cohost_exception_reason_required');
+        $now=gmdate('Y-m-d H:i:s');
+        $this->repository->updateClassroom((int)$classroom->id,array(
+            'classroom_state'=>'ready','active_slot'=>1,'cohost_state'=>MeetCoHostRule::EXCEPTION_APPROVED,
+            'cohost_exception_state'=>'approved','cohost_exception_approved_by'=>$approverUserId,
+            'cohost_exception_approved_at'=>$now,'cohost_exception_reason'=>substr(trim($reasonText),0,255),
+            'failure_reason_code'=>'cohost_exception_approved','version'=>(int)$classroom->version+1,
+            'updated_at'=>$now,'updated_by'=>$approverUserId,
+        ),array('id'=>(int)$classroom->id));
+        $this->audit((int)$classroom->id,'create','exception_approved',substr($reasonCode,0,64),null);
+        return array('classroom_id'=>(int)$classroom->id,'cohost_state'=>MeetCoHostRule::EXCEPTION_APPROVED,'approved_by'=>$approverUserId);
     }
 
     private function removeOtherCoHosts(string $space,string $keepEmail):void{
@@ -449,6 +528,8 @@ final class GoogleWorkspaceClassroomService {
             'provider_object_reference'=>(string)$references['provider_object_reference'],
             'join_uri_reference'=>(string)$references['join_uri_reference'],
             'provider_code'=>'google_calendar','recording_state'=>(string)$classroom->recording_state,
+            'cohost_state'=>(string)($classroom->cohost_state??MeetCoHostRule::PENDING),
+            'cohost_ready'=>MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??'')),
             'idempotent'=>$idempotent,
         );
     }
@@ -459,6 +540,26 @@ final class GoogleWorkspaceClassroomService {
 
     private function digestEmail(string $email):string{
         return hash('sha256','dzn-meet-participant:'.strtolower(trim($email)));
+    }
+
+    private function providerDetail(array $response):?string{
+        $status=(int)($response['status']??0);
+        $class=trim((string)($response['error_class']??''));
+        $message=trim((string)($response['error_message']??''));
+        $detail=trim(($status>0?'HTTP '.$status:'HTTP 0').' '.$class.($message!==''?' · '.$message:''));
+        return $detail!==''?substr($detail,0,255):null;
+    }
+
+    private function raiseClassroomAlert(int $classroomId,string $code,string $detail,?string $detailText):void{
+        try{
+            if($this->repository->openAlert($classroomId,$code))return;
+            $this->repository->insertAlert(array(
+                'uid'=>Identifier::uid(),'classroom_id'=>$classroomId,'alert_code'=>$code,
+                'detail_code'=>substr($detail,0,64),'detail_text'=>$detailText!==null?substr($detailText,0,255):null,
+                'state'=>'open','created_at'=>gmdate('Y-m-d H:i:s'),'acknowledged_at'=>null,'acknowledged_by'=>null,
+            ));
+            if(function_exists('do_action'))do_action('dzn_meet_classroom_alert',$classroomId,$code,$detail,$detailText);
+        }catch(\Throwable){}
     }
 
     private function audit(int $classroomId,string $operation,string $state,?string $reason,?array $response):void{

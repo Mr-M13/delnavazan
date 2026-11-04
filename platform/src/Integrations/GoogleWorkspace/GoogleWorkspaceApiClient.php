@@ -120,7 +120,7 @@ final class GoogleWorkspaceApiClient {
     // ---- Drive ------------------------------------------------------------------------------
     public function driveFile(string $fileId):array{
         $id=GoogleWorkspaceClassroomRule::driveFileId($fileId);
-        $fields='id,name,mimeType,size,videoMediaMetadata,capabilities,permissions,webViewLink';
+        $fields='id,name,mimeType,size,videoMediaMetadata,capabilities,webViewLink';
         return $this->call('GET','/drive/v3/files/'.rawurlencode($id).'?fields='.rawurlencode($fields).'&supportsAllDrives=true');
     }
 

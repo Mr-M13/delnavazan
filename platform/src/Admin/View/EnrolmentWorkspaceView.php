@@ -681,7 +681,7 @@ final class EnrolmentWorkspaceView {
 
     private static function classroomActions(string $kind, array $classroom): void {
         if ($kind === 'unavailable') return;
-        echo '<div class="dzn-classroom"><p><strong>Google Meet:</strong> ' . esc_html(!empty($classroom['meet_available']) ? 'provisioned' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . '</p>';
+        echo '<div class="dzn-classroom"><p><strong>Google Meet:</strong> ' . esc_html(!empty($classroom['meet_available']) ? 'provisioned' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Co-host:</strong> ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</p>';
         echo '<div class="dzn-classroom__actions">';
         if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-inline-form">';

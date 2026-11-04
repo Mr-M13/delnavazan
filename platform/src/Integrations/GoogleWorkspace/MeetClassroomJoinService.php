@@ -40,7 +40,7 @@ final class MeetClassroomJoinService {
         if((int)$principal['id']!==($role==='teacher'?(int)$lesson->teacher_id:(int)$lesson->student_id))return null;
         if(!$this->withinWindow((string)$schedule->starts_at_utc,(string)$schedule->ends_at_utc))return null;
         $classroom=$this->repository->activeClassroomForLesson((int)$lesson->id);
-        if(!$classroom||!in_array((string)$classroom->classroom_state,array('ready','rescheduled'),true))return null;
+        if(!$classroom||!MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??'')))return null;
         if((int)$classroom->schedule_version_id!==(int)$schedule->id)return null;
         return $this->openUri($classroom);
     }
@@ -54,7 +54,7 @@ final class MeetClassroomJoinService {
         if(!$row)return null;
         if(!$this->withinWindow((string)$row->starts_at_utc,(string)$row->ends_at_utc))return null;
         $classroom=$this->repository->activeClassroomForBooking((int)$row->confirmation_id);
-        if(!$classroom||!in_array((string)$classroom->classroom_state,array('ready','rescheduled'),true))return null;
+        if(!$classroom||!MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??'')))return null;
         return $this->openUri($classroom);
     }
 
@@ -64,17 +64,17 @@ final class MeetClassroomJoinService {
         if($isBooking){
             $uid=trim((string)($row['confirmation_uid']??''));
             if(!preg_match('/^[0-9A-Z]{26}$/D',$uid))return false;
-            return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}booking_request_confirmations b ON b.id=c.booking_confirmation_id WHERE b.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') LIMIT 1",$uid));
+            return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}booking_request_confirmations b ON b.id=c.booking_confirmation_id WHERE b.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') AND c.cohost_state IN ('verified','exception_approved') LIMIT 1",$uid));
         }
         $lessonUid=trim((string)($row['lesson_uid']??''));$scheduleUid=trim((string)($row['schedule_version_uid']??''));
         if(!preg_match('/^[0-9A-Z]{26}$/D',$lessonUid)||!preg_match('/^[0-9A-Z]{26}$/D',$scheduleUid))return false;
-        return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}lessons l ON l.id=c.lesson_id INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id WHERE l.uid=%s AND v.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') LIMIT 1",$lessonUid,$scheduleUid));
+        return (bool)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}meet_classrooms c INNER JOIN {$p}lessons l ON l.id=c.lesson_id INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id WHERE l.uid=%s AND v.uid=%s AND c.active_slot=1 AND c.classroom_state IN ('ready','rescheduled') AND c.cohost_state IN ('verified','exception_approved') LIMIT 1",$lessonUid,$scheduleUid));
     }
 
     /** Whether a ready central classroom exists (used by the read models to label the card). */
     public function availableForLesson(int $lessonId,int $scheduleVersionId):bool{
         $classroom=$this->repository->activeClassroomForLesson($lessonId);
-        return $classroom&&in_array((string)$classroom->classroom_state,array('ready','rescheduled'),true)&&(int)$classroom->schedule_version_id===$scheduleVersionId;
+        return $classroom&&MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??''))&&(int)$classroom->schedule_version_id===$scheduleVersionId;
     }
 
     public function hasPlayableRecordingForLessonUid(string $lessonUid):bool{

@@ -1,14 +1,11 @@
 <?php
 namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 
-use Delnavazan\Platform\Core\Application\RecordingDecisionAuthorityService;
-
 /**
- * Authenticated, consent-controlled recording playback.
+ * Authenticated, policy-controlled recording playback.
  *
- * The browser never receives a Drive URL or access token. The file is streamed from the organizer's
- * Drive through this endpoint with a short-lived access token, after ownership and current consent
- * are re-proved on every request.
+ * The browser never receives a Drive URL or access token. Every decision is appended to
+ * meet_recording_access_events, including denials. Ordinary administrators get metadata only.
  */
 final class MeetRecordingPlaybackController {
     public static function register():void{
@@ -19,6 +16,9 @@ final class MeetRecordingPlaybackController {
         if(!is_user_logged_in())auth_redirect();
         check_admin_referer('dzn_meet_recording_play');
         $lessonUid=trim((string)($_POST['lesson_uid']??''));
+        $purpose=sanitize_key((string)($_POST['access_purpose']??''));
+        $reasonCode=sanitize_key((string)($_POST['reason_code']??''));
+        $reasonText=sanitize_text_field((string)($_POST['reason_text']??''));
         $portal=home_url('/student-portal/');
         try{
             global $wpdb;$p=$wpdb->prefix.'dzn_';
@@ -28,13 +28,12 @@ final class MeetRecordingPlaybackController {
             $repository=new GoogleWorkspaceRepository();
             $teacherId=$repository->teacherPrincipalUser((int)$lesson->teacher_id);
             $studentId=$repository->studentPrincipalUser((int)$lesson->student_id);
-            $role=$teacherId===$userId&&$teacherId>0?'teacher':($studentId===$userId&&$studentId>0?'student':'');
-            if($role==='')throw new \RuntimeException('recording_not_authorised');
-            if($role==='teacher')$portal=home_url('/teacher-portal/');
-            $principalId=$role==='teacher'?(int)$lesson->teacher_id:(int)$lesson->student_id;
-            $decision=(new MeetRecordingService($repository))->playbackDecision((int)$lesson->id,$role,$principalId);
-            if(empty($decision['allowed']))throw new \RuntimeException((string)($decision['reason']??'recording_unavailable'));
-            $handle=(new MeetRecordingService($repository))->streamHandle((int)$lesson->id);
+            $isAdmin=current_user_can('manage_options')||current_user_can('dzn_view_recording_operations')||current_user_can('dzn_manage_recording_operations')||current_user_can('dzn_manage_recording_legal_hold');
+            if($purpose==='')$purpose=$teacherId===$userId&&$teacherId>0?MeetRecordingAccessRule::TEACHER_REVIEW:($studentId===$userId&&$studentId>0?MeetRecordingAccessRule::STUDENT_REVIEW:MeetRecordingAccessRule::ADMIN_OPERATIONAL);
+            if($purpose===MeetRecordingAccessRule::COMPLIANCE_REVIEW)$portal=home_url('/wp-admin/admin.php?page=dzn-recordings');
+            $decision=(new MeetRecordingAccessService($repository))->decide((int)$lesson->id,$purpose,$reasonCode,$reasonText);
+            if(empty($decision['media_allowed'])||empty($decision['drive_file_id']))throw new \RuntimeException((string)($decision['reason']??'recording_not_authorised'));
+            $handle=(new MeetRecordingService($repository))->streamHandleForFile((string)$decision['drive_file_id']);
             self::stream($handle);
         }catch(\Throwable $error){
             $code=preg_match('/^[a-z0-9_]{3,64}$/D',$error->getMessage())?$error->getMessage():'recording_unavailable';
@@ -69,9 +68,7 @@ final class MeetRecordingPlaybackController {
                 CURLOPT_HEADERFUNCTION=>static function($curl,string $line):int{
                     $trim=trim($line);
                     if($trim!==''&&!str_contains($trim,':')){
-                        if(preg_match('/^HTTP\/\S+\s+(\d{3})/',$trim,$match)){
-                            http_response_code((int)$match[1]);
-                        }
+                        if(preg_match('/^HTTP\/\S+\s+(\d{3})/',$trim,$match))http_response_code((int)$match[1]);
                     }elseif(str_starts_with(strtolower($trim),'content-range:')||str_starts_with(strtolower($trim),'content-length:')){
                         header($trim,false);
                     }
@@ -87,8 +84,6 @@ final class MeetRecordingPlaybackController {
             curl_close($curl);
             exit;
         }
-        // Conservative fallback when cURL is unavailable. This buffers one range only; it is never
-        // used to expose the file beyond the authenticated response.
         $args=array('timeout'=>120,'redirection'=>0,'headers'=>array('Authorization'=>'Bearer '.$token));
         if($range!=='')$args['headers']['Range']=$range;
         $response=wp_remote_get($url,$args);

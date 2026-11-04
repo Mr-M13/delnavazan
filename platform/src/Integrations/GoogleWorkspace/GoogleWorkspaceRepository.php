@@ -75,7 +75,7 @@ final class GoogleWorkspaceRepository {
     /** Future canonical classrooms for the pre-lesson configuration sync. */
     public function upcoming(int $limit=50):array{
         $limit=max(1,min(200,$limit));
-        return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state IN ('provisioning','ready','rescheduled') AND starts_at_utc>=%s ORDER BY starts_at_utc ASC LIMIT ".$limit,gmdate('Y-m-d H:i:s',time()-3600));
+        return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state IN ('provisioning','ready','rescheduled','failed','blocked') AND starts_at_utc>=%s AND (cohost_next_attempt_at IS NULL OR cohost_next_attempt_at<=%s) ORDER BY starts_at_utc ASC LIMIT ".$limit,gmdate('Y-m-d H:i:s',time()-3600),gmdate('Y-m-d H:i:s'));
     }
 
     // ---- Sealed references ------------------------------------------------------------------
@@ -118,7 +118,24 @@ final class GoogleWorkspaceRepository {
     public function insertRecording(array $data):int{return $this->insert('meet_recording_artifacts',$data);}
     public function updateRecording(int $id,array $data,array $where):int{return $this->update('meet_recording_artifacts',$data,array_merge(array('id'=>$id),$where));}
     public function verifiedRecordingForLesson(int $lessonId):?object{
-        return $this->row("SELECT r.* FROM {$this->p}meet_recording_artifacts r INNER JOIN {$this->p}meet_classrooms c ON c.id=r.classroom_id WHERE c.lesson_id=%d AND c.active_slot=1 AND r.drive_file_id IS NOT NULL AND r.playback_verified_at IS NOT NULL ORDER BY r.id DESC LIMIT 1",$lessonId);
+        return $this->row("SELECT r.* FROM {$this->p}meet_recording_artifacts r INNER JOIN {$this->p}meet_classrooms c ON c.id=r.classroom_id WHERE c.lesson_id=%d AND c.active_slot=1 AND r.drive_file_id IS NOT NULL AND r.playback_verified_at IS NOT NULL AND r.privacy_state='verified_private' ORDER BY r.id DESC LIMIT 1",$lessonId);
+    }
+    /** Latest artifact regardless of privacy state, for an audited access decision. */
+    public function recordingForLesson(int $lessonId):?object{
+        return $this->row("SELECT r.* FROM {$this->p}meet_recording_artifacts r INNER JOIN {$this->p}meet_classrooms c ON c.id=r.classroom_id WHERE c.lesson_id=%d AND c.active_slot=1 AND r.drive_file_id IS NOT NULL ORDER BY r.id DESC LIMIT 1",$lessonId);
+    }
+
+    /** Classrooms blocked by a co-host or access hardening failure, for Settings → Integrations. */
+    public function blockedClassrooms(int $limit=25):array{
+        $limit=max(1,min(100,$limit));
+        return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state='blocked' OR cohost_state IN ('pending','retryable','blocked') ORDER BY id DESC LIMIT ".$limit);
+    }
+
+    /** Append one recording access decision. Never updated or deleted. */
+    public function insertAccessEvent(array $data):int{return $this->insert('meet_recording_access_events',$data);}
+    public function accessEvents(int $lessonId,string $actorRole,int $limit=50):array{
+        $limit=max(1,min(200,$limit));
+        return $this->rows("SELECT * FROM {$this->p}meet_recording_access_events WHERE lesson_id=%d AND actor_role=%s ORDER BY id DESC LIMIT ".$limit,$lessonId,$actorRole);
     }
 
     // ---- Participant sessions ----------------------------------------------------------------

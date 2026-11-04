@@ -144,6 +144,21 @@ final class RecordingDecisionAuthorityService {
         if(!$teacherRecording||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::TEACHER_RECORDING,(string)$teacherRecording->decision_code)||!$this->noticeIsCurrent((int)$teacherRecording->notice_version_id))return $this->eligibility(false,'teacher_recording_not_allowed',$teacherRecording,null);
         $student=$this->latestDecision('student',(int)$lesson->student_id,ConsentPurposeRegistry::STUDENT_RECORDING,false);
         if(!$student||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::STUDENT_RECORDING,(string)$student->decision_code)||!$this->noticeIsCurrent((int)$student->notice_version_id))return $this->eligibility(false,'student_recording_not_allowed',$student,null);
+        $capacity=(string)$wpdb->get_var($wpdb->prepare("SELECT c.classification FROM {$p}students s LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE s.id=%d AND s.status='active' AND s.archived_at IS NULL LIMIT 1",(int)$lesson->student_id));
+        $guardianGrantId=(int)($student->guardian_authority_grant_id??0);
+        $guardianVersion=(int)($student->guardian_authority_version??0);
+        $guardianActor=(int)($student->guardian_actor_user_id??0);
+        if($capacity==='minor'){
+            if($guardianGrantId<1||$guardianActor<1)return $this->eligibility(false,'student_guardian_authority_required',$student,$teacherRecording);
+            $grant=$wpdb->get_row($wpdb->prepare("SELECT id,student_id,version,state,active_slot,effective_from,effective_until FROM {$p}student_acceptance_authority_grants WHERE id=%d LIMIT 1",$guardianGrantId));
+            if(!$grant||(int)$grant->student_id!==(int)$lesson->student_id||(string)$grant->state!=='active'||(int)$grant->active_slot!==1||(int)$grant->version!==$guardianVersion)return $this->eligibility(false,'student_guardian_authority_not_current',$student,$teacherRecording);
+            $now=gmdate('Y-m-d H:i:s');
+            if((string)$grant->effective_from>$now||($grant->effective_until!==null&&(string)$grant->effective_until<=$now))return $this->eligibility(false,'student_guardian_authority_not_current',$student,$teacherRecording);
+        }elseif($capacity!=='adult'){
+            return $this->eligibility(false,'student_capacity_unavailable',$student,$teacherRecording);
+        }elseif($guardianGrantId>0||$guardianActor>0){
+            return $this->eligibility(false,'student_guardian_authority_invalid',$student,$teacherRecording);
+        }
         return $this->eligibility(true,null,$student,$teacherRecording);
     }
 

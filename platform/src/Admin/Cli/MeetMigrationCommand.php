@@ -94,6 +94,25 @@ final class MeetMigrationCommand {
         \WP_CLI::success('Co-host exception approved for classroom '.(int)$result['classroom_id'].'.');
     }
 
+    /**
+     * Retry a blocked/retryable co-host assignment after the tenant policy is corrected.
+     *
+     * ## OPTIONS
+     * --lesson_id=<id>
+     */
+    public function retry_classroom(array $args,array $assoc):void{
+        $lessonId=(int)($assoc['lesson_id']??0);
+        if($lessonId<1)\WP_CLI::error('--lesson_id is required.');
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $classroom=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}meet_classrooms WHERE lesson_id=%d AND active_slot=1 LIMIT 1",$lessonId));
+        if(!$classroom)\WP_CLI::error('No active classroom found.');
+        $wpdb->update($p.'meet_classrooms',array('classroom_state'=>'provisioning','cohost_state'=>'pending','cohost_error_code'=>null,'cohost_error_detail'=>null,'cohost_next_attempt_at'=>null,'failure_reason_code'=>null,'updated_at'=>gmdate('Y-m-d H:i:s')),array('id'=>(int)$classroom->id));
+        $version=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->currentScheduleVersion($lessonId);
+        if(!$version)\WP_CLI::error('No current schedule version.');
+        (new GoogleWorkspaceClassroomService())->ensureForLesson($lessonId,(int)$version->id);
+        \WP_CLI::success('Classroom retried for lesson '.$lessonId.'.');
+    }
+
     /** Reconcile ended classrooms' recordings and participant sessions. */
     public function reconcile(array $args,array $assoc):void{
         $limit=isset($assoc['limit'])?max(1,min(100,(int)$assoc['limit'])):20;

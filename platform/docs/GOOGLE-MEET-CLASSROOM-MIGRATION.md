@@ -159,6 +159,7 @@ fallback. Approval:
 
 ```sh
 wp dzn-meet approve-cohost-exception --lesson_id=456 --reason="Documented operational exception"
+wp dzn-meet retry-classroom --lesson_id=456
 ```
 
 **Meeting access.** `OPEN` remains the least-permissive setting that reliably admits an external

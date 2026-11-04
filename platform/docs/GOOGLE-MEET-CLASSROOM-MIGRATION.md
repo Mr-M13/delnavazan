@@ -202,7 +202,8 @@ administrator adjudication remain in the existing Phase-O/P workflows.
 ```sh
 wp dzn-meet status
 wp dzn-meet repair --dry-run --limit=500 --json
-wp dzn-meet repair --limit=500 --plan=<plan_digest>
+PLAN_DIGEST="$(php -r '$j=json_decode(file_get_contents("/secure/meet-recovery-dry-run.json"),true); echo $j["plan_digest"];')"
+wp dzn-meet repair --limit=500 --plan="$PLAN_DIGEST"
 wp dzn-meet worker --discover --limit=25
 wp dzn-meet retry-booking --confirmation_id=123 --user=<administrator_id>
 wp dzn-meet reconcile --limit=20

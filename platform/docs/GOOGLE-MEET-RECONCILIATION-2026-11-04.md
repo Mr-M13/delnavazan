@@ -100,7 +100,8 @@ wp dzn-meet repair --dry-run --limit=500 --json > /secure/meet-recovery-dry-run-
 # Approve plan_digest from that reviewed file.
 
 # 2. Apply only the approved batch. A changed record or limit changes the digest and is refused.
-wp dzn-meet repair --limit=500 --plan=<plan_digest>
+PLAN_DIGEST="$(php -r '$j=json_decode(file_get_contents("/secure/meet-recovery-dry-run-2.json"),true); echo $j["plan_digest"];')"
+wp dzn-meet repair --limit=500 --plan="$PLAN_DIGEST"
 
 # 3. Generate a new dry run for the next batch; never reuse an older digest.
 wp dzn-meet repair --dry-run --limit=500 --json > /secure/meet-recovery-dry-run-3.json

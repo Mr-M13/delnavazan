@@ -58,9 +58,10 @@ namespace {
         'induction_support_url' => 'https://wa.me/000',
     );
     $hub_html = $render( 'induction', $base );
-    $fail( 'quick-start renders the review heading', str_contains( $hub_html, 'مرور سریع جریان کار' ) );
+    $fail( 'quick-start renders the journey heading', str_contains( $hub_html, 'مسیر همکاری با دلنوازان' ) );
     $fail( 'quick-start renders all nine steps as one read-only page', substr_count( $hub_html, 'class="dzn-tp-quickstart-card"' ) === 9 );
     $fail( 'steps are grouped by the daily workflow', str_contains( $hub_html, 'tp-phase-prep' ) && str_contains( $hub_html, 'tp-phase-class' ) && str_contains( $hub_html, 'tp-phase-changes' ) && str_contains( $hub_html, 'tp-phase-followup' ) );
+    $fail( 'the guide explains both sides', substr_count( $hub_html, 'مسیر هنرجو:' ) === 9 && substr_count( $hub_html, 'کار شما:' ) === 9 );
     $fail( 'the guide shows no step buttons or completion forms', ! str_contains( $hub_html, '<form' ) && ! str_contains( $hub_html, 'name="module_id"' ) && ! str_contains( $hub_html, 'دیده شده' ) );
     $fail( 'the guide shows no progress or highlight machinery', ! str_contains( $hub_html, 'role="progressbar"' ) && ! str_contains( $hub_html, 'data-dzn-auto-highlight' ) );
     $fail( 'stable anchors remain for contextual help', str_contains( $hub_html, 'id="tp-step-today"' ) && str_contains( $hub_html, 'id="tp-step-join"' ) );

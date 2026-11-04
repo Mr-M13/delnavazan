@@ -1,81 +1,59 @@
 <?php
-/**
- * One-page Teacher quick-start.
- *
- * A read-only review of the daily Delnavazan workflow. It deliberately has no step
- * buttons, jump targets or progress actions: the guide explains the work, and the
- * real portal screens remain the place where each action is taken.
- *
- * @package DelnavazanTheme
- */
+/** Teacher induction: concise, one-page Persian guide. */
 $model = is_array( $args['model'] ?? null ) ? $args['model'] : array();
-$hub = is_array( $model['induction'] ?? null ) ? $model['induction'] : array();
 $support_url = (string) ( $model['induction_support_url'] ?? '' );
-$steps = is_array( $hub['modules'] ?? null ) ? $hub['modules'] : array();
-$by_id = array();
-foreach ( $steps as $step ) {
-	if ( is_array( $step ) && isset( $step['id'] ) ) {
-		$by_id[ (string) $step['id'] ] = $step;
-	}
-}
-$groups = array(
-	'prep' => array(
-		'title' => 'از شروع همکاری تا برنامهٔ کلاس',
-		'description' => 'ابتدا حساب و زمان‌های تدریس را آماده کنید؛ سپس درخواست آشنایی و برنامهٔ روزانه را پیگیری کنید.',
-		'ids' => array( 'settings', 'new-enrolment', 'today' ),
-	),
-	'class' => array(
-		'title' => 'برگزاری کلاس',
-		'description' => 'با هنرجو وارد جلسه شوید و نتیجهٔ واقعی آن را ثبت کنید.',
-		'ids' => array( 'join', 'attendance' ),
-	),
-	'changes' => array(
-		'title' => 'تغییرها و موارد خاص',
-		'description' => 'تغییر زمان با پیشنهاد مدرس و پذیرش هنرجو انجام می‌شود.',
-		'ids' => array( 'absence', 'reschedule' ),
-	),
-	'followup' => array(
-		'title' => 'پیگیری ساعت‌ها و مالی',
-		'description' => 'کار ثبت‌شده و صورت‌حساب را بررسی کنید و زمان‌های پرتقاضا را بشناسید.',
-		'ids' => array( 'finance', 'golden-hour' ),
-	),
+$sections = array(
+ array('آماده‌سازی حساب کاربری و زمان‌های تدریس', array(
+ 'اطلاعات فردی، سازهای آموزشی و منطقهٔ زمانی خود را در حساب کاربری تکمیل کنید. ساعت هر کلاس برای شما و هنرجو به‌صورت خودکار بر اساس منطقهٔ زمانی هر فرد نمایش داده می‌شود.',
+ 'در «زمان‌های در دسترس برای تدریس»، برنامهٔ هفتگی خود را ثبت کنید. برای تعطیلی یا تغییر یک روز مشخص، از استثناهای همان روز استفاده کنید. هنرجویان فقط زمان‌های آزاد و قابل رزرو را می‌بینند؛ تغییر زمان‌های آزاد، کلاس‌های رزروشده را جابه‌جا نمی‌کند.',
+ '«ساعت‌های طلایی» زمان‌های پرتقاضا هستند. اگر در این ساعت‌ها امکان تدریس دارید، آن‌ها را باز کنید؛ پاداش کلاس‌های واجد شرایط پس از برگزاری و تأیید محاسبه می‌شود.',
+ 'درخواست‌ها به‌صورت نوبتی و عادلانه میان مدرسان واجد شرایط توزیع می‌شوند. برای پذیرش یا رد هر درخواست ۲۴ ساعت فرصت دارید؛ در صورت بی‌پاسخ‌ماندن، درخواست ممکن است به مدرس بعدی برسد.'
+ )),
+ array('پروژهٔ فرهنگی دلنوازان و رضایت ضبط', array(
+ 'دلنوازان برای حفظ و بهبود آموزش موسیقی ایرانی از داده‌های آموزشی در پروژهٔ پژوهشی خود استفاده می‌کند.',
+ 'پذیرش شرایط مشارکت در طرح ضبط برای ادامهٔ همکاری مدرس ضروری است. هنرجو می‌تواند با ضبط موافقت نکند؛ در این صورت کلاس ضبط نمی‌شود و آموزش ادامه پیدا می‌کند.',
+ 'ویدئوهای پروژه برای انتشار عمومی یا شبکه‌های اجتماعی تهیه نمی‌شوند. استفاده از داده‌ها باید مطابق شرایط رضایت و سیاست حریم خصوصی پروژه باشد.'
+ )),
+ array('از درخواست تا آغاز ترم', array(
+ 'هنرجو ساز و زمان مناسب را انتخاب می‌کند و درخواست کلاس آشنایی می‌فرستد. پس از پذیرش شما و نهایی‌شدن رزرو، کلاس در حساب کاربری هر دو نفر نمایش داده می‌شود.',
+ 'کلاس آشنایی ۳۰ دقیقه است و پس از آن ۱۵ دقیقه فاصله تا کلاس بعدی در نظر گرفته می‌شود. دسترسی به جلسه از ۳۰ دقیقه پیش از شروع تا ۳۰ دقیقه پس از پایان برقرار است. کلاس آشنایی دستمزد ندارد.',
+ 'هنرجو پس از کلاس آشنایی ۷ روز برای تکمیل ثبت‌نام فرصت دارد؛ در غیر این صورت زمان نگه‌داشته‌شده آزاد می‌شود. پس از ثبت‌نام، ۱۲ جلسه بر اساس زمان انتخاب‌شده در حساب کاربری هر دو نفر نمایش داده می‌شود.'
+ )),
+ array('برگزاری کلاس و ثبت حضور', array(
+ 'در زمان کلاس از کارت همان جلسه در حساب کاربری وارد شوید. اگر مدرس و هنرجو دست‌کم ۲۰ دقیقه هم‌زمان در جلسه حضور داشته باشند، حضور می‌تواند خودکار ثبت شود.',
+ 'پس از هر جلسه وضعیت حضور را بررسی و در صورت نیاز به‌صورت دستی تأیید کنید. تأیید حضور برای محاسبهٔ دستمزد آن کلاس ضروری است.'
+ )),
+ array('تغییر زمان و جبران غیبت', array(
+ 'برای تغییر زمان کلاس، بهتر است ابتدا با هنرجو گفت‌وگو کنید. سپس زمان جدید را از کارت کلاس پیشنهاد دهید؛ تا زمانی که هنرجو نپذیرد، برنامهٔ قبلی معتبر است.',
+ 'اگر هنرجو غیبت ثبت کرد، دربارهٔ زمان جبرانی گفت‌وگو کنید و پیشنهاد را از همان کلاس بفرستید تا تأیید کند.',
+ 'هر هنرجو در هر ترم حداکثر دو جلسهٔ جبرانی دارد. سهمیهٔ استفاده‌نشده به ترم بعد منتقل نمی‌شود و پس از پایان سهمیه، درخواست جبران جدید ایجاد نخواهد شد.'
+ )),
+ array('ساعت‌های تدریس و پرداخت‌ها', array(
+ 'در بخش «مالی» حساب کاربری، کلاس‌ها، ساعت‌های تدریس، دستمزد تأییدشده، پاداش‌ها و صورت‌حساب‌ها را بررسی کنید.',
+ 'در ابتدای هر ماه صورت‌حساب ارسال می‌شود و تیم دلنوازان مبلغ قابل پرداخت را به حساب بانکی ثبت‌شده واریز می‌کند. هر مغایرت را با پشتیبانی در میان بگذارید.'
+ )),
+ array('ما در کنار شما هستیم', array(
+ 'برای پرسش، پیشنهاد یا گزارش مشکل با ما تماس بگیرید. همیشه خوشحال می‌شویم صدای گرم شما را بشنویم.',
+ 'تلفن و واتس‌اپ: ‎+61 413 413 004 | ایمیل: admin@delnavazan.com',
+ 'موسیقی ایرانی؛ برای ایرانیان دور از وطن'
+ ))
 );
 ?>
 <section class="dzn-tp-section dzn-tp-quickstart" aria-labelledby="tp-quickstart-title">
-	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">راهنمای تدریس</p><h2 id="tp-quickstart-title">مسیر همکاری با دلنوازان</h2></div>
-	</div>
-	<p class="dzn-tp-help">از آماده‌سازی حساب تا برگزاری و پیگیری کلاس، در هر گام می‌بینید هنرجو چه تجربه‌ای دارد و مسئولیت شما چیست. کارهای واقعی را از بخش مربوط در پرتال انجام دهید.</p>
-	<?php foreach ( $groups as $group_id => $group ) : ?>
-		<?php
-		$group_steps = array();
-		foreach ( $group['ids'] as $step_id ) {
-			if ( isset( $by_id[ $step_id ] ) ) { $group_steps[] = $by_id[ $step_id ]; }
-		}
-		if ( ! $group_steps ) { continue; }
-		?>
-		<section class="dzn-tp-quickstart-phase" aria-labelledby="tp-phase-<?php echo esc_attr( $group_id ); ?>">
-			<div class="dzn-tp-quickstart-phase__heading">
-				<h3 id="tp-phase-<?php echo esc_attr( $group_id ); ?>"><?php echo esc_html( $group['title'] ); ?></h3>
-				<p><?php echo esc_html( $group['description'] ); ?></p>
-			</div>
-			<ol class="dzn-tp-quickstart-list">
-				<?php foreach ( $group_steps as $step ) : ?>
-					<?php $step_id = (string) ( $step['id'] ?? '' ); ?>
-					<li id="tp-step-<?php echo esc_attr( $step_id ); ?>" class="dzn-tp-quickstart-card">
-						<div class="dzn-tp-quickstart-card__number" aria-hidden="true"><?php echo esc_html( number_format_i18n( (int) ( $step['order'] ?? 0 ) ) ); ?></div>
-						<div class="dzn-tp-quickstart-card__body">
-							<h4><?php echo esc_html( (string) ( $step['title'] ?? '' ) ); ?></h4>
-							<p><strong>مسیر هنرجو:</strong> <?php echo esc_html( (string) ( $step['student_side'] ?? '' ) ); ?></p>
-							<p><strong>کار شما:</strong> <?php echo esc_html( (string) ( $step['description'] ?? '' ) ); ?></p>
-						</div>
-					</li>
-				<?php endforeach; ?>
-			</ol>
-		</section>
-	<?php endforeach; ?>
-	<nav class="dzn-tp-quickstart-footer" aria-label="پایان راهنمای تدریس">
-		<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/teacher-portal/' ) ); ?>">بازگشت به پرتال مدرس</a>
-		<?php if ( '' !== $support_url ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $support_url ); ?>" target="_blank" rel="noopener noreferrer">نیاز به کمک دارم</a><?php endif; ?>
-	</nav>
+ <div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">راهنمای همکاری</p><h2 id="tp-quickstart-title">شروع همکاری و تدریس در دلنوازان</h2></div></div>
+ <p class="dzn-tp-help">درود و خوش آمدید! این راهنما مسیر همکاری، مسئولیت‌های شما و تجربهٔ هنرجو را به زبان ساده توضیح می‌دهد.</p>
+ <?php foreach ( $sections as $index => $section ) : ?>
+ <section class="dzn-tp-quickstart-phase" aria-labelledby="tp-phase-<?php echo (int) $index; ?>">
+ <div class="dzn-tp-quickstart-phase__heading"><h3 id="tp-phase-<?php echo (int) $index; ?>"><?php echo esc_html( (string) $section[0] ); ?></h3></div>
+ <ol class="dzn-tp-quickstart-list">
+ <?php foreach ( $section[1] as $paragraph ) : ?>
+ <li class="dzn-tp-quickstart-card"><div class="dzn-tp-quickstart-card__body"><p><?php echo esc_html( $paragraph ); ?></p></div></li>
+ <?php endforeach; ?>
+ </ol></section>
+ <?php endforeach; ?>
+ <p><a class="dzn-portal-text-action" href="<?php echo esc_url( home_url( '/' ) ); ?>">آشنایی بیشتر با دلنوازان</a></p>
+ <nav class="dzn-tp-quickstart-footer" aria-label="پایان راهنمای همکاری">
+ <a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/teacher-portal/' ) ); ?>">بازگشت به حساب کاربری</a>
+ <?php if ( '' !== $support_url ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $support_url ); ?>" target="_blank" rel="noopener noreferrer">نیاز به کمک دارم</a><?php endif; ?>
+ </nav>
 </section>

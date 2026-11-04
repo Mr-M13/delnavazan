@@ -57,7 +57,7 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 		if ( ! is_int( $induction['completed_count'] ?? null ) || ! is_int( $induction['total_count'] ?? null ) || $induction['total_count'] < 1 || $induction['completed_count'] < 0 || $induction['completed_count'] > $induction['total_count'] ) { return false; }
 		if ( ! in_array( $induction['state'] ?? null, array( 'not_started', 'in_progress', 'completed' ), true ) ) { return false; }
 		foreach ( $induction['modules'] as $step ) {
-			if ( ! is_array( $step ) || ! dzn_theme_teacher_portal_text( $step['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['description'] ?? null ) || ! is_int( $step['order'] ?? null ) ) { return false; }
+			if ( ! is_array( $step ) || ! dzn_theme_teacher_portal_text( $step['id'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['title'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['description'] ?? null ) || ! dzn_theme_teacher_portal_text( $step['student_side'] ?? null ) || ! is_int( $step['order'] ?? null ) ) { return false; }
 		}
 		return dzn_theme_teacher_portal_text( $model['induction_hub_url'] ?? null )
 			&& dzn_theme_teacher_portal_text( $model['induction_continue_url'] ?? null );

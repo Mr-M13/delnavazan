@@ -2418,7 +2418,7 @@
 .dzn-tp-quickstart-card__body{min-inline-size:0}
 .dzn-tp-quickstart-card__body h4{margin:0;font-size:.98rem;line-height:1.6}
 .dzn-tp-quickstart-card__body p{margin:.3rem 0 0;color:var(--dzn-color-text-muted);line-height:1.85;font-size:.9rem}
-.dzn-tp-quickstart-card__body ul{margin:.35rem 0 0;padding-inline-start:1.1rem;color:var(--dzn-color-text-muted);font-size:.82rem;line-height:1.8}
+.dzn-tp-quickstart-card__body p strong{color:var(--dzn-color-text-primary);font-weight:700}
 .dzn-tp-quickstart-footer{display:flex;flex-wrap:wrap;gap:.6rem;margin-block-start:1rem}
 @media (max-width:47.99rem){
   .dzn-tp-quickstart{gap:.85rem}

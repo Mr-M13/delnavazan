@@ -383,7 +383,7 @@ final class IntegrationControlPlaneController {
             echo '<p class="dzn-settings-meta">Missing future classrooms: lessons '.esc_html((string)(int)($counts['missing_lesson_classrooms']??0)).' · bookings '.esc_html((string)(int)($counts['missing_booking_classrooms']??0)).' · Unconfirmed accepted bookings: '.esc_html((string)(int)($counts['unconfirmed_booking_projections']??0)).' · Failed/blocked: '.esc_html((string)(int)($counts['blocked_or_failed_classrooms']??0)).'</p>';
             $problems=array_merge((array)($report['failed_booking_projections']??array()),(array)($report['blocked_or_failed_classrooms']??array()));
             if($problems){
-                echo '<div class="notice notice-warning inline"><p><strong>Classroom recovery is required.</strong> Retry transient rows with <code>wp dzn-meet worker --discover</code>; review the dry run with <code>wp dzn-meet repair --dry-run</code>. Permanent co-host refusals require an explicit <code>wp dzn-meet approve-cohost-exception</code> or tenant-policy correction.</p><ul>';
+                echo '<div class="notice notice-warning inline"><p><strong>Classroom recovery is required.</strong> Review <code>wp dzn-meet repair --dry-run --json --user=&lt;administrator_id&gt;</code>, then apply the approved digest with <code>wp dzn-meet repair --plan=&lt;digest&gt; --user=&lt;administrator_id&gt;</code>. Manual <code>worker --discover</code> is preview-only. Permanent co-host refusals require an explicit <code>wp dzn-meet approve-cohost-exception</code> or tenant-policy correction.</p><ul>';
                 foreach(array_slice($problems,0,5) as $row){
                     $id=(int)($row['classroom_id']??0);
                     $lesson=(int)($row['lesson_id']??0);

@@ -201,10 +201,10 @@ administrator adjudication remain in the existing Phase-O/P workflows.
 
 ```sh
 wp dzn-meet status
-wp dzn-meet repair --dry-run --limit=500 --json
+wp dzn-meet repair --dry-run --limit=500 --json --user=<administrator_id>
 PLAN_DIGEST="$(php -r '$j=json_decode(file_get_contents("/secure/meet-recovery-dry-run.json"),true); echo $j["plan_digest"];')"
-wp dzn-meet repair --limit=500 --plan="$PLAN_DIGEST"
-wp dzn-meet worker --discover --limit=25
+wp dzn-meet repair --limit=500 --plan="$PLAN_DIGEST" --user=<administrator_id>
+wp dzn-meet worker --dry-run --limit=25 --user=<administrator_id>
 wp dzn-meet retry-booking --confirmation_id=123 --user=<administrator_id>
 wp dzn-meet reconcile --limit=20
 wp dzn-meet legacy-grants
@@ -222,13 +222,15 @@ deterministic ordering. `repair --plan=<plan_digest>` applies exactly the review
 changed versions or records are refused as stale. Reusing deterministic event ids and the
 one-active-classroom invariant keeps reruns idempotent.
 
-`worker --discover` additionally allows the five-minute worker to discover rows that do not yet
-exist. Scheduled discovery is deliberately opt-in: set `DZN_MEET_AUTO_RECONCILE=true`, or
+Scheduled missing-row discovery is deliberately opt-in: set `DZN_MEET_AUTO_RECONCILE=true`, or
 `wp option update dzn_meet_auto_reconcile 1`, only after the dry run is reviewed. Existing rows with
 a bounded transient failure, stale schedule/booking instant, Teacher mismatch and accepted booking
 retry continue while provisioning is enabled, because those records have already been created. The
-discovery flag controls missing-row backfill only. `DZN_MEET_CLASSROOM_ENABLED=false` pauses that
-background provisioning too while recording/attendance reconciliation continues.
+discovery flag controls missing-row backfill only. Manual `worker --discover` is preview-only and
+cannot apply; missing-row recovery must use `repair --plan=<digest>`. Manual worker apply for
+existing-row recovery also requires a matching plan digest. Every mutating manual command requires
+`--user=<administrator_id>`. `DZN_MEET_CLASSROOM_ENABLED=false` pauses background provisioning too
+while recording/attendance reconciliation continues.
 
 `retry-booking` is the explicit administrator recovery for a terminal projection failure. It resets
 only that confirmation (and its accepting delivery) to retryable, then dispatches it through the same

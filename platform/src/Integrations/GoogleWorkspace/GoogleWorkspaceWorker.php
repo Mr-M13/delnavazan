@@ -61,11 +61,6 @@ final class GoogleWorkspaceWorker {
         }
     }
 
-    /** Manual operator entry point used by `wp dzn-meet worker`. */
-    public static function dispatchNow(bool $discover=false,bool $dryRun=false,int $limit=25):array{
-        return (new GoogleWorkspaceClassroomReconciler())->run($limit,$discover,$dryRun);
-    }
-
     private static function acquireLock():bool{
         global $wpdb;
         if(!isset($wpdb)||!is_object($wpdb))return true;

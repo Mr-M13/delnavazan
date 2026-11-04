@@ -70,7 +70,7 @@ Run read-only:
 
 ```sh
 wp dzn-meet status
-wp dzn-meet repair --dry-run --limit=500 --json > /secure/meet-recovery-dry-run.json
+wp dzn-meet repair --dry-run --limit=500 --json --user=<administrator_id> > /secure/meet-recovery-dry-run.json
 ```
 
 Review at minimum:
@@ -96,27 +96,32 @@ Meet URL, provider object reference or credential.
 
 ```sh
 # 1. Re-run the exact dry run immediately before apply. The digest must be captured.
-wp dzn-meet repair --dry-run --limit=500 --json > /secure/meet-recovery-dry-run-2.json
+wp dzn-meet repair --dry-run --limit=500 --json --user=<administrator_id> > /secure/meet-recovery-dry-run-2.json
 # Approve plan_digest from that reviewed file.
 
 # 2. Apply only the approved batch. A changed record or limit changes the digest and is refused.
 PLAN_DIGEST="$(php -r '$j=json_decode(file_get_contents("/secure/meet-recovery-dry-run-2.json"),true); echo $j["plan_digest"];')"
-wp dzn-meet repair --limit=500 --plan="$PLAN_DIGEST"
+wp dzn-meet repair --limit=500 --plan="$PLAN_DIGEST" --user=<administrator_id>
 
 # 3. Generate a new dry run for the next batch; never reuse an older digest.
-wp dzn-meet repair --dry-run --limit=500 --json > /secure/meet-recovery-dry-run-3.json
+wp dzn-meet repair --dry-run --limit=500 --json --user=<administrator_id> > /secure/meet-recovery-dry-run-3.json
 
 # 4. Retry a reviewed terminal booking without asking the Teacher to accept again.
 wp dzn-meet retry-booking --confirmation_id=<id> --user=<administrator_id>
 
-# 5. Run the worker manually once; then enable scheduled discovery only if approved.
-wp dzn-meet worker --discover --limit=25
+# 5. Preview the scheduled worker (read-only), then enable discovery only if approved.
+wp dzn-meet worker --dry-run --limit=25 --user=<administrator_id>
 wp option update dzn_meet_auto_reconcile 1
 ```
 
 A dry run and apply with the same records, limit and discovery mode produce the same
 `plan_digest`. Any changed schedule version, classroom version, booking version, state or ordering
 causes `meet_reconciliation_plan_stale`; no operation is applied.
+
+Manual `worker --discover` is preview-only and cannot apply. Missing-row discovery must use the
+reviewed `repair --plan=<digest>` path. Manual worker apply is limited to existing-row recovery and
+also requires a matching plan digest. Every mutating manual command requires
+`--user=<administrator_id>`.
 
 Do not auto-retry blocked co-hosts. Correct the Google Workspace tenant policy first, then:
 
@@ -150,10 +155,11 @@ WP-Cron must run every five minutes. If the host disables loopback WP-Cron, run
 Use test lessons/bookings only. Do not use real Student recordings or private data.
 
 1. `wp dzn-meet status` shows the organizer connected, exact scopes, and worker scheduled.
-2. `wp dzn-meet repair --dry-run` returns the reviewed record set; no Google API calls occur.
+2. `wp dzn-meet repair --dry-run --json --user=<administrator_id>` returns the reviewed record set; no Google API calls occur.
 3. Provision one existing test Lesson. Confirm exactly one organizer Calendar event, one Meet URI,
    teacher `COHOST` verified, student invitee, and `classroom_state=ready`.
-4. Re-run `worker --discover` and `repair`; confirm no duplicate event/space/classroom/notification.
+4. Re-run the approved dry run and a matching `repair --plan`; confirm no duplicate
+   event/space/classroom/notification.
 5. Accept one free test introductory booking. Confirm the portal reports either confirmed or retryable
    (never a lost acceptance). Trigger a controlled transient provider failure if available and verify
    the worker confirms it after recovery.

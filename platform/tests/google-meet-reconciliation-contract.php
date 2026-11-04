@@ -15,6 +15,9 @@ $reconciler = $read('src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomRe
 $planClass = $read('src/Integrations/GoogleWorkspace/MeetReconciliationPlan.php');
 $retryRule = $read('src/Integrations/GoogleWorkspace/MeetClassroomRetryRule.php');
 $cli = $read('src/Admin/Cli/MeetMigrationCommand.php');
+$cliPolicy = $read('src/Admin/Cli/MeetCommandPolicy.php');
+$postIntro = $read('src/Core/Application/PostIntroActivationService.php');
+$rescheduleCalendar = $read('src/Integrations/LessonRescheduleCalendarService.php');
 $runbook = $read('docs/GOOGLE-MEET-RECONCILIATION-2026-11-04.md');
 $worker = $read('src/Integrations/GoogleWorkspace/GoogleWorkspaceWorker.php');
 $classrooms = $read('src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomService.php');
@@ -44,7 +47,7 @@ $check('preview and apply share one planner', str_contains($reconciler, 'public 
 $check('preview performs no provider call', str_contains($reconciler, "if(\$dryRun){") && strpos($reconciler, 'if($dryRun){') < strpos($reconciler, '$this->execute($operation)'));
 $check('plan deduplicates, orders and applies one total limit', str_contains($reconciler, 'MeetReconciliationPlan::normalise') && str_contains($planClass, 'array_slice($operations,0,$limit)') && str_contains($planClass, "strcmp((string)(\$a['starts_at_utc']"));
 $check('plan digest binds the exact operation set', str_contains($planClass, 'function digest(') && str_contains($planClass, "'fingerprint'") && str_contains($planClass, 'function assertApproved('));
-$check('apply checks the approved digest', str_contains($reconciler, 'MeetReconciliationPlan::assertApproved') && str_contains($cli, "--plan=<plan_digest> is required"));
+$check('apply checks the approved digest', str_contains($reconciler, 'MeetReconciliationPlan::assertApproved') && str_contains($cliPolicy, 'plan_required') && str_contains($cli, 'MeetCommandPolicy::repair'));
 $check('apply revalidates every operation immediately before mutation', str_contains($reconciler, 'function isCurrent(') && str_contains($reconciler, '$current=$this->isCurrent($operation)') && str_contains($reconciler, "reason_code']='stale_plan'"));
 $check('reconciler provisions lesson rows', str_contains($reconciler, 'ensureForLesson((int)$c'));
 $check('reconciler provisions booking rows', str_contains($reconciler, 'ensureForBooking((int)$c'));
@@ -56,7 +59,14 @@ $check('automatic discovery is opt-in', str_contains($reconciler, 'DZN_MEET_AUTO
 $check('discovery flag gates missing rows but not existing-row repair', (bool)preg_match('/if\(\$discover\)\{.*?missingLessonClassrooms.*?missingBookingClassrooms.*?\}.*?staleLessonClassrooms/s', $reconciler));
 $check('worker invokes reconciliation and a single-run lock', str_contains($worker, 'GoogleWorkspaceClassroomReconciler') && str_contains($worker, 'GET_LOCK') && str_contains($worker, 'automaticEnabled()'));
 $check('worker honours the emergency provisioning flag', str_contains($worker, 'GoogleWorkspaceClassroomService::enabled()'));
+$check('direct provisioning is blocked at the emergency pause', (bool)preg_match('/function ensureForLesson.*?if\(!self::enabled\(\)\)/s', $classrooms) && (bool)preg_match('/function ensureForBooking.*?if\(!self::enabled\(\)\)/s', $classrooms));
+$check('recording and attendance reconciliation continue while provisioning is paused', str_contains($worker, "dzn_meet_provisioning_paused") && str_contains($worker, 'dueReconciliation(10)') && str_contains($worker, 'MeetRecordingService'));
 $check('worker cron is registered and lock released in finally', str_contains($worker, 'add_action(self::HOOK') && str_contains($worker, 'wp_schedule_event') && str_contains($worker, 'finally') && str_contains($worker, 'self::releaseLock()'));
+$check('manual worker discovery cannot apply without repair', str_contains($cli, 'MeetCommandPolicy::worker') && str_contains($cliPolicy, 'discovery_requires_repair') && str_contains($cli, '$decision[\'mode\']===\'rejected\''));
+$check('manual worker apply passes the approved digest', str_contains($cli, 'run($limit,false,false,(string)$decision[\'plan\'])'));
+$check('mutating manual commands require an administrator', substr_count($cli, 'self::requireOperator()') >= 8 && str_contains($cliPolicy, 'function operatorAllowed('));
+$check('post-intro provisioning does not fall back while paused', str_contains($postIntro, 'meet_classroom_paused') && str_contains($postIntro, 'meet_organizer_not_connected'));
+$check('reschedule handoff does not fall back while paused', str_contains($rescheduleCalendar, 'meet_classroom_paused') && str_contains($rescheduleCalendar, 'meet_organizer_not_connected'));
 $check('booking worker cron is registered and lock released in finally', str_contains($bookingWorker, 'add_action(self::HOOK') && str_contains($bookingWorker, 'wp_schedule_event') && str_contains($bookingWorker, 'if($central){$work();return;}') && str_contains($bookingWorker, 'ProviderProjectionWorkerContext'));
 $check('booking worker honours the emergency provisioning flag', str_contains($bookingWorker, 'GoogleWorkspaceClassroomService::enabled()'));
 $check('worker no longer skips booking rows by lesson_id', !str_contains($worker, '(int)$classroom->lesson_id<1||(int)$classroom->schedule_version_id<1'));

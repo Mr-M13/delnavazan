@@ -9,6 +9,15 @@ final class MeetMigrationCommand {
         \WP_CLI::add_command('dzn-meet',__CLASS__);
     }
 
+    /** Every mutating manual command must run as a real administrator. */
+    private static function requireOperator():int{
+        $id=(int)get_current_user_id();
+        $manageOptions=function_exists('current_user_can')&&current_user_can('manage_options');
+        $manageLessons=function_exists('current_user_can')&&(current_user_can('dzn_manage_lessons')||current_user_can('dzn_manage_provider_integrations'));
+        if(!MeetCommandPolicy::operatorAllowed($id,$manageOptions,$manageLessons))\WP_CLI::error('Administrator authorization is required. Run with --user=<administrator_id>.');
+        return $id;
+    }
+
     /** Show organizer, classroom, reconciliation and recording counts. */
     public function status():void{
         $health=(new GoogleWorkspaceOAuthService())->health();
@@ -47,6 +56,9 @@ final class MeetMigrationCommand {
     public function migrate(array $args,array $assoc):void{
         $limit=isset($assoc['limit'])?max(1,min(500,(int)$assoc['limit'])):50;
         $dry=!empty($assoc['dry-run']);
+        self::requireOperator();
+        $decision=MeetCommandPolicy::repair($dry,$assoc['plan']??null);
+        if($decision['mode']==='rejected')\WP_CLI::error((string)$decision['message']);
         $reconciler=new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler();
         if($dry){
             $report=$reconciler->report($limit);
@@ -55,10 +67,8 @@ final class MeetMigrationCommand {
             \WP_CLI::success('Dry run only. Approve plan '.$report['plan_digest'].' explicitly before applying.');
             return;
         }
-        $approved=trim((string)($assoc['plan']??''));
-        if($approved==='')\WP_CLI::error('--plan=<plan_digest> is required. Run repair --dry-run, review the exact record set, then pass that digest.');
         try{
-            $result=$reconciler->run($limit,true,false,$approved);
+            $result=$reconciler->run($limit,true,false,(string)$decision['plan']);
         }catch(\Throwable $error){
             if($error->getMessage()==='meet_reconciliation_plan_stale')\WP_CLI::error('The approved plan is stale. The current records no longer match the reviewed plan digest; generate a new dry run.');
             throw $error;
@@ -82,6 +92,7 @@ final class MeetMigrationCommand {
      * wp dzn-meet retry-booking --confirmation_id=123 --user=1
      */
     public function retry_booking(array $args,array $assoc):void{
+        self::requireOperator();
         $id=(int)($assoc['confirmation_id']??0);
         if($id<1)\WP_CLI::error('--confirmation_id is required.');
         try{
@@ -96,20 +107,39 @@ final class MeetMigrationCommand {
     /**
      * Run the classroom worker manually (safe, bounded and idempotent).
      *
+     * Manual discovery is preview-only. Apply missing-row discovery through `repair`.
+     *
      * ## OPTIONS
      * [--discover]
-     * : Also discover future lessons/bookings that have no classroom row.
+     * : Preview future lessons/bookings that have no classroom row (requires --dry-run).
      * [--dry-run]
      * : Print the planned actions only.
+     * [--plan=<digest>]
+     * : Required for a manual apply. Use the digest from a matching worker dry run.
      * [--limit=<n>]
      */
     public function worker(array $args,array $assoc):void{
         $limit=isset($assoc['limit'])?max(1,min(100,(int)$assoc['limit'])):25;
         $discover=!empty($assoc['discover']);
         $dry=!empty($assoc['dry-run']);
-        $result=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->run($limit,$discover,$dry);
-        self::printActions($result['actions'],$dry);
-        \WP_CLI::success('Plan '.$result['plan_id'].' · '.($dry?'planned ':'attempted ').($dry?(int)$result['planned']:(int)$result['attempted']).' · succeeded '.(int)$result['succeeded'].' · failed '.(int)$result['failed'].' · skipped '.(int)$result['skipped']);
+        self::requireOperator();
+        $decision=MeetCommandPolicy::worker($dry,$discover,$assoc['plan']??null);
+        if($decision['mode']==='rejected')\WP_CLI::error((string)$decision['message']);
+        if($dry){
+            $result=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->run($limit,$discover,true);
+            self::printActions($result['actions'],true);
+            if($discover)\WP_CLI::warning('To apply discovered rows, use wp dzn-meet repair --plan=<digest>; manual worker discovery cannot apply.');
+            \WP_CLI::success('Plan '.$result['plan_id'].' · planned '.(int)$result['planned'].' · dry-run only.');
+            return;
+        }
+        try{
+            $result=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->run($limit,false,false,(string)$decision['plan']);
+        }catch(\Throwable $error){
+            if($error->getMessage()==='meet_reconciliation_plan_stale')\WP_CLI::error('The approved plan is stale. Generate a new dry run before retrying.');
+            throw $error;
+        }
+        self::printActions($result['actions'],false);
+        \WP_CLI::success('Plan '.$result['plan_id'].' · attempted '.(int)$result['attempted'].' · succeeded '.(int)$result['succeeded'].' · failed '.(int)$result['failed'].' · skipped '.(int)$result['skipped']);
     }
 
     /**
@@ -122,6 +152,7 @@ final class MeetMigrationCommand {
      * : New canonical Teacher id.
      */
     public function replace_teacher(array $args,array $assoc):void{
+        self::requireOperator();
         $lessonId=(int)($assoc['lesson_id']??0);$teacherId=(int)($assoc['teacher_id']??0);
         if($lessonId<1||$teacherId<1)\WP_CLI::error('--lesson_id and --teacher_id are required.');
         $result=(new GoogleWorkspaceClassroomService())->replaceTeacher($lessonId,$teacherId);
@@ -140,6 +171,7 @@ final class MeetMigrationCommand {
      * wp dzn-meet approve-cohost-exception --lesson_id=456 --reason="Documented operational exception" --user=1
      */
     public function approve_cohost_exception(array $args,array $assoc):void{
+        self::requireOperator();
         $lessonId=(int)($assoc['lesson_id']??0);$reason=trim((string)($assoc['reason']??''));$code=(string)($assoc['reason_code']??'operator_exception');
         if($lessonId<1||strlen($reason)<12)\WP_CLI::error('--lesson_id and a documented --reason (12+ chars) are required.');
         $result=(new GoogleWorkspaceClassroomService())->approveCoHostException($lessonId,(int)get_current_user_id(),$code,$reason);
@@ -159,6 +191,7 @@ final class MeetMigrationCommand {
      * wp dzn-meet retry-classroom --lesson_id=456 --reason="Workspace tenant co-host policy corrected" --user=1
      */
     public function retry_classroom(array $args,array $assoc):void{
+        self::requireOperator();
         $lessonId=(int)($assoc['lesson_id']??0);
         $reason=trim((string)($assoc['reason']??''));
         $reasonCode=(string)($assoc['reason_code']??'manual_retry_authorized');
@@ -177,6 +210,7 @@ final class MeetMigrationCommand {
 
     /** Reconcile ended classrooms' recordings and participant sessions. */
     public function reconcile(array $args,array $assoc):void{
+        self::requireOperator();
         $limit=isset($assoc['limit'])?max(1,min(100,(int)$assoc['limit'])):20;
         $repository=new GoogleWorkspaceRepository();$ok=0;$failed=0;
         foreach($repository->dueReconciliation($limit) as $classroom){
@@ -200,6 +234,7 @@ final class MeetMigrationCommand {
      * --account_key=<users/id>
      */
     public function map_account(array $args,array $assoc):void{
+        self::requireOperator();
         $role=(string)($assoc['role']??'');$participantId=(int)($assoc['participant_id']??0);$account=trim((string)($assoc['account_key']??''));
         if(!in_array($role,array('teacher','student'),true)||$participantId<1||$account==='')\WP_CLI::error('--role, --participant_id and --account_key are required.');
         $result=(new \Delnavazan\Platform\Core\Application\CanonicalAttendanceIdentityService())->record(array(
@@ -242,6 +277,7 @@ final class MeetMigrationCommand {
 
     /** Print legacy Teacher grants without revoking them. */
     public function legacy_grants():void{
+        self::requireOperator();
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $rows=$wpdb->get_results("SELECT c.id,c.teacher_id,c.connection_state,c.connected_at,t.email FROM {$p}integration_connections c INNER JOIN {$p}teachers t ON t.id=c.teacher_id WHERE c.provider_code='google_calendar' ORDER BY c.id");
         if(!$rows){\WP_CLI::log('No legacy Teacher Google grants recorded.');return;}
@@ -256,6 +292,7 @@ final class MeetMigrationCommand {
      * `wp option update dzn_meet_auto_reconcile 0` first.
      */
     public function rollback():void{
+        self::requireOperator();
         (new GoogleWorkspaceOAuthService())->disconnect(false);
         \WP_CLI::success('Organizer disconnected locally. Central rows, legacy grants and recordings were preserved. Theme/portal code must be redeployed to the archived LiveKit tag only after an explicit change window.');
     }

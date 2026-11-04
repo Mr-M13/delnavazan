@@ -99,7 +99,9 @@ final class LessonRescheduleCalendarService {
     public static function defaultDispatch(array $job):array{
         return LessonRescheduleCalendarActor::run(static function()use($job):array{
             $lessonId=(int)$job['lesson_id'];$from=(int)$job['from_schedule_version_id'];$to=(int)$job['to_schedule_version_id'];
-            if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()){
+            if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')){
+                if(!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::enabled())throw new \RuntimeException('meet_classroom_paused');
+                if(!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::organizerConnected())throw new \RuntimeException('meet_organizer_not_connected');
                 (new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->rescheduleLesson($lessonId,$to);
                 return array('lesson_id'=>$lessonId,'from_schedule_version_id'=>$from,'to_schedule_version_id'=>$to,'state'=>'handed_off','classroom'=>'google_meet_workspace');
             }

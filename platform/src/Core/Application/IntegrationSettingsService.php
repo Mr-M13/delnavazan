@@ -64,7 +64,9 @@ final class IntegrationSettingsService {
                 $client=$v('client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');
                 $secret=$v('client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');
                 $redirect=$v('meet_redirect_uri')?:$v('redirect_uri');
-                return $client!==''&&$secret!==''&&$redirect!==''&&str_starts_with($redirect,'https://');
+                $central=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_meet_oauth_callback'):'';
+                $legacy=function_exists('admin_url')?admin_url('admin-post.php?action=dzn_google_oauth_callback'):'';
+                return $client!==''&&$secret!==''&&$redirect!==''&&in_array($redirect,array($central,$legacy),true);
             }
             return false;
         }catch(\Throwable){return false;}

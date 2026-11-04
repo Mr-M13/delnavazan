@@ -681,12 +681,12 @@ final class EnrolmentWorkspaceView {
 
     private static function classroomActions(string $kind, array $classroom): void {
         if ($kind === 'unavailable') return;
-        echo '<div class="dzn-classroom"><p><strong>LiveKit:</strong> ' . esc_html(!empty($classroom['livekit_available']) ? 'Available for administrator testing outside the participant window' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Google Meet:</strong> ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</p>';
+        echo '<div class="dzn-classroom"><p><strong>Google Meet:</strong> ' . esc_html(!empty($classroom['meet_available']) ? 'provisioned' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Co-host:</strong> ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</p>';
         echo '<div class="dzn-classroom__actions">';
-        if (!empty($classroom['livekit_available'])) {
+        if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-inline-form">';
-            wp_nonce_field('dzn_admin_livekit_class');
-            echo '<input type="hidden" name="action" value="dzn_admin_livekit_class"><input type="hidden" name="kind" value="' . esc_attr((string) $kind) . '">';
+            wp_nonce_field('dzn_admin_meet_class');
+            echo '<input type="hidden" name="action" value="dzn_admin_meet_class"><input type="hidden" name="kind" value="' . esc_attr((string) $kind) . '">';
             if ($kind === 'booking') echo '<input type="hidden" name="confirmation_uid" value="' . esc_attr((string) ($classroom['confirmation_uid'] ?? '')) . '">';
             else echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) ($classroom['lesson_id'] ?? 0)) . '">';
             echo '<button class="button button-primary" type="submit">Open administrator classroom</button></form>';

@@ -25,7 +25,7 @@ use Delnavazan\Platform\Core\Application\StudentService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityAssentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
-use Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomService;
+use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
  * Consolidated Enrolment administration workspace.
@@ -397,7 +397,7 @@ final class EnrolmentWorkspaceController {
     /** @return array<string,mixed>|null */
     private static function classroomForClass(array $class): ?array {
         if ((string) $class['record_model'] !== 'canonical_term_lesson_v1') return null;
-        try { return (new LiveKitAdministratorClassroomService())->forLesson((int) $class['id']); }
+        try { return (new MeetAdministratorClassroomService())->forLesson((int) $class['id']); }
         catch (\Throwable) { return null; }
     }
 
@@ -405,7 +405,7 @@ final class EnrolmentWorkspaceController {
     private static function classroomForBooking(array $case): ?array {
         $confirmation = $case['confirmed'] ?? null;
         if (!$confirmation || (string) ($confirmation['state'] ?? '') !== 'confirmed') return null;
-        try { return (new LiveKitAdministratorClassroomService())->forBooking((string) $confirmation['confirmation_uid']); }
+        try { return (new MeetAdministratorClassroomService())->forBooking((string) $confirmation['confirmation_uid']); }
         catch (\Throwable) { return null; }
     }
 

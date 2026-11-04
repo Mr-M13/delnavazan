@@ -9,7 +9,7 @@ $telnyx=file_get_contents($root.'/src/Integrations/TelnyxSmsAdapter.php');
 $google=file_get_contents($root.'/src/Integrations/GoogleOAuthController.php');
 $projection=file_get_contents($root.'/src/Integrations/GoogleCalendarProjectionService.php');
 $menu=file_get_contents($root.'/src/Admin/Controller/Menu.php');
-foreach(array('dzn_view_diagnostics','dzn_notification_transport_bindings','teacher_invitation.delivery_requested','GoogleOAuthController::configured()','not_configured','invitation_delivery_verified','configured_unverified','dzn_teacher_invitation_email_transport_configured','authorized_redirect_uri','admin-post.php?action=dzn_google_oauth_callback') as $needle){
+foreach(array('dzn_view_diagnostics','dzn_notification_transport_bindings','teacher_invitation.delivery_requested','GoogleOAuthController::configured()','not_configured','invitation_delivery_verified','configured_unverified','dzn_teacher_invitation_email_transport_configured','authorized_redirect_uri','GoogleWorkspaceOAuthService::callbackUrl()') as $needle){
     if(strpos($service,$needle)===false)throw new RuntimeException('Control plane service contract missing '.$needle);
 }
 if ( strpos( $service, "\$outboxTable=\$wpdb->prefix.'dzn_platform_outbox';" ) === false
@@ -28,6 +28,7 @@ foreach(array('wp_mail','Delnavazan TEST','graph.facebook.com','messaging_produc
 foreach(array('api.telnyx.com/v2/messages','Authorization','Delnavazan TEST','messaging_profile_id','sender_id') as $needle)if(strpos($telnyx,$needle)===false)throw new RuntimeException('Telnyx adapter contract missing '.$needle);
 foreach(array('dzn-integration-email','dzn-integration-whatsapp','dzn-integration-sms','dzn-integration-google','dzn-integrations') as $needle)if(strpos($menu,$needle)===false)throw new RuntimeException('Settings integration workflow missing '.$needle);
 if(strpos($mail,'isSMTP()')===false||strpos($mail,"'wp_mail_from'")===false)throw new RuntimeException('Email settings are not bound to WordPress mail');
-foreach(array('admin_post_dzn_google_connect','admin_post_dzn_google_disconnect','admin_post_dzn_google_calendar_sync','teacherForPrincipalUser','dzn_google_connect','dzn_google_disconnect','dzn_google_calendar_sync','pendingCalendarMappingsForTeacher','ProviderProjectionWorkerContext') as $needle)if(strpos($google.$controller,$needle)===false)throw new RuntimeException('Teacher-owned Google connect/disconnect/sync contract missing '.$needle);
+foreach(array('admin_post_dzn_google_connect','admin_post_dzn_google_disconnect','admin_post_dzn_google_calendar_sync','teacherForPrincipalUser','dzn_google_connect','dzn_google_disconnect','dzn_google_calendar_sync','pendingCalendarMappingsForTeacher','ProviderProjectionWorkerContext') as $needle)if(strpos($google.$controller,$needle)===false)throw new RuntimeException('Legacy Google compatibility surface missing '.$needle);
+foreach(array('dzn_meet_connect','dzn_meet_disconnect','dzn_meet_revoke','organizer_classroom','recording_alerts') as $needle)if(strpos($controller.$service,$needle)===false)throw new RuntimeException('Central Google Workspace classroom contract missing '.$needle);
 foreach(array('ProviderIntegrationService','schedule_version_id','acknowledgeCalendarProjection') as $needle)if(strpos($projection,$needle)===false)throw new RuntimeException('Google Calendar projection authority contract missing '.$needle);
 echo "Integration control plane contract passed\n";

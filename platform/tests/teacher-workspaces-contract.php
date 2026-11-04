@@ -38,7 +38,7 @@ $contains($view, array(
     'Lesson payability',
 ), 'The Teacher workspace must expose focused profile, eligibility, availability, lifecycle, onboarding and finance actions.');
 $expect(str_contains($screen, "issue_teacher_invitation_by_email"), 'Invitation creation remains a deliberate invitation action.');
-$contains($view, array('Google account', 'Blockers', 'Next action', 'Google Meet', 'Expiry', 'invitation_form_id'), 'Onboarding must render Google account, blockers, next action and invitation evidence.');
+$contains($view, array('Classroom', 'Blockers', 'Next action', 'Expiry', 'invitation_form_id'), 'Onboarding must render Google account, blockers, next action and invitation evidence.');
 $expect(!str_contains($view, "'#dzn-teacher-onboarding-' . (int)"), 'Onboarding anchors must not expose raw Teacher identifiers.');
 
 $contains($registry, array(
@@ -72,7 +72,7 @@ $contains($onboarding, array(
     'meet_caveat',
     'calendar',
     'meeting',
-    'A Google account connection does not prove that Google Meet is operational.',
+    'Classroom managed centrally by Delnavazan',
 ), 'Onboarding must show progress, blockers, next action, Google account, Calendar and Meet evidence separately.');
 $contains($repository, array(
     'workspaceRows',

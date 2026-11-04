@@ -233,9 +233,13 @@ final class GoogleWorkspaceOAuthService {
     }
 
     private function redirectUri():string{
+        $expected=self::callbackUrl();
         $configured=trim($this->settings->value('google','meet_redirect_uri'));
-        if($configured==='')$configured=self::callbackUrl();
-        if(!str_starts_with($configured,'https://'))throw new \RuntimeException('meet_oauth_https_redirect_required');
+        if($configured==='')$configured=$expected;
+        if(!str_starts_with($expected,'https://')||!str_starts_with($configured,'https://'))throw new \RuntimeException('meet_oauth_https_redirect_required');
+        // The organizer grant must return to the Meet callback. Accepting the legacy teacher
+        // callback here would send the authorization code to a flow that cannot settle it.
+        if(!hash_equals($expected,$configured))throw new \RuntimeException('meet_oauth_redirect_mismatch');
         return $configured;
     }
 

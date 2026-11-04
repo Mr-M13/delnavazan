@@ -19,7 +19,7 @@ require_once dirname(__DIR__).'/src/Core/Application/IntegrationSettingsService.
 require_once dirname(__DIR__).'/src/Integrations/IntegrationTestRunner.php';
 function dzn_google_test_assert(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
 $settings=new \Delnavazan\Platform\Core\Application\IntegrationSettingsService();
-$settings->save('google',array('client_id'=>'saved-google-client','client_secret'=>'saved-google-secret','redirect_uri'=>admin_url('admin-post.php?action=dzn_google_oauth_callback')));
+$settings->save('google',array('client_id'=>'saved-google-client','client_secret'=>'saved-google-secret','meet_redirect_uri'=>admin_url('admin-post.php?action=dzn_meet_oauth_callback')));
 $runner=new \Delnavazan\Platform\Integrations\IntegrationTestRunner();
 $GLOBALS['dzn_google_http_response']=array('response'=>array('code'=>200));
 $result=$runner->run('google',array());

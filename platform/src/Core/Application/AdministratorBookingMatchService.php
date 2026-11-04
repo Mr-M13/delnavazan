@@ -21,7 +21,8 @@ final class AdministratorBookingMatchService {
     public function __construct(
         private ?BookingTeacherDeliveryRepository $deliveries = null,
         private ?TeacherAvailabilityService $availability = null,
-        private ?CanonicalTeacherOccupancyReadService $occupancy = null
+        private ?CanonicalTeacherOccupancyReadService $occupancy = null,
+        private ?object $projector = null
     ) {
         $this->deliveries ??= new BookingTeacherDeliveryRepository();
         $this->availability ??= new TeacherAvailabilityService();
@@ -185,7 +186,14 @@ final class AdministratorBookingMatchService {
             ));
             if ($inserted === false) throw new \RuntimeException('Manual match audit evidence could not be recorded');
         }
-        $result = (new BookingTeacherResponseService())->administratorConfirmDelivery($deliveryId, 'admin-manual-match-' . $key);
+        // The administrator path must use the same provider projection as a Teacher-owned
+        // acceptance. Without it the confirmation never becomes portal-visible and no
+        // confirmation notification is queued.
+        $projector = $this->projector;
+        if ($projector === null && class_exists(\Delnavazan\Platform\Integrations\BookingCalendarProjectionService::class)) {
+            $projector = new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService();
+        }
+        $result = (new BookingTeacherResponseService(null, $projector))->administratorConfirmDelivery($deliveryId, 'admin-manual-match-' . $key);
         return array(
             'delivery_id' => $deliveryId,
             'confirmation_id' => (int) ($result['confirmation_id'] ?? 0),

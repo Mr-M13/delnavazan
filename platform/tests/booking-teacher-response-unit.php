@@ -7,11 +7,12 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public array $commands = array();
         public array $confirmations = array();
         public array $notifications = array();
+        public array $slotConflicts = array();
         private int $nextConfirmation = 70;
 
         public function __construct() {
             $this->teacher = (object) array('id'=>9,'status'=>'active','archived_at'=>null,'timezone'=>'Australia/Brisbane','onboarding_state'=>'active','readiness_state'=>'ready');
-            $this->delivery = (object) array('id'=>41,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','teacher_id'=>9,'booking_request_id'=>12,'requested_time_id'=>13,'state'=>'pending_request','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'starts_at_utc'=>'2026-11-02 08:00:00','instructional_ends_at_utc'=>'2026-11-02 08:45:00');
+            $this->delivery = (object) array('id'=>41,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','teacher_id'=>9,'booking_request_id'=>12,'requested_time_id'=>13,'state'=>'pending_request','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'starts_at_utc'=>'2026-11-02 08:00:00','instructional_ends_at_utc'=>'2026-11-02 08:45:00','occupied_ends_at_utc'=>'2026-11-02 09:00:00','student_id'=>55);
             $this->connection = (object) array('id'=>5);
         }
         public function begin(): void {}
@@ -27,6 +28,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function insertCommand(array $data): int { $this->commands[$data['command_key_digest']] = (object) $data; return count($this->commands); }
         public function confirmation(int $id,bool $lock=false): ?object { return $this->confirmations[$id] ?? null; }
         public function confirmationForDelivery(int $deliveryId,bool $lock=false): ?object { foreach($this->confirmations as $row)if((int)$row->delivery_id===$deliveryId)return $row;return null; }
+        public function ensureAndLockStudentRoot(int $studentId,string $now,int $actor): void {}
+        public function studentOccupancyConflicts(int $studentId,array $times,array $options=array()): array { return $this->slotConflicts; }
         public function updateConfirmation(int $id,int $version,array $data): void { $row=$this->confirmations[$id]??null;if(!$row||(int)$row->version!==$version)throw new \RuntimeException('confirmation version mismatch');foreach($data as $key=>$value)$row->{$key}=$value;$row->version=$version+1; }
         public function notificationForDeliveryKind(int $deliveryId,string $kind): ?object { return $this->notifications[$deliveryId.'|'.$kind] ?? null; }
         public function insertNotification(array $data): int { $this->notifications[$data['delivery_id'].'|'.$data['notification_kind']] = (object) $data; return count($this->notifications); }
@@ -48,6 +51,7 @@ namespace Delnavazan\Platform\Core\Application {
 namespace {
     function get_current_user_id(): int { return 27; }
     function wp_salt(string $scheme='auth'): string { return 'booking-response-unit-test-salt-material'; }
+    function do_action(string $hook, ...$args): void {}
 
     require_once dirname(__DIR__) . '/src/Core/Application/BookingTeacherResponseService.php';
     $assert = static function(bool $ok,string $message): void { if(!$ok)throw new \RuntimeException($message); };
@@ -83,5 +87,13 @@ namespace {
     $assert($paid['state']==='awaiting_payment' && ($paid['payment_required']??false)===true,'Paid acceptance must stop at the payment gate.');
     $assert($paidRepository->confirmations[$paid['confirmation_id']]->state==='awaiting_payment','Paid confirmation must not be projectable before payment.');
     $assert($paidRepository->delivery->state==='accepting','Paid acceptance must retain the accepted delivery while awaiting payment.');
+
+    $conflictRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $conflictRepository->slotConflicts = array(array('source'=>'booking_request','conflict_id'=>99));
+    $conflictRefused = false;
+    try { (new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($conflictRepository,null,$freePricing))->respond($conflictRepository->delivery->uid,'accept','conflict-accept-once'); }
+    catch (\InvalidArgumentException $error) { $conflictRefused = $error->getMessage() === 'student_slot_conflict'; }
+    $assert($conflictRefused,'An overlapping Student booking must refuse acceptance with student_slot_conflict.');
+    $assert($conflictRepository->confirmations===array() && $conflictRepository->delivery->state==='pending_request','Refused overlap must not create a confirmation or consume the delivery.');
     echo "Booking teacher response unit passed\n";
 }

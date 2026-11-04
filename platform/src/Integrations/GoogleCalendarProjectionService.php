@@ -32,6 +32,11 @@ final class GoogleCalendarProjectionService {
         if(!current_user_can(ProviderIntegrationService::MANAGE_CAPABILITY)&&!current_user_can(ProviderIntegrationService::DISPATCH_CAPABILITY))throw new \RuntimeException('Unauthorized');
         $mapping=$this->repository->calendarMapping($mappingId,false);
         if(!$mapping||(string)$mapping->provider_code!=='google_calendar'||(string)$mapping->projection_state!=='pending')throw new \InvalidArgumentException('pending_google_calendar_projection_required');
+        // A central Workspace classroom already owns this occurrence. Do not create a second event
+        // on a Teacher's personal calendar; the pending legacy mapping remains historical evidence.
+        if((new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())->activeClassroomForLesson((int)$mapping->lesson_id)){
+            return array('mapping_id'=>$mappingId,'state'=>'central_classroom_managed','idempotent'=>true);
+        }
         $connection=$this->repository->connection((int)$mapping->connection_id,false);
         if(!$connection||(string)$connection->connection_state!=='connected')throw new \InvalidArgumentException('provider_connection_unusable');
         $credential=$this->repository->credential((int)$connection->id,false);

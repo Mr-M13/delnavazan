@@ -12,9 +12,18 @@
 
 $payments = isset( $args['payments'] ) && is_array( $args['payments'] ) ? $args['payments'] : array();
 $items = isset( $payments['items'] ) && is_array( $payments['items'] ) ? $payments['items'] : array();
+$show_summary = ! isset( $args['show_summary'] ) || ! empty( $args['show_summary'] );
 $checkout_enabled = ! empty( $payments['checkout_enabled'] );
 $disabled = 'disabled' === (string) ( $payments['state'] ?? '' );
 $unavailable = 'unavailable' === (string) ( $payments['state'] ?? ( $checkout_enabled ? 'ok' : 'unavailable' ) );
+$status = trim( (string) ( $payments['status'] ?? '' ) );
+$payable = false;
+foreach ( $items as $item ) {
+	if ( is_array( $item ) && in_array( (string) ( $item['action'] ?? '' ), array( 'pay', 'continue', 'resume', 'retry' ), true ) ) {
+		$payable = true;
+		break;
+	}
+}
 $history = isset( $args['history'] ) && is_array( $args['history'] ) ? $args['history'] : array();
 $history_items = isset( $history['items'] ) && is_array( $history['items'] ) ? $history['items'] : array();
 $history_available = 'ok' === (string) ( $history['state'] ?? '' );
@@ -87,7 +96,9 @@ $render_items = static function ( array $rows ): void {
 			<p class="dzn-portal-kicker"><?php esc_html_e( 'مالی', 'delnavazan-theme' ); ?></p>
 			<h2 id="dzn-payments-title"><?php esc_html_e( 'پرداخت و اشتراک', 'delnavazan-theme' ); ?></h2>
 		</div>
-		<span class="dzn-status dzn-status--muted"><?php echo $disabled ? esc_html__( 'پرداخت آنلاین غیرفعال', 'delnavazan-theme' ) : ( $unavailable ? esc_html__( 'در دسترس نیست', 'delnavazan-theme' ) : esc_html__( 'وضعیت پرداخت ترم', 'delnavazan-theme' ) ); ?></span>
+		<?php if ( $disabled || $unavailable ) : ?>
+			<span class="dzn-status dzn-status--muted"><?php echo $disabled ? esc_html__( 'پرداخت آنلاین غیرفعال', 'delnavazan-theme' ) : esc_html__( 'در دسترس نیست', 'delnavazan-theme' ); ?></span>
+		<?php endif; ?>
 	</div>
 	<?php
 	/*
@@ -109,15 +120,20 @@ $render_items = static function ( array $rows ): void {
 		<?php endif; ?>
 	</div>
 	<?php if ( $disabled || $unavailable ) : ?>
-		<p class="dzn-portal-empty"><?php echo esc_html( $disabled ? 'پرداخت آنلاین برای این حساب فعال نیست و مدیریت مالی از طریق دلنوازان انجام می‌شود. برای هر پرداخت یا صورتحساب با پشتیبانی تماس بگیرید.' : (string) ( $payments['status'] ?? 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
+		<p class="dzn-portal-empty"><?php echo esc_html( $disabled ? 'پرداخت آنلاین برای این حساب فعال نیست و مدیریت مالی از طریق دلنوازان انجام می‌شود. برای هر پرداخت یا صورتحساب با پشتیبانی تماس بگیرید.' : ( $status ?: 'وضعیت پرداخت هنوز از منبع مالی معتبر خوانده نشده است.' ) ); ?></p>
 		<section class="dzn-payments__history" aria-labelledby="dzn-payment-history-title">
 			<h3 id="dzn-payment-history-title"><?php esc_html_e( 'سابقهٔ پرداخت', 'delnavazan-theme' ); ?></h3>
 			<?php $render_history( $history_available ? $history_items : array() ); ?>
 		</section>
 	<?php else : ?>
+	<?php if ( $show_summary ) : ?>
 	<div class="dzn-payments__summary">
-		<div><p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p><p><?php echo esc_html( (string) ( $payments['status'] ?? 'از منبع معتبر دریافت نشده' ) ); ?></p></div>
+		<div>
+			<p class="dzn-status-row__label"><?php esc_html_e( 'وضعیت پرداخت ترم', 'delnavazan-theme' ); ?></p>
+			<p><?php echo esc_html( '' !== $status ? $status : 'از منبع معتبر دریافت نشده' ); ?></p>
+		</div>
 	</div>
+	<?php endif; ?>
 	<?php if ( $checkout_enabled ) : ?>
 		<div class="dzn-checkout" data-dzn-student-checkout dir="rtl">
 			<p class="dzn-checkout__status" data-checkout-status aria-live="polite"><?php esc_html_e( 'در حال دریافت وضعیت پرداخت…', 'delnavazan-theme' ); ?></p>
@@ -154,31 +170,32 @@ $render_items = static function ( array $rows ): void {
 			};
 			?>
 
-			<div class="dzn-checkout__promotion">
-				<label class="dzn-checkout__promotion-label" for="dzn-promotion-code"><?php esc_html_e( 'کد تخفیف', 'delnavazan-theme' ); ?></label>
-				<div class="dzn-checkout__promotion-inputs">
-					<input type="text" id="dzn-promotion-code" class="dzn-checkout__promotion-code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="<?php esc_attr_e( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ); ?>"<?php echo $promoApplied ? ' disabled' : ''; ?> />
-					<button type="button" id="dzn-promotion-apply" class="dzn-button dzn-button--secondary dzn-checkout__promotion-apply"<?php echo $promoApplied ? ' disabled' : ''; ?>>
-						<?php echo $promoApplied ? esc_html__( 'اعمال شده', 'delnavazan-theme' ) : esc_html__( 'اعمال', 'delnavazan-theme' ); ?>
-					</button>
-				</div>
-				<p class="dzn-checkout__promotion-status" data-promotion-status aria-live="polite" aria-atomic="true">
-					<?php if ( $promoApplied && $promoDiscount > 0 ) : ?>
-						<?php
-						$promo_label = null !== $promoPercentage
-							? sprintf( esc_html__( 'تخفیف %s٪ اعمال شده است.', 'delnavazan-theme' ), esc_html( number_format( $promoPercentage, 0 ) ) )
-							: sprintf( esc_html__( 'تخفیف %s اعمال شده است.', 'delnavazan-theme' ), esc_html( $format_promo( $promoDiscount, $promoCurrency ) ) );
-						echo $promo_label . ' ' . esc_html( sprintf( __( 'مبلغ اصلی: %1$s · مبلغ قابل پرداخت: %2$s', 'delnavazan-theme' ), $format_promo( $promoOriginal, $promoCurrency ), $format_promo( $promoFinal, $promoCurrency ) ) );
-						?>
-					<?php else : ?>
-						<?php esc_html_e( 'کد تخفیفی اعمال نشده است.', 'delnavazan-theme' ); ?>
-					<?php endif; ?>
-				</p>
-			</div>
-
 			<div class="dzn-checkout__list" data-checkout-list></div>
+			<noscript><?php $render_items( $items ); ?></noscript>
+
+			<?php if ( $payable || $promoApplied ) : ?>
+				<details class="dzn-checkout__promotion">
+					<summary class="dzn-checkout__promotion-label"><?php echo $promoApplied ? esc_html__( 'کد تخفیف اعمال شده', 'delnavazan-theme' ) : esc_html__( 'کد تخفیف دارید؟', 'delnavazan-theme' ); ?></summary>
+					<div class="dzn-checkout__promotion-inputs">
+						<label class="screen-reader-text" for="dzn-promotion-code"><?php esc_html_e( 'کد تخفیف', 'delnavazan-theme' ); ?></label>
+						<input type="text" id="dzn-promotion-code" class="dzn-checkout__promotion-code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="<?php esc_attr_e( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ); ?>"<?php echo $promoApplied ? ' disabled' : ''; ?> />
+						<button type="button" id="dzn-promotion-apply" class="dzn-button dzn-button--secondary dzn-checkout__promotion-apply"<?php echo $promoApplied ? ' disabled' : ''; ?>>
+							<?php echo $promoApplied ? esc_html__( 'اعمال شده', 'delnavazan-theme' ) : esc_html__( 'اعمال', 'delnavazan-theme' ); ?>
+						</button>
+					</div>
+					<p class="dzn-checkout__promotion-status" data-promotion-status aria-live="polite" aria-atomic="true">
+						<?php if ( $promoApplied && $promoDiscount > 0 ) : ?>
+							<?php
+							$promo_label = null !== $promoPercentage
+								? sprintf( esc_html__( 'تخفیف %s٪ اعمال شده است.', 'delnavazan-theme' ), esc_html( number_format( $promoPercentage, 0 ) ) )
+								: sprintf( esc_html__( 'تخفیف %s اعمال شده است.', 'delnavazan-theme' ), esc_html( $format_promo( $promoDiscount, $promoCurrency ) ) );
+							echo $promo_label . ' ' . esc_html( sprintf( __( 'مبلغ اصلی: %1$s · مبلغ قابل پرداخت: %2$s', 'delnavazan-theme' ), $format_promo( $promoOriginal, $promoCurrency ), $format_promo( $promoFinal, $promoCurrency ) ) );
+							?>
+						<?php endif; ?>
+					</p>
+				</details>
+			<?php endif; ?>
 		</div>
-		<noscript><?php $render_items( $items ); ?></noscript>
 	<?php else : ?>
 		<?php $render_items( $items ); ?>
 	<?php endif; ?>
@@ -186,9 +203,6 @@ $render_items = static function ( array $rows ): void {
 		<h3 id="dzn-payment-history-title"><?php esc_html_e( 'سابقهٔ پرداخت', 'delnavazan-theme' ); ?></h3>
 		<?php $render_history( $history_available ? $history_items : array() ); ?>
 	</section>
-	<div class="dzn-payments__boundary">
-		<p><strong><?php esc_html_e( 'لغو اشتراک، لغو ترم و لغو یک کلاس سه کار جدا هستند.', 'delnavazan-theme' ); ?></strong></p>
-		<p><?php esc_html_e( 'هیچ‌کدام در این پوسته اجرا نمی‌شود و دکمهٔ لغو فقط پس از اتصال به اختیار معتبر نمایش داده خواهد شد.', 'delnavazan-theme' ); ?></p>
-	</div>
+	<p class="dzn-payments__boundary"><?php esc_html_e( 'لغو ترم، لغو اشتراک و لغو یک کلاس سه اقدام جدا هستند و هیچ‌کدام در این صفحه اجرا نمی‌شود؛ برای هر لغو با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p>
 	<?php endif; ?>
 </section>

@@ -36,6 +36,8 @@ final class LessonRescheduleService {
     private $availability;
     /** @var callable(string,string,string,int):void */
     private $exception;
+    /** @var callable(int,string,string,string,string,string):void */
+    private $availabilityConfirmation;
 
     public function __construct(
         private ?LessonRescheduleStore $store=null,
@@ -44,7 +46,8 @@ final class LessonRescheduleService {
         ?callable $clock=null,
         ?callable $availability=null,
         ?callable $replacementCommit=null,
-        ?callable $exception=null
+        ?callable $exception=null,
+        ?callable $availabilityConfirmation=null
     ){
         $this->store??=new LessonRescheduleRepository();
         $this->teacherConflict=$teacherConflict??static function(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId):array{
@@ -87,6 +90,11 @@ final class LessonRescheduleService {
                 // Exception visibility is actionable support, never a reason to reverse a committed decision.
             }
         };
+        // A Teacher-confirmed outside-availability window joins the caller's proposal transaction:
+        // canonical scheduling must see the same dated availability fact it will later validate.
+        $this->availabilityConfirmation=$availabilityConfirmation??static function(int $teacherId,string $startDate,string $startTime,string $endDate,string $endTime,string $timezone):void{
+            (new TeacherAvailabilityService())->recordConfirmedRescheduleAvailabilityWithinTransaction($teacherId,$startDate,$startTime,$endDate,$endTime,$timezone);
+        };
     }
 
     /** Authenticated Teacher entry point. */
@@ -126,6 +134,7 @@ final class LessonRescheduleService {
         $localDate=$this->localDate($calendar,$input,$timezone);
         $localTime=$this->localTime($input['local_time']??null);
 
+        $outsideAvailabilityConfirmed=false;
         $this->store->begin();
         try{
             // The proposal row is the outermost lock. A Student acceptance may commit between the
@@ -154,8 +163,16 @@ final class LessonRescheduleService {
             $ends=$wall->modify('+'.$duration.' minutes')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
             $occupied=$wall->modify('+'.($duration+$buffer).' minutes')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
             if($starts<=$now)throw new \InvalidArgumentException('reschedule_start_not_future');
-            if(!($this->availability)((int)$context->teacher_id,$starts,$ends))throw new \InvalidArgumentException('teacher_unavailable');
             if($starts===(string)$context->starts_at_utc)throw new \InvalidArgumentException('reschedule_unchanged');
+            if(!($this->availability)((int)$context->teacher_id,$starts,$ends)){
+                if(empty($input['confirm_outside_availability']))throw new \InvalidArgumentException('teacher_availability_confirmation_required');
+                $localEnd=$wall->modify('+'.$duration.' minutes');
+                ($this->availabilityConfirmation)((int)$context->teacher_id,$localDate,$localTime,$localEnd->format('Y-m-d'),$localEnd->format('H:i:s'),$timezone);
+                // A stronger block, such as an explicit day off, still wins. The caller-owned
+                // transaction rolls the new availability row back when coverage is not achieved.
+                if(!($this->availability)((int)$context->teacher_id,$starts,$ends))throw new \InvalidArgumentException('teacher_availability_confirmation_blocked');
+                $outsideAvailabilityConfirmed=true;
+            }
             if(strtotime($starts.' UTC')>(($this->clock)()+self::MAX_HORIZON_DAYS*86400))throw new \InvalidArgumentException('reschedule_horizon_exceeded');
             if(($this->teacherConflict)((int)$context->teacher_id,$starts,$occupied,(int)$context->lesson_id))throw new \InvalidArgumentException('teacher_slot_conflict');
             if($this->store->studentConflict((int)$context->student_id,$starts,$occupied,(int)$context->lesson_id))throw new \InvalidArgumentException('student_slot_conflict');
@@ -186,7 +203,7 @@ final class LessonRescheduleService {
             $this->notify($id,'proposed','student',$uid);
             $this->notify($id,'proposed','admin',$uid);
             $this->store->commit();
-            return $this->row($row)+array('idempotent'=>false,'kind'=>$kind);
+            return $this->row($row)+array('idempotent'=>false,'kind'=>$kind,'outside_availability_confirmed'=>$outsideAvailabilityConfirmed);
         }catch(\Throwable $e){
             $this->store->rollback();
             if($this->store->duplicate($e)==='command_key_digest'&&($winner=$this->store->proposalByCommandDigest($digest)))return $this->row($winner)+array('idempotent'=>true);

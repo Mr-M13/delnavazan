@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Admin\Controller;
 use Delnavazan\Platform\Admin\View\EnrolmentWorkspaceView;
 use Delnavazan\Platform\Core\Application\AdministratorBookingMatchService;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
+use Delnavazan\Platform\Core\Application\BookingNotificationRecoveryService;
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService;
 use Delnavazan\Platform\Core\Application\CanonicalEnrolmentLifecycleService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
@@ -14,6 +15,7 @@ use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CoordinationCaseService;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
+use Delnavazan\Platform\Core\Application\IntroLessonLifecycleService;
 use Delnavazan\Platform\Core\Application\LessonScheduleService;
 use Delnavazan\Platform\Core\Application\PostIntroNotificationAdministrationService;
 use Delnavazan\Platform\Core\Application\PostIntroPreparationService;
@@ -23,7 +25,7 @@ use Delnavazan\Platform\Core\Application\StudentService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityAssentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
-use Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomService;
+use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
  * Consolidated Enrolment administration workspace.
@@ -62,6 +64,9 @@ final class EnrolmentWorkspaceController {
         if ($view === 'enrolled') {
             if (!current_user_can(Menu::ENROLLED_CLASSES_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
             EnrolmentWorkspaceView::enrolledClasses($read, $_GET);
+        } elseif ($view === 'review') {
+            if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
+            EnrolmentWorkspaceView::review($read, $_GET);
         } else {
             if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
             EnrolmentWorkspaceView::newBookings($read, $_GET);
@@ -79,7 +84,15 @@ final class EnrolmentWorkspaceController {
             self::redirect($return, $message, false);
         } catch (\Throwable $exception) {
             error_log('[Delnavazan enrolment workspace] ' . $operation . ' ' . get_class($exception) . ' ' . $exception->getMessage());
-            self::redirect($return, self::safeMessage($exception), true);
+            $message = self::safeMessage($exception);
+            if ($operation === 'create_intro') {
+                set_transient('dzn_intro_form_' . get_current_user_id(), array(
+                    'message' => $message,
+                    'values' => self::introFormValues(wp_unslash($_POST)),
+                ), 120);
+                self::redirect($return, $message, true, array('dzn_form' => 'intro'), 'dzn-create-intro');
+            }
+            self::redirect($return, $message, true);
         }
     }
 
@@ -176,6 +189,36 @@ final class EnrolmentWorkspaceController {
                     $idempotency
                 );
                 return 'Introductory booking created once: ' . (string) ($result['request_reference'] ?: ('request #' . (int) $result['request_id'])) . '.';
+            case 'intro_reschedule':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                $result = (new IntroLessonLifecycleService())->reschedule(
+                    $requestId,
+                    'admin',
+                    array(
+                        'local_date' => sanitize_text_field((string) ($post['local_date'] ?? '')),
+                        'local_start_time' => sanitize_text_field((string) ($post['local_start_time'] ?? '')),
+                        'timezone' => sanitize_text_field((string) ($post['schedule_timezone'] ?? '')),
+                    ),
+                    sanitize_key((string) ($post['reason_code'] ?? 'operational_change')),
+                    $idempotency,
+                    absint($post['expected_confirmation_id'] ?? 0),
+                    absint($post['expected_confirmation_version'] ?? 0)
+                );
+                $providerNote = (string) ($result['provider_sync'] ?? '') === 'updated'
+                    ? ' The provider calendar was updated.'
+                    : ((string) ($result['provider_sync'] ?? '') === 'not_required' ? '' : ' The portal and notifications are updated; the provider calendar sync is pending and requires support follow-up.');
+                return 'Introductory lesson rescheduled to ' . (string) $result['local_label'] . '. The Student and Teacher were notified.' . $providerNote;
+            case 'intro_cancel':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                $result = (new IntroLessonLifecycleService())->cancel(
+                    $requestId,
+                    'admin',
+                    sanitize_key((string) ($post['reason_code'] ?? 'operational_change')),
+                    $idempotency,
+                    absint($post['expected_confirmation_id'] ?? 0),
+                    absint($post['expected_confirmation_version'] ?? 0)
+                );
+                return (string) $result['message'];
             case 'record_outcome':
                 self::requireCap('dzn_manage_post_intro_automation');
                 $confirmation = (new PostIntroRepository())->confirmationByBooking($requestId);
@@ -187,6 +230,21 @@ final class EnrolmentWorkspaceController {
                     sanitize_textarea_field((string) ($post['note'] ?? ''))
                 );
                 return 'Introductory outcome recorded.';
+            case 'recover_booking_notification':
+                self::requireCap('dzn_operate_notification_dispatch');
+                $result = (new BookingNotificationRecoveryService())->recover(
+                    absint($post['notification_id'] ?? 0),
+                    'enrolment-notification-recovery:' . $idempotency
+                );
+                if ((string) $result['state'] !== 'queued') {
+                    $reasons = array(
+                        'invitation_stale' => 'The invitation is cancelled, resolved or no longer relevant; recovery was refused.',
+                        'recipient_contact_unusable' => 'The current canonical recipient address is missing or invalid. Update the contact record before retrying.',
+                        'notification_not_retryable' => 'Only a failed notification can be recovered.',
+                    );
+                    return (string) ($reasons[(string) ($result['reason'] ?? '')] ?? 'Notification recovery was refused.');
+                }
+                return $result['replayed'] ? 'This recovery was already recorded; no duplicate notification was queued.' : 'The failed notification was requeued once. Booking and Teacher delivery state were not changed.';
             case 'resend_payment_link':
                 self::requireCap('dzn_manage_post_intro_automation');
                 $result = (new PostIntroNotificationAdministrationService())->resendPaymentLink($requestId, $idempotency);
@@ -339,7 +397,7 @@ final class EnrolmentWorkspaceController {
     /** @return array<string,mixed>|null */
     private static function classroomForClass(array $class): ?array {
         if ((string) $class['record_model'] !== 'canonical_term_lesson_v1') return null;
-        try { return (new LiveKitAdministratorClassroomService())->forLesson((int) $class['id']); }
+        try { return (new MeetAdministratorClassroomService())->forLesson((int) $class['id']); }
         catch (\Throwable) { return null; }
     }
 
@@ -347,13 +405,13 @@ final class EnrolmentWorkspaceController {
     private static function classroomForBooking(array $case): ?array {
         $confirmation = $case['confirmed'] ?? null;
         if (!$confirmation || (string) ($confirmation['state'] ?? '') !== 'confirmed') return null;
-        try { return (new LiveKitAdministratorClassroomService())->forBooking((string) $confirmation['confirmation_uid']); }
+        try { return (new MeetAdministratorClassroomService())->forBooking((string) $confirmation['confirmation_uid']); }
         catch (\Throwable) { return null; }
     }
 
     private static function view(): string {
         $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
-        return $view === 'enrolled' ? 'enrolled' : 'new';
+        return in_array($view, array('enrolled', 'review'), true) ? $view : 'new';
     }
 
     private static function returnUrl(): string {
@@ -366,11 +424,21 @@ final class EnrolmentWorkspaceController {
         return add_query_arg($args, admin_url('admin.php'));
     }
 
-    private static function redirect(string $url, string $message, bool $error): never {
-        $url = add_query_arg(array('dzn_workspace_notice' => $message, 'dzn_workspace_error' => $error ? '1' : '0'), $url);
+    private static function redirect(string $url, string $message, bool $error, array $extra = array(), string $fragment = ''): never {
+        $url = add_query_arg(array_merge(array('dzn_workspace_notice' => $message, 'dzn_workspace_error' => $error ? '1' : '0'), $extra), $url);
+        if ($fragment !== '') $url .= '#' . rawurlencode($fragment);
         nocache_headers();
         if (wp_safe_redirect($url)) exit;
         wp_die(esc_html($message), 'Delnavazan', array('response' => $error ? 400 : 200, 'back_link' => true));
+    }
+
+    /** @return array<string,string> */
+    private static function introFormValues(array $post): array {
+        $values = array();
+        foreach (array('student_id', 'course_id', 'teacher_id', 'local_date', 'local_start_time', 'schedule_timezone', 'agreement_channel', 'agreement_reference', 'agreement_at', 'override_reason_code', 'staff_reason') as $key) {
+            $values[$key] = sanitize_text_field((string) ($post[$key] ?? ''));
+        }
+        return $values;
     }
 
     private static function safeMessage(\Throwable $exception): string {
@@ -384,6 +452,15 @@ final class EnrolmentWorkspaceController {
             'post_intro_invitation_expired' => 'The continuation window has expired.',
             'stale_schedule_version' => 'The class schedule changed while you were editing. Reload and review the current version.',
             'schedule_start_not_future' => 'Choose a future class time.',
+            'Booking confirmation changed concurrently' => 'This introductory booking changed while you were editing. Reload and review the current confirmation before acting.',
+            'intro_booking_confirmation_required' => 'A confirmed introductory booking is required before this action.',
+            'intro_lesson_not_reschedulable' => 'This introductory lesson can no longer be rescheduled.',
+            'Choose a valid service-area timezone' => 'Choose one of the service-area timezones before saving.',
+            'Choose a valid local date and start time' => 'Choose a valid local date and a start time from the list.',
+            'Choose a future introductory time' => 'Choose a future introductory time.',
+            'The Teacher already has a class at that time. Choose another slot.' => 'The Teacher already has a class at that time. Choose another slot; nothing was double-booked.',
+            'The Teacher has a reserved continuation slot at that time. Choose another slot.' => 'The Teacher has a reserved continuation slot at that time. Choose another slot.',
+            'The Student already has a class at that time. Choose another slot.' => 'The Student already has a class at that time. Choose another slot.',
             'A payment reminder was already created in the last 24 hours' => 'A payment reminder was already created in the last 24 hours. No duplicate was queued.',
             'A link was sent less than 24 hours ago. Use Send reminder when a reminder is appropriate.' => 'A payment link was sent less than 24 hours ago. Use Send reminder if a reminder is appropriate.',
             'Verified payment already exists; no payment prompt is permitted' => 'Verified payment already exists. No payment prompt is permitted.',

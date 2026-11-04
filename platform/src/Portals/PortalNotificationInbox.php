@@ -32,7 +32,7 @@ final class PortalNotificationInbox {
         $event=NotificationCatalogue::get($eventKey);
         if($event===null||!in_array('website',(array)$event['channels'],true))return null;
         if(!NotificationChannelPolicy::allows($eventKey,'website'))return null;
-        if(!in_array($audience,array('student','teacher','admin'),true))return null;
+        if(!in_array($audience,array('student','teacher','guardian','admin'),true))return null;
         if($audience!=='admin'&&$recipientId<1)return null;
         $recipient=$audience==='admin'?array('wp_user_id'=>0,'locale'=>NotificationCatalogue::PRIMARY_LOCALE):$this->recipient($audience,$recipientId);
         if($recipient===null)return null;
@@ -158,6 +158,12 @@ final class PortalNotificationInbox {
     /** Resolve the linked WordPress user and locale from the authoritative identity table. */
     private function recipient(string $audience,int $recipientId):?array{
         global $wpdb;
+        if($audience==='guardian'){
+            $now=gmdate('Y-m-d H:i:s');
+            $wpUserId=(int)$wpdb->get_var($wpdb->prepare("SELECT g.acting_wordpress_user_id FROM {$this->prefix}student_acceptance_authority_grants g INNER JOIN {$this->prefix}students s ON s.id=g.student_id WHERE g.student_id=%d AND g.authority_type='guardian_representative' AND g.authority_scope='service_acceptance' AND g.state='active' AND g.active_slot=1 AND g.effective_from<=%s AND (g.effective_until IS NULL OR g.effective_until>%s) AND s.status='active' AND s.archived_at IS NULL ORDER BY g.id DESC LIMIT 1",$recipientId,$now,$now));
+            if($wpUserId<1)return null;
+            return array('wp_user_id'=>$wpUserId,'locale'=>NotificationCatalogue::PRIMARY_LOCALE);
+        }
         $entity=$audience==='student'?'students':'teachers';
         $row=$wpdb->get_row($wpdb->prepare("SELECT wordpress_user_id,locale FROM {$this->prefix}{$entity} WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",$recipientId));
         if(!$row)return null;

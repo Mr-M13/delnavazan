@@ -20,7 +20,7 @@ $assert(str_contains($submission, 'createTime') && str_contains($submission, 'Bo
 $timeWrite = strpos($submission, 'createTime');
 $deliveryWrite = strpos($submission, 'BookingTeacherDeliveryService())->deliver');
 $transactionalBody = substr($submission, strpos($submission, 'public function submitWithinTransaction'));
-$assert($timeWrite !== false && $deliveryWrite > $timeWrite && str_contains($submission, '$this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate )') && str_contains($transactionalBody, 'completeSubmissionKey'), 'Delivery must be created after requested times and inside the intake transaction.');
+$assert($timeWrite !== false && $deliveryWrite > $timeWrite && str_contains($submission, '$this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId )') && str_contains($transactionalBody, 'completeSubmissionKey'), 'Delivery must be created after requested times and inside the intake transaction.');
 foreach (array('eligibleTeachers($courseId', 'effective($teacherId', 'overlapping(', 'assertNoActiveHold', "'pending_request'") as $needle) {
     $assert(str_contains($service.$allocation, $needle), 'Teacher matching authority missing: ' . $needle);
 }

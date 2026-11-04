@@ -24,12 +24,13 @@ $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
 
-$expect(2 === preg_match_all("/\\['(?:New bookings & trials|Enrolled classes)'/", $shell), 'Enrolment must expose exactly two sub-tabs.');
+$expect(3 === preg_match_all("/\\['(?:Intro|Review|Enrolled classes)'/", $shell), 'Enrolment must expose exactly three sub-tabs.');
 $contains($shell, array(
-    "['New bookings & trials', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
+    "['Intro', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
+    "['Review', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'review']]",
     "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
     "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
-), 'The two Enrolment destinations and the protected Settings catalogue route are required.');
+), 'The three Enrolment destinations and the protected Settings catalogue route are required.');
 $general = $read('src/Admin/Controller/GeneralSettingsController.php');
 $contains($general, array("admin.php?page=dzn-catalogue-workspace", 'Open courses and instruments'), 'The catalogue must remain discoverable from General.');
 $notContains($shell, array("['Classes & Schedules'", "['Attendance & Post-intro'", "['Bookings & Enrolments'", "['Courses & Instruments'"), 'The former four visible Enrolment destinations must be gone.');
@@ -43,7 +44,7 @@ $contains($menu, array(
     "['Courses', 'dzn_manage_courses', 'dzn-course'",
     "['Instruments', 'dzn_manage_courses', 'dzn-instrument'",
 ), 'Every protected legacy route and its original capability must remain registered.');
-$contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'LiveKitAdministratorClassroomController::register()'), 'The workspace and administrator classroom boundaries must be registered.');
+$contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'MeetAdministratorJoinController::register()'), 'The workspace and administrator classroom boundaries must be registered.');
 
 $contains($view, array(
     'Action needed',
@@ -136,6 +137,7 @@ $contains($postIntro, array(
     'Delivery is not confirmed until transport evidence exists',
 ), 'Post-intro sends must be policy-bounded, idempotent and must not claim delivery.');
 $contains($worker, array("post_intro_reminder", 'Reminder: complete your Delnavazan enrolment'), 'The notification worker must understand the distinct reminder kind.');
+$contains($readService, array('pendingDelivery(', "d.state='pending_request'", "'Teacher invited'", "'Awaiting Teacher response'"), 'The workspace must show the pending Teacher delivery as a real match, not as an unselected Teacher.');
 $contains($css, array('.dzn-enrolment__hero', '.dzn-booking-table', '.dzn-class-table', '.dzn-case-grid', '.dzn-timeline', '@media (max-width: 782px)'), 'The workspace needs responsive desktop/tablet/mobile styling.');
 $expect(!str_contains($readService, 'SELECT * FROM {$this->p}booking_request_contact_snapshots'), 'The read projection must not leak full contact snapshots into unrelated rows.');
 

@@ -38,7 +38,17 @@ final class LiveKitClassroomAuthorizer {
         $facts = $kind === 'booking'
             ? $this->bookingFacts($role, $principal, (string)($input['confirmation_uid'] ?? ''))
             : $this->lessonFacts($role, $principal, (string)($input['lesson_uid'] ?? ''), (string)($input['schedule_version_uid'] ?? ''));
-        return $this->policy->authorize($facts, $role, $principal, $this->now(), $this->secret());
+        $grant = $this->policy->authorize($facts, $role, $principal, $this->now(), $this->secret());
+        // Recording is a separate grant. A participant token can never start capture; a caller that
+        // explicitly requests recording must pass the canonical consent gate first.
+        $grant['recording_authorised'] = false;
+        if (($input['recording'] ?? false) === true) {
+            $recording = (new \Delnavazan\Platform\Core\Application\RecordingAuthorisationGate())->authoriseLesson((int)$facts['resource_id'], \Delnavazan\Platform\Core\Application\ConsentPurposeRegistry::STUDENT_RECORDING);
+            if (($recording['authorised'] ?? false) !== true) throw new \InvalidArgumentException('livekit_recording_not_authorised:' . (string)($recording['reason'] ?? 'policy_unavailable'));
+            $grant['recording_authorised'] = true;
+            $grant['recording_evidence_id'] = (int)($recording['evidence_id'] ?? 0);
+        }
+        return $grant;
     }
 
     /** Lifecycle revalidation used by the signed LiveKit webhook. */

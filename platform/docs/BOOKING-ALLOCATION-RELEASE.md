@@ -8,7 +8,7 @@ Earlier code sent one delivery to a Teacher but had no durable offer history, de
 
 ## Migration and rollback
 
-Schema 58 adds four InnoDB tables through migration `065_booking_allocation`: offers, course cursors, alerts, and notification obligations. The migration is additive and verifies the uniqueness indexes for one active offer and one offer per Teacher per request. It does not rewrite accepting-state rows, existing confirmations, or lessons. Back up the database and deploy the matching code and migration together; verify the schema option and migration ledger after activation.
+Schema 58 adds four InnoDB tables through migration `069_booking_allocation`: offers, course cursors, alerts, and notification obligations. The migration is additive and verifies the uniqueness indexes for one active offer and one offer per Teacher per request. It does not rewrite accepting-state rows, existing confirmations, or lessons. Back up the database and deploy the matching code and migration together; verify the schema option and migration ledger after activation.
 
 If release validation fails, stop the allocation and notification workers, revert the code to the prior release, and retain the new tables for investigation. Do not drop them or reset the schema marker while any request could have an offer: doing so would discard offer history and permit duplicate contact. Restore a database backup only after reconciling requests and any emails or provider actions that occurred after the backup. Historical recovery is a separate, explicit administrator action, never an automatic migration side effect.
 

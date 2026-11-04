@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: delnavazan_recording
+      POSTGRES_USER: delnavazan_recorder
+      POSTGRES_PASSWORD: ${DZN_RECORDER_DATABASE_PASSWORD:?set a database password}
+    volumes:
+      - recorder-postgres:/var/lib/postgresql/data
+    networks: [recorder]
+  recorder:
+    build: .
+    restart: unless-stopped
+    depends_on: [postgres]
+    env_file: /etc/delnavazan/recorder.env
+    environment:
+      DZN_RECORDER_DATABASE_DSN: pgsql:host=postgres;port=5432;dbname=delnavazan_recording
+    volumes:
+      - /srv/delnavazan-recordings:/srv/delnavazan-recordings
+      - /mnt/mbox:/mnt/mbox:ro
+      - /etc/delnavazan/keys:/etc/delnavazan/keys:ro
+    networks: [recorder]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+  playback:
+    build: ../playback-gateway
+    restart: unless-stopped
+    env_file: /etc/delnavazan/playback.env
+    ports:
+      - "127.0.0.1:8092:8092"
+    volumes:
+      - /mnt/mbox/DelnavazanRecordings:/mnt/mbox/DelnavazanRecordings:ro
+      - /mnt/mbox/.delnavazan-mount:/mnt/mbox/.delnavazan-mount:ro
+      - /run/delnavazan-playback:/run/delnavazan-playback
+      - /var/log/delnavazan:/var/log/delnavazan
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  recorder-postgres:
+networks:
+  recorder:
+    internal: true

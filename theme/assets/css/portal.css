@@ -728,6 +728,10 @@
     gap: 0.75rem;
   }
 
+  .dzn-checkout__status:empty {
+    display: none;
+  }
+
   .dzn-checkout__plan {
     display: grid;
     gap: 0.75rem;
@@ -778,8 +782,13 @@
   .dzn-checkout__promotion-label {
     margin: 0;
     color: var(--dzn-color-text-secondary);
+    cursor: pointer;
     font-size: 0.85rem;
     font-weight: 800;
+  }
+
+  .dzn-checkout__promotion[open] > summary {
+    margin-block-end: 0.25rem;
   }
 
   .dzn-checkout__promotion-inputs {
@@ -844,6 +853,7 @@
 
   .dzn-checkout__row-status {
     grid-column: 1 / -1;
+    justify-self: start;
     margin: 0;
   }
 
@@ -1113,8 +1123,7 @@
   }
 
   .dzn-appbar {
-    position: sticky;
-    inset-block-start: 0;
+    position: static;
     z-index: 20;
     display: block;
     border-block-end: 1px solid var(--dzn-color-border);
@@ -1585,7 +1594,7 @@
 .dzn-recording-choices__draft{margin-block:1rem;padding:1rem;border:1px dashed var(--dzn-color-warning);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
 .dzn-recording-choices hr{margin-block:2rem;border:0;border-block-start:1px solid var(--dzn-color-border)}
 
-/* Classroom launch: LiveKit primary, explicit Google Meet fallback. */
+/* Classroom launch: Delnavazan-branded Google Meet entry. */
 .dzn-classroom-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.55rem;min-inline-size:0}
 .dzn-classroom-actions__form{margin:0;display:inline-flex;min-inline-size:0}
 .dzn-classroom-actions__backup{order:2}

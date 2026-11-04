@@ -36,7 +36,7 @@ foreach(array("_POST['student_id']","_POST['teacher_id']","_POST['guardian","_PO
 foreach(array('purpose','choice','notice_uid','language','idempotency_key','return_to')as$field)$need(str_contains($controller,$field),'the controller must read only the action field '.$field);
 
 $need(str_contains($readService,'studentDecisionState()'),'the UI must read the Student authority state');
-$need(str_contains($readService,'teacherTermsState()'),'the UI must read the Teacher authority state');
+$need(str_contains($readService,'teacherConsentState()'),'the UI must read the Teacher authority state');
 $need(str_contains($readService,'publishedNotice('),'the UI must cite a published notice version');
 $need(str_contains($readService,"'default_recording_choice'=>null"),'enrolment must not preselect a recording choice');
 $need(str_contains($readService,"'default_research_choice'=>null"),'research must not preselect a choice');
@@ -53,14 +53,14 @@ $need(str_contains($student,"'account' === \$context && 'allow' === \$current_re
 $need(str_contains($student,"'account' === \$context && 'decline' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current decline');
 $need(!preg_match('/name="choice" value="allow"\s+checked/',$student),'enrolment must not preselect allow');
 $need(!preg_match('/name="choice" value="decline"\s+checked/',$student),'enrolment must not preselect decline');
-$need(!str_contains($student,'guardian'),'no guardian form may be exposed');
+$need(str_contains($student,"'guardian' === \$authority"),'the guardian authority path must be exposed only when the server resolves it');
 $need(str_contains($student,'تأیید حقوقی نشده'),'provisional copy must be visibly marked as draft');
 $need(str_contains($student,'هیچ تصمیمی دربارهٔ ضبط ثبت نشده'),'unavailable accounts must show a neutral state');
 
-$need(str_contains($teacher,'Acceptance is unavailable'),'teacher acceptance must show an explicit unavailable state');
-$need(str_contains($teacher,'version '),'teacher acceptance must show the publication version');
-$need(str_contains($teacher,'English')&&str_contains($teacher,'فارسی'),'teacher acceptance must show the publication language');
-$need(str_contains($teacher,'Recorded:'),'teacher acceptance must show the recorded date after acceptance');
+$need(str_contains($teacher,'ثبت رضایت در دسترس نیست'),'teacher acceptance must show an explicit unavailable state');
+$need(str_contains($teacher,'notice_version'),'teacher acceptance must show the publication version');
+$need(str_contains($teacher,'فارسی'),'teacher acceptance must show the publication language');
+$need(str_contains($teacher,'decided_at'),'teacher acceptance must show the recorded date after acceptance');
 $need(str_contains($teacher,'dzn_recording_teacher_terms'),'teacher acceptance must post to the protected endpoint');
 $need(str_contains($onboarding,'recording-terms'),'teacher onboarding must render the terms step');
 $need(str_contains($account,'recording-terms'),'teacher settings must show the accepted terms state');

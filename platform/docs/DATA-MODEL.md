@@ -747,3 +747,18 @@ Digest-only durable command evidence for `schedule_initial`, `schedule_revise` a
 ### `dzn_teacher_schedule_roots`
 
 One row per Teacher (`UNIQUE(teacher_id)`), created by migration for existing Teachers and lazily for later ones. It is a serialization anchor only: it stores no availability, capacity or authority state. Teacher occupancy is derived from applicable schedule versions, never from a separate mutable reservation projection.
+
+## Consent lifecycle (migration 065)
+
+Consent evidence is append-only. Migration 065 adds no backfilled decision and enables no capture.
+
+- `recording_notice_versions`: canonical immutable policy publication per audience/language/version. It now also carries `approval_state`, `approved_at` and `approved_by`. A newer published version supersedes an older decision for new processing.
+- `recording_decisions`: the decision ledger. Each row snapshots the purpose, decision, notice identity/version/text digest, UTC decision time, actor, channel, workflow, scope, effective period, supersession/withdrawal reference and (where applicable) the guardian actor and canonical guardian-grant ID/version. Only inserts occur; a later choice is a new row.
+- `recording_decision_commands`: idempotency evidence for each decision submission. A replay returns the original result; a changed payload with the same key conflicts.
+- `consent_purposes`: the canonical purpose registry (teacher terms, teacher recording, teacher research, student recording, student research, privacy acknowledgement). A future purpose is data, not a schema redesign.
+- `consent_recording_authorisations`: immutable gate evidence for each canonical Lesson/schedule/purpose evaluation, including the outcome, reason code, participant decision references, guardian grant reference, notice identities and an evidence digest.
+- `consent_dataset_items`: the ML dataset manifest. It stores provenance, content/consent digests, pseudonymous subject, eligibility result/reason, lineage, storage reference and exclusion state. It stores no raw name, contact or media.
+- `consent_processing_jobs`: durable, leased, bounded-retry downstream work (`dataset_exclusion`, `recording_disposition`, `policy_reevaluation`).
+- `consent_processing_events`: append-only job/decision processing evidence.
+
+Teacher and student recording consent never satisfy research eligibility. A recording may be authorised for teaching while being ineligible for a dataset.

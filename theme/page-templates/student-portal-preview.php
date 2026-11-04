@@ -42,7 +42,7 @@ while ( have_posts() ) {
 		$lesson_state = sanitize_key( wp_unslash( $_GET['lesson-state'] ) );
 		$lesson_state_examples = array(
 			'upcoming' => array( 'کلاس شما برای زمان اعلام‌شده برنامه‌ریزی شده است.', '' ),
-			'starting_soon' => array( 'کلاس تا کمتر از یک ساعت دیگر آغاز می‌شود.', '' ),
+			'starting_soon' => array( 'کلاس تا کمتر از ۳۰ دقیقه دیگر آغاز می‌شود.', '' ),
 			'in_progress' => array( 'این کلاس همین حالا در جریان است.', '' ),
 			'ended' => array( 'این کلاس به پایان رسیده است.', '' ),
 			'unknown' => array( 'زمان پایان این کلاس روشن نیست؛ برای هماهنگی با پشتیبانی تماس بگیرید.', '' ),

@@ -77,6 +77,7 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 				);
 				?>
 				<div class="dzn-schedule-row__meta">
+					<?php if ( function_exists( 'dzn_theme_recording_playback_button' ) ) { echo dzn_theme_recording_playback_button( $item, 'student' ); } ?>
 					<?php if ( ! empty( $item['absence_available'] ) ) : ?>
 						<details class="dzn-schedule-row__absence">
 							<summary><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></summary>
@@ -91,6 +92,19 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 					<?php elseif ( ! empty( $item['absence_message'] ) ) : ?>
 						<p class="dzn-portal-help"><?php echo esc_html( (string) $item['absence_message'] ); ?></p>
 					<?php endif; ?>
+					<?php if ( ! empty( $item['intro_cancel_available'] ) ) : ?>
+						<details class="dzn-schedule-row__intro-cancel">
+							<summary><?php esc_html_e( 'لغو کلاس آشنایی', 'delnavazan-theme' ); ?></summary>
+							<p class="dzn-portal-help"><?php esc_html_e( 'لغو کلاس آشنایی به معنی ثبت حضور یا پرداخت نیست. مدرس و مدیر آموزشگاه مطلع می‌شوند.', 'delnavazan-theme' ); ?></p>
+							<form method="post" action="<?php echo esc_url( (string) ( $item['intro_cancel_action_url'] ?? '' ) ); ?>">
+								<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['intro_cancel_nonce'] ?? '' ) ); ?>">
+								<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $item['confirmation_uid'] ?? '' ) ); ?>">
+								<input type="hidden" name="reason_code" value="student_requested">
+								<input type="hidden" name="command_key" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>">
+								<button class="dzn-button dzn-button--secondary" type="submit"><?php esc_html_e( 'تأیید لغو کلاس آشنایی', 'delnavazan-theme' ); ?></button>
+							</form>
+						</details>
+					<?php endif; ?>
 					<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action dzn-schedule-row__calendar" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
 				</div>
 			</div>
@@ -98,7 +112,8 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 	<?php endforeach;
 };
 ?>
-<?php if ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ورود به کلاس ممکن نشد؛ لینک امن یا زمان ورود را بررسی کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'livekit_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'کلاس زندهٔ دلنوازان در این لحظه در دسترس نیست یا زمان ورود نرسیده است. دوباره تلاش کنید یا از گزینهٔ پشتیبان گوگل میت استفاده کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'meet_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'گزینهٔ پشتیبان گوگل میت برای این جلسه در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد و به مدرس اطلاع داده می‌شود.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded_no_replacement' === $absence_status ) : ?><p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد و به مدرس اطلاع داده می‌شود؛ اما سهمیهٔ جلسات جبرانی این ترم تمام شده است و برای این غیبت جلسهٔ جبرانی دیگری صادر نمی‌شود. مورد برای بررسی مدیر ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ثبت اطلاع غیبت برای این جلسه ممکن نشد. لطفاً دوباره تلاش کنید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
+<?php if ( 'join_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ورود به کلاس ممکن نشد؛ لینک امن یا زمان ورود را بررسی کنید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'livekit_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'کلاس Google Meet در این لحظه در دسترس نیست یا زمان ورود نرسیده است. دوباره تلاش کنید یا با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'meet_unavailable' === $join_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'پیوند Google Meet برای این جلسه در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded' === $absence_status ) : ?><p class="dzn-portal-action-status" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد و به مدرس اطلاع داده می‌شود.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_recorded_no_replacement' === $absence_status ) : ?><p class="dzn-portal-action-status dzn-portal-action-status--warning" role="status"><?php esc_html_e( 'اطلاع غیبت شما ثبت شد و به مدرس اطلاع داده می‌شود؛ اما سهمیهٔ جلسات جبرانی این ترم تمام شده است و برای این غیبت جلسهٔ جبرانی دیگری صادر نمی‌شود. مورد برای بررسی مدیر ثبت شد.', 'delnavazan-theme' ); ?></p><?php elseif ( 'absence_unavailable' === $absence_status ) : ?><p class="dzn-portal-action-status" role="alert"><?php esc_html_e( 'ثبت اطلاع غیبت برای این جلسه ممکن نشد. لطفاً دوباره تلاش کنید.', 'delnavazan-theme' ); ?></p><?php endif; ?>
+<?php if ( isset( $_GET['intro_notice'] ) ) : ?><p class="dzn-portal-action-status <?php echo sanitize_key( (string) ( $_GET['intro_status'] ?? '' ) ) === 'failed' ? 'dzn-portal-action-status--warning' : ''; ?>" role="<?php echo sanitize_key( (string) ( $_GET['intro_status'] ?? '' ) ) === 'failed' ? 'alert' : 'status'; ?>"><?php echo esc_html( sanitize_text_field( wp_unslash( (string) $_GET['intro_notice'] ) ) ); ?></p><?php endif; ?>
 <section class="dzn-portal-section dzn-schedule" aria-labelledby="dzn-schedule-title">
 	<div class="dzn-portal-section__heading">
 		<div><p class="dzn-portal-kicker"><?php esc_html_e( 'برنامهٔ شما', 'delnavazan-theme' ); ?></p><h2 id="dzn-schedule-title"><?php esc_html_e( 'کلاس‌های امروز و آینده', 'delnavazan-theme' ); ?></h2></div>

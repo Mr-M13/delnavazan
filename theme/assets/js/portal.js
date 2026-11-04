@@ -74,3 +74,15 @@
     });
   });
 })();
+
+(() => {
+  'use strict';
+  // A notification without a read action can still be dismissed for this visit. When the
+  // read action exists, the close control is its submit button and marks the item read.
+  document.querySelectorAll('[data-dzn-notification-close][type="button"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const banner = button.closest('[data-dzn-notification-banner]');
+      if (banner) banner.hidden = true;
+    });
+  });
+})();

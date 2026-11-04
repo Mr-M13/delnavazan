@@ -1091,6 +1091,82 @@
   margin-block-start: 0;
 }
 
+/* Confirmed intro management spans the full class card instead of one grid cell. */
+.dzn-tp-intro-actions {
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  padding-block-start: .5rem;
+}
+
+.dzn-tp-intro-actions > summary {
+  cursor: pointer;
+  padding-block: .3rem;
+  color: var(--dzn-color-action-secondary);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.dzn-tp-intro-actions[open] > summary {
+  margin-block-end: .5rem;
+}
+
+.dzn-tp-intro-actions__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .75rem;
+  min-inline-size: 0;
+}
+
+.dzn-tp-intro-actions__card {
+  display: grid;
+  align-content: start;
+  gap: .5rem;
+  min-inline-size: 0;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .75rem;
+  background: var(--dzn-color-surface-elevated);
+  padding: .9rem;
+}
+
+.dzn-tp-intro-actions__card--danger {
+  border-color: color-mix(in srgb, var(--dzn-color-error) 38%, var(--dzn-tp-border));
+}
+
+.dzn-tp-intro-actions__card h4 {
+  margin: 0;
+  font-size: .92rem;
+}
+
+.dzn-tp-intro-actions__card p {
+  margin: 0;
+  font-size: .86rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.dzn-tp-intro-actions label {
+  display: grid;
+  gap: .3rem;
+  min-inline-size: 0;
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+.dzn-tp-intro-actions label input,
+.dzn-tp-intro-actions label select {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+@media (min-width: 900px) {
+  .dzn-tp-intro-actions__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* -------------------------------------------------------------------------
    Reschedule form.
    ------------------------------------------------------------------------- */
@@ -1173,6 +1249,23 @@
 .dzn-tp-reschedule__date > * {
   min-inline-size: 0;
   min-width: 0;
+}
+
+.dzn-tp-reschedule__confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.dzn-tp-reschedule input[type="checkbox"] {
+  flex: 0 0 auto;
+  inline-size: 1.15rem;
+  width: 1.15rem;
+  block-size: 1.15rem;
+  min-block-size: 0;
+  margin-block-start: .3rem;
 }
 
 .dzn-tp-form input[type="checkbox"],
@@ -1824,8 +1917,7 @@
   }
 
   .dzn-tp-appbar {
-    position: sticky;
-    inset-block-start: 0;
+    position: static;
     z-index: var(--dzn-z-appbar);
     display: block;
     border-block-end: 1px solid var(--dzn-tp-border);
@@ -2237,9 +2329,6 @@
 }
 
 /* Teacher induction: compact dashboard entry, dedicated hub and contextual tips. */
-.dzn-tp-induction__count{display:inline-block;padding:.2rem .65rem;border-radius:999px;background:color-mix(in srgb,var(--dzn-color-action-primary) 10%,transparent);color:var(--dzn-color-action-primary);font-size:.78rem;font-weight:800;white-space:nowrap}
-.dzn-tp-induction__progress{overflow:hidden;block-size:.7rem;margin-block:.35rem 1rem;border-radius:999px;background:color-mix(in srgb,var(--dzn-color-text-muted) 16%,transparent)}
-.dzn-tp-induction__progress span{display:block;block-size:100%;border-radius:inherit;background:linear-gradient(90deg,var(--dzn-color-action-primary),var(--dzn-color-accent));transition:inline-size .35s ease}
 .dzn-tp-induction-entry .dzn-tp-actions{margin-block-start:.85rem}
 .dzn-tp-induction__breadcrumb{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-block:.35rem 1rem;color:var(--dzn-color-text-muted);font-size:.85rem}
 .dzn-tp-induction__breadcrumb a{color:var(--dzn-color-action-primary)}
@@ -2285,7 +2374,6 @@
 .dzn-tp-tip__icon{display:grid;place-items:center;inline-size:1.45rem;block-size:1.45rem;border-radius:50%;background:var(--dzn-color-action-primary);color:var(--dzn-color-on-action);font-size:.85rem;flex:none}
 .dzn-tp-tip__body{padding:0 .9rem .8rem 2.8rem}
 .dzn-tp-tip__body p{margin-block:.35rem;line-height:1.9;color:var(--dzn-color-text-muted)}
-.is-dzn-induction-highlight{outline:3px solid var(--dzn-color-accent)!important;outline-offset:4px;border-radius:6px}
 .dzn-tp-welcome-grid{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));margin-block:1rem}
 .dzn-tp-welcome-card{padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:14px;background:var(--dzn-tp-card)}
 .dzn-tp-welcome-card h3{margin-block-start:0;font-size:1.02rem}
@@ -2314,7 +2402,7 @@
   .dzn-tp-tip__body{padding-inline-start:.9rem}
 }
 @media (prefers-reduced-motion:reduce){
-  .dzn-tp-induction__progress span{transition:none}
+  .dzn-tp-quickstart-card{transition:none}
 }
 
 /* Primary action links must keep the on-action colour inside the authenticated teacher portal. */
@@ -2336,66 +2424,32 @@
   color: var(--dzn-color-action-secondary);
 }
 
-/* One-page Teacher quick-start. */
-.dzn-tp-quickstart-list{display:grid;gap:.65rem;margin:1rem 0 0;padding:0;list-style:none}
-.dzn-tp-quickstart-card{display:grid;grid-template-columns:auto 1fr auto;gap:.85rem;align-items:start;padding:.9rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card)}
-.dzn-tp-quickstart-card.is-completed{border-color:color-mix(in srgb,var(--dzn-color-action-primary) 35%,var(--dzn-tp-border))}
+/* One-page Teacher quick-start: a read-only workflow review. */
+.dzn-tp-quickstart{display:grid;gap:1rem}
+.dzn-tp-quickstart-phase{display:grid;gap:.55rem;margin-block-start:.35rem}
+.dzn-tp-quickstart-phase__heading h3{margin:0;font-size:1.05rem}
+.dzn-tp-quickstart-phase__heading p{margin:.2rem 0 0;color:var(--dzn-color-text-muted);line-height:1.8;font-size:.88rem}
+.dzn-tp-quickstart-list{display:grid;gap:.6rem;margin:0;padding:0;list-style:none}
+.dzn-tp-quickstart-card{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.8rem;align-items:start;padding:.85rem .9rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card);scroll-margin-block-start:calc(56px + env(safe-area-inset-top) + 1rem)}
 .dzn-tp-quickstart-card__number{display:grid;place-items:center;inline-size:2rem;block-size:2rem;border-radius:50%;background:color-mix(in srgb,var(--dzn-color-action-primary) 12%,transparent);color:var(--dzn-color-action-primary);font-weight:800;font-size:.85rem}
-.dzn-tp-quickstart-card__title-row{display:flex;flex-wrap:wrap;gap:.45rem .75rem;align-items:center}
-.dzn-tp-quickstart-card__title-row h3{margin:0;font-size:1rem;line-height:1.6}
+.dzn-tp-quickstart-card__body{min-inline-size:0}
+.dzn-tp-quickstart-card__body h4{margin:0;font-size:.98rem;line-height:1.6}
 .dzn-tp-quickstart-card__body p{margin:.3rem 0 0;color:var(--dzn-color-text-muted);line-height:1.85;font-size:.9rem}
-.dzn-tp-quickstart-card__body ul{margin:.35rem 0 0;padding-inline-start:1.1rem;color:var(--dzn-color-text-muted);font-size:.82rem;line-height:1.8}
-.dzn-tp-quickstart-card__action{align-self:center}
-.dzn-tp-quickstart-card__action form{margin:0}
+.dzn-tp-quickstart-card__body p strong{color:var(--dzn-color-text-primary);font-weight:700}
 .dzn-tp-quickstart-footer{display:flex;flex-wrap:wrap;gap:.6rem;margin-block-start:1rem}
-.dzn-tp-highlight-banner{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between;border-color:color-mix(in srgb,var(--dzn-color-accent) 38%,var(--dzn-tp-border))}
-.dzn-tp-highlight-banner h2{margin:.2rem 0 .35rem;font-size:1.1rem}
-.dzn-tp-highlight-banner p{margin:0;line-height:1.85}
-.dzn-tp-highlight-banner ul{margin:.35rem 0 0;padding-inline-start:1.1rem;font-size:.85rem;line-height:1.8}
-.dzn-tp-highlight-banner .dzn-button{flex:none}
 @media (max-width:47.99rem){
-  .dzn-tp-quickstart-card{grid-template-columns:auto 1fr}
-  .dzn-tp-quickstart-card__action{grid-column:1/-1}
-  .dzn-tp-quickstart-card__action .dzn-button{inline-size:100%;min-block-size:44px}
-  .dzn-tp-highlight-banner .dzn-button{inline-size:100%;min-block-size:44px}
+  .dzn-tp-quickstart{gap:.85rem}
+  .dzn-tp-quickstart-card{padding:.75rem .8rem;gap:.65rem}
+  .dzn-tp-quickstart-card__body p{font-size:.88rem;line-height:1.8}
+  .dzn-tp-quickstart-footer{display:grid;grid-template-columns:1fr}
+  .dzn-tp-quickstart-footer .dzn-button{inline-size:100%;min-block-size:44px}
 }
 
-/* Keep the quick-start explanation visible while the target section is highlighted. */
-.dzn-tp-highlight-banner {
-  position: fixed;
-  inset-block-end: 1rem;
-  inset-inline-start: 1rem;
-  inset-inline-end: auto;
-  z-index: 100;
-  max-inline-size: 40rem;
-  padding: .8rem 1rem;
-  background: var(--dzn-tp-card);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--dzn-color-text-primary) 22%, transparent);
-}
-
-.dzn-tp-highlight-banner .dzn-tp-highlight-close {
-  position: absolute;
-  inset-block-start: .35rem;
-  inset-inline-end: .45rem;
-  min-inline-size: 2.25rem;
-  min-block-size: 2.25rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--dzn-color-text-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-}
-
-@media (max-width: 47.99rem) {
-  .dzn-tp-highlight-banner { inset-inline: 1rem; max-inline-size: none; inset-block-end: 5.5rem; }
-}
-
-/* Anchor returns after availability forms must clear the sticky phone app bar. */
+/* Anchor returns keep the target clear of the compact phone shell. */
 @media (max-width: 47.99rem) {
   .dzn-tp-section h2[id],
   .dzn-tp-section[id] {
-    scroll-margin-block-start: calc(56px + env(safe-area-inset-top) + 1rem);
+    scroll-margin-block-start: 1rem;
   }
 }
 

@@ -48,6 +48,17 @@ namespace Delnavazan\Platform\Portals {
 				'booking_classes' => array(
 					array(
 						'version' => 'teacher_booking_class_v1',
+						'confirmation_uid' => 'CONF-ACTIVE',
+						'confirmation_state' => 'confirmed',
+						'course_name' => 'سه‌تار',
+						'teacher_display_reference' => 'استاد',
+						'student_display_reference' => 'Student ACTIVE',
+						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 600 ),
+						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now + 600 ),
+						'join_available' => true,
+					),
+					array(
+						'version' => 'teacher_booking_class_v1',
 						'confirmation_uid' => 'CONF-LATE',
 						'confirmation_state' => 'confirmed',
 						'course_name' => 'سه‌تار',
@@ -55,6 +66,17 @@ namespace Delnavazan\Platform\Portals {
 						'student_display_reference' => 'Student LATE',
 						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 5400 ),
 						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 1800 ),
+						'join_available' => true,
+					),
+					array(
+						'version' => 'teacher_booking_class_v1',
+						'confirmation_uid' => 'CONF-EXPIRED',
+						'confirmation_state' => 'confirmed',
+						'course_name' => 'سه‌تار',
+						'teacher_display_reference' => 'استاد',
+						'student_display_reference' => 'Student EXPIRED',
+						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 7200 ),
+						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 5400 ),
 						'join_available' => true,
 					),
 				),
@@ -96,6 +118,7 @@ namespace {
 	function home_url( string $path = '' ): string { return 'https://example.invalid' . $path; }
 	function admin_url( string $path = '' ): string { return 'https://example.invalid/wp-admin/' . $path; }
 	function add_query_arg( $key, $value = null, $url = null ): string {
+		if ( is_array( $key ) ) { $base = (string) $value; return $base . ( str_contains( $base, '?' ) ? '&' : '?' ) . http_build_query( $key ); }
 		return rtrim( (string) $url, '/' ) . '/?' . rawurlencode( (string) $key ) . '=' . rawurlencode( (string) $value );
 	}
 	function wp_create_nonce( string $action ): string { return 'nonce-' . $action; }
@@ -147,23 +170,48 @@ namespace {
 	$recent_present = isset( $classes_by_ref['REF-RECENT'] );
 	$check( 'future row remains present and recently ended row follows the local-day boundary', isset( $classes_by_ref['REF-FUTURE'] ) && $recent_present === $recent_is_today );
 	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && in_array( 'REF-ACTIVE', $today_refs, true ) && ( ! $recent_is_today || ( 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) ) ) );
-	$check( 'a just-ended intro keeps the teacher late join window', true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
+	// The fixture is relative to wall-clock time. Near Tehran midnight its start
+	// belongs to yesterday, which the Classes view intentionally excludes.
+	$active_intro_starts_today = ( $fixture_now - 600 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$check( 'an in-progress intro stays on the today screen with its class button', ! $active_intro_starts_today || ( ! empty( $classes_by_ref['CONF-ACTIVE']['is_today'] ) && true === ( $classes_by_ref['CONF-ACTIVE']['start_available'] ?? null ) ) );
+	$late_intro_starts_today = ( $fixture_now - 5400 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$check( 'a just-ended intro keeps the teacher late join window when it starts today', ! $late_intro_starts_today || true === ( $classes_by_ref['CONF-LATE']['start_available'] ?? null ) );
+	$check( 'a previous-day intro does not leak into today', $late_intro_starts_today || ! isset( $classes_by_ref['CONF-LATE'] ) );
+	$expired_intro_starts_today = ( $fixture_now - 7200 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$check( 'an intro more than 30 minutes after its end loses the join action', ! $expired_intro_starts_today || empty( $classes_by_ref['CONF-EXPIRED']['start_available'] ) );
 	$check( 'navigation has three destinations', 3 === count( $model['navigation'] ?? array() ) );
 	$check( 'classes is the first and current navigation item', ! empty( $model['navigation'][0]['current'] ) && 'classes' === ( $model['navigation'][0]['screen'] ?? '' ) );
 	$check( 'the Today tab is removed', ! array_filter( (array) ( $model['navigation'] ?? array() ), static fn( $item ) => 'home' === ( $item['screen'] ?? '' ) ) );
 	$check( 'the classes model passes its display contract', dzn_theme_teacher_portal_validate_model( $model, 'classes' ) );
+	$model['post_intro_outcomes'] = array(
+		array(
+			'confirmation_uid' => 'CONF-OUTCOME',
+			'student' => 'Student Outcome',
+			'course' => 'Setar',
+			'when' => 'Saturday 3 October، 10:00–10:30',
+			'timezone' => 'Asia/Tehran',
+			'action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_post_intro_outcome',
+			'nonce' => 'nonce-intro-outcome',
+		),
+	);
 
 	ob_start();
 	dzn_theme_render_teacher_portal( 'classes', $model );
 	$html = (string) ob_get_clean();
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
+	$check( 'the classes screen offers the post-intro outcome form', str_contains( $html, 'id="dzn-tp-post-intro"' ) && str_contains( $html, 'name="confirmation_uid" value="CONF-OUTCOME"' ) && str_contains( $html, 'name="outcome"' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'future class cards are restored with their reschedule action', str_contains( $html, 'tp-classes-upcoming' ) && str_contains( $html, 'کلاس‌های آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
+	$check( 'reschedule form exposes the outside-availability confirmation', str_contains( $html, 'name="confirm_outside_availability"' ) );
 	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
 	$check( 'future classes can be filtered by student', str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
+	$check( 'an in-progress intro renders its classroom re-entry action', ! $active_intro_starts_today || ( str_contains( $html, 'confirmation_uid=CONF-ACTIVE' ) && str_contains( $html, 'ورود به کلاس Google Meet' ) ) );
+	$check( 'a today intro keeps its classroom re-entry action', ! $late_intro_starts_today || ( str_contains( $html, 'confirmation_uid=CONF-LATE' ) && str_contains( $html, 'ورود به کلاس Google Meet' ) ) );
+	$teacherCss = (string) file_get_contents( ABSPATH . 'theme/assets/css/teacher-portal.css' );
+	$check( 'intro management spans the full class card', str_contains( $teacherCss, '.dzn-tp-intro-actions {' ) && str_contains( $teacherCss, 'grid-column: 1 / -1;' ) && str_contains( $teacherCss, '.dzn-tp-intro-actions__body {' ) && str_contains( $teacherCss, 'grid-template-columns: repeat(2, minmax(0, 1fr));' ) );
 	$check( 'teacher first tab ends with WhatsApp support', str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/home.php' ), "'support'" ) && str_contains( (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/support.php' ), 'dzn_theme_whatsapp_link' ) );
 	$check( 'teacher pending tasks query student absence reports', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'TeacherAbsenceAttentionReadService' ) );
 	$check( 'teacher absence prompt explains the replacement conversation', str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان تازه را پیشنهاد دهید' ) || str_contains( (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' ), 'زمان جلسهٔ جبرانی را پیشنهاد دهید' ) );

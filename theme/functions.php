@@ -29,6 +29,7 @@ require_once get_template_directory() . '/inc/booking.php';
 require_once get_template_directory() . '/inc/operations.php';
 require_once get_template_directory() . '/inc/legal.php';
 require_once get_template_directory() . '/inc/routes.php';
+require_once get_template_directory() . '/inc/recording-playback.php';
 
 /**
  * Randomise the Delnavazan homepage article Query Loop.

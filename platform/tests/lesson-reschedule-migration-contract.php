@@ -41,7 +41,9 @@ $assert(str_contains($ownerPorts, "'enrolment_lifecycle_state'=>") && !str_conta
 $assert(str_contains($service, 'LessonRescheduleSystemActor::run') && str_contains($service, 'reviseWithinTransaction'), 'Canonical commit must run under the least-privilege scheduling system actor');
 $assert(str_contains($canonical, 'private function actor()') && str_contains($canonical, 'get_current_user_id()'), 'Canonical schedule versions must record the active system actor');
 $repository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/LessonRescheduleRepository.php');
-$assert(str_contains($repository, 'l.student_id=%d') && str_contains($repository, 'v.occupied_ends_at_utc>%s'), 'Student conflicts must be checked across all Student Lessons with half-open occupied intervals');
-$assert(str_contains($repository, 'DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE)>%s') && str_contains($repository, "c.starts_at_utc<%s AND c.ends_at_utc>%s"), 'Legacy and booking occupancy must use half-open intervals too');
+$occupancy = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/StudentOccupancyQuery.php');
+$assert(str_contains($repository, 'StudentOccupancyQuery::conflicts'), 'Reschedule conflicts must delegate to the one Student occupancy rule');
+$assert(str_contains($occupancy, 'l.student_id=%d') && str_contains($occupancy, 'v.occupied_ends_at_utc>%s'), 'Student conflicts must be checked across all Student Lessons with half-open occupied intervals');
+$assert(str_contains($occupancy, 'DATE_ADD(v.ends_at_utc,INTERVAL 15 MINUTE)>%s') && str_contains($occupancy, 'rt.starts_at_utc<%s AND rt.occupied_ends_at_utc>%s'), 'Legacy and booking occupancy must use half-open occupied intervals too');
 
 echo "Lesson reschedule migration contract passed\n";

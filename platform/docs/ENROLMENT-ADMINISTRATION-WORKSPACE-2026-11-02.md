@@ -13,10 +13,11 @@ and the combined integration branch are local commits awaiting review.
 
 ## Shape
 
-The visible Enrolment area now has exactly two sub-tabs:
+The visible Enrolment area now has three sub-tabs:
 
-1. **New bookings & trials** — incoming requests, identity and coordination blockers, Teacher matching, the introductory booking, the recorded outcome, the post-intro decision/payment period and conversion reporting.
-2. **Enrolled classes** — today/upcoming and historical classes, Terms, regular/replacement classes, attendance evidence, schedule changes and the shared class action component.
+1. **Intro** — incoming requests, identity and coordination blockers, Teacher matching, the introductory booking, the recorded outcome, the post-intro decision/payment period and conversion reporting. See [ENROLMENT-INTRO-REVIEW-2026-11-02.md](ENROLMENT-INTRO-REVIEW-2026-11-02.md) for the 2026-11-02 follow-up changes.
+2. **Review** — active introductory requests with attendance, payment-link, reminder and follow-up facts; requests are removed from this queue 14 days after a payment link with no decision or payment, while the underlying case remains in History.
+3. **Enrolled classes** — today/upcoming and historical classes, Terms, regular/replacement classes, attendance evidence, schedule changes and the shared class action component.
 
 Course and instrument configuration moved to **Settings → Catalogue → Courses & instruments**. Its routes and `dzn_manage_courses` authority are unchanged. The protected legacy routes remain registered and bookmarkable, including `dzn-lesson`, `dzn-booking-requests`, `dzn-booking-request-coordination`, `dzn-enrolment`, `dzn-term`, `dzn-course`, `dzn-instrument`, `dzn-attendance-review`, `dzn-post-intro` and `dzn-attendance-workspace`.
 
@@ -24,7 +25,7 @@ Course and instrument configuration moved to **Settings → Catalogue → Course
 
 | Existing action / route | New place | Status |
 | --- | --- | --- |
-| Booking request list and detail (`dzn-booking-requests`) | New bookings & trials case table and expandable case | Carried into the workspace read surface |
+| Booking request list and detail (`dzn-booking-requests`) | Intro case table and expandable case | Carried into the workspace read surface |
 | Match assessment (`dzn_prepare_booking_request_matches`) | Case next-action and manual match hard-constraint check | Carried |
 | Duplicate review and privacy erasure (`dzn-booking-requests`) | Protected booking-request route | Remains protected because it is a privacy/duplicate-evidence operation, not an everyday Enrolment decision. |
 | Coordination open/add candidate (`dzn-booking-request-coordination`) | Case actions | Carried |
@@ -36,7 +37,7 @@ Course and instrument configuration moved to **Settings → Catalogue → Course
 | Canonical schedule create/revise/release | Shared class action component | Carried |
 | Canonical Lesson delivery/completion | Shared class action component and attendance evidence | Carried |
 | Attendance review (`dzn-attendance-review`) | Class attendance evidence and reviewed decision | Carried contextually; protected review queue remains available |
-| Introductory outcome (`dzn-post-intro` outcome form) | New bookings & trials case action | Carried |
+| Introductory outcome (`dzn-post-intro` outcome form) | Intro case action | Carried |
 | Post-intro preparation retry / activation retry / automation identity | Protected Post-intro diagnostics, linked only from an exception | Deliberately kept technical and out of the ordinary workflow |
 | Term lifecycle (`dzn-term`) | Class detail Term link and protected route | Read context is carried; Term create/activate/close remains on its protected authority screen. |
 | Course/instrument configuration | Settings → Catalogue | Moved in navigation; authority and routes kept |

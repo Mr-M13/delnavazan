@@ -252,11 +252,21 @@ final class EnrolmentWorkspaceReadService {
             "SELECT r.id,r.created_at,r.student_id,r.lifecycle_status,r.resolution_state,
                     o.outcome outcome_code,o.recorded_at outcome_at,
                     p.state preparation_state,p.enrolment_id,p.offer_id,p.student_action_at,
-                    e.id converted_enrolment_id
+                    e.id converted_enrolment_id,
+                    s.full_name student_name,s.timezone contact_timezone,
+                    COALESCE(NULLIF(i.name_en,''),i.name_fa) instrument_name,
+                    COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
+                    conf.starts_at_utc intro_at,conf.schedule_timezone intro_timezone,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name
              FROM {$this->p}booking_requests r
              LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.booking_request_id=r.id
              LEFT JOIN {$this->p}post_intro_preparations p ON p.booking_request_id=r.id
              LEFT JOIN {$this->p}enrolments e ON e.id=p.enrolment_id
+             LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+             LEFT JOIN {$this->p}instruments i ON i.id=r.requested_instrument_id
+             LEFT JOIN {$this->p}courses c ON c.id=r.selected_intro_course_id
+             LEFT JOIN {$this->p}booking_request_confirmations conf ON conf.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id)
+             LEFT JOIN {$this->p}teachers t ON t.id=conf.teacher_id
              WHERE r.created_at>=%s AND r.created_at<%s AND r.privacy_erased_at IS NULL
              ORDER BY r.created_at DESC LIMIT 2000",
             $from, $to
@@ -266,9 +276,20 @@ final class EnrolmentWorkspaceReadService {
         foreach ($rows as $row) {
             $classification = $this->conversionClassification($row);
             $summary[$classification['bucket']]++;
+            $elapsed = max(0, time() - (int) strtotime((string) $row->created_at . ' UTC'));
+            $timezone = $this->safeTimezone((string) ($row->intro_timezone ?: $row->contact_timezone ?: 'UTC'));
             $out[] = array(
                 'request_id' => (int) $row->id,
                 'created_at' => (string) $row->created_at,
+                'student' => (string) ($row->student_name ?: 'Learner'),
+                'course' => (string) ($row->course_name ?: '—'),
+                'instrument' => (string) ($row->instrument_name ?: '—'),
+                'teacher' => (string) ($row->teacher_name ?: 'Not selected'),
+                'date' => $row->intro_at !== null && $row->intro_at !== ''
+                    ? $this->localLabel((string) $row->intro_at, $timezone)
+                    : $this->localLabel((string) $row->created_at, $this->safeTimezone((string) ($row->contact_timezone ?: 'UTC'))) . ' (requested)',
+                'elapsed_seconds' => $elapsed,
+                'elapsed' => $this->ageLabel($elapsed),
                 'outcome' => $classification['label'],
                 'reason' => $classification['reason'],
                 'bucket' => $classification['bucket'],
@@ -282,6 +303,133 @@ final class EnrolmentWorkspaceReadService {
             'did_not_convert' => $summary['did_not_convert'],
             'excluded' => $summary['excluded'],
             'rows' => array_slice($out, 0, 40),
+        );
+    }
+
+    /**
+     * Active introductory requests that still need review or follow-up.
+     *
+     * The queue is based on the latest booking confirmation, never on a synthetic
+     * lesson. A request is removed from this active queue when the payment link
+     * has been sent and fourteen days pass without a recorded decision, payment
+     * or activation. The underlying case is never deleted; it remains in History.
+     *
+     * @return array{rows:array<int,array<string,mixed>>,total:int,auto_removed:int,counts:array<string,int>}
+     */
+    public function reviewCases(): array {
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT r.id,r.reference_code,r.created_at,r.lifecycle_status,r.resolution_state,
+                    s.full_name student_name,s.email student_email,s.mobile student_mobile,s.country,s.timezone contact_timezone,
+                    COALESCE(NULLIF(i.name_en,''),i.name_fa) instrument_name,
+                    COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
+                    conf.id confirmation_id,conf.uid confirmation_uid,conf.state confirmation_state,
+                    conf.starts_at_utc,conf.ends_at_utc,conf.schedule_timezone,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,
+                    o.outcome outcome_code,o.recorded_at outcome_at,
+                    p.id preparation_id,p.state preparation_state,p.enrolment_id,p.updated_at preparation_updated_at
+             FROM {$this->p}booking_requests r
+             INNER JOIN {$this->p}booking_request_confirmations conf ON conf.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id)
+             LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+             LEFT JOIN {$this->p}instruments i ON i.id=r.requested_instrument_id
+             LEFT JOIN {$this->p}courses c ON c.id=r.selected_intro_course_id
+             LEFT JOIN {$this->p}teachers t ON t.id=conf.teacher_id
+             LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.booking_request_id=r.id
+             LEFT JOIN {$this->p}post_intro_preparations p ON p.booking_request_id=r.id
+             WHERE r.privacy_erased_at IS NULL
+               AND conf.state IN ('confirmed','awaiting_payment')
+               AND conf.starts_at_utc>=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 90 DAY)
+             ORDER BY conf.starts_at_utc ASC,r.id ASC LIMIT 500"
+        ) ?: array();
+        if (!$rows) return array('rows' => array(), 'total' => 0, 'auto_removed' => 0, 'counts' => array('upcoming' => 0, 'outcome_due' => 0, 'payment_open' => 0, 'follow_up_due' => 0));
+        $ids = array_map(static fn(object $row): int => (int) $row->id, $rows);
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $notifications = $wpdb->get_results($wpdb->prepare(
+            "SELECT d.booking_request_id,n.notification_kind,
+                    MAX(n.handed_off_at) handed_off_at,MAX(n.created_at) created_at,MAX(n.updated_at) updated_at,COUNT(*) total
+             FROM {$this->p}booking_request_student_notifications n
+             INNER JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=n.delivery_id
+             WHERE d.booking_request_id IN ({$placeholders})
+               AND n.notification_kind IN ('post_intro_invitation','post_intro_reminder')
+             GROUP BY d.booking_request_id,n.notification_kind",
+            ...$ids
+        )) ?: array();
+        $byRequest = array();
+        foreach ($notifications as $notification) {
+            $requestId = (int) $notification->booking_request_id;
+            $kind = (string) $notification->notification_kind;
+            $byRequest[$requestId][$kind] = array(
+                'at' => (string) (($notification->handed_off_at !== null && $notification->handed_off_at !== '') ? $notification->handed_off_at : ($notification->created_at ?: $notification->updated_at)),
+                'count' => (int) $notification->total,
+            );
+        }
+        $now = time();
+        $out = array();
+        $autoRemoved = 0;
+        $counts = array('upcoming' => 0, 'outcome_due' => 0, 'payment_open' => 0, 'follow_up_due' => 0);
+        foreach ($rows as $row) {
+            $requestId = (int) $row->id;
+            $start = strtotime((string) $row->starts_at_utc . ' UTC');
+            $end = strtotime((string) $row->ends_at_utc . ' UTC');
+            $prepState = (string) ($row->preparation_state ?? '');
+            $paymentLink = $byRequest[$requestId]['post_intro_invitation'] ?? null;
+            $reminder = $byRequest[$requestId]['post_intro_reminder'] ?? null;
+            $paymentLinkAt = $paymentLink['at'] ?? '';
+            if ($paymentLinkAt === '' && in_array($prepState, array('checkout_pending', 'payment_received'), true)) $paymentLinkAt = (string) ($row->preparation_updated_at ?? '');
+            $paymentLinkSent = $paymentLinkAt !== '';
+            $paymentSettled = in_array($prepState, array('payment_received', 'activated'), true) || (int) ($row->enrolment_id ?? 0) > 0;
+            $noInterestAfterLink = $paymentLinkSent && !$paymentSettled
+                && $prepState !== 'activated'
+                && $paymentLinkAt !== ''
+                && strtotime($paymentLinkAt . ' UTC') + 14 * 86400 < $now;
+            if ($noInterestAfterLink) { $autoRemoved++; continue; }
+            $attended = match ((string) ($row->outcome_code ?? '')) {
+                'delivered' => 'Yes',
+                'student_no_show', 'no_show' => 'No',
+                '' => $end !== false && $end < $now ? 'Not recorded' : 'Not yet',
+                default => ucfirst(str_replace('_', ' ', (string) $row->outcome_code)),
+            };
+            $followUpCompleted = (string) ($row->outcome_at ?? '') !== ''
+                || in_array($prepState, array('activated', 'expired'), true)
+                || ($reminder !== null && (int) $reminder['count'] > 0);
+            $status = match (true) {
+                $prepState === 'activated' => 'Enrolment activated',
+                $prepState === 'payment_received' => 'Payment received — activating',
+                $prepState === 'checkout_pending' => 'Payment link open',
+                (string) ($row->outcome_at ?? '') !== '' => 'Outcome recorded',
+                $start !== false && $start > $now => 'Upcoming intro',
+                default => 'Outcome due',
+            };
+            if ($start !== false && $start > $now) $counts['upcoming']++;
+            elseif ((string) ($row->outcome_at ?? '') === '') $counts['outcome_due']++;
+            if ($prepState === 'checkout_pending' || ($paymentLinkSent && !$paymentSettled)) $counts['payment_open']++;
+            if (!$followUpCompleted && $end !== false && $end < $now) $counts['follow_up_due']++;
+            $out[] = array(
+                'id' => $requestId,
+                'reference' => (string) ($row->reference_code ?: 'Request ' . $requestId),
+                'date' => $this->localLabel((string) $row->starts_at_utc, $this->safeTimezone((string) ($row->schedule_timezone ?: $row->contact_timezone ?: 'UTC'))),
+                'starts_at_utc' => (string) $row->starts_at_utc,
+                'instrument' => (string) ($row->instrument_name ?: '—'),
+                'course' => (string) ($row->course_name ?: '—'),
+                'teacher' => (string) ($row->teacher_name ?: 'Not selected'),
+                'student' => (string) ($row->student_name ?: 'Learner'),
+                'status' => $status,
+                'country' => (string) ($row->country ?: '—'),
+                'attended' => $attended,
+                'payment_link_sent' => $paymentLinkSent ? 'Yes · ' . $this->localLabel($paymentLinkAt, $this->safeTimezone((string) ($row->schedule_timezone ?: $row->contact_timezone ?: 'UTC'))) : 'No',
+                'reminder' => $reminder !== null ? (int) $reminder['count'] . ' · ' . $this->localLabel((string) $reminder['at'], $this->safeTimezone((string) ($row->schedule_timezone ?: $row->contact_timezone ?: 'UTC'))) : 'None',
+                'follow_up_completed' => $followUpCompleted ? 'Yes' : 'No',
+                'sort_at' => (string) $row->starts_at_utc,
+                'outcome' => (string) ($row->outcome_code ?? ''),
+                'preparation_state' => $prepState,
+            );
+        }
+        return array(
+            'rows' => $out,
+            'total' => count($out),
+            'auto_removed' => $autoRemoved,
+            'counts' => $counts,
         );
     }
 
@@ -329,15 +477,16 @@ final class EnrolmentWorkspaceReadService {
         $held = $this->heldSlot($requestId);
         $coordination = $this->coordinationSummary($requestId);
         $confirmation = $this->confirmedBooking($requestId);
+        $pending = $this->pendingDelivery($requestId);
         $outcome = $this->introOutcome($requestId);
         $postIntro = $this->postIntro($requestId);
-        $stage = $this->bookingStage($row, $times, $coordination, $confirmation, $outcome, $postIntro);
+        $stage = $this->bookingStage($row, $times, $coordination, $confirmation, $outcome, $postIntro, $pending);
         $deadline = $this->bookingDeadline($row, $times, $postIntro, $held);
         $age = max(0, time() - strtotime((string) $row->created_at . ' UTC'));
         $urgency = $this->bookingUrgency($row, $stage, $times, $deadline, $outcome, $postIntro);
         $notifications = $this->bookingNotifications($requestId);
-        $teacher = $coordination['teacher_name'] !== '' ? $coordination['teacher_name'] : (string) ($confirmation['teacher_name'] ?? '');
-        $teacherResponse = $coordination['teacher_response'] !== '' ? $coordination['teacher_response'] : (string) ($confirmation['state_label'] ?? '');
+        $teacher = $coordination['teacher_name'] !== '' ? $coordination['teacher_name'] : (string) ($confirmation['teacher_name'] ?? ($pending['teacher_name'] ?? ''));
+        $teacherResponse = $coordination['teacher_response'] !== '' ? $coordination['teacher_response'] : (string) ($confirmation['state_label'] ?? ($pending ? 'Awaiting Teacher response' : ''));
         $conversion = $this->conversionClassification((object) array(
             'id' => $requestId,
             'created_at' => $row->created_at,
@@ -379,8 +528,8 @@ final class EnrolmentWorkspaceReadService {
             'teacher_id' => (int) $coordination['teacher_id'],
             'teacher_name' => $teacher !== '' ? $teacher : 'Teacher not selected',
             'teacher_response' => $teacherResponse !== '' ? $teacherResponse : 'No response recorded',
-            'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0),
-            'availability_state' => $confirmation !== null ? 'Confirmed; provider projection state is shown below' : $coordination['availability_state'],
+            'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0, $pending !== null ? 1 : 0),
+            'availability_state' => $confirmation !== null ? 'Confirmed; provider projection state is shown below' : ($pending !== null ? 'Teacher invited for a requested time; awaiting response' : $coordination['availability_state']),
             'identity_state' => $this->identityState($row),
             'prior_booking_count' => (int) ($row->student_id ?? 0) > 0 ? $this->priorBookingCount((int) $row->student_id, $requestId) : null,
             'notification_summary' => $notifications['summary'],
@@ -388,6 +537,7 @@ final class EnrolmentWorkspaceReadService {
             'urgency_rank' => $urgency['rank'],
             'urgency_label' => $urgency['label'],
             'confirmation' => $confirmation,
+            'pending_delivery' => $pending,
             'outcome' => $outcome,
             'post_intro' => $postIntro,
             'coordination' => $coordination,
@@ -432,7 +582,7 @@ final class EnrolmentWorkspaceReadService {
     }
 
     /** @return array{key:string,label:string,next_action:string} */
-    private function bookingStage(object $row, array $times, array $coordination, ?array $confirmation, ?array $outcome, array $postIntro): array {
+    private function bookingStage(object $row, array $times, array $coordination, ?array $confirmation, ?array $outcome, array $postIntro, ?array $pendingDelivery = null): array {
         $identity = $this->identityState($row);
         if ((string) $row->privacy_erased_at !== '' && $row->privacy_erased_at !== null) {
             return array('key' => 'archived', 'label' => 'Privacy-erased', 'next_action' => 'Archived history only');
@@ -452,6 +602,9 @@ final class EnrolmentWorkspaceReadService {
         if ($outcome !== null) {
             return array('key' => 'post_intro', 'label' => 'Preparing continuation', 'next_action' => 'Review the post-intro exception');
         }
+        if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'cancelled') {
+            return array('key' => 'closed', 'label' => 'Intro cancelled', 'next_action' => 'No further action; retraction and notice are recorded');
+        }
         if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'confirmed') {
             $ended = (string) ($confirmation['ends_at_utc'] ?? '') < gmdate('Y-m-d H:i:s');
             return array('key' => $ended ? 'intro_outcome' : 'intro_scheduled', 'label' => $ended ? 'Outcome due' : 'Trial scheduled', 'next_action' => $ended ? 'Record what happened' : 'Prepare for the introductory lesson');
@@ -461,6 +614,9 @@ final class EnrolmentWorkspaceReadService {
                 return array('key' => 'teacher_agreed', 'label' => 'Teacher agreed', 'next_action' => 'Confirm the trial booking');
             }
             return array('key' => 'teacher_match', 'label' => 'Teacher matching', 'next_action' => 'Record the Teacher’s agreement');
+        }
+        if ($pendingDelivery !== null) {
+            return array('key' => 'teacher_match', 'label' => 'Teacher invited', 'next_action' => 'Await the Teacher response or follow up');
         }
         if ($identity['key'] !== 'verified') {
             return array('key' => 'identity', 'label' => 'Identity needed', 'next_action' => 'Resolve identity or record an identity blocker');
@@ -578,6 +734,27 @@ final class EnrolmentWorkspaceReadService {
     }
 
     /** @return array<string,mixed>|null */
+    /** @return array<string,mixed>|null */
+    private function pendingDelivery(int $requestId): ?array {
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT d.id,d.teacher_id,d.state,d.match_strength,d.created_at,rt.sequence_number,rt.starts_at_utc,rt.local_date,rt.local_start_time,rt.timezone,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name FROM {$this->p}booking_request_teacher_deliveries d INNER JOIN {$this->p}teachers t ON t.id=d.teacher_id INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=d.requested_time_id AND rt.booking_request_id=d.booking_request_id WHERE d.booking_request_id=%d AND d.state='pending_request' ORDER BY d.id DESC LIMIT 1",
+            $requestId
+        ));
+        if (!$row) return null;
+        return array(
+            'delivery_id' => (int) $row->id,
+            'teacher_id' => (int) $row->teacher_id,
+            'teacher_name' => (string) $row->teacher_name,
+            'state' => (string) $row->state,
+            'match_strength' => (string) $row->match_strength,
+            'created_at' => (string) $row->created_at,
+            'sequence' => (int) $row->sequence_number,
+            'starts_at_utc' => (string) $row->starts_at_utc,
+            'local_label' => $this->localLabel((string) $row->starts_at_utc, $this->safeTimezone((string) $row->timezone)),
+        );
+    }
+
     private function confirmedBooking(int $requestId): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
@@ -594,6 +771,9 @@ final class EnrolmentWorkspaceReadService {
         return array(
             'confirmation_id' => (int) $row->id,
             'confirmation_uid' => (string) $row->uid,
+            'version' => (int) $row->version,
+            'booking_request_id' => (int) $row->booking_request_id,
+            'requested_time_id' => (int) $row->requested_time_id,
             'state' => (string) $row->state,
             'state_label' => $this->confirmationStateLabel((string) $row->state),
             'teacher_id' => (int) $row->teacher_id,
@@ -615,6 +795,7 @@ final class EnrolmentWorkspaceReadService {
     private function confirmationStateLabel(string $state): string {
         return match ($state) {
             'confirmed' => 'Confirmed',
+            'cancelled' => 'Cancelled',
             'pending_projection' => 'Calendar projection pending',
             'awaiting_conference' => 'Meet space pending',
             'awaiting_payment' => 'Introductory payment pending',
@@ -800,24 +981,61 @@ final class EnrolmentWorkspaceReadService {
     private function bookingNotifications(int $requestId): array {
         $status = (new NotificationDeliveryStatusReadService())->forBookingRequest($requestId);
         $rows = array();
+        $recovery = current_user_can(BookingNotificationRecoveryService::CAPABILITY) ? new BookingNotificationRecoveryService() : null;
         foreach ((array) $status['rows'] as $row) {
             $category = (string) ($row['category'] ?? 'unknown');
+            $preview = null;
+            if ($recovery !== null && $category === 'failed' && (int) ($row['notification_id'] ?? 0) > 0) {
+                try { $preview = $recovery->preview((int) $row['notification_id']); } catch (\Throwable) { $preview = null; }
+            }
             $rows[] = array(
                 'label' => $this->notificationLabel($category),
                 'category' => $category,
                 'at' => (string) ($row['updated_at'] ?? ''),
                 'detail' => $this->notificationDetail($category, $row),
+                'notification_id' => (int) ($row['notification_id'] ?? 0),
+                'audience' => (string) ($row['audience'] ?? ''),
+                'recipient' => (string) ($row['recipient'] ?? ''),
+                'channel' => (string) ($row['channel'] ?? 'email'),
+                'state' => (string) ($row['state'] ?? ''),
+                'attempt_count' => (int) ($row['attempt_count'] ?? 0),
+                'failure_reason' => (string) ($row['last_error_code'] ?? ''),
+                'last_attempt' => (string) ($row['updated_at'] ?? ''),
+                'provider_receipt_state' => (string) ($row['provider_receipt_state'] ?? ''),
+                'provider_receipt_at' => (string) ($row['provider_receipt_at'] ?? ''),
+                'provider_channel' => (string) ($row['provider_channel'] ?? ''),
+                'provider_template' => (string) ($row['provider_template'] ?? ''),
+                'recovery_available' => !empty($preview['eligible']),
+                'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
         }
         $post = $this->postIntroNotifications($requestId);
         foreach ($post as $row) {
             $category = $this->notificationCategory((string) $row->state, $row->handed_off_at);
             $status['summary'][$category] = (int) ($status['summary'][$category] ?? 0) + 1;
+            $preview = null;
+            if ($recovery !== null && $category === 'failed') {
+                try { $preview = $recovery->preview((int) $row->id); } catch (\Throwable) { $preview = null; }
+            }
             $rows[] = array(
                 'label' => $this->notificationLabel($category) . ' · ' . $this->postIntroNotificationKind((string) $row->notification_kind),
                 'category' => $category,
                 'at' => (string) $row->updated_at,
                 'detail' => $this->notificationDetail($category, array('state' => (string) $row->state, 'attempt_count' => (int) $row->attempt_count, 'last_error_code' => $row->last_error_code)),
+                'notification_id' => (int) $row->id,
+                'audience' => str_contains((string) $row->notification_kind, 'teacher') ? 'teacher' : 'student',
+                'recipient' => '',
+                'channel' => 'email',
+                'state' => (string) $row->state,
+                'attempt_count' => (int) $row->attempt_count,
+                'failure_reason' => (string) ($row->last_error_code ?? ''),
+                'last_attempt' => (string) $row->updated_at,
+                'provider_receipt_state' => '',
+                'provider_receipt_at' => '',
+                'provider_channel' => '',
+                'provider_template' => '',
+                'recovery_available' => !empty($preview['eligible']),
+                'recovery_reason' => (string) ($preview['reason'] ?? ''),
             );
         }
         return array('summary' => $status['summary'] + array('unknown' => 0), 'rows' => $rows);

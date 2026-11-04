@@ -125,6 +125,9 @@
 }
 
 .dzn-classroom__stage {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(12rem, 30%);
   gap: 0.85rem;
@@ -531,3 +534,22 @@ body.dzn-classroom-faux-active { overflow: hidden; }
 [dir="rtl"] .dzn-classroom__status-stack,
 [dir="rtl"] .dzn-classroom__meta-main { text-align: right; align-items: flex-start; }
 [dir="rtl"] .dzn-classroom__control-group--end { margin-inline-start: auto; }
+
+/* The connected room is immersive: remote video uses the viewport, with a small self-view and
+   tap-away controls. The controls retain their accessible names even though their captions are hidden. */
+.dzn-classroom.is-immersive { position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; width:100%; height:100dvh; max-width:none; margin:0; padding:0; background:#000; }
+.dzn-classroom.is-immersive .dzn-classroom__header,.dzn-classroom.is-immersive .dzn-classroom__meta,.dzn-classroom.is-immersive .dzn-classroom__notice,.dzn-classroom.is-immersive .dzn-classroom__music-status,.dzn-classroom.is-immersive .dzn-classroom__alert { display:none; }
+.dzn-classroom.is-immersive .dzn-classroom__stage { display:block; position:relative; flex:1 1 auto; min-height:0; margin:0; padding:0; }
+.dzn-classroom.is-immersive .dzn-classroom__tile--remote { position:absolute; inset:0; width:100%; height:100%; min-height:0; border-radius:0; background:#000; }
+.dzn-classroom.is-immersive .dzn-classroom__tile--remote video,.dzn-classroom.is-immersive .dzn-classroom__tile--remote .dzn-classroom__remote-media video { width:100%; height:100%; min-height:0; object-fit:contain; background:#000; }
+.dzn-classroom.is-immersive .dzn-classroom__tile--local { position:absolute; z-index:5; inset-block-start:max(.6rem,env(safe-area-inset-top)); inset-inline-end:max(.6rem,env(safe-area-inset-right)); width:clamp(6.8rem,23vw,18rem); min-height:0; aspect-ratio:16 / 9; border:2px solid rgb(255 253 248 / 68%); border-radius:var(--dzn-radius-md); box-shadow:0 .5rem 1.8rem rgb(0 0 0 / 55%); }
+.dzn-classroom.is-immersive .dzn-classroom__controls { position:absolute; z-index:10; inset-inline:0; inset-block-end:0; justify-content:center; margin:0; padding:.65rem max(.75rem,env(safe-area-inset-right)) max(.65rem,env(safe-area-inset-bottom)) max(.75rem,env(safe-area-inset-left)); border:0; border-radius:0; background:linear-gradient(to top,rgb(0 0 0 / 84%),rgb(0 0 0 / 0%)); opacity:0; transform:translateY(.75rem); pointer-events:none; transition:opacity 180ms ease,transform 180ms ease; }
+.dzn-classroom.is-immersive.is-controls-visible .dzn-classroom__controls { opacity:1; transform:none; pointer-events:auto; }
+.dzn-classroom.is-immersive:not(.is-controls-visible) { cursor:none; }
+.dzn-classroom.is-immersive .dzn-classroom__control,.dzn-classroom.is-immersive .dzn-classroom__switch { flex:0 0 auto; width:2.7rem; min-width:2.7rem; min-height:2.7rem; padding:0; border-radius:50%; }
+.dzn-classroom.is-immersive .dzn-classroom__switch { display:grid; place-items:center; }
+.dzn-classroom.is-immersive .dzn-classroom__switch-track { display:grid; place-items:center; width:100%; height:100%; background:rgb(30 123 112 / 40%); color:#fff; }
+.dzn-classroom.is-immersive .dzn-classroom__switch-track::after { display:none; }
+.dzn-classroom.is-immersive .dzn-classroom__switch input:checked + .dzn-classroom__switch-track { background:var(--dzn-color-action-primary); }
+.dzn-classroom.is-immersive .dzn-classroom__devices { display:none; }
+@media (max-width:640px) { .dzn-classroom.is-immersive .dzn-classroom__tile--local { width:clamp(5.8rem,30vw,9.5rem); } .dzn-classroom.is-immersive .dzn-classroom__control,.dzn-classroom.is-immersive .dzn-classroom__switch { width:2.55rem; min-width:2.55rem; min-height:2.55rem; } .dzn-classroom.is-immersive .dzn-classroom__controls { gap:.35rem; flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; } }

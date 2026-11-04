@@ -43,10 +43,12 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
         $access=$this->required($response,'access_token');
         $refresh=$this->required($response,'refresh_token');
         $scope=$this->required($response,'scope');
-        $subject=$this->subject($access);
+        $identity=$this->identity($access);
         return array(
             'granted_scope_snapshot'=>$scope,
-            'provider_subject_reference'=>$subject,
+            'provider_subject_reference'=>$identity['subject'],
+            'provider_account_email'=>$identity['email'],
+            'provider_email_verified'=>$identity['email_verified'],
             'credential_material'=>$this->encodeCredential($access,$refresh,$response),
             'access_valid_until_utc'=>gmdate('Y-m-d H:i:s',time()+max(60,(int)($response['expires_in']??3600))),
             'consent_version'=>'google-oauth2-v2',
@@ -85,7 +87,8 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
             $credential=$this->decodeCredential((string)($connection['credential_material']??''));
             $scope=trim((string)($connection['scope_snapshot']??''));
             if($scope==='')throw new \RuntimeException('provider_scope_unavailable');
-            return array('usable'=>true,'provider_subject_reference'=>$this->subject($credential['access_token']),'granted_scope_snapshot'=>$scope,'failure_reason_code'=>null);
+            $identity=$this->identity($credential['access_token']);
+            return array('usable'=>true,'provider_subject_reference'=>$identity['subject'],'provider_account_email'=>$identity['email'],'provider_email_verified'=>$identity['email_verified'],'granted_scope_snapshot'=>$scope,'failure_reason_code'=>null);
         }catch(\Throwable){
             return array('usable'=>false,'provider_subject_reference'=>null,'granted_scope_snapshot'=>null,'failure_reason_code'=>'provider_inspection_failed');
         }
@@ -112,7 +115,8 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
         return $body;
     }
 
-    private function subject(string $access):string{
+    /** @return array{subject:string,email:?string,email_verified:bool} */
+    private function identity(string $access):array{
         $response=wp_remote_get(self::USER_INFO_URI,array(
             'timeout'=>15,'redirection'=>0,
             'headers'=>array('Authorization'=>'Bearer '.$access,'Accept'=>'application/json'),
@@ -124,7 +128,10 @@ final class GoogleOAuthTransport implements ProviderOAuthPort {
         if(!is_scalar($raw))throw new \RuntimeException('google_oauth_subject_unavailable');
         $subject=trim((string)$raw);
         if($subject===''||strlen($subject)>255||preg_match('/[\x00-\x1F\x7F]/',$subject))throw new \RuntimeException('google_oauth_subject_unavailable');
-        return $subject;
+        $email=$body['email']??null;
+        $email=is_scalar($email)?strtolower(trim((string)$email)):'';
+        if($email!==''&&(strlen($email)>254||!(function_exists('is_email')?is_email($email):filter_var($email,FILTER_VALIDATE_EMAIL)!==false)))$email='';
+        return array('subject'=>$subject,'email'=>$email!==''?$email:null,'email_verified'=>($body['email_verified']??false)===true&&$email!=='');
     }
 
     private function encodeCredential(string $access,string $refresh,array $response):string{

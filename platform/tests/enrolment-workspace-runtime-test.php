@@ -9,6 +9,7 @@ use Delnavazan\Platform\Core\Application\AdministratorBookingMatchService;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
 use Delnavazan\Platform\Core\Application\BookingRequestSubmissionService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
+use Delnavazan\Platform\Core\Application\IntroLessonLifecycleService;
 use Delnavazan\Platform\Core\Application\StudentIdentityResolutionService;
 use Delnavazan\Platform\Core\Application\StudentService;
 
@@ -28,6 +29,38 @@ $assert((int) $first['request_id'] === (int) $second['request_id'], 'A repeated 
 $assert((int) $first['confirmation_id'] === (int) $second['confirmation_id'], 'A repeated introductory action created a second confirmation');
 $count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_confirmations WHERE booking_request_id=%d", (int) $first['request_id']));
 $assert($count === 1, 'Repeated introductory action must create one authoritative confirmation');
+
+// The administrator-created confirmation must invoke the provider projector. Without the
+// projector this row stays pending_projection with no attempt, no portal projection and no
+// confirmation notification. A disposable environment has no Google credential, so the
+// projector is expected to mark the confirmation retryable rather than silently skip it.
+$introConfirmation = $wpdb->get_row($wpdb->prepare("SELECT state,attempt_count,failure_reason_code FROM {$p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1", (int) $first['request_id']));
+$assert($introConfirmation !== null, 'Administrator intro confirmation missing');
+$assert((string) $introConfirmation->state !== 'pending_projection' || (int) $introConfirmation->attempt_count > 0, 'Administrator intro did not invoke the booking calendar projector');
+
+$cancelled = (new IntroLessonLifecycleService())->cancel((int) $first['request_id'], 'admin', 'operational_change', 'runtime-intro-cancel-' . wp_generate_uuid4());
+$assert($cancelled['state'] === 'cancelled', 'Administrator could not cancel the introductory booking');
+$cancelledRow = $wpdb->get_row($wpdb->prepare("SELECT state FROM {$p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1", (int) $first['request_id']));
+$assert($cancelledRow !== null && (string) $cancelledRow->state === 'cancelled', 'Cancelled confirmation state was not persisted');
+$requestState = $wpdb->get_row($wpdb->prepare("SELECT lifecycle_status,resolution_state FROM {$p}booking_requests WHERE id=%d", (int) $first['request_id']));
+$assert($requestState !== null && (string) $requestState->lifecycle_status === 'closed' && (string) $requestState->resolution_state === 'cancelled', 'Cancelled request was not closed');
+$cancelledNotifications = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications n INNER JOIN {$p}booking_request_teacher_deliveries d ON d.id=n.delivery_id WHERE d.booking_request_id=%d AND n.notification_kind IN ('cancelled','cancelled_teacher')", (int) $first['request_id']));
+$assert($cancelledNotifications === 2, 'Cancellation must queue Student and Teacher notifications');
+$cancelAudit = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.intro_cancelled'", (int) $first['request_id']));
+$assert($cancelAudit === 1, 'Cancellation audit evidence missing');
+
+// A second introductory booking proves the Teacher/Admin reschedule path. The same disposable
+// Teacher is already known to be free in this synthetic slot after the first one is cancelled.
+$secondIntro = (new AdministratorIntroBookingService())->create((int) $fixture['student_id'], (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, 'runtime-intro-reschedule-' . wp_generate_uuid4());
+$newDate = gmdate('Y-m-d', strtotime('+33 days'));
+$rescheduled = (new IntroLessonLifecycleService())->reschedule((int) $secondIntro['request_id'], 'admin', array('local_date' => $newDate, 'local_start_time' => '20:00', 'timezone' => 'Australia/Brisbane'), 'operational_change', 'runtime-intro-reschedule-command-' . wp_generate_uuid4());
+$assert(str_contains((string) $rescheduled['local_label'], '20:00'), 'Reschedule did not return the requested local time');
+$rescheduledRow = $wpdb->get_row($wpdb->prepare("SELECT starts_at_utc,local_wall_date,local_wall_time FROM {$p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1", (int) $secondIntro['request_id']));
+$assert($rescheduledRow !== null && (string) $rescheduledRow->local_wall_date === $newDate && str_starts_with((string) $rescheduledRow->local_wall_time, '20:00'), 'Rescheduled confirmation facts were not persisted');
+$rescheduledNotifications = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_student_notifications n INNER JOIN {$p}booking_request_teacher_deliveries d ON d.id=n.delivery_id WHERE d.booking_request_id=%d AND n.notification_kind IN ('rescheduled','rescheduled_teacher')", (int) $secondIntro['request_id']));
+$assert($rescheduledNotifications === 2, 'Reschedule must queue Student and Teacher notifications');
+$rescheduleAudit = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.intro_rescheduled'", (int) $secondIntro['request_id']));
+$assert($rescheduleAudit === 1, 'Reschedule audit evidence missing');
 
 $importKey = 'runtime-import-idempotent-' . substr(hash('sha256', wp_generate_uuid4()), 0, 12);
 $importInput = array(

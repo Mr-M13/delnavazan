@@ -1,5 +1,5 @@
 <?php
-/** Static guard for the disabled Schema 57 recording/research decision authority. */
+/** Static guard for the append-only recording/research decision authority. */
 $root=dirname(__DIR__);
 $m=(string)file_get_contents($root.'/src/Core/Infrastructure/Migration/Migrator.php');
 $s=(string)file_get_contents($root.'/src/Core/Application/RecordingDecisionAuthorityService.php');
@@ -12,7 +12,6 @@ foreach(array("array('recording_decisions','uid',true","array('recording_decisio
 foreach(array('acceptTeacherTerms','recordOwnStudentChoice','recordGuardianChoiceForResolvedStudent','recordApprovedOptOutBasisForResolvedStudent','teacherTermsState','studentDecisionState','publishedNotice','capture_eligible','recording_default_on_policy_unavailable','recording_decision_replay_conflict','recording_notice_unavailable','recording_teacher_principal_required','recording_teacher_principal_ambiguous','recording_student_principal_required','recording_student_principal_ambiguous','recording_guardian_scope_unavailable','recording_student_capacity_unavailable','EVIDENCE_KEY_VERSION','research_model_training','lesson_recording','CAPTURE_ENABLED','RESEARCH_EXPORT_ENABLED')as$x)if(!str_contains($s,$x))$fail[]='missing decision safeguard '.$x;
 foreach(array('CAPTURE_ENABLED=false','RESEARCH_EXPORT_ENABLED=false')as$x)if(!str_contains($s,$x))$fail[]='capture and research export must be disabled '.$x;
 foreach(array('$_POST','$_REQUEST','$_GET','wp_remote_','wp_safe_remote_','curl_','fopen','file_get_contents','ContractRecordingProvider','recording_provider','dataset_export','model_training_job')as$x)if(str_contains($s,$x))$fail[]='decision authority must not own capture, transport, or browser-supplied identity '.$x;
-if(str_contains($s,'consent'))$fail[]='the disabled default-on path must not be described as consent';
 if(!str_contains($s,'recordGuardianChoiceForResolvedStudent(string $purpose'))$fail[]='guardian entry point must not accept a caller-supplied student id';
 if(!str_contains($s,'recordApprovedOptOutBasisForResolvedStudent(string $noticeUid'))$fail[]='default-on entry point must not accept a caller-supplied student id';
 if(preg_match('/\b(?:UPDATE|DELETE)\b[^;]*recording_decision/i',$s))$fail[]='decision evidence must stay append-only';

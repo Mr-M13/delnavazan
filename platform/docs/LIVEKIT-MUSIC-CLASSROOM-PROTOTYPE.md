@@ -113,7 +113,7 @@ Direct endpoint tests also passed:
    cannot be opened.
 4. Require the exact current `applicable_slot = 1` schedule version. A superseded version (including
    after a reschedule) is refused as `livekit_stale_schedule`.
-5. Enforce the existing joining window: one hour before the start until two hours after the end.
+5. Enforce the participant joining window: 30 minutes before the start until 30 minutes after the end.
 6. Include exactly two derived participant identities — the assigned Teacher and the enrolled
    Student. A duplicate tab or reconnect uses the same identity, so LiveKit replaces the old
    connection rather than admitting a third person.
@@ -292,7 +292,7 @@ Never log the API secret, participant JWT, launch ticket, Meet URL, or raw provi
   processing flags.
 - The classroom rotation control rotates the local presentation only. Publishing a physically
   rotated camera stream would require a canvas/video processor and is not implemented.
-- No recording, egress, transcription, analytics, data-channel messaging, or PixelBox storage is
+- No recording, egress, transcription, analytics, data-channel messaging, or Pi storage is
   implemented.
 - Real two-browser Chrome testing was completed against the production LiveKit server. Physical
   iPad/iPhone Safari and real microphone/speaker quality were not tested in this release.
@@ -303,7 +303,7 @@ Never log the API secret, participant JWT, launch ticket, Meet URL, or raw provi
   test account was available; the existing production Meet mapping and vault reference were
   verified read-only.
 
-## Future recording and PixelBox storage integration (not implemented)
+## Future recording and Pi storage integration (not implemented)
 
 Recording is out of scope for this task. If it is added later:
 
@@ -311,7 +311,7 @@ Recording is out of scope for this task. If it is added later:
 - use LiveKit Egress with a dedicated server-side participant/API credential, never a browser token;
 - composite the Delnavazan watermark into the recorded output (for example with an egress layout or
   post-processing), because a CSS overlay is not captured;
-- store recordings only in the approved PixelBox storage boundary with retention, access, and deletion
+- store recordings only in the approved Pi storage boundary with retention, access, and deletion
   policy;
 - keep egress/recording events out of attendance/completion authority; canonical participant
   lifecycle evidence follows the separate, disabled-by-default adapter documented in

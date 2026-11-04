@@ -52,6 +52,7 @@ final class NotificationCatalogue {
         foreach(self::teacherEvents() as $event)$events[$event['key']]=$event;
         foreach(self::adminEvents() as $event)$events[$event['key']]=$event;
         foreach(self::declaredFinancialEvents() as $event)$events[$event['key']]=$event;
+        foreach(self::consentEvents() as $event)$events[$event['key']]=$event;
         ksort($events,SORT_STRING);
         return $events;
     }
@@ -140,6 +141,26 @@ final class NotificationCatalogue {
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson request update','body'=>"Hello {{name}},\n\n{{teacher}} is unable to accept your introductory {{course}} lesson at this time. The request was not confirmed and no calendar event or meeting link was created.\n\nChoose another time in your account:\n{{portal_url}}\n\nDelnavazan"),
                 'website'=>array('subject'=>'Introductory lesson request not accepted','body'=>'{{teacher}} is unable to accept the {{course}} lesson at this time.'),
+            ),
+        ));
+        $out[]=self::event('booking.cancelled.student','Intro Lesson Cancelled','booking','student','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.cancelled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس معارفه لغو شد','body'=>"درود {{name}}،\n\nکلاس معارفهٔ «{{course}}» با {{teacher}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس معارفه لغو شد','body'=>'کلاس معارفهٔ «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory lesson cancelled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} for {{when}} has been cancelled. No attendance or payment decision was inferred.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson cancelled','body'=>'Your {{course}} lesson with {{teacher}} for {{when}} was cancelled.'),
+            ),
+        ));
+        $out[]=self::event('booking.rescheduled.student','Intro Lesson Rescheduled','booking','student','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.rescheduled',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · زمان کلاس معارفه تغییر کرد','body'=>"درود {{name}}،\n\nزمان کلاس معارفهٔ «{{course}}» با {{teacher}} به {{when}} تغییر کرد.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'زمان کلاس معارفه تغییر کرد','body'=>'زمان کلاس معارفهٔ «{{course}}» با {{teacher}} به {{when}} تغییر کرد.'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory lesson rescheduled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} has been rescheduled to {{when}}.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory lesson rescheduled','body'=>'Your {{course}} lesson with {{teacher}} is now at {{when}}.'),
             ),
         ));
         $out[]=self::event('post_intro.invitation.student','Enrolment Ready','booking','student','PostIntroPreparationService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.invitation',array(
@@ -250,6 +271,19 @@ final class NotificationCatalogue {
         $out[]=self::event('booking.expired.teacher','Intro Offer Expired','booking','teacher','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.expired.teacher',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'مهلت پاسخ درخواست آشنایی پایان یافت','body'=>'مهلت پاسخ این درخواست پایان یافته است. درخواست دیگر برای شما قابل پذیرش نیست و به مدرس بعدی یا هماهنگی آکادمی سپرده شده است.')),
         ));
+        $out[]=self::event('booking.cancelled.teacher','Intro Lesson Cancelled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.cancelled.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس معارفه لغو شد','body'=>"درود {{teacher}}،\n\nکلاس معارفهٔ «{{course}}» با {{student}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس معارفه لغو شد','body'=>'کلاس معارفهٔ «{{course}}» با {{student}} در {{when}} لغو شد.'),
+            ),
+        ));
+        $out[]=self::event('booking.rescheduled.teacher','Intro Lesson Rescheduled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.rescheduled.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · زمان کلاس معارفه تغییر کرد','body'=>"درود {{teacher}}،\n\nزمان کلاس معارفهٔ «{{course}}» با {{student}} به {{when}} تغییر کرد.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'زمان کلاس معارفه تغییر کرد','body'=>'زمان کلاس معارفهٔ «{{course}}» با {{student}} به {{when}} تغییر کرد.'),
+            ),
+
+        ));
         self::appendRescheduleTeacher($out);
         return $out;
     }
@@ -278,6 +312,38 @@ final class NotificationCatalogue {
                     self::PRIMARY_LOCALE=>array('email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"درود،\n\n".$content[1]."\n\nاین پیام فقط برای اطلاع مدیر آموزشگاه است.\n\nدلنوازان")),
                 ));
             }
+        }
+        return $out;
+    }
+
+    // ------------------------------------------------------------------ consent lifecycle events
+
+    /**
+     * Consent notices are operational account messages. They never contain decision evidence,
+     * guardian identity, recording contents or research material.
+     */
+    private static function consentEvents():array{
+        $definitions=array(
+            'consent.teacher_required.teacher'=>array('Teacher Consent Required','consent_required','teacher','teacher','email','website','teacher_portal_url',array('teacher','teacher_portal_url'),'درود {{teacher}}، برای ادامهٔ همکاری لازم است انتخاب‌های ضبط کلاس و پژوهش را در پرتال مدرس بررسی کنید. هیچ کلاسی به‌صورت خودکار ضبط نمی‌شود. {{teacher_portal_url}}'),
+            'consent.student_required.student'=>array('Student Consent Required','consent_required','student','student','email','website','portal_url',array('name','portal_url'),'درود {{name}}، لطفاً انتخاب‌های ضبط کلاس و پژوهش را در حساب کاربری بررسی کنید. هیچ کلاسی بدون انتخاب شما ضبط نمی‌شود. {{portal_url}}'),
+            'consent.guardian_required.guardian'=>array('Guardian Consent Required','consent_required','guardian','guardian','email','website','portal_url',array('portal_url'),'درود، برای هنرجوی زیر ۱۸ سال، تصمیم دربارهٔ ضبط کلاس و پژوهش نیازمند تأیید سرپرست دارای اختیار است. لطفاً از حساب کاربری اقدام کنید. {{portal_url}}'),
+            'consent.recorded.teacher'=>array('Teacher Consent Recorded','consent_recorded','teacher','teacher','website','website','teacher_portal_url',array('teacher_portal_url'),'درود، انتخاب شما ثبت شد. تاریخچهٔ تصمیم‌ها در پرتال مدرس قابل مشاهده است. {{teacher_portal_url}}'),
+            'consent.recorded.student'=>array('Student Consent Recorded','consent_recorded','student','student','website','website','portal_url',array('portal_url'),'درود، انتخاب شما ثبت شد. تاریخچهٔ تصمیم‌ها در حساب کاربری قابل مشاهده است. {{portal_url}}'),
+            'consent.policy_updated.student'=>array('Student Consent Policy Updated','consent_policy_updated','student','student','email','website','portal_url',array('portal_url'),'درود، اطلاعیهٔ ضبط یا پژوهش به‌روزرسانی شده است. لطفاً نسخهٔ تازه را در حساب کاربری بررسی کنید. {{portal_url}}'),
+            'consent.policy_updated.teacher'=>array('Teacher Consent Policy Updated','consent_policy_updated','teacher','teacher','email','website','teacher_portal_url',array('teacher_portal_url'),'درود، اطلاعیهٔ ضبط یا پژوهش به‌روزرسانی شده است. لطفاً نسخهٔ تازه را در پرتال مدرس بررسی کنید. {{teacher_portal_url}}'),
+            'consent.withdrawal_confirmed.teacher'=>array('Teacher Consent Withdrawal Confirmed','consent_withdrawal','teacher','teacher','email','website','teacher_portal_url',array('teacher_portal_url'),'درود، درخواست پس گرفتن رضایت ثبت شد. پردازش‌های آیندهٔ وابسته متوقف می‌شود. {{teacher_portal_url}}'),
+            'consent.withdrawal_confirmed.student'=>array('Student Consent Withdrawal Confirmed','consent_withdrawal','student','student','email','website','portal_url',array('portal_url'),'درود، درخواست پس گرفتن رضایت ثبت شد. پردازش‌های آیندهٔ وابسته متوقف می‌شود. {{portal_url}}'),
+            'consent.admin_attention.admin'=>array('Consent Action Required','consent_attention','admin','admin','website','website','when',array('when'),'درود، یک مورد رضایت یا پردازش پس از پس گرفتن نیازمند بررسی مدیر است. زمان: {{when}}'),
+        );
+        $out=array();
+        foreach($definitions as$key=>$definition){
+            [$label,$template,$category,$audience,$channel,$consent,$variable,$variables,$body]=$definition;
+            $channels=array_values(array_unique(array($channel,'website')));
+            $out[]=self::event($key,$label,$category==='admin'?'account':'account',$audience,'ConsentNotificationService','queue',$channels,$consent,false,$variables,$template,array(
+                self::PRIMARY_LOCALE=>array('website'=>array('subject'=>$label,'body'=>$body),'email'=>array('subject'=>'دلنوازان · '.$label,'body'=>$body)),
+                'en'=>array('website'=>array('subject'=>$label,'body'=>$label.' — open your account to review the current choice.'),'email'=>array('subject'=>'Delnavazan · '.$label,'body'=>$label.' — open your account to review the current choice.')),
+            ));
+            $out[count($out)-1]['implementation']='partial';
         }
         return $out;
     }

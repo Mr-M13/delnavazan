@@ -22,6 +22,19 @@ final class BookingCalendarProjectionService {
         if((string)$confirmation->state==='confirmed')return array('confirmation_id'=>$confirmationId,'state'=>'confirmed','idempotent'=>true);
         if((string)$confirmation->state==='awaiting_payment')throw new \InvalidArgumentException('intro_payment_required');
         if(!in_array((string)$confirmation->state,array('pending_projection','awaiting_conference','retryable'),true))throw new \InvalidArgumentException('Booking confirmation is not projectable');
+        // The central Delnavazan Workspace classroom is the production path. The legacy Teacher
+        // calendar path remains available only while no organizer connection is configured, so a
+        // rollback does not require a code change.
+        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()){
+            try{
+                $provider=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->ensureForBooking($confirmationId);
+                return $this->confirm($confirmation,$provider);
+            }catch(\Throwable $error){
+                $code=preg_match('/^[a-z0-9_]{3,64}$/D',$error->getMessage())?$error->getMessage():'meet_classroom_projection_failed';
+                $state=$this->retry($confirmation,$code);
+                return array('confirmation_id'=>$confirmationId,'state'=>$state,'failure_reason_code'=>$code,'retryable'=>$state==='retryable');
+            }
+        }
         try{
             $credential=$this->repository->credential((int)$confirmation->connection_id);if(!$credential)throw new \RuntimeException('provider_credential_required');
             if($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60){
@@ -40,6 +53,52 @@ final class BookingCalendarProjectionService {
             $code=in_array($error->getMessage(),array('provider_credential_required','provider_credential_refresh_required','provider_reference_required'),true)?$error->getMessage():'provider_projection_retryable';
             $state=$this->retry($confirmation,$code);return array('confirmation_id'=>$confirmationId,'state'=>$state,'failure_reason_code'=>$code,'retryable'=>$state==='retryable');
         }
+    }
+
+    /** Move the provider event after the local confirmation has been revalidated. */
+    public function reschedule(int $confirmationId,string $startsAtUtc,string $endsAtUtc,string $timezone):array{
+        $confirmation=$this->repository->confirmation($confirmationId);
+        if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
+        if((string)$confirmation->state!=='confirmed')throw new \InvalidArgumentException('Booking confirmation is not provider-confirmed');
+        $secret=$this->repository->projectionSecret($confirmationId);
+        if(!$secret)throw new \RuntimeException('provider_reference_required');
+        $opened=$this->references->open('booking_calendar',$confirmationId,$secret);
+        $event=trim((string)($opened['provider_object_reference']??''));
+        if($event==='')throw new \RuntimeException('provider_reference_required');
+        $material=$this->credentialMaterial($confirmation);
+        $provider=$this->transport->revise($event,$startsAtUtc,$endsAtUtc,$timezone,$material);
+        return array(
+            'confirmation_id'=>$confirmationId,
+            'state'=>'confirmed',
+            'provider_object_reference'=>(string)($provider['provider_object_reference']??$event),
+            'join_uri_reference'=>$provider['join_uri_reference']??null,
+        );
+    }
+
+    /** Remove the provider event; the local cancellation authority decides the final state. */
+    public function cancel(int $confirmationId):array{
+        $confirmation=$this->repository->confirmation($confirmationId);
+        if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
+        if((string)$confirmation->state!=='confirmed')return array('confirmation_id'=>$confirmationId,'state'=>'not_projected','idempotent'=>true);
+        $secret=$this->repository->projectionSecret($confirmationId);
+        if(!$secret)return array('confirmation_id'=>$confirmationId,'state'=>'not_projected','idempotent'=>true);
+        $opened=$this->references->open('booking_calendar',$confirmationId,$secret);
+        $event=trim((string)($opened['provider_object_reference']??''));
+        if($event==='')return array('confirmation_id'=>$confirmationId,'state'=>'not_projected','idempotent'=>true);
+        $this->transport->cancel($event,$this->credentialMaterial($confirmation));
+        $this->repository->retireSecret((int)$secret->id,(int)get_current_user_id(),gmdate('Y-m-d H:i:s'));
+        return array('confirmation_id'=>$confirmationId,'state'=>'cancelled','idempotent'=>false);
+    }
+
+    private function credentialMaterial(object $confirmation):string{
+        $credential=$this->repository->credential((int)$confirmation->connection_id);
+        if(!$credential)throw new \RuntimeException('provider_credential_required');
+        if($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60){
+            if(!$this->refresher->refresh((int)$confirmation->connection_id,(int)$confirmation->id,(int)$confirmation->attempt_count))throw new \RuntimeException('provider_credential_refresh_required');
+            $credential=$this->repository->credential((int)$confirmation->connection_id);
+            if(!$credential||($credential->valid_until_utc!==null&&strtotime((string)$credential->valid_until_utc.' UTC')<=time()+60))throw new \RuntimeException('provider_credential_refresh_required');
+        }
+        return $this->credentials->open((int)$confirmation->connection_id,'google_calendar',$credential);
     }
 
     private function request(object $confirmation):array{

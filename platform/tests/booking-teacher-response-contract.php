@@ -10,6 +10,8 @@ $files = array(
     'provider_service' => $read($root . '/src/Core/Application/ProviderIntegrationService.php'),
     'provider_rule' => $read($root . '/src/Core/Application/ProviderIntegrationRule.php'),
     'repository' => $read($root . '/src/Core/Infrastructure/Repository/BookingTeacherResponseRepository.php'),
+    'occupancy_query' => $read($root . '/src/Core/Infrastructure/Repository/StudentOccupancyQuery.php'),
+    'occupancy_authority' => $read($root . '/src/Core/Application/StudentOccupancyAuthority.php'),
     'onboarding_repository' => $read($root . '/src/Core/Infrastructure/Repository/TeacherOnboardingRepository.php'),
     'projection' => $read($root . '/src/Integrations/BookingCalendarProjectionService.php'),
     'refresh' => $read($root . '/src/Integrations/BookingGoogleCredentialRefresher.php'),
@@ -29,6 +31,7 @@ $checks = array(
     'response persistence is durable and idempotent' => str_contains($files['migration'], 'booking_request_confirmations') && str_contains($files['migration'], 'booking_request_teacher_commands') && str_contains($files['migration'], 'booking_request_student_notifications') && str_contains($files['migration'], 'UNIQUE KEY delivery_kind') && str_contains($files['migration'], 'UNIQUE KEY command_key_digest') && str_contains($files['migration'], 'lease_token_digest'),
     'teacher authority owns the response' => str_contains($files['service'], 'get_current_user_id()') && str_contains($files['repository'], 'l.wordpress_user_id=%d') && str_contains($files['service'], '(int)$delivery->teacher_id!==(int)$teacher->id'),
     'acceptance requires current readiness and byte-exactly the Calendar events scope' => str_contains($files['service'], "readiness_state!=='ready'") && str_contains($files['repository'], "c.identity_state='verified'") && str_contains($files['repository'], 'BINARY c.scope_snapshot = BINARY %s') && str_contains($files['onboarding_repository'], 'BINARY c.scope_snapshot = BINARY %s') && !str_contains($files['repository'].$files['onboarding_repository'], 'scope_snapshot LIKE'),
+    'an overlapping Student booking is refused before confirmation' => str_contains($files['service'], 'studentOccupancyConflicts(') && str_contains($files['service'], 'ensureAndLockStudentRoot(') && str_contains($files['service'], "'student_slot_conflict'") && str_contains($files['repository'], 'studentOccupancyConflicts(') && str_contains($files['occupancy_query'], "c.state IN ('pending_projection','awaiting_conference','retryable','awaiting_payment','confirmed')") && str_contains($files['occupancy_query'], 'occupied_ends_at_utc'),
     'idempotent replay observes the live confirmation state' => str_contains($files['service'], 'function replay(') && str_contains($files['service'], '$this->repository->confirmation($confirmationId)') && substr_count($files['service'], '$this->repository->command($keyDigest)') >= 2,
     'calendar and Meet precede confirmation' => str_contains($files['projection'], "empty(\$provider['join_uri_reference'])") && str_contains($files['projection'], "'state'=>'confirmed'") && strpos($files['projection'], "'state'=>'confirmed'") < strpos($files['projection'], "'notification_kind'=>'confirmed'"),
     'provider writes are deterministic and vaulted' => str_contains($files['projection'], 'dzn:booking-confirmation:') && str_contains($files['projection'], 'dzn-meet:booking-confirmation:') && str_contains($files['projection'], "seal('booking_calendar'") && !str_contains($files['migration'], 'join_uri_reference varchar'),
@@ -40,7 +43,7 @@ $checks = array(
     'student notification uses fenced recovery and reports handoff, not delivery' => str_contains($files['notification'], 'lease_token_digest') && str_contains($files['notification'], "'handed_off'") && str_contains($files['notification'], "'recipient_delivery_confirmed'=>false"),
     'student confirmation never depends on or exposes the Meet backup' => !str_contains($files['notification'], 'join_uri_reference') && !str_contains($files['notification'], 'Google Meet') && !str_contains($files['notification'], 'projectionSecret'),
     'portal actions are nonce protected' => str_contains($files['controller'], "check_admin_referer('dzn_teacher_booking_response')") && str_contains($files['attention'], 'response_nonce') && str_contains($files['attention'], 'delivery_uid'),
-    'Google readiness is reachable in the onboarding account workspace' => str_contains($files['bridge'], 'dzn_theme_platform_teacher_onboarding_step') && str_contains($files['portal'], "current_step'] > 5") && str_contains($files['wizard'], "component( 'account'") && str_contains($files['account'], "component('google-settings'"),
+    'Central classroom readiness requires no Teacher Google step in onboarding' => str_contains($files['bridge'], 'dzn_theme_platform_teacher_onboarding_step') && !str_contains($files['account'], "component('google-settings'") && !str_contains($files['wizard'], 'اتصال Google Calendar'),
 );
 foreach ($checks as $name => $ok) {
     if (!$ok) throw new RuntimeException('Booking teacher response contract failed: ' . $name);

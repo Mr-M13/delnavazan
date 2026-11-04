@@ -3,7 +3,6 @@ namespace Delnavazan\Platform\Admin\View;
 
 use Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController;
 use Delnavazan\Platform\Admin\Controller\Menu;
-use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
 use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
@@ -26,17 +25,17 @@ final class EnrolmentWorkspaceView {
             sanitize_text_field((string) ($query['report_from'] ?? gmdate('Y-m-d', strtotime('-30 days')))),
             sanitize_text_field((string) ($query['report_to'] ?? gmdate('Y-m-d')))
         );
-        $preview = self::introPreview();
         echo '<div class="wrap dzn-enrolment dzn-enrolment--trials">';
+        self::tabs('new');
         self::notices();
-        echo '<header class="dzn-enrolment__hero"><div><p class="dzn-eyebrow">Enrolment administration</p><h1>New bookings &amp; trials</h1>';
+        echo '<header class="dzn-enrolment__page-head"><div><h1>Intro</h1>';
         echo '<p>Incoming requests, Teacher matching and the introductory lesson in one place. Completed, cancelled and expired trials are kept in History and are never mixed into the action queue.</p></div>';
         echo '<div class="dzn-enrolment__hero-actions">';
         if (current_user_can('dzn_manage_booking_request_coordination')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Coordination cases</a>';
         if (current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) echo '<a class="button button-primary" href="#dzn-create-intro">Create introductory lesson</a>';
         echo '</div></header>';
         self::reportPanel($report);
-        if (current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) self::createIntroPanel($read, $preview);
+        if (current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) self::createIntroPanel($read);
         self::bookingFiltersForm($filters, false);
         echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-action-needed"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Urgency ordered</p><h2 id="dzn-action-needed">Action needed</h2></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $active['total'])) . ' active ' . esc_html($active['total'] === 1 ? 'case' : 'cases') . '</span></div>';
         if (!$active['rows']) {
@@ -54,10 +53,44 @@ final class EnrolmentWorkspaceView {
         echo '</div></details></div>';
     }
 
+    public static function review(EnrolmentWorkspaceReadService $read, array $query): void {
+        $review = $read->reviewCases();
+        echo '<div class="wrap dzn-enrolment dzn-enrolment--review">';
+        self::tabs('review');
+        self::notices();
+        echo '<header class="dzn-enrolment__page-head"><div><h1>Review</h1>';
+        echo '<p>Every confirmed introductory request that still needs attention. The table shows the delivery, payment-link, reminder and follow-up facts that already exist in the platform; it never invents attendance or payment evidence.</p></div></header>';
+        echo '<div class="dzn-mini-stats dzn-review-stats"><span><strong>' . esc_html((string) $review['counts']['upcoming']) . '</strong> upcoming</span><span><strong>' . esc_html((string) $review['counts']['outcome_due']) . '</strong> outcome due</span><span><strong>' . esc_html((string) $review['counts']['payment_open']) . '</strong> payment link open</span><span><strong>' . esc_html((string) $review['counts']['follow_up_due']) . '</strong> follow-up due</span></div>';
+        echo '<p class="description">' . ((int) $review['auto_removed'] > 0 ? esc_html(number_format_i18n((int) $review['auto_removed'])) . ' request(s) were removed from this active queue because the payment link was sent more than 14 days ago and no decision or payment was recorded. ' : '') . 'A request is removed from this active queue 14 days after the payment link is sent when no decision or payment was recorded. The underlying case remains available in History.</p>';
+        echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-review-queue"><div class="dzn-enrolment__section-head"><div><h2 id="dzn-review-queue">Active introductory requests</h2><p>The queue is based on the latest booking confirmation. Cancelled and auto-expired requests are not shown.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $review['total'])) . ' active</span></div>';
+        if (!$review['rows']) {
+            echo '<div class="dzn-empty-state"><h3>No introductory requests need review</h3><p>New confirmed introductory bookings appear here immediately.</p></div>';
+        } else {
+            echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-review-table"><thead><tr><th>Date</th><th>Instrument</th><th>Teacher</th><th>Student</th><th>Status</th><th>Country</th><th>Attended</th><th>Payment link sent</th><th>Reminder</th><th>Follow-up completed</th></tr></thead><tbody>';
+            foreach ($review['rows'] as $row) {
+                $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&request_id=' . (int) $row['id']);
+                echo '<tr>';
+                echo '<td><a href="' . esc_url($url) . '"><strong>' . esc_html((string) $row['date']) . '</strong></a><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
+                echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course']) . '</small></td>';
+                echo '<td>' . esc_html((string) $row['teacher']) . '</td>';
+                echo '<td><a href="' . esc_url($url) . '">' . esc_html((string) $row['student']) . '</a></td>';
+                echo '<td><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row['status']) . '</span></td>';
+                echo '<td>' . esc_html((string) $row['country']) . '</td>';
+                echo '<td>' . esc_html((string) $row['attended']) . '</td>';
+                echo '<td>' . esc_html((string) $row['payment_link_sent']) . '</td>';
+                echo '<td>' . esc_html((string) $row['reminder']) . '</td>';
+                echo '<td><span class="dzn-badge ' . ($row['follow_up_completed'] === 'Yes' ? 'dzn-badge--teal' : 'dzn-badge--soft') . '">' . esc_html((string) $row['follow_up_completed']) . '</span></td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table></div>';
+        }
+        echo '</section></div>';
+    }
+
     public static function bookingCase(array $case, ?array $classroom): void {
         echo '<div class="wrap dzn-enrolment dzn-enrolment--case">';
         self::notices();
-        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">← Back to New bookings &amp; trials</a>';
+        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">← Back to Intro</a>';
         if (current_user_can('dzn_manage_booking_request_coordination')) echo ' · <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Coordination cases</a>';
         echo '</p>';
         echo '<header class="dzn-enrolment__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $case['reference']) . ' · ' . esc_html($case['identity_state']['label']) . '</p><h1>' . esc_html((string) $case['learner_name']) . '</h1><p>' . esc_html((string) $case['instrument']) . ' · ' . esc_html((string) $case['course']) . ' · ' . esc_html((string) $case['timezone']) . '</p></div><div class="dzn-enrolment__case-state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $case['stage_label']) . '</span><span class="dzn-chip">' . esc_html((string) $case['urgency_label']) . '</span></div></header>';
@@ -83,8 +116,9 @@ final class EnrolmentWorkspaceView {
         $historyFilters['page'] = max(1, absint($query['history_page'] ?? 1));
         $history = $read->classes($historyFilters, true);
         echo '<div class="wrap dzn-enrolment dzn-enrolment--classes">';
+        self::tabs('enrolled');
         self::notices();
-        echo '<header class="dzn-enrolment__hero"><div><p class="dzn-eyebrow">Enrolment administration</p><h1>Enrolled classes</h1>';
+        echo '<header class="dzn-enrolment__page-head"><div><h1>Enrolled classes</h1>';
         echo '<p>Today and upcoming classes first, with Term progress, replacement allowance, attendance and the next required action. Completed and cancelled classes remain in History.</p></div><div class="dzn-enrolment__hero-actions">';
         if (current_user_can('dzn_manage_enrolments') && current_user_can('dzn_manage_terms') && current_user_can('dzn_manage_lessons')) echo '<a class="button" href="#dzn-import-enrolment">Import existing enrolment</a>';
         echo '</div></header>';
@@ -199,9 +233,7 @@ final class EnrolmentWorkspaceView {
         if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
         if (current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
-        if ($case['confirmed'] && empty($case['outcome'])) {
-            echo '<p class="dzn-inline-note">A confirmed trial keeps its protected booking confirmation. Until a canonical reschedule/cancel authority is available here, use the protected booking record for that lifecycle: <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-requests&request_id=' . (int) $case['id'])) . '">open booking record</a>' . (!empty($case['coordination']['case_id']) ? ' or <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&case_id=' . (int) $case['coordination']['case_id'])) . '">coordination</a>' : '') . '.</p>';
-        }
+        if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
         if ($case['confirmed'] && empty($case['outcome']) && current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
         if ($case['confirmed'] && empty($case['outcome']) && !current_user_can('dzn_manage_post_intro_automation')) echo '<p>Outcome recording requires post-intro automation access.</p>';
         if ($case['confirmed'] && !empty($case['outcome'])) echo '<p class="dzn-inline-note">The introductory outcome is recorded as <strong>' . esc_html((string) $case['outcome']['label']) . '</strong>. The post-intro decision is shown above.</p>';
@@ -302,6 +334,35 @@ final class EnrolmentWorkspaceView {
     }
 
     /** @param array<string,mixed> $case */
+    private static function introLifecycleForms(array $case): void {
+        $confirmation = $case['confirmed'] ?? null;
+        if (!$confirmation) return;
+        $state = (string) ($confirmation['state'] ?? '');
+        if (!in_array($state, array('confirmed', 'awaiting_payment'), true)) return;
+        $confirmedAt = strtotime((string) ($confirmation['starts_at_utc'] ?? '') . ' UTC');
+        $future = $confirmedAt !== false && $confirmedAt > time();
+        echo '<details class="dzn-action-panel"><summary><strong>Reschedule introductory lesson</strong><br><small>Admin and Teacher action. The Student is notified and the provider event is updated when its projection authority is available.</small></summary><div class="dzn-action-panel__body">';
+        if ($future) {
+            self::formStart('intro_reschedule', array('request_id' => (int) $case['id']));
+            echo '<input type="hidden" name="expected_confirmation_id" value="' . esc_attr((string) ($confirmation['confirmation_id'] ?? 0)) . '"><input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) ($confirmation['version'] ?? 0)) . '">';
+            self::input('local_date', 'New local date', 'date', (string) ($confirmation['local_date'] ?? ''), true);
+            self::timeSelect('local_start_time', 'New local start time', (string) ($confirmation['local_time'] ?? ''));
+            self::timezoneSelect('schedule_timezone', 'Local timezone (service area)', (string) ($confirmation['schedule_timezone'] ?? ''));
+            echo '<p><label>Reason<select name="reason_code"><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';
+            echo '<button class="button button-primary">Reschedule introductory lesson</button></form>';
+        } else {
+            echo '<p class="dzn-inline-note">This introductory lesson has already started or ended. Its outcome is recorded instead of rescheduling it.</p>';
+        }
+        echo '</div></details>';
+        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel introductory lesson</strong><br><small>Admin, Teacher or Student action. The case and financial history remain; the portals stop showing the cancelled class.</small></summary><div class="dzn-action-panel__body">';
+        self::formStart('intro_cancel', array('request_id' => (int) $case['id']));
+        echo '<input type="hidden" name="expected_confirmation_id" value="' . esc_attr((string) ($confirmation['confirmation_id'] ?? 0)) . '"><input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) ($confirmation['version'] ?? 0)) . '">';
+        echo '<p><label>Reason<select name="reason_code"><option value="duplicate_request">Duplicate request</option><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';
+        echo '<button class="button" onclick="return confirm(\'Cancel this introductory lesson? The case and its history remain.\')">Cancel introductory lesson</button></form>';
+        echo '</div></details>';
+    }
+
+    /** @param array<string,mixed> $case */
     private static function outcomeForm(array $case): void {
         echo '<details class="dzn-action-panel"><summary><strong>Record introductory outcome</strong><br><small>Only a delivered outcome starts the continuation workflow.</small></summary><div class="dzn-action-panel__body">';
         self::formStart('record_outcome', array('request_id' => (int) $case['id']));
@@ -325,7 +386,25 @@ final class EnrolmentWorkspaceView {
         echo '</div>';
         if (!empty($case['notification_rows'])) {
             echo '<ul class="dzn-timeline dzn-timeline--compact">';
-            foreach (array_slice($case['notification_rows'], 0, 8) as $row) echo '<li><span class="dzn-timeline__dot"></span><strong>' . esc_html((string) $row['label']) . '</strong><small>' . esc_html((string) $row['at']) . '</small><p>' . esc_html((string) $row['detail']) . '</p></li>';
+            foreach (array_slice($case['notification_rows'], 0, 8) as $row) {
+                echo '<li><span class="dzn-timeline__dot"></span><strong>' . esc_html((string) $row['label']) . '</strong><small>' . esc_html((string) $row['at']) . '</small><p>' . esc_html((string) $row['detail']) . '</p>';
+                $receipt = (string) ($row['provider_receipt_state'] ?? '');
+                if ($receipt !== '') {
+                    echo '<p class="description"><strong>Provider receipt:</strong> ' . esc_html($receipt) . ' · ' . esc_html((string) ($row['provider_channel'] ?? 'mobile')) . ' · ' . esc_html((string) ($row['provider_receipt_at'] ?? '')) . '</p>';
+                } elseif ((string) ($row['category'] ?? '') === 'handed_off' && (string) ($row['channel'] ?? '') === 'email') {
+                    echo '<p class="description">Email hand-off recorded; no email delivery receipt is available.</p>';
+                }
+                if ((string) ($row['category'] ?? '') === 'failed') {
+                    echo '<p class="description"><strong>Recipient:</strong> ' . esc_html((string) ($row['audience'] ?: 'unknown') . ((string) ($row['recipient'] ?? '') !== '' ? ' · ' . (string) $row['recipient'] : '')) . ' · <strong>Channel:</strong> ' . esc_html((string) ($row['channel'] ?? 'email')) . ' · <strong>Attempts:</strong> ' . esc_html((string) ($row['attempt_count'] ?? 0)) . ' · <strong>Last attempt:</strong> ' . esc_html((string) ($row['last_attempt'] ?? '')) . '</p>';
+                    if (!empty($row['recovery_available']) && (int) ($row['notification_id'] ?? 0) > 0 && current_user_can('dzn_operate_notification_dispatch')) {
+                        self::formStart('recover_booking_notification', array('request_id' => (int) $case['id'], 'notification_id' => (int) $row['notification_id']));
+                        echo '<button class="button button-secondary" onclick="return confirm(\'Requeue this failed booking notification? The booking state will be revalidated first.\')">Recover notification</button></form>';
+                    } elseif ((string) ($row['recovery_reason'] ?? '') !== '') {
+                        echo '<p class="description">Recovery unavailable: ' . esc_html((string) $row['recovery_reason']) . '</p>';
+                    }
+                }
+                echo '</li>';
+            }
             echo '</ul>';
         }
         echo '</section>';
@@ -364,48 +443,84 @@ final class EnrolmentWorkspaceView {
         echo '<p class="description">Reporting period ' . esc_html((string) $report['period']['from']) . ' to ' . esc_html((string) $report['period']['to']) . '. A completed introduction with no payment today remains <strong>awaiting decision or payment</strong>.</p>';
         echo '<div class="dzn-report-grid"><div class="dzn-report-card dzn-report-card--converted"><strong>' . esc_html((string) $report['converted']) . '</strong><span>Converted</span><small>Actual enrolled/activated continuation.</small></div><div class="dzn-report-card dzn-report-card--awaiting"><strong>' . esc_html((string) $report['awaiting']) . '</strong><span>Awaiting decision or payment</span><small>Hold and decision period still open.</small></div><div class="dzn-report-card dzn-report-card--lost"><strong>' . esc_html((string) $report['did_not_convert']) . '</strong><span>Did not convert</span><small>Explicit decline or expired without verified payment.</small></div><div class="dzn-report-card dzn-report-card--excluded"><strong>' . esc_html((string) $report['excluded']) . '</strong><span>Excluded / reviewed separately</span><small>Cancelled/no-show or unresolved evidence.</small></div></div>';
         if (!empty($report['rows'])) {
-            echo '<details class="dzn-report__detail"><summary>Show outcome reasons</summary><table class="widefat striped"><thead><tr><th>Request</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>';
-            foreach ($report['rows'] as $row) echo '<tr><td>' . esc_html((string) $row['created_at']) . '</td><td>' . esc_html((string) $row['outcome']) . '</td><td>' . esc_html((string) $row['reason']) . '</td></tr>';
-            echo '</tbody></table></details>';
+            echo '<details class="dzn-report__detail" open><summary>Intro conversion overview</summary><div class="dzn-table-scroll"><table class="widefat striped"><thead><tr><th>Student</th><th>Course</th><th>Teacher</th><th>Class date</th><th>Time elapsed</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>';
+            foreach ($report['rows'] as $row) {
+                echo '<tr><td>' . esc_html((string) $row['student']) . '</td><td>' . esc_html((string) $row['course']) . '</td><td>' . esc_html((string) $row['teacher']) . '</td><td>' . esc_html((string) $row['date']) . '</td><td>' . esc_html((string) $row['elapsed']) . '</td><td>' . esc_html((string) $row['outcome']) . '</td><td>' . esc_html((string) $row['reason']) . '</td></tr>';
+            }
+            echo '</tbody></table></div></details>';
         }
         echo '</section>';
     }
 
-    private static function createIntroPanel(EnrolmentWorkspaceReadService $read, ?array $preview): void {
+    private static function createIntroPanel(EnrolmentWorkspaceReadService $read): void {
         $students = $read->studentOptions('', 200);
         $courses = $read->courseOptions('', 250);
-        echo '<details class="dzn-create-intro dzn-enrolment__section" id="dzn-create-intro"><summary><span><strong>Create introductory lesson</strong><br><small>For an existing verified Student. Preview the slot, conflicts and notification consequence before creating one canonical booking.</small></span></summary><div class="dzn-create-intro__body">';
-        if ($preview) self::previewNotice($preview, 'intro');
-        echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><input type="hidden" name="view" value="new"><input type="hidden" name="preview_intro" value="1">';
-        self::studentSelect('preview_student_id', $students);
-        self::courseSelect('preview_course_id', $courses);
-        echo '<p><label>Teacher<select name="preview_teacher_id" required><option value="">Choose Teacher</option>';
-        foreach ($read->teacherOptions('', 200) as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '">' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
-        echo '</select></label></p>';
-        self::input('preview_date', 'Local date', 'date', (string) ($_GET['preview_date'] ?? ''));
-        self::input('preview_time', 'Local start time', 'text', (string) ($_GET['preview_time'] ?? ''));
-        self::input('preview_timezone', 'Timezone', 'text', (string) ($_GET['preview_timezone'] ?? ''));
-        echo '<button class="button">Check this slot</button></form>';
-        echo '<details class="dzn-action-panel"><summary><strong>Create the booking after checking the slot</strong><br><small>The Teacher agreement is required; the action is refused on a real collision.</small></summary><div class="dzn-action-panel__body">';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-create-intro__form">';
+        $state = self::introFormState();
+        $values = (array) ($state['values'] ?? array());
+        echo '<details class="dzn-create-intro dzn-enrolment__section" id="dzn-create-intro"' . (!empty($state['open']) ? ' open' : '') . '><summary><span><strong>Create introductory lesson</strong><br><small>For an existing verified Student. The server checks the slot, Teacher agreement and real collisions when you press Create.</small></span></summary><div class="dzn-create-intro__body">';
+        if ((string) ($state['message'] ?? '') !== '') {
+            echo '<div class="notice notice-error inline dzn-intro-form-error" role="alert"><p><strong>Introductory lesson was not created.</strong> ' . esc_html((string) $state['message']) . '</p></div>';
+        }
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-create-intro__form" data-dzn-intro-create>';
         wp_nonce_field(EnrolmentWorkspaceController::ACTION);
         echo '<input type="hidden" name="action" value="' . esc_attr(EnrolmentWorkspaceController::ACTION) . '"><input type="hidden" name="operation" value="create_intro"><input type="hidden" name="idempotency_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
-        self::studentSelect('student_id', $students);
-        self::courseSelect('course_id', $courses);
+        self::studentSelect('student_id', $students, absint($values['student_id'] ?? 0));
+        self::courseSelect('course_id', $courses, absint($values['course_id'] ?? 0));
         echo '<p><label>Teacher<select name="teacher_id" required><option value="">Choose the Teacher who agreed</option>';
-        foreach ($read->teacherOptions('', 200) as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '">' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
+        foreach ($read->teacherOptions('', 200) as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '"' . selected(absint($values['teacher_id'] ?? 0), (int) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
         echo '</select></label></p>';
-        self::input('local_date', 'Local date', 'date', (string) ($_GET['preview_date'] ?? ''));
-        self::input('local_start_time', 'Local start time', 'text', (string) ($_GET['preview_time'] ?? ''));
-        self::input('schedule_timezone', 'Timezone', 'text', (string) ($_GET['preview_timezone'] ?? ''));
-        echo '<p><label>Teacher agreement channel<select name="agreement_channel"><option value="phone">Phone</option><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="in_person">In person</option><option value="video_call">Video call</option><option value="other_verified">Other verified</option></select></label></p>';
-        self::input('agreement_reference', 'Agreement reference', 'text', '');
-        self::input('agreement_at', 'Agreement UTC', 'text', gmdate('Y-m-d H:i:s'));
-        echo '<p><label>Availability override<select name="override_reason_code"><option value="">Not needed</option><option value="teacher_agreed_outside_preference">Teacher agreed outside ordinary availability</option><option value="mutual_reschedule">Mutual reschedule</option><option value="operational_exception">Operational exception</option></select></label></p>';
-        echo '<p><label>Staff reason<textarea name="staff_reason" rows="2" required></textarea></label></p>';
-        echo '<button class="button button-primary">Create introductory booking</button></form>';
-        echo '<p class="description">The action creates the request and identity evidence once, then uses the same booking confirmation and notification state as a normal Teacher match. It does not create payment, attendance or a Teacher agreement record by itself.</p></div></details>';
+        self::input('local_date', 'Local date', 'date', (string) ($values['local_date'] ?? ''), true);
+        self::timeSelect('local_start_time', 'Local start time', (string) ($values['local_start_time'] ?? ''));
+        self::timezoneSelect('schedule_timezone', 'Local timezone (service area)', (string) ($values['schedule_timezone'] ?? ''));
+        echo '<p><label>Teacher agreement channel<select name="agreement_channel">';
+        foreach (array('phone' => 'Phone', 'whatsapp' => 'WhatsApp', 'email' => 'Email', 'in_person' => 'In person', 'video_call' => 'Video call', 'other_verified' => 'Other verified') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected((string) ($values['agreement_channel'] ?? 'phone'), $value, false) . '>' . esc_html($label) . '</option>';
+        echo '</select></label></p>';
+        self::input('agreement_reference', 'Agreement reference', 'text', (string) ($values['agreement_reference'] ?? ''), true);
+        self::input('agreement_at', 'Agreement UTC', 'text', (string) ($values['agreement_at'] ?? gmdate('Y-m-d H:i:s')), true, 'Use YYYY-MM-DD HH:MM:SS UTC.');
+        echo '<p><label>Availability override<select name="override_reason_code"><option value="">Not needed</option>';
+        foreach (array('teacher_agreed_outside_preference' => 'Teacher agreed outside ordinary availability', 'mutual_reschedule' => 'Mutual reschedule', 'operational_exception' => 'Operational exception') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected((string) ($values['override_reason_code'] ?? ''), $value, false) . '>' . esc_html($label) . '</option>';
+        echo '</select></label></p>';
+        echo '<p><label>Staff reason<textarea name="staff_reason" rows="2" required>' . esc_html((string) ($values['staff_reason'] ?? '')) . '</textarea></label></p>';
+        echo '<button class="button button-primary">Create</button></form>';
+        echo '<p class="description">Create performs both the slot check and the save. A real Teacher collision, inactive Student, missing Teacher agreement or invalid local time is refused here and the form stays open with the relevant error. It creates the request, identity evidence and booking confirmation once, then uses the same provider projection and notification state as a normal Teacher match.</p>';
         echo '</div></details>';
+    }
+
+    /** @return array{open:bool,message:string,values:array<string,mixed>} */
+    private static function introFormState(): array {
+        if ((string) ($_GET['dzn_form'] ?? '') !== 'intro') return array('open' => false, 'message' => '', 'values' => array());
+        $key = 'dzn_intro_form_' . get_current_user_id();
+        $stored = get_transient($key);
+        delete_transient($key);
+        if (!is_array($stored)) return array('open' => true, 'message' => '', 'values' => array());
+        return array('open' => true, 'message' => (string) ($stored['message'] ?? ''), 'values' => is_array($stored['values'] ?? null) ? $stored['values'] : array());
+    }
+
+    private static function timeSelect(string $name, string $label, string $value = ''): void {
+        echo '<p><label>' . esc_html($label) . '<select name="' . esc_attr($name) . '" required><option value="">Choose a local start time</option>';
+        for ($minute = 0; $minute < 24 * 60; $minute += 30) {
+            $option = sprintf('%02d:%02d', intdiv($minute, 60), $minute % 60);
+            echo '<option value="' . esc_attr($option) . '"' . selected($value, $option, false) . '>' . esc_html($option) . '</option>';
+        }
+        echo '</select></label><br><span class="description">24-hour local time in the selected service-area timezone.</span></p>';
+    }
+
+    private static function timezoneSelect(string $name, string $label, string $value = ''): void {
+        $areas = class_exists('\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourRule')
+            ? \Delnavazan\Platform\Core\Application\Finance\GoldenHourRule::defaults()
+            : array();
+        $timezones = array();
+        foreach ($areas as $key => $area) {
+            $timezone = (string) ($area['timezone'] ?? '');
+            if ($timezone === '') continue;
+            $timezones[$timezone] = (string) ($area['label'] ?? $key) . ' — ' . $timezone;
+        }
+        $academy = function_exists('wp_timezone_string') ? (string) wp_timezone_string() : '';
+        if ($academy !== '' && !isset($timezones[$academy])) $timezones[$academy] = 'Academy — ' . $academy;
+        if (!isset($timezones['UTC'])) $timezones['UTC'] = 'UTC';
+        echo '<p><label>' . esc_html($label) . '<select name="' . esc_attr($name) . '" required><option value="">Choose a service-area timezone</option>';
+        foreach ($timezones as $timezone => $labelText) echo '<option value="' . esc_attr($timezone) . '"' . selected($value, $timezone, false) . '>' . esc_html($labelText) . '</option>';
+        echo '</select></label><br><span class="description">The same handful of service areas used by the academy timetable, so the same civil time is never entered against a mismatched IANA timezone.</span></p>';
     }
 
     private static function importPanel(EnrolmentWorkspaceReadService $read, array $query): void {
@@ -471,28 +586,6 @@ final class EnrolmentWorkspaceView {
         foreach (array_slice((array) $preview['slots'], 0, 20) as $index => $slot) echo '<tr><td>' . esc_html((string) ($index + 1)) . '</td><td>' . esc_html((string) $slot['local_date'] . ' ' . substr((string) $slot['local_time'], 0, 5)) . '</td><td>' . esc_html((string) $slot['timezone']) . '</td></tr>';
         if (count((array) $preview['slots']) > 20) echo '<tr><td colspan="3">… ' . esc_html((string) (count((array) $preview['slots']) - 20)) . ' more future classes</td></tr>';
         echo '</tbody></table><p class="description">No past lesson is marked attended and no payment is claimed unless the evidence state above explicitly supports it.</p></div>';
-    }
-
-    private static function previewNotice(array $preview, string $kind): void {
-        $class = $preview['state'] === 'available' ? 'notice-success' : ($preview['state'] === 'conflict' ? 'notice-error' : 'notice-warning');
-        echo '<div class="notice ' . esc_attr($class) . ' inline"><p><strong>' . esc_html((string) $preview['label']) . '.</strong> ' . esc_html((string) ($preview['detail'] ?? '')) . '</p>';
-        if (!empty($preview['starts_at_utc'])) echo '<p>UTC: ' . esc_html((string) $preview['starts_at_utc']) . ' · ' . esc_html((string) ($preview['timezone'] ?? '')) . '</p>';
-        echo '</div>';
-    }
-
-    private static function introPreview(): ?array {
-        if (!isset($_GET['preview_intro'])) return null;
-        try {
-            return (new AdministratorIntroBookingService())->preview(
-                absint($_GET['preview_course_id'] ?? 0),
-                absint($_GET['preview_teacher_id'] ?? 0),
-                sanitize_text_field(wp_unslash((string) ($_GET['preview_date'] ?? ''))),
-                sanitize_text_field(wp_unslash((string) ($_GET['preview_time'] ?? ''))),
-                sanitize_text_field(wp_unslash((string) ($_GET['preview_timezone'] ?? '')))
-            );
-        } catch (\Throwable $exception) {
-            return array('state' => 'invalid', 'label' => 'Preview unavailable', 'detail' => self::importMessage($exception->getMessage()));
-        }
     }
 
     private static function bookingFiltersForm(array $filters, bool $history): void {
@@ -588,12 +681,12 @@ final class EnrolmentWorkspaceView {
 
     private static function classroomActions(string $kind, array $classroom): void {
         if ($kind === 'unavailable') return;
-        echo '<div class="dzn-classroom"><p><strong>LiveKit:</strong> ' . esc_html(!empty($classroom['livekit_available']) ? 'Available for administrator testing outside the participant window' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Google Meet:</strong> ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</p>';
+        echo '<div class="dzn-classroom"><p><strong>Google Meet:</strong> ' . esc_html(!empty($classroom['meet_available']) ? 'provisioned' : ucfirst(str_replace('_', ' ', (string) ($classroom['state'] ?? 'unavailable')))) . ' · <strong>Co-host:</strong> ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</p>';
         echo '<div class="dzn-classroom__actions">';
-        if (!empty($classroom['livekit_available'])) {
+        if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-inline-form">';
-            wp_nonce_field('dzn_admin_livekit_class');
-            echo '<input type="hidden" name="action" value="dzn_admin_livekit_class"><input type="hidden" name="kind" value="' . esc_attr((string) $kind) . '">';
+            wp_nonce_field('dzn_admin_meet_class');
+            echo '<input type="hidden" name="action" value="dzn_admin_meet_class"><input type="hidden" name="kind" value="' . esc_attr((string) $kind) . '">';
             if ($kind === 'booking') echo '<input type="hidden" name="confirmation_uid" value="' . esc_attr((string) ($classroom['confirmation_uid'] ?? '')) . '">';
             else echo '<input type="hidden" name="lesson_id" value="' . esc_attr((string) ($classroom['lesson_id'] ?? 0)) . '">';
             echo '<button class="button button-primary" type="submit">Open administrator classroom</button></form>';
@@ -850,7 +943,24 @@ final class EnrolmentWorkspaceView {
         echo '</nav>';
     }
 
+    private static function tabs(string $active): void {
+        $tabs = array();
+        if (current_user_can(Menu::ENROLMENT_TRIALS_CAP)) {
+            $tabs['new'] = 'Intro';
+            $tabs['review'] = 'Review';
+        }
+        if (current_user_can(Menu::ENROLLED_CLASSES_CAP)) $tabs['enrolled'] = 'Enrolled classes';
+        if (!$tabs) return;
+        echo '<nav class="nav-tab-wrapper dzn-enrolment__tabs" aria-label="Enrolment sections">';
+        foreach ($tabs as $key => $label) {
+            $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=' . rawurlencode($key));
+            echo '<a class="nav-tab' . ($active === $key ? ' nav-tab-active' : '') . '" href="' . esc_url($url) . '"' . ($active === $key ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
+        }
+        echo '</nav>';
+    }
+
     private static function notices(): void {
+        if (isset($_GET['dzn_form'])) return;
         if (isset($_GET['dzn_workspace_notice'])) {
             $message = sanitize_text_field(wp_unslash((string) $_GET['dzn_workspace_notice']));
             $error = (string) ($_GET['dzn_workspace_error'] ?? '') === '1';

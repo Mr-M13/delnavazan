@@ -27,7 +27,10 @@ namespace {
     function wp_logout_url($r = ''): string { return 'https://example.invalid/logout'; }
     function wp_login_url($r = ''): string { return 'https://example.invalid/login?redirect_to=' . $r; }
     function home_url($p = ''): string { return 'https://example.invalid' . $p; }
-    function add_query_arg($k, $v = null, $u = null): string { return rtrim((string) $u, '/') . '/?' . $k . '=' . $v; }
+    function add_query_arg($k, $v = null, $u = null): string {
+        if (is_array($k)) { $url = (string) $v; $sep = str_contains($url, '?') ? '&' : '?'; return $url . $sep . http_build_query($k); }
+        return rtrim((string) $u, '/') . '/?' . $k . '=' . $v;
+    }
     function is_page_template($t = ''): bool { return false; }
     function get_queried_object_id(): int { return 0; }
     function timezone_ids(): array { return timezone_identifiers_list(); }
@@ -82,7 +85,7 @@ namespace {
     };
 
     // 1. Upcoming lesson cards: honest heading, visible date + timezone, status text, semantic list, labelled cards.
-    $booking = $class(array('ref' => 'BK-1', 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'start_available' => false, 'join_message' => 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.', 'lesson_uid' => '', 'schedule_version_uid' => '', 'date' => 'Sunday 4 October', 'starts_at_utc' => '2026-10-04 08:30:00', 'schedule_summary' => 'Sunday 4 October، 18:30 · Australia/Brisbane', 'status' => 'کلاس آشنایی تأیید شده', 'progress' => 'کلاس آشنایی'));
+    $booking = $class(array('ref' => 'BK-1', 'confirmation_uid' => 'CONF-UID', 'details_available' => false, 'start_available' => false, 'join_message' => 'ورود به کلاس از ۳۰ دقیقه پیش از شروع فعال می‌شود.', 'lesson_uid' => '', 'schedule_version_uid' => '', 'date' => 'Sunday 4 October', 'starts_at_utc' => '2026-10-04 08:30:00', 'schedule_summary' => 'Sunday 4 October، 18:30 · Australia/Brisbane', 'status' => 'کلاس آشنایی تأیید شده', 'progress' => 'کلاس آشنایی'));
     $lesson  = $class(array('start_available' => true, 'state' => 'starting_soon', 'status' => 'به‌زودی شروع می‌شود'));
     $homeModel = $model(array('classes' => array($booking, $lesson), 'today_classes' => array($lesson), 'upcoming_classes' => array($booking), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
     $classesModel = $model(array('classes' => array($booking, $lesson), 'today_classes' => array($lesson, $booking), 'past_classes' => array(array('ref' => 'PAST-1', 'date' => 'Saturday 2 October', 'time' => '10:00', 'student' => 'Student Past', 'course' => 'Setar', 'term_reference' => 'Term 1', 'term_progress_label' => '', 'outcome' => 'برگزار شد', 'tone' => 'success', 'starts_at_utc' => '2026-10-02 06:30:00')), 'calendar' => array(array('day' => 'Sunday 4 October', 'time' => '18:30', 'label' => 'Setar · Neda', 'state' => 'intro'))));
@@ -123,21 +126,19 @@ namespace {
     $check('one malformed calendar row does not disable the whole teacher home', dzn_theme_teacher_portal_validate_model($malformedCalendar, 'home'));
     $check('the removed calendar card cannot leak a malformed row into the classes screen', !str_contains($render('classes', $malformedCalendar), 'اطلاعات این رویداد معتبر نیست'));
 
-    // 2. Classroom actions: LiveKit primary, explicit Meet fallback, backend-issued URLs and nonces.
-    $check('lesson fallback form posts backend URL, nonce, kind, lesson and schedule identifiers', (bool) preg_match('#<form method="post" target="_blank" rel="noopener noreferrer" action="https://example.invalid/wp-admin/admin-post.php\?action=dzn_teacher_join_class"[^>]*>\s*<input type="hidden" name="_wpnonce" value="nonce-join">\s*<input type="hidden" name="kind" value="lesson"><input type="hidden" name="lesson_uid" value="LESSON-UID"><input type="hidden" name="schedule_version_uid" value="SCHEDULE-UID">#', $classes_html) && !str_contains($classes_html, 'name="confirmation_uid" value=""'));
-    $livekit = $render('classes', $model(array('classes' => array($class(array('livekit_available' => true, 'meet_available' => true, 'livekit_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_livekit_class', 'livekit_nonce' => 'nonce-livekit'))), 'today_classes' => array($class(array('livekit_available' => true, 'meet_available' => true, 'livekit_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_livekit_class', 'livekit_nonce' => 'nonce-livekit'))))));
-    $check('LiveKit is the primary action and opens the lesson-specific launch boundary', str_contains($livekit, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_livekit_class"') && str_contains($livekit, 'value="nonce-livekit"') && str_contains($livekit, '>ورود به کلاس</button>'));
-    $check('Meet remains a clearly labelled secondary fallback', str_contains($livekit, '>ورود با گوگل میت (پشتیبان)</button>') && str_contains($livekit, 'گوگل میت گزینهٔ پشتیبان است.'));
+    // 2. Classroom actions: one branded Google Meet entry link; no LiveKit surface remains.
+    $check('lesson action opens the branded entry page with lesson and schedule identifiers', str_contains($classes_html, 'href="https://example.invalid/music-classroom/?lesson_uid=LESSON-UID&amp;schedule_version_uid=SCHEDULE-UID"') && str_contains($classes_html, '>ورود به کلاس Google Meet</a>'));
+    $check('the component never posts to a retired LiveKit boundary', !str_contains($classes_html, 'livekit') && !str_contains($classes_html, 'ورود با گوگل میت'));
     $joined = $render('classes', $model(array('classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'lesson_uid' => '', 'schedule_version_uid' => '', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))), 'today_classes' => array($class(array('start_available' => true, 'confirmation_uid' => 'CONF-UID', 'lesson_uid' => '', 'schedule_version_uid' => '', 'details_available' => false, 'join_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_join_booking_class', 'join_nonce' => 'nonce-booking-join'))))));
-    $check('booking fallback posts only the confirmation identifier', str_contains($joined, 'name="confirmation_uid" value="CONF-UID"') && !str_contains($joined, 'name="lesson_uid"') && str_contains($joined, 'value="nonce-booking-join"'));
-    $check('join is never offered when the backend has not authorised it', substr_count($classes_html, 'name="_wpnonce" value="nonce-join"') >= 1 && !str_contains(substr($classes_html, (int) strpos($classes_html, 'id="tp-class-title-1"')), 'name="_wpnonce" value="nonce-join"'));
-    $check('unavailable start explains the state without a fake join form', str_contains($classes_html, 'ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود.') && !str_contains($classes_html, 'disabled title="ورود به کلاس از یک ساعت پیش از شروع فعال می‌شود."'));
+    $check('booking action opens the entry page with only the confirmation identifier', str_contains($joined, 'confirmation_uid=CONF-UID') && !str_contains($joined, 'lesson_uid='));
+    $check('join is never offered when the backend has not authorised it', !str_contains(substr($classes_html, (int) strpos($classes_html, 'id="tp-class-title-1"'), 900), 'ورود به کلاس Google Meet'));
+    $check('unavailable start explains the state without a fake join action', str_contains($classes_html, 'ورود به کلاس از ۳۰ دقیقه پیش از شروع فعال می‌شود.'));
     $generic = $render('home', $model(array('classes' => array($class()), 'today_classes' => array($class()))));
     $check('a lesson that cannot start still explains why', str_contains($generic, 'زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است.'));
     $check('the disruptive delivery-issue action is removed', ! str_contains($classes_html, 'nonce-issue') && ! str_contains($classes_html, 'گزارش مشکل در برگزاری کلاس'));
-    $check('expanded today class includes attendance, contact and term progress', str_contains($html, 'تأیید برگزاری و حضور') && str_contains($html, 'واتس‌اپ:') && str_contains($html, '۴ از ۱۲ جلسه · ۸ جلسه باقی‌مانده') && str_contains($html, 'ورود با گوگل میت (پشتیبان)'));
+    $check('expanded today class includes attendance, contact and term progress', str_contains($html, 'تأیید برگزاری و حضور') && str_contains($html, 'واتس‌اپ:') && str_contains($html, '۴ از ۱۲ جلسه · ۸ جلسه باقی‌مانده') && str_contains($html, 'ورود به کلاس Google Meet'));
     $check('the completion form is gated by an ended, actionable occurrence', str_contains($html, 'completion_available') === false && str_contains($html, 'name="lesson_uid" value="LESSON-UID"') && str_contains($html, 'data-dzn-tp-busy-label="در حال ثبت گزارش…"'));
-    $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 2 && str_contains($html, 'data-dzn-tp-busy-label="در حال باز کردن لینک…"'));
+    $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 1 && str_contains($html, 'data-dzn-tp-busy-label="در حال ثبت گزارش…"'));
     $completedClass = $class(array('completion_available' => false, 'completion_completed' => true, 'state' => 'ended', 'status' => 'تکمیل‌شده', 'completion_message' => 'این کلاس تکمیل شده است و فرم گزارش برگزاری برای آن نمایش داده نمی‌شود.'));
     $completedHtml = $render('home', $model(array('today_classes' => array($completedClass))));
     $check('a completed class never renders the completion form again', ! str_contains($completedHtml, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_report_delivery"') && str_contains($completedHtml, 'این کلاس تکمیل شده است'));
@@ -146,6 +147,8 @@ namespace {
     $check('a claimed class is non-actionable but still visible', str_contains($claimedHtml, 'گزارش ثبت شده — در انتظار بررسی') && ! str_contains($claimedHtml, 'name="lesson_uid" value="LESSON-UID"') && str_contains($claimedHtml, 'در انتظار بررسی مدیر است'));
 
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
+    $classesAttn = $render('classes', $model(array('attention' => array($request()))));
+    $check('pending booking requests stay visible on the default classes screen', str_contains($classesAttn, 'id="tp-attention"') && str_contains($classesAttn, 'name="delivery_uid" value="DELIVERY-UID"') && str_contains($classesAttn, 'name="decision" value="accept"'));
     $attn = $render('home', $model(array('attention' => array($request()))));
     $check('accept and decline forms keep nonce, response key, delivery uid and decision', substr_count($attn, 'name="_wpnonce" value="nonce-response"') === 2 && substr_count($attn, 'name="response_key" value="11111111-2222-4333-8444-555555555555"') === 2 && substr_count($attn, 'name="delivery_uid" value="DELIVERY-UID"') === 2 && str_contains($attn, 'name="decision" value="accept"') && str_contains($attn, 'name="decision" value="decline"'));
     $check('request is distinguished from a confirmed class and provider-first rule is stated', str_contains($attn, 'درخواست در انتظار بررسی') && str_contains($attn, 'فقط پس از موفقیت هر دو'));
@@ -206,7 +209,7 @@ namespace {
     $check('allowlisted acceptance outcome is shown as a status', str_contains($ok, 'class="dzn-tp-notice is-success" role="status">' . esc_html(dzn_theme_teacher_portal_response_notice_allowlist()[3])));
     $_GET = array('dzn_notice' => dzn_theme_teacher_portal_response_notice_allowlist()[2], 'dzn_error' => '1');
     $bad = $render('home', $model());
-    $check('failed calendar creation is shown as an alert', str_contains($bad, 'role="alert"') && str_contains($bad, 'ساخت تقویم کامل نشد'));
+    $check('failed classroom creation is shown as an alert', str_contains($bad, 'role="alert"') && str_contains($bad, 'ساخت کلاس Google Meet کامل نشد'));
     $_GET = array('dzn_notice' => 'Call 0400 000 000 to claim your prize', 'dzn_error' => '0');
     $spoof = $render('home', $model());
     $check('arbitrary notice text from a crafted link is not rendered', !str_contains($spoof, 'Call 0400') && !str_contains($spoof, 'dzn-tp-notice'));
@@ -221,7 +224,11 @@ namespace {
     $_GET = array();
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
-    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 7 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 8 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $rescheduleController = (string) file_get_contents($root . '/platform/src/Portals/LessonRescheduleController.php');
+    $teacherMessages = substr($rescheduleController, (int) strpos($rescheduleController, 'private static function teacher_message'), (int) strpos($rescheduleController, 'private static function student_message') - (int) strpos($rescheduleController, 'private static function teacher_message'));
+    preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $teacherMessages, $rescheduleFound);
+    $check('every reschedule or availability refusal is allowlisted', $rescheduleFound[1] !== array() && !array_diff($rescheduleFound[1], dzn_theme_teacher_portal_response_notice_allowlist()));
 
     // 7. Unavailable and error states give a real next step.
     $signedOut = $render('home', array('available' => false, 'state' => 'signed_out', 'screen' => 'home'));

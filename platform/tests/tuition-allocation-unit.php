@@ -13,7 +13,8 @@ $expectedCategories=array(
     'server_app'=>array('هزینه سرور، اپلیکیشن و وب‌سایت',200),
     'messaging'=>array('هزینه پیامک و واتساپ',100),
     'project'=>array('پروژه‌ها (نام موقت)',280),
-    'delnavazan'=>array('سهم دلنوازان — ۳٪',300),
+    'google_workspace'=>array('Google Workspace',100),
+    'delnavazan'=>array('سهم دلنوازان — ۲٪',200),
 );
 $assert(count($categories)===count($expectedCategories),'The allocation must expose exactly the approved categories, with no unallocated row.');
 foreach($categories as$category){
@@ -23,7 +24,7 @@ foreach($categories as$category){
     $assert((int)($category['basis_points']??0)===$expectedCategories[$key][1],'The share for '.$key.' must match the approved percentage.');
 }
 $estimate=TuitionAllocationEstimator::estimate(25000);$amounts=array_column($estimate['items'],'amount_minor','key');
-$expected=array('teacher'=>7000,'tax'=>7000,'advertisement'=>5000,'gst'=>2500,'transaction'=>800,'staff_admin'=>500,'server_app'=>500,'messaging'=>250,'project'=>700,'delnavazan'=>750);
+$expected=array('teacher'=>7000,'tax'=>7000,'advertisement'=>5000,'gst'=>2500,'transaction'=>800,'staff_admin'=>500,'server_app'=>500,'messaging'=>250,'project'=>700,'google_workspace'=>250,'delnavazan'=>500);
 $assert($amounts===$expected,'The $250 example must match the approved allocation exactly.');
 $assert($estimate['total_basis_points']===10000&&$estimate['total_minor']===25000,'The allocation must explicitly total 100% and reconcile to the term amount.');
 $assert(array_sum(array_column($estimate['items'],'basis_points'))===10000,'All approved categories must total 100% without an unallocated row.');

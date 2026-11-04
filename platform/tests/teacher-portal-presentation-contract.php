@@ -225,6 +225,10 @@ namespace {
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
     $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 8 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $rescheduleController = (string) file_get_contents($root . '/platform/src/Portals/LessonRescheduleController.php');
+    $teacherMessages = substr($rescheduleController, (int) strpos($rescheduleController, 'private static function teacher_message'), (int) strpos($rescheduleController, 'private static function student_message') - (int) strpos($rescheduleController, 'private static function teacher_message'));
+    preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $teacherMessages, $rescheduleFound);
+    $check('every reschedule or availability refusal is allowlisted', $rescheduleFound[1] !== array() && !array_diff($rescheduleFound[1], dzn_theme_teacher_portal_response_notice_allowlist()));
 
     // 7. Unavailable and error states give a real next step.
     $signedOut = $render('home', array('available' => false, 'state' => 'signed_out', 'screen' => 'home'));

@@ -16,7 +16,8 @@ $assert(str_contains($component, '<details') && str_contains($component, '<summa
 $assert(str_contains($component, 'TuitionAllocationEstimator::categories()'), 'Both portals must read the identical central category list.');
 $assert(str_contains($component, '100.0%'), 'The percentages must explicitly total 100%.');
 $estimator = (string) file_get_contents($root . '/src/Core/Application/Finance/TuitionAllocationEstimator.php');
-$assert(str_contains($estimator, 'مالیات کالا و خدمات (GST') && str_contains($estimator, 'پرداختی به اساتید'), 'The shared Persian categories must come from the central estimator.');
+$assert(str_contains($estimator, 'مالیات کالا و خدمات (GST') && str_contains($estimator, 'پرداختی به اساتید') && str_contains($estimator, "'Google Workspace'"), 'The shared Persian categories must come from the central estimator, including Google Workspace.');
+$assert(!str_contains($component, 'درصد GST سهم برآوردی'), 'The removed GST explanatory note must not return.');
 $assert(str_contains($component, 'برآوردی') && str_contains($component, 'نه گزارش هزینهٔ حسابرسی‌شده'), 'The component must carry a clear estimate disclaimer.');
 
 echo "tuition-allocation-transparency-contract: OK\n";

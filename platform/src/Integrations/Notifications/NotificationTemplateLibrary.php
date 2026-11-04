@@ -26,6 +26,7 @@ final class NotificationTemplateLibrary {
     public const OPTION_WHATSAPP='dzn_notification_whatsapp_templates';
     public const OPTION_CHANNEL_POLICY='dzn_notification_channel_policy';
     public const OPTION_EVENT_ENABLED='dzn_notification_event_enabled';
+    public const OPTION_EVENT_CHANNELS='dzn_notification_event_channels';
     public const OPTION_SEEDED='dzn_notification_catalogue_seeded';
     public const AUDIT_LIMIT=1000;
 
@@ -112,7 +113,30 @@ final class NotificationTemplateLibrary {
         $event=NotificationCatalogue::get($eventKey);
         if($event===null||!in_array($channel,(array)$event['channels'],true))return false;
         $policy=$this->channelPolicy((string)$event['category']);
+        return !empty($policy[$channel])&&$this->eventChannelEnabled($eventKey,$channel);
+    }
+
+    /** The per-event control supplements category defaults; it never overrides a legal safeguard. */
+    public function eventChannelEnabled(string $eventKey,string $channel):bool{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null||!in_array($channel,(array)$event['channels'],true))return false;
+        $policy=$this->channelPolicy((string)$event['category']);
+        if(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true))return true;
+        $saved=$this->option(self::OPTION_EVENT_CHANNELS);
+        if(isset($saved[$eventKey])&&array_key_exists($channel,(array)$saved[$eventKey]))return !empty($saved[$eventKey][$channel]);
         return !empty($policy[$channel]);
+    }
+
+    public function saveEventChannel(string $eventKey,string $channel,bool $enabled):array{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null||!in_array($channel,(array)$event['channels'],true))throw new \InvalidArgumentException('notification_channel_unknown');
+        if(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true)&&!$enabled)throw new \InvalidArgumentException('notification_channel_required');
+        $saved=$this->option(self::OPTION_EVENT_CHANNELS);
+        $saved[$eventKey]=is_array($saved[$eventKey]??null)?$saved[$eventKey]:array();
+        $saved[$eventKey][$channel]=$enabled;
+        $this->putOption(self::OPTION_EVENT_CHANNELS,$saved);
+        $this->audit($enabled?'enable_channel':'disable_channel',$eventKey,$channel,'',null,$enabled?'Delivery channel enabled':'Delivery channel disabled');
+        return array('event_key'=>$eventKey,'channel'=>$channel,'enabled'=>$enabled);
     }
 
     /**

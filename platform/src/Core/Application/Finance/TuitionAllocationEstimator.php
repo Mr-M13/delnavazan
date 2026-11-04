@@ -9,9 +9,9 @@ final class TuitionAllocationEstimator {
     /**
      * Central basis-point configuration of the approved illustrative distribution.
      *
-     * The former unallocated 1% is now part of Delnavazan's 3% share; the other
-     * percentages are unchanged. Every category is a share of tuition revenue,
-     * never a claim that the amount was actually spent or paid as tax.
+     * The former unallocated 1% is now part of Delnavazan's 2% share; the
+     * remaining 1% funds Google Workspace. Every category is a share of tuition
+     * revenue, never a claim that the amount was actually spent or paid as tax.
      */
     private const CATEGORIES = array(
         array('key'=>'teacher','label_fa'=>'پرداختی به اساتید','basis_points'=>2800,'color'=>'#176b62'),
@@ -23,7 +23,8 @@ final class TuitionAllocationEstimator {
         array('key'=>'server_app','label_fa'=>'هزینه سرور، اپلیکیشن و وب‌سایت','basis_points'=>200,'color'=>'#536b8f'),
         array('key'=>'messaging','label_fa'=>'هزینه پیامک و واتساپ','basis_points'=>100,'color'=>'#7a667e'),
         array('key'=>'project','label_fa'=>'پروژه‌ها (نام موقت)','basis_points'=>280,'color'=>'#8a7038'),
-        array('key'=>'delnavazan','label_fa'=>'سهم دلنوازان — ۳٪','basis_points'=>300,'color'=>'#2f7771'),
+        array('key'=>'google_workspace','label_fa'=>'Google Workspace','basis_points'=>100,'color'=>'#3f6fa0'),
+        array('key'=>'delnavazan','label_fa'=>'سهم دلنوازان — ۲٪','basis_points'=>200,'color'=>'#2f7771'),
     );
 
     /** Percentage-only categories for the shared explanatory component. */

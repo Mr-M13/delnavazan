@@ -12,9 +12,9 @@ namespace Delnavazan\Platform\Core\Application\Induction;
 final class TeacherInductionCurriculum {
     /** Canonical review order, grouped by the daily workflow. */
     private const ORDER = array(
-        'today',
-        'new-enrolment',
         'settings',
+        'new-enrolment',
+        'today',
         'join',
         'attendance',
         'absence',
@@ -90,6 +90,9 @@ final class TeacherInductionCurriculum {
         }
         if ( ! isset( $module['version'] ) || (int) $module['version'] < 1 ) {
             throw new \RuntimeException( 'Induction step ' . $id . ' must declare a positive content version' );
+        }
+        if ( ! isset( $module['student_side'] ) || ! is_string( $module['student_side'] ) || '' === trim( $module['student_side'] ) ) {
+            throw new \RuntimeException( 'Induction step ' . $id . ' is missing student_side' );
         }
         if ( isset( $module['points'] ) && ! is_array( $module['points'] ) ) {
             throw new \RuntimeException( 'Induction step ' . $id . ' has invalid points' );

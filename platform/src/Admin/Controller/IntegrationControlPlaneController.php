@@ -376,7 +376,24 @@ final class IntegrationControlPlaneController {
         $badge=$state==='connected'?'is-ok':'is-locked';
         echo '<section class="dzn-settings-card dzn-integration-card"><h2>Google Meet classroom</h2><p><span class="dzn-status-badge '.esc_attr($badge).'">'.esc_html($state).'</span></p>';
         echo '<p>Organizer <code>'.esc_html((string)($health['organizer_email']??'')).'</code> creates and owns every lesson space. Teachers join as external co-hosts and Students as regular participants.</p>';
-        echo '<p class="dzn-settings-meta">Scopes: '.esc_html(!empty($health['scope_match'])?'exact':'re-consent required').' · Credential: '.esc_html(!empty($health['credential_valid'])?'valid':'missing or expired').' · Last checked: '.esc_html((string)($health['last_checked_at']??'never')).'</p>';
+        echo '<p class="dzn-settings-meta">Scopes: '.esc_html(!empty($health['scope_match'])?'exact':'re-consent required').' · Credential: '.esc_html(!empty($health['credential_valid'])?'valid':'missing or expired').' · Last checked: '.esc_html((string)($health['last_checked_at']??'never')).(!empty($health['failure_reason_code'])?' · Last error: <code>'.esc_html((string)$health['failure_reason_code']).'</code>':'').'</p>';
+        try{
+            $report=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->report(10);
+            $counts=(array)($report['counts']??array());
+            echo '<p class="dzn-settings-meta">Missing future classrooms: lessons '.esc_html((string)(int)($counts['missing_lesson_classrooms']??0)).' · bookings '.esc_html((string)(int)($counts['missing_booking_classrooms']??0)).' · Unconfirmed accepted bookings: '.esc_html((string)(int)($counts['unconfirmed_booking_projections']??0)).' · Failed/blocked: '.esc_html((string)(int)($counts['blocked_or_failed_classrooms']??0)).'</p>';
+            $problems=array_merge((array)($report['failed_booking_projections']??array()),(array)($report['blocked_or_failed_classrooms']??array()));
+            if($problems){
+                echo '<div class="notice notice-warning inline"><p><strong>Classroom recovery is required.</strong> Review <code>wp dzn-meet repair --dry-run --json --user=&lt;administrator_id&gt;</code>, then apply the approved digest with <code>wp dzn-meet repair --plan=&lt;digest&gt; --user=&lt;administrator_id&gt;</code>. Manual <code>worker --discover</code> is preview-only. Permanent co-host refusals require an explicit <code>wp dzn-meet approve-cohost-exception</code> or tenant-policy correction.</p><ul>';
+                foreach(array_slice($problems,0,5) as $row){
+                    $id=(int)($row['classroom_id']??0);
+                    $lesson=(int)($row['lesson_id']??0);
+                    $booking=(int)($row['booking_confirmation_id']??$row['confirmation_id']??0);
+                    $reason=(string)($row['failure_reason_code']??$row['reason_code']??$row['cohost_error_code']??'');
+                    echo '<li>'.($id>0?'Classroom #'.esc_html((string)$id).' · ':'').($lesson>0?'lesson #'.esc_html((string)$lesson):'booking #'.esc_html((string)$booking)).' · '.esc_html((string)($row['classroom_state']??$row['state']??'failed')).' · co-host '.esc_html((string)($row['cohost_state']??'unknown')).($reason!==''?' · <code>'.esc_html($reason).'</code>':'').'</li>';
+                }
+                echo '</ul></div>';
+            }
+        }catch(\Throwable){}
         echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-integration-google')).'">Manage organizer connection</a></p></section>';
     }
 

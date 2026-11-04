@@ -278,10 +278,11 @@ function dzn_theme_platform_lesson_temporal_state( array $lesson, $now = null ) 
 }
 
 function dzn_theme_platform_booking_join_message( array $booking, $within_window ) {
-	if ( ! empty( $booking['join_available'] ) && ! $within_window ) { return 'ورود به کلاس از ۳۰ دقیقه پیش از شروع فعال می‌شود.'; }
+	if ( ! $within_window ) { return 'ورود به کلاس از ۳۰ دقیقه پیش از شروع تا ۳۰ دقیقه پس از پایان فعال است.'; }
 	if ( 'provider_conference_unavailable' === ( $booking['join_issue'] ?? '' ) ) { return 'Google Calendar ساخته شده، اما پیوند Meet هنوز آماده نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.'; }
-	if ( empty( $booking['join_available'] ) ) { return 'پیوند امن Meet در دسترس نیست. لطفاً با پشتیبانی دلنوازان تماس بگیرید.'; }
-	return '';
+	$readiness = dzn_theme_platform_meet_readiness( $booking, true );
+	if ( 'ready' === (string) ( $readiness['state'] ?? '' ) ) { return ''; }
+	return dzn_theme_platform_meet_readiness_message( (string) ( $readiness['state'] ?? 'unavailable' ), (string) ( $readiness['reason'] ?? '' ) );
 }
 
 /**
@@ -637,6 +638,39 @@ function dzn_theme_platform_meet_classroom_ready( array $row, $is_booking ) {
 	catch ( Throwable $e ) { return false; }
 }
 
+/** Secret-free readiness state used to explain an unavailable join action. */
+function dzn_theme_platform_meet_readiness( array $row, $is_booking ) {
+	$class = '\\Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService';
+	if ( ! class_exists( $class ) ) { return array( 'state' => 'unavailable', 'reason' => 'service_unavailable' ); }
+	try {
+		$result = ( new $class() )->readinessForRow( $row, (bool) $is_booking );
+		return is_array( $result ) ? $result : array( 'state' => 'unavailable', 'reason' => 'unknown' );
+	} catch ( Throwable $e ) {
+		return array( 'state' => 'unavailable', 'reason' => 'unavailable' );
+	}
+}
+
+/** Concise localized recovery copy for a non-ready classroom. */
+function dzn_theme_platform_meet_readiness_message( $state, $reason = '' ) {
+	$messages = array(
+		'missing'      => 'کلاس Google Meet هنوز ساخته نشده است. تیم پشتیبانی دلنوازان در حال آماده‌سازی آن است.',
+		'provisioning' => 'کلاس Google Meet در حال آماده‌سازی است؛ لطفاً چند دقیقه دیگر صفحه را تازه کنید.',
+		'blocked'      => 'دسترسی هم‌میزبان کلاس تأیید نشده است؛ برای رفع آن با پشتیبانی دلنوازان تماس بگیرید.',
+		'failed'       => 'ساخت کلاس Google Meet کامل نشد؛ برای بررسی و تلاش دوباره با پشتیبانی دلنوازان تماس بگیرید.',
+		'cancelled'    => 'این کلاس لغو شده است و ورود به آن امکان‌پذیر نیست.',
+		'completed'    => 'این کلاس به پایان رسیده است.',
+		'unavailable'  => 'دسترسی ورود برای این جلسه تأیید نشده است. صفحه را تازه کنید یا با پشتیبانی دلنوازان تماس بگیرید.',
+		'invalid'      => 'اطلاعات این جلسه معتبر نیست؛ لطفاً با پشتیبانی دلنوازان تماس بگیرید.',
+	);
+	if ( 'unavailable' === $state && 'reference_missing' === $reason ) {
+		return 'پیوند امن Google Meet در دسترس نیست؛ با پشتیبانی دلنوازان تماس بگیرید.';
+	}
+	if ( 'unavailable' === $state && 'booking_not_confirmed' === $reason ) {
+		return 'این کلاس آشنایی هنوز تأیید نشده است؛ پس از تأیید، ورود فعال می‌شود.';
+	}
+	return $messages[ $state ] ?? 'دسترسی ورود برای این جلسه تأیید نشده است.';
+}
+
 /** Availability of the centralized Google Meet classroom. */
 function dzn_theme_platform_livekit_available( $role, array $row, $is_booking, $within_join ) {
 	if ( ! $within_join ) { return false; }
@@ -650,8 +684,13 @@ function dzn_theme_platform_livekit_available( $role, array $row, $is_booking, $
 
 /** The Meet link remains an explicit, server-opened action with its own provider check. */
 function dzn_theme_platform_meet_available( array $row, $is_booking, $within_join ) {
-	if ( ! $within_join || empty( $row['join_available'] ) ) { return false; }
-	return $is_booking || 'authorised' === (string) ( $row['lifecycle_state'] ?? '' );
+	if ( ! $within_join ) { return false; }
+	if ( $is_booking ) {
+		return in_array( (string) ( $row['version'] ?? '' ), array( 'student_booking_class_v1', 'teacher_booking_class_v1' ), true )
+			&& 'confirmed' === (string) ( $row['confirmation_state'] ?? 'confirmed' )
+			&& dzn_theme_platform_meet_classroom_ready( $row, true );
+	}
+	return 'authorised' === (string) ( $row['lifecycle_state'] ?? '' ) && dzn_theme_platform_meet_classroom_ready( $row, false );
 }
 
 function dzn_theme_platform_livekit_action_url( $role ) {
@@ -667,7 +706,8 @@ function dzn_theme_platform_livekit_message( array $row, $is_booking, $within_jo
 	if ( 'completed' === (string) ( $row['lifecycle_state'] ?? '' ) ) { return 'این کلاس به پایان رسیده است.'; }
 	if ( ! $within_join ) { return 'ورود به کلاس از ۳۰ دقیقه پیش از شروع تا ۳۰ دقیقه پس از پایان فعال است.'; }
 	if ( $livekit_available || $meet_available ) { return ''; }
-	return 'دسترسی ورود برای این جلسه تأیید نشده است. صفحه را تازه کنید یا با پشتیبانی دلنوازان تماس بگیرید.';
+	$readiness = dzn_theme_platform_meet_readiness( $row, $is_booking );
+	return dzn_theme_platform_meet_readiness_message( (string) ( $readiness['state'] ?? 'unavailable' ), (string) ( $readiness['reason'] ?? '' ) );
 }
 
 /**

@@ -21,6 +21,7 @@ final class MeetAdministratorClassroomService {
         $version=$this->repository->currentScheduleVersion($lessonId);
         if(!$version)return $this->missing('missing_schedule',array('kind'=>'lesson','lesson_id'=>$lessonId));
         $classroom=$this->repository->activeClassroomForLesson($lessonId);
+        if(!$classroom)$classroom=$this->repository->latestClassroomForLesson($lessonId);
         if(!$classroom)return $this->missing('not_found',array('kind'=>'lesson','lesson_id'=>$lessonId,'schedule_version_uid'=>(string)$version->uid));
         return $this->context($classroom,'lesson',array('lesson_id'=>$lessonId,'schedule_version_uid'=>(string)$version->uid));
     }
@@ -31,6 +32,7 @@ final class MeetAdministratorClassroomService {
         $row=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}booking_request_confirmations WHERE uid=%s LIMIT 1",trim($confirmationUid)));
         if(!$row)return $this->missing('not_found',array('kind'=>'booking','confirmation_uid'=>$confirmationUid));
         $classroom=$this->repository->activeClassroomForBooking((int)$row->id);
+        if(!$classroom)$classroom=$this->repository->latestClassroomForBooking((int)$row->id);
         if(!$classroom)return $this->missing('not_found',array('kind'=>'booking','confirmation_uid'=>$confirmationUid));
         return $this->context($classroom,'booking',array('confirmation_uid'=>$confirmationUid));
     }
@@ -53,8 +55,9 @@ final class MeetAdministratorClassroomService {
         $cohost=(string)($classroom->cohost_state??MeetCoHostRule::PENDING);
         $ready=in_array($state,array('ready','rescheduled'),true)&&MeetCoHostRule::isReady($state,$cohost);
         $uri=$ready?$this->openUri($classroom):null;
+        $reported=$ready?'ready':(in_array($state,array('provisioning','blocked','failed','cancelled'),true)?$state:'not_found');
         return array_merge($extra,array(
-            'kind'=>$kind,'state'=>$ready?'ready':($state==='blocked'?'blocked':'not_found'),'available'=>$uri!==null,
+            'kind'=>$kind,'state'=>$reported,'available'=>$uri!==null,
             'livekit_available'=>$uri!==null,'meet_available'=>$uri!==null,
             'classroom_id'=>(int)$classroom->id,'join_uri'=>$uri,
             'cohost_state'=>(string)($classroom->cohost_state??MeetCoHostRule::PENDING),

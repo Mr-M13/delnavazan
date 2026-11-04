@@ -23,8 +23,10 @@ final class BookingClassJoinService {
             throw new \InvalidArgumentException('portal_object_not_portal_visible');
         }
         if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService')){
-            $central=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService())->forBooking($confirmationUid,$role);
+            $centralService=new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService();
+            $central=$centralService->forBooking($confirmationUid,$role);
             if($central!==null)return $central;
+            if($centralService->hasActiveClassroomForBookingUid($confirmationUid))throw new \InvalidArgumentException('portal_capability_unknown');
         }
         $principal = (new PortalPrincipalResolver())->resolve($role);
         $row = $this->repository->confirmedForParticipant($confirmationUid, $role, (int) $principal['id']);

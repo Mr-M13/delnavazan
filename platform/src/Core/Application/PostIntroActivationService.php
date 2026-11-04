@@ -248,7 +248,15 @@ final class PostIntroActivationService {
         // Primary classroom: one Delnavazan-owned Google Meet space, with the Teacher as external
         // co-host. If the organizer is not configured, the preserved legacy projection remains the
         // fallback so a rollback needs no schema change.
-        if (class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService') && \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured()) {
+        $centralOrganizerConfigured = class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')
+            && \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService::configured();
+        if ($centralOrganizerConfigured) {
+            if (!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::enabled()) {
+                throw new \RuntimeException('meet_classroom_paused');
+            }
+            if (!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::organizerConnected()) {
+                throw new \RuntimeException('meet_organizer_not_connected');
+            }
             (new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->ensureForLesson($lessonId, $scheduleVersionId);
             return;
         }

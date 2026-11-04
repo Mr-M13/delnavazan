@@ -17,6 +17,8 @@ final class GoogleWorkspaceRepository {
     public function begin():void{global $wpdb;if($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')===false||$wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('meet_transaction_start_failed');}
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('meet_transaction_commit_failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
+    public function acquireLock(string $name,int $timeout=5):bool{global $wpdb;return (int)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,%d)',$name,$timeout))===1;}
+    public function releaseLock(string $name):void{global $wpdb;$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',$name));}
 
     // ---- Workspace connection ---------------------------------------------------------------
     public function activeConnection(bool $lock=false):?object{
@@ -61,6 +63,13 @@ final class GoogleWorkspaceRepository {
     public function activeClassroomForBooking(int $confirmationId,bool $lock=false):?object{
         return $this->row("SELECT * FROM {$this->p}meet_classrooms WHERE booking_confirmation_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$confirmationId);
     }
+    /** Latest history row, used only to report/recover a blocked projection without reviving history. */
+    public function latestClassroomForLesson(int $lessonId):?object{
+        return $this->row("SELECT * FROM {$this->p}meet_classrooms WHERE lesson_id=%d ORDER BY id DESC LIMIT 1",$lessonId);
+    }
+    public function latestClassroomForBooking(int $confirmationId):?object{
+        return $this->row("SELECT * FROM {$this->p}meet_classrooms WHERE booking_confirmation_id=%d ORDER BY id DESC LIMIT 1",$confirmationId);
+    }
     public function insertClassroom(array $data):int{return $this->insert('meet_classrooms',$data);}
     public function updateClassroom(int $id,array $data,array $where):int{return $this->update('meet_classrooms',$data,array_merge(array('id'=>$id),$where));}
     /** Classrooms whose lesson has ended and which still need recording/attendance reconciliation. */
@@ -76,6 +85,155 @@ final class GoogleWorkspaceRepository {
     public function upcoming(int $limit=50):array{
         $limit=max(1,min(200,$limit));
         return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state IN ('provisioning','ready','rescheduled','failed','blocked') AND starts_at_utc>=%s AND (cohost_next_attempt_at IS NULL OR cohost_next_attempt_at<=%s) ORDER BY starts_at_utc ASC LIMIT ".$limit,gmdate('Y-m-d H:i:s',time()-3600),gmdate('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Future authorised term lessons whose current schedule has no active classroom.
+     *
+     * Discovery is deliberately date-bounded and read-only. It never selects a cancelled, completed
+     * or archived lesson, and it cannot change canonical lesson or schedule state.
+     */
+    public function missingLessonClassrooms(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT l.id AS lesson_id,l.uid AS lesson_uid,l.teacher_id,l.student_id,l.lifecycle_state,
+                    v.id AS schedule_version_id,v.uid AS schedule_version_uid,
+                    v.starts_at_utc,v.ends_at_utc,v.schedule_timezone
+             FROM {$this->p}lessons l
+             INNER JOIN {$this->p}canonical_lesson_schedule_versions v
+                     ON v.lesson_id=l.id AND v.applicable_slot=1 AND v.superseded_at IS NULL
+             LEFT JOIN {$this->p}meet_classrooms c
+                    ON c.lesson_id=l.id AND c.active_slot=1
+             WHERE l.record_model='canonical_term_lesson_v1'
+               AND l.lifecycle_state='authorised' AND l.archived_at IS NULL
+               AND v.starts_at_utc>=%s
+               AND c.id IS NULL
+             ORDER BY v.starts_at_utc ASC,l.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
+    }
+
+    /** Future confirmed introductory bookings with no active organizer classroom. */
+    public function missingBookingClassrooms(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT c.id AS confirmation_id,c.uid AS confirmation_uid,c.teacher_id,c.booking_request_id,
+                    c.version AS confirmation_version,c.starts_at_utc,c.ends_at_utc,
+                    c.schedule_timezone,c.state AS confirmation_state
+             FROM {$this->p}booking_request_confirmations c
+             LEFT JOIN {$this->p}meet_classrooms m
+                    ON m.booking_confirmation_id=c.id AND m.active_slot=1
+             WHERE c.state='confirmed' AND c.starts_at_utc>=%s AND m.id IS NULL
+             ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
+    }
+
+    /** Active booking classrooms whose confirmation instant no longer matches the provider event. */
+    public function staleBookingClassrooms(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT m.*,c.uid AS confirmation_uid,c.state AS confirmation_state,
+                    c.version AS confirmation_version,c.teacher_id AS confirmation_teacher_id,
+                    c.starts_at_utc AS current_starts_at_utc,c.ends_at_utc AS current_ends_at_utc,
+                    c.schedule_timezone AS current_schedule_timezone
+             FROM {$this->p}meet_classrooms m
+             INNER JOIN {$this->p}booking_request_confirmations c ON c.id=m.booking_confirmation_id
+             WHERE m.active_slot=1 AND m.booking_confirmation_id IS NOT NULL
+               AND c.state='confirmed'
+               AND c.starts_at_utc>=%s
+               AND (m.starts_at_utc<>c.starts_at_utc OR m.ends_at_utc<>c.ends_at_utc)
+             ORDER BY c.starts_at_utc ASC,m.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
+    }
+
+    /** Active lesson classrooms whose current schedule version is newer than the provider projection. */
+    public function staleLessonClassrooms(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT c.*,l.uid AS lesson_uid,v.id AS current_schedule_version_id,
+                    v.uid AS current_schedule_version_uid,v.starts_at_utc AS current_starts_at_utc,
+                    v.ends_at_utc AS current_ends_at_utc,v.schedule_timezone AS current_schedule_timezone
+             FROM {$this->p}meet_classrooms c
+             INNER JOIN {$this->p}lessons l ON l.id=c.lesson_id
+             INNER JOIN {$this->p}canonical_lesson_schedule_versions v
+                     ON v.lesson_id=l.id AND v.applicable_slot=1 AND v.superseded_at IS NULL
+             WHERE c.active_slot=1 AND c.lesson_id IS NOT NULL
+               AND c.schedule_version_id<>v.id
+               AND l.record_model='canonical_term_lesson_v1'
+               AND l.lifecycle_state='authorised' AND l.archived_at IS NULL
+               AND v.starts_at_utc>=%s
+             ORDER BY v.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
+    }
+
+    /** Active classrooms still bound to a former Teacher after a canonical assignment change. */
+    public function teacherMismatchClassrooms(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT c.*,l.uid AS lesson_uid,l.teacher_id AS current_teacher_id
+             FROM {$this->p}meet_classrooms c
+             INNER JOIN {$this->p}lessons l ON l.id=c.lesson_id
+             INNER JOIN {$this->p}canonical_lesson_schedule_versions v
+                     ON v.id=c.schedule_version_id AND v.lesson_id=l.id
+             WHERE c.active_slot=1 AND c.lesson_id IS NOT NULL AND c.teacher_id<>l.teacher_id
+               AND l.record_model='canonical_term_lesson_v1'
+               AND l.lifecycle_state='authorised' AND l.archived_at IS NULL
+               AND v.starts_at_utc>=%s
+             ORDER BY v.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
+    }
+
+    /** Existing provider projections that may be retried automatically under the bounded retry rule. */
+    public function retryableClassrooms(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        $now=gmdate('Y-m-d H:i:s');
+        return $this->rows(
+            "SELECT c.*,b.version AS booking_confirmation_version,b.state AS booking_confirmation_state,
+                    b.teacher_id AS confirmation_teacher_id
+             FROM {$this->p}meet_classrooms c
+             LEFT JOIN {$this->p}booking_request_confirmations b ON b.id=c.booking_confirmation_id
+             WHERE c.starts_at_utc>=%s
+               AND c.classroom_state IN ('provisioning','failed','blocked','ready','rescheduled')
+               AND c.cohost_state<>'blocked'
+               AND (c.failure_reason_code IS NULL
+                    OR c.failure_reason_code NOT IN ('meet_calendar_projection_refused','meet_space_lookup_refused','meet_space_config_refused','meet_cohost_assignment_blocked','meet_cohost_assignment_refused'))
+             ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
+            $now
+        );
+    }
+
+    /** Confirmations that accepted a booking but have not completed provider projection. */
+    public function unconfirmedBookingProjections(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT c.id AS confirmation_id,c.uid AS confirmation_uid,c.teacher_id,c.booking_request_id,
+                    c.version AS confirmation_version,c.state,c.failure_reason_code,c.attempt_count,c.next_attempt_at,
+                    c.starts_at_utc,c.ends_at_utc,c.schedule_timezone
+             FROM {$this->p}booking_request_confirmations c
+             WHERE c.state IN ('pending_projection','retryable','awaiting_conference')
+               AND c.starts_at_utc>=%s
+               AND (c.next_attempt_at IS NULL OR c.next_attempt_at<=UTC_TIMESTAMP())
+             ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
+    }
+
+    /** Terminal booking projection failures requiring an explicit administrator retry. */
+    public function failedBookingProjections(int $limit=50):array{
+        $limit=max(1,min(500,$limit));
+        return $this->rows(
+            "SELECT c.id AS confirmation_id,c.uid AS confirmation_uid,c.teacher_id,c.booking_request_id,
+                    c.version AS confirmation_version,c.failure_reason_code,c.attempt_count,
+                    c.starts_at_utc,c.ends_at_utc,c.schedule_timezone
+             FROM {$this->p}booking_request_confirmations c
+             WHERE c.state='failed' AND c.starts_at_utc>=%s
+             ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
+            gmdate('Y-m-d H:i:s')
+        );
     }
 
     // ---- Sealed references ------------------------------------------------------------------
@@ -125,10 +283,10 @@ final class GoogleWorkspaceRepository {
         return $this->row("SELECT r.* FROM {$this->p}meet_recording_artifacts r INNER JOIN {$this->p}meet_classrooms c ON c.id=r.classroom_id WHERE c.lesson_id=%d AND c.active_slot=1 AND r.drive_file_id IS NOT NULL ORDER BY r.id DESC LIMIT 1",$lessonId);
     }
 
-    /** Classrooms blocked by a co-host or access hardening failure, for Settings → Integrations. */
+    /** Classrooms blocked, failed or awaiting co-host recovery, for Settings → Integrations. */
     public function blockedClassrooms(int $limit=25):array{
-        $limit=max(1,min(100,$limit));
-        return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state='blocked' OR cohost_state IN ('pending','retryable','blocked') ORDER BY id DESC LIMIT ".$limit);
+        $limit=max(1,min(500,$limit));
+        return $this->rows("SELECT * FROM {$this->p}meet_classrooms WHERE classroom_state IN ('blocked','failed') OR (classroom_state='provisioning' AND failure_reason_code IS NOT NULL) OR cohost_state IN ('pending','retryable','blocked') ORDER BY id DESC LIMIT ".$limit);
     }
 
     /** Append one recording access decision. Never updated or deleted. */

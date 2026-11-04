@@ -21,8 +21,12 @@ final class StudentClassJoinService {
         $lessonUid=trim($lessonUid);$scheduleUid=trim($scheduleUid);
         if($lessonUid===''||$scheduleUid==='')throw new \InvalidArgumentException('portal_object_not_portal_visible');
         if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService')){
-            $central=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService())->forLesson($lessonUid,$scheduleUid,'student');
+            $centralService=new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService();
+            $central=$centralService->forLesson($lessonUid,$scheduleUid,'student');
             if($central!==null)return $central;
+            // A central row that is blocked, provisioning or missing its vaulted link must never
+            // fall through to a legacy teacher-owned Meet link.
+            if($centralService->hasActiveClassroomForLessonUid($lessonUid))throw new \InvalidArgumentException('portal_capability_unknown');
         }
         $principal=(new PortalPrincipalResolver())->resolve('student');
         global $wpdb;$p=$wpdb->prefix.'dzn_';

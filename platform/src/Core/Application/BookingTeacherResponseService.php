@@ -39,8 +39,7 @@ final class BookingTeacherResponseService {
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
-        if($this->projector!==null)return $this->projector->dispatch((int)$confirmationId);
-        return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'accepting','idempotent'=>false);
+        return $this->dispatchProjection((int)$deliveryId,(int)$confirmationId);
     }
 
     /**
@@ -72,8 +71,23 @@ final class BookingTeacherResponseService {
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
-        if($this->projector!==null)return $this->projector->dispatch((int)$confirmationId);
-        return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'accepting','idempotent'=>false);
+        return $this->dispatchProjection($deliveryId,(int)$confirmationId);
+    }
+
+    /**
+     * Acceptance is already committed before the provider call. A dispatch exception must therefore
+     * never be reported as a lost acceptance; leave the durable confirmation retryable for the worker.
+     */
+    private function dispatchProjection(int $deliveryId,int $confirmationId):array{
+        if($this->projector===null)return array('delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'state'=>'accepting','idempotent'=>false);
+        try{
+            $result=$this->projector->dispatch($confirmationId);
+            if(is_array($result))$result['delivery_id']=$deliveryId;
+            return is_array($result)?$result:array('delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'state'=>'retryable','failure_reason_code'=>'booking_projection_pending','retryable'=>true,'idempotent'=>false);
+        }catch(\Throwable $error){
+            do_action('dzn_booking_calendar_projection_failed',$confirmationId,get_class($error));
+            return array('delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'state'=>'retryable','failure_reason_code'=>'booking_projection_pending','retryable'=>true,'idempotent'=>false);
+        }
     }
 
     /** @return array{0:int,1:bool,2:?string} */
@@ -91,9 +105,12 @@ final class BookingTeacherResponseService {
         if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
         // The central Delnavazan Workspace organizer creates the classroom. A Teacher personal
         // Google grant is required only while the caller has explicitly rolled back to legacy.
-        $central=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')&&\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::configured();
-        $connection=$central?null:$this->repository->activeConnection((int)$teacher->id,true);
-        if(!$central&&!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
+        $centralInstalled=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');
+        // The central code path owns the booking even while the organizer is temporarily paused or
+        // re-authorising. Persist acceptance as retryable instead of rejecting it or falling back to
+        // a Teacher-owned Calendar event.
+        $connection=$centralInstalled?null:$this->repository->activeConnection((int)$teacher->id,true);
+        if(!$centralInstalled&&!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
         $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));
         $pricing=$this->introPricing!==null?($this->introPricing)((int)$delivery->booking_request_id):(new IntroPricingService())->forBooking((int)$delivery->booking_request_id);
         $paid=$pricing['mode']==='paid';

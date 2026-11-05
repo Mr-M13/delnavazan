@@ -1101,6 +1101,23 @@
   min-width: 0;
 }
 
+.dzn-tp-reschedule__confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.dzn-tp-reschedule input[type="checkbox"] {
+  flex: 0 0 auto;
+  inline-size: 1.15rem;
+  width: 1.15rem;
+  block-size: 1.15rem;
+  min-block-size: 0;
+  margin-block-start: .3rem;
+}
+
 .dzn-tp-form input[type="checkbox"],
 .dzn-tp-form input[type="radio"] {
   inline-size: 1.15rem;
@@ -1929,3 +1946,12 @@
 .dzn-teacher-recording-terms__notice{margin-block:1rem;padding:1rem;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card)}
 .dzn-teacher-recording-terms__notice h3{margin-block-start:0}
 .dzn-teacher-recording-terms__notice form{margin-block-start:1rem}
+
+/* Teacher statement lesson lines within each statement row. */
+.dzn-tp-statement-lines{width:100%;border-collapse:collapse;margin-top:.75rem;font-size:.82rem;border:1px solid var(--dzn-tp-border);border-radius:8px;overflow:hidden;background:#fff}
+.dzn-tp-statement-lines th{background:var(--dzn-tp-surface);color:var(--dzn-color-text);font-size:.74rem;text-align:right;padding:.5rem .6rem;border-block-end:1px solid var(--dzn-tp-border)}
+.dzn-tp-statement-lines td{padding:.45rem .6rem;border-block-end:1px solid color-mix(in srgb, var(--dzn-tp-border) 60%, transparent);text-align:right}
+.dzn-tp-statement-lines tbody tr:last-child td{border-block-end:none}
+.dzn-tp-statement-lines td strong{color:var(--dzn-color-action-primary)}
+.dzn-tp-statement-lines .dzn-tp-golden-badge{display:block;margin-block-start:.4rem;font-size:.76rem}
+@media (max-width:47.99rem){.dzn-tp-statement-lines{font-size:.76rem}.dzn-tp-statement-lines th,.dzn-tp-statement-lines td{padding:.4rem .5rem}}

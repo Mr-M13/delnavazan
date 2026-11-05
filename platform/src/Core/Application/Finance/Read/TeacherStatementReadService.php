@@ -35,6 +35,73 @@ final class TeacherStatementReadService {
         FinanceStatementIntegrity::assertTotals($statementId,$this->statements,$this->snapshots,$this->evaluations);
         return $this->shape($statement);
     }
+    /** The recorded lesson lines of one of this Teacher's own statements, formatted for presentation. */
+    public function statementLines(int $statementId,bool $persian=false):array{
+        $statement=$this->statements->byId($statementId);
+        if(!$statement)throw new \InvalidArgumentException('finance_statement_not_found');
+        $principal=(new \Delnavazan\Platform\Portals\PortalPrincipalResolver())->resolve('teacher');
+        $teacherId=(int)$principal['id'];
+        $invitationRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository();
+        if(!$invitationRepo->hasActiveTeacherAuthority((int)get_current_user_id(),$teacherId)||(int)$statement->teacher_id!==$teacherId){
+            throw new \InvalidArgumentException('finance_statement_not_found');
+        }
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        // §Ownership: enforce at the database-query level that the statement belongs to this teacher
+        // and that the teacher account is not archived.
+        $teacherRow=$wpdb->get_row($wpdb->prepare(
+            "SELECT id,archived_at FROM {$p}teachers WHERE id=%d",
+            $teacherId
+        ));
+        if(!$teacherRow||$teacherRow->archived_at!==null){
+            throw new \InvalidArgumentException('finance_statement_not_found');
+        }
+        $rows=$wpdb->get_results($wpdb->prepare(
+            "SELECT line.*,COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name
+             FROM {$this->p}finance_statement_lines line
+             INNER JOIN {$this->p}finance_statements statement ON statement.id=line.statement_id
+             LEFT JOIN {$this->p}courses course ON course.id=line.course_id
+             WHERE line.statement_id=%d AND statement.teacher_id=%d ORDER BY line.line_sequence",
+            $statementId,
+            $teacherId
+        )) ?: array();
+        $golden=$this->goldenHour;
+        $format=static function(int $minor,string $currency)use($persian):string{
+            return \Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney::format($minor,$currency,$persian);
+        };
+        $out=array();
+        foreach($rows as $row){
+            $bonus=0;
+            if((string)$row->disposition==='payable'){
+                try{
+                    $details=$golden->detailsForVersion((int)$row->snapshot_id,$row->snapshot_correction_id===null?0:(int)$row->snapshot_correction_id);
+                    $bonus=$details===null?0:(int)($details['total_bonus_minor']??0);
+                }catch(\Throwable){$bonus=0;}
+            }
+            $lineAmount=(int)$row->line_amount_minor;
+            $currency=(string)$row->currency;
+            $out[]=array(
+                'lesson_id'=>(string)$row->lesson_id,
+                'lesson_date'=>(string)$row->occurrence_starts_at_utc,
+                'course'=>(string)($row->course_name??''),
+                'duration_minutes'=>(int)$row->duration_minutes,
+                'rate_amount_minor'=>(int)$row->rate_amount_minor,
+                'rate_amount'=>$format((int)$row->rate_amount_minor,$currency),
+                'base_amount_minor'=>max(0,$lineAmount-$bonus),
+                'base_amount'=>$format(max(0,$lineAmount-$bonus),$currency),
+                'bonus_amount_minor'=>max(0,$bonus),
+                'bonus_amount'=>$format(max(0,$bonus),$currency),
+                'disposition'=>(string)$row->disposition,
+                'basis_code'=>(string)$row->basis_code,
+                'basis'=>(string)$row->basis_code,
+                'line_amount_minor'=>$lineAmount,
+                'amount'=>$format($lineAmount,$currency),
+                'amount_minor'=>(string)$lineAmount,
+                'status'=>(string)$row->disposition,
+                'currency'=>$currency,
+            );
+        }
+        return $out;
+    }
     /** Every statement of one Teacher, newest first. */
     public function statements(int $teacherId):array{
         FinanceSupport::requireCapability(self::CAPABILITY);

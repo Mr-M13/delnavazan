@@ -3,9 +3,12 @@ namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\Finance\Read\{FinanceTeacherOptionsReadService,TeacherStatementReadService};
 use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
+use Delnavazan\Platform\Core\Application\Finance\Statements\StatementTemplateService;
+use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
 
 /**
- * Administrator surface for teacher compensation statements and teacher reconciliation.
+ * Administrator surface for teacher compensation statements and teacher reconciliation, plus a
+ * teacher-scoped statement download endpoint.
  *
  * View-only: state, version, period, recorded totals and counted archive exclusions. An issued
  * statement is never a payment or a payout state. Reconciliation never repairs anything.
@@ -15,7 +18,11 @@ final class FinanceStatementController {
     public const MENU_SLUG='dzn-finance-statements';
     public const PARENT_SLUG=Menu::ROOT_SLUG;
 
-    public static function register():void{add_action('admin_menu',array(__CLASS__,'menu'));}
+    public static function register():void{
+        add_action('admin_menu',array(__CLASS__,'menu'));
+        add_action('admin_post_dzn_teacher_statement_download',array(__CLASS__,'downloadStatement'));
+        add_action('admin_post_nopriv_dzn_teacher_statement_download',array(__CLASS__,'downloadStatement'));
+    }
     public static function menu():void{
         if(!function_exists('add_submenu_page'))return;
         add_submenu_page(self::PARENT_SLUG,'Compensation statements','Compensation statements',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render'));
@@ -71,6 +78,45 @@ final class FinanceStatementController {
             }
         }
         echo '</div>';
+    }
+    /** Teacher-scoped statement download: renders one of the current Teacher's own statements using the
+     *  active statement template and serves it as an HTML download. */
+    public static function downloadStatement():void{
+        // Auth and nonce checks first, before any output or processing.
+        if(!is_user_logged_in()){
+            wp_die('Forbidden','Unauthenticated',array('response'=>403));
+        }
+        check_admin_referer('dzn_teacher_statement_download');
+        $statementId=absint($_POST['statement_id']??0);
+        if($statementId<1){
+            wp_die('Statement required','Invalid request',array('response'=>400));
+        }
+        // Cache-control before any content is produced.
+        nocache_headers();
+        header('Cache-Control:no-store,private,max-age=0');
+        header('Pragma:no-cache');
+        // Verify the statement belongs to the current teacher (ownership enforced server-side).
+        $statement=null;
+        try{
+            foreach((new TeacherStatementReadService())->ownStatements() as $row){
+                if((int)$row['statement_id']===$statementId){$statement=$row;break;}
+            }
+        }catch(\Throwable){$statement=null;}
+        if($statement===null){
+            wp_die('Forbidden','Statement unavailable',array('response'=>403));
+        }
+        $lines=array();
+        try{$lines=(new TeacherStatementReadService())->statementLines($statementId);}catch(\Throwable){$lines=array();}
+        $template=(new FinanceSettingsService())->template();
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $teacherRow=$wpdb->get_row($wpdb->prepare("SELECT display_name,reference_code FROM {$p}teachers WHERE id=%d",(int)$statement['teacher_id']));
+        $statement['teacher_name']=(string)($teacherRow->display_name??'');
+        $statement['teacher_reference']=(string)($teacherRow->reference_code??'');
+        $html=(new StatementTemplateService())->render($statement,$lines,$template,function_exists('get_bloginfo')?(string)get_bloginfo('name'):'Delnavazan');
+        header('Content-Type:text/html; charset=utf-8');
+        header('Content-Disposition:attachment; filename="teacher-statement-'.$statementId.'.html"');
+        echo $html;
+        exit;
     }
     private static function shortDate(string $utc): string {
         $timestamp = trim($utc) === '' ? false : strtotime($utc . ' UTC');

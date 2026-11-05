@@ -35,6 +35,84 @@ final class TeacherStatementReadService {
         FinanceStatementIntegrity::assertTotals($statementId,$this->statements,$this->snapshots,$this->evaluations);
         return $this->shape($statement);
     }
+    /**
+     * The recorded lesson lines of one of this Teacher's own statements, formatted for presentation.
+     *
+     * Ownership is enforced by the authenticated teacher principal and again inside the SQL query, so a
+     * statement id belonging to another Teacher can never be read. Amounts are the immutable values
+     * recorded at draft time; the golden-hour detail is read from the recorded snapshot version and is
+     * never recalculated from the current rate or policy. The method fails closed when the line set is
+     * incomplete, when a recorded golden-hour total no longer matches its line, or when the payable lines
+     * do not reconcile to the statement's recorded total, so an incomplete or misleading financial
+     * document is never produced.
+     */
+    public function statementLines(int $statementId,bool $persian=false):array{
+        $statement=$this->statements->byId($statementId);
+        if(!$statement)throw new \InvalidArgumentException('finance_statement_not_found');
+        $principal=(new \Delnavazan\Platform\Portals\PortalPrincipalResolver())->resolve('teacher');
+        $teacherId=(int)$principal['id'];
+        if(!(new \Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository())->hasActiveTeacherAuthority((int)get_current_user_id(),$teacherId)||(int)$statement->teacher_id!==$teacherId)throw new \InvalidArgumentException('finance_statement_not_found');
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $teacher=$wpdb->get_row($wpdb->prepare("SELECT id,archived_at FROM {$p}teachers WHERE id=%d",$teacherId));
+        if(!$teacher||$teacher->archived_at!==null)throw new \InvalidArgumentException('finance_statement_not_found');
+        $rows=$wpdb->get_results($wpdb->prepare(
+            "SELECT line.*,COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name
+             FROM {$p}finance_statement_lines line
+             INNER JOIN {$p}finance_statements statement ON statement.id=line.statement_id
+             LEFT JOIN {$p}courses course ON course.id=line.course_id
+             WHERE line.statement_id=%d AND statement.teacher_id=%d ORDER BY line.line_sequence",
+            $statementId,
+            $teacherId
+        ))?:array();
+        // Fail closed on an incomplete statement: the stored lines must equal the recorded count.
+        if(count($rows)!==(int)$statement->total_line_count)throw new \RuntimeException('statement_lines_incomplete');
+        $format=static fn(int $minor,string $currency):string=>\Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney::format($minor,$currency,$persian);
+        $out=array();$payableSum=0;
+        foreach($rows as $row){
+            $lineAmount=(int)$row->line_amount_minor;
+            $currency=(string)$row->currency;
+            $disposition=(string)$row->disposition;
+            $base=0;$bonus=0;
+            if($disposition==='payable'){
+                // A broken golden-hour lookup throws (fail closed); it is never silently treated as zero.
+                $detail=$this->goldenHour->detailsForVersion((int)$row->snapshot_id,$row->snapshot_correction_id===null?0:(int)$row->snapshot_correction_id);
+                if($detail!==null){
+                    $base=(int)($detail['base_amount_minor']??0);
+                    $bonus=(int)($detail['total_bonus_minor']??0);
+                    $total=(int)($detail['committed_total_minor']??($base+$bonus));
+                    // The immutable recorded golden-hour total must still equal the recorded line amount.
+                    if($base+$bonus!==$total||$total!==$lineAmount)throw new \RuntimeException('statement_line_bonus_mismatch');
+                }else{
+                    // No bonus detail was committed for this snapshot: the line amount is the base pay.
+                    $base=$lineAmount;$bonus=0;
+                }
+                $payableSum+=$lineAmount;
+            }
+            $out[]=array(
+                'lesson_id'=>(string)$row->lesson_id,
+                'lesson_date'=>(string)$row->occurrence_starts_at_utc,
+                'course'=>(string)($row->course_name??''),
+                'duration_minutes'=>(int)$row->duration_minutes,
+                'rate_amount_minor'=>(int)$row->rate_amount_minor,
+                'rate_amount'=>$format((int)$row->rate_amount_minor,$currency),
+                'base_amount_minor'=>$base,
+                'base_amount'=>$format($base,$currency),
+                'bonus_amount_minor'=>$bonus,
+                'bonus_amount'=>$format($bonus,$currency),
+                'disposition'=>$disposition,
+                'basis_code'=>(string)$row->basis_code,
+                'basis'=>(string)$row->basis_code,
+                'line_amount_minor'=>$lineAmount,
+                'amount'=>$format($lineAmount,$currency),
+                'amount_minor'=>(string)$lineAmount,
+                'status'=>$disposition,
+                'currency'=>$currency,
+            );
+        }
+        // The displayed lines must reconcile exactly to the statement's recorded payable total.
+        if($payableSum!==(int)$statement->payable_amount_minor)throw new \RuntimeException('statement_totals_mismatch');
+        return $out;
+    }
     /** Every statement of one Teacher, newest first. */
     public function statements(int $teacherId):array{
         FinanceSupport::requireCapability(self::CAPABILITY);

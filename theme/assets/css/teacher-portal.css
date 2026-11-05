@@ -2498,3 +2498,19 @@
 .dzn-tp-setup-progress a.is-complete>span{background:color-mix(in srgb,var(--dzn-color-action-primary) 14%,transparent);color:var(--dzn-color-action-primary)}
 .dzn-tp-setup-progress a.is-pending{opacity:.72}
 @media (max-width:47.99rem){.dzn-tp-setup-progress{grid-template-columns:1fr}}
+
+/* Teacher statement lesson lines within each statement row. */
+.dzn-tp-statements{display:grid;gap:.9rem}
+.dzn-tp-statement{display:grid;gap:.35rem}
+.dzn-tp-statement__meta,.dzn-tp-statement__totals{margin:0;display:flex;flex-wrap:wrap;gap:.25rem .4rem;align-items:baseline}
+.dzn-tp-statement__download{margin-block-start:.35rem}
+.dzn-tp-statement__error{border-inline-start:4px solid var(--dzn-color-warning);padding-inline-start:.7rem}
+.dzn-tp-statement-lines{width:100%;border-collapse:collapse;margin-top:.55rem;font-size:.82rem;border:1px solid var(--dzn-tp-border);border-radius:8px;overflow:hidden;background:var(--dzn-tp-card)}
+.dzn-tp-statement-lines th{background:var(--dzn-tp-surface,var(--dzn-color-surface-sunken));color:var(--dzn-color-text);font-size:.74rem;text-align:right;padding:.5rem .6rem;border-block-end:1px solid var(--dzn-tp-border)}
+.dzn-tp-statement-lines td{padding:.45rem .6rem;border-block-end:1px solid color-mix(in srgb, var(--dzn-tp-border) 60%, transparent);text-align:right;vertical-align:top}
+.dzn-tp-statement-lines tbody tr:last-child td{border-block-end:none}
+.dzn-tp-statement-lines td strong{color:var(--dzn-color-action-primary)}
+@media (max-width:47.99rem){
+  .dzn-tp-statement-lines{display:block;overflow-x:auto;font-size:.76rem;white-space:nowrap}
+  .dzn-tp-statement-lines th,.dzn-tp-statement-lines td{padding:.4rem .5rem}
+}

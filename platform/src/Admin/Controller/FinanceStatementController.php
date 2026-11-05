@@ -3,9 +3,12 @@ namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\Finance\Read\{FinanceTeacherOptionsReadService,TeacherStatementReadService};
 use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
+use Delnavazan\Platform\Core\Application\Finance\Statements\StatementTemplateService;
+use Delnavazan\Platform\Core\Application\Finance\FinanceSettingsService;
 
 /**
- * Administrator surface for teacher compensation statements and teacher reconciliation.
+ * Administrator surface for teacher compensation statements and teacher reconciliation, plus a
+ * teacher-scoped statement download handler.
  *
  * View-only: state, version, period, recorded totals and counted archive exclusions. An issued
  * statement is never a payment or a payout state. Reconciliation never repairs anything.
@@ -15,7 +18,11 @@ final class FinanceStatementController {
     public const MENU_SLUG='dzn-finance-statements';
     public const PARENT_SLUG=Menu::ROOT_SLUG;
 
-    public static function register():void{add_action('admin_menu',array(__CLASS__,'menu'));}
+    public static function register():void{
+        add_action('admin_menu',array(__CLASS__,'menu'));
+        add_action('admin_post_dzn_teacher_statement_download',array(__CLASS__,'downloadStatement'));
+        add_action('admin_post_nopriv_dzn_teacher_statement_download',array(__CLASS__,'downloadStatement'));
+    }
     public static function menu():void{
         if(!function_exists('add_submenu_page'))return;
         add_submenu_page(self::PARENT_SLUG,'Compensation statements','Compensation statements',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render'));
@@ -71,6 +78,49 @@ final class FinanceStatementController {
             }
         }
         echo '</div>';
+    }
+    /**
+     * Teacher-scoped statement download: renders one of the authenticated Teacher's own statements using
+     * the active statement template and serves it as an HTML attachment.
+     *
+     * Authentication, the CSRF nonce and ownership are enforced before any content is produced. The line
+     * set is read through the fail-closed teacher-scoped read seam, so a missing line, a broken bonus
+     * lookup or a totals mismatch aborts the download instead of emitting a misleading document.
+     */
+    public static function downloadStatement():void{
+        if(!is_user_logged_in())wp_die('Forbidden','Unauthenticated',array('response'=>403));
+        check_admin_referer('dzn_teacher_statement_download');
+        $statementId=absint($_POST['statement_id']??0);
+        if($statementId<1)wp_die('Statement required','Invalid request',array('response'=>400));
+        nocache_headers();
+        header('Cache-Control:no-store,private,max-age=0');
+        header('Pragma:no-cache');
+        $statement=null;
+        try{
+            foreach((new TeacherStatementReadService())->ownStatements() as $row){
+                if((int)$row['statement_id']===$statementId){$statement=$row;break;}
+            }
+        }catch(\Throwable){$statement=null;}
+        if($statement===null)wp_die('Forbidden','Statement unavailable',array('response'=>403));
+        // Only a finalised statement is a financial document the Teacher may download.
+        if(!in_array((string)($statement['state']??''),array('issued','paid','superseded'),true))wp_die('This statement is not finalised and cannot be downloaded.','Statement unavailable',array('response'=>409));
+        try{
+            $lines=(new TeacherStatementReadService())->statementLines($statementId);
+        }catch(\Throwable $error){
+            $code=trim($error->getMessage());
+            $status=in_array($code,array('finance_statement_not_found','teacher_onboarding_required'),true)?403:500;
+            wp_die('The statement could not be rendered from its recorded lines. No financial record was changed.','Statement unavailable',array('response'=>$status));
+        }
+        $template=(new FinanceSettingsService())->template();
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $teacher=$wpdb->get_row($wpdb->prepare("SELECT display_name,reference_code FROM {$p}teachers WHERE id=%d",(int)$statement['teacher_id']));
+        $statement['teacher_name']=(string)($teacher->display_name??'');
+        $statement['teacher_reference']=(string)($teacher->reference_code??'');
+        $html=(new StatementTemplateService())->render($statement,$lines,$template,function_exists('get_bloginfo')?(string)get_bloginfo('name'):'Delnavazan');
+        header('Content-Type:text/html; charset=utf-8');
+        header('Content-Disposition:attachment; filename="teacher-statement-'.$statementId.'.html"');
+        echo $html;
+        exit;
     }
     private static function shortDate(string $utc): string {
         $timestamp = trim($utc) === '' ? false : strtotime($utc . ' UTC');

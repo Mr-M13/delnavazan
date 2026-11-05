@@ -32,13 +32,7 @@ final class GoogleWorkspaceClassroomService {
 
     /** Emergency switch: false stops new organizer provisioning but leaves existing links usable. */
     public static function enabled():bool{
-        if(defined('DZN_MEET_CLASSROOM_ENABLED')){
-            $value=constant('DZN_MEET_CLASSROOM_ENABLED');
-            return !in_array(strtolower(trim((string)$value)),array('0','false','off','no'),true);
-        }
-        $env=getenv('DZN_MEET_CLASSROOM_ENABLED');
-        if(is_string($env)&&trim($env)!=='')return !in_array(strtolower(trim($env)),array('0','false','off','no'),true);
-        return true;
+        return GoogleWorkspaceFeatureFlags::classroomEnabled();
     }
 
     /** Whether the organizer grant is usable, independent of the provisioning pause switch. */

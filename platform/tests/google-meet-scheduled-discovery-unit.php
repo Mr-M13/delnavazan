@@ -1,5 +1,6 @@
 <?php
 /** Scheduled discovery defaults and the emergency provisioning pause switch. */
+require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceFeatureFlags.php';
 require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomReconciler.php';
 require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomService.php';
 

@@ -17,15 +17,53 @@ $group = static function (string $table, string $column) use ($wpdb, $p): array 
     foreach ($rows as $row) $out[(string) $row['label']] = (int) $row['total'];
     return $out;
 };
+$meetWorkerClass = 'Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceWorker';
+$meetHook = class_exists($meetWorkerClass) ? (string) $meetWorkerClass::HOOK : 'dzn_google_meet_classroom_worker';
+$meetOccurrences = 0;
+$meetRecurrences = array();
+$meetNextRun = null;
 $cron = _get_cron_array();
 $hooks = array();
 foreach ((array) $cron as $timestamp => $events) {
     foreach ((array) $events as $hook => $unused) {
-        if (in_array((string) $hook, array('dzn_post_intro_activation_dispatch', 'dzn_lesson_completion_automation_dispatch', 'dzn_lesson_reschedule_dispatch', 'dzn_google_calendar_projection_dispatch'), true)) {
+        if ((string) $hook === $meetHook) {
+            $meetOccurrences += is_array($unused) ? count($unused) : 1;
+            if ($meetNextRun === null || (int) $timestamp < (int) $meetNextRun) $meetNextRun = (int) $timestamp;
+            foreach ((array) $unused as $event) {
+                $schedule = is_array($event) ? (string) ($event['schedule'] ?? '') : '';
+                if ($schedule !== '') $meetRecurrences[$schedule] = true;
+            }
+        }
+        if (in_array((string) $hook, array('dzn_post_intro_activation_dispatch', 'dzn_lesson_completion_automation_dispatch', 'dzn_lesson_reschedule_dispatch', 'dzn_google_calendar_projection_dispatch', $meetHook), true)) {
             $hooks[(string) $hook] = gmdate('Y-m-d H:i:s', (int) $timestamp);
         }
     }
 }
+$meetFlagReport = static function (string $name, bool $default, bool $emptyConstantIsFalse, ?string $option): array {
+    if (defined($name)) {
+        $value = strtolower(trim((string) constant($name)));
+        $effective = $emptyConstantIsFalse && $value === '' ? false : !in_array($value, array('0', 'false', 'off', 'no'), true);
+        return array('effective' => $effective, 'source' => 'constant');
+    }
+    $environment = getenv($name);
+    if (is_string($environment) && trim($environment) !== '') {
+        $value = strtolower(trim($environment));
+        $effective = $emptyConstantIsFalse && $value === '' ? false : !in_array($value, array('0', 'false', 'off', 'no'), true);
+        return array('effective' => $effective, 'source' => 'environment');
+    }
+    if ($option !== null) {
+        $value = get_option($option, null);
+        if ($value !== null) return array('effective' => (string) $value === '1', 'source' => 'application_option');
+    }
+    return array('effective' => $default, 'source' => 'default');
+};
+$meetFeatureClass = 'Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceFeatureFlags';
+$meetFlags = class_exists($meetFeatureClass)
+    ? $meetFeatureClass::report()
+    : array(
+        'classroom_enabled' => $meetFlagReport('DZN_MEET_CLASSROOM_ENABLED', true, false, null),
+        'auto_reconcile' => $meetFlagReport('DZN_MEET_AUTO_RECONCILE', false, true, 'dzn_meet_auto_reconcile'),
+    );
 $stripeClass = 'Delnavazan\\Platform\\Core\\Application\\PaymentExecution\\StripeTestConfigurationService';
 $stripe = array();
 $publishableTest = false;
@@ -87,6 +125,166 @@ $googleOAuthConfigured = class_exists($googleOAuthClass) && $googleOAuthClass::c
 $replacementActorId = (int) get_option('dzn_replacement_system_user_id', 0);
 $rescheduleActorId = (int) get_option('dzn_reschedule_system_user_id', 0);
 $calendarActorId = (int) get_option('dzn_reschedule_calendar_system_user_id', 0);
+
+$meetConnection = $wpdb->get_row(
+    "SELECT id,connection_state,identity_state,last_checked_at,failure_reason_code
+     FROM {$p}meet_workspace_connections
+     ORDER BY (active_slot=1) DESC,id DESC LIMIT 1",
+    ARRAY_A
+);
+$meetCredential = $meetConnection
+    ? $wpdb->get_row($wpdb->prepare(
+        "SELECT state,valid_until_utc FROM {$p}meet_workspace_credentials
+         WHERE connection_id=%d
+         ORDER BY (state='active') DESC,credential_sequence DESC,id DESC LIMIT 1",
+        (int) $meetConnection['id']
+    ), ARRAY_A)
+    : null;
+$meetCredentialExpiration = 'missing';
+if ($meetCredential) {
+    if ($meetCredential['valid_until_utc'] === null) $meetCredentialExpiration = 'none';
+    elseif ((int) strtotime((string) $meetCredential['valid_until_utc'] . ' UTC') <= time() + 60) $meetCredentialExpiration = 'expired';
+    else $meetCredentialExpiration = 'valid';
+}
+$meetOrganizer = array(
+    'configured' => class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceOAuthService')
+        && \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService::configured(),
+    'connection_state' => $meetConnection === null ? null : (string) $meetConnection['connection_state'],
+    'identity_state' => $meetConnection === null ? null : (string) $meetConnection['identity_state'],
+    'credential_state' => $meetCredential === null ? null : (string) $meetCredential['state'],
+    'credential_expiration' => $meetCredentialExpiration,
+    'last_checked_at' => $meetConnection === null ? null : $meetConnection['last_checked_at'],
+    'failure_reason_code' => $meetConnection === null ? null : $meetConnection['failure_reason_code'],
+);
+
+$meetLessonIds = array(22, 23);
+$meetLessonRows = $wpdb->get_results($wpdb->prepare(
+    "SELECT l.id lesson_id,l.lifecycle_state lesson_lifecycle_state,
+            v.id current_schedule_version_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,
+            mc.id classroom_id,mc.classroom_state,mc.cohost_state,mc.cohost_error_code,mc.failure_reason_code,
+            mc.schedule_version_id classroom_schedule_version_id,mc.updated_at classroom_updated_at,
+            CASE WHEN mc.meet_uri_digest IS NULL OR mc.meet_uri_digest='' THEN 0 ELSE 1 END join_reference_present,
+            CASE WHEN r.id IS NULL THEN 0 ELSE 1 END reference_present,
+            pcm.projection_state provider_calendar_projection_state,pcm.updated_at provider_calendar_updated_at,
+            pmm.projection_state provider_meeting_projection_state,pmm.updated_at provider_meeting_updated_at,
+            CASE WHEN pmm.join_uri_digest IS NULL OR pmm.join_uri_digest='' THEN 0 ELSE 1 END provider_join_reference_present
+     FROM {$p}lessons l
+     LEFT JOIN {$p}canonical_lesson_schedule_versions v
+       ON v.lesson_id=l.id AND v.applicable_slot=1 AND v.superseded_at IS NULL
+     LEFT JOIN {$p}meet_classrooms mc
+       ON mc.id=(SELECT mc2.id FROM {$p}meet_classrooms mc2
+                  WHERE mc2.lesson_id=l.id
+                  ORDER BY (mc2.active_slot=1) DESC,mc2.id DESC LIMIT 1)
+     LEFT JOIN {$p}meet_classroom_references r
+       ON r.classroom_id=mc.id AND r.active_slot=1 AND r.state='active'
+     LEFT JOIN {$p}provider_calendar_event_mappings pcm
+       ON pcm.lesson_id=l.id AND pcm.schedule_version_id=v.id AND pcm.active_slot=1
+     LEFT JOIN {$p}provider_meeting_mappings pmm
+       ON pmm.lesson_id=l.id AND pmm.schedule_version_id=v.id AND pmm.active_slot=1
+     WHERE l.id IN (" . implode(',', array_fill(0, count($meetLessonIds), '%d')) . ")
+     ORDER BY l.id",
+    ...$meetLessonIds
+), ARRAY_A) ?: array();
+$meetLessons = array();
+foreach ($meetLessonIds as $lessonId) {
+    $meetLessons[$lessonId] = array('lesson_id' => $lessonId, 'found' => false);
+}
+foreach ($meetLessonRows as $row) {
+    $lessonId = (int) $row['lesson_id'];
+    $exists = (int) $row['classroom_id'] > 0;
+    $classroomState = (string) ($row['classroom_state'] ?? '');
+    $cohostState = (string) ($row['cohost_state'] ?? '');
+    $referencePresent = (int) ($row['reference_present'] ?? 0) === 1;
+    $joinReferencePresent = (int) ($row['join_reference_present'] ?? 0) === 1;
+    $centralJoinReady = $exists && in_array($classroomState, array('ready', 'rescheduled'), true)
+        && in_array($cohostState, array('verified', 'exception_approved'), true)
+        && $referencePresent && $joinReferencePresent;
+    $providerCalendar = (string) ($row['provider_calendar_projection_state'] ?? '');
+    $providerMeeting = (string) ($row['provider_meeting_projection_state'] ?? '');
+    $providerJoinReference = (int) ($row['provider_join_reference_present'] ?? 0) === 1;
+    $providerJoinReady = $providerCalendar === 'verified' && $providerMeeting === 'verified' && $providerJoinReference;
+    $meetLessons[$lessonId] = array(
+        'lesson_id' => $lessonId,
+        'found' => true,
+        'lesson_lifecycle_state' => (string) ($row['lesson_lifecycle_state'] ?? ''),
+        'schedule_version_id' => (int) ($row['current_schedule_version_id'] ?? 0),
+        'starts_at_utc' => $row['starts_at_utc'] ?? null,
+        'ends_at_utc' => $row['ends_at_utc'] ?? null,
+        'schedule_timezone' => $row['schedule_timezone'] ?? null,
+        'classroom_exists' => $exists,
+        'classroom_state' => $exists ? $classroomState : null,
+        'cohost_state' => $exists ? $cohostState : null,
+        'active_schedule_version_match' => $exists
+            && (int) ($row['classroom_schedule_version_id'] ?? 0) === (int) ($row['current_schedule_version_id'] ?? 0),
+        'reference_present' => $referencePresent,
+        'join_reference_present' => $joinReferencePresent,
+        'central_join_ready' => $centralJoinReady,
+        'provider_calendar_projection_state' => $providerCalendar !== '' ? $providerCalendar : null,
+        'provider_meeting_projection_state' => $providerMeeting !== '' ? $providerMeeting : null,
+        'provider_join_reference_present' => $providerJoinReference,
+        'provider_join_ready' => $providerJoinReady,
+        'projection_verified' => $centralJoinReady || $providerJoinReady,
+        'join_ready' => $centralJoinReady || $providerJoinReady,
+        'failure_code' => (string) ($row['failure_reason_code'] ?? '') ?: ((string) ($row['cohost_error_code'] ?? '') ?: null),
+        'last_update_utc' => max(
+            (string) ($row['classroom_updated_at'] ?? ''),
+            (string) ($row['provider_calendar_updated_at'] ?? ''),
+            (string) ($row['provider_meeting_updated_at'] ?? '')
+        ) ?: null,
+    );
+}
+
+$meetBookingId = 9;
+$meetBookingRow = $wpdb->get_row($wpdb->prepare(
+    "SELECT c.id,c.state confirmation_state,c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,
+            c.failure_reason_code confirmation_failure_reason_code,c.attempt_count,c.next_attempt_at,
+            c.updated_at confirmation_updated_at,
+            mc.id classroom_id,mc.classroom_state,mc.cohost_state,mc.cohost_error_code,
+            mc.failure_reason_code classroom_failure_reason_code,mc.updated_at classroom_updated_at,
+            CASE WHEN mc.meet_uri_digest IS NULL OR mc.meet_uri_digest='' THEN 0 ELSE 1 END join_reference_present,
+            CASE WHEN r.id IS NULL THEN 0 ELSE 1 END reference_present
+     FROM {$p}booking_request_confirmations c
+     LEFT JOIN {$p}meet_classrooms mc
+       ON mc.id=(SELECT mc2.id FROM {$p}meet_classrooms mc2
+                  WHERE mc2.booking_confirmation_id=c.id
+                  ORDER BY (mc2.active_slot=1) DESC,mc2.id DESC LIMIT 1)
+     LEFT JOIN {$p}meet_classroom_references r
+       ON r.classroom_id=mc.id AND r.active_slot=1 AND r.state='active'
+     WHERE c.id=%d",
+    $meetBookingId
+), ARRAY_A);
+$meetBooking = array('confirmation_id' => $meetBookingId, 'found' => false);
+if ($meetBookingRow) {
+    $exists = (int) $meetBookingRow['classroom_id'] > 0;
+    $classroomState = (string) ($meetBookingRow['classroom_state'] ?? '');
+    $cohostState = (string) ($meetBookingRow['cohost_state'] ?? '');
+    $referencePresent = (int) ($meetBookingRow['reference_present'] ?? 0) === 1;
+    $joinReferencePresent = (int) ($meetBookingRow['join_reference_present'] ?? 0) === 1;
+    $confirmationUpdated = (string) ($meetBookingRow['confirmation_updated_at'] ?? '');
+    $classroomUpdated = (string) ($meetBookingRow['classroom_updated_at'] ?? '');
+    $meetBooking = array(
+        'confirmation_id' => $meetBookingId,
+        'found' => true,
+        'confirmation_state' => (string) ($meetBookingRow['confirmation_state'] ?? ''),
+        'starts_at_utc' => $meetBookingRow['starts_at_utc'] ?? null,
+        'ends_at_utc' => $meetBookingRow['ends_at_utc'] ?? null,
+        'schedule_timezone' => $meetBookingRow['schedule_timezone'] ?? null,
+        'attempt_count' => (int) ($meetBookingRow['attempt_count'] ?? 0),
+        'next_attempt_at' => $meetBookingRow['next_attempt_at'] ?? null,
+        'classroom_exists' => $exists,
+        'classroom_state' => $exists ? $classroomState : null,
+        'cohost_state' => $exists ? $cohostState : null,
+        'reference_present' => $referencePresent,
+        'join_reference_present' => $joinReferencePresent,
+        'join_ready' => $exists && in_array($classroomState, array('ready', 'rescheduled'), true)
+            && in_array($cohostState, array('verified', 'exception_approved'), true)
+            && $referencePresent && $joinReferencePresent,
+        'failure_code' => (string) ($meetBookingRow['confirmation_failure_reason_code'] ?? '')
+            ?: ((string) ($meetBookingRow['classroom_failure_reason_code'] ?? '')
+                ?: ((string) ($meetBookingRow['cohost_error_code'] ?? '') ?: null)),
+        'last_update_utc' => max($confirmationUpdated, $classroomUpdated) ?: null,
+    );
+}
 $out = array(
     'schema' => (string) get_option('dzn_platform_schema_version'),
     'build' => defined('DZN_PLATFORM_BUILD_ID') ? (string) DZN_PLATFORM_BUILD_ID : null,
@@ -160,6 +358,23 @@ $out = array(
             $row['teacher_credential_expired'] = $credential !== null && $credential->valid_until_utc !== null && strtotime((string) $credential->valid_until_utc . ' UTC') <= time() + 60;
             return $row;
         }, $failedCalendarDetail),
+    ),
+    'meet_operational' => array(
+        'read_only' => true,
+        'flags' => $meetFlags,
+        'worker' => array(
+            'class_loaded' => class_exists($meetWorkerClass),
+            'hook' => $meetHook,
+            'hook_registered' => class_exists($meetWorkerClass) && has_action($meetHook) !== false,
+            'scheduled' => $meetOccurrences > 0,
+            'occurrences' => $meetOccurrences,
+            'recurrence' => $meetRecurrences === array() ? null : implode(',', array_keys($meetRecurrences)),
+            'next_run_utc' => $meetNextRun === null ? null : gmdate('Y-m-d H:i:s', (int) $meetNextRun),
+            'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,
+        ),
+        'organizer_oauth' => $meetOrganizer,
+        'lessons' => $meetLessons,
+        'booking_confirmation' => $meetBooking,
     ),
     'completed_052' => in_array('052_payment_plan_choice', (array) get_option('dzn_platform_completed_migrations', array()), true),
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,

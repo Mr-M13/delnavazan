@@ -20,6 +20,7 @@ $postIntro = $read('src/Core/Application/PostIntroActivationService.php');
 $rescheduleCalendar = $read('src/Integrations/LessonRescheduleCalendarService.php');
 $runbook = $read('docs/GOOGLE-MEET-RECONCILIATION-2026-11-04.md');
 $worker = $read('src/Integrations/GoogleWorkspace/GoogleWorkspaceWorker.php');
+$flags = $read('src/Integrations/GoogleWorkspace/GoogleWorkspaceFeatureFlags.php');
 $classrooms = $read('src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomService.php');
 $rule = $read('src/Integrations/GoogleWorkspace/MeetProvisioningRule.php');
 $join = $read('src/Integrations/GoogleWorkspace/MeetClassroomJoinService.php');
@@ -55,7 +56,7 @@ $check('reconciler patches stale schedules', str_contains($reconciler, 'reschedu
 $check('reconciler patches stale booking instants', str_contains($reconciler, 'rescheduleForBooking('));
 $check('reconciler repairs teacher mismatch', str_contains($reconciler, 'replaceTeacher((int)$c'));
 $check('reconciler retries accepted bookings', str_contains($reconciler, 'BookingCalendarProjectionService') && str_contains($reconciler, 'dispatch((int)$c'));
-$check('automatic discovery is opt-in', str_contains($reconciler, 'DZN_MEET_AUTO_RECONCILE') && str_contains($reconciler, "get_option('dzn_meet_auto_reconcile','0')"));
+$check('automatic discovery is opt-in', str_contains($flags, 'DZN_MEET_AUTO_RECONCILE') && str_contains($flags, "AUTO_RECONCILE_OPTION='dzn_meet_auto_reconcile'") && str_contains($flags, 'get_option($option, null)') && str_contains($flags, "'effective'=>\$default"));
 $check('discovery flag gates missing rows but not existing-row repair', (bool)preg_match('/if\(\$discover\)\{.*?missingLessonClassrooms.*?missingBookingClassrooms.*?\}.*?staleLessonClassrooms/s', $reconciler));
 $check('worker invokes reconciliation and a single-run lock', str_contains($worker, 'GoogleWorkspaceClassroomReconciler') && str_contains($worker, 'GET_LOCK') && str_contains($worker, 'automaticEnabled()'));
 $check('worker honours the emergency provisioning flag', str_contains($worker, 'GoogleWorkspaceClassroomService::enabled()'));

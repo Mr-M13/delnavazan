@@ -21,12 +21,12 @@ final class AdministratorBookingMatchService {
     public function __construct(
         private ?BookingTeacherDeliveryRepository $deliveries = null,
         private ?TeacherAvailabilityService $availability = null,
-        private ?CanonicalTeacherOccupancyReadService $occupancy = null,
+        private ?BookingTeacherOccupancyReadService $occupancy = null,
         private ?object $projector = null
     ) {
         $this->deliveries ??= new BookingTeacherDeliveryRepository();
         $this->availability ??= new TeacherAvailabilityService();
-        $this->occupancy ??= new CanonicalTeacherOccupancyReadService();
+        $this->occupancy ??= new BookingTeacherOccupancyReadService();
     }
 
     /** @return array<string,mixed> */

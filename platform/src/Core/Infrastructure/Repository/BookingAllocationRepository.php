@@ -14,6 +14,7 @@ final class BookingAllocationRepository {
     public function begin():void{global $wpdb;if($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')===false||$wpdb->query('START TRANSACTION')===false)throw new \RuntimeException('Allocation transaction start failed');}
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Allocation transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
+    public function ensureAndLockTeacherRoot(int $teacherId,string $now,int $actor):void{(new CanonicalLessonScheduleRepository())->ensureAndLockTeacherRoot($teacherId,$now,$actor);}
     public function request(int $id,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_requests WHERE id=%d".($lock?' FOR UPDATE':''),$id))?:null;}
     public function requestIdForReference(string $reference):?int{global $wpdb;$id=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_requests WHERE reference_code=%s",$reference));return $id===null?null:(int)$id;}
     public function times(int $requestId):array{global $wpdb;return (array)$wpdb->get_results($wpdb->prepare("SELECT id,sequence_number,starts_at_utc,occupied_ends_at_utc FROM {$this->p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number,id",$requestId));}

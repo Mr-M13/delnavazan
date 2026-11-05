@@ -8,10 +8,12 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public array $alerts = array();
         public static array $pendingAlerts = array();
         public static array $pendingExpirations = array();
+        public array $lockedTeacherRoots = array();
         public int $cursorId = 0;
         public function begin(): void {}
         public function commit(): void {}
         public function rollback(): void {}
+        public function ensureAndLockTeacherRoot(int $teacherId,string $now,int $actor):void{$this->lockedTeacherRoots[]=$teacherId;}
         public function delivery(int $requestId, bool $lock = false): ?object { return $this->deliveryRow; }
         public function request(int $requestId, bool $lock = false): ?object { return (object) array('id'=>$requestId,'selected_intro_course_id'=>4,'lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'created_at'=>'2026-11-02 00:00:00'); }
         public function confirmationExists(int $requestId): bool { return false; }
@@ -61,8 +63,9 @@ namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
         public function effective(int $teacherId, string $start, string $end): array { return array(array('starts_at_utc'=>$start,'ends_at_utc'=>$end,'state'=>'preferred')); }
     }
-    final class CanonicalTeacherOccupancyReadService {
-        public function overlapping(int $teacherId, string $start, string $end): array { return array(); }
+    final class BookingTeacherOccupancyReadService {
+        public static array $blockedTeachers = array();
+        public function overlapping(int $teacherId, string $start, string $end): array { return in_array($teacherId,self::$blockedTeachers,true)?array(array('lesson_id'=>1)):array(); }
     }
     final class CanonicalContinuationCapacityAuthority {
         public static function assertNoActiveHold(int $teacherId, string $start, string $end): void {}
@@ -94,6 +97,7 @@ namespace {
     $second=$service->advanceLocked($repo->deliveryRow,'declined','2026-11-02 01:00:00');
     $assert($second['teacher_id']===22 && count($repo->offers)===2,'Decline must offer the next Teacher without closing the request.');
     $assert($repo->cursorId===11,'Only a new request advances the course cursor.');
+    $assert($repo->lockedTeacherRoots===array(11,22,11,22),'Allocation must lock every eligible Teacher in a stable order before each offer decision.');
     $next=$service->advanceLocked($repo->deliveryRow,'expired','2026-11-03 01:00:00');
     $assert($next===null && $repo->deliveryRow->state==='expired' && $repo->referrals===array('candidates_exhausted'),'Exhaustion must refer the request to an administrator.');
     $service->process(9,'2026-11-05 00:00:00');
@@ -102,5 +106,10 @@ namespace {
     \Delnavazan\Platform\Integrations\BookingAllocationWorker::run();
     $notices=\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls;
     $assert(count($notices)===3 && $notices[0]['event']==='booking.referral.admin' && $notices[1]['event']==='booking.escalation.admin' && $notices[2]['event']==='booking.expired.teacher','Referral, escalation, and expiration must create one durable portal notice each.');
+    $blockedRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array(11);
+    $blockedService=new \Delnavazan\Platform\Core\Application\BookingAllocationService($blockedRepo,new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository(),new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository($blockedRepo));
+    $blocked=$blockedService->startWithinTransaction(10,4,$blockedRepo->times(10),$now);
+    $assert($blocked['teacher_id']===22,'A pending or confirmed Teacher occupancy must exclude that Teacher across instruments.');
     echo "Booking allocation unit passed\n";
 }

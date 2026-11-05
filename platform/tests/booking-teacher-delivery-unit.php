@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public static int $cursorId=0;
         public array $referrals=array();
         public array $offers=array();
+        public function ensureAndLockTeacherRoot(int $teacherId,string $now,int $actor):void{}
         public function delivery(int $requestId):?object{return null;}
         public function cursor(int $courseId,string $now):int{return self::$cursorId;}
         public function advanceCursor(int $courseId,int $teacherId,string $now):void{self::$cursorId=$teacherId;}
@@ -33,7 +34,7 @@ namespace Delnavazan\Platform\Core\Application {
             return array(array('starts_at_utc' => $start, 'ends_at_utc' => $end, 'state' => $state));
         }
     }
-    final class CanonicalTeacherOccupancyReadService {
+    final class BookingTeacherOccupancyReadService {
         public function overlapping(int $teacherId, string $start, string $end): array { return array(); }
     }
     final class CanonicalContinuationCapacityAuthority {

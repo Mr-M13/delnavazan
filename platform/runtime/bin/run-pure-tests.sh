@@ -25,6 +25,7 @@ tests+=(tests/student-workspace-filters-unit.php tests/student-workspaces-contra
 tests+=(tests/finance-clarity-redesign-contract.php tests/golden-hour-rules-unit.php tests/persian-calendar-unit.php)
 tests+=(tests/recording-notice-publication-contract.php tests/settings-redesign-contract.php tests/staff-access-unit.php tests/support-bundle-unit.php)
 tests+=(tests/booking-allocation-unit.php tests/booking-teacher-wide-occupancy-contract.php)
+tests+=(tests/booking-provisioning-recovery-unit.php tests/booking-provisioning-dashboard-unit.php tests/booking-recovery-audit-unit.php tests/booking-provisioning-recovery-contract.php)
 tests+=(tests/consent-policy-unit.php tests/consent-lifecycle-contract.php tests/recording-archive-policy-unit.php tests/recording-archive-contract.php)
 executed=0
 for test in "${tests[@]}"; do

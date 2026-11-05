@@ -77,9 +77,12 @@ namespace {
 
     $restartRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $first=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-first');
-    $restartRepository->confirmations[$first['confirmation_id']]->state='failed';$restartRepository->delivery->state='pending_request';
-    $second=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-second');
-    $assert($second['confirmation_id']===$first['confirmation_id']&&count($restartRepository->confirmations)===1&&$restartRepository->delivery->state==='accepting','A terminal projection failure must reuse and restart its confirmation without violating delivery uniqueness.');
+    $restartRepository->confirmations[$first['confirmation_id']]->state='failed';
+    $reacceptRefused=false;
+    try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-second');}
+    catch(\InvalidArgumentException $error){$reacceptRefused=$error->getMessage()==='Booking request is no longer pending';}
+    $assert($reacceptRefused&&count($restartRepository->confirmations)===1&&$restartRepository->delivery->state==='accepting','A provisioning failure must not reopen the accepted delivery or ask the Teacher to accept again.');
+    $assert($restartRepository->delivery->resolution_state==='unresolved','The accepted request must remain unresolved until classroom recovery succeeds.');
 
     $paidRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $paidRepository->delivery->student_id = 55;

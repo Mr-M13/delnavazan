@@ -25,6 +25,7 @@ use Delnavazan\Platform\Core\Application\StudentService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityAssentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
+use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
@@ -219,6 +220,20 @@ final class EnrolmentWorkspaceController {
                     absint($post['expected_confirmation_version'] ?? 0)
                 );
                 return (string) $result['message'];
+            case 'retry_booking_projection':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                $confirmationId = absint($post['confirmation_id'] ?? 0);
+                $expectedVersion = absint($post['expected_confirmation_version'] ?? 0);
+                if ($confirmationId < 1 || $expectedVersion < 1) throw new \InvalidArgumentException('A current booking confirmation is required for classroom retry');
+                $result = (new BookingCalendarProjectionService())->retryFailed(
+                    $confirmationId,
+                    $expectedVersion,
+                    'administrator_projection_retry'
+                );
+                $state = (string) ($result['state'] ?? 'unknown');
+                if ($state === 'confirmed') return 'The classroom was created without a new Teacher acceptance and the confirmed notification was queued once.';
+                if ($state === 'failed') return 'Teacher acceptance was preserved, but Google still refused classroom creation. The record remains available for administrator retry.';
+                return 'Teacher acceptance was preserved. Classroom provisioning is queued for retry; no new Teacher acceptance or offer was created.';
             case 'record_outcome':
                 self::requireCap('dzn_manage_post_intro_automation');
                 $confirmation = (new PostIntroRepository())->confirmationByBooking($requestId);
@@ -453,6 +468,12 @@ final class EnrolmentWorkspaceController {
             'stale_schedule_version' => 'The class schedule changed while you were editing. Reload and review the current version.',
             'schedule_start_not_future' => 'Choose a future class time.',
             'Booking confirmation changed concurrently' => 'This introductory booking changed while you were editing. Reload and review the current confirmation before acting.',
+            'Booking delivery is not recoverable' => 'The Teacher acceptance is recorded, but this delivery is no longer recoverable. Review the canonical case before taking further action.',
+            'Booking delivery no longer owns this confirmation' => 'The booking was reassigned after the failure. Classroom retry was refused to avoid a duplicate class; review the current Teacher assignment.',
+            'Booking allocation has been superseded' => 'A newer Teacher allocation exists for this request. Classroom retry was refused to avoid a duplicate class or offer.',
+            'Booking request is no longer active' => 'This request is cancelled, superseded or no longer active. A failed classroom cannot be resurrected.',
+            'meet_booking_ended' => 'The introductory class time has already passed. A new booking is required instead of a classroom retry.',
+            'A current booking confirmation is required for classroom retry' => 'Reload the case and use the current confirmation before retrying classroom creation.',
             'intro_booking_confirmation_required' => 'A confirmed introductory booking is required before this action.',
             'intro_lesson_not_reschedulable' => 'This introductory lesson can no longer be rescheduled.',
             'Choose a valid service-area timezone' => 'Choose one of the service-area timezones before saving.',

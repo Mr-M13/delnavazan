@@ -137,7 +137,7 @@ $contains($postIntro, array(
     'Delivery is not confirmed until transport evidence exists',
 ), 'Post-intro sends must be policy-bounded, idempotent and must not claim delivery.');
 $contains($worker, array("post_intro_reminder", 'Reminder: complete your Delnavazan enrolment'), 'The notification worker must understand the distinct reminder kind.');
-$contains($readService, array('pendingDelivery(', "d.state='pending_request'", "'Teacher invited'", "'Awaiting Teacher response'"), 'The workspace must show the pending Teacher delivery as a real match, not as an unselected Teacher.');
+$contains($readService, array('pendingDelivery(', "d.state='pending_request'", "'Awaiting teacher response'", "'Monitor the Teacher response'", "'Awaiting coordination'"), 'The workspace must show the pending Teacher delivery as a real match, not as an unselected Teacher.');
 $contains($css, array('.dzn-enrolment__hero', '.dzn-booking-table', '.dzn-class-table', '.dzn-case-grid', '.dzn-timeline', '@media (max-width: 782px)'), 'The workspace needs responsive desktop/tablet/mobile styling.');
 $expect(!str_contains($readService, 'SELECT * FROM {$this->p}booking_request_contact_snapshots'), 'The read projection must not leak full contact snapshots into unrelated rows.');
 

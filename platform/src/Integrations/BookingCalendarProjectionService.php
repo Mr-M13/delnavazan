@@ -3,7 +3,6 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\{IntegrationSecretService,ProviderIntegrationIdempotency,ProviderReferenceVault};
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
-use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Idempotently creates the Calendar event/Meet link before an introductory booking may confirm. */
@@ -71,29 +70,84 @@ final class BookingCalendarProjectionService {
         }
     }
 
-    /** Explicit administrator recovery for a terminal booking projection failure. */
-    public function retryFailed(int $confirmationId):array{
-        if(function_exists('current_user_can')&&!current_user_can('dzn_manage_lessons')&&!current_user_can('manage_options'))throw new \RuntimeException('Unauthorized');
+    /**
+     * Explicit administrator recovery for a terminal booking projection failure.
+     *
+     * Teacher acceptance is already durable before this method runs. Recovery therefore only
+     * reactivates the same confirmation and delivery; it never returns the delivery to the
+     * pending-request state, creates another offer, or asks the Teacher to accept again.
+     */
+    public function retryFailed(int $confirmationId,?int $expectedVersion=null,?string $reason=null):array{
+        if(function_exists('current_user_can')&&!current_user_can('dzn_manage_lessons')&&!current_user_can('dzn_manage_booking_request_coordination')&&!current_user_can('manage_options'))throw new \RuntimeException('Unauthorized');
         if(function_exists('get_current_user_id')&&(int)get_current_user_id()<1)throw new \RuntimeException('Unauthorized');
         $observed=$this->repository->confirmation($confirmationId);
         if(!$observed||(string)$observed->state!=='failed')throw new \InvalidArgumentException('Booking confirmation is not failed');
-        $now=gmdate('Y-m-d H:i:s');$this->repository->begin();
+        if($expectedVersion!==null&&(int)$observed->version!==$expectedVersion)throw new \RuntimeException('Booking confirmation changed concurrently');
+        $now=gmdate('Y-m-d H:i:s');$actor=function_exists('get_current_user_id')?(int)get_current_user_id():0;
+        $this->repository->begin();
         try{
             $row=$this->repository->confirmation($confirmationId,true);
             if(!$row||(string)$row->state!=='failed')throw new \RuntimeException('Booking confirmation changed concurrently');
+            if($expectedVersion!==null&&(int)$row->version!==$expectedVersion)throw new \RuntimeException('Booking confirmation changed concurrently');
+            $delivery=$this->repository->delivery((int)$row->delivery_id,true);
+            $this->assertRecoveryEligible($row,$delivery,$now);
+            if((string)$delivery->state==='pending_request'){
+                // Repair only the historical bug where a provider failure moved the accepted
+                // delivery back to pending_request. The current path never performs this move.
+                $this->repository->transitionDelivery((int)$delivery->id,'pending_request','accepting',$now);
+            }
             $this->repository->updateConfirmation($confirmationId,(int)$row->version,array(
                 'state'=>'retryable','failure_reason_code'=>null,'attempt_count'=>0,
-                'next_attempt_at'=>$now,'updated_at'=>$now,'updated_by'=>(int)get_current_user_id(),
+                'next_attempt_at'=>$now,'updated_at'=>$now,'updated_by'=>$actor,
             ));
-            if((int)$row->delivery_id>0){
-                $delivery=$this->repository->delivery((int)$row->delivery_id,true);
-                if($delivery&&(string)$delivery->state==='pending_request'){
-                    $this->repository->transitionDelivery((int)$delivery->id,'pending_request','accepting',$now);
-                }
-            }
+            $this->recordRecoveryAudit($row,$actor,trim((string)$reason)?:'administrator_projection_retry',$now);
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         return $this->dispatch($confirmationId);
+    }
+
+    /**
+     * Read-only eligibility shared by the administrator command and the dashboard.
+     *
+     * A cancelled, superseded, ended or reallocated booking is never resurrected. A legacy
+     * pending_request delivery may be repaired only while it still anchors this exact confirmation.
+     */
+    private function assertRecoveryEligible(object $confirmation,?object $delivery,string $now):void{
+        if(!$delivery)throw new \RuntimeException('Booking delivery not found');
+        if((int)$delivery->id!==(int)$confirmation->delivery_id
+            ||(int)$delivery->booking_request_id!==(int)$confirmation->booking_request_id
+            ||(int)$delivery->teacher_id!==(int)$confirmation->teacher_id
+            ||(int)$delivery->requested_time_id!==(int)$confirmation->requested_time_id)throw new \RuntimeException('Booking delivery no longer owns this confirmation');
+        if(!in_array((string)$delivery->state,array('accepting','pending_request'),true))throw new \InvalidArgumentException('Booking delivery is not recoverable');
+        if((string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer active');
+        if((string)$confirmation->starts_at_utc<=$now)throw new \InvalidArgumentException('meet_booking_ended');
+        if(method_exists($this->repository,'activeAllocationOffer')){
+            // A confirmed acceptance must have consumed its offer. Any live offer means allocation
+            // has started another Teacher response and must not be overwritten by a delayed retry.
+            $offer=$this->repository->activeAllocationOffer((int)$confirmation->booking_request_id);
+            if($offer)throw new \InvalidArgumentException('Booking allocation has been superseded');
+        }
+    }
+
+    private function recordRecoveryAudit(object $confirmation,int $actor,string $reason,string $now):void{
+        if(!method_exists($this->repository,'auditByDigest')||!method_exists($this->repository,'insertAudit'))return;
+        $digest=hash('sha256','booking-projection-recovery:'.(int)$confirmation->id.':'.(int)$confirmation->version);
+        if($this->repository->auditByDigest($digest))return;
+        $safeReason=preg_match('/^[a-z0-9_]{3,64}$/D',$reason)===1?$reason:'administrator_projection_retry';
+        $this->repository->insertAudit(array(
+            'aggregate_type'=>'booking_confirmation','aggregate_id'=>(int)$confirmation->id,
+            'event_type'=>'projection_retry_authorised','actor_type'=>'administrator','actor_id'=>$actor>0?$actor:null,
+            'reason_code'=>$safeReason,
+            'safe_detail'=>wp_json_encode(array(
+                'reason'=>substr($reason,0,255),
+                'delivery_id'=>(int)$confirmation->delivery_id,
+                'booking_request_id'=>(int)$confirmation->booking_request_id,
+                'confirmation_version'=>(int)$confirmation->version,
+                'failure_reason_code'=>$confirmation->failure_reason_code!==null?(string)$confirmation->failure_reason_code:null,
+                'attempt_count'=>(int)$confirmation->attempt_count,
+            ),JSON_UNESCAPED_SLASHES),
+            'idempotency_key'=>$digest,'occurred_at'=>$now,
+        ));
     }
 
     /** Move the provider event after the local confirmation has been revalidated. */
@@ -174,9 +228,9 @@ final class BookingCalendarProjectionService {
             $secret=$this->repository->projectionSecret((int)$row->id);if(!$secret){$sealed=$this->references->seal('booking_calendar',(int)$row->id,array('provider_object_reference'=>$reference));$this->repository->insertSecret(array_merge(array('uid'=>Identifier::uid(),'mapping_kind'=>'booking_calendar','mapping_id'=>(int)$row->id,'state'=>'active','active_slot'=>1,'created_at'=>$now,'created_by'=>$actor,'retired_at'=>null,'retired_by'=>null),$sealed));}
             $attempt=(int)$row->attempt_count+1;
             if($attempt>=self::MAX_ATTEMPTS){
+                // Terminal provisioning failure. Teacher acceptance and the delivery remain intact;
+                // only the confirmation becomes administrator-retryable.
                 $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>'provider_conference_unavailable','attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));
-                $this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);
-                (new BookingAllocationRepository())->referral((int)$row->booking_request_id,'provider_conference_unavailable',$now);
                 $this->repository->commit();return array('confirmation_id'=>(int)$row->id,'state'=>'failed','failure_reason_code'=>'provider_conference_unavailable','retryable'=>false);
             }
             $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'awaiting_conference','provider_event_digest'=>ProviderIntegrationIdempotency::subject($reference,'calendar_event'),'failure_reason_code'=>null,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+120),'updated_at'=>$now,'updated_by'=>$actor));
@@ -190,7 +244,19 @@ final class BookingCalendarProjectionService {
         try{
             $row=$this->repository->confirmation((int)$observed->id,true);if(!$row)throw new \RuntimeException('Booking confirmation changed concurrently');if((string)$row->state==='confirmed'){$this->repository->commit();return array('confirmation_id'=>(int)$row->id,'state'=>'confirmed','idempotent'=>true);}
             if(!in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true))throw new \RuntimeException('Booking confirmation changed concurrently');
-            $delivery=$this->repository->delivery((int)$row->delivery_id,true);if(!$delivery||(string)$delivery->state!=='accepting'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \RuntimeException('Booking request changed concurrently');
+            $delivery=$this->repository->delivery((int)$row->delivery_id,true);if(!$delivery)throw new \RuntimeException('Booking request changed concurrently');
+            // Repair the historical bug where a provider failure moved an accepted delivery back
+            // to pending_request. Only the exact confirmation owner may move it forward; any live
+            // re-offer still refuses recovery to avoid a duplicate booking.
+            if((string)$delivery->state==='pending_request'){
+                if((int)$delivery->booking_request_id!==(int)$row->booking_request_id
+                    ||(int)$delivery->teacher_id!==(int)$row->teacher_id
+                    ||(int)$delivery->requested_time_id!==(int)$row->requested_time_id)throw new \RuntimeException('Booking request changed concurrently');
+                if(method_exists($this->repository,'activeAllocationOffer')&&$this->repository->activeAllocationOffer((int)$row->booking_request_id))throw new \RuntimeException('Booking allocation has been superseded');
+                $this->repository->transitionDelivery((int)$delivery->id,'pending_request','accepting',$now);
+                $delivery->state='accepting';
+            }
+            if((string)$delivery->state!=='accepting'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \RuntimeException('Booking request changed concurrently');
             if($legacyVault){
                 $existing=$this->repository->projectionSecret((int)$row->id);if($existing)$this->repository->retireSecret((int)$existing->id,$actor,$now);
                 $sealed=$this->references->seal('booking_calendar',(int)$row->id,array('provider_object_reference'=>$reference,'join_uri_reference'=>$join));
@@ -211,10 +277,11 @@ final class BookingCalendarProjectionService {
             if($row&&in_array((string)$row->state,array('pending_projection','retryable','awaiting_conference'),true)){
                 $attempt=(int)$row->attempt_count+1;
                 if(!$retryable||$attempt>=self::MAX_ATTEMPTS){
+                    // A provider failure is never a Teacher-response failure. Keep the accepted
+                    // delivery and request unresolved so the same confirmation can be retried by
+                    // an administrator without a second Teacher acceptance or another offer.
                     $state='failed';
                     $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'failed','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>null,'updated_at'=>$now,'updated_by'=>$actor));
-                    $this->repository->transitionDelivery((int)$row->delivery_id,'accepting','pending_request',$now);
-                    (new BookingAllocationRepository())->referral((int)$row->booking_request_id,'provider_projection_failed',$now);
                 }else{
                     $delay=min(3600,60*(2**min(5,$attempt)));
                     $this->repository->updateConfirmation((int)$row->id,(int)$row->version,array('state'=>'retryable','failure_reason_code'=>$reason,'attempt_count'=>$attempt,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+$delay),'updated_at'=>$now,'updated_by'=>$actor));

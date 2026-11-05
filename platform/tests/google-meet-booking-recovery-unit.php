@@ -177,5 +177,41 @@ namespace {
     $assert($repo4->inserted === 0 && count($repo4->rows) === 1, 'A space-lookup refusal must not duplicate the classroom row.');
     $assert((string) $repo4->rows[0]->classroom_state === 'blocked' && (string) $repo4->rows[0]->failure_reason_code === 'meet_space_lookup_refused', 'A space-lookup refusal must persist its exact failure on the same row.');
 
+
+    // A transient space lookup below the bound persists and throws retryable.
+    $repo5 = new GoogleWorkspaceRepository();
+    $repo5->rows[0]->classroom_state = 'provisioning';
+    $repo5->rows[0]->cohost_state = 'retryable';
+    $repo5->rows[0]->active_slot = 1;
+    $repo5->rows[0]->cohost_attempt_count = 5;
+    $repo5->rows[0]->failure_reason_code = 'meet_space_lookup_retryable';
+    $api5 = new GoogleWorkspaceApiClient();
+    $api5->spaceStatus = 500;
+    $service5 = new GoogleWorkspaceClassroomService($repo5, $api5, new GoogleWorkspaceOAuthService(), new ProviderReferenceVault(), new RecordingDecisionAuthorityService());
+    $retryableLookup = false;
+    try { $service5->ensureForBooking(9); }
+    catch (RuntimeException $error) { $retryableLookup = $error->getMessage() === 'meet_space_lookup_retryable'; }
+    $assert($retryableLookup, 'A transient space lookup below the bound must remain retryable.');
+    $assert((int) $repo5->rows[0]->cohost_attempt_count === 6 && (string) $repo5->rows[0]->classroom_state === 'provisioning' && (int) $repo5->rows[0]->active_slot === 1, 'Below the bound the same row must remain active and provisioning.');
+    $assert($repo5->inserted === 0 && $api5->calls === array(array('getSpace', 'abc-defg-hij')), 'A transient lookup must not create another row or provider object.');
+
+    // At the final allowed attempt the persisted state and thrown code must both be terminal.
+    $repo6 = new GoogleWorkspaceRepository();
+    $repo6->rows[0]->classroom_state = 'provisioning';
+    $repo6->rows[0]->cohost_state = 'retryable';
+    $repo6->rows[0]->active_slot = 1;
+    $repo6->rows[0]->cohost_attempt_count = 7;
+    $repo6->rows[0]->failure_reason_code = 'meet_space_lookup_retryable';
+    $api6 = new GoogleWorkspaceApiClient();
+    $api6->spaceStatus = 500;
+    $service6 = new GoogleWorkspaceClassroomService($repo6, $api6, new GoogleWorkspaceOAuthService(), new ProviderReferenceVault(), new RecordingDecisionAuthorityService());
+    $terminalLookup = false;
+    try { $service6->ensureForBooking(9); }
+    catch (RuntimeException $error) { $terminalLookup = $error->getMessage() === 'meet_space_lookup_refused'; }
+    $assert($terminalLookup, 'At the final attempt the thrown code must be terminal, matching the persisted state.');
+    $assert((int) $repo6->rows[0]->cohost_attempt_count === 8 && (string) $repo6->rows[0]->classroom_state === 'blocked' && $repo6->rows[0]->active_slot === null, 'At the bound the same row must become blocked and inactive.');
+    $assert((string) $repo6->rows[0]->failure_reason_code === 'meet_space_lookup_refused', 'At the bound the persisted failure must be terminal.');
+    $assert($repo6->inserted === 0 && $api6->calls === array(array('getSpace', 'abc-defg-hij')), 'A terminal lookup must not create another row, event, space or reference.');
+
     echo "Google Meet booking recovery unit passed\n";
 }

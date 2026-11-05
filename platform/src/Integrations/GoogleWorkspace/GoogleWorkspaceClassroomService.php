@@ -119,7 +119,9 @@ final class GoogleWorkspaceClassroomService {
             if($references!==null)return $this->result($existing,$references,true);
             $selection=MeetClassroomRetryRule::RESET_LATEST;
         }
-        if($selection===MeetClassroomRetryRule::RESET_ACTIVE&&$active!==null){
+        if($selection===MeetClassroomRetryRule::RETRY_EXISTING&&$active!==null){
+            $existing=$active;
+        }elseif($selection===MeetClassroomRetryRule::RESET_ACTIVE&&$active!==null){
             $existing=$this->resetBookingClassroomForRetry($active);
         }elseif($selection===MeetClassroomRetryRule::RESET_LATEST&&$latest!==null){
             $existing=$this->resetBookingClassroomForRetry($latest);
@@ -658,7 +660,7 @@ final class GoogleWorkspaceClassroomService {
     }
 
     /** Persist the exact provider response and make failure visibility actionable. */
-    private function recordProviderFailure(object $classroom,array $response,string $operation,string $alertCode,?string $cohostState=null):void{
+    private function recordProviderFailure(object $classroom,array $response,string $operation,string $alertCode,?string $cohostState=null):string{
         $attempt=(int)($classroom->cohost_attempt_count??0)+1;
         $retryable=MeetProvisioningRule::isRetryableResponse((int)($response['status']??0),$response['error_class']??null)
             &&!MeetProvisioningRule::cohostAttemptExhausted($attempt);
@@ -683,6 +685,7 @@ final class GoogleWorkspaceClassroomService {
         $this->repository->updateClassroom((int)$classroom->id,$data,array('id'=>(int)$classroom->id));
         $this->audit((int)$classroom->id,$operation==='calendar_projection'?'create':'update',$retryable?'retryable':'blocked',$code,$response);
         $this->raiseClassroomAlert((int)$classroom->id,$alertCode,$code,$this->providerDetail($response));
+        return $code;
     }
 
     private function removeOtherCoHosts(string $space,string $keepEmail):void{
@@ -721,9 +724,9 @@ final class GoogleWorkspaceClassroomService {
         $response=$this->api->getSpace($code);
         if($response['status']<200||$response['status']>=300){
             if($classroom!==null){
-                $retryable=MeetProvisioningRule::isRetryableResponse((int)$response['status'],$response['error_class']??null);
-                $this->recordProviderFailure($classroom,$response,'space_lookup','space_lookup_failed');
-                throw new \RuntimeException(MeetProvisioningRule::failureCode('space_lookup',$retryable));
+                // The persisted state and the thrown code must share one bounded decision.
+                $code=$this->recordProviderFailure($classroom,$response,'space_lookup','space_lookup_failed');
+                throw new \RuntimeException($code);
             }
             $this->assertOk($response,'meet_space_lookup_failed');
         }

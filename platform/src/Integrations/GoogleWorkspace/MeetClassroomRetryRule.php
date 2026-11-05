@@ -5,6 +5,7 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 final class MeetClassroomRetryRule {
     public const ELIGIBLE='eligible';
     public const RESET_ACTIVE='reset_active';
+    public const RETRY_EXISTING='retry_existing';
     public const RESET_LATEST='reset_latest';
     public const REACTIVATE='reactivate';
     public const CREATE_NEW='create_new';
@@ -52,6 +53,12 @@ final class MeetClassroomRetryRule {
             if(in_array($state,array('cancelled','retired'),true))return 'reject_history';
             if(MeetCoHostRule::isReady($state,(string)($active->cohost_state??MeetCoHostRule::PENDING))
                 &&!self::isPermanentBlock($state,(string)($active->cohost_state??''),$active->failure_reason_code??null))return 'already_ready';
+            // Preserve the bounded attempt count for an in-flight transient booking retry. Resetting
+            // it would let the booking cycle past MAX_ATTEMPTS forever and disagree with the terminal
+            // state persisted by recordProviderFailure().
+            if($state==='provisioning'
+                &&in_array((string)($active->cohost_state??MeetCoHostRule::PENDING),array(MeetCoHostRule::PENDING,MeetCoHostRule::RETRYABLE),true)
+                &&!self::isPermanentBlock($state,(string)($active->cohost_state??''),$active->failure_reason_code??null))return self::RETRY_EXISTING;
             return self::RESET_ACTIVE;
         }
         if($latest!==null){

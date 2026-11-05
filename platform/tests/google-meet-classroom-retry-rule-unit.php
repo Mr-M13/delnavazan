@@ -39,6 +39,8 @@ $assert(Rule::classroomSelection(null,null) === Rule::CREATE_NEW, 'A missing pro
 // Booking recovery reuses the exact blocked row and references instead of creating a duplicate.
 $assert(Rule::bookingSelection($ready,$ready) === 'already_ready', 'A ready booking classroom must remain idempotent.');
 $assert(Rule::bookingSelection($blocked,$blocked) === Rule::RESET_ACTIVE, 'An active blocked booking row must be reset in place.');
+$retrying = (object) array('classroom_state'=>'provisioning','cohost_state'=>CoHost::RETRYABLE,'failure_reason_code'=>'meet_space_lookup_retryable');
+$assert(Rule::bookingSelection($retrying,$retrying) === Rule::RETRY_EXISTING, 'An in-flight transient booking retry must preserve its bounded attempt count.');
 $assert(Rule::bookingSelection(null,$blocked) === Rule::RESET_LATEST, 'A historical blocked booking row must be reset, not duplicated.');
 $assert(Rule::bookingSelection(null,$failed) === Rule::RESET_LATEST, 'A historical failed booking row must be reset, not duplicated.');
 $assert(Rule::bookingSelection(null,$ready) === Rule::REACTIVATE, 'A ready inactive booking row may be reactivated without a provider write.');

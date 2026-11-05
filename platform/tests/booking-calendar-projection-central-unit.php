@@ -160,5 +160,23 @@ namespace {
     $assert($first['state']==='confirmed'&&$secondRejected,'A second retry after confirmation must be rejected.');
     $assert(Central::$calls===array(array('ensureForBooking',70)),'Concurrent/duplicate retries must not dispatch twice.');
 
+
+    // A terminal space-lookup code must not be treated as a retryable booking failure.
+    Central::$calls=array();Central::$throws='meet_space_lookup_refused';
+    $spaceRepo=new BookingTeacherResponseRepository();
+    $spaceRepo->confirmationRow->state='retryable';$spaceRepo->confirmationRow->attempt_count=7;
+    $spaceRepo->deliveryRow->state='accepting';
+    $spaceResult=(new BookingCalendarProjectionService($spaceRepo))->dispatch(70);
+    $assert($spaceResult['state']==='failed'&&$spaceRepo->confirmationRow->state==='failed','A terminal space-lookup failure must leave the booking failed.');
+    $assert($spaceRepo->confirmationRow->next_attempt_at===null,'A terminal space-lookup failure must not schedule another automatic retry.');
+    $assert($spaceRepo->deliveryRow->state==='pending_request','A terminal space-lookup failure must remain in administrator recovery.');
+    $assert(Central::$calls===array(array('ensureForBooking',70)),'A terminal space-lookup failure must provision exactly once.');
+
+    // Only the explicit administrator retry may reopen the booking after that terminal failure.
+    Central::$calls=array();Central::$throws=null;
+    $spaceRecovered=(new BookingCalendarProjectionService($spaceRepo))->retryFailed(70);
+    $assert($spaceRecovered['state']==='confirmed'&&$spaceRepo->confirmationRow->state==='confirmed','Explicit retry-booking must recover the terminal space-lookup failure.');
+    $assert(Central::$calls===array(array('ensureForBooking',70)),'Explicit recovery must use one central provisioning attempt.');
+
     echo "Booking calendar projection central unit passed\n";
 }

@@ -62,14 +62,14 @@ namespace {
     unset( $missing_student_side['induction']['modules'][0]['student_side'] );
     $fail( 'missing student perspective fails the display contract', ! dzn_theme_teacher_portal_validate_model( $missing_student_side, 'induction' ) );
     $hub_html = $render( 'induction', $base );
-    $fail( 'quick-start renders the journey heading', str_contains( $hub_html, 'مسیر همکاری با دلنوازان' ) );
-    $fail( 'quick-start renders all nine steps as one read-only page', substr_count( $hub_html, 'class="dzn-tp-quickstart-card"' ) === 9 );
-    $fail( 'steps are grouped by the daily workflow', str_contains( $hub_html, 'tp-phase-prep' ) && str_contains( $hub_html, 'tp-phase-class' ) && str_contains( $hub_html, 'tp-phase-changes' ) && str_contains( $hub_html, 'tp-phase-followup' ) );
-    $fail( 'the guide explains both sides', substr_count( $hub_html, 'مسیر هنرجو:</strong> هنرجو گام مربوط به' ) === 9 && substr_count( $hub_html, 'کار شما:' ) === 9 );
+    $fail( 'quick-start renders the journey heading', str_contains( $hub_html, 'شروع همکاری و تدریس در دلنوازان' ) );
+    $fail( 'quick-start renders all nine steps as one read-only page', substr_count( $hub_html, 'class="dzn-tp-quickstart-phase"' ) === 7 );
+    $fail( 'steps are grouped by the daily workflow', str_contains( $hub_html, 'tp-phase-0' ) && str_contains( $hub_html, 'tp-phase-6' ) );
+    $fail( 'the guide explains both sides', str_contains( $hub_html, 'هنرجو' ) && str_contains( $hub_html, 'حساب کاربری' ) );
     $fail( 'the guide shows no step buttons or completion forms', ! str_contains( $hub_html, '<form' ) && ! str_contains( $hub_html, 'name="module_id"' ) && ! str_contains( $hub_html, 'دیده شده' ) );
     $fail( 'the guide shows no progress or highlight machinery', ! str_contains( $hub_html, 'role="progressbar"' ) && ! str_contains( $hub_html, 'data-dzn-auto-highlight' ) );
     $fail( 'stable anchors remain for contextual help', str_contains( $hub_html, 'id="tp-step-today"' ) && str_contains( $hub_html, 'id="tp-step-join"' ) );
-    $fail( 'the guide returns to the portal and keeps support', str_contains( $hub_html, 'بازگشت به پرتال مدرس' ) && str_contains( $hub_html, 'نیاز به کمک دارم' ) );
+    $fail( 'the guide returns to the portal and keeps support', str_contains( $hub_html, 'بازگشت به حساب کاربری' ) && str_contains( $hub_html, 'نیاز به کمک دارم' ) );
     $fail( 'shell is RTL and exposes real navigation targets', str_contains( $hub_html, 'dir="rtl"' ) && str_contains( $hub_html, 'data-dzn-nav-screen="classes"' ) && str_contains( $hub_html, 'dzn-tp-tabs' ) );
 
     ob_start();

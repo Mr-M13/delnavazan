@@ -55,7 +55,7 @@ final class FinanceFacts {
         $lesson=$this->lessons->lesson($lessonId,$lock);
         if(!$lesson)throw new \RuntimeException('finance_parent_not_live');
         $kind=(string)($lesson->lesson_type??'');
-        if($kind===self::INTRO_TYPE&&(string)($lesson->record_model??'')===$self::INTRO_MODEL&&$lesson->term_id===null){
+        if($kind===self::INTRO_TYPE&&(string)($lesson->record_model??'')===self::INTRO_MODEL&&$lesson->term_id===null){
             return $this->introContext($lesson,$lock);
         }
         if(!in_array($kind,self::CANONICAL_TYPES,true))throw new \RuntimeException('finance_lesson_kind_not_allowed');

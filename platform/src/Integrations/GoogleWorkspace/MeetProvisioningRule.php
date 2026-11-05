@@ -46,6 +46,8 @@ final class MeetProvisioningRule {
         'meet_provisioning_blocked',
         'meet_conference_timeout',
         'meet_booking_not_active',
+        'meet_booking_ended',
+        'meet_classroom_history_not_retryable',
         'meet_request_encode_failed',
     );
 

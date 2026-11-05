@@ -41,4 +41,19 @@ $assert($stale, 'A different approved digest must be rejected as stale.');
 $intervention = $op('booking', 8, 'retry_booking', '2026-11-04 09:00:00', 90, 'b8', 'requires_admin');
 $assert($intervention['mode'] === 'requires_admin', 'Administrator-required interventions must not be labelled automatic.');
 
+// Two missing future lessons are one approval-bound discovery plan, not an implicit backfill.
+$missingLessons = array(
+    $op('lesson', 22, 'create', '2026-12-08 07:00:00', 10, 'l22'),
+    $op('lesson', 23, 'create', '2026-12-15 07:00:00', 10, 'l23'),
+);
+$missingPlan = Plan::normalise($missingLessons, 50);
+$missingDigest = Plan::digest($missingPlan, 50, true);
+$assert(count($missingPlan) === 2 && $missingPlan[0]['key'] === 'lesson:22' && $missingPlan[1]['key'] === 'lesson:23', 'Lessons 22/23 must form an ordered discovery plan.');
+$assert(Plan::digest($missingPlan, 50, false) !== $missingDigest, 'Discovery must be bound into the approval digest.');
+Plan::assertApproved($missingDigest, $missingDigest);
+$staleDiscovery = false;
+try { Plan::assertApproved($missingDigest, str_repeat('f', 64)); }
+catch (RuntimeException $e) { $staleDiscovery = $e->getMessage() === 'meet_reconciliation_plan_stale'; }
+$assert($staleDiscovery, 'A stale discovery plan digest must be refused.');
+
 echo "Google Meet reconciliation plan unit passed\n";

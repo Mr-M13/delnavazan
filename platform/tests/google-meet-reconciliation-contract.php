@@ -79,6 +79,11 @@ $check('retry-classroom never revives cancelled history', str_contains($retryRul
 $check('retry-classroom rejects a stale provider schedule', str_contains($classrooms, "'meet_classroom_schedule_stale'"));
 $check('retry-classroom requires a documented administrator reason', str_contains($retryRule, 'reasonRequired') && str_contains($cli, 'an audited --reason (12+ chars)'));
 $check('retry-classroom preserves provider identifiers', !preg_match('/retryClassroom.*?(event_id_digest|meet_uri_digest)\s*=/s', $classrooms));
+$check('blocked booking recovery reuses the latest classroom row', str_contains($classrooms, 'bookingSelection') && str_contains($classrooms, 'resetBookingClassroomForRetry') && str_contains($classrooms, 'latestClassroomForBooking'));
+$check('booking recovery never duplicates a blocked historical row', str_contains($retryRule, 'function bookingSelection') && str_contains($retryRule, 'RESET_LATEST'));
+$check('in-flight booking retries preserve the bounded attempt count', str_contains($retryRule, 'RETRY_EXISTING') && str_contains($classrooms, 'MeetClassroomRetryRule::RETRY_EXISTING'));
+$check('ended or cancelled booking history is not revived', str_contains($classrooms, 'meet_booking_ended') && str_contains($classrooms, 'meet_classroom_history_not_retryable') && str_contains($rule, 'meet_booking_ended') && str_contains($rule, 'meet_classroom_history_not_retryable'));
+$check('space lookup failures persist and throw the same bounded code', str_contains($classrooms, "spaceFor(array \$references,?object \$classroom=null)") && str_contains($classrooms, "\$code=\$this->recordProviderFailure(\$classroom,\$response,'space_lookup'") && str_contains($classrooms, 'throw new \\RuntimeException($code)'));
 $check('rollback guidance separates pause and full rollback', str_contains($runbook, 'Pause automatic recovery') && str_contains($runbook, 'Pause new provisioning') && str_contains($runbook, 'Full organizer rollback'));
 
 $check('permanent co-host block is never auto-retried', str_contains($classrooms, 'assertNotPermanentlyBlocked') && str_contains($classrooms, 'meet_cohost_assignment_blocked'));

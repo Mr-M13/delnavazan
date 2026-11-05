@@ -33,6 +33,8 @@ $assert(Rule::isRetryableBookingFailure('meet_conference_pending'), 'A pending c
 $assert(Rule::isRetryableBookingFailure('meet_organizer_not_connected'), 'A temporarily unavailable organizer must keep the accepted booking recoverable.');
 $assert(Rule::isRetryableBookingFailure('meet_classroom_paused'), 'A deliberate provisioning pause must keep the accepted booking recoverable.');
 $assert(!Rule::isRetryableBookingFailure('meet_cohost_assignment_blocked'), 'A blocked co-host must require an explicit administrator action.');
+$assert(!Rule::isRetryableBookingFailure('meet_booking_ended'), 'A booking that has ended must not be revived.');
+$assert(!Rule::isRetryableBookingFailure('meet_classroom_history_not_retryable'), 'Cancelled/retired classroom history must not be revived.');
 $assert(Rule::isRetryableBookingFailure('provider_projection_retryable'), 'Unknown transient provider failure must stay recoverable.');
 
 $now = 1_800_000_000;

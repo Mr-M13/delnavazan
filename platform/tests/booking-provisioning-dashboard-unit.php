@@ -1,7 +1,24 @@
 <?php
 /** Dashboard stages distinguish coordination, Teacher response, provisioning and failure. */
 namespace {
-    $GLOBALS['wpdb'] = (object) array('prefix' => 'wp_');
+    final class DznDashboardWpdb {
+        public string $prefix = 'wp_';
+        public string $last_error = '';
+        public ?object $confirmation = null;
+        public function prepare(string $sql, mixed ...$args): string {
+            $index = 0;
+            return (string) preg_replace_callback('/%[ds]/', static function (array $match) use (&$index, $args): string {
+                $value = $args[$index++] ?? '';
+                return $match[0] === '%d' ? (string) (int) $value : (string) $value;
+            }, $sql);
+        }
+        public function get_row(string $sql): ?object {
+            if (str_contains($sql, 'booking_request_confirmations c')) return $this->confirmation;
+            return null;
+        }
+    }
+    $GLOBALS['wpdb'] = new DznDashboardWpdb();
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingProvisioningRecoveryRule.php';
     require_once dirname(__DIR__) . '/src/Core/Application/EnrolmentWorkspaceReadService.php';
 
     use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
@@ -45,6 +62,41 @@ namespace {
 
     $coordinationOnly = $stage(null, null, array('state' => 'open', 'candidate_count' => 1, 'has_recorded_assent' => false));
     $assert($coordinationOnly['key'] === 'teacher_match' && $coordinationOnly['label'] === 'Awaiting coordination' && $coordinationOnly['next_action'] === 'Complete coordination', 'Unreviewed coordination must say awaiting coordination, not record agreement.');
+
+    // The displayed recovery flag must use the same rule as the mutation.
+    $confirmationMethod = new ReflectionMethod($service, 'confirmedBooking');
+    $confirmationMethod->setAccessible(true);
+    $confirmationRow = (object) array(
+        'id' => 70, 'uid' => 'CONFIRM-70', 'booking_request_id' => 12, 'delivery_id' => 41,
+        'teacher_id' => 10, 'requested_time_id' => 5, 'version' => 4, 'state' => 'failed',
+        'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 86400),
+        'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 88200),
+        'schedule_timezone' => 'Asia/Tehran', 'local_wall_date' => gmdate('Y-m-d'),
+        'local_wall_time' => '10:00:00', 'provider_code' => 'google_calendar',
+        'confirmed_at' => null, 'failure_reason_code' => 'meet_cohost_assignment_blocked',
+        'attempt_count' => 6, 'next_attempt_at' => null, 'updated_at' => gmdate('Y-m-d H:i:s'),
+        'teacher_name' => 'Teacher A', 'course_name' => 'Intro',
+        'delivery_record_id' => 41, 'delivery_record_state' => 'accepting',
+        'delivery_booking_request_id' => 12, 'delivery_teacher_id' => 10,
+        'delivery_requested_time_id' => 5,
+        'request_lifecycle_status' => 'submitted', 'request_resolution_state' => 'unresolved',
+        'request_privacy_erased_at' => null, 'live_offer' => 0,
+    );
+    $GLOBALS['wpdb']->confirmation = $confirmationRow;
+    $eligible = $confirmationMethod->invoke($service, 12);
+    $assert($eligible['recovery_eligible'] === true && $eligible['recovery_block_reason'] === null, 'The dashboard must offer retry only when the shared rule is eligible.');
+
+    $GLOBALS['wpdb']->confirmation = (object) (array('live_offer' => 1) + (array) $confirmationRow);
+    $liveOffer = $confirmationMethod->invoke($service, 12);
+    $assert($liveOffer['recovery_eligible'] === false && $liveOffer['recovery_block_reason'] === 'allocation_superseded', 'A live re-offer must suppress the dashboard retry exactly as the mutation does.');
+
+    $GLOBALS['wpdb']->confirmation = (object) (array('delivery_teacher_id' => 99) + (array) $confirmationRow);
+    $mismatch = $confirmationMethod->invoke($service, 12);
+    $assert($mismatch['recovery_eligible'] === false && $mismatch['recovery_block_reason'] === 'delivery_ownership_mismatch', 'A reassigned delivery must suppress the dashboard retry exactly as the mutation does.');
+
+    $GLOBALS['wpdb']->confirmation = (object) (array('request_lifecycle_status' => 'closed') + (array) $confirmationRow);
+    $inactive = $confirmationMethod->invoke($service, 12);
+    $assert($inactive['recovery_eligible'] === false && $inactive['recovery_block_reason'] === 'request_not_active', 'An inactive request must suppress the dashboard retry exactly as the mutation does.');
 
     echo "Booking provisioning dashboard unit passed\n";
 }

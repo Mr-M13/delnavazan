@@ -193,7 +193,7 @@ final class EnrolmentWorkspaceView {
                 self::fact('Last attempt', (string) ($confirmation['last_attempt_at'] ?: 'Not recorded'));
                 self::fact('Next automatic attempt', (string) ($confirmation['next_attempt_at'] ?: 'None'));
                 self::fact('Organizer connection', (string) ($confirmation['organizer_state'] ?? 'unknown') . (!empty($confirmation['organizer_scope_match']) ? ' · scopes exact' : ' · scopes need review'));
-                self::fact('Recovery eligible', !empty($confirmation['recovery_eligible']) ? 'Yes — no new Teacher acceptance required' : 'No — review the case state or organizer connection');
+                self::fact('Recovery eligible', !empty($confirmation['recovery_eligible']) ? 'Yes — no new Teacher acceptance required' : 'No — ' . str_replace('_', ' ', (string) ($confirmation['recovery_block_reason'] ?? 'review the case state')));
                 $classroom = $confirmation['classroom'] ?? null;
                 self::fact('Classroom record', $classroom ? ((string) $classroom['classroom_state'] . ' · co-host ' . (string) $classroom['cohost_state']) : 'Not created');
                 if ($classroom && !empty($classroom['failure_reason_code'])) self::fact('Classroom failure', (string) $classroom['failure_reason_code']);
@@ -251,7 +251,9 @@ final class EnrolmentWorkspaceView {
                 echo '<input type="hidden" name="idempotency_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
                 echo '<button class="button button-primary" type="submit">تلاش مجدد برای ساخت کلاس</button></form>';
             } else {
-                echo '<p class="description">' . esc_html(!empty($confirmation['recovery_eligible']) ? 'Classroom retry requires booking coordination permission.' : 'This booking is not currently eligible for retry. Check the organizer connection, the class time and the current confirmation state.') . '</p>';
+                echo '<p class="description">' . esc_html(!empty($confirmation['recovery_eligible'])
+                    ? 'Classroom retry requires booking coordination permission.'
+                    : 'This booking is not currently eligible for retry: ' . str_replace('_', ' ', (string) ($confirmation['recovery_block_reason'] ?? 'review the case state')) . '.') . '</p>';
             }
             echo '</div>';
         }

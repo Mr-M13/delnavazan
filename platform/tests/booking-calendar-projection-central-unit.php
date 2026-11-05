@@ -80,6 +80,7 @@ namespace {
     require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/MeetCoHostRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/MeetProvisioningRule.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingProvisioningRecoveryRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/BookingCalendarProjectionService.php';
 
     use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;

@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
-use Delnavazan\Platform\Core\Application\{IntegrationSecretService,ProviderIntegrationIdempotency,ProviderReferenceVault};
+use Delnavazan\Platform\Core\Application\{BookingProvisioningRecoveryRule,IntegrationSecretService,ProviderIntegrationIdempotency,ProviderReferenceVault};
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
@@ -113,20 +113,36 @@ final class BookingCalendarProjectionService {
      * pending_request delivery may be repaired only while it still anchors this exact confirmation.
      */
     private function assertRecoveryEligible(object $confirmation,?object $delivery,string $now):void{
-        if(!$delivery)throw new \RuntimeException('Booking delivery not found');
-        if((int)$delivery->id!==(int)$confirmation->delivery_id
-            ||(int)$delivery->booking_request_id!==(int)$confirmation->booking_request_id
-            ||(int)$delivery->teacher_id!==(int)$confirmation->teacher_id
-            ||(int)$delivery->requested_time_id!==(int)$confirmation->requested_time_id)throw new \RuntimeException('Booking delivery no longer owns this confirmation');
-        if(!in_array((string)$delivery->state,array('accepting','pending_request'),true))throw new \InvalidArgumentException('Booking delivery is not recoverable');
-        if((string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer active');
-        if((string)$confirmation->starts_at_utc<=$now)throw new \InvalidArgumentException('meet_booking_ended');
-        if(method_exists($this->repository,'activeAllocationOffer')){
-            // A confirmed acceptance must have consumed its offer. Any live offer means allocation
-            // has started another Teacher response and must not be overwritten by a delayed retry.
-            $offer=$this->repository->activeAllocationOffer((int)$confirmation->booking_request_id);
-            if($offer)throw new \InvalidArgumentException('Booking allocation has been superseded');
-        }
+        // A confirmed acceptance must have consumed its offer. Any live offer means allocation
+        // has started another Teacher response and must not be overwritten by a delayed retry.
+        $liveOffer=method_exists($this->repository,'activeAllocationOffer')
+            &&$this->repository->activeAllocationOffer((int)$confirmation->booking_request_id)!==null;
+        $assessment=BookingProvisioningRecoveryRule::assess(
+            array(
+                'state'=>(string)$confirmation->state,
+                'delivery_id'=>(int)$confirmation->delivery_id,
+                'booking_request_id'=>(int)$confirmation->booking_request_id,
+                'teacher_id'=>(int)$confirmation->teacher_id,
+                'requested_time_id'=>(int)$confirmation->requested_time_id,
+                'starts_at_utc'=>(string)$confirmation->starts_at_utc,
+            ),
+            $delivery?array(
+                'id'=>(int)$delivery->id,
+                'booking_request_id'=>(int)$delivery->booking_request_id,
+                'teacher_id'=>(int)$delivery->teacher_id,
+                'requested_time_id'=>(int)$delivery->requested_time_id,
+                'state'=>(string)$delivery->state,
+                'lifecycle_status'=>(string)$delivery->lifecycle_status,
+                'resolution_state'=>(string)$delivery->resolution_state,
+                'privacy_erased_at'=>$delivery->privacy_erased_at,
+            ):null,
+            $liveOffer,
+            $now
+        );
+        if($assessment['eligible'])return;
+        $message=BookingProvisioningRecoveryRule::message($assessment['reason']);
+        if(in_array($assessment['reason'],array(BookingProvisioningRecoveryRule::NOT_FAILED,BookingProvisioningRecoveryRule::DELIVERY_MISSING,BookingProvisioningRecoveryRule::OWNERSHIP_MISMATCH),true))throw new \RuntimeException($message);
+        throw new \InvalidArgumentException($message);
     }
 
     private function recordRecoveryAudit(object $confirmation,int $actor,string $reason,string $now):void{

@@ -20,30 +20,10 @@ final class BookingRecoveryAuditService {
     /** @return array<int,array<string,mixed>> */
     public function inconsistent(int $limit = 200): array {
         global $wpdb;
-        if (function_exists('current_user_can')
-            && !current_user_can('dzn_manage_booking_request_coordination')
-            && !current_user_can('dzn_manage_lessons')
-            && !current_user_can('manage_options')) throw new \RuntimeException('Unauthorized');
+        $this->requireReader();
         $limit = max(1, min(500, $limit));
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT c.id confirmation_id,c.uid confirmation_uid,c.booking_request_id,c.delivery_id,c.teacher_id,
-                    c.requested_time_id,c.state confirmation_state,c.version confirmation_version,
-                    c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.failure_reason_code,
-                    c.attempt_count,c.next_attempt_at,c.updated_at confirmation_updated_at,c.confirmed_at,
-                    d.state delivery_state,d.teacher_id delivery_teacher_id,d.requested_time_id delivery_requested_time_id,
-                    r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
-                    o.id offer_id,o.state offer_state,o.active_slot offer_active_slot,o.teacher_id offer_teacher_id,
-                    m.id classroom_id,m.classroom_state,m.cohost_state,m.failure_reason_code classroom_failure_reason_code,
-                    m.updated_at classroom_updated_at
-             FROM {$this->p}booking_request_confirmations c
-             INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
-             LEFT JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=c.delivery_id
-             LEFT JOIN {$this->p}booking_allocation_offers o ON o.id=(
-                 SELECT MAX(oo.id) FROM {$this->p}booking_allocation_offers oo WHERE oo.booking_request_id=c.booking_request_id
-             )
-             LEFT JOIN {$this->p}meet_classrooms m ON m.id=(
-                 SELECT mm.id FROM {$this->p}meet_classrooms mm WHERE mm.booking_confirmation_id=c.id ORDER BY (mm.active_slot=1) DESC,mm.id DESC LIMIT 1
-             )
+            $this->baseQuery() . "
              WHERE c.state IN ('pending_projection','retryable','awaiting_conference','failed')
                 OR (c.state='confirmed' AND d.state<>'confirmed')
              ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d",
@@ -53,37 +33,94 @@ final class BookingRecoveryAuditService {
         return array_map(fn(object $row): array => $this->assessRow($row), is_array($rows) ? $rows : array());
     }
 
-    /** @return array<string,mixed>|null */
+    /**
+     * Assess one exact confirmation directly.
+     *
+     * This intentionally does not search the bounded discovery page: an otherwise valid record
+     * outside the first 500 rows must still be inspectable and recoverable.
+     *
+     * @return array<string,mixed>|null
+     */
     public function assess(int $confirmationId): ?array {
+        global $wpdb;
         if ($confirmationId < 1) return null;
-        foreach ($this->inconsistent(500) as $row) {
-            if ((int) ($row['confirmation_id'] ?? 0) === $confirmationId) return $row;
-        }
-        return null;
+        $this->requireReader();
+        $row = $wpdb->get_row($wpdb->prepare(
+            $this->baseQuery() . " WHERE c.id=%d LIMIT 1",
+            $confirmationId
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Booking recovery audit read unavailable');
+        return $row ? $this->assessRow($row) : null;
+    }
+
+    private function requireReader(): void {
+        if (function_exists('current_user_can')
+            && !current_user_can('dzn_manage_booking_request_coordination')
+            && !current_user_can('dzn_manage_lessons')
+            && !current_user_can('manage_options')) throw new \RuntimeException('Unauthorized');
+    }
+
+    private function baseQuery(): string {
+        return "SELECT c.id confirmation_id,c.uid confirmation_uid,c.booking_request_id,c.delivery_id,c.teacher_id,
+                       c.requested_time_id,c.state confirmation_state,c.version confirmation_version,
+                       c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.failure_reason_code,
+                       c.attempt_count,c.next_attempt_at,c.updated_at confirmation_updated_at,c.confirmed_at,
+                       d.id delivery_record_id,d.state delivery_state,d.teacher_id delivery_teacher_id,
+                       d.requested_time_id delivery_requested_time_id,
+                       r.reference_code request_reference,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       o.id offer_id,o.state offer_state,o.active_slot offer_active_slot,o.teacher_id offer_teacher_id,
+                       (SELECT COUNT(*) FROM {$this->p}booking_allocation_offers oo
+                         WHERE oo.booking_request_id=c.booking_request_id AND oo.active_slot=1) active_offer_count,
+                       m.id classroom_id,m.classroom_state,m.cohost_state,m.failure_reason_code classroom_failure_reason_code,
+                       m.updated_at classroom_updated_at
+                FROM {$this->p}booking_request_confirmations c
+                INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+                LEFT JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=c.delivery_id
+                LEFT JOIN {$this->p}booking_allocation_offers o ON o.id=(
+                    SELECT MAX(oo.id) FROM {$this->p}booking_allocation_offers oo WHERE oo.booking_request_id=c.booking_request_id
+                )
+                LEFT JOIN {$this->p}meet_classrooms m ON m.id=(
+                    SELECT mm.id FROM {$this->p}meet_classrooms mm WHERE mm.booking_confirmation_id=c.id ORDER BY (mm.active_slot=1) DESC,mm.id DESC LIMIT 1
+                )";
     }
 
     /** @return array<string,mixed> */
     private function assessRow(object $row): array {
         $now = gmdate('Y-m-d H:i:s');
-        $ownership = (int) ($row->delivery_teacher_id ?? 0) === (int) $row->teacher_id
-            && (int) ($row->delivery_requested_time_id ?? 0) === (int) $row->requested_time_id;
+        $liveOffer = (int) ($row->active_offer_count ?? 0) > 0;
+        $recovery = BookingProvisioningRecoveryRule::assess(
+            array(
+                'state' => (string) $row->confirmation_state,
+                'delivery_id' => (int) $row->delivery_id,
+                'booking_request_id' => (int) $row->booking_request_id,
+                'teacher_id' => (int) $row->teacher_id,
+                'requested_time_id' => (int) $row->requested_time_id,
+                'starts_at_utc' => (string) $row->starts_at_utc,
+            ),
+            $row->delivery_record_id !== null ? array(
+                'id' => (int) $row->delivery_record_id,
+                'booking_request_id' => (int) $row->booking_request_id,
+                'teacher_id' => (int) $row->delivery_teacher_id,
+                'requested_time_id' => (int) $row->delivery_requested_time_id,
+                'state' => (string) $row->delivery_state,
+                'lifecycle_status' => (string) $row->lifecycle_status,
+                'resolution_state' => (string) $row->resolution_state,
+                'privacy_erased_at' => $row->privacy_erased_at,
+            ) : null,
+            $liveOffer,
+            $now
+        );
+        $administratorRetry = (bool) $recovery['eligible'];
         $requestActive = (string) $row->lifecycle_status === 'submitted'
             && (string) $row->resolution_state === 'unresolved'
             && $row->privacy_erased_at === null;
-        $deliveryRecoverable = in_array((string) $row->delivery_state, array('accepting', 'pending_request'), true);
-        $offerConflicts = $row->offer_id !== null
-            && (int) $row->offer_active_slot === 1
-            && (string) $row->offer_state === 'pending';
-        $future = (string) $row->starts_at_utc > $now;
-        $organizer = $this->organizer();
-        $administratorRetry = (string) $row->confirmation_state === 'failed'
-            && $ownership && $requestActive && $deliveryRecoverable && $future && !$offerConflicts
-            && $organizer['state'] === 'connected';
         $automaticRetry = in_array((string) $row->confirmation_state, array('pending_projection', 'retryable', 'awaiting_conference'), true)
-            && $future && $requestActive;
+            && $requestActive
+            && (string) $row->starts_at_utc > $now;
         $recommended = (string) $row->confirmation_state === 'failed'
             ? ($administratorRetry ? 'retry_booking_projection' : 'manual_review')
             : ($automaticRetry ? 'monitor_automatic_retry' : 'manual_review');
+        $organizer = $this->organizer();
         return array(
             'booking_request_id' => (int) $row->booking_request_id,
             'booking_reference' => (string) $row->request_reference,
@@ -94,11 +131,11 @@ final class BookingRecoveryAuditService {
             'confirmation_version' => (int) $row->confirmation_version,
             'delivery_id' => (int) $row->delivery_id,
             'delivery_state' => (string) ($row->delivery_state ?? ''),
-            'delivery_ownership_valid' => $ownership,
+            'delivery_ownership_valid' => $recovery['reason'] !== BookingProvisioningRecoveryRule::OWNERSHIP_MISMATCH,
             'offer_id' => $row->offer_id !== null ? (int) $row->offer_id : null,
             'offer_state' => $row->offer_state !== null ? (string) $row->offer_state : null,
             'offer_active_slot' => $row->offer_active_slot !== null ? (int) $row->offer_active_slot : null,
-            'offer_conflicts' => $offerConflicts,
+            'offer_conflicts' => $liveOffer,
             'request_lifecycle_status' => (string) $row->lifecycle_status,
             'request_resolution_state' => (string) $row->resolution_state,
             'request_active' => $requestActive,
@@ -118,6 +155,7 @@ final class BookingRecoveryAuditService {
             'organizer_scope_match' => $organizer['scope_match'],
             'automatic_retry_eligible' => $automaticRetry,
             'administrator_retry_eligible' => $administratorRetry,
+            'recovery_block_reason' => $administratorRetry ? null : (string) $recovery['reason'],
             'recommended_action' => $recommended,
         );
     }

@@ -153,6 +153,7 @@ jobs:
           php platform/tests/booking-calendar-projection-central-unit.php
           php platform/tests/booking-provisioning-recovery-unit.php
           php platform/tests/booking-provisioning-dashboard-unit.php
+          php platform/tests/booking-provisioning-recovery-rule-unit.php
           php platform/tests/booking-recovery-audit-unit.php
           php platform/tests/booking-provisioning-recovery-contract.php
           php platform/tests/oauth-scope-exact-matching-contract.php

@@ -788,10 +788,17 @@ final class EnrolmentWorkspaceReadService {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT c.*,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,
-                    COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name
+                    COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
+                    d.id delivery_record_id,d.state delivery_record_state,d.booking_request_id delivery_booking_request_id,
+                    d.teacher_id delivery_teacher_id,d.requested_time_id delivery_requested_time_id,
+                    r.lifecycle_status request_lifecycle_status,r.resolution_state request_resolution_state,
+                    r.privacy_erased_at request_privacy_erased_at,
+                    EXISTS(SELECT 1 FROM {$this->p}booking_allocation_offers o
+                           WHERE o.booking_request_id=c.booking_request_id AND o.active_slot=1) live_offer
              FROM {$this->p}booking_request_confirmations c
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
              LEFT JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+             LEFT JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=c.delivery_id
              LEFT JOIN {$this->p}courses course ON course.id=r.selected_intro_course_id
              WHERE c.booking_request_id=%d ORDER BY c.id DESC LIMIT 1",
             $requestId
@@ -805,9 +812,30 @@ final class EnrolmentWorkspaceReadService {
             (int) $row->id
         ));
         $organizer = $this->organizerReadiness();
-        $recoveryEligible = (string) $row->state === 'failed'
-            && (string) $row->starts_at_utc > gmdate('Y-m-d H:i:s')
-            && $organizer['state'] === 'connected';
+        // The dashboard must use the same rule as retryFailed(); organizer connection is a
+        // diagnostic, not part of the mutation's acceptance criteria.
+        $recovery = BookingProvisioningRecoveryRule::assess(
+            array(
+                'state' => (string) $row->state,
+                'delivery_id' => (int) $row->delivery_id,
+                'booking_request_id' => (int) $row->booking_request_id,
+                'teacher_id' => (int) $row->teacher_id,
+                'requested_time_id' => (int) $row->requested_time_id,
+                'starts_at_utc' => (string) $row->starts_at_utc,
+            ),
+            $row->delivery_record_id !== null ? array(
+                'id' => (int) $row->delivery_record_id,
+                'booking_request_id' => (int) $row->delivery_booking_request_id,
+                'teacher_id' => (int) $row->delivery_teacher_id,
+                'requested_time_id' => (int) $row->delivery_requested_time_id,
+                'state' => (string) $row->delivery_record_state,
+                'lifecycle_status' => (string) $row->request_lifecycle_status,
+                'resolution_state' => (string) $row->request_resolution_state,
+                'privacy_erased_at' => $row->request_privacy_erased_at,
+            ) : null,
+            (bool) $row->live_offer
+        );
+        $recoveryEligible = (bool) $recovery['eligible'];
         return array(
             'confirmation_id' => (int) $row->id,
             'confirmation_uid' => (string) $row->uid,
@@ -832,6 +860,7 @@ final class EnrolmentWorkspaceReadService {
             'next_attempt_at' => $row->next_attempt_at,
             'last_attempt_at' => (string) $row->updated_at,
             'recovery_eligible' => $recoveryEligible,
+            'recovery_block_reason' => $recoveryEligible ? null : (string) $recovery['reason'],
             'organizer_state' => $organizer['state'],
             'organizer_scope_match' => $organizer['scope_match'],
             'classroom' => $classroom ? array(

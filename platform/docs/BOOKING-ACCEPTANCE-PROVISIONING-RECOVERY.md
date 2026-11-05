@@ -61,9 +61,14 @@ lifecycle/resolution state, allocation offers, or notification acceptance eviden
   status and next action.
 - The admin case detail shows failure reason, attempt count, last attempt, organizer state/scope,
   classroom state and recovery eligibility. A version-checked retry button reuses the same booking.
+- One pure `BookingProvisioningRecoveryRule` now governs the dashboard flag, the recovery report and
+  the mutating retry. It requires a failed confirmation, exact delivery ownership, an active
+  `submitted`/`unresolved` request, a future start and no live re-offer. Organizer connection remains
+  a separate diagnostic. The dashboard can no longer offer a retry that the authority rejects.
 - `wp dzn-meet booking-recovery` provides read-only discovery by default and an exact, audited apply
-  path. `wp dzn-meet retry-booking` remains available and now accepts `--expected_version` and
-  `--reason`.
+  path. `--confirmation_id` queries that confirmation directly, so a valid record outside the bounded
+  discovery page is still assessable. `wp dzn-meet retry-booking` remains available and now accepts
+  `--expected_version` and `--reason`.
 
 ## Database migration
 

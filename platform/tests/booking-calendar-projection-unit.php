@@ -60,6 +60,7 @@ namespace Delnavazan\Platform\Integrations {
 }
 namespace {
     function get_current_user_id(): int { return 27; }
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingProvisioningRecoveryRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/BookingCalendarProjectionService.php';
     $assert=static function(bool $ok,string $message):void{if(!$ok)throw new \RuntimeException($message);};
     $repository=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();

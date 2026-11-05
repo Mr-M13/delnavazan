@@ -131,7 +131,8 @@ final class BookingRecoveryAuditService {
             'confirmation_version' => (int) $row->confirmation_version,
             'delivery_id' => (int) $row->delivery_id,
             'delivery_state' => (string) ($row->delivery_state ?? ''),
-            'delivery_ownership_valid' => $recovery['reason'] !== BookingProvisioningRecoveryRule::OWNERSHIP_MISMATCH,
+            'delivery_ownership_valid' => $row->delivery_record_id !== null
+                && $recovery['reason'] !== BookingProvisioningRecoveryRule::OWNERSHIP_MISMATCH,
             'offer_id' => $row->offer_id !== null ? (int) $row->offer_id : null,
             'offer_state' => $row->offer_state !== null ? (string) $row->offer_state : null,
             'offer_active_slot' => $row->offer_active_slot !== null ? (int) $row->offer_active_slot : null,

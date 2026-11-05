@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public static int $cursorId=0;
         public array $referrals=array();
         public array $offers=array();
+        public function ensureAndLockTeacherRoot(int $teacherId,string $now,int $actor):void{}
         public function delivery(int $requestId):?object{return null;}
         public function cursor(int $courseId,string $now):int{return self::$cursorId;}
         public function advanceCursor(int $courseId,int $teacherId,string $now):void{self::$cursorId=$teacherId;}

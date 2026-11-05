@@ -11,7 +11,7 @@ final class CanonicalTeacherOccupancyReadService {
     }
 
     /** @return list<array{lesson_id:int,starts_at_utc:string,occupied_ends_at_utc:string}> */
-    public function overlapping(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId=0,int $excludeBookingRequestId=0):array{
+    public function overlapping(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId=0,int $excludeBookingRequestId=0,bool $includePendingOffers=true):array{
         if($teacherId<1||!CanonicalLessonScheduleValidator::utc($startsAtUtc)||!CanonicalLessonScheduleValidator::utc($occupiedEndUtc)||$occupiedEndUtc<=$startsAtUtc)throw new \InvalidArgumentException('canonical_occupancy_interval_invalid');
         $result=array();
         // Validate every current fact for this Teacher before trusting the subset selected by
@@ -33,7 +33,7 @@ final class CanonicalTeacherOccupancyReadService {
         }
         // Introductory offers and confirmations predate canonical Lesson creation.
         // They are still Teacher-wide capacity, irrespective of instrument.
-        foreach(TeacherBookingOccupancyQuery::conflicts($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeBookingRequestId) as $conflict)$result[]=array('lesson_id'=>(int)$conflict['conflict_id'],'starts_at_utc'=>$conflict['starts_at_utc'],'occupied_ends_at_utc'=>$conflict['occupied_ends_at_utc']);
+        foreach(TeacherBookingOccupancyQuery::conflicts($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeBookingRequestId,$includePendingOffers) as $conflict)$result[]=array('lesson_id'=>(int)$conflict['conflict_id'],'starts_at_utc'=>$conflict['starts_at_utc'],'occupied_ends_at_utc'=>$conflict['occupied_ends_at_utc']);
         usort($result,static fn(array $a,array $b):int=>($a['starts_at_utc']<=>$b['starts_at_utc'])?:($a['lesson_id']<=>$b['lesson_id']));
         return $result;
     }

@@ -146,8 +146,10 @@ wp dzn-meet approve-cohost-exception --lesson_id=<id> \
 ```
 
 A booking confirmation recovery uses `wp dzn-meet retry-booking --confirmation_id=<id>
---user=<administrator_id>` only after the same underlying policy/exception question is resolved. Do
-not create a shortcut that silently downgrades a co-host refusal.
+--user=<administrator_id>` only after the same underlying policy/exception question is resolved.
+It reuses an existing blocked classroom row and its sealed provider references, verifies COHOST
+membership again, and leaves the row blocked if Google still refuses. Do not create a shortcut that
+silently downgrades a co-host refusal or a second classroom/event/space.
 
 ### Never repair from stale diagnostic output
 
@@ -184,6 +186,27 @@ co-host/classroom entries are marked `requires_admin` interventions and are neve
 No production-wide apply is authorised by this document. The report contains no e-mail address,
 Meet URL, provider object reference or credential.
 
+## Booking and missing-lesson recovery
+
+A terminal booking is recovered without a second Teacher acceptance. `retry-booking` resets only the
+confirmation (and its accepting delivery) to retryable, then runs the same provider path. When a
+previous blocked classroom exists, recovery **reuses that exact classroom row, sealed Calendar/Meet
+reference and provider space**; it does not create a second classroom row, Calendar event or Meet
+space. The row becomes `provisioning` only while the provider verifies COHOST membership, and remains
+blocked if Google still refuses. Cancelled/retired history and bookings whose occurrence has ended
+are never revived.
+
+Lessons 22/23 are missing-row discovery, not existing-row retry. They must be planned explicitly:
+
+```sh
+wp dzn-meet repair --dry-run --limit=500 --json --user=<administrator_id>
+# Review plan_id, plan_digest and missing_lesson_classrooms. Confirm lessons 22 and 23 are present.
+wp dzn-meet repair --limit=500 --plan=<reviewed_plan_digest> --user=<administrator_id>
+```
+
+Missing-row discovery remains disabled in the scheduled worker while
+`DZN_MEET_AUTO_RECONCILE` is false. Do not enable it merely to recover these two rows.
+
 ## Apply sequence after approval
 
 ```sh
@@ -201,10 +224,14 @@ wp dzn-meet repair --dry-run --limit=500 --json --user=<administrator_id> > /sec
 # 4. Retry a reviewed terminal booking without asking the Teacher to accept again.
 wp dzn-meet retry-booking --confirmation_id=<id> --user=<administrator_id>
 
-# 5. Preview the scheduled worker (read-only), then enable discovery only if approved.
+# 5. Optional: preview the scheduled worker (read-only). Do not enable automatic discovery as part
+#    of this recovery; it requires a separate approved operational decision.
 wp dzn-meet worker --dry-run --limit=25 --user=<administrator_id>
-wp option update dzn_meet_auto_reconcile 1
 ```
+
+Do **not** run `wp option update dzn_meet_auto_reconcile 1` as part of the booking/lesson recovery.
+The scheduled worker continues existing-row retries and recording/attendance reconciliation, while
+missing-row discovery remains opt-in.
 
 A dry run and apply with the same records, limit and discovery mode produce the same
 `plan_digest`. Any changed schedule version, classroom version, booking version, state or ordering

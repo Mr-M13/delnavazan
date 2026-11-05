@@ -33,8 +33,17 @@ $assert(Rule::classroomSelection($ready,$ready) === 'already_ready', 'A ready ve
 $assert(Rule::classroomSelection($blocked,$blocked) === Rule::RESET_ACTIVE, 'An active blocked row may be reset by an explicit authorized retry.');
 $assert(Rule::classroomSelection($cancelled,$cancelled) === 'reject_history', 'A cancelled active row must never be revived.');
 $assert(Rule::classroomSelection(null,$cancelled) === 'reject_history', 'An inactive cancelled history row must never be reactivated.');
-$assert(Rule::classroomSelection(null,$failed) === Rule::CREATE_NEW, 'A blocked/failed historical row must be recovered by a new row, not reactivation.');
+$assert(Rule::classroomSelection(null,$failed) === Rule::CREATE_NEW, 'A failed historical lesson row must be recovered by a new row, not reactivation.');
 $assert(Rule::classroomSelection(null,null) === Rule::CREATE_NEW, 'A missing projection may create a new row.');
+
+// Booking recovery reuses the exact blocked row and references instead of creating a duplicate.
+$assert(Rule::bookingSelection($ready,$ready) === 'already_ready', 'A ready booking classroom must remain idempotent.');
+$assert(Rule::bookingSelection($blocked,$blocked) === Rule::RESET_ACTIVE, 'An active blocked booking row must be reset in place.');
+$assert(Rule::bookingSelection(null,$blocked) === Rule::RESET_LATEST, 'A historical blocked booking row must be reset, not duplicated.');
+$assert(Rule::bookingSelection(null,$failed) === Rule::RESET_LATEST, 'A historical failed booking row must be reset, not duplicated.');
+$assert(Rule::bookingSelection(null,$ready) === Rule::REACTIVATE, 'A ready inactive booking row may be reactivated without a provider write.');
+$assert(Rule::bookingSelection(null,$cancelled) === 'reject_history', 'A cancelled booking classroom must never be revived.');
+$assert(Rule::bookingSelection(null,null) === Rule::CREATE_NEW, 'A genuinely missing booking classroom may create one row.');
 
 $assert(Rule::isPermanentBlock('blocked',CoHost::VERIFIED,null), 'A blocked state must require explicit intervention.');
 $assert(Rule::isPermanentBlock('provisioning',CoHost::BLOCKED,null), 'A blocked co-host must require explicit intervention.');

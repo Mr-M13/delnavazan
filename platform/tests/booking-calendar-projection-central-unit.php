@@ -132,5 +132,33 @@ namespace {
     $assert($recovered['state']==='confirmed'&&$recoveryRepo->deliveryRow->state==='confirmed','Administrator retry must resume a terminal booking without another Teacher acceptance.');
     $assert(Central::$calls===array(array('ensureForBooking',70)),'Administrator retry must use the same central provisioning path.');
 
+    // A still-refused co-host remains terminal and never invents a link.
+    Central::$calls=array();Central::$throws='meet_cohost_assignment_blocked';
+    $blockedRepo=new BookingTeacherResponseRepository();
+    $blockedRepo->confirmationRow->state='failed';$blockedRepo->confirmationRow->attempt_count=6;
+    $blockedRepo->deliveryRow->state='pending_request';
+    $blocked=(new BookingCalendarProjectionService($blockedRepo))->retryFailed(70);
+    $assert($blocked['state']==='failed'&&$blockedRepo->confirmationRow->state==='failed','A still-refused co-host must remain terminal.');
+    $assert($blockedRepo->deliveryRow->state==='pending_request','A still-refused booking must remain in administrator recovery.');
+    $assert(Central::$calls===array(array('ensureForBooking',70)),'A refused retry must call the central provisioning path exactly once.');
+
+    // After policy correction the same terminal record can recover once, idempotently.
+    Central::$calls=array();Central::$throws=null;
+    $recoveredBlocked=(new BookingCalendarProjectionService($blockedRepo))->retryFailed(70);
+    $assert($recoveredBlocked['state']==='confirmed'&&$blockedRepo->confirmationRow->state==='confirmed','A corrected policy must recover the same terminal booking.');
+    $assert(Central::$calls===array(array('ensureForBooking',70)),'Corrected-policy recovery must call provisioning exactly once.');
+
+    // A duplicate/concurrent retry must not dispatch a second provisioning attempt.
+    $concurrentRepo=new BookingTeacherResponseRepository();
+    $concurrentRepo->confirmationRow->state='failed';$concurrentRepo->confirmationRow->attempt_count=6;
+    $concurrentRepo->deliveryRow->state='pending_request';
+    Central::$calls=array();Central::$throws=null;
+    $first=(new BookingCalendarProjectionService($concurrentRepo))->retryFailed(70);
+    $secondRejected=false;
+    try{(new BookingCalendarProjectionService($concurrentRepo))->retryFailed(70);}
+    catch(InvalidArgumentException $error){$secondRejected=$error->getMessage()==='Booking confirmation is not failed';}
+    $assert($first['state']==='confirmed'&&$secondRejected,'A second retry after confirmation must be rejected.');
+    $assert(Central::$calls===array(array('ensureForBooking',70)),'Concurrent/duplicate retries must not dispatch twice.');
+
     echo "Booking calendar projection central unit passed\n";
 }

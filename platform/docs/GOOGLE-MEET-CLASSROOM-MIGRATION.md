@@ -234,7 +234,11 @@ while recording/attendance reconciliation continues.
 
 `retry-booking` is the explicit administrator recovery for a terminal projection failure. It resets
 only that confirmation (and its accepting delivery) to retryable, then dispatches it through the same
-idempotent provider path; the Teacher does not have to accept the request again.
+idempotent provider path; the Teacher does not have to accept the request again. If a blocked classroom
+row already exists, the recovery reuses that row, its sealed Calendar/Meet reference and its provider
+space. It must not create a second classroom row, Calendar event or Meet space. A still-refused COHOST
+assignment leaves the same row blocked and the confirmation failed. Cancelled/retired history and an
+occurrence that has already ended are never revived.
 
 Permanent co-host refusals are never retried automatically. Correct the tenant policy and run
 `wp dzn-meet retry-classroom --lesson_id=456 --reason="Documented policy correction" --user=<id>`,
@@ -264,8 +268,12 @@ the archival LiveKit tag only as a separate, explicit rollback.
 - Set Drive sharing so recordings are not public/domain-wide; Delnavazan verifies and alerts but the
   `drive.readonly` scope cannot rewrite sharing.
 - Confirm the organizer account has a Workspace licence that includes Meet recording.
-- Confirm the tenant permits `spaces.members` COHOST assignment to external users. If not, use the
-  explicit administrator exception workflow and record the limitation.
+- Confirm the tenant permits `spaces.members` COHOST assignment to external users. This is a Google
+  Workspace Admin console/Meet host-management policy, not an OAuth-scope change: the organizer needs
+  Meet host-management capability, and external participants must be allowed to receive the COHOST
+  role. If the tenant does not expose that capability, use a Google Workspace account in the organizer
+  domain for the Teacher or use the explicit audited exception workflow; do not bypass the provider
+  check.
 
 ## 8. Verification still required on the real tenant
 

@@ -29,6 +29,7 @@ spl_autoload_register( static function ( $class ) {
 
 Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
+register_deactivation_hook( __FILE__, array( 'Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceWorker', 'deactivate' ) );
 add_action( 'plugins_loaded', static function () {
 	// Phase 2A.2-T provider seam wiring. The registry is process-local and must be populated before
 	// any REST webhook delivery is dispatched; without it every Stripe event fails closed with

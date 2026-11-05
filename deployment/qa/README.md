@@ -15,3 +15,26 @@ This is read-only and never sends credentials, writes data or submits a booking.
 - Visible PHP errors on every fetched HTML route.
 
 This runner performs read-only HTTP checks only. It does not deploy code or create test identities/data. Do not use it as evidence that a synthetic data lifecycle is safe to run.
+
+## Read-only production release diagnostic
+
+Run from GitHub Actions against the exact current `main` SHA:
+
+```sh
+gh workflow run diagnose-production-release.yml --ref main \
+  -f commit_sha=<full-current-main-sha>
+```
+
+Or on an approved operator workstation with the protected production SSH account:
+
+```sh
+PRODUCTION_SSH_USER=<restricted-user> \
+  bash deployment/qa/production-release-diagnostic.sh <full-current-main-sha>
+```
+
+The payload is SELECT/read-only and never invokes provisioning, reconciliation, retries, WP-Cron
+events, Google APIs, bookings, notifications or provider mutations. Its `meet_operational` section
+reports effective feature flags and their source, worker hook/schedule presence, compact organizer
+OAuth readiness, and redacted rows for lessons 22/23 and booking confirmation #9. It does not contain
+tokens, e-mails, client identifiers or provider payloads. See
+`platform/docs/GOOGLE-MEET-RECONCILIATION-2026-11-04.md` for interpretation and safe remediation.

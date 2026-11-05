@@ -23,14 +23,7 @@ final class GoogleWorkspaceClassroomReconciler {
 
     /** Whether the scheduled worker may discover missing rows without an interactive plan. */
     public static function automaticEnabled():bool{
-        if(defined('DZN_MEET_AUTO_RECONCILE')){
-            $value=strtolower(trim((string)constant('DZN_MEET_AUTO_RECONCILE')));
-            return !in_array($value,array('0','false','off','no',''),true);
-        }
-        $env=getenv('DZN_MEET_AUTO_RECONCILE');
-        if(is_string($env)&&trim($env)!=='')return !in_array(strtolower(trim($env)),array('0','false','off','no'),true);
-        if(function_exists('get_option'))return (string)get_option('dzn_meet_auto_reconcile','0')==='1';
-        return false;
+        return GoogleWorkspaceFeatureFlags::autoReconcile();
     }
 
     /**

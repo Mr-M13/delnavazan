@@ -64,6 +64,98 @@ repair remain unexecuted until explicitly approved.**
 - The join window is the shared 30-minute early / 30-minute late `ParticipantJoinWindow` policy.
 - A transient OAuth refresh failure keeps the organizer connected and active for the next retry.
 
+## Read-only production diagnostic
+
+Run the manual production diagnostic against the exact deployed `main` SHA:
+
+```sh
+gh workflow run diagnose-production-release.yml --ref main \
+  -f commit_sha=<full-current-main-sha>
+```
+
+The workflow runs `deployment/qa/production-release-diagnostic.sh` on the production host through
+WP-CLI. The payload performs SELECT/read operations only. It does not run reconciliation, retries,
+WP-Cron events, Google APIs, bookings, notifications or provider mutations.
+
+The diagnostic now includes `meet_operational`:
+
+- **Flags** — the effective state and source of `DZN_MEET_CLASSROOM_ENABLED` and
+  `DZN_MEET_AUTO_RECONCILE`. Source is one of `constant`, `environment`,
+  `application_option` (for the auto-reconcile option) or `default`.
+- **Worker** — class presence, hook registration, scheduled occurrences, recurrence, next run and
+  `cron_disabled`.
+- **Organizer OAuth** — compact configured/connection/identity/credential/expiration state only.
+  Tokens, e-mail addresses, client identifiers and provider payloads are never included.
+- **Lessons 22 and 23** — targeted, redacted classroom readiness rows.
+- **Booking confirmation #9** — targeted, redacted confirmation and classroom readiness row.
+
+### Worker presence versus effective flags
+
+A registered hook and one scheduled event prove that the application registered the worker; they do
+**not** prove that WP-Cron is executing it. Check all three:
+
+1. `meet_operational.worker.hook_registered` is true.
+2. `meet_operational.worker.scheduled` is true, `occurrences` is exactly `1`, and `recurrence`
+   contains `dzn_five_minutes`.
+3. `cron_disabled` is false, or the host has an external scheduler running
+   `wp cron event run --due-now` (or `wp dzn-meet worker`) every five minutes.
+
+`DZN_MEET_CLASSROOM_ENABLED=false` pauses new provisioning and interactive provisioning, but it does
+not remove the worker or stop recording/attendance reconciliation. `DZN_MEET_AUTO_RECONCILE` remains
+disabled by default; when false, missing-row discovery is off while existing-row retry and
+reconciliation still run. Neither flag should be forced on merely to make the diagnostic look green.
+
+### Verified projection is not co-host or reschedule proof
+
+A verified Calendar/Meet projection and a present join reference prove that the provider event/space
+exists. They do **not** prove that:
+
+- the Teacher was accepted as a `COHOST`;
+- a later Calendar reschedule job succeeded; or
+- a booking confirmation reached `confirmed`.
+
+Inspect the targeted lesson and booking rows separately. The lesson row reports the central
+`meet_classrooms` state **and** any verified legacy
+`provider_calendar_event_mappings`/`provider_meeting_mappings` projection. `projection_verified` and
+`join_ready` are true when either path is verified with a join reference; a missing central
+classroom alone is not proof that the lesson has no projection. Lessons 22 and 23 are expected to
+have verified projections with join references; do not treat them as missing classrooms or run a
+repair because of this diagnostic alone. Booking confirmation #9 must be read from its own row; its
+state is never assumed from another confirmation or from the presence of a classroom row.
+
+### Safe remediation for a blocked co-host
+
+A permanent `meet_cohost_assignment_blocked`/`meet_cohost_assignment_refused` is a human-operational
+issue. Investigate the Google Workspace/API policy first: external Teacher account eligibility,
+same-domain co-host restrictions, OAuth scope, and any `permission_denied` detail. Do not retry it
+automatically and never mark a co-host assignment successful without provider confirmation.
+
+After the policy is corrected, use only the audited operator path:
+
+```sh
+wp dzn-meet retry-classroom --lesson_id=<id> \
+  --reason="Documented tenant-policy correction" --user=<administrator_id>
+```
+
+Where an explicit, documented exception is approved, use the audited exception command. It records
+the approver, reason, timestamp and exception state:
+
+```sh
+wp dzn-meet approve-cohost-exception --lesson_id=<id> \
+  --reason="Documented operational exception" --user=<administrator_id>
+```
+
+A booking confirmation recovery uses `wp dzn-meet retry-booking --confirmation_id=<id>
+--user=<administrator_id>` only after the same underlying policy/exception question is resolved. Do
+not create a shortcut that silently downgrades a co-host refusal.
+
+### Never repair from stale diagnostic output
+
+A diagnostic or dry run only describes the records at its generation instant. Re-run the read-only
+diagnostic and the approved `repair --dry-run` immediately before any action, review the new
+`plan_id`/`plan_digest`, and apply only that exact plan. A changed schedule version, classroom
+version, booking version, state or ordering invalidates the old digest.
+
 ## Dry-run gate (required before production apply)
 
 Run read-only:
@@ -143,12 +235,16 @@ schedule through the reviewed reconciliation plan first.
 | Setting | Purpose | Default |
 | --- | --- | --- |
 | `DZN_MEET_ORGANIZER_EMAIL` | Organizer account | `classroom@delnavazan.com` |
-| `DZN_MEET_CLASSROOM_ENABLED` | Emergency stop for interactive and background provisioning; recording/attendance reconciliation continues | enabled |
-| `DZN_MEET_AUTO_RECONCILE` | Scheduled missing-row discovery | disabled; also `dzn_meet_auto_reconcile=1` |
+| `DZN_MEET_CLASSROOM_ENABLED` | Emergency stop for interactive and background provisioning; recording/attendance reconciliation continues | enabled; source reported as constant/environment/default |
+| `DZN_MEET_AUTO_RECONCILE` | Scheduled missing-row discovery | disabled; source reported as constant/environment/application option/default |
 | `DZN_MEET_ACCESS_TYPE` | Meet space access | `OPEN` |
 
-WP-Cron must run every five minutes. If the host disables loopback WP-Cron, run
-`wp dzn-meet worker` from the host scheduler with the same cadence.
+The worker is registered on normal plugin load and schedules one
+`dzn_google_meet_classroom_worker` event on the `dzn_five_minutes` recurrence. Deactivation and
+uninstall clear only that scheduled hook; no business records are touched. WP-Cron must actually run
+every five minutes. If the host disables loopback WP-Cron (`DISABLE_WP_CRON`), run
+`wp cron event run --due-now` or `wp dzn-meet worker` from the host scheduler with the same cadence.
+This is a hosting prerequisite, not something an application request can silently fix.
 
 ## Post-deployment smoke tests
 

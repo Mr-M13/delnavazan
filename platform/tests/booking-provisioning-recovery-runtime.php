@@ -57,6 +57,20 @@ $assert( $offerCount === 1 && (string) $offerState->state === 'accepted' && $off
 $assert( $notificationCount === 0, 'A failed or paused provisioning attempt must not queue a Student confirmation or joining link.' );
 $assert( $auditCount === 1, 'The administrator retry must create exactly one durable audit event.' );
 
+// The dashboard read path must apply the same eligibility rule against real rows.
+$wpdb->update( $p . 'booking_request_confirmations', array( 'state' => 'failed', 'failure_reason_code' => 'meet_cohost_assignment_blocked', 'updated_at' => $now ), array( 'id' => $confirmation ) );
+$read = new \Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService();
+$confirmedBooking = new ReflectionMethod( $read, 'confirmedBooking' );
+$confirmedBooking->setAccessible( true );
+$case = $confirmedBooking->invoke( $read, $request );
+$assert( is_array( $case ), 'The dashboard must project the failed confirmation.' );
+$assert( $case['recovery_eligible'] === true && $case['recovery_block_reason'] === null, 'The dashboard must offer exactly the retry that the mutation accepts.' );
+
+// A live offer makes both the display and mutation ineligible.
+$wpdb->update( $p . 'booking_allocation_offers', array( 'state' => 'pending', 'active_slot' => 1 ), array( 'booking_request_id' => $request ) );
+$caseWithOffer = $confirmedBooking->invoke( $read, $request );
+$assert( $caseWithOffer['recovery_eligible'] === false && $caseWithOffer['recovery_block_reason'] === 'allocation_superseded', 'A live re-offer must suppress the dashboard retry before the mutation is attempted.' );
+
 echo wp_json_encode( array(
     'portal_visible' => 'pass',
     'delivery_preserved' => $deliveryState,

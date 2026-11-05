@@ -16,7 +16,7 @@ final class BookingAllocationService {
     // A response must finish before the lesson begins; leave an hour for
     // confirmation and provider projection after the complete response window.
     public const PROJECTION_BUFFER_SECONDS=3600;
-    private CanonicalTeacherOccupancyReadService $occupancy;
+    private BookingTeacherOccupancyReadService $occupancy;
     public function __construct(
         private ?BookingAllocationRepository $repo=null,
         private ?BookingRequestMatchAssessmentRepository $matches=null,
@@ -27,7 +27,7 @@ final class BookingAllocationService {
         $this->matches??=new BookingRequestMatchAssessmentRepository();
         $this->deliveries??=new BookingTeacherDeliveryRepository();
         $this->availability??=new TeacherAvailabilityService();
-        $this->occupancy=new CanonicalTeacherOccupancyReadService();
+        $this->occupancy=new BookingTeacherOccupancyReadService();
     }
 
     /** Called inside the submission transaction, which already owns the new request. */

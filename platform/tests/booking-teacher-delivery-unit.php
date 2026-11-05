@@ -34,7 +34,7 @@ namespace Delnavazan\Platform\Core\Application {
             return array(array('starts_at_utc' => $start, 'ends_at_utc' => $end, 'state' => $state));
         }
     }
-    final class CanonicalTeacherOccupancyReadService {
+    final class BookingTeacherOccupancyReadService {
         public function overlapping(int $teacherId, string $start, string $end): array { return array(); }
     }
     final class CanonicalContinuationCapacityAuthority {

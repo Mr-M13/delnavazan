@@ -63,7 +63,7 @@ namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
         public function effective(int $teacherId, string $start, string $end): array { return array(array('starts_at_utc'=>$start,'ends_at_utc'=>$end,'state'=>'preferred')); }
     }
-    final class CanonicalTeacherOccupancyReadService {
+    final class BookingTeacherOccupancyReadService {
         public static array $blockedTeachers = array();
         public function overlapping(int $teacherId, string $start, string $end): array { return in_array($teacherId,self::$blockedTeachers,true)?array(array('lesson_id'=>1)):array(); }
     }
@@ -107,7 +107,7 @@ namespace {
     $notices=\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls;
     $assert(count($notices)===3 && $notices[0]['event']==='booking.referral.admin' && $notices[1]['event']==='booking.escalation.admin' && $notices[2]['event']==='booking.expired.teacher','Referral, escalation, and expiration must create one durable portal notice each.');
     $blockedRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
-    \Delnavazan\Platform\Core\Application\CanonicalTeacherOccupancyReadService::$blockedTeachers=array(11);
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array(11);
     $blockedService=new \Delnavazan\Platform\Core\Application\BookingAllocationService($blockedRepo,new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository(),new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository($blockedRepo));
     $blocked=$blockedService->startWithinTransaction(10,4,$blockedRepo->times(10),$now);
     $assert($blocked['teacher_id']===22,'A pending or confirmed Teacher occupancy must exclude that Teacher across instruments.');

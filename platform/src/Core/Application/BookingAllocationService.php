@@ -33,6 +33,7 @@ final class BookingAllocationService {
     /** Called inside the submission transaction, which already owns the new request. */
     public function startWithinTransaction(int $requestId,int $courseId,array $times,string $now):?array{
         if($this->repo->delivery($requestId))throw new \RuntimeException('Allocation already started');
+        $this->lockEligibleTeacherRoots($courseId,$now);
         $candidates=$this->candidates($courseId,$times,$now);
         if(!$candidates){$this->repo->referral($requestId,'no_viable_teacher',$now);return null;}
         $last=$this->repo->cursor($courseId,$now);
@@ -56,6 +57,7 @@ final class BookingAllocationService {
         if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)return null;
         $history=$this->repo->history($requestId);
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
+        $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
         $candidates=$this->candidates((int)$request->selected_intro_course_id,$this->repo->times($requestId),$now);
         $next=$this->next($candidates,(int)$offer->teacher_id,$offered);
         if(!$next){
@@ -184,5 +186,13 @@ final class BookingAllocationService {
             if($cursor===$end)return $state;
         }
         return null;
+    }
+    /** Lock in a global Teacher-id order before allocating across instruments. */
+    private function lockEligibleTeacherRoots(int $courseId,string $now):void{
+        $ids=array();
+        foreach($this->matches->eligibleTeachers($courseId,$now) as $teacher)$ids[(int)$teacher->teacher_id]=true;
+        $ids=array_keys($ids);sort($ids,SORT_NUMERIC);
+        $actor=function_exists('get_current_user_id')?max(0,(int)get_current_user_id()):0;
+        foreach($ids as $teacherId)if($teacherId>0)$this->repo->ensureAndLockTeacherRoot($teacherId,$now,$actor);
     }
 }

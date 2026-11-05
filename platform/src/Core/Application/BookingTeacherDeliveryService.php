@@ -6,8 +6,9 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRep
 
 /**
  * Chooses one deterministic, currently-covered Teacher for a new request.
- * This creates inbox delivery only. It never reserves capacity, confirms a class,
- * creates a Lesson, contacts a provider, or creates Calendar/Meet projections.
+ * This creates inbox delivery and a short-lived Teacher-wide offer reservation.
+ * It never confirms a class, creates a Lesson, contacts a provider, or creates
+ * Calendar/Meet projections.
  */
 final class BookingTeacherDeliveryService {
 

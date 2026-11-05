@@ -3,8 +3,9 @@ namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Core\Application\IntegrationControlPlaneReadService;
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
-use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestModeReadinessService;
-use Delnavazan\Platform\Core\Application\PaymentExecution\StripeTestConfigurationService;
+use Delnavazan\Platform\Core\Application\PaymentExecution\{StripeLiveConfigurationService,StripeLiveReadinessService,StripeProviderMode,StripeTestModeReadinessService,StripeTestConfigurationService};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialPaymentRepository,PaymentProviderRepository};
+use Delnavazan\Platform\Integrations\Payment\Stripe\StripeEventTranslator;
 use Delnavazan\Platform\Integrations\IntegrationTestRunner;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfigurationService;
@@ -13,7 +14,7 @@ use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
 final class IntegrationControlPlaneController {
-    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));}
+    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));add_action('admin_post_dzn_stripe_live_settings_save',array(__CLASS__,'saveStripeLiveSettings'));add_action('admin_post_dzn_stripe_live_connection',array(__CLASS__,'testStripeLiveConnection'));add_action('admin_post_dzn_stripe_live_webhook_verify',array(__CLASS__,'verifyStripeLiveWebhook'));add_action('admin_post_dzn_stripe_live_activation',array(__CLASS__,'setStripeLiveActivation'));}
     /** Explicit provider-template discovery. It reads templates and writes local mappings; it never sends. */
     public static function syncTelnyxTemplates():void{
         self::authorizeSettings();check_admin_referer('dzn_telnyx_template_sync');
@@ -79,10 +80,13 @@ final class IntegrationControlPlaneController {
     public static function stripeSettingsContent(bool $embedded=false):void{
         if(!current_user_can(PaymentExecutionController::CAPABILITY))wp_die('Forbidden',403);
         $configuration=new StripeTestConfigurationService();$saved=$configuration->savedState();$readiness=(new StripeTestModeReadinessService())->read();$last=(array)get_option('dzn_stripe_test_connection_result',array());
+        $liveConfiguration=null;$liveSaved=array();$liveReadiness=array('stage'=>StripeLiveReadinessService::STAGE_NOT_CONFIGURED,'verified'=>false,'ready'=>false,'active'=>false,'checks'=>array());
+        try{$liveConfiguration=new StripeLiveConfigurationService();$liveSaved=$liveConfiguration->savedState();$liveReadiness=(new StripeLiveReadinessService())->read();}
+        catch(\Throwable){echo '<div class="notice notice-error"><p>Stripe Live configuration is unavailable in this request. Verify that Schema migration 070 is installed and try again.</p></div>';}
         $testEnvironment=StripeTestConfigurationService::testEnvironmentAllowed();
         $production=function_exists('wp_get_environment_type')&&(string)wp_get_environment_type()==='production';
         $preLaunchActive=$production&&StripeTestConfigurationService::preLaunchProductionTestModeActive();
-        echo '<p>Configure Stripe sandbox credentials on a recognised test environment. Pre-launch production TEST mode is available only while all three explicit gates are active. Secret keys are encrypted and write-only. Live credentials and live payment execution are prohibited.</p>';
+        echo '<p>Stripe test and live are separate accounts, credential scopes and webhook selectors. Secret keys are encrypted at rest, write-only and never displayed or returned by an API. Live credentials can only be configured in production, and saving them never activates live payments.</p>';
         if($preLaunchActive)echo '<div class="notice notice-error"><p><strong>PRE-LAUNCH PRODUCTION TEST MODE IS ACTIVE.</strong> Only Stripe TEST credentials and test Checkout are permitted. Disable it immediately by removing <code>DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED</code>, <code>DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED</code>, or <code>DZN_PLATFORM_PAYMENT_TEST_VAULT</code> from the production configuration.</p></div>';
         elseif(!$testEnvironment)echo '<div class="notice notice-warning"><p>Stripe test configuration and Test Connection are disabled. Production requires the explicit pre-launch production TEST-mode gate plus the operator authorization and disposable test-vault gates.</p></div>';
         if(isset($_GET['stripe_result'])){$result=sanitize_key((string)$_GET['stripe_result']);$messages=array(
@@ -103,10 +107,46 @@ final class IntegrationControlPlaneController {
             'stripe_persistence_failed'=>'The Stripe TEST storage operation failed. Some fields may have been saved; review readiness before retrying.',
             'stripe_test_configuration_persistence_unconfirmed'=>'The Stripe TEST save could not be confirmed by a read-after-write check. Some fields may have been saved; review readiness before retrying.',
             'stripe_configuration_unauthorized'=>'Your account lacks the Stripe provider-configuration capability. No credentials were saved.',
-            'save_failed'=>'Stripe test configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
+            'live_saved'=>'Stripe live configuration saved. Live payments are still inactive; run the live checks and confirm Activate Live Payments.',
+            'stripe_live_environment_required'=>'Live credentials can only be configured in a production environment. No live credentials were saved.',
+            'invalid_stripe_live_publishable_key'=>'The publishable key must be a live Stripe key (pk_live_). No live credentials were saved.',
+            'invalid_stripe_live_secret_key'=>'The secret key must be a live Stripe key (sk_live_). No live credentials were saved.',
+            'invalid_stripe_live_webhook_secret'=>'The webhook signing secret must be a valid Stripe signing secret (whsec_). No live credentials were saved.',
+            'invalid_stripe_live_account_identifier'=>'The Stripe account identifier must look like acct_… . No live credentials were saved.',
+            'complete_stripe_live_configuration_required'=>'Enter the live publishable key, live secret key and live webhook signing secret together for the first save. No live credentials were saved.',
+            'stripe_live_account_scope_ambiguous'=>'The live Stripe account state is ambiguous, so the save was refused. No live credentials were saved.',
+            'stripe_live_account_state_unavailable'=>'The existing Stripe live account is not in a configurable state. No live credentials were saved.',
+            'stripe_live_secret_store_refused'=>'The encrypted credential vault refused a live write. Some fields may have been saved; review readiness before retrying. Credential values are never shown here.',
+            'stripe_live_configuration_persistence_unconfirmed'=>'The live configuration could not be confirmed by a read-after-write check. Some fields may have been saved; review readiness before retrying.',
+            'live_connection_success'=>'Stripe accepted the live secret key and confirmed a live balance response.',
+            'live_connection_failed'=>'The live Stripe connection failed. Check the live secret key and account identifier; no credential is shown here.',
+            'live_connection_blocked'=>'The live Stripe connection could not run because the environment, account or encrypted credentials are not ready.',
+            'live_webhook_verified'=>'Stripe confirms the live event destination, its required events and payload/API version.',
+            'live_webhook_failed'=>'Stripe did not confirm the live event destination. Review the URL, enabled events and API version, then retry.',
+            'live_webhook_blocked'=>'The live webhook check could not run because the account or encrypted credentials are not ready.',
+            'live_activation_confirmation_required'=>'Live activation requires the explicit confirmation checkbox. Nothing was activated.',
+            'live_activation_blocked'=>'Live activation was refused because the readiness checklist is not fully ready. Nothing was activated.',
+            'live_activated'=>'Live payments are now active. Test mode remains available by deactivating live payments.',
+            'live_deactivated'=>'Live payments are stopped. Credentials and historical payment records were preserved; test mode remains available.',
+            'live_activation_failed'=>'Live activation did not complete. The account was returned to a fail-closed state; review readiness and try again.',
+            'save_failed'=>'Stripe configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
         );echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
         $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/'.$configuration->webhookReference());
-        echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code>'.esc_html($webhookUrl).'</code></p>';
+        echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code id="dzn-stripe-test-webhook">'.esc_html($webhookUrl).'</code> <button type="button" class="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById(\'dzn-stripe-test-webhook\').textContent)">Copy URL</button></p>';
+        echo '<p><strong>Signing secret:</strong> '.esc_html(!empty($saved['webhook'])?'configured':'missing').' · <strong>Webhook readiness:</strong> '.esc_html((($readiness['checks']['test_webhook_secret']['state']??'blocked')==='ready')?'configured':'not verified').'</p>';
+        $testAccountId=(int)($saved['account_id']??0);
+        if($testAccountId>0){
+            $testReceipts=(new PaymentProviderRepository())->recentReceiptsForAccount($testAccountId,8);
+            $testLast=(new PaymentProviderRepository())->latestReceiptForAccount($testAccountId);
+            $testVerified=(new PaymentProviderRepository())->latestReceiptForAccount($testAccountId,'verified');
+            $testRejected=(new PaymentProviderRepository())->latestReceiptForAccount($testAccountId,'refused');
+            echo '<p><strong>Last test webhook:</strong> '.esc_html($testLast?(string)$testLast->received_at.' · '.$testLast->verification_state:'None recorded').' · <strong>Last verified:</strong> '.esc_html($testVerified?(string)$testVerified->received_at:'None').' · <strong>Last rejected:</strong> '.esc_html($testRejected?(string)$testRejected->received_at.' · '.($testRejected->refusal_reason_code??'refused'):'None').'</p>';
+            echo '<table class="widefat striped"><thead><tr><th>Received</th><th>State</th><th>Safe reason</th><th>Bytes</th></tr></thead><tbody>';
+            foreach($testReceipts as $receipt)echo '<tr><td>'.esc_html((string)$receipt->received_at).'</td><td>'.esc_html((string)$receipt->verification_state).'</td><td>'.esc_html((string)($receipt->refusal_reason_code??'—')).'</td><td>'.(int)$receipt->body_bytes.'</td></tr>';
+            if(!$testReceipts)echo '<tr><td colspan="4">No test webhook deliveries recorded.</td></tr>';
+            echo '</tbody></table>';
+        }
+        echo '<p><strong>Test webhook events (derived from the deployed adapter):</strong> <code>'.esc_html(implode(', ',StripeEventTranslator::requiredWebhookEvents())).'</code></p>';
         if($testEnvironment){echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_test_settings_save">'.($embedded?'<input type="hidden" name="return_to_finance" value="1">':'');wp_nonce_field('dzn_stripe_test_settings_save');
         echo '<table class="form-table"><tbody><tr><th><label for="stripe-pk">Publishable key</label></th><td><input class="regular-text" id="stripe-pk" name="settings[publishable_key]" value="'.esc_attr($configuration->publishableKey()).'" placeholder="pk_test_…" autocomplete="off"></td></tr>';
         foreach(array('secret_key'=>'Secret key','webhook_signing_secret'=>'Webhook signing secret') as $field=>$label){$has=$field==='secret_key'?$saved['secret']:$saved['webhook'];echo '<tr><th><label for="stripe-'.esc_attr($field).'">'.esc_html($label).'</label></th><td><input class="regular-text" type="password" id="stripe-'.esc_attr($field).'" name="settings['.esc_attr($field).']" value="" autocomplete="new-password" placeholder="'.($has?'•••••••••••• (configured; leave blank to keep)':'Enter Stripe test credential').'"></td></tr>';}
@@ -123,6 +163,124 @@ final class IntegrationControlPlaneController {
         echo '<table class="widefat striped"><tbody>';
         foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
         echo '</tbody></table><p>Payment execution and reconciliation are under Finance.</p>';
+        if($liveConfiguration!==null)self::renderStripeLivePanel($liveConfiguration,$liveReadiness,$saved,$liveSaved,$embedded);
+    }
+
+    /** Dedicated Stripe Live Mode panel: environment, credentials, webhook operations and activation. */
+    private static function renderStripeLivePanel(StripeLiveConfigurationService $live,array $readiness,array $testSaved,array $saved,bool $embedded=false):void{
+        $activation=StripeProviderMode::activation();
+        $production=StripeProviderMode::liveEnvironmentAllowed();
+        $stage=(string)($readiness['stage']??StripeLiveReadinessService::STAGE_NOT_CONFIGURED);
+        $webhookUrl=$live->webhookUrl();
+        $webhookReady=(int)($saved['account_id']??0)>0&&($saved['account_reference']??null)!==null;
+        $connection=StripeLiveConfigurationService::connectionResult();
+        $verification=StripeLiveConfigurationService::webhookVerification();
+        $repository=new PaymentProviderRepository();
+        $accountId=(int)($saved['account_id']??0);
+        $lastReceived=$accountId>0?$repository->latestReceiptForAccount($accountId):null;
+        $lastVerified=$accountId>0?$repository->latestReceiptForAccount($accountId,'verified'):null;
+        $lastRejected=$accountId>0?$repository->latestReceiptForAccount($accountId,'refused'):null;
+        $receipts=$accountId>0?$repository->recentReceiptsForAccount($accountId,10):array();
+        $events=$accountId>0?$repository->recentEventsForAccount($accountId,10):array();
+        $evidence=array();
+        if($accountId>0&&($saved['account_reference']??null)!==null){
+            try{$evidence=(new CommercialPaymentRepository())->recentEvidenceForProviderAccount('stripe',\Delnavazan\Platform\Core\Application\CommercialIdempotency::evidence((string)$saved['account_reference']),10);}catch(\Throwable){$evidence=array();}
+        }
+        $lastSuccess=null;$lastFailure=null;
+        foreach($evidence as $row){if($lastSuccess===null&&(string)$row->processing_state==='accepted')$lastSuccess=$row;if($lastFailure===null&&in_array((string)$row->processing_state,array('rejected','unmatched'),true))$lastFailure=$row;}
+
+        echo '<hr><h2 id="stripe-live">Stripe Live Mode</h2>';
+        echo '<p><strong>Environment:</strong> '.esc_html($production?'Production':'Not production').' · <strong>Live state:</strong> <span class="dzn-status-badge '.($stage===StripeLiveReadinessService::STAGE_ACTIVE?'is-ok':'is-warn').'">'.esc_html($stage).'</span></p>';
+        echo '<table class="widefat striped"><tbody>';
+        foreach(array(
+            'Current payment environment'=>$stage===StripeLiveReadinessService::STAGE_ACTIVE?'Live (test remains configured)':(!empty($testSaved['execution_enabled'])?'Test':'Test / live inactive'),
+            'Test account registration'=>(int)($testSaved['account_id']??0)>0?'Registered as '.StripeProviderMode::TEST_ACCOUNT_REFERENCE:'Not registered',
+            'Live account registration'=>(int)($saved['account_id']??0)>0?'Registered as '.StripeProviderMode::LIVE_ACCOUNT_REFERENCE:'Not registered',
+            'Stripe live connection'=>($connection['state']??'not run').' · '.($connection['code']??'not_run').($connection['at']??''?' · '.$connection['at']:''),
+            'Live payment execution readiness'=>!empty($readiness['ready'])?'Ready':($readiness['verified']??false?'Verified, not ready':'Not ready'),
+            'Webhook verification'=>($verification['state']??'not run').' · '.($verification['code']??'not_run').($verification['at']??''?' · '.$verification['at']:''),
+            'Last webhook received'=>$lastReceived?(string)$lastReceived->received_at.' · '.$lastReceived->verification_state:'None recorded',
+            'Last successfully processed webhook'=>$lastVerified?(string)$lastVerified->received_at.' · '.$lastVerified->verification_state:'None recorded',
+            'Last rejected webhook'=>$lastRejected?(string)$lastRejected->received_at.' · '.($lastRejected->refusal_reason_code??'refused'):'None recorded',
+            'Last verified event'=>$events?(string)$events[0]->received_at.' · '.$events[0]->event_type:'None recorded',
+            'Last successful live payment'=>$lastSuccess?(string)$lastSuccess->ingested_at.' · '.$lastSuccess->evidence_kind.' · '.$lastSuccess->amount_minor.' '.$lastSuccess->currency:'None recorded',
+            'Last live payment failure'=>$lastFailure?(string)$lastFailure->ingested_at.' · '.$lastFailure->processing_state.' · '.($lastFailure->reason_code??''):'None recorded',
+        ) as $label=>$value)echo '<tr><th>'.esc_html((string)$label).'</th><td>'.esc_html((string)$value).'</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<h3>Live credentials</h3>';
+        if(!$production){
+            echo '<div class="notice notice-warning inline"><p>Live credentials can only be configured in production. Current environment: <code>'.esc_html(function_exists('wp_get_environment_type')?(string)wp_get_environment_type():'unknown').'</code>. Nothing is shown or saved here.</p></div>';
+        }else{
+            echo '<p>Secret values are encrypted with the existing payment-secret vault and are write-only. Test and live credentials are separate. Saving credentials invalidates prior live verification and stops live charging until activation is repeated.</p>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" onsubmit="return confirm(\'Save these Stripe live credentials? Live payments will remain inactive until you confirm activation.\')"><input type="hidden" name="action" value="dzn_stripe_live_settings_save">'.($embedded?'<input type="hidden" name="return_to_finance" value="1">':'').wp_nonce_field('dzn_stripe_live_settings_save', '_wpnonce', true, false);
+            echo '<table class="form-table"><tbody>';
+            echo '<tr><th><label for="stripe-live-pk">Live publishable key</label></th><td><input class="regular-text" id="stripe-live-pk" name="settings[publishable_key]" value="'.esc_attr($live->publishableKey()).'" placeholder="pk_live_…" autocomplete="off"></td></tr>';
+            foreach(array('secret_key'=>'Live secret key','webhook_signing_secret'=>'Live webhook signing secret') as $field=>$label){
+                $has=$field==='secret_key'?$saved['secret']:$saved['webhook'];
+                echo '<tr><th><label for="stripe-live-'.esc_attr($field).'">'.esc_html($label).'</label></th><td><input class="regular-text" type="password" id="stripe-live-'.esc_attr($field).'" name="settings['.esc_attr($field).']" value="" autocomplete="new-password" placeholder="'.($has?'•••••••••••• (configured; leave blank to keep)':'Enter Stripe live credential').'"></td></tr>';
+            }
+            echo '<tr><th><label for="stripe-live-account">Stripe account identifier (optional)</label></th><td><input class="regular-text" id="stripe-live-account" name="settings[account_identifier]" value="" autocomplete="off" placeholder="acct_… (non-secret; leave blank to keep)"><p class="description">Used only to identify the Stripe account to administrators. It is not a credential.</p></td></tr>';
+            echo '</tbody></table><p><button class="button button-primary">Save live configuration</button> <span class="description">Does not activate live payments.</span></p></form>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_live_connection">'.wp_nonce_field('dzn_stripe_live_connection', '_wpnonce', true, false).'<p><button class="button" name="run_live_test" value="1">Test live connection</button> <span class="description">Read-only Stripe balance check; no charge is created.</span></p></form>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_stripe_live_webhook_verify">'.wp_nonce_field('dzn_stripe_live_webhook_verify', '_wpnonce', true, false).'<p><button class="button" name="verify_live_webhook" value="1">Verify live webhook</button> <span class="description">Reads the Stripe event destination back; no event is sent.</span></p></form>';
+        }
+
+        echo '<h3>Live webhook</h3>';
+        if($webhookReady){
+            echo '<p><strong>Webhook URL:</strong> <code id="dzn-stripe-live-webhook">'.esc_html($webhookUrl).'</code> <button type="button" class="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById(\'dzn-stripe-live-webhook\').textContent)">Copy URL</button></p>';
+        }else{
+            echo '<p><strong>Live webhook URL is not ready.</strong> Save the live account credentials first. The expected URL is <code>'.esc_html($webhookUrl).'</code>, but its <code>stripe_live</code> selector is only active once the live account is registered.</p>';
+        }
+        echo '<p><strong>Signing secret:</strong> '.esc_html(!empty($saved['webhook'])?'configured':'missing').' · <strong>Webhook readiness:</strong> '.esc_html((!empty($readiness['checks']['webhook_destination_verified']['state'])&&$readiness['checks']['webhook_destination_verified']['state']==='ready')?'verified':'not verified').'</p>';
+        echo '<p><strong>Required events:</strong></p><ul>';
+        foreach(StripeEventTranslator::requiredWebhookEvents() as $event)echo '<li><code>'.esc_html($event).'</code></li>';
+        echo '</ul><details><summary><strong>All events supported by the deployed adapter</strong></summary><ul>';
+        foreach(StripeEventTranslator::supportedRawTypes() as $event)echo '<li><code>'.esc_html($event).'</code>'.(in_array($event,StripeEventTranslator::requiredWebhookEvents(),true)?' <em>(required)</em>':'').'</li>';
+        echo '</ul></details>';
+        if($verification){
+            echo '<p><strong>Last destination verification:</strong> '.esc_html((string)($verification['state']??'unknown')).' · '.esc_html((string)($verification['code']??'')).' · API version '.esc_html((string)($verification['api_version']??'not recorded')).($verification['at']??''?' · '.esc_html((string)$verification['at']):'').'</p>';
+            if(!empty($verification['missing_events'])&&is_array($verification['missing_events']))echo '<div class="notice notice-warning inline"><p>Missing required events: <code>'.esc_html(implode(', ',array_map('strval',$verification['missing_events']))).'</code></p></div>';
+        }
+        echo '<table class="widefat striped"><thead><tr><th>Received</th><th>State</th><th>Safe reason</th><th>Bytes</th></tr></thead><tbody>';
+        foreach($receipts as $receipt)echo '<tr><td>'.esc_html((string)$receipt->received_at).'</td><td>'.esc_html((string)$receipt->verification_state).'</td><td>'.esc_html((string)($receipt->refusal_reason_code??'—')).'</td><td>'.(int)$receipt->body_bytes.'</td></tr>';
+        if(!$receipts)echo '<tr><td colspan="4">No live webhook deliveries recorded.</td></tr>';
+        echo '</tbody></table><p class="description">A verified HTTP delivery is not the same as a settled payment. Settlement appears only in accepted live payment evidence.</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Verified event received</th><th>Normalised type</th><th>Provider occurrence</th></tr></thead><tbody>';
+        foreach($events as $event)echo '<tr><td>'.esc_html((string)$event->received_at).'</td><td>'.esc_html((string)$event->event_type).'</td><td>'.esc_html((string)($event->provider_occurred_at??'—')).'</td></tr>';
+        if(!$events)echo '<tr><td colspan="3">No verified live provider events recorded.</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<h3>Live readiness checklist</h3><table class="widefat striped"><tbody>';
+        foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<h3>Activate live payments</h3>';
+        if($stage===StripeLiveReadinessService::STAGE_ACTIVE){
+            echo '<div class="notice notice-success inline"><p>Live payments are active. Deactivating stops new live charges immediately and preserves credentials and every historical record.</p></div>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" onsubmit="return confirm(\'Stop live payments now? New live charges will be refused; historical records are preserved.\')"><input type="hidden" name="action" value="dzn_stripe_live_activation">'.wp_nonce_field('dzn_stripe_live_activation', '_wpnonce', true, false).'<p><button class="button" name="disable_live_payments" value="1">Deactivate live payments (rollback to Test)</button></p></form>';
+        }else{
+            $disabled=(empty($readiness['ready'])||empty($readiness['verified']))?' disabled':'';
+            echo '<p>Activation requires every blocking readiness check to pass, an explicit confirmation, and a deliberate administrator action. It is never triggered by saving credentials.</p>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" onsubmit="return confirm(\'Activate real Stripe live payments? Real customer charges become possible after this action.\')"><input type="hidden" name="action" value="dzn_stripe_live_activation">'.wp_nonce_field('dzn_stripe_live_activation', '_wpnonce', true, false);
+            echo '<p><label><input type="checkbox" name="confirm_live_activation" value="1" required> I confirm that real Stripe live payments should be enabled after all readiness checks pass.</label></p>';
+            echo '<p><button class="button button-primary" name="enable_live_payments" value="1"'.$disabled.'>Activate Live Payments</button>'.($disabled?' <span class="description">Complete the blocking checks above first.</span>':'').'</p></form>';
+        }
+
+        echo '<h3>Stripe live setup instructions</h3><ol>';
+        foreach(array(
+            'Open the Stripe Dashboard and switch it to Live Mode.',
+            'Open Developers → Webhooks → Add endpoint (or Event destinations) in Live Mode.',
+            'Use the Delnavazan live webhook URL shown above once the live account is registered.',
+            'Select the required events listed above (the full supported list is safe to subscribe).',
+            'Choose the Snapshot payload format and the account’s stable/default API version. The adapter consumes stable snapshot fields and requires no preview version.',
+            'Save the destination in Stripe and copy its signing secret (whsec_…).',
+            'Paste the live secret key, publishable key and signing secret into the encrypted form above and save.',
+            'Press Test live connection. Then press Verify live webhook; this reads the destination back from Stripe and checks URL, status, events and API version.',
+            'Send a Stripe test event from the live endpoint (or complete a low-value authorised live verification) and confirm a verified receipt appears above. A 200 alone is not proof of settlement.',
+            'Only after the checklist is Ready, tick the confirmation and press Activate Live Payments.',
+        ) as $step)echo '<li>'.esc_html($step).'</li>';
+        echo '</ol>';
     }
     /** Return to the consolidated Finance settings tab when the embedded form requested it. */
     private static function redirectStripe(string $result):never{
@@ -182,6 +340,56 @@ final class IntegrationControlPlaneController {
         $result=(new StripeTestConfigurationService())->testConnection();$state=(string)$result['state'];$code=(string)$result['code'];
         update_option('dzn_stripe_test_connection_result',array('state'=>$state,'code'=>$code,'at'=>current_time('mysql',true)),false);
         self::redirectStripe($state==='success'?'success':($state==='failed'?'failed':'blocked'));
+    }
+    public static function saveStripeLiveSettings():void{
+        self::authorizeStripeSettings();check_admin_referer('dzn_stripe_live_settings_save');
+        try{(new StripeLiveConfigurationService())->save((array)($_POST['settings']??array()));$result='live_saved';}
+        catch(\Throwable $e){$result=self::safeStripeLiveResult($e);}
+        self::redirectStripe($result);
+    }
+    public static function testStripeLiveConnection():void{
+        self::authorizeStripeSettings();check_admin_referer('dzn_stripe_live_connection');if(!isset($_POST['run_live_test']))wp_die('Explicit live test action required',400);
+        $result=(new StripeLiveConfigurationService())->testConnection();
+        self::redirectStripe($result['state']==='success'?'live_connection_success':($result['state']==='failed'?'live_connection_failed':'live_connection_blocked'));
+    }
+    public static function verifyStripeLiveWebhook():void{
+        self::authorizeStripeSettings();check_admin_referer('dzn_stripe_live_webhook_verify');if(!isset($_POST['verify_live_webhook']))wp_die('Explicit live webhook action required',400);
+        $result=(new StripeLiveConfigurationService())->verifyWebhookDestination();
+        self::redirectStripe($result['state']==='success'?'live_webhook_verified':($result['state']==='failed'?'live_webhook_failed':'live_webhook_blocked'));
+    }
+    public static function setStripeLiveActivation():void{
+        self::authorizeStripeSettings();check_admin_referer('dzn_stripe_live_activation');
+        try{
+            $service=new StripeLiveConfigurationService();
+            if(isset($_POST['disable_live_payments'])){$service->deactivate();$result='live_deactivated';}
+            else{
+                if((string)($_POST['confirm_live_activation']??'')!=='1'){$result='live_activation_confirmation_required';}
+                else{$service->activate();$result='live_activated';}
+            }
+        }catch(\Throwable $e){$result=$e->getMessage()==='stripe_live_readiness_blocked'?'live_activation_blocked':'live_activation_failed';}
+        self::redirectStripe($result);
+    }
+    /** Map only known live errors to user-facing codes; exception text and credentials are never reflected. */
+    public static function safeStripeLiveResult(\Throwable $error):string{
+        $allowed=array(
+            'stripe_live_environment_required','invalid_stripe_live_publishable_key','invalid_stripe_live_secret_key',
+            'invalid_stripe_live_webhook_secret','invalid_stripe_live_account_identifier',
+            'complete_stripe_live_configuration_required','stripe_live_account_scope_ambiguous',
+            'stripe_live_account_state_unavailable','stripe_live_secret_store_refused',
+            'stripe_live_configuration_persistence_unconfirmed',
+        );
+        if(in_array($error->getMessage(),$allowed,true))return $error->getMessage();
+        if($error->getMessage()==='Unauthorized')return 'stripe_configuration_unauthorized';
+        if($error instanceof \Delnavazan\Platform\Core\Infrastructure\Repository\PersistenceException){
+            return match($error->errno){
+                1062=>'stripe_persistence_duplicate',1054,1146=>'stripe_persistence_schema',
+                1205,1213=>'stripe_persistence_transient',default=>'stripe_persistence_failed',
+            };
+        }
+        if(str_starts_with($error->getMessage(),'Payment secret persistence failed:')
+            ||str_starts_with($error->getMessage(),'Payment provider persistence failed:')
+            ||str_starts_with($error->getMessage(),'Transaction '))return 'stripe_persistence_failed';
+        return 'save_failed';
     }
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
@@ -361,10 +569,12 @@ final class IntegrationControlPlaneController {
     private static function renderStripeCard():void{
         $last=(array)get_option('dzn_stripe_test_connection_result',array());
         $allowed=current_user_can(PaymentExecutionController::CAPABILITY);
+        $liveStage='Not configured';
+        try{if($allowed)$liveStage=(string)(new StripeLiveReadinessService())->read()['stage'];}catch(\Throwable){}
         echo '<section class="dzn-settings-card dzn-integration-card"><h2>Stripe</h2>';
-        echo '<p><span class="dzn-status-badge '.($allowed?'is-warn':'is-locked').'">'.esc_html($allowed?((string)($last['state']??'')==='success'?'Test connection confirmed':'Configuration authority available'):'Restricted').'</span></p>';
-        echo '<p>Checkout, payment evidence and reconciliation remain Finance-owned. Stripe credentials and readiness use the existing Finance payment-provider authority; this page does not create a second secret store.</p>';
-        if($allowed)echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#stripe')).'">Configure in Finance</a></p>';
+        echo '<p><span class="dzn-status-badge '.($allowed?'is-warn':'is-locked').'">'.esc_html($allowed?((string)($last['state']??'')==='success'?'Test connection confirmed':'Configuration authority available'):'Restricted').'</span> <span class="dzn-status-badge '.($liveStage==='Active'?'is-ok':'is-warn').'">'.esc_html('Live: '.$liveStage).'</span></p>';
+        echo '<p>Checkout, payment evidence and reconciliation remain Finance-owned. Stripe test and live credentials, webhook management and readiness use the existing Finance payment-provider authority and encrypted vault; this page does not create a second secret store.</p>';
+        if($allowed)echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-stripe-settings#stripe-live')).'">Configure Stripe</a> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#stripe')).'">Configure in Finance</a></p>';
         else echo '<p>Stripe configuration is available to staff with payment-provider authority.</p>';
         if($last)echo '<p class="dzn-settings-meta">Last test: '.esc_html((string)($last['state']??'unknown')).' · <code dir="ltr">'.esc_html((string)($last['code']??'')).'</code> · '.esc_html((string)($last['at']??'')).'</p>';
         echo '</section>';

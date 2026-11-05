@@ -16,7 +16,7 @@ final class PaymentExecutionRule {
 
     /** Controlled provider vocabulary. A provider is a key, never a class name in Core. */
     public const PROVIDERS=array('stripe');
-    /** Controlled account modes. `live` exists as recorded data only; it is never reachable here. */
+    /** Controlled account modes. Live is reachable only through the recorded activation gate. */
     public const MODES=array('test','live');
     public const ACCOUNT_STATES=array('active','suspended','closed');
     public const EXECUTION_STATES=array('disabled','enabled');
@@ -134,8 +134,16 @@ final class PaymentExecutionRule {
     );
     /** The only two outcomes of the non-mutating, pre-call descriptor preflight of §5.3/§8.3. */
     public const DESCRIPTOR_PREFLIGHT_STATES=array('ok','dispatch_descriptor_unavailable');
-    /** Reserved for an explicitly authorised later slice; empty in this phase. */
+    /** Reserved for a provider whose live execution is authorised unconditionally by code. Empty. */
     public const LIVE_EXECUTION_PROVIDERS=array();
+    /**
+     * Providers that may reach live execution only through the dashboard-controlled activation record.
+     *
+     * This is deliberately not the same list as `LIVE_EXECUTION_PROVIDERS`: membership here authorises
+     * nothing on its own. `liveExecutionAuthorised()` additionally requires the recorded Stripe live
+     * activation, which an operator can only set after the live readiness checklist passes.
+     */
+    public const ACTIVATABLE_LIVE_PROVIDERS=array('stripe');
 
     /**
      * The canonical references each operation requires, and the provider object kind that carries it.
@@ -226,8 +234,16 @@ final class PaymentExecutionRule {
     public static function provisionableProvider(string $providerKey):bool{
         return in_array(strtolower(trim($providerKey)),self::PROVISIONABLE_PROVIDERS,true);
     }
+    /**
+     * Live execution is authorised only by the locked code list, or by the dashboard activation record
+     * for an explicitly activatable provider. The activation record is never written by configuration
+     * alone: it requires the live readiness checklist, an administrator capability and CSRF protection.
+     */
     public static function liveExecutionAuthorised(string $providerKey):bool{
-        return in_array(strtolower(trim($providerKey)),self::LIVE_EXECUTION_PROVIDERS,true);
+        $providerKey=strtolower(trim($providerKey));
+        if(in_array($providerKey,self::LIVE_EXECUTION_PROVIDERS,true))return true;
+        if(!in_array($providerKey,self::ACTIVATABLE_LIVE_PROVIDERS,true))return false;
+        return StripeProviderMode::liveAuthorising();
     }
     /** The structural timeout inequality: a call can never outlive the lease it runs under. */
     public static function callFitsWithinLease():bool{

@@ -753,11 +753,15 @@ final class PaymentEventIntakeService {
         // [C8-2] Attribution is exact or refused (§10 rule 1).
         if($envelope->providerObjectReference()!==null){
             $objectReference=(string)$envelope->providerObjectReference();
+            $eventAccount=$this->repository->account((int)$event->payment_provider_account_id);
+            $eventMode=$eventAccount?(string)$eventAccount->mode:'';
+            $checkoutMode=StripeProviderMode::modeFromCheckoutReference($objectReference);
             $isCheckoutSession=(string)$event->provider_key==='stripe'
-                && preg_match('/^cs_test_[A-Za-z0-9]+$/D',$objectReference)===1
-                && in_array($eventType,array('payment_succeeded','payment_failed','payment_requires_action'),true);
+                &&$checkoutMode!==null
+                &&in_array($eventType,array('payment_succeeded','payment_failed','payment_requires_action'),true);
+            if($isCheckoutSession&&$checkoutMode!==$eventMode)return $this->refusal('unmapped_provider_object');
             $attribution=$isCheckoutSession
-                ?$this->checkoutSessionAttribution($objectReference,$obligationId)
+                ?$this->checkoutSessionAttribution($objectReference,$obligationId,$eventMode)
                 :$this->objectAttribution((int)$event->payment_provider_account_id,$objectReference,$obligationId);
             if($attribution!==null)return $this->refusal($attribution);
         }
@@ -1007,12 +1011,15 @@ final class PaymentEventIntakeService {
         if((string)$mapping->state!=='linked')return 'unmapped_provider_object';
         return $this->canonicalObligation($mapping)===$obligationId?null:'ambiguous_obligation_attribution';
     }
-    /** A Checkout Session is attributable only through the exact locally stored session digest. */
-    private function checkoutSessionAttribution(string $sessionReference,?int $obligationId):?string{
+    /** A Checkout Session is attributable only through the exact locally stored session digest and mode. */
+    private function checkoutSessionAttribution(string $sessionReference,?int $obligationId,string $eventMode):?string{
         if($obligationId===null)return 'ambiguous_obligation_attribution';
         $matches=$this->checkoutSessions->byProviderReferenceDigest('stripe',PaymentExecutionIdempotency::reference($sessionReference));
         if(count($matches)!==1)return $matches===array()?'unmapped_provider_object':'ambiguous_obligation_attribution';
         $session=$matches[0];
+        // Historical rows installed before Schema 060 carry the safe default `test`; a live event can
+        // therefore never be attributed to a historical test Checkout Session.
+        if(isset($session->provider_mode)&&(string)$session->provider_mode!==$eventMode)return 'unmapped_provider_object';
         return (int)$session->obligation_id===$obligationId?null:'ambiguous_obligation_attribution';
     }
     /** The one R1 obligation an active mapping already owns, or null when it owns none ([C8-2]). */

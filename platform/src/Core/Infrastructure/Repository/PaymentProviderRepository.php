@@ -112,6 +112,34 @@ final class PaymentProviderRepository {
         return $wpdb->get_results("SELECT * FROM {$this->p}payment_provider_event_receipts ORDER BY id ASC")?:array();
     }
 
+    /** Safe, provider-reference-free delivery history for one provider account. */
+    public function recentReceiptsForAccount(int $accountId,int $limit=20):array{
+        global $wpdb; $limit=max(1,min(50,$limit));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT id,provider_key,payment_provider_account_id,verification_state,refusal_reason_code,body_bytes,received_at FROM {$this->p}payment_provider_event_receipts WHERE payment_provider_account_id=%d ORDER BY id DESC LIMIT %d",
+            $accountId,$limit
+        ))?:array();
+    }
+    /** The newest receipt for one account, optionally filtered by verification state. */
+    public function latestReceiptForAccount(int $accountId,?string $verificationState=null):?object{
+        if($verificationState!==null&&!in_array($verificationState,array('verified','refused'),true))return null;
+        return $verificationState===null
+            ?$this->one("SELECT id,provider_key,payment_provider_account_id,verification_state,refusal_reason_code,body_bytes,received_at FROM {$this->p}payment_provider_event_receipts WHERE payment_provider_account_id=%d ORDER BY id DESC LIMIT 1",$accountId)
+            :$this->one("SELECT id,provider_key,payment_provider_account_id,verification_state,refusal_reason_code,body_bytes,received_at FROM {$this->p}payment_provider_event_receipts WHERE payment_provider_account_id=%d AND verification_state=%s ORDER BY id DESC LIMIT 1",$accountId,$verificationState);
+    }
+    public function verifiedReceiptCountForAccount(int $accountId):int{
+        global $wpdb;
+        return (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$this->p}payment_provider_event_receipts WHERE payment_provider_account_id=%d AND verification_state='verified'",$accountId));
+    }
+    /** Recent verified events for one account, without payloads or raw provider references. */
+    public function recentEventsForAccount(int $accountId,int $limit=20):array{
+        global $wpdb; $limit=max(1,min(50,$limit));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT id,provider_key,payment_provider_account_id,event_type,provider_occurred_at,received_at FROM {$this->p}payment_provider_events WHERE payment_provider_account_id=%d ORDER BY id DESC LIMIT %d",
+            $accountId,$limit
+        ))?:array();
+    }
+
     /** Safe, provider-reference-free webhook refusal evidence for operator diagnostics. */
     public function recentRefusals(int $limit=10):array{
         global $wpdb; $limit=max(1,min(50,$limit));

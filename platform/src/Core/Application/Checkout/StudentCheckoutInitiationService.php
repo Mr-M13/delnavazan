@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\Checkout;
 
 use Delnavazan\Platform\Core\Application\{CommercialIdempotency};
-use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency;
+use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionIdempotency,StripeProviderMode};
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CheckoutSessionRepository,CommercialAuthorityRepository,CommercialPaymentRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
@@ -50,6 +50,10 @@ final class StudentCheckoutInitiationService {
         if ($this->checkout->key() !== self::PROVIDER_KEY) {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
+        $mode = method_exists($this->checkout, 'activeMode') ? $this->checkout->activeMode() : StripeProviderMode::TEST;
+        if (!is_string($mode) || !StripeProviderMode::member($mode)) {
+            throw new \InvalidArgumentException('checkout_unavailable');
+        }
 
         $request = null;
         $sessionId = 0;
@@ -82,6 +86,7 @@ final class StudentCheckoutInitiationService {
                 $active = null;
             }
             if ($active) {
+                $sessionMode = (string) ($active->provider_mode ?? StripeProviderMode::TEST);
                 if ((int) $active->student_id !== $studentId
                     || (int) $active->offer_id !== (int) $offer->id
                     || (int) $active->amount_minor !== (int) $obligation->amount_minor
@@ -106,6 +111,12 @@ final class StudentCheckoutInitiationService {
                     $this->authority->commit();
                     return array('checkout_state' => 'pending', 'redirect_url' => null);
                 }
+                // Never re-drive a historical attempt in a different mode. Its stored mode is authority;
+                // an operator reconciles it with that mode's credentials instead of charging live.
+                if ($sessionMode !== $mode) {
+                    $this->authority->commit();
+                    return array('checkout_state' => 'pending', 'redirect_url' => null);
+                }
                 // Re-drive the same durable attempt with its same server-owned provider key. A prior
                 // timeout may have created the provider session without returning its response.
                 $sessionId = (int) $active->id;
@@ -122,7 +133,7 @@ final class StudentCheckoutInitiationService {
                     'obligation_id' => (int) $obligation->id, 'amount_minor' => $request->amountMinor(),
                     'currency' => $request->currency(), 'state' => 'creating', 'active_slot' => 1,
                     'request_key_digest' => CommercialIdempotency::key($key), 'provider_key' => self::PROVIDER_KEY,
-                    'provider_reference_digest' => null, 'created_at' => $now, 'created_by' => $actor,
+                    'provider_mode' => $mode, 'provider_reference_digest' => null, 'created_at' => $now, 'created_by' => $actor,
                     'expires_at' => gmdate('Y-m-d H:i:s', time() + self::CREATION_WINDOW_SECONDS),
                     'closed_at' => null, 'close_reason' => null,
                 ));
@@ -144,7 +155,8 @@ final class StudentCheckoutInitiationService {
             && is_string($result['redirect_url'] ?? null)
             && $this->safeStripeUrl($result['redirect_url'])
             && is_string($result['provider_reference'] ?? null)
-            && preg_match('/^cs_test_[A-Za-z0-9]+$/D', $result['provider_reference']) === 1
+            && StripeProviderMode::checkoutReference($result['provider_reference'], $mode)
+            && (string) ($result['mode'] ?? $mode) === $mode
             && is_string($result['expires_at'] ?? null)
             && $this->validSqlUtc($result['expires_at'])
         ) {

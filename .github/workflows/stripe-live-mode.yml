@@ -1,0 +1,54 @@
+name: Stripe Live Mode Guards
+
+on:
+  pull_request:
+    paths:
+      - 'platform/src/Core/Application/PaymentExecution/**'
+      - 'platform/src/Integrations/Payment/Stripe/**'
+      - 'platform/src/Core/Application/Checkout/**'
+      - 'platform/src/Admin/Controller/IntegrationControlPlaneController.php'
+      - 'platform/src/Core/Infrastructure/Migration/Migrator.php'
+      - 'platform/tests/stripe-*'
+      - 'platform/docs/STRIPE-LIVE-MODE.md'
+      - '.github/workflows/stripe-live-mode.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'platform/src/Core/Application/PaymentExecution/**'
+      - 'platform/src/Integrations/Payment/Stripe/**'
+      - 'platform/src/Core/Application/Checkout/**'
+      - 'platform/src/Admin/Controller/IntegrationControlPlaneController.php'
+      - 'platform/src/Core/Infrastructure/Migration/Migrator.php'
+      - 'platform/tests/stripe-*'
+      - 'platform/docs/STRIPE-LIVE-MODE.md'
+      - '.github/workflows/stripe-live-mode.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  stripe-live-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sodium
+          coverage: none
+      - name: Stripe live mode contract
+        run: php platform/tests/stripe-live-mode-contract.php
+      - name: Stripe live mode unit
+        run: php platform/tests/stripe-live-mode-unit.php
+      - name: Existing Stripe test-mode guards
+        run: |
+          php platform/tests/stripe-test-settings-contract.php
+          php platform/tests/stripe-checkout-adapter-contract.php
+          php platform/tests/stripe-checkout-adapter-unit.php
+          php platform/tests/stripe-prelaunch-production-mode-unit.php
+          php platform/tests/stripe-test-connection-unit.php
+          php platform/tests/stripe-checkout-webhook-unit.php
+          php platform/tests/stripe-checkout-webhook-contract.php
+          php platform/tests/stripe-checkout-reconciliation-contract.php
+          php platform/tests/stripe-canonical-account-reference-contract.php
+          php platform/tests/stripe-readiness-independent-checks-contract.php

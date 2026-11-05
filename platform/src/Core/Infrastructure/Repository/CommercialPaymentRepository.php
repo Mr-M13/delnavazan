@@ -56,6 +56,20 @@ final class CommercialPaymentRepository {
         ));
     }
 
+    /**
+     * Recent provider evidence attributed to one account digest, for operator diagnostics.
+     *
+     * Only controlled processing state, evidence kind, amount/currency and instants are returned. No
+     * provider reference, payload, account credential or student identity is exposed.
+     */
+    public function recentEvidenceForProviderAccount(string $providerKey,string $accountDigest,int $limit=10):array{
+        global $wpdb;$limit=max(1,min(25,$limit));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT id,provider_key,evidence_kind,amount_minor,currency,processing_state,reason_code,provider_occurred_at,ingested_at FROM {$this->p}commercial_payment_evidence WHERE provider_key=%s AND provider_account_digest=%s ORDER BY id DESC LIMIT %d",
+            $providerKey,$accountDigest,$limit
+        ))?:array();
+    }
+
     public function duplicate(\Throwable $e):?string{
         if(!preg_match("/Duplicate entry .* for key ['`](?:[^'`.]+\\.)?([^'`]+)['`]/i",$e->getMessage(),$m))return null;
         $key=strtolower((string)$m[1]);

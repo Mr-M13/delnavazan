@@ -48,8 +48,22 @@ if (strpos($reconciliation, 'provider_account_reference') === false) {
 if (strpos($adapter, "'metadata[provider_account_reference]'") === false) {
     throw new RuntimeException('Checkout metadata must carry the provider account reference');
 }
-foreach (array('sk_live_', 'pk_live_', 'whsec_live_') as $live) {
-    if (strpos($configuration . $credentialSource . $migrator, $live) !== false) throw new RuntimeException('Live Stripe credential support must not be added');
+$liveConfiguration = file_get_contents($root . '/src/Core/Application/PaymentExecution/StripeLiveConfigurationService.php');
+$liveReadiness = file_get_contents($root . '/src/Core/Application/PaymentExecution/StripeLiveReadinessService.php');
+if (strpos($configuration, 'sk_live_') !== false) {
+    throw new RuntimeException('The test configuration service must never handle a live secret key');
+}
+foreach (array('stripe_live', 'StripeProviderMode::apiKeyPattern', 'LIVE_ACCOUNT_REFERENCE', 'storeStripeLiveConfiguration') as $needle) {
+    if (strpos($liveConfiguration, $needle) === false) throw new RuntimeException('Gated live Stripe configuration is incomplete: ' . $needle);
+}
+foreach (array('LIVE_ACCOUNT_REFERENCE', 'webhook_destination_verified', 'credentials_verified', 'STAGE_ACTIVE') as $needle) {
+    if (strpos($liveReadiness, $needle) === false) throw new RuntimeException('Live readiness does not verify ' . $needle);
+}
+if (strpos($credentialSource, 'StripeProviderMode::LIVE') === false || strpos($credentialSource, 'liveModeActivationAllowed') === false) {
+    throw new RuntimeException('Live credentials must be gated by the confirmed activation and mode-scoped source');
+}
+if (strpos($migrator, 'provider_mode') === false || strpos($migrator, '070_stripe_live_mode') === false) {
+    throw new RuntimeException('Historical test/live mode isolation migration is missing');
 }
 
 echo "Stripe canonical account reference contract passed\n";

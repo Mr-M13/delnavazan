@@ -49,6 +49,24 @@ final class BookingCancellationRetractionWorker {
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         $failure=null;
         try{
+            // Central organizer classrooms do not use a Teacher credential or the legacy
+            // booking_calendar vault. A cancellation must never be marked retracted while the
+            // organizer is temporarily unavailable.
+            if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService')){
+                $centralRow=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())
+                    ->latestClassroomForBooking((int)$job->confirmation_id);
+                if($centralRow&&(string)$centralRow->classroom_state!=='cancelled'){
+                    if(!\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService::organizerConnected()){
+                        throw new \RuntimeException('meet_organizer_not_connected');
+                    }
+                    $central=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())
+                        ->cancelForBooking((int)$job->confirmation_id);
+                    if(!empty($central['cancelled'])){
+                        $this->finish($jobId,$leaseDigest,'retracted',null,$now);
+                        return array('job_id'=>$jobId,'state'=>'retracted','retryable'=>false);
+                    }
+                }
+            }
             $secret=$this->repository->projectionSecret((int)$job->confirmation_id);
             if(!$secret){$this->finish($jobId,$leaseDigest,'retracted',null,$now);return array('job_id'=>$jobId,'state'=>'retracted','retryable'=>false);}
             $credential=$this->repository->credential((int)$job->connection_id);

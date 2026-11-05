@@ -67,6 +67,12 @@ $check( 'footer no longer puts every group in column 2', substr_count( $theme_cs
 $check( 'student footer clears the fixed mobile tab bar', str_contains( $portal_css, '.dzn-portal ~ .site-footer' ) );
 $check( 'teacher footer clears the fixed mobile tab bar', str_contains( $teacher_css, '.dzn-teacher-portal ~ .site-footer' ) );
 
+/* 5. Compact phones keep one fixed navigation layer: the bottom tab bar. The app bar
+      and the notification banner return to the document flow instead of stacking on top. */
+$check( 'student app bar is in flow on compact phones', (bool) preg_match( '/\.dzn-appbar\s*\{[^}]*position:\s*static/s', $portal_css ) );
+$check( 'teacher app bar is in flow on compact phones', (bool) preg_match( '/\.dzn-tp-appbar\s*\{[^}]*position:\s*static/s', $teacher_css ) );
+$check( 'notification banner is in flow on compact phones', str_contains( $theme_css, '.dzn-notification-banner{position:static' ) );
+
 if ( $failures ) {
 	throw new RuntimeException( 'Responsive shell contract failed: ' . implode( '; ', $failures ) );
 }

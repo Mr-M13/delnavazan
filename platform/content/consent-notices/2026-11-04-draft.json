@@ -1,0 +1,67 @@
+{
+  "version": "2026-11-04-draft",
+  "status": "DRAFT FOR OWNER AND LEGAL REVIEW — NOT PUBLISHABLE UNTIL PLACEHOLDERS ARE RESOLVED",
+  "instructions": "Replace every [[PLACEHOLDER]] with approved text, remove this status field, then run the validated publisher. The guarded publisher refuses placeholders, draft markers, unsupported audiences and short bodies.",
+  "notices": [
+    {
+      "audience": "teacher_terms",
+      "language": "en",
+      "body": "By accepting these recorded-work terms, you agree that Delnavazan may record lessons you teach only when you and the enrolled student (or the student's authorised guardian) have separately given a current recording permission. You agree to follow Delnavazan's recording policy, not make your own recording, not share class access, and to tell Delnavazan if you withdraw. Accepting these terms is not permission to record and is not research consent. You can review your choices and withdraw in the teacher portal. Withdrawal stops future capture and is handled under the retention policy: [[RETENTION_PERIOD]]. Questions: admin@delnavazan.com."
+    },
+    {
+      "audience": "teacher_terms",
+      "language": "fa",
+      "body": "با پذیرش این شرایط کار ضبط‌شده، می‌پذیرید که دلنوازان تنها زمانی کلاس‌هایی را که تدریس می‌کنید ضبط کند که هم شما و هم هنرجوی ثبت‌نام‌شده (یا سرپرست دارای اختیار او) به‌طور جداگانه اجازهٔ ضبط معتبر داده باشند. می‌پذیرید که سیاست ضبط دلنوازان را رعایت کنید، خودتان ضبط جداگانه نسازید، دسترسی کلاس را با دیگران به اشتراک نگذارید و در صورت پس گرفتن رضایت به دلنوازان اطلاع دهید. پذیرش این شرایط به‌معنای اجازهٔ ضبط یا رضایت پژوهش نیست. می‌توانید انتخاب‌های خود را در پرتال مدرس ببینید و پس بگیرید. پس گرفتن رضایت ضبط آینده را متوقف می‌کند و بر اساس سیاست نگهداری [[RETENTION_PERIOD]] انجام می‌شود. پرسش‌ها: admin@delnavazan.com."
+    },
+    {
+      "audience": "teacher_lesson_recording",
+      "language": "en",
+      "body": "Purpose: lesson recording. Delnavazan may record future online lessons you teach, including audio, video and any shared screen, for educational review, teaching quality, student support and safeguarding. Recording starts only when this permission and the student or guardian recording permission are both current and the lesson is authorised. Declining does not affect your teaching or payments. You may withdraw in the teacher portal; future recordings stop, and existing recordings are handled under the retention policy [[RETENTION_PERIOD]]. Withdrawal cannot undo a model already trained on material before the withdrawal; see the separate research notice."
+    },
+    {
+      "audience": "teacher_lesson_recording",
+      "language": "fa",
+      "body": "هدف: ضبط کلاس. دلنوازان می‌تواند کلاس‌های آنلاین آیندهٔ شما را شامل صدا، تصویر و صفحهٔ نمایش، برای بازبینی آموزشی، کیفیت تدریس، پشتیبانی هنرجو و حفاظت ضبط کند. ضبط تنها زمانی آغاز می‌شود که این اجازه و اجازهٔ ضبط هنرجو یا سرپرست او هر دو معتبر باشند و کلاس مجاز باشد. نپذیرفتن ضبط بر تدریس یا پرداخت شما اثری ندارد. می‌توانید در پرتال مدرس پس بگیرید؛ ضبط‌های آینده متوقف می‌شوند و ضبط‌های موجود بر اساس سیاست نگهداری [[RETENTION_PERIOD]] اداره می‌شوند. پس گرفتن رضایت نمی‌تواند مدلی را که پیش از آن با داده آموزش دیده است بازگرداند؛ اطلاعیهٔ پژوهش را ببینید."
+    },
+    {
+      "audience": "teacher_research_model_training",
+      "language": "en",
+      "body": "Optional research consent. If you opt in, eligible lesson recordings and derived material such as transcripts, musical features and annotations may be used for Persian-music research, including transcription, feature extraction, annotation, model training and evaluation, by Delnavazan and approved processors [[THIRD_PARTIES]]. Identifiable recordings are not published. You can withdraw at any time; future research use stops and affected dataset items are quarantined. Material already used to train a model may not be removable from that model. Retention: [[RETENTION_PERIOD]]. This choice is separate from lesson recording."
+    },
+    {
+      "audience": "teacher_research_model_training",
+      "language": "fa",
+      "body": "رضایت اختیاری پژوهش. اگر مشارکت کنید، ضبط‌های واجد شرایط کلاس و مواد مشتق‌شده مانند پیاده‌سازی گفتار، ویژگی‌های موسیقایی و توضیح‌گذاری‌ها می‌توانند برای پژوهش موسیقی ایرانی، شامل پیاده‌سازی، استخراج ویژگی، توضیح‌گذاری، آموزش و ارزیابی مدل، توسط دلنوازان و پردازشگران تأییدشده [[THIRD_PARTIES]] استفاده شوند. ضبط‌های قابل‌شناسایی منتشر نمی‌شوند. هر زمان می‌توانید پس بگیرید؛ استفادهٔ پژوهشی آینده متوقف می‌شود و اقلام مجموعه‌دادهٔ affected قرنطینه می‌شوند. موادی که پیش‌تر برای آموزش مدل استفاده شده‌اند ممکن است از آن مدل حذف‌شدنی نباشند. نگهداری: [[RETENTION_PERIOD]]. این انتخاب جدا از ضبط کلاس است."
+    },
+    {
+      "audience": "student_lesson_recording",
+      "language": "en",
+      "body": "Purpose: lesson recording. Delnavazan may record your future online lessons, including audio, video and shared screen, for educational review, teaching quality and student support. Recording starts only when your permission, or your guardian's permission if you are under 18, and your teacher's permission are both current. Declining does not stop your enrolment or classes. You can withdraw in your account; future recordings stop and existing recordings are handled under the retention policy [[RETENTION_PERIOD]]."
+    },
+    {
+      "audience": "student_lesson_recording",
+      "language": "fa",
+      "body": "هدف: ضبط کلاس. دلنوازان می‌تواند کلاس‌های آنلاین آیندهٔ شما را شامل صدا، تصویر و صفحهٔ نمایش، برای بازبینی آموزشی، کیفیت تدریس و پشتیبانی ضبط کند. ضبط تنها زمانی آغاز می‌شود که اجازهٔ شما یا اگر زیر ۱۸ سال هستید اجازهٔ سرپرست شما، و اجازهٔ مدرس هر دو معتبر باشند. نپذیرفتن ضبط ثبت‌نام یا کلاس‌های شما را متوقف نمی‌کند. می‌توانید در حساب کاربری پس بگیرید؛ ضبط‌های آینده متوقف می‌شوند و ضبط‌های موجود بر اساس سیاست نگهداری [[RETENTION_PERIOD]] اداره می‌شوند."
+    },
+    {
+      "audience": "student_research_model_training",
+      "language": "en",
+      "body": "Optional research consent. If you opt in, or your guardian does if you are under 18, eligible lesson recordings and derived material such as transcripts, musical features and annotations may be used for Persian-music research, including transcription, feature extraction, annotation, model training and evaluation, by Delnavazan and approved processors [[THIRD_PARTIES]]. Identifiable recordings are not published. You can withdraw at any time; future research use stops and affected dataset items are quarantined. Material already used to train a model may not be removable from that model. Retention: [[RETENTION_PERIOD]]. This choice is separate from lesson recording."
+    },
+    {
+      "audience": "student_research_model_training",
+      "language": "fa",
+      "body": "رضایت اختیاری پژوهش. اگر شما یا اگر زیر ۱۸ سال هستید سرپرست شما مشارکت کند، ضبط‌های واجد شرایط کلاس و مواد مشتق‌شده مانند پیاده‌سازی گفتار، ویژگی‌های موسیقایی و توضیح‌گذاری‌ها می‌توانند برای پژوهش موسیقی ایرانی، شامل پیاده‌سازی، استخراج ویژگی، توضیح‌گذاری، آموزش و ارزیابی مدل، توسط دلنوازان و پردازشگران تأییدشده [[THIRD_PARTIES]] استفاده شوند. ضبط‌های قابل‌شناسایی منتشر نمی‌شوند. هر زمان می‌توانید پس بگیرید؛ استفادهٔ پژوهشی آینده متوقف می‌شود و اقلام مجموعه‌دادهٔ مرتبط قرنطینه می‌شوند. موادی که پیش‌تر برای آموزش مدل استفاده شده‌اند ممکن است از آن مدل حذف‌شدنی نباشند. نگهداری: [[RETENTION_PERIOD]]. این انتخاب جدا از ضبط کلاس است."
+    },
+    {
+      "audience": "privacy_terms",
+      "language": "en",
+      "body": "I acknowledge that I have read the Delnavazan privacy policy version [[PRIVACY_VERSION]] and understand how my account, lesson, payment and consent information is handled. Acknowledging the privacy policy is not consent to lesson recording or research; those are separate choices."
+    },
+    {
+      "audience": "privacy_terms",
+      "language": "fa",
+      "body": "تأیید می‌کنم که سیاست حفظ حریم خصوصی دلنوازان نسخهٔ [[PRIVACY_VERSION]] را خوانده‌ام و می‌دانم اطلاعات حساب، کلاس، پرداخت و رضایت من چگونه اداره می‌شود. تأیید سیاست حریم خصوصی به‌معنای رضایت به ضبط کلاس یا پژوهش نیست؛ آن‌ها انتخاب‌های جداگانه‌اند."
+    }
+  ]
+}

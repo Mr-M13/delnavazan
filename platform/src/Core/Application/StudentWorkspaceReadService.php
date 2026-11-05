@@ -761,6 +761,8 @@ final class StudentWorkspaceReadService {
                     (SELECT GROUP_CONCAT(CONCAT(rt.local_date,' ',TIME_FORMAT(rt.local_start_time,'%%H:%%i'),' ',rt.timezone) ORDER BY rt.sequence_number SEPARATOR ' · ')
                      FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=br.id) preferred_times,
                     (SELECT bc.state FROM {$this->p}booking_request_confirmations bc WHERE bc.booking_request_id=br.id ORDER BY bc.id DESC LIMIT 1) confirmation_state,
+                    (SELECT o.id FROM {$this->p}booking_allocation_offers o WHERE o.booking_request_id=br.id AND o.active_slot=1 AND o.state='pending' AND o.deadline_at>UTC_TIMESTAMP() LIMIT 1) active_offer_id,
+                    (SELECT a.id FROM {$this->p}booking_allocation_alerts a WHERE a.booking_request_id=br.id AND a.kind='referral' AND a.state='open' LIMIT 1) referral_alert_id,
                     (SELECT cc.id FROM {$this->p}coordination_cases cc WHERE cc.booking_request_id=br.id ORDER BY cc.id DESC LIMIT 1) coordination_case_id,
                     (SELECT l.id FROM {$this->p}lessons l WHERE l.student_id=br.student_id AND l.course_id=COALESCE(br.selected_intro_course_id,l.course_id) AND l.lesson_type='introductory' ORDER BY l.id DESC LIMIT 1) intro_lesson_id
              FROM {$this->p}booking_requests br
@@ -779,18 +781,19 @@ final class StudentWorkspaceReadService {
     }
 
     private function bookingStatusLabel(object $row): string {
-        if ((string) $row->resolution_state === 'unresolved') return 'Identity review required';
-        if ((string) $row->lifecycle_status === 'submitted') return 'Awaiting teacher response';
+        if ((string) $row->lifecycle_status === 'submitted' && $row->confirmation_state && $row->confirmation_state !== 'failed') return 'Teacher accepted · confirmation in progress';
+        if ((string) $row->lifecycle_status === 'submitted' && $row->active_offer_id) return 'Awaiting teacher response';
+        if ((string) $row->lifecycle_status === 'submitted' && ($row->referral_alert_id || $row->coordination_case_id)) return 'Academy coordinating';
+        if ((string) $row->lifecycle_status === 'submitted') return 'Request received';
         if ((string) $row->lifecycle_status === 'closed' && (string) $row->resolution_state === 'teacher_confirmed') {
-            return (string) ($row->intro_lesson_id ?? '') !== '' ? 'Introductory lesson created' : 'Teacher confirmed';
+            return (string) ($row->intro_lesson_id ?? '') !== '' ? 'Introductory lesson created' : 'Booking confirmed';
         }
         if ((string) $row->lifecycle_status === 'closed') return 'Closed · ' . ucfirst(str_replace('_', ' ', (string) $row->resolution_state));
         return ucfirst(str_replace('_', ' ', (string) $row->lifecycle_status));
     }
 
     private function bookingNextAction(object $row): string {
-        if ((string) $row->resolution_state === 'unresolved') return 'Resolve the verified student identity before continuing.';
-        if ((string) $row->lifecycle_status === 'submitted') return 'Review the teacher response in the Enrolments workspace.';
+        if ((string) $row->lifecycle_status === 'submitted') return 'The academy is arranging your introductory lesson. This request is not yet a confirmed class.';
         if ((string) $row->lifecycle_status === 'closed' && (string) $row->resolution_state === 'teacher_confirmed') {
             return (string) ($row->intro_lesson_id ?? '') !== '' ? 'Review the introductory lesson outcome.' : 'Confirm and schedule the introductory lesson through the canonical workflow.';
         }

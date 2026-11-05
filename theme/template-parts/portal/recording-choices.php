@@ -22,12 +22,16 @@ $research_state = isset( $recording['research'] ) && is_array( $recording['resea
 $recording_notice = isset( $recording['recording_notice'] ) && is_array( $recording['recording_notice'] ) ? $recording['recording_notice'] : null;
 $research_notice = isset( $recording['research_notice'] ) && is_array( $recording['research_notice'] ) ? $recording['research_notice'] : null;
 $information_url = (string) ( $recording['information_url'] ?? home_url( '/recording-and-research/' ) );
+$authority = (string) ( $recording['authority'] ?? '' );
+$guardian_grant_id = (int) ( $recording['guardian_grant_id'] ?? 0 );
+$privacy_notice = isset( $recording['privacy_notice'] ) && is_array( $recording['privacy_notice'] ) ? $recording['privacy_notice'] : null;
 $status = sanitize_key( (string) ( $recording['status'] ?? '' ) );
 $messages = array(
 	'recording_saved' => array( 'success', 'انتخاب ضبط کلاس شما ذخیره شد.' ),
 	'recording_declined' => array( 'success', 'کلاس‌های شما ضبط نخواهد شد.' ),
 	'research_saved' => array( 'success', 'انتخاب پژوهش شما ذخیره شد.' ),
 	'research_withdrawn' => array( 'success', 'مشارکت در پژوهش پس گرفته شد.' ),
+	'privacy_saved' => array( 'success', 'تأیید حریم خصوصی شما ذخیره شد.' ),
 	'recording_unavailable' => array( 'error', 'انتخاب ذخیره نشد. هیچ اجازهٔ ضبطی ثبت نشد.' ),
 );
 $provisional_recording = 'Delnavazan may record future online lessons and practice activities to improve teaching and learning. You can choose whether your lessons may be recorded, and you can change this choice later in Account Settings.';
@@ -56,7 +60,9 @@ $iso_datetime = static function ( string $value ): string { return '' === $value
 			<p class="dzn-portal-help"><?php esc_html_e( 'این انتخاب‌ها جدا از هم و اختیاری‌اند؛ هر تصمیم در سابقهٔ حسابتان نگه داشته می‌شود.', 'delnavazan-theme' ); ?></p>
 		</div>
 	</div>
-	<?php if ( 'account' === $context ) : ?><h3 class="dzn-recording-choices__subhead"><?php esc_html_e( 'ضبط کلاس', 'delnavazan-theme' ); ?></h3><?php endif; ?>
+	<?php if ( 'guardian' === $authority ) : ?>
+		<p class="dzn-portal-help" role="status"><strong>تصمیم از سوی سرپرست دارای اختیار ثبت می‌شود.</strong> این حساب برای هنرجوی زیر ۱۸ سال به یک اختیار سرپرستی فعال متصل است. اگر این اختیار تغییر کند، تصمیم‌های قبلی برای پردازش‌های تازه معتبر نیستند.</p>
+	<?php endif; ?>
 	<?php if ( isset( $messages[ $status ] ) ) : ?>
 		<?php $message = $messages[ $status ]; ?>
 		<p class="dzn-portal-action-status<?php echo 'error' === $message[0] ? ' is-error' : ''; ?>" role="<?php echo 'error' === $message[0] ? 'alert' : 'status'; ?>"><span lang="fa" dir="rtl"><?php echo esc_html( $message[1] ); ?></span></p>
@@ -150,6 +156,25 @@ $iso_datetime = static function ( string $value ): string { return '' === $value
 		<?php if ( 'enrolment' === $context ) : ?>
 			<div class="dzn-recording-choices__draft" role="note"><p><strong>متن پیش‌نویس — هنوز تأیید حقوقی نشده است.</strong></p><p>مشارکت در پژوهش اختیاری است و می‌توانید بعداً آن را پس بگیرید.</p></div>
 		<?php endif; ?>
+	<?php endif; ?>
+	<?php if ( $privacy_notice && isset( $forms['privacy'] ) ) : ?>
+		<?php $form = $forms['privacy']; ?>
+		<hr>
+		<h3><?php esc_html_e( 'تأیید سیاست حفظ حریم خصوصی', 'delnavazan-theme' ); ?></h3>
+		<div class="dzn-recording-choices__notice">
+			<p><strong><?php echo esc_html( $language_label( (string) ( $privacy_notice['language'] ?? 'en' ) ) ); ?> · نسخه <?php echo esc_html( (string) ( $privacy_notice['version'] ?? '' ) ); ?></strong></p>
+			<p lang="<?php echo 'fa' === ( $privacy_notice['language'] ?? 'en' ) ? 'fa' : 'en'; ?>" dir="<?php echo 'fa' === ( $privacy_notice['language'] ?? 'en' ) ? 'rtl' : 'ltr'; ?>"><?php echo esc_html( (string) ( $privacy_notice['body'] ?? '' ) ); ?></p>
+		</div>
+		<form class="dzn-recording-choices__form" method="post" action="<?php echo esc_url( (string) $form['action_url'] ); ?>">
+			<?php dzn_theme_nonce_field( 'dzn_recording_student_choice' ); ?>
+			<input type="hidden" name="purpose" value="privacy_terms">
+			<input type="hidden" name="choice" value="accepted">
+			<input type="hidden" name="notice_uid" value="<?php echo esc_attr( (string) $form['notice_uid'] ); ?>">
+			<input type="hidden" name="language" value="<?php echo esc_attr( (string) $form['language'] ); ?>">
+			<input type="hidden" name="idempotency_key" value="<?php echo esc_attr( (string) $form['idempotency_key'] ); ?>">
+			<input type="hidden" name="return_to" value="<?php echo esc_attr( (string) $form['return_to'] ); ?>">
+			<button class="dzn-button dzn-button--secondary" type="submit">تأیید این نسخه · ذخیرهٔ سابقه</button>
+		</form>
 	<?php endif; ?>
 	<p><a href="<?php echo esc_url( $information_url ); ?>">اطلاعات ضبط و پژوهش</a></p>
 </section>

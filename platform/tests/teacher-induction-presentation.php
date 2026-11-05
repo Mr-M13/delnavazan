@@ -1,5 +1,5 @@
 <?php
-/** Render-level contract for the Teacher induction hub on desktop and mobile shells. */
+/** Render-level contract for the read-only Teacher quick-start on desktop and mobile shells. */
 namespace {
     define( 'ABSPATH', dirname( __DIR__, 2 ) . '/' );
     function esc_html( $v ): string { return htmlspecialchars( (string) $v, ENT_QUOTES, 'UTF-8' ); }
@@ -42,11 +42,11 @@ namespace {
         array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/?teacher-view=settings', 'current' => false ),
     );
     $steps = array();
-    $ids = array( 'today' => 'کلاس‌های امروز', 'join' => 'ورود به کلاس', 'attendance' => 'حضور و پایان کلاس', 'absence' => 'هنرجو غیبت کرد', 'reschedule' => 'تغییر زمان کلاس', 'settings' => 'تغییر اطلاعات', 'finance' => 'مالی و ساعت‌ها', 'golden-hour' => 'ساعت طلایی', 'new-enrolment' => 'درخواست کلاس آشنایی' );
+    $ids = array( 'today' => 'کلاس‌های امروز', 'new-enrolment' => 'درخواست کلاس آشنایی', 'settings' => 'اطلاعات و زمان‌های تدریس', 'join' => 'ورود به کلاس', 'attendance' => 'حضور و پایان کلاس', 'absence' => 'اطلاع غیبت هنرجو', 'reschedule' => 'تغییر زمان کلاس', 'finance' => 'مالی و ساعت‌ها', 'golden-hour' => 'ساعت طلایی' );
     $order = 0;
     foreach ( $ids as $id => $title ) {
         ++$order;
-        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'today' === $id ? 'completed' : 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
+        $steps[] = array( 'id' => $id, 'order' => $order, 'title' => $title, 'short_title' => $title, 'description' => 'توضیح کوتاه و مستقیم دربارهٔ ' . $title, 'student_side' => 'هنرجو گام مربوط به ' . $title . ' را در پرتال دنبال می‌کند.', 'highlight_selector' => '#target-' . $id, 'portal_screen' => 'classes', 'action_label' => 'نمایش ' . $title, 'state' => 'not_started', 'needs_reacknowledgement' => false, 'last_visited_at' => null, 'points' => array( 'نکتهٔ کوتاه ' . $title ) );
     }
     $hub = array( 'modules' => $steps, 'completed_count' => 1, 'started_count' => 0, 'total_count' => 9, 'percent' => 11, 'state' => 'in_progress', 'next_module_id' => 'join' );
     $base = array(
@@ -55,25 +55,28 @@ namespace {
         'induction' => $hub,
         'induction_hub_url' => 'https://example.invalid/?teacher-view=induction',
         'induction_continue_url' => 'https://example.invalid/?teacher-view=induction',
-        'induction_actions' => array( 'complete_url' => 'https://example.invalid/admin-post.php?action=dzn_teacher_induction_complete', 'complete_nonce' => 'nonce-induction' ),
         'induction_support_url' => 'https://wa.me/000',
     );
+    $fail( 'complete student perspectives satisfy the display contract', dzn_theme_teacher_portal_validate_model( $base, 'induction' ) );
+    $missing_student_side = $base;
+    unset( $missing_student_side['induction']['modules'][0]['student_side'] );
+    $fail( 'missing student perspective fails the display contract', ! dzn_theme_teacher_portal_validate_model( $missing_student_side, 'induction' ) );
     $hub_html = $render( 'induction', $base );
-    $fail( 'quick-start renders the short Persian heading', str_contains( $hub_html, '۹ نکته برای شروع تدریس' ) );
-    $fail( 'quick-start shows the 1 of 9 progress copy', str_contains( $hub_html, '1 از 9 دیده شده' ) );
-    $fail( 'quick-start renders all nine steps as one page', substr_count( $hub_html, 'dzn-tp-quickstart-card is-' ) === 9 );
-    $fail( 'every step posts its own nonce-protected action', substr_count( $hub_html, 'name="module_id"' ) === 9 && substr_count( $hub_html, 'dzn_teacher_induction_complete' ) === 9 );
-    $fail( 'steps use short purpose copy and action labels', str_contains( $hub_html, 'کلاس‌های امروز' ) && str_contains( $hub_html, 'نمایش ورود به کلاس' ) );
-    $fail( 'hub does not render long sections or quizzes', ! str_contains( $hub_html, 'سناریوهای عملیاتی' ) && ! str_contains( $hub_html, 'تمرین کوتاه' ) && ! str_contains( $hub_html, 'در این بخش یاد می‌گیرید' ) );
+    $fail( 'quick-start renders the journey heading', str_contains( $hub_html, 'مسیر همکاری با دلنوازان' ) );
+    $fail( 'quick-start renders all nine steps as one read-only page', substr_count( $hub_html, 'class="dzn-tp-quickstart-card"' ) === 9 );
+    $fail( 'steps are grouped by the daily workflow', str_contains( $hub_html, 'tp-phase-prep' ) && str_contains( $hub_html, 'tp-phase-class' ) && str_contains( $hub_html, 'tp-phase-changes' ) && str_contains( $hub_html, 'tp-phase-followup' ) );
+    $fail( 'the guide explains both sides', substr_count( $hub_html, 'مسیر هنرجو:</strong> هنرجو گام مربوط به' ) === 9 && substr_count( $hub_html, 'کار شما:' ) === 9 );
+    $fail( 'the guide shows no step buttons or completion forms', ! str_contains( $hub_html, '<form' ) && ! str_contains( $hub_html, 'name="module_id"' ) && ! str_contains( $hub_html, 'دیده شده' ) );
+    $fail( 'the guide shows no progress or highlight machinery', ! str_contains( $hub_html, 'role="progressbar"' ) && ! str_contains( $hub_html, 'data-dzn-auto-highlight' ) );
+    $fail( 'stable anchors remain for contextual help', str_contains( $hub_html, 'id="tp-step-today"' ) && str_contains( $hub_html, 'id="tp-step-join"' ) );
+    $fail( 'the guide returns to the portal and keeps support', str_contains( $hub_html, 'بازگشت به پرتال مدرس' ) && str_contains( $hub_html, 'نیاز به کمک دارم' ) );
     $fail( 'shell is RTL and exposes real navigation targets', str_contains( $hub_html, 'dir="rtl"' ) && str_contains( $hub_html, 'data-dzn-nav-screen="classes"' ) && str_contains( $hub_html, 'dzn-tp-tabs' ) );
-    $fail( 'progress is an accessible progressbar', str_contains( $hub_html, 'role="progressbar"' ) && str_contains( $hub_html, 'aria-valuenow="1"' ) && str_contains( $hub_html, 'aria-valuemax="9"' ) );
 
     ob_start();
-    dzn_theme_teacher_portal_component( 'induction-highlight', array( 'step' => array( 'title' => 'ورود به کلاس', 'description' => 'دکمهٔ ورود و گزینهٔ پشتیبان Google Meet.', 'highlight_selector' => '[data-dzn-highlight="join"]', 'points' => array( 'ورود فقط با دسترسی معتبر فعال می‌شود.' ), 'back_url' => 'https://example.invalid/?teacher-view=induction' ) ) );
-    $highlight_html = (string) ob_get_clean();
-    $fail( 'highlight banner is short and explains the purpose', str_contains( $highlight_html, 'ورود به کلاس' ) && str_contains( $highlight_html, 'Google Meet' ) );
-    $fail( 'highlight banner marks an existing selector for the jump', str_contains( $highlight_html, 'data-dzn-auto-highlight="[data-dzn-highlight=&quot;join&quot;]"' ) );
-    $fail( 'highlight banner can return to the quick-start', str_contains( $highlight_html, 'بازگشت به راهنمای سریع' ) );
+    dzn_theme_teacher_portal_component( 'induction-card', array( 'model' => $base ) );
+    $card_html = (string) ob_get_clean();
+    $fail( 'the compact card links to the guide', str_contains( $card_html, 'مرور راهنمای تدریس' ) );
+    $fail( 'the compact card does not show progress or completion state', ! str_contains( $card_html, 'role="progressbar"' ) && ! str_contains( $card_html, 'دیده شده' ) );
 
     ob_start();
     dzn_theme_teacher_portal_component( 'help-tip', array( 'title' => 'راهنمای کوتاه', 'text' => 'توضیح کوتاه.', 'module' => 'absence' ) );

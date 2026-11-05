@@ -50,7 +50,9 @@ final class LiveKitWebhookController {
             // Resolve (and, if necessary, bootstrap) the durable binding before the transient
             // registry entry is discarded; attendance must never depend on that cache.
             $room = $capture ? $attendance->roomForWebhook($roomName) : null;
+            $registrySession = $registry->get($roomName);
             $registry->forget($roomName);
+            self::maybeStopRecording($registrySession ?? (is_array($room) ? $room : array()), $roomName);
             if (!$capture) return new \WP_REST_Response(array('ok' => true), 200);
             if (!$room) return new \WP_REST_Response(array('ok' => true, 'ignored' => true), 200);
             try {
@@ -121,6 +123,7 @@ final class LiveKitWebhookController {
                 }
                 return new \WP_REST_Response(array('ok' => true, 'action' => 'room_revoked'), 200);
             }
+            self::maybeStartRecording($registrySession ?? $registry->get($roomName) ?? array(), $roomName);
             return new \WP_REST_Response(array('ok' => true, 'action' => 'admitted'), 200);
         }
 
@@ -160,7 +163,41 @@ final class LiveKitWebhookController {
             }
             return new \WP_REST_Response(array('ok' => true, 'action' => 'room_revoked'), 200);
         }
+        self::maybeStartRecording($session, $room);
         return new \WP_REST_Response(array('ok' => true, 'action' => 'admitted'), 200);
+    }
+
+    /**
+     * Start recording for a consented canonical lesson when the first participant is admitted.
+     * The request is idempotent per room and the canonical gate still decides whether capture is
+     * allowed. A refusal is recorded by the gate and never blocks the classroom connection.
+     */
+    private static function maybeStartRecording(array $session, string $room): void {
+        if ((string) ($session['kind'] ?? '') !== 'lesson') return;
+        $lessonId = (int) ($session['resource_id'] ?? 0);
+        if ($lessonId < 1 || $room === '') return;
+        $lock = 'dzn_recording_auto_' . md5($room . '|' . $lessonId);
+        if (get_transient($lock)) return;
+        set_transient($lock, 1, 300);
+        try {
+            (new \Delnavazan\Platform\Core\Application\Recording\RecordingControlPlane())
+                ->requestRecording($lessonId, 'livekit|' . $room . '|' . (string) ($session['schedule_key'] ?? ''), 0, 'livekit');
+        } catch (\Throwable $error) {
+            if (function_exists('do_action')) do_action('dzn_recording_auto_start_refused', $room, $error->getMessage());
+        } finally {
+            delete_transient($lock);
+        }
+    }
+
+    private static function maybeStopRecording(array $session, string $room): void {
+        $lessonId = (int) ($session['resource_id'] ?? 0);
+        if ($lessonId < 1) return;
+        try {
+            (new \Delnavazan\Platform\Core\Application\Recording\RecordingControlPlane())
+                ->requestStopForLesson($lessonId, 0, 'room_finished');
+        } catch (\Throwable $error) {
+            if (function_exists('do_action')) do_action('dzn_recording_stop_refused', $room, $error->getMessage());
+        }
     }
 
     /** Only a genuinely transient failure is answered non-2xx so LiveKit retries the delivery. */

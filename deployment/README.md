@@ -1,5 +1,22 @@
 # Deployment
 
+## Release 2026-11-04 — Teacher workflow review and mobile portal layering
+
+The Teacher quick-start is now a read-only, workflow-grouped review. It no longer renders per-step
+buttons, progress state, portal jumps or the temporary highlight banner; the guide explains the work
+and the real portal screens remain the place where actions are taken. Copy and order now follow the
+daily workflow: preparation, class delivery, changes and follow-up.
+
+The Student and Teacher mobile shells keep every existing object but reduce overlap: the compact app
+bar and the unread notification banner return to the document flow on compact phones, leaving the
+fixed bottom tab bar as the only floating navigation layer. The shared notification banner now uses
+one close control that also marks the notification read; the link to the notification's target area
+is unchanged.
+
+No schema or authority change. Existing induction progress rows and the legacy completion endpoint
+remain for compatibility but the read-only guide does not write them. A code-only rollback to the
+previous release is safe.
+
 ## Release 2026-11-01 — Teacher induction v2
 
 Adds a one-page progressive Teacher quick-start separate from account activation, jump/highlight

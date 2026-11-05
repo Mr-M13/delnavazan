@@ -56,6 +56,7 @@ jobs:
             platform/tests/legal-pages-contract.php
             platform/tests/recording-research-architecture-contract.php
             platform/tests/recording-decision-authority-contract.php
+            platform/tests/recording-archive-contract.php
             platform/tests/recording-choices-ui-contract.php
             platform/tests/fresh-install-capability-bootstrap.php
             platform/tests/integration-settings-runtime.php
@@ -88,6 +89,8 @@ jobs:
           for contract in "${contracts[@]}"; do
             php "$contract"
           done
+          php platform/tests/recording-archive-policy-unit.php
+          php platform/tests/recording-archive-contract.php
           php platform/tests/phase-2a3-iran-quiet-hours.php
           php platform/tests/phase-2a3-day-availability-contract.php
           php platform/tests/booking-availability-timezone-dst-contract.php
@@ -113,6 +116,7 @@ jobs:
           php platform/tests/booking-student-account-contract.php
           php platform/tests/booking-teacher-delivery-contract.php
           php platform/tests/booking-teacher-delivery-unit.php
+          php platform/tests/booking-allocation-unit.php
           php platform/tests/booking-teacher-response-contract.php
           php platform/tests/booking-teacher-response-unit.php
           php platform/tests/student-occupancy-authority-contract.php
@@ -130,8 +134,24 @@ jobs:
           php platform/tests/booking-calendar-projection-unit.php
           php platform/tests/booking-student-notification-unit.php
           php platform/tests/booking-notification-independence-contract.php
+          php platform/tests/booking-notification-mobile-recipient-unit.php
+          php platform/tests/booking-notification-receipt-contract.php
+          php platform/tests/booking-notification-retention-contract.php
+          php platform/tests/booking-notification-independence-contract.php
+          php platform/tests/booking-notification-recovery-contract.php
           php platform/tests/google-oauth-scope-policy-unit.php
           php platform/tests/google-oauth-transport-unit.php
+          php platform/tests/google-meet-classroom-unit.php
+          php platform/tests/google-meet-classroom-contract.php
+          php platform/tests/google-meet-hardening-unit.php
+          php platform/tests/google-meet-provisioning-rule-unit.php
+          php platform/tests/google-meet-reconciliation-plan-unit.php
+          php platform/tests/google-meet-classroom-retry-rule-unit.php
+          php platform/tests/google-meet-command-policy-unit.php
+          php platform/tests/google-meet-scheduled-discovery-unit.php
+          php platform/tests/google-meet-reconciliation-contract.php
+          php platform/tests/meet-classroom-join-window-unit.php
+          php platform/tests/booking-calendar-projection-central-unit.php
           php platform/tests/oauth-scope-exact-matching-contract.php
           php platform/tests/renewal-historical-upgrade-contract.php
           php platform/tests/renewal-historical-upgrade-unit.php
@@ -409,6 +429,41 @@ jobs:
           export DZN_WP_PORT=18083
           platform/runtime/bin/destroy.sh YES
 
+
+  recording-archive-runtime:
+    name: Recording archive runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - run: platform/runtime/bin/run-recording-archive-runtime.sh
+      - name: Dispose recording archive runtime
+        if: always()
+        run: |
+          export DZN_COMPOSE_PROJECT=dzn-recording-archive
+          export DZN_RUNTIME_STATE_DIR=/tmp/dzn-recording-archive
+          export DZN_WP_PORT=18088
+          platform/runtime/bin/destroy.sh YES
+
+  recording-services:
+    name: Recording recorder/archive and playback services
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, curl, mbstring
+          coverage: none
+      - run: bash services/tests/run-all.sh
+
   stripe-runtime-e2e:
     name: Stripe runtime E2E
     runs-on: ubuntu-24.04
@@ -632,6 +687,59 @@ jobs:
           DZN_RUNTIME_STATE_DIR: /tmp/dzn-promotion-application-runtime
           DZN_COMPOSE_PROJECT: dzn-promotion-application-runtime
           DZN_WP_PORT: 18087
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  booking-release-runtime:
+    name: Booking release runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Run duplicate-slot concurrency proof
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
+        run: platform/runtime/bin/run-booking-slot-conflict.sh
+      - name: Run confirmed cancellation proof
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
+        run: platform/runtime/bin/run-confirmed-intro-cancellation.sh
+      - name: Run failed-notification recovery proof
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
+        run: platform/runtime/bin/run-booking-notification-recovery.sh
+      - name: Run notification failure isolation proof
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
+        run: platform/runtime/bin/run-booking-notification-independence.sh
+      - name: Run cross-feature cancellation and slot reuse proof
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
+        run: platform/runtime/bin/run-booking-release-integration.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
         run: platform/runtime/bin/destroy.sh YES || true
 
   oauth-scope-database-regression:

@@ -3,12 +3,11 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository;
+use Delnavazan\Platform\Portals\ParticipantJoinWindow;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
 /** Opens the vaulted Meet reference only for an owning participant and near the lesson time. */
 final class BookingClassJoinService {
-    private const EARLY_SECONDS = 3600;
-    private const LATE_SECONDS = 7200;
 
     public function __construct(
         private ?BookingTeacherDeliveryRepository $repository = null,
@@ -23,13 +22,19 @@ final class BookingClassJoinService {
         if (preg_match('/^[0-9A-Z]{26}$/D', $confirmationUid) !== 1 || !in_array($role, array('teacher','student'), true)) {
             throw new \InvalidArgumentException('portal_object_not_portal_visible');
         }
+        if(class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetClassroomJoinService')){
+            $centralService=new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomJoinService();
+            $central=$centralService->forBooking($confirmationUid,$role);
+            if($central!==null)return $central;
+            if($centralService->hasActiveClassroomForBookingUid($confirmationUid))throw new \InvalidArgumentException('portal_capability_unknown');
+        }
         $principal = (new PortalPrincipalResolver())->resolve($role);
         $row = $this->repository->confirmedForParticipant($confirmationUid, $role, (int) $principal['id']);
         if (!$row) throw new \InvalidArgumentException('portal_object_not_owned');
         $start = strtotime((string) $row->starts_at_utc . ' UTC');
         $end = strtotime((string) $row->ends_at_utc . ' UTC');
         $now = time();
-        if (!$start || !$end || $now < $start - self::EARLY_SECONDS || $now > $end + self::LATE_SECONDS) {
+        if (!$start || !$end || !ParticipantJoinWindow::contains($start, $end, $now)) {
             throw new \InvalidArgumentException('portal_action_outside_window');
         }
         $secretId = (int) ($row->projection_secret_id ?? 0);

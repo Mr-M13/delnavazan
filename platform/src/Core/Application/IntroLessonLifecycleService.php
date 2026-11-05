@@ -87,11 +87,18 @@ final class IntroLessonLifecycleService {
             $this->queueNotification((int) $confirmation->delivery_id, (int) $confirmation->id, 'cancelled', $now, false);
             $this->queueNotification((int) $confirmation->delivery_id, (int) $confirmation->id, 'cancelled_teacher', $now, false);
             $secret = $repository->projectionSecret((int) $confirmation->id);
+            $centralClassroom = null;
+            if (class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceRepository')) {
+                $centralClassroom = (new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceRepository())
+                    ->activeClassroomForBooking((int) $confirmation->id);
+            }
+            $needsProviderRetraction = (bool) $secret || (bool) $centralClassroom;
             $jobId = $repository->insertRetractionJob(array(
                 'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
                 'cancellation_id' => $cancellationId,
                 'confirmation_id' => (int) $confirmation->id,
                 'connection_id' => (int) $confirmation->connection_id,
+                'connection_id' => $centralClassroom && ! $secret ? 0 : (int) $confirmation->connection_id,
                 'teacher_id' => (int) $confirmation->teacher_id,
                 'state' => 'queued',
                 'idempotency_key' => hash_hmac('sha256', 'intro-cancel-retraction:' . $cancellationId, wp_salt('dzn_intro_cancellation')),
@@ -128,6 +135,11 @@ final class IntroLessonLifecycleService {
                 'confirmation_id' => (int) $confirmation->id,
                 'state' => 'cancelled',
                 'message' => $secret
+            $providerSync = $needsProviderRetraction ? 'queued' : 'not_required';
+            return array(
+                'confirmation_id' => (int) $confirmation->id,
+                'state' => 'cancelled',
+                'message' => $needsProviderRetraction
                     ? 'Introductory lesson cancelled. The Student and Teacher notices are queued; Google Calendar/Meet retraction is queued for the provider worker.'
                     : 'Introductory lesson cancelled. The Student and Teacher notices are queued; no active provider projection required retraction.',
                 'provider_sync' => $providerSync,

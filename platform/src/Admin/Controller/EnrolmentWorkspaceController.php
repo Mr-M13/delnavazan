@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Admin\Controller;
 use Delnavazan\Platform\Admin\View\EnrolmentWorkspaceView;
 use Delnavazan\Platform\Core\Application\AdministratorBookingMatchService;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
+use Delnavazan\Platform\Core\Application\BookingNotificationRecoveryService;
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService;
 use Delnavazan\Platform\Core\Application\CanonicalEnrolmentLifecycleService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
@@ -24,7 +25,7 @@ use Delnavazan\Platform\Core\Application\StudentService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityAssentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
-use Delnavazan\Platform\Integrations\LiveKit\LiveKitAdministratorClassroomService;
+use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
  * Consolidated Enrolment administration workspace.
@@ -229,6 +230,21 @@ final class EnrolmentWorkspaceController {
                     sanitize_textarea_field((string) ($post['note'] ?? ''))
                 );
                 return 'Introductory outcome recorded.';
+            case 'recover_booking_notification':
+                self::requireCap('dzn_operate_notification_dispatch');
+                $result = (new BookingNotificationRecoveryService())->recover(
+                    absint($post['notification_id'] ?? 0),
+                    'enrolment-notification-recovery:' . $idempotency
+                );
+                if ((string) $result['state'] !== 'queued') {
+                    $reasons = array(
+                        'invitation_stale' => 'The invitation is cancelled, resolved or no longer relevant; recovery was refused.',
+                        'recipient_contact_unusable' => 'The current canonical recipient address is missing or invalid. Update the contact record before retrying.',
+                        'notification_not_retryable' => 'Only a failed notification can be recovered.',
+                    );
+                    return (string) ($reasons[(string) ($result['reason'] ?? '')] ?? 'Notification recovery was refused.');
+                }
+                return $result['replayed'] ? 'This recovery was already recorded; no duplicate notification was queued.' : 'The failed notification was requeued once. Booking and Teacher delivery state were not changed.';
             case 'resend_payment_link':
                 self::requireCap('dzn_manage_post_intro_automation');
                 $result = (new PostIntroNotificationAdministrationService())->resendPaymentLink($requestId, $idempotency);
@@ -381,7 +397,7 @@ final class EnrolmentWorkspaceController {
     /** @return array<string,mixed>|null */
     private static function classroomForClass(array $class): ?array {
         if ((string) $class['record_model'] !== 'canonical_term_lesson_v1') return null;
-        try { return (new LiveKitAdministratorClassroomService())->forLesson((int) $class['id']); }
+        try { return (new MeetAdministratorClassroomService())->forLesson((int) $class['id']); }
         catch (\Throwable) { return null; }
     }
 
@@ -389,7 +405,7 @@ final class EnrolmentWorkspaceController {
     private static function classroomForBooking(array $case): ?array {
         $confirmation = $case['confirmed'] ?? null;
         if (!$confirmation || (string) ($confirmation['state'] ?? '') !== 'confirmed') return null;
-        try { return (new LiveKitAdministratorClassroomService())->forBooking((string) $confirmation['confirmation_uid']); }
+        try { return (new MeetAdministratorClassroomService())->forBooking((string) $confirmation['confirmation_uid']); }
         catch (\Throwable) { return null; }
     }
 

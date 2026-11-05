@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\BookingNotificationRecipient;
+use Delnavazan\Platform\Core\Application\BookingNotificationRelevance;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -29,6 +31,7 @@ final class BookingStudentNotificationWorker {
             // This terminal refusal is intentionally local to the notification row:
             // it never changes the request or Teacher-delivery state.
             if(!self::isStillRelevant($row)){
+            if(!BookingNotificationRelevance::isStillRelevant($row)){
                 $repository->updateNotification($notificationId,$state,array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'invitation_stale','updated_at'=>$now));
                 $repository->commit();
                 return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);
@@ -54,6 +57,9 @@ final class BookingStudentNotificationWorker {
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
             }
+            if($eventKey==='booking.new.teacher'&&!str_contains((string)$copy['body'],'مهلت پاسخ')){
+                $copy['body']=rtrim((string)$copy['body'])."\n\n".'لطفاً حداکثر تا '.$variables['response_window'].' ('.$variables['response_deadline'].') پاسخ دهید. اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.';
+            }
             // The portal is an independent first-party notice.  A missing or invalid editable
             // email template must not hide the operational booking alert from the Teacher.
             self::recordInbox($row,$eventKey,$variables);
@@ -70,7 +76,12 @@ final class BookingStudentNotificationWorker {
         try{
             $locked=$repository->notificationPayload($notificationId,true);if(!$locked||(string)$locked->state!=='sending'||!hash_equals($leaseDigest,(string)$locked->lease_token_digest))throw new \RuntimeException('Booking notification lease changed concurrently');$now=gmdate('Y-m-d H:i:s');
             $clear=array('lease_token_digest'=>null,'lease_expires_at'=>null,'updated_at'=>$now);
-            if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>null),$leaseDigest);}
+            // Email/portal hand-off remains independent from mobile delivery, but a mobile refusal must
+            // stay visible on the durable queue row. Previously the worker discarded this result and
+            // an email success made an unmapped WhatsApp event indistinguishable from a fully-routed
+            // notification.
+            $mobileDiagnostic=self::mobileDiagnostic($mobile);
+            if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>$mobileDiagnostic),$leaseDigest);}
             elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
             else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
             $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false,'mobile'=>$mobile);
@@ -95,6 +106,15 @@ final class BookingStudentNotificationWorker {
         catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
     }
 
+    /** A bounded, contact-free mobile outcome for the existing booking queue diagnostic field. */
+    private static function mobileDiagnostic(array $mobile):?string{
+        if((string)($mobile['state']??'')==='accepted')return null;
+        $reason=(string)($mobile['reason']??'');
+        if($reason==='')$reason=(string)($mobile['state']??'unknown');
+        $reason=preg_replace('/[^a-z0-9_]+/','_',strtolower($reason))??'unknown';
+        return substr('mobile_'.trim($reason,'_'),0,64);
+    }
+
     private static function headers(object $row):array{
         $host=strtolower((string)wp_parse_url(home_url('/'),PHP_URL_HOST));
         if(!preg_match('/^[a-z0-9.-]+$/D',$host))$host='delnavazan.invalid';
@@ -112,6 +132,7 @@ final class BookingStudentNotificationWorker {
         if($kind==='confirmed')return in_array($confirmation,array('confirmed','awaiting_payment'),true);
         return true;
     }
+    private static function recipientEmail(object $row):string{return BookingNotificationRecipient::email($row);}
     private static function portalLabel(object $row):string{return (string)(str_ends_with((string)$row->notification_kind,'_teacher')?'رفتن به پرتال مدرس':'رفتن به حساب کاربری');}
 
     private static function message(object $row):array{
@@ -126,7 +147,10 @@ final class BookingStudentNotificationWorker {
         if((string)$row->notification_kind==='requested_teacher'){
             $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
             $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
-            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+            $createdAt=trim((string)($row->delivery_created_at??($row->created_at??'')));
+            $deadlineUtc=$createdAt!==''?gmdate('Y-m-d H:i:s',strtotime($createdAt.' UTC')+86400):gmdate('Y-m-d H:i:s',time()+86400);
+            $deadline=self::formatInstant($deadlineUtc,$timezone);
+            return array('New Delnavazan booking request',"Hello {$teacher},\n\nA new introductory {$course} booking request from {$name} was received for {$when}.\n\nPlease respond within 24 hours, by {$deadline}. If no response is received, the request will be offered to the next available Teacher.\n\nReview it in your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when,'response_window'=>'۲۴ ساعت','response_deadline'=>$deadline));
         }
         if((string)$row->notification_kind==='cancelled'){
             $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
@@ -189,5 +213,13 @@ final class BookingStudentNotificationWorker {
             }catch(\Throwable){}
         }
         return $start->format('l j F Y, H:i').'–'.$end->format('H:i').' '.$timezone;
+    }
+
+    private static function formatInstant(string $utc,string $timezone):string{
+        try{
+            $zone=new \DateTimeZone($timezone);
+            $at=(new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->setTimezone($zone);
+            return $at->format('l j F Y, H:i').' '.$timezone;
+        }catch(\Throwable){return trim($utc.' '.$timezone);}
     }
 }

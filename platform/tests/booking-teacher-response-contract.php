@@ -43,7 +43,7 @@ $checks = array(
     'student notification uses fenced recovery and reports handoff, not delivery' => str_contains($files['notification'], 'lease_token_digest') && str_contains($files['notification'], "'handed_off'") && str_contains($files['notification'], "'recipient_delivery_confirmed'=>false"),
     'student confirmation never depends on or exposes the Meet backup' => !str_contains($files['notification'], 'join_uri_reference') && !str_contains($files['notification'], 'Google Meet') && !str_contains($files['notification'], 'projectionSecret'),
     'portal actions are nonce protected' => str_contains($files['controller'], "check_admin_referer('dzn_teacher_booking_response')") && str_contains($files['attention'], 'response_nonce') && str_contains($files['attention'], 'delivery_uid'),
-    'Google readiness is reachable in the onboarding account workspace' => str_contains($files['bridge'], 'dzn_theme_platform_teacher_onboarding_step') && str_contains($files['portal'], "current_step'] > 5") && str_contains($files['wizard'], "component( 'account'") && str_contains($files['account'], "component('google-settings'"),
+    'Central classroom readiness requires no Teacher Google step in onboarding' => str_contains($files['bridge'], 'dzn_theme_platform_teacher_onboarding_step') && !str_contains($files['account'], "component('google-settings'") && !str_contains($files['wizard'], 'اتصال Google Calendar'),
 );
 foreach ($checks as $name => $ok) {
     if (!$ok) throw new RuntimeException('Booking teacher response contract failed: ' . $name);

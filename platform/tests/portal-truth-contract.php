@@ -81,6 +81,7 @@ $portal   = (string) file_get_contents( $theme . '/inc/portal.php' );
 $check( 'absence inference from attendance_state_summary is gone', ! str_contains( $bridge, "'attendance_state_summary' ?? '' ) === 'open'" ) );
 $check( 'the theme renders a persisted absence report only from the Platform fact', str_contains( $bridge, "\$row['absence_reported']" ) && ! str_contains( $bridge, 'absence_notified' ) );
 $check( 'student partition keeps in-progress rows', str_contains( $bridge, "'in_progress' === \$temporal" ) && str_contains( $bridge, '$active[] = $lesson' ) );
+$check( 'an upcoming intro booking does not hide the active term timeline', ! str_contains( $bridge, '$term_progress = $is_booking ? array() :' ) && str_contains( $bridge, 'An upcoming introductory booking must not suppress the active Term timeline.' ) );
 $check( 'teacher partition keeps in-progress rows', str_contains( $bridge, '// An active canonical class must remain reachable' ) );
 $check( 'teacher navigation no longer exposes a Today tab', ! str_contains( $bridge, "'screen' => 'home', 'label' => 'امروز'" ) && ! str_contains( $bridge, "'screen' => 'home', 'label' => 'حساب کاربری'" ) );
 $check( 'teacher account page template uses settings', str_contains( $account, "dzn_theme_render_teacher_portal( 'settings'" ) && ! str_contains( $account, "'account'" ) );

@@ -188,6 +188,13 @@ final class PostIntroActivationWorker {
     private static function retryable(\Throwable $error): bool {
         $message = trim($error->getMessage());
         if (str_starts_with($message, 'provider_')) return true;
+        // Central Meet provisioning failures use a shared transient/permanent vocabulary. A blocked
+        // co-host or permanent provider refusal requires an administrator decision and must not loop.
+        if (str_starts_with($message, 'meet_')
+            && class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetProvisioningRule')) {
+            return \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetProvisioningRule::isRetryableBookingFailure($message);
+        }
+        if (in_array($message, array('meet_cohost_assignment_retryable','meet_space_config_failed','meet_conference_pending'), true)) return true;
         // Calendar transport/inspection failures are provider-side and transient, but the
         // integration layer deliberately uses precise non-`provider_` codes for them. Classify
         // those exact codes as retryable so the existing bounded exponential backoff and the

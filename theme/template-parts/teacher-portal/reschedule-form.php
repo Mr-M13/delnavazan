@@ -45,6 +45,8 @@ if ( 'persian' === $calendar && function_exists( 'dzn_theme_platform_jalali_part
 			<label>تاریخ جدید<input type="date" name="local_date" required min="<?php echo esc_attr( $min_date ); ?>"></label>
 		<?php endif; ?>
 		<label>ساعت شروع<input type="time" name="local_time" required></label>
+		<p class="dzn-tp-detail-help">اگر زمان انتخابی خارج از ساعات در دسترس ثبت‌شدهٔ شماست، درخواست به‌طور خودکار ارسال نمی‌شود. برای ادامه، گزینهٔ زیر را انتخاب کنید.</p>
+		<label class="dzn-tp-reschedule__confirm"><input type="checkbox" name="confirm_outside_availability" value="1"> تأیید زمان خارج از ساعات در دسترس — می‌خواهم این زمان برای این تاریخ به‌صورت استثنایی ثبت شود.</label>
 		<button class="dzn-button dzn-button--secondary" type="submit" data-dzn-tp-busy-label="در حال ارسال درخواست…"><?php echo $replacement ? 'ارسال زمان جلسهٔ جبرانی' : 'ارسال درخواست تغییر زمان'; ?></button>
 	</form>
 	<?php if ( $demo ) : ?><p class="dzn-tp-action-status" role="status" aria-live="polite"></p><?php endif; ?>

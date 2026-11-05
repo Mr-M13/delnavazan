@@ -190,6 +190,38 @@ namespace {
     $threw = false; try { $conflictAcceptance->decideForStudent(9, (string) $store5->proposals[0]->uid, 'accept', 'decision-key-0050'); } catch (Throwable $e) { $threw = $e->getMessage() === 'teacher_slot_conflict'; }
     $fail('teacher occupancy conflict refuses without canonical change or proposal transition', $threw && $teacherCommits === array() && $store5->proposals[0]->state === 'pending' && $store5->calendarJobs === array());
 
+    // A time outside the Teacher's published availability is a visible refusal until the Teacher
+    // explicitly confirms it. Confirmation records a dated availability window in the same
+    // proposal transaction; a stronger block still refuses.
+    $outsideStore = new FakeRescheduleStore(); $outsideStore->context = $context();
+    $outsideService = new LessonRescheduleService($outsideStore, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 106), static fn() => time(), static fn() => false);
+    $threw = false; try { $outsideService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-outside-0001'); } catch (Throwable $e) { $threw = $e->getMessage() === 'teacher_availability_confirmation_required'; }
+    $fail('outside availability requires explicit teacher confirmation', $threw && $outsideStore->proposals === array());
+
+    $confirmStore = new FakeRescheduleStore(); $confirmStore->context = $context();
+    $available = false; $confirmationArgs = null;
+    $confirmService = new LessonRescheduleService(
+        $confirmStore,
+        static fn() => array(),
+        static fn(array $p): array => array('schedule_version_id' => 107),
+        static fn() => time(),
+        static function () use (&$available): bool { return $available; },
+        null,
+        null,
+        static function (int $teacherId, string $startDate, string $startTime, string $endDate, string $endTime, string $timezone) use (&$available, &$confirmationArgs): void {
+            $confirmationArgs = array($teacherId, $startDate, $startTime, $endDate, $endTime, $timezone);
+            $available = true;
+        }
+    );
+    $confirmedInput = $input; $confirmedInput['confirm_outside_availability'] = true;
+    $confirmedOutside = $confirmService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $confirmedInput, 'request-key-outside-0002');
+    $fail('confirmed outside availability sends the proposal and records the exact local window', $confirmedOutside['outside_availability_confirmed'] === true && (string) $confirmStore->proposals[0]->state === 'pending' && $confirmationArgs === array(5, (string) $input['local_date'], '18:30:00', (string) $input['local_date'], '19:00:00', 'Asia/Tehran'));
+
+    $blockedStore = new FakeRescheduleStore(); $blockedStore->context = $context();
+    $blockedService = new LessonRescheduleService($blockedStore, static fn() => array(), static fn(array $p): array => array('schedule_version_id' => 108), static fn() => time(), static fn() => false, null, null, static function (): void {});
+    $threw = false; try { $blockedService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $confirmedInput, 'request-key-outside-0003'); } catch (Throwable $e) { $threw = $e->getMessage() === 'teacher_availability_confirmation_blocked'; }
+    $fail('an explicit day off still refuses a confirmed outside-availability request', $threw && $blockedStore->proposals === array());
+
     $providerOutage = new \Delnavazan\Platform\Integrations\LessonRescheduleCalendarService($store, static function (array $job): array { throw new RuntimeException('provider_outage'); }, static fn() => time(), static fn() => true);
     $providerOutage->dispatchPending(5);
     $fail('provider outage does not revoke an accepted reschedule', (string) $store->proposals[0]->state === 'accepted' && count($commits) === 1 && (string) $store->calendarJobs[0]->state === 'retry');

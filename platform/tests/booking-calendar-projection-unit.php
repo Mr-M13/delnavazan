@@ -11,6 +11,10 @@ namespace Delnavazan\Platform\Core\Support {
     final class Identifier { public static function uid(): string { return '01ARZ3NDEKTSV4RRFFQ69G5FAA'; } }
 }
 namespace Delnavazan\Platform\Core\Infrastructure\Repository {
+    final class BookingAllocationRepository {
+        public static array $referrals=array();
+        public function referral(int $requestId,string $reason,string $now):void { self::$referrals[]=compact('requestId','reason'); }
+    }
     final class BookingTeacherResponseRepository {
         public object $confirmationRow;
         public object $deliveryRow;
@@ -18,7 +22,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public ?object $secretRow = null;
         public array $notifications = array();
         public function __construct() {
-            $this->confirmationRow=(object)array('id'=>70,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','delivery_id'=>41,'connection_id'=>5,'state'=>'pending_projection','version'=>1,'starts_at_utc'=>'2026-11-02 08:00:00','ends_at_utc'=>'2026-11-02 08:45:00','schedule_timezone'=>'Australia/Brisbane','attempt_count'=>0);
+            $this->confirmationRow=(object)array('id'=>70,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','delivery_id'=>41,'booking_request_id'=>12,'connection_id'=>5,'state'=>'pending_projection','version'=>1,'starts_at_utc'=>'2026-11-02 08:00:00','ends_at_utc'=>'2026-11-02 08:45:00','schedule_timezone'=>'Australia/Brisbane','attempt_count'=>0);
             $this->deliveryRow=(object)array('id'=>41,'booking_request_id'=>12,'state'=>'accepting','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null);
             $this->credentialRow=(object)array('valid_until_utc'=>null);
         }
@@ -86,6 +90,7 @@ namespace {
     $failedRepository->credentialRow->valid_until_utc=gmdate('Y-m-d H:i:s',time()-60);$failedRepository->confirmationRow->attempt_count=5;
     $failedRefresher=new \Delnavazan\Platform\Integrations\BookingGoogleCredentialRefresher($failedRepository,false);
     $failed=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService($failedRepository,null,null,new \Delnavazan\Platform\Integrations\GoogleCalendarProjectionTransport(),$failedRefresher))->dispatch(70);
-    $assert($failed['state']==='failed'&&$failedRepository->deliveryRow->state==='pending_request','Exhausted projection attempts must terminate and reopen the Teacher request.');
+    $assert($failed['state']==='failed'&&$failedRepository->deliveryRow->state==='pending_request','Exhausted projection attempts must terminate and leave the delivery for administrator recovery.');
+    $assert(\Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository::$referrals===array(array('requestId'=>12,'reason'=>'provider_projection_failed')),'A terminal projection failure must enter administrator coordination.');
     echo "Booking calendar projection unit passed\n";
 }

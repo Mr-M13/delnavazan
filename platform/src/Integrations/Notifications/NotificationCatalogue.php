@@ -52,6 +52,7 @@ final class NotificationCatalogue {
         foreach(self::teacherEvents() as $event)$events[$event['key']]=$event;
         foreach(self::adminEvents() as $event)$events[$event['key']]=$event;
         foreach(self::declaredFinancialEvents() as $event)$events[$event['key']]=$event;
+        foreach(self::consentEvents() as $event)$events[$event['key']]=$event;
         ksort($events,SORT_STRING);
         return $events;
     }
@@ -93,6 +94,7 @@ final class NotificationCatalogue {
             'invitation_code'=>'[one-time code]','payment_url'=>'https://example.invalid/pay/','amount'=>'۲٬۵۰۰٬۰۰۰ تومان','due_date'=>'۱۵ آبان ۱۴۰۵',
             'paid_date'=>'۱۲ آبان ۱۴۰۵','previous_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰','new_when'=>'یکشنبه ۱۱ آبان ۱۴۰۵، ساعت ۱۸:۰۰','current_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
+            'response_window'=>'۲۴ ساعت','response_deadline'=>'پنجشنبه ۶ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
         );
         $out=array();
         foreach(self::variables($eventKey) as $variable)$out[$variable]=$examples[$variable]??'['.$variable.']';
@@ -259,13 +261,16 @@ final class NotificationCatalogue {
                 'email'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>"درود،\n\nبرای شما دعوت‌نامهٔ همکاری با آکادمی موسیقی دلنوازان صادر شده است.\n\nبرای شروع، پیوند زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n{{claim_url}}\n\nکد دعوت: {{invitation_code}}\n\nاین کد فقط یک‌بار قابل استفاده است و باید محرمانه بماند. اگر این دعوت را انتظار نداشتید، این پیام را نادیده بگیرید.\n\nبا احترام، دلنوازان"),
             ),
         ));
-        $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'booking.new.teacher',array(
+        $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url','response_window','response_deadline'),'booking.new.teacher',array(
             self::PRIMARY_LOCALE=>array(
-                'email'=>array('subject'=>'دلنوازان · رزرو تازه برای کلاس شما','body'=>"درود {{teacher}}،\n\nرزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} ثبت شد.\n\nزمان کلاس: {{when}}\n\nبرای بررسی جزئیات به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
-                'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد.'),
-                'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. برای بررسی جزئیات به پرتال مدرس مراجعه کنید: {{teacher_portal_url}}'),
-                'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
+                'email'=>array('subject'=>'دلنوازان · رزرو تازه برای کلاس شما','body'=>"درود {{teacher}}،\n\nرزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} ثبت شد.\n\nزمان کلاس: {{when}}\n\nلطفاً حداکثر تا {{response_window}} (تا {{response_deadline}}) پاسخ دهید. اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.\n\nبرای بررسی جزئیات به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'رزرو تازه برای کلاس شما','body'=>'رزرو تازه‌ای برای کلاس «{{course}}» با هنرجو {{student}} در {{when}} ثبت شد. لطفاً تا {{response_window}} ({{response_deadline}}) پاسخ دهید؛ در غیر این صورت درخواست به مدرس در دسترس بعدی ارجاع می‌شود.'),
+                'whatsapp'=>array('body'=>'درود استاد {{teacher}} عزیز، رزرو تازه‌ای برای کلاس {{course}} با هنرجو {{student}} در {{when}} ثبت شد. مهلت پاسخ {{response_window}} است؛ در غیر این صورت درخواست به مدرس بعدی ارجاع می‌شود. پرتال مدرس: {{teacher_portal_url}}'),
+                'sms'=>array('body'=>'دلنوازان: رزرو تازه {{course}} با {{student}} در {{when}}. مهلت پاسخ {{response_window}}. پرتال مدرس: {{teacher_portal_url}}'),
             ),
+        ));
+        $out[]=self::event('booking.expired.teacher','Intro Offer Expired','booking','teacher','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.expired.teacher',array(
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'مهلت پاسخ درخواست آشنایی پایان یافت','body'=>'مهلت پاسخ این درخواست پایان یافته است. درخواست دیگر برای شما قابل پذیرش نیست و به مدرس بعدی یا هماهنگی آکادمی سپرده شده است.')),
         ));
         $out[]=self::event('booking.cancelled.teacher','Intro Lesson Cancelled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.cancelled.teacher',array(
             self::PRIMARY_LOCALE=>array(
@@ -278,6 +283,7 @@ final class NotificationCatalogue {
                 'email'=>array('subject'=>'دلنوازان · زمان کلاس معارفه تغییر کرد','body'=>"درود {{teacher}}،\n\nزمان کلاس معارفهٔ «{{course}}» با {{student}} به {{when}} تغییر کرد.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'زمان کلاس معارفه تغییر کرد','body'=>'زمان کلاس معارفهٔ «{{course}}» با {{student}} به {{when}} تغییر کرد.'),
             ),
+
         ));
         self::appendRescheduleTeacher($out);
         return $out;
@@ -290,6 +296,12 @@ final class NotificationCatalogue {
         $out[]=self::event('system.inbox_check.admin','Portal Notification Check','account','admin','notification_management','queue',array('website'),'operational',false,array('when'),'system.inbox_check.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'اعلان آزمایشی دلنوازان','body'=>'این یک اعلان آزمایشی داخلی است. زمان ثبت: {{when}}. هیچ ایمیل، واتس‌اپ یا پیامکی ارسال نشده است.')),
         ));
+        $out[]=self::event('booking.referral.admin','Intro Booking Needs Coordination','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.referral.admin',array(
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست آشنایی نیازمند هماهنگی است','body'=>'مدرس مناسبی برای درخواست پیدا نشد یا نوبت همهٔ مدرس‌ها پایان یافت. درخواست را در صف هماهنگی بررسی کنید.')),
+        ));
+        $out[]=self::event('booking.escalation.admin','Intro Booking Escalated','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.escalation.admin',array(
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'فوری · درخواست آشنایی بیش از ۷۲ ساعت','body'=>'درخواست آشنایی هنوز تأیید نشده و از زمان ثبت اولیه بیش از ۷۲ ساعت گذشته است. در صف هماهنگی پیگیری کنید.')),
+        ));
         foreach(array('change'=>array('Lesson Change','تغییر زمان کلاس'),'replacement'=>array('Replacement Session','جلسهٔ جبرانی')) as $kind=>[$label,$faLabel]){
             foreach(array('proposed'=>array('Proposal Created','{{when}} ({{timezone}}) پیشنهاد شد و در انتظار پاسخ هنرجو است.'),
                 'accepted'=>array('Proposal Accepted','هنرجو پیشنهاد را پذیرفت و زمان {{when}} ({{timezone}}) قطعی شد.'),
@@ -301,6 +313,38 @@ final class NotificationCatalogue {
                     self::PRIMARY_LOCALE=>array('email'=>array('subject'=>'دلنوازان · '.$faLabel,'body'=>"درود،\n\n".$content[1]."\n\nاین پیام فقط برای اطلاع مدیر آموزشگاه است.\n\nدلنوازان")),
                 ));
             }
+        }
+        return $out;
+    }
+
+    // ------------------------------------------------------------------ consent lifecycle events
+
+    /**
+     * Consent notices are operational account messages. They never contain decision evidence,
+     * guardian identity, recording contents or research material.
+     */
+    private static function consentEvents():array{
+        $definitions=array(
+            'consent.teacher_required.teacher'=>array('Teacher Consent Required','consent_required','teacher','teacher','email','website','teacher_portal_url',array('teacher','teacher_portal_url'),'درود {{teacher}}، برای ادامهٔ همکاری لازم است انتخاب‌های ضبط کلاس و پژوهش را در پرتال مدرس بررسی کنید. هیچ کلاسی به‌صورت خودکار ضبط نمی‌شود. {{teacher_portal_url}}'),
+            'consent.student_required.student'=>array('Student Consent Required','consent_required','student','student','email','website','portal_url',array('name','portal_url'),'درود {{name}}، لطفاً انتخاب‌های ضبط کلاس و پژوهش را در حساب کاربری بررسی کنید. هیچ کلاسی بدون انتخاب شما ضبط نمی‌شود. {{portal_url}}'),
+            'consent.guardian_required.guardian'=>array('Guardian Consent Required','consent_required','guardian','guardian','email','website','portal_url',array('portal_url'),'درود، برای هنرجوی زیر ۱۸ سال، تصمیم دربارهٔ ضبط کلاس و پژوهش نیازمند تأیید سرپرست دارای اختیار است. لطفاً از حساب کاربری اقدام کنید. {{portal_url}}'),
+            'consent.recorded.teacher'=>array('Teacher Consent Recorded','consent_recorded','teacher','teacher','website','website','teacher_portal_url',array('teacher_portal_url'),'درود، انتخاب شما ثبت شد. تاریخچهٔ تصمیم‌ها در پرتال مدرس قابل مشاهده است. {{teacher_portal_url}}'),
+            'consent.recorded.student'=>array('Student Consent Recorded','consent_recorded','student','student','website','website','portal_url',array('portal_url'),'درود، انتخاب شما ثبت شد. تاریخچهٔ تصمیم‌ها در حساب کاربری قابل مشاهده است. {{portal_url}}'),
+            'consent.policy_updated.student'=>array('Student Consent Policy Updated','consent_policy_updated','student','student','email','website','portal_url',array('portal_url'),'درود، اطلاعیهٔ ضبط یا پژوهش به‌روزرسانی شده است. لطفاً نسخهٔ تازه را در حساب کاربری بررسی کنید. {{portal_url}}'),
+            'consent.policy_updated.teacher'=>array('Teacher Consent Policy Updated','consent_policy_updated','teacher','teacher','email','website','teacher_portal_url',array('teacher_portal_url'),'درود، اطلاعیهٔ ضبط یا پژوهش به‌روزرسانی شده است. لطفاً نسخهٔ تازه را در پرتال مدرس بررسی کنید. {{teacher_portal_url}}'),
+            'consent.withdrawal_confirmed.teacher'=>array('Teacher Consent Withdrawal Confirmed','consent_withdrawal','teacher','teacher','email','website','teacher_portal_url',array('teacher_portal_url'),'درود، درخواست پس گرفتن رضایت ثبت شد. پردازش‌های آیندهٔ وابسته متوقف می‌شود. {{teacher_portal_url}}'),
+            'consent.withdrawal_confirmed.student'=>array('Student Consent Withdrawal Confirmed','consent_withdrawal','student','student','email','website','portal_url',array('portal_url'),'درود، درخواست پس گرفتن رضایت ثبت شد. پردازش‌های آیندهٔ وابسته متوقف می‌شود. {{portal_url}}'),
+            'consent.admin_attention.admin'=>array('Consent Action Required','consent_attention','admin','admin','website','website','when',array('when'),'درود، یک مورد رضایت یا پردازش پس از پس گرفتن نیازمند بررسی مدیر است. زمان: {{when}}'),
+        );
+        $out=array();
+        foreach($definitions as$key=>$definition){
+            [$label,$template,$category,$audience,$channel,$consent,$variable,$variables,$body]=$definition;
+            $channels=array_values(array_unique(array($channel,'website')));
+            $out[]=self::event($key,$label,$category==='admin'?'account':'account',$audience,'ConsentNotificationService','queue',$channels,$consent,false,$variables,$template,array(
+                self::PRIMARY_LOCALE=>array('website'=>array('subject'=>$label,'body'=>$body),'email'=>array('subject'=>'دلنوازان · '.$label,'body'=>$body)),
+                'en'=>array('website'=>array('subject'=>$label,'body'=>$label.' — open your account to review the current choice.'),'email'=>array('subject'=>'Delnavazan · '.$label,'body'=>$label.' — open your account to review the current choice.')),
+            ));
+            $out[count($out)-1]['implementation']='partial';
         }
         return $out;
     }

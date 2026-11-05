@@ -10,9 +10,10 @@ namespace Delnavazan\Platform\Core\Application {
 namespace Delnavazan\Platform\Integrations {
     final class BookingNotificationMobileDispatcher {
         public static array $calls=array();
+        public static array $result=array('state'=>'accepted','channel'=>'whatsapp');
         public function dispatch(object $row,string $eventKey,array $variables):array{
             self::$calls[]=array('notification_id'=>(int)$row->id,'event_key'=>$eventKey,'variables'=>$variables);
-            return array('state'=>'skipped','reason'=>'test');
+            return self::$result;
         }
     }
 }
@@ -51,6 +52,8 @@ namespace {
     function wp_parse_url(string $url,int $component=-1): mixed { return parse_url($url,$component); }
     function wp_mail(string $to,string $subject,string $body,array $headers=array()): bool { global $mailCalls;$mailCalls[]=compact('to','subject','body','headers');return true; }
 
+    require_once dirname(__DIR__).'/src/Core/Application/BookingNotificationRecipient.php';
+    require_once dirname(__DIR__).'/src/Core/Application/BookingNotificationRelevance.php';
     require_once dirname(__DIR__).'/src/Integrations/BookingStudentNotificationWorker.php';
     $assert=static function(bool $ok,string $message):void{if(!$ok)throw new \RuntimeException($message);};
 
@@ -58,6 +61,7 @@ namespace {
     $result=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$repository);
     $assert($result['state']==='handed_off'&&$result['transport_accepted']===true&&$result['recipient_delivery_confirmed']===false,'wp_mail success must record transport handoff without claiming recipient delivery.');
     $assert($repository->row->handed_off_at!==null&&$repository->row->lease_token_digest===null,'A completed handoff must clear its lease and retain explicit handoff evidence.');
+    $assert($repository->row->last_error_code===null,'A successful WhatsApp hand-off must not create a mobile diagnostic.');
     $messageIds=array_values(array_filter($mailCalls[0]['headers'],static fn(string $header):bool=>str_starts_with($header,'Message-ID:')));
     $assert(count($messageIds)===1&&str_contains($messageIds[0],strtolower((string)$repository->row->uid)),'Each retry must carry a stable notification Message-ID.');
     $mobile=\Delnavazan\Platform\Integrations\BookingNotificationMobileDispatcher::$calls;
@@ -79,6 +83,7 @@ namespace {
     $confirmed->row->id=82;
     $confirmed->row->notification_kind='confirmed';
     $confirmed->row->confirmation_state='confirmed';
+    $confirmed->row->notification_kind='confirmed';$confirmed->row->confirmation_state='confirmed';
     $confirmed->row->confirmation_record_id=44;
     $confirmed->row->course_name='سه تار';
     $confirmed->row->teacher_name='نیما';
@@ -108,5 +113,18 @@ namespace {
     $aliasResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$aliasFree);
     $assert($aliasResult['state']==='handed_off'&&$aliasFree->row->last_error_code===null,'A payload without the legacy email alias must use student_email and remain deliverable.');
     $assert($mailCalls[1]['to']==='student@example.test','The Student recipient must come from student_email.');
+    $accountRecipient=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $accountRecipient->row->student_account_email='account@example.test';
+    $accountRecipient->row->student_email='snapshot@example.test';
+    $accountResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$accountRecipient);
+    $assert($accountResult['state']==='handed_off'&&end($mailCalls)['to']==='account@example.test','The current canonical Student account email must win over the legacy snapshot address.');
+    $stale=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $stale->row->notification_kind='requested_teacher';$stale->row->delivery_state='cancelled';$stale->row->lifecycle_status='closed';$stale->row->resolution_state='cancelled';
+    $staleResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$stale);
+    $assert($staleResult['state']==='failed'&&$stale->row->last_error_code==='invitation_stale','A cancelled invitation must be terminally refused, not replayed.');
+    \Delnavazan\Platform\Integrations\BookingNotificationMobileDispatcher::$result=array('state'=>'skipped','reason'=>'template_not_mapped');
+    $unmapped=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $unmappedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$unmapped);
+    $assert($unmappedResult['state']==='handed_off'&&$unmapped->row->last_error_code==='mobile_template_not_mapped','An unmapped mobile route must remain visible after independent email hand-off.');
     echo "Booking student notification unit passed\n";
 }

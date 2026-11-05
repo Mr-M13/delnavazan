@@ -112,27 +112,6 @@
     select.addEventListener('change', apply);
     apply();
   });
-  // After a quick-start step jumps to the real portal screen, highlight the exact section and
-  // keep the compact explanation banner visible. This never fabricates a section.
-  document.querySelectorAll('[data-dzn-auto-highlight]').forEach((banner) => {
-    const selector = banner.dataset.dznAutoHighlight || '';
-    let candidates = [];
-    try { candidates = selector ? Array.from(document.querySelectorAll(selector)) : []; } catch (e) { candidates = []; }
-    let target = candidates.find((element) => element.getClientRects().length > 0) || candidates[0] || null;
-    // A Teacher may have no class or attention card today; still highlight the relevant section
-    // so the explanation has a visible anchor.
-    if (!target) { target = document.querySelector('#tp-classes'); }
-    if (!target) return;
-    target.classList.add('is-dzn-induction-highlight');
-    if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    window.setTimeout(() => target.classList.remove('is-dzn-induction-highlight'), 6000);
-  });
-  document.querySelectorAll('[data-dzn-tp-highlight-close]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const banner = button.closest('.dzn-tp-highlight-banner');
-      if (banner) banner.hidden = true;
-    });
-  });
   // The compact dashboard card is optional after the first days. The full induction screen stays
   // reachable from Settings and from the card's own links.
   document.querySelectorAll('[data-dzn-tp-induction-skip]').forEach((button) => {
@@ -152,24 +131,53 @@
     try { skipped = window.localStorage.getItem('dznInductionCardSkipped') || ''; } catch (e) {}
     if (skipped === today) card.hidden = true;
   });
-})();
-
-(() => {
-  'use strict';
-  const banner = document.querySelector('[data-dzn-notification-banner]');
-  if (!banner) return;
-  const storageKey = `dzn-notification-banner:${banner.dataset.notificationId || 'latest'}`;
-  try {
-    if (window.sessionStorage.getItem(storageKey) === 'dismissed') banner.hidden = true;
-  } catch (error) {
-    // Storage may be unavailable; the banner still works for this render.
-  }
-  banner.querySelector('[data-dzn-notification-close]')?.addEventListener('click', () => {
-    banner.hidden = true;
-    try {
-      window.sessionStorage.setItem(storageKey, 'dismissed');
-    } catch (error) {
-      // Session dismissal is a convenience, never a business write.
-    }
+  // A notification without a read action can still be dismissed for this visit. When the
+  // read action exists, the close control is its submit button and marks the item read.
+  document.querySelectorAll('[data-dzn-notification-close][type="button"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const banner = button.closest('[data-dzn-notification-banner]');
+      if (banner) banner.hidden = true;
+    });
   });
+  // Teacher booking-request response window. The server owns acceptance; this only shows the
+  // remaining time and closes the already-rendered action controls when the window elapses.
+  const responseWindows = Array.from(document.querySelectorAll('[data-dzn-response-deadline]'));
+  if (responseWindows.length) {
+    const fa = (value) => Number(value).toLocaleString('fa-IR');
+    const remainingLabel = (seconds) => {
+      if (seconds <= 0) return 'مهلت پاسخ گذشته است';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return hours > 0 ? fa(hours) + ' ساعت و ' + fa(minutes) + ' دقیقه مانده' : fa(Math.max(1, minutes)) + ' دقیقه مانده';
+    };
+    let timer = null;
+    const tick = () => {
+      let active = 0;
+      responseWindows.forEach((windowEl) => {
+        const deadline = Date.parse(windowEl.dataset.dznResponseDeadline || '');
+        if (!Number.isFinite(deadline)) return;
+        const remaining = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+        const countdown = windowEl.querySelector('[data-dzn-response-countdown]');
+        if (countdown) countdown.textContent = remainingLabel(remaining);
+        if (remaining > 0) { active++; return; }
+        windowEl.classList.add('is-expired');
+        windowEl.dataset.dznResponseExpired = '1';
+        const card = windowEl.closest('.dzn-tp-attention-card');
+        if (!card) return;
+        card.querySelectorAll('form[data-dzn-tp-submit] button[type="submit"]').forEach((button) => {
+          button.disabled = true;
+          button.setAttribute('aria-disabled', 'true');
+        });
+        if (!card.querySelector('.dzn-tp-response-expired')) {
+          const note = document.createElement('p');
+          note.className = 'dzn-tp-help dzn-tp-response-expired';
+          note.textContent = 'مهلت ۲۴ ساعتهٔ پاسخ به پایان رسیده است؛ درخواست برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.';
+          windowEl.insertAdjacentElement('afterend', note);
+        }
+      });
+      if (active === 0 && timer !== null) window.clearInterval(timer);
+    };
+    tick();
+    timer = window.setInterval(tick, 1000);
+  }
 })();

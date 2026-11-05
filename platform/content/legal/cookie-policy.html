@@ -17,7 +17,7 @@ No analytics provider or consent-management platform is implemented in the repos
 <li><strong>آزمون کوکی WordPress:</strong> کوکی <span dir="ltr">wordpress_test_cookie</span> بررسی می‌کند که مرورگر کوکی را می‌پذیرد.</li>
 <li><strong>ترجیحات رابط WordPress:</strong> کوکی‌هایی با نام <span dir="ltr">wp-settings-*</span> ممکن است تنظیمات نمایشی یا وضعیت رابط مدیریت را نگه دارند.</li>
 <li><strong>توکن امنیتی ثبت درخواست:</strong> کوکی <span dir="ltr">dzn_booking_csrf</span> برای محافظت از فرم ثبت درخواست کلاس آشنایی در برابر درخواست جعلی استفاده می‌شود و HttpOnly است.</li>
-<li><strong>جریان اختیاری Google:</strong> کوکی <span dir="ltr">dzn_google_oauth</span> فقط در فرایند اتصال حساب Google توسط مدرس استفاده می‌شود و کوتاه‌عمر و HttpOnly است.</li>
+<li><strong>جریان مدیریتی Google:</strong> کوکی‌های موقت جریان OAuth فقط در فرایند اتصال حساب سازمانی دلنوازان توسط مدیر استفاده می‌شوند و کوتاه‌عمر و HttpOnly هستند. مدرس حساب Google شخصی متصل نمی‌کند.</li>
 </ul>
 
 <h2>۳. کوکی‌های نشست WordPress</h2>
@@ -32,9 +32,9 @@ No analytics provider or consent-management platform is implemented in the repos
 <p>برخی سرویس‌های یکپارچه ممکن است هنگام استفاده از جریان مربوط، کوکی یا ذخیره‌سازی خود را قرار دهند. این موارد فقط در حدی فعال می‌شوند که شما از آن سرویس استفاده کنید:</p>
 <ul>
 <li><strong>Stripe:</strong> صفحهٔ پرداخت میزبان‌شده ممکن است برای پردازش امن پرداخت، کوکی‌ها یا فناوری‌های ضدتقلب خود را به کار بگیرد. اطلاعات کارت در اختیار دلنوازان قرار نمی‌گیرد.</li>
-<li><strong>Google:</strong> جریان ورود و اتصال اختیاری مدرس به Google Calendar یا Google Meet ممکن است کوکی‌ها یا ذخیره‌سازی Google را در دامنهٔ Google فعال کند.</li>
+<li><strong>Google:</strong> ورود به Google Meet و جریان مدیریتی Google Workspace ممکن است کوکی‌ها یا ذخیره‌سازی Google را در دامنهٔ Google فعال کند.</li>
 <li><strong>Cloudflare:</strong> وب‌سایت از Cloudflare برای تحویل و امنیت استفاده می‌کند. Cloudflare ممکن است برای تشخیص ربات و حفاظت امنیتی، داده‌های فنی و در برخی تنظیمات کوکی‌های امنیتی پردازش کند.</li>
-<li><strong>LiveKit:</strong> در صورت فعال بودن اتاق کلاس آزمایشی، اتصال به LiveKit ممکن است ذخیره‌سازی فنی مرتبط با نشست ایجاد کند. در نسخهٔ فعلی، ضبط یا تحلیل در LiveKit پیاده‌سازی نشده است.</li>
+<li><strong>LiveKit:</strong> اتاق آزمایشی LiveKit از محیط تولید بازنشسته شده است و در نسخهٔ فعلی هیچ اتصال فعالی ایجاد نمی‌کند.</li>
 </ul>
 <p>این فهرست، فهرست کامل کوکی‌های هر ارائه‌دهنده نیست. برای جزئیات، سیاست کوکی و حریم خصوصی همان ارائه‌دهنده را ببینید. پیش از انتشار نهایی این سند، فهرست ارائه‌دهندگانی که واقعاً در محیط تولید فعال هستند باید تأیید شود.</p>
 

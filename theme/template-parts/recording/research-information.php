@@ -12,7 +12,7 @@ $authority = \Delnavazan\Platform\Core\Application\RecordingDecisionAuthoritySer
 if ( class_exists( $authority ) ) {
 	try {
 		$service = new $authority();
-		foreach ( array( 'teacher_terms' => 'Teacher terms · شرایط مدرس', 'student_lesson_recording' => 'Student recording · ضبط هنرجو', 'student_research_model_training' => 'Student research · پژوهش هنرجو' ) as $audience => $label ) {
+		foreach ( array( 'teacher_terms' => 'Teacher recorded-work terms · شرایط کار ضبط‌شدهٔ مدرس', 'teacher_lesson_recording' => 'Teacher recording · ضبط مدرس', 'teacher_research_model_training' => 'Teacher research · پژوهش مدرس', 'student_lesson_recording' => 'Student recording · ضبط هنرجو', 'student_research_model_training' => 'Student research · پژوهش هنرجو', 'privacy_terms' => 'Privacy · حریم خصوصی' ) as $audience => $label ) {
 			foreach ( array( 'en', 'fa' ) as $language ) {
 				$notice = $service->publishedNotice( $audience, $language );
 				if ( is_array( $notice ) ) { $notices[] = array_merge( $notice, array( 'label' => $label ) ); }

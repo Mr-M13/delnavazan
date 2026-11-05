@@ -15,9 +15,12 @@ final class RecordingNoticeAdminController {
     public const ACTION = 'dzn_recording_notice_command';
 
     private const AUDIENCE_LABELS = array(
-        'teacher_terms' => 'Teacher recording terms',
+        'teacher_terms' => 'Teacher recorded-work terms',
+        'teacher_lesson_recording' => 'Teacher lesson recording',
+        'teacher_research_model_training' => 'Teacher research and model training',
         'student_lesson_recording' => 'Student lesson recording',
         'student_research_model_training' => 'Student research and model training',
+        'privacy_terms' => 'Privacy policy acknowledgement',
     );
     private const LANGUAGE_LABELS = array('en' => 'English', 'fa' => 'Persian (فارسی)');
 

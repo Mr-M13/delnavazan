@@ -56,7 +56,7 @@
     session: null,
     micOn: true,
     cameraOn: true,
-    musicOn: false,
+    musicOn: true,
     connecting: false,
     leaving: false,
     reconnectAttempt: 0,
@@ -67,9 +67,12 @@
     musicChangedBy: '',
     musicStamp: { at: 0, sender: '' },
     musicApplyToken: 0,
-    ending: false
+    ending: false,
+    controlsTimer: null,
+    iosVideoFullscreen: false
   };
   state.ticketClaim = readTicketClaim(state.ticket);
+  if (music) music.checked = state.musicOn;
 
   if (!state.ticket) {
     setConnection('پیوند ورود به کلاس معتبر نیست.', 'error');
@@ -106,11 +109,11 @@
       adaptiveStream: true,
       dynacast: true,
       audioCaptureDefaults: captureOptions(),
-      videoCaptureDefaults: { resolution: { width: 1280, height: 720, frameRate: 24 } },
+      videoCaptureDefaults: cameraCaptureOptions(),
       publishDefaults: {
         audioPreset: preset,
         dtx: false,
-        red: false,
+        red: true,
         forceStereo: state.musicOn,
         videoCodec: 'h264',
         simulcast: true
@@ -141,9 +144,19 @@
     return {
       audioPreset: state.musicOn ? (LK.AudioPresets.musicHighQualityStereo || LK.AudioPresets.music) : LK.AudioPresets.speech,
       dtx: false,
-      red: false,
+      red: true,
       forceStereo: state.musicOn
     };
+  }
+
+  // Ask capable cameras for 1080p/30fps; LiveKit adapts the published layer to the
+  // subscriber and network. Constrained connections keep the existing 720p/24fps ceiling.
+  function cameraCaptureOptions() {
+    var network = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    var constrained = !!(network && (network.saveData || /(^|-)2g/.test(String(network.effectiveType || ''))));
+    return constrained
+      ? { resolution: { width: 1280, height: 720, frameRate: 24 } }
+      : { resolution: { width: 1920, height: 1080, frameRate: 30 } };
   }
 
   async function connect(isReconnect) {
@@ -186,6 +199,8 @@
     }
     await connectWithTimeout(room, session);
     if (state.room !== room) return;
+    root.classList.add('is-immersive');
+    revealControls();
     // Publish the connected state before requesting media: a slow device-permission or capture
     // prompt must not leave the classroom looking disconnected after the LiveKit session is live.
     setConnection('کلاس متصل است.', 'connected');
@@ -272,7 +287,7 @@
     room.on(LK.RoomEvent.TrackSubscribed, function (track, publication, participant) {
       if (state.room !== room) return;
       if (track.kind === LK.Track.Kind.Video) attachRemoteVideo(track);
-      if (track.kind === LK.Track.Kind.Audio) attachRemoteAudio(track);
+      if (track.kind === LK.Track.Kind.Audio) attachRemoteAudio(track, participant);
       if (participant) updateParticipants(participant);
     });
     room.on(LK.RoomEvent.TrackUnsubscribed, function (track) {
@@ -345,7 +360,7 @@
   async function enableCamera() {
     if (!state.room) return;
     try {
-      await state.room.localParticipant.setCameraEnabled(true, { resolution: { width: 1280, height: 720, frameRate: 24 } });
+      await state.room.localParticipant.setCameraEnabled(true, cameraCaptureOptions());
       state.cameraOn = true;
       attachLocalCamera();
     } catch (error) {
@@ -372,7 +387,7 @@
   async function setCamera(on) {
     if (!state.room) return;
     try {
-      await state.room.localParticipant.setCameraEnabled(on, { resolution: { width: 1280, height: 720, frameRate: 24 } });
+      await state.room.localParticipant.setCameraEnabled(on, cameraCaptureOptions());
       state.cameraOn = on;
       if (on) attachLocalCamera();
       else detachLocalCamera();
@@ -532,8 +547,9 @@
     if (remotePlaceholder) remotePlaceholder.hidden = true;
   }
 
-  function attachRemoteAudio(track) {
+  function attachRemoteAudio(track, participant) {
     if (!remoteAudio) return;
+    if (participant && state.room && state.room.localParticipant && String(participant.identity) === String(state.room.localParticipant.identity)) return;
     remoteAudio.replaceChildren();
     var element = document.createElement('audio');
     element.autoplay = true;
@@ -598,8 +614,6 @@
 
   function syncRotationButton() {
     if (!rotateButton) return;
-    var label = rotateButton.querySelector('span');
-    if (label) label.textContent = 'چرخش: ' + toPersianDigits(state.rotation) + '°';
     rotateButton.setAttribute('aria-pressed', String(state.rotation !== 0));
     rotateButton.setAttribute('aria-label', 'چرخش نمایش ویدئو: ' + rotationLabel(state.rotation) + ' (فقط نمایش محلی)');
     rotateButton.title = 'چرخش نمایش ویدئو: ' + rotationLabel(state.rotation) + ' — جهت دوربین ارسالی تغییر نمی‌کند';
@@ -637,18 +651,83 @@
     return document.fullscreenElement || document.webkitFullscreenElement || null;
   }
 
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function activeVideo() {
+    if (remoteVideo && (remoteVideo.srcObject || remoteVideo.currentSrc)) return remoteVideo;
+    return localVideo || remoteVideo || null;
+  }
+
+  function iosVideoFullscreenActive() {
+    var video = activeVideo();
+    return !!(state.iosVideoFullscreen || (video && video.webkitDisplayingFullscreen));
+  }
+
   function syncFullscreenButton() {
     if (!fullscreenButton || !root) return;
-    var active = !!nativeFullscreenElement() || root.classList.contains('is-faux-fullscreen');
+    var active = !!nativeFullscreenElement() || iosVideoFullscreenActive() || root.classList.contains('is-faux-fullscreen');
     fullscreenButton.setAttribute('aria-pressed', String(active));
-    var label = fullscreenButton.querySelector('span');
-    if (label) label.textContent = active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه';
+    fullscreenButton.setAttribute('aria-label', active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه');
     fullscreenButton.title = active ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه';
+  }
+
+  function requestDeviceFullscreen() {
+    if (!root) return;
+    // iOS Safari has no Element.requestFullscreen. Native video fullscreen is the only path that
+    // covers the whole device, including the browser chrome.
+    if (isIOS()) {
+      var video = activeVideo();
+      var enter = video && (video.webkitEnterFullscreen || video.webkitRequestFullscreen);
+      if (enter) {
+        try { enter.call(video); return; } catch (ignored) {}
+      }
+    }
+    var request = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (request) {
+      try {
+        var result = request.call(root, { navigationUI: 'hide' });
+        if (result && typeof result.then === 'function') {
+          result.then(function () {
+            if (screen.orientation && screen.orientation.lock) {
+              try { screen.orientation.lock('landscape').catch(function () {}); } catch (ignored) {}
+            }
+          }).catch(function () { enterFauxFullscreen(); });
+        }
+        return;
+      } catch (ignored) {
+        try {
+          var fallback = request.call(root);
+          if (fallback && typeof fallback.catch === 'function') fallback.catch(function () { enterFauxFullscreen(); });
+          return;
+        } catch (ignoredAgain) {}
+      }
+    }
+    enterFauxFullscreen();
+  }
+
+  function revealControls() {
+    if (!root) return;
+    root.classList.add('is-controls-visible');
+  }
+
+  function hideControls() {
+    if (!root) return;
+    root.classList.remove('is-controls-visible');
+  }
+
+  function toggleControls() {
+    if (!root) return;
+    if (root.classList.contains('is-controls-visible')) hideControls();
+    else revealControls();
   }
 
   function enterFauxFullscreen() {
     if (!root) return;
     root.classList.add('is-faux-fullscreen');
+    revealControls();
     document.body.classList.add('dzn-classroom-faux-active');
     syncFullscreenButton();
     window.setTimeout(updateRotationGeometry, 60);
@@ -657,6 +736,7 @@
   function exitFauxFullscreen() {
     if (!root) return;
     root.classList.remove('is-faux-fullscreen');
+    revealControls();
     document.body.classList.remove('dzn-classroom-faux-active');
     syncFullscreenButton();
     updateRotationGeometry();
@@ -669,16 +749,15 @@
       if (exit) { try { exit.call(document); } catch (ignored) {} }
       return;
     }
-    if (root.classList.contains('is-faux-fullscreen')) { exitFauxFullscreen(); return; }
-    var request = root.requestFullscreen || root.webkitRequestFullscreen;
-    if (!request) { enterFauxFullscreen(); return; }
-    try {
-      var result = request.call(root);
-      if (result && typeof result.catch === 'function') result.catch(function () { enterFauxFullscreen(); });
-    } catch (ignored) {
-      enterFauxFullscreen();
+    if (iosVideoFullscreenActive()) {
+      var video = activeVideo();
+      var exitVideo = video && video.webkitExitFullscreen;
+      if (exitVideo) { try { exitVideo.call(video); } catch (ignored) {} }
+      return;
     }
-    window.setTimeout(function () { if (!nativeFullscreenElement() && !root.classList.contains('is-faux-fullscreen')) enterFauxFullscreen(); }, 350);
+    if (root.classList.contains('is-faux-fullscreen')) { exitFauxFullscreen(); return; }
+    requestDeviceFullscreen();
+    window.setTimeout(function () { if (!nativeFullscreenElement() && !iosVideoFullscreenActive() && !root.classList.contains('is-faux-fullscreen')) enterFauxFullscreen(); }, 500);
   }
 
   /* ---------------------------------------------------------------------
@@ -740,25 +819,22 @@
     if (!micButton) return;
     micButton.setAttribute('aria-pressed', String(state.micOn));
     micButton.classList.toggle('is-off', !state.micOn);
-    micButton.querySelector('span').textContent = state.micOn ? 'میکروفن روشن' : 'میکروفن خاموش';
+    micButton.setAttribute('aria-label', state.micOn ? 'میکروفن روشن' : 'میکروفن خاموش');
+    micButton.title = state.micOn ? 'میکروفن روشن' : 'میکروفن خاموش';
   }
 
   function updateCameraButton() {
     if (!cameraButton) return;
     cameraButton.setAttribute('aria-pressed', String(state.cameraOn));
     cameraButton.classList.toggle('is-off', !state.cameraOn);
-    cameraButton.querySelector('span').textContent = state.cameraOn ? 'دوربین روشن' : 'دوربین خاموش';
+    cameraButton.setAttribute('aria-label', state.cameraOn ? 'دوربین روشن' : 'دوربین خاموش');
+    cameraButton.title = state.cameraOn ? 'دوربین روشن' : 'دوربین خاموش';
   }
 
   function updateMusicLabel() {
     if (!music) return;
     var toggle = music.closest('.dzn-classroom__switch');
-    var small = toggle ? toggle.querySelector('small') : null;
-    if (small) {
-      small.textContent = state.musicOn
-        ? 'حالت مشترک روشن: درخواست استریو و کیفیت بالاتر بدون حذف نویز؛ دستگاه شما ممکن است همه را نپذیرد.'
-        : 'حالت مشترک خاموش: کیفیت گفت‌وگو با حذف نویز و کنترل خودکار صدا.';
-    }
+    if (toggle) toggle.title = state.musicOn ? 'حالت موسیقی روشن' : 'حالت موسیقی خاموش';
     if (!musicStatus) return;
     if (!state.musicOn) {
       musicStatus.hidden = true;
@@ -1001,6 +1077,27 @@
     if (event.key === 'Escape' && root && root.classList.contains('is-faux-fullscreen')) exitFauxFullscreen();
   });
   window.addEventListener('resize', updateRotationGeometry);
+  if (stage) {
+    var lastTap = 0;
+    var tapTimer = null;
+    stage.addEventListener('pointerup', function (event) {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (event.target && event.target.closest && event.target.closest('button,a,input,select,label')) return;
+      var now = Date.now();
+      if (now - lastTap < 300) {
+        lastTap = 0;
+        if (tapTimer) { window.clearTimeout(tapTimer); tapTimer = null; }
+        toggleFullscreen();
+        return;
+      }
+      lastTap = now;
+      tapTimer = window.setTimeout(function () {
+        tapTimer = null;
+        toggleControls();
+      }, 280);
+    }, { passive: true });
+  }
+  if (root) root.addEventListener('focusin', revealControls);
   if (window.ResizeObserver && stage) {
     state.rotationObserver = new ResizeObserver(function () { updateRotationGeometry(); });
     state.rotationObserver.observe(stage);
@@ -1016,5 +1113,17 @@
   syncRotationButton();
   updateRotationGeometry();
   syncFullscreenButton();
+  [remoteVideo, localVideo].forEach(function (video) {
+    if (!video) return;
+    video.addEventListener('webkitbeginfullscreen', function () {
+      state.iosVideoFullscreen = true;
+      syncFullscreenButton();
+    });
+    video.addEventListener('webkitendfullscreen', function () {
+      state.iosVideoFullscreen = false;
+      syncFullscreenButton();
+      window.setTimeout(updateRotationGeometry, 80);
+    });
+  });
   connect(false);
 })();

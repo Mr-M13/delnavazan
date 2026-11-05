@@ -8,7 +8,7 @@ use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Teacher-owned Accept/Decline authority for one delivered introductory booking request. */
 final class BookingTeacherResponseService {
-    public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null){$this->repository??=new BookingTeacherResponseRepository();}
+    public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null,private ?BookingAllocationService $allocation=null){$this->repository??=new BookingTeacherResponseRepository();$this->allocation??=new BookingAllocationService();}
 
     public function respond(string $deliveryUid,string $decision,string $commandKey):array{
         $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
@@ -27,19 +27,19 @@ final class BookingTeacherResponseService {
             if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
             if(!$delivery||(int)$delivery->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');
             if((string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            $this->allocation->assertPending($delivery,$now);
             if($decision==='decline'){
-                $this->repository->transitionDelivery($deliveryId,'pending_request','declined',$now);
-                $this->repository->closeRequest((int)$delivery->booking_request_id,'teacher_declined',$now,$actor);
-                $this->queueNotification($deliveryId,null,'declined',$now);
+                $next=$this->allocation->advanceLocked($delivery,'declined',$now);
                 $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'decline','result_state'=>'declined','result_confirmation_id'=>null,'created_at'=>$now,'created_by'=>$actor));
-                $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','idempotent'=>false);
+                $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','next_offer'=>$next,'idempotent'=>false);
             }
+            $this->allocation->assertAcceptable($delivery,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
+            $this->allocation->acceptedLocked($delivery,$now);
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
-        if($this->projector!==null)return $this->projector->dispatch((int)$confirmationId);
-        return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'accepting','idempotent'=>false);
+        return $this->dispatchProjection((int)$deliveryId,(int)$confirmationId);
     }
 
     /**
@@ -67,11 +67,27 @@ final class BookingTeacherResponseService {
             $teacher=$this->repository->teacherForAdministrator((int)$delivery->teacher_id,true);
             if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
+            $this->allocation->administratorAcceptedLocked($delivery,$now);
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
-        if($this->projector!==null)return $this->projector->dispatch((int)$confirmationId);
-        return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'accepting','idempotent'=>false);
+        return $this->dispatchProjection($deliveryId,(int)$confirmationId);
+    }
+
+    /**
+     * Acceptance is already committed before the provider call. A dispatch exception must therefore
+     * never be reported as a lost acceptance; leave the durable confirmation retryable for the worker.
+     */
+    private function dispatchProjection(int $deliveryId,int $confirmationId):array{
+        if($this->projector===null)return array('delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'state'=>'accepting','idempotent'=>false);
+        try{
+            $result=$this->projector->dispatch($confirmationId);
+            if(is_array($result))$result['delivery_id']=$deliveryId;
+            return is_array($result)?$result:array('delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'state'=>'retryable','failure_reason_code'=>'booking_projection_pending','retryable'=>true,'idempotent'=>false);
+        }catch(\Throwable $error){
+            do_action('dzn_booking_calendar_projection_failed',$confirmationId,get_class($error));
+            return array('delivery_id'=>$deliveryId,'confirmation_id'=>$confirmationId,'state'=>'retryable','failure_reason_code'=>'booking_projection_pending','retryable'=>true,'idempotent'=>false);
+        }
     }
 
     /** @return array{0:int,1:bool,2:?string} */
@@ -87,7 +103,14 @@ final class BookingTeacherResponseService {
         if($occupiedEnd==='')throw new \RuntimeException('Booking requested time is unavailable');
         if($this->repository->studentOccupancyConflicts($studentId,array(array('starts_at_utc'=>(string)$delivery->starts_at_utc,'occupied_ends_at_utc'=>$occupiedEnd)),array('exclude_booking_request_id'=>(int)$delivery->booking_request_id)))throw new \InvalidArgumentException('student_slot_conflict');
         if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
-        $connection=$this->repository->activeConnection((int)$teacher->id,true);if(!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
+        // The central Delnavazan Workspace organizer creates the classroom. A Teacher personal
+        // Google grant is required only while the caller has explicitly rolled back to legacy.
+        $centralInstalled=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');
+        // The central code path owns the booking even while the organizer is temporarily paused or
+        // re-authorising. Persist acceptance as retryable instead of rejecting it or falling back to
+        // a Teacher-owned Calendar event.
+        $connection=$centralInstalled?null:$this->repository->activeConnection((int)$teacher->id,true);
+        if(!$centralInstalled&&!$connection)throw new \InvalidArgumentException('Google Calendar connection required');
         $zone=new \DateTimeZone((string)$teacher->timezone);$start=new \DateTimeImmutable((string)$delivery->starts_at_utc,new \DateTimeZone('UTC'));
         $pricing=$this->introPricing!==null?($this->introPricing)((int)$delivery->booking_request_id):(new IntroPricingService())->forBooking((int)$delivery->booking_request_id);
         $paid=$pricing['mode']==='paid';
@@ -97,7 +120,7 @@ final class BookingTeacherResponseService {
             $confirmationId=(int)$prior->id;
             $resume=$paid?'awaiting_payment':($prior->provider_event_digest===null?'pending_projection':'awaiting_conference');
             $this->repository->updateConfirmation($confirmationId,(int)$prior->version,array(
-                'connection_id'=>(int)$connection->id,'state'=>$resume,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,
+                'connection_id'=>$connection?(int)$connection->id:0,'state'=>$resume,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,
                 'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
                 'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
                 'updated_at'=>$now,'updated_by'=>$actor,
@@ -105,7 +128,7 @@ final class BookingTeacherResponseService {
         }else{
             $confirmationId=$this->repository->insertConfirmation(array(
                 'uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'booking_request_id'=>(int)$delivery->booking_request_id,'requested_time_id'=>(int)$delivery->requested_time_id,
-                'teacher_id'=>(int)$teacher->id,'connection_id'=>(int)$connection->id,'state'=>$paid?'awaiting_payment':'pending_projection','version'=>1,
+                'teacher_id'=>(int)$teacher->id,'connection_id'=>$connection?(int)$connection->id:0,'state'=>$paid?'awaiting_payment':'pending_projection','version'=>1,
                 'starts_at_utc'=>(string)$delivery->starts_at_utc,'ends_at_utc'=>(string)$delivery->instructional_ends_at_utc,
                 'schedule_timezone'=>(string)$teacher->timezone,'local_wall_date'=>$start->setTimezone($zone)->format('Y-m-d'),'local_wall_time'=>$start->setTimezone($zone)->format('H:i:s'),
                 'provider_code'=>'google_calendar','provider_event_digest'=>null,'failure_reason_code'=>null,'attempt_count'=>0,'next_attempt_at'=>$now,'confirmed_at'=>null,

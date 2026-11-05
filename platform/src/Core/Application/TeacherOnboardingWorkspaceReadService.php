@@ -68,7 +68,7 @@ final class TeacherOnboardingWorkspaceReadService {
         $blockers = array();
         foreach ($profileIssues as $issue) $blockers[] = $issue;
         if ((string) $progress['availability_state'] !== 'complete') $blockers[] = 'Weekly availability is incomplete.';
-        if ((string) $progress['google_state'] !== 'connected') $blockers[] = 'Google Calendar account is not connected.';
+        // No Teacher Google connection is required: Delnavazan owns the Workspace organizer.
         return $blockers;
     }
 
@@ -93,31 +93,22 @@ final class TeacherOnboardingWorkspaceReadService {
         if ($state === 'active' && ((string) ($row->readiness_state ?? '') === 'ready' || !empty($progress['ready_for_activation']))) return 'No onboarding action required.';
         if ($profileIssues) return 'Teacher to complete the missing profile fields.';
         if ((string) $progress['availability_state'] !== 'complete') return 'Teacher to complete weekly availability.';
-        if ((string) $progress['google_state'] !== 'connected') return 'Teacher to connect a Google account.';
+        // Classroom access is provisioned centrally by Delnavazan.
         return 'Await the Teacher submission.';
     }
 
     /** @return array<string, mixed> */
     private function googleState(?object $google, array $progress): array {
-        $connectionState = (string) ($google->connection_state ?? 'not_connected');
-        $identityState = (string) ($google->identity_state ?? 'unverified');
-        $connected = (string) $progress['google_state'] === 'connected';
-        $label = $connected
-            ? 'Google account connected'
-            : ($connectionState === 'not_connected'
-                ? 'Google account not connected'
-                : ($connectionState === 'connected'
-                    ? 'Connection recorded; credential not ready'
-                    : ($connectionState === 'refresh_failed'
-                        ? 'Google authorisation expired; reconnection required'
-                        : ($connectionState === 'disconnected' ? 'Google account disconnected' : ucfirst(str_replace('_', ' ', $connectionState))))));
+        // A legacy Teacher grant may still exist for historical events. It is reported for the
+        // administrator but is no longer requested, required or presented as a readiness blocker.
         return array(
-            'connection_state' => $connectionState,
-            'identity_state' => $identityState,
-            'label' => $label,
-            'scope_verified' => $google !== null && (string) ($google->scope_snapshot ?? '') === ProviderIntegrationRule::GOOGLE_CALENDAR_SCOPE,
-            'meet_caveat' => 'A Google account connection does not prove that Google Meet is operational.',
-            'ready_for_activation' => (string) $progress['google_state'] === 'connected',
+            'connection_state' => (string) ($google->connection_state ?? 'managed_centrally'),
+            'identity_state' => (string) ($google->identity_state ?? 'managed_centrally'),
+            'label' => 'Classroom managed centrally by Delnavazan',
+            'scope_verified' => true,
+            'legacy_teacher_grant' => $google !== null,
+            'meet_caveat' => 'Teachers join as external co-hosts; they are not asked to connect Google.',
+            'ready_for_activation' => true,
         );
     }
 

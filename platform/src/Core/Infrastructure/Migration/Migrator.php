@@ -494,6 +494,7 @@ final class Migrator {
 	private const CAPABILITY_OPTION_U = 'dzn_platform_capability_version_2a2u'; private const CAPABILITY_VERSION_U = '2a2u';
 	private const CAPABILITY_OPTION_W = 'dzn_platform_capability_version_2a2w'; private const CAPABILITY_VERSION_W = '2a2w';
 	private const CAPABILITY_OPTION_S = 'dzn_platform_capability_version_2a2s'; private const CAPABILITY_VERSION_S = '2a2s';
+	private const CAPABILITY_OPTION_RECORDING = 'dzn_platform_capability_version_recording_archive'; private const CAPABILITY_VERSION_RECORDING = 'recording_archive_v1';
 	public static function on_activation(): void { self::ensure_capabilities(); self::maybe_upgrade(); }
 	public static function maybe_upgrade(): void {
 		$completed = (array) get_option( self::COMPLETED, array() );
@@ -519,7 +520,9 @@ final class Migrator {
 		if ( in_array( '041_teacher_principal_projection_repair', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_teacher_principal_projection(); }
 		if ( in_array( '042_booking_teacher_delivery', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_booking_teacher_delivery_schema(); }
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( in_array( '069_booking_allocation', $completed, true ) ) { self::verify_booking_allocation_schema(); }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) && in_array( '066_consent_lifecycle_authority', $completed, true ) && in_array( '067_recording_archive_authority', $completed, true ) && in_array( '068_google_meet_classroom_authority', $completed, true ) && in_array( '069_booking_allocation', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
 		if ( $lock && isset( $lock['at'] ) && time() - (int) $lock['at'] >= 900 ) { delete_option( self::LOCK ); }
@@ -630,11 +633,30 @@ final class Migrator {
 				self::install_teacher_induction_progress();self::verify_teacher_induction_progress_schema();
 				$done[]='064_teacher_induction_progress';update_option(self::COMPLETED,$done,false);
 			}
+
 			if(!in_array('065_confirmed_intro_cancellation',$done,true)){
 				self::install_confirmed_intro_cancellation();self::verify_confirmed_intro_cancellation_schema();
 				$done[]='065_confirmed_intro_cancellation';update_option(self::COMPLETED,$done,false);
 			}
 			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();self::verify_finance_notification_outbox_schema();self::verify_teacher_induction_progress_schema();self::verify_confirmed_intro_cancellation_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			if(!in_array('066_consent_lifecycle_authority',$done,true)){
+				self::install_consent_lifecycle_authority();self::verify_consent_lifecycle_authority_schema();
+				$done[]='066_consent_lifecycle_authority';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('067_recording_archive_authority',$done,true)){
+				self::install_recording_archive_authority();self::verify_recording_archive_authority_schema();
+				$done[]='067_recording_archive_authority';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('068_google_meet_classroom_authority',$done,true)){
+				self::install_google_meet_classroom_authority();self::verify_google_meet_classroom_authority_schema();
+				$done[]='068_google_meet_classroom_authority';update_option(self::COMPLETED,$done,false);
+			}
+			if(!in_array('069_booking_allocation',$done,true)){
+				self::install_booking_allocation();self::verify_booking_allocation_schema();
+				$done[]='069_booking_allocation';update_option(self::COMPLETED,$done,false);
+			}
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();self::verify_finance_notification_outbox_schema();self::verify_teacher_induction_progress_schema();self::verify_confirmed_intro_cancellation_schema();self::verify_recording_archive_authority_schema();self::verify_google_meet_classroom_authority_schema();self::verify_booking_allocation_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
 	/**
@@ -806,6 +828,22 @@ final class Migrator {
 		if($wpdb->last_error!==''||$mismatch!==0)throw new \RuntimeException('Migration verification failed: Teacher principal projection');
 	}
 	/** Durable pending request delivery; intentionally separate from confirmed Lessons and provider projections. */
+	private static function install_booking_allocation():void{
+		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
+		foreach(array(
+			"CREATE TABLE {$p}booking_allocation_offers (id bigint unsigned NOT NULL AUTO_INCREMENT,booking_request_id bigint unsigned NOT NULL,delivery_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,requested_time_id bigint unsigned NOT NULL,offer_sequence int unsigned NOT NULL,state varchar(24) NOT NULL,active_slot tinyint unsigned NULL,match_strength varchar(16) NOT NULL,offered_at datetime NOT NULL,deadline_at datetime NOT NULL,responded_at datetime NULL,reason_code varchar(64) NULL,expiry_notified_at datetime NULL,PRIMARY KEY(id),UNIQUE KEY request_sequence(booking_request_id,offer_sequence),UNIQUE KEY request_teacher(booking_request_id,teacher_id),UNIQUE KEY request_active(booking_request_id,active_slot),KEY due(state,deadline_at),KEY delivery_id(delivery_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}booking_allocation_cursors (course_id bigint unsigned NOT NULL,last_teacher_id bigint unsigned NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(course_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}booking_allocation_alerts (id bigint unsigned NOT NULL AUTO_INCREMENT,booking_request_id bigint unsigned NOT NULL,kind varchar(24) NOT NULL,reason_code varchar(64) NOT NULL,priority varchar(16) NOT NULL,state varchar(16) NOT NULL,created_at datetime NOT NULL,resolved_at datetime NULL,notified_at datetime NULL,PRIMARY KEY(id),UNIQUE KEY request_kind(booking_request_id,kind),KEY queue(state,priority,created_at)) ENGINE=InnoDB $c"
+			,"CREATE TABLE {$p}booking_allocation_notifications (id bigint unsigned NOT NULL AUTO_INCREMENT,offer_id bigint unsigned NOT NULL,state varchar(16) NOT NULL,attempt_count int unsigned NOT NULL DEFAULT 0,next_attempt_at datetime NULL,lease_expires_at datetime NULL,last_error_code varchar(64) NULL,handed_off_at datetime NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY offer_id(offer_id),KEY dispatch(state,next_attempt_at,lease_expires_at)) ENGINE=InnoDB $c"
+		) as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Booking allocation migration failed: '.$wpdb->last_error);}
+	}
+	private static function verify_booking_allocation_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		foreach(array('booking_allocation_offers','booking_allocation_cursors','booking_allocation_alerts','booking_allocation_notifications') as $name)if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$p.$name))!==$p.$name)throw new \RuntimeException('Booking allocation schema missing '.$name);
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}booking_allocation_alerts LIKE 'notified_at'"))throw new \RuntimeException('Booking allocation notification marker missing');
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}booking_allocation_offers LIKE 'expiry_notified_at'"))throw new \RuntimeException('Booking allocation expiry marker missing');
+		foreach(array(array('booking_allocation_offers','request_sequence',true,array('booking_request_id','offer_sequence')),array('booking_allocation_offers','request_teacher',true,array('booking_request_id','teacher_id')),array('booking_allocation_offers','request_active',true,array('booking_request_id','active_slot')),array('booking_allocation_alerts','request_kind',true,array('booking_request_id','kind'))) as $index)if(!self::has_index_columns($p.$index[0],$index[1],$index[2],$index[3]))throw new \RuntimeException('Booking allocation index missing '.$index[1]);
+	}
 	private static function install_booking_teacher_delivery():void{
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
 		$sql="CREATE TABLE {$p}booking_request_teacher_deliveries (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,booking_request_id bigint unsigned NOT NULL,requested_time_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,state varchar(24) NOT NULL,match_strength varchar(16) NOT NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,responded_at datetime NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY booking_request_id(booking_request_id),UNIQUE KEY requested_time_id(requested_time_id),KEY teacher_state(teacher_id,state,created_at)) ENGINE=InnoDB $c";
@@ -917,9 +955,16 @@ final class Migrator {
 		$required[] = '063_finance_notification_outbox';
 		$required[] = '064_teacher_induction_progress';
 		$required[] = '065_confirmed_intro_cancellation';
+
+		$required[] = '065_confirmed_intro_cancellation';
+		$required[] = '066_consent_lifecycle_authority';
+		$required[] = '067_recording_archive_authority';
+		$required[] = '068_google_meet_classroom_authority';
+		$required[] = '069_booking_allocation';
+
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema(); self::verify_statement_email_outbox_schema(); self::verify_statement_batch_runs_schema(); self::verify_finance_notification_outbox_schema(); self::verify_teacher_induction_progress_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema(); self::verify_statement_email_outbox_schema(); self::verify_statement_batch_runs_schema(); self::verify_finance_notification_outbox_schema(); self::verify_teacher_induction_progress_schema(); self::verify_consent_lifecycle_authority_schema(); self::verify_recording_archive_authority_schema(); self::verify_google_meet_classroom_authority_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -1335,6 +1380,21 @@ final class Migrator {
 		// provider, export or administrative authority, and fails closed until a notice is published.
 		if($teacher&&!$teacher->has_cap('dzn_accept_own_recording_terms'))$teacher->add_cap('dzn_accept_own_recording_terms');
 		if(!$teacher||!$teacher->has_cap('dzn_accept_own_recording_terms'))throw new \RuntimeException('Recording decision capability installation failed: Teacher grant');
+		// Consent operations are administrative, read/export are separate. No Teacher or Student role
+		// receives these capabilities; administrators still cannot fabricate a decision.
+		foreach(array('dzn_manage_consent_policies','dzn_view_consent_evidence','dzn_export_consent_evidence')as$cap)if(!$role->has_cap($cap))$role->add_cap($cap);
+		foreach(array($teacher,get_role('dzn_student'))as$restrictedRole)if($restrictedRole)foreach(array('dzn_manage_consent_policies','dzn_export_consent_evidence')as$cap)if($restrictedRole->has_cap($cap))$restrictedRole->remove_cap($cap);
+		// Recording operations are administrative only. No Teacher or Student role receives a
+		// retry, reconcile, legal-hold or status capability; portal playback is principal-bound.
+		$recordingMarker=(string)get_option(self::CAPABILITY_OPTION_RECORDING);
+		$recordingGrants=array('dzn_manage_recording_operations','dzn_view_recording_operations','dzn_retry_recording_commands','dzn_reconcile_recordings','dzn_manage_recording_legal_hold');
+		$recordingRepair=false;
+		foreach($recordingGrants as$capability)if(!$role->has_cap($capability)){$role->add_cap($capability);$recordingRepair=true;}
+		foreach(array('dzn_teacher','dzn_student')as$recordingRoleName){$recordingRole=get_role($recordingRoleName);if(!$recordingRole)continue;foreach($recordingGrants as$reserved)if($recordingRole->has_cap($reserved)){$recordingRole->remove_cap($reserved);$recordingRepair=true;}}
+		if($recordingRepair||$recordingMarker!==self::CAPABILITY_VERSION_RECORDING)update_option(self::CAPABILITY_OPTION_RECORDING,self::CAPABILITY_VERSION_RECORDING,false);
+		foreach($recordingGrants as$capability)if(!$role->has_cap($capability))throw new \RuntimeException('Recording archive capability installation failed: '.$capability);
+		if((string)get_option(self::CAPABILITY_OPTION_RECORDING)!==self::CAPABILITY_VERSION_RECORDING)throw new \RuntimeException('Recording archive capability installation failed: version marker');
+		foreach(array('dzn_teacher','dzn_student')as$recordingRoleName){$recordingRole=get_role($recordingRoleName);if($recordingRole)foreach($recordingGrants as$reserved)if($recordingRole->has_cap($reserved))throw new \RuntimeException('Recording archive capability installation failed: least privilege');}
 		$markerCurrent=(string)get_option(self::CAPABILITY_OPTION)===self::CAPABILITY_VERSION;
 		if($markerCurrent&&$role->has_cap('dzn_issue_student_account_claims')&&$teacher&&$teacher->has_cap('dzn_record_own_availability_assent')&&$teacher->has_cap('dzn_accept_own_teacher_assignments')&&$role->has_cap('dzn_manage_terms')&&$role->has_cap('dzn_manage_canonical_terms')&&$role->has_cap('dzn_manage_canonical_enrolment_lifecycle')&&$role->has_cap('dzn_manage_canonical_lessons')&&$role->has_cap('dzn_manage_canonical_lesson_schedules')&&$role->has_cap('dzn_override_canonical_lesson_schedule_availability')&&$role->has_cap('dzn_prepare_booking_request_matches')&&$role->has_cap('dzn_manage_booking_request_coordination')&&$role->has_cap('dzn_manage_teacher_availability_assent')&&$role->has_cap('dzn_issue_booking_request_proposals')&&$role->has_cap('dzn_record_booking_request_provisional_acceptance')&&$role->has_cap('dzn_resolve_booking_request_student_identity')&&$role->has_cap('dzn_manage_student_acceptance_authority')&&$role->has_cap('dzn_view_student_acceptance_eligibility')&&$role->has_cap('dzn_finalize_service_arrangements')&&$role->has_cap('dzn_convert_service_arrangements_to_enrolments')&&$role->has_cap('dzn_manage_teacher_assignments'))return;
 		foreach(array('dzn_manage_platform','dzn_issue_student_account_claims','dzn_manage_students','dzn_manage_teachers','dzn_manage_courses','dzn_manage_enrolments','dzn_manage_terms','dzn_manage_lessons','dzn_manage_exceptions','dzn_view_diagnostics','dzn_manage_onboarding','dzn_issue_teacher_invitations','dzn_revoke_teacher_invitations','dzn_view_onboarding_audit','dzn_relink_teacher_principal','dzn_manage_teaching_eligibility','dzn_manage_teacher_availability','dzn_view_booking_requests','dzn_review_booking_request_duplicates','dzn_erase_booking_request_pii','dzn_prepare_booking_request_matches','dzn_manage_booking_request_coordination','dzn_manage_teacher_availability_assent','dzn_issue_booking_request_proposals','dzn_record_booking_request_provisional_acceptance','dzn_resolve_booking_request_student_identity','dzn_manage_student_acceptance_authority','dzn_view_student_acceptance_eligibility','dzn_finalize_service_arrangements','dzn_convert_service_arrangements_to_enrolments','dzn_manage_teacher_assignments','dzn_manage_canonical_terms','dzn_manage_canonical_enrolment_lifecycle','dzn_manage_canonical_lessons','dzn_manage_canonical_lesson_schedules','dzn_override_canonical_lesson_schedule_availability')as$cap)$role->add_cap($cap);
@@ -1921,6 +1981,334 @@ final class Migrator {
 	 * provider key or a plaintext credential: every provider reference is stored as a keyed digest and
 	 * every reusable credential as an authenticated ciphertext with a key and cipher version.
 	 */
+	/**
+	 * Schema 068: Delnavazan-owned Google Workspace classroom authority.
+	 *
+	 * Additive only. It creates the organizer connection, classroom, sealed reference, recording,
+	 * attendance and alert storage. It does not read or revoke a Teacher's legacy Google grant.
+	 */
+	private static function install_google_meet_classroom_authority():void{
+		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
+		$tables = array(
+			"CREATE TABLE {$p}meet_workspace_connections (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				organizer_email varchar(254) NOT NULL,
+				connection_state varchar(16) NOT NULL,
+				connection_version int unsigned NOT NULL,
+				active_slot tinyint unsigned NULL,
+				scope_snapshot varchar(512) NOT NULL,
+				consent_version varchar(48) NOT NULL,
+				identity_digest char(64) NULL,
+				identity_state varchar(16) NOT NULL DEFAULT 'unverified',
+				failure_reason_code varchar(64) NULL,
+				authorized_at datetime NULL,
+				connected_at datetime NULL,
+				last_checked_at datetime NULL,
+				disconnected_at datetime NULL,
+				revoked_at datetime NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				updated_at datetime NOT NULL,
+				updated_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY active_slot (active_slot),
+				KEY connection_state (connection_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_workspace_credentials (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				connection_id bigint unsigned NOT NULL,
+				credential_sequence int unsigned NOT NULL,
+				state varchar(16) NOT NULL,
+				key_version varchar(32) NOT NULL,
+				cipher_version varchar(32) NOT NULL,
+				nonce varchar(64) NOT NULL,
+				ciphertext text NOT NULL,
+				valid_until_utc datetime NULL,
+				quarantined_at datetime NULL,
+				quarantine_reason_code varchar(64) NULL,
+				revoked_at datetime NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY connection_sequence (connection_id,credential_sequence),
+				KEY connection_credential (connection_id,state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_workspace_authorizations (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				connection_id bigint unsigned NOT NULL,
+				principal_user_id bigint unsigned NOT NULL,
+				client_reference varchar(64) NOT NULL,
+				redirect_uri varchar(255) NOT NULL,
+				scope_snapshot varchar(512) NOT NULL,
+				state_digest char(64) NOT NULL,
+				verifier_digest char(64) NOT NULL,
+				authorization_state varchar(16) NOT NULL,
+				issued_at datetime NOT NULL,
+				expires_at datetime NOT NULL,
+				consumed_at datetime NULL,
+				consumption_result varchar(32) NULL,
+				failure_reason_code varchar(64) NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY state_digest (state_digest),
+				KEY connection_authorization (connection_id,authorization_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_classrooms (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				lesson_id bigint unsigned NULL,
+				schedule_version_id bigint unsigned NULL,
+				booking_confirmation_id bigint unsigned NULL,
+				classroom_kind varchar(32) NOT NULL,
+				teacher_id bigint unsigned NOT NULL,
+				student_id bigint unsigned NOT NULL,
+				teacher_email_digest char(64) NOT NULL,
+				student_email_digest char(64) NULL,
+				organizer_email varchar(254) NOT NULL,
+				calendar_id varchar(254) NOT NULL,
+				event_id_digest char(64) NULL,
+				space_name varchar(191) NULL,
+				meet_uri_digest char(64) NULL,
+				conference_record_name varchar(200) NULL,
+				classroom_state varchar(16) NOT NULL,
+				active_slot tinyint unsigned NULL,
+				recording_state varchar(16) NOT NULL,
+				recording_consent_digest char(64) NULL,
+				recording_consent_at datetime NULL,
+				cohost_state varchar(24) NOT NULL DEFAULT 'pending',
+				cohost_verified_at datetime NULL,
+				cohost_error_code varchar(64) NULL,
+				cohost_error_detail varchar(255) NULL,
+				cohost_attempt_count int unsigned NOT NULL DEFAULT 0,
+				cohost_next_attempt_at datetime NULL,
+				cohost_exception_state varchar(24) NULL,
+				cohost_exception_approved_by bigint unsigned NULL,
+				cohost_exception_approved_at datetime NULL,
+				cohost_exception_reason varchar(255) NULL,
+				starts_at_utc datetime NOT NULL,
+				ends_at_utc datetime NOT NULL,
+				schedule_timezone varchar(64) NOT NULL,
+				version int unsigned NOT NULL,
+				failure_reason_code varchar(64) NULL,
+				last_provider_response_code int NULL,
+				cancelled_at datetime NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				updated_at datetime NOT NULL,
+				updated_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY lesson_active (lesson_id,active_slot),
+				UNIQUE KEY booking_active (booking_confirmation_id,active_slot),
+				KEY classroom_state (classroom_state,starts_at_utc),
+				KEY recording_due (classroom_state,ends_at_utc,recording_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_classroom_references (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				state varchar(16) NOT NULL,
+				key_version varchar(32) NOT NULL,
+				cipher_version varchar(32) NOT NULL,
+				nonce varchar(64) NOT NULL,
+				ciphertext text NOT NULL,
+				active_slot tinyint unsigned NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				retired_at datetime NULL,
+				retired_by bigint unsigned NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY classroom_active (classroom_id,active_slot),
+				KEY classroom_reference (classroom_id,state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_classroom_events (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NULL,
+				operation varchar(32) NOT NULL,
+				command_digest char(64) NOT NULL,
+				result_state varchar(32) NOT NULL,
+				reason_code varchar(64) NULL,
+				provider_http_status int NULL,
+				provider_error_class varchar(64) NULL,
+				provider_detail varchar(255) NULL,
+				payload_digest char(64) NOT NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY command_digest (command_digest),
+				KEY classroom_operation (classroom_id,operation)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_conference_records (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				conference_record_name varchar(200) NOT NULL,
+				space_name varchar(191) NULL,
+				start_time datetime NULL,
+				end_time datetime NULL,
+				recording_expected tinyint NOT NULL DEFAULT 0,
+				discovered_at datetime NOT NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY conference_record_name (conference_record_name),
+				KEY classroom_record (classroom_id,start_time)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_recording_artifacts (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				conference_record_id bigint unsigned NOT NULL,
+				recording_name varchar(255) NOT NULL,
+				state varchar(24) NOT NULL,
+				drive_file_id varchar(200) NULL,
+				export_uri_digest char(64) NULL,
+				start_time datetime NULL,
+				end_time datetime NULL,
+				file_verified_at datetime NULL,
+				playback_verified_at datetime NULL,
+				publicly_shared tinyint NOT NULL DEFAULT 0,
+				privacy_state varchar(24) NOT NULL DEFAULT 'unverified',
+				privacy_checked_at datetime NULL,
+				privacy_error_code varchar(64) NULL,
+				privacy_error_detail varchar(255) NULL,
+				consent_snapshot_digest char(64) NULL,
+				failure_reason_code varchar(64) NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY recording_name (recording_name),
+				KEY classroom_artifact (classroom_id,state),
+				KEY verified_artifact (playback_verified_at)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_recording_access_events (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				lesson_id bigint unsigned NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				artifact_id bigint unsigned NULL,
+				actor_user_id bigint unsigned NOT NULL,
+				actor_role varchar(24) NOT NULL,
+				access_purpose varchar(32) NOT NULL,
+				capability_code varchar(64) NULL,
+				reason_code varchar(64) NULL,
+				reason_text varchar(255) NULL,
+				decision varchar(16) NOT NULL,
+				denial_reason varchar(64) NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				KEY lesson_time (lesson_id,created_at),
+				KEY actor_time (actor_user_id,created_at)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_participant_sessions (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				conference_record_id bigint unsigned NOT NULL,
+				participant_name varchar(191) NOT NULL,
+				participant_type varchar(24) NOT NULL,
+				participant_account_digest char(64) NOT NULL,
+				participant_session_name varchar(255) NOT NULL,
+				join_at_utc datetime NULL,
+				leave_at_utc datetime NULL,
+				observed_at datetime NOT NULL,
+				mapped_role varchar(16) NULL,
+				mapped_participant_id bigint unsigned NULL,
+				mapping_state varchar(32) NOT NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY participant_session_name (participant_session_name),
+				KEY classroom_session (classroom_id,join_at_utc),
+				KEY account_lookup (participant_account_digest,mapping_state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}meet_recording_alerts (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				classroom_id bigint unsigned NOT NULL,
+				alert_code varchar(64) NOT NULL,
+				detail_code varchar(64) NOT NULL,
+				detail_text varchar(255) NULL,
+				state varchar(16) NOT NULL,
+				created_at datetime NOT NULL,
+				acknowledged_at datetime NULL,
+				acknowledged_by bigint unsigned NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY uid (uid),
+				UNIQUE KEY open_alert (classroom_id,alert_code,state),
+				KEY alert_state (state,id)
+			) ENGINE=InnoDB $c",
+		);
+		foreach ( $tables as $sql ) { dbDelta( self::dbdelta_sql( $sql ) ); if ( $wpdb->last_error !== '' ) throw new \RuntimeException('Google Meet classroom migration failed: ' . $wpdb->last_error); }
+	}
+
+	/** Fail closed unless the organizer classroom storage is exactly as designed. */
+	private static function verify_google_meet_classroom_authority_schema():void{
+		global $wpdb; $p = $wpdb->prefix . 'dzn_';
+		$spec = array(
+			'meet_workspace_connections' => array('uid','organizer_email','connection_state','connection_version','active_slot','scope_snapshot','consent_version','identity_digest','identity_state','failure_reason_code','authorized_at','connected_at','last_checked_at','disconnected_at','revoked_at'),
+			'meet_workspace_credentials' => array('uid','connection_id','credential_sequence','state','key_version','cipher_version','nonce','ciphertext','valid_until_utc','quarantined_at','quarantine_reason_code','revoked_at'),
+			'meet_workspace_authorizations' => array('uid','connection_id','principal_user_id','client_reference','redirect_uri','scope_snapshot','state_digest','verifier_digest','authorization_state','issued_at','expires_at','consumed_at','consumption_result','failure_reason_code'),
+			'meet_classrooms' => array('uid','lesson_id','schedule_version_id','booking_confirmation_id','classroom_kind','teacher_id','student_id','teacher_email_digest','student_email_digest','organizer_email','calendar_id','event_id_digest','space_name','meet_uri_digest','conference_record_name','classroom_state','active_slot','recording_state','recording_consent_digest','recording_consent_at','cohost_state','cohost_verified_at','cohost_error_code','cohost_error_detail','cohost_attempt_count','cohost_next_attempt_at','cohost_exception_state','cohost_exception_approved_by','cohost_exception_approved_at','cohost_exception_reason','starts_at_utc','ends_at_utc','schedule_timezone','version','failure_reason_code','last_provider_response_code','cancelled_at'),
+			'meet_classroom_references' => array('uid','classroom_id','state','key_version','cipher_version','nonce','ciphertext','active_slot','created_at','created_by','retired_at','retired_by'),
+			'meet_classroom_events' => array('uid','classroom_id','operation','command_digest','result_state','reason_code','provider_http_status','provider_error_class','provider_detail','payload_digest','created_at','created_by'),
+			'meet_conference_records' => array('uid','classroom_id','conference_record_name','space_name','start_time','end_time','recording_expected','discovered_at','created_at'),
+			'meet_recording_artifacts' => array('uid','classroom_id','conference_record_id','recording_name','state','drive_file_id','export_uri_digest','start_time','end_time','file_verified_at','playback_verified_at','publicly_shared','privacy_state','privacy_checked_at','privacy_error_code','privacy_error_detail','consent_snapshot_digest','failure_reason_code','created_at','updated_at'),
+			'meet_recording_access_events' => array('uid','lesson_id','classroom_id','artifact_id','actor_user_id','actor_role','access_purpose','capability_code','reason_code','reason_text','decision','denial_reason','created_at'),
+			'meet_participant_sessions' => array('uid','classroom_id','conference_record_id','participant_name','participant_type','participant_account_digest','participant_session_name','join_at_utc','leave_at_utc','observed_at','mapped_role','mapped_participant_id','mapping_state','created_at'),
+			'meet_recording_alerts' => array('uid','classroom_id','alert_code','detail_code','detail_text','state','created_at','acknowledged_at','acknowledged_by'),
+		);
+		foreach ( $spec as $table => $columns ) {
+			$physical = $p . $table;
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $physical ) ) !== $physical ) throw new \RuntimeException('Migration verification failed: missing '.$table);
+			$engine = $wpdb->get_var( $wpdb->prepare( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $physical ) );
+			if ( ! is_string( $engine ) || strcasecmp( $engine, 'InnoDB' ) !== 0 ) throw new \RuntimeException('Migration verification failed: Meet classroom storage must use InnoDB: '.$table);
+			foreach ( $columns as $column ) if ( ! $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '{$column}'" ) ) throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			foreach ( array('access_token','refresh_token','client_secret','authorization_code','raw_payload','provider_payload') as $forbidden ) if ( $wpdb->get_row( "SHOW COLUMNS FROM {$physical} LIKE '%{$forbidden}%'" ) ) throw new \RuntimeException('Migration verification failed: Meet classroom storage must not persist plaintext provider secrets: '.$table.'.'.$forbidden);
+		}
+		foreach ( array(
+			array('meet_workspace_connections','uid',true,array('uid')),
+			array('meet_workspace_connections','active_slot',true,array('active_slot')),
+			array('meet_workspace_credentials','connection_sequence',true,array('connection_id','credential_sequence')),
+			array('meet_workspace_authorizations','state_digest',true,array('state_digest')),
+			array('meet_classrooms','lesson_active',true,array('lesson_id','active_slot')),
+			array('meet_classrooms','booking_active',true,array('booking_confirmation_id','active_slot')),
+			array('meet_classroom_references','classroom_active',true,array('classroom_id','active_slot')),
+			array('meet_classroom_events','command_digest',true,array('command_digest')),
+			array('meet_conference_records','conference_record_name',true,array('conference_record_name')),
+			array('meet_recording_artifacts','recording_name',true,array('recording_name')),
+			array('meet_recording_access_events','uid',true,array('uid')),
+			array('meet_participant_sessions','participant_session_name',true,array('participant_session_name')),
+			array('meet_recording_alerts','open_alert',true,array('classroom_id','alert_code','state')),
+		) as $index ) if ( ! self::has_index( $p.$index[0], $index[1], $index[2] ) ) throw new \RuntimeException('Migration verification failed: Meet classroom index '.$index[1]);
+		foreach ( array('meet_classroom_events','meet_recording_access_events') as $table ) foreach ( array('updated_at','updated_by') as $mutable ) if ( $wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE '{$mutable}'") ) throw new \RuntimeException('Migration verification failed: Meet classroom evidence must be append-only: '.$table.'.'.$mutable);
+		foreach ( array(
+			array('meet_workspace_authorizations','state_digest'),array('meet_workspace_authorizations','verifier_digest'),
+			array('meet_classrooms','event_id_digest'),array('meet_classrooms','meet_uri_digest'),
+			array('meet_classroom_events','command_digest'),array('meet_classroom_events','payload_digest'),
+			array('meet_participant_sessions','participant_account_digest'),
+		) as $shape ) {
+			$row = $wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");
+			if ( ! $row || strtolower( $row->Type ) !== 'char(64)' ) throw new \RuntimeException('Migration verification failed: Meet classroom digest structure '.$shape[0].'.'.$shape[1]);
+		}
+		foreach ( array('key_version'=>'varchar(32)','cipher_version'=>'varchar(32)','nonce'=>'varchar(64)','ciphertext'=>'text') as $column => $type ) {
+			$row = $wpdb->get_row("SHOW COLUMNS FROM {$p}meet_workspace_credentials LIKE '{$column}'");
+			if ( ! $row || strtolower( $row->Type ) !== $type || $row->Null !== 'NO' ) throw new \RuntimeException('Migration verification failed: Meet credential column '.$column);
+		}
+	}
+
 	private static function install_google_calendar_meet_provider_integration():void{
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
 		$tables = array(
@@ -2950,6 +3338,156 @@ final class Migrator {
 			array('recording_decision_commands','uid',true,array('uid')),
 			array('recording_decision_commands','command_key_digest',true,array('command_key_digest')),
 		)as$x)if(!self::has_index_columns($p.$x[0],$x[1],$x[2],$x[3]))throw new \RuntimeException('Migration verification failed: recording decision index '.$x[0].'.'.$x[1]);
+	}
+
+	/**
+	 * Consent lifecycle authority (migration 066).
+	 *
+	 * Additive only. It extends the existing append-only decision evidence with authority/scope
+	 * references, adds a purpose registry, dataset manifest, recording-authorisation evidence and a
+	 * durable processing queue. It never backfills a consent decision and never enables capture.
+	 */
+	private static function install_consent_lifecycle_authority():void{
+		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
+		$decision_columns=array(
+			'guardian_authority_grant_id'=>'bigint unsigned NULL',
+			'guardian_authority_version'=>'int unsigned NULL',
+			'consent_statement_digest'=>'char(64) NULL',
+			'evidence_action'=>"varchar(32) NOT NULL DEFAULT 'explicit_submission'",
+			'collection_channel'=>"varchar(48) NOT NULL DEFAULT 'portal_settings'",
+			'workflow_code'=>"varchar(48) NOT NULL DEFAULT 'portal_consent'",
+			'scope_code'=>"varchar(48) NOT NULL DEFAULT 'future_lessons'",
+			'supersedes_decision_id'=>'bigint unsigned NULL',
+			'withdrawal_of_decision_id'=>'bigint unsigned NULL',
+			'lesson_id'=>'bigint unsigned NULL',
+			'enrolment_id'=>'bigint unsigned NULL',
+			'effective_from'=>'datetime NULL',
+			'effective_until'=>'datetime NULL',
+		);
+		foreach($decision_columns as$name=>$definition)if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}recording_decisions LIKE '{$name}'")&&$wpdb->query("ALTER TABLE {$p}recording_decisions ADD COLUMN {$name} {$definition}")===false)throw new \RuntimeException('Consent lifecycle migration failed: recording_decisions.'.$name);
+		foreach(array(
+			array('consent_decision_scope',false,array('subject_type','subject_id','purpose_code','scope_code','effective_until')),
+			array('consent_guardian_grant',false,array('guardian_authority_grant_id')),
+			array('consent_withdrawal',false,array('withdrawal_of_decision_id')),
+			array('consent_lesson',false,array('lesson_id')),
+		)as$x)if(!self::has_index_columns($p.'recording_decisions',$x[0],$x[1],$x[2])&&$wpdb->query('ALTER TABLE '.$p.'recording_decisions ADD KEY '.$x[0].'('.implode(',',$x[2]).')')===false)throw new \RuntimeException('Consent lifecycle migration failed: decision index '.$x[0]);
+		$notice_columns=array('approval_state'=>"varchar(16) NOT NULL DEFAULT 'approved'",'approved_at'=>'datetime NULL','approved_by'=>'bigint unsigned NULL');
+		foreach($notice_columns as$name=>$definition)if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}recording_notice_versions LIKE '{$name}'")&&$wpdb->query("ALTER TABLE {$p}recording_notice_versions ADD COLUMN {$name} {$definition}")===false)throw new \RuntimeException('Consent lifecycle migration failed: recording_notice_versions.'.$name);
+		$tables=array(
+			"CREATE TABLE {$p}consent_purposes (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,purpose_code varchar(64) NOT NULL,subject_scope varchar(16) NOT NULL,notice_audience_code varchar(64) NOT NULL,title_en varchar(191) NOT NULL,title_fa varchar(191) NOT NULL,optional_purpose tinyint(1) NOT NULL DEFAULT 1,guardian_allowed tinyint(1) NOT NULL DEFAULT 0,required_for_recording tinyint(1) NOT NULL DEFAULT 0,required_for_dataset tinyint(1) NOT NULL DEFAULT 0,scope_code varchar(48) NOT NULL,definition_version int unsigned NOT NULL DEFAULT 1,state varchar(16) NOT NULL DEFAULT 'active',created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY purpose_code(purpose_code),KEY state(state)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}consent_recording_authorisations (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,lesson_id bigint unsigned NOT NULL,schedule_version_id bigint unsigned NULL,teacher_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,purpose_code varchar(64) NOT NULL,outcome varchar(24) NOT NULL,reason_code varchar(64) NOT NULL,teacher_decision_id bigint unsigned NULL,student_decision_id bigint unsigned NULL,guardian_decision_id bigint unsigned NULL,guardian_authority_grant_id bigint unsigned NULL,teacher_notice_uid char(26) NULL,student_notice_uid char(26) NULL,teacher_notice_version int unsigned NULL,student_notice_version int unsigned NULL,evidence_digest char(64) NOT NULL,evaluated_at datetime NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY lesson_evidence(lesson_id,schedule_version_id,purpose_code,evidence_digest),KEY lesson_outcome(lesson_id,outcome),KEY student_outcome(student_id,outcome),KEY teacher_outcome(teacher_id,outcome)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}consent_dataset_items (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,dataset_key varchar(64) NOT NULL,dataset_version varchar(32) NOT NULL,source_recording_id varchar(96) NOT NULL,lesson_id bigint unsigned NOT NULL,teacher_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,content_digest char(64) NOT NULL,consent_evidence_digest char(64) NOT NULL,teacher_decision_id bigint unsigned NULL,student_decision_id bigint unsigned NULL,guardian_decision_id bigint unsigned NULL,eligibility_result varchar(24) NOT NULL,eligibility_reason varchar(64) NOT NULL,ingested_at datetime NULL,processing_lineage text NULL,storage_reference varchar(255) NULL,pseudonym_subject char(64) NOT NULL,exclusion_state varchar(24) NOT NULL DEFAULT 'none',excluded_at datetime NULL,exclusion_reason varchar(64) NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY dataset_source(dataset_key,source_recording_id),KEY eligibility(eligibility_result,exclusion_state),KEY lesson(lesson_id),KEY student(student_id),KEY teacher(teacher_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}consent_processing_jobs (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,job_key_digest char(64) NOT NULL,job_type varchar(48) NOT NULL,subject_type varchar(16) NOT NULL,subject_id bigint unsigned NOT NULL,purpose_code varchar(64) NOT NULL,source_kind varchar(32) NOT NULL,source_id bigint unsigned NOT NULL,state varchar(16) NOT NULL,attempts int unsigned NOT NULL DEFAULT 0,max_attempts int unsigned NOT NULL DEFAULT 5,available_at datetime NOT NULL,lease_token_digest char(64) NULL,leased_at datetime NULL,lease_expires_at datetime NULL,last_error_code varchar(64) NULL,result_code varchar(64) NULL,completed_at datetime NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,updated_at datetime NOT NULL,updated_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY job_key_digest(job_key_digest),KEY claimable(state,available_at),KEY subject_job(subject_type,subject_id,job_type),KEY lease(lease_expires_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}consent_processing_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,job_id bigint unsigned NULL,dataset_item_id bigint unsigned NULL,subject_type varchar(16) NOT NULL,subject_id bigint unsigned NOT NULL,purpose_code varchar(64) NOT NULL,event_type varchar(48) NOT NULL,reason_code varchar(64) NULL,evidence_digest char(64) NOT NULL,occurred_at datetime NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),KEY job_event(job_id,event_type),KEY subject_event(subject_type,subject_id,event_type),KEY dataset_event(dataset_item_id,event_type)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as$sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Consent lifecycle migration failed: '.$wpdb->last_error);}
+		$now=gmdate('Y-m-d H:i:s');
+		$purposes=array(
+			array('teacher_terms','teacher','teacher_terms','Teacher recorded-work terms','شرایط کار ضبط‌شدهٔ مدرس',0,0,1,0,'recorded_work_terms'),
+			array('teacher_lesson_recording','teacher','teacher_lesson_recording','Teacher lesson recording consent','رضایت ضبط کلاس مدرس',1,0,1,1,'future_lessons'),
+			array('teacher_research_model_training','teacher','teacher_research_model_training','Teacher machine-learning research consent','رضایت پژوهش و آموزش مدل مدرس',1,0,0,1,'research_dataset'),
+			array('lesson_recording','student','student_lesson_recording','Student lesson recording consent','رضایت ضبط کلاس هنرجو',1,1,1,1,'future_lessons'),
+			array('research_model_training','student','student_research_model_training','Student machine-learning research consent','رضایت پژوهش و آموزش مدل هنرجو',1,1,0,1,'research_dataset'),
+			array('privacy_terms','any','privacy_terms','Privacy policy acknowledgement','تأیید سیاست حفظ حریم خصوصی',0,1,0,0,'privacy_acknowledgement'),
+		);
+		foreach($purposes as$purpose){
+			$wpdb->query($wpdb->prepare("INSERT IGNORE INTO {$p}consent_purposes (uid,purpose_code,subject_scope,notice_audience_code,title_en,title_fa,optional_purpose,guardian_allowed,required_for_recording,required_for_dataset,scope_code,definition_version,state,created_at,created_by,updated_at,updated_by) VALUES (%s,%s,%s,%s,%s,%s,%d,%d,%d,%d,%s,1,'active',%s,0,%s,0)",strtoupper(substr(hash('sha256','consent-purpose:'.$purpose[0]),0,26)),$purpose[0],$purpose[1],$purpose[2],$purpose[3],$purpose[4],$purpose[5],$purpose[6],$purpose[7],$purpose[8],$purpose[9],$now,$now));
+			if($wpdb->last_error!=='')throw new \RuntimeException('Consent lifecycle migration failed: consent purpose '.$purpose[0]);
+		}
+	}
+
+	/** Fail closed unless the additive consent lifecycle is exactly the declared shape. */
+	private static function verify_consent_lifecycle_authority_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		$decision_columns=array('guardian_authority_grant_id','guardian_authority_version','consent_statement_digest','evidence_action','collection_channel','workflow_code','scope_code','supersedes_decision_id','withdrawal_of_decision_id','lesson_id','enrolment_id','effective_from','effective_until');
+		foreach($decision_columns as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}recording_decisions LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: consent decision column '.$column);
+		foreach(array('approval_state','approved_at','approved_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}recording_notice_versions LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: consent notice column '.$column);
+		$tables=array(
+			'consent_purposes'=>array('uid','purpose_code','subject_scope','notice_audience_code','title_en','title_fa','optional_purpose','guardian_allowed','required_for_recording','required_for_dataset','scope_code','definition_version','state','created_at','created_by','updated_at','updated_by'),
+			'consent_recording_authorisations'=>array('uid','lesson_id','teacher_id','student_id','purpose_code','outcome','reason_code','evidence_digest','evaluated_at','created_at','created_by'),
+			'consent_dataset_items'=>array('uid','dataset_key','dataset_version','source_recording_id','lesson_id','teacher_id','student_id','content_digest','consent_evidence_digest','eligibility_result','eligibility_reason','pseudonym_subject','exclusion_state','created_at','created_by','updated_at','updated_by'),
+			'consent_processing_jobs'=>array('uid','job_key_digest','job_type','subject_type','subject_id','purpose_code','source_kind','source_id','state','attempts','max_attempts','available_at','created_at','created_by','updated_at','updated_by'),
+			'consent_processing_events'=>array('uid','subject_type','subject_id','purpose_code','event_type','evidence_digest','occurred_at','created_at','created_by'),
+		);
+		foreach($tables as$table=>$columns){
+			$physical=$p.$table;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$table.' must use InnoDB');
+			foreach($columns as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			foreach(array('deleted_at')as$forbidden)if($wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$forbidden}'"))throw new \RuntimeException('Migration verification failed: consent evidence must be append-only '.$table);
+		}
+		foreach(array(
+			array('consent_purposes','uid',true,array('uid')),
+			array('consent_purposes','purpose_code',true,array('purpose_code')),
+			array('consent_recording_authorisations','uid',true,array('uid')),
+			array('consent_recording_authorisations','lesson_evidence',true,array('lesson_id','schedule_version_id','purpose_code','evidence_digest')),
+			array('consent_dataset_items','uid',true,array('uid')),
+			array('consent_dataset_items','dataset_source',true,array('dataset_key','source_recording_id')),
+			array('consent_processing_jobs','uid',true,array('uid')),
+			array('consent_processing_jobs','job_key_digest',true,array('job_key_digest')),
+			array('consent_processing_jobs','claimable',false,array('state','available_at')),
+			array('consent_processing_events','uid',true,array('uid')),
+		)as$x)if(!self::has_index_columns($p.$x[0],$x[1],$x[2],$x[3]))throw new \RuntimeException('Migration verification failed: consent index '.$x[0].'.'.$x[1]);
+		$required=array('teacher_terms','teacher_lesson_recording','teacher_research_model_training','lesson_recording','research_model_training','privacy_terms');
+		foreach($required as$purpose)if((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}consent_purposes WHERE purpose_code=%s AND state='active'",$purpose))!==1)throw new \RuntimeException('Migration verification failed: consent purpose '.$purpose);
+		// Evidence is append-only: a pre-existing decision is never assigned a consent decision by upgrade.
+		$orphan=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}recording_decisions d LEFT JOIN {$p}consent_purposes p ON p.purpose_code=d.purpose_code WHERE p.id IS NULL");
+		if($orphan>0)throw new \RuntimeException('Migration verification failed: consent decision purpose is not registered');
+	}
+
+	/**
+	 * Delnavazan recording and Pi archival authority (Schema 067 / migration 067).
+	 *
+	 * Additive only. It creates the canonical recording lifecycle, append-only event evidence, a
+	 * durable provider-command outbox, independently verified archive confirmations and playback
+	 * audit. It does not backfill consent, assign a recording to an existing lesson, create a media
+	 * object or enable capture/research export.
+	 */
+	private static function install_recording_archive_authority():void{
+		global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$p=$wpdb->prefix.'dzn_';$c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}recordings (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,lesson_id bigint unsigned NOT NULL,schedule_version_id bigint unsigned NOT NULL,schedule_version_uid char(26) NOT NULL,teacher_id bigint unsigned NOT NULL,student_id bigint unsigned NOT NULL,teacher_uid char(26) NOT NULL,student_uid char(26) NOT NULL,enrolment_id bigint unsigned NULL,term_id bigint unsigned NULL,authorisation_evidence_id bigint unsigned NOT NULL,authorisation_digest char(64) NOT NULL,policy_reference varchar(191) NULL,notice_reference varchar(191) NULL,provider varchar(24) NOT NULL DEFAULT 'livekit',provider_egress_id varchar(191) NULL,content_version int unsigned NOT NULL DEFAULT 1,lifecycle_state varchar(32) NOT NULL,media_format varchar(24) NULL,video_codec varchar(32) NULL,audio_codec varchar(32) NULL,duration_ms bigint unsigned NULL,width smallint unsigned NULL,height smallint unsigned NULL,source_bytes bigint unsigned NULL,source_sha256 char(64) NULL,authoritative_location varchar(24) NOT NULL DEFAULT 'vps',archive_object_key varchar(512) NULL,archive_node_identity varchar(191) NULL,legal_hold_state varchar(16) NOT NULL DEFAULT 'none',disposition_state varchar(32) NOT NULL DEFAULT 'none',quarantine_reason_code varchar(64) NULL,failure_reason_code varchar(64) NULL,capture_started_at datetime NULL,finalised_at datetime NULL,verified_at datetime NULL,archived_at datetime NULL,vps_deleted_at datetime NULL,version bigint unsigned NOT NULL DEFAULT 1,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY lesson_schedule_version(lesson_id,schedule_version_id),UNIQUE KEY provider_egress(provider_egress_id),KEY lifecycle_state(lifecycle_state),KEY lesson_state(lesson_id,lifecycle_state),KEY teacher_state(teacher_id,lifecycle_state),KEY student_state(student_id,lifecycle_state),KEY legal_hold(legal_hold_state),KEY updated_at(updated_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}recording_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,recording_id bigint unsigned NOT NULL,content_version int unsigned NOT NULL,event_type varchar(64) NOT NULL,expected_state varchar(32) NULL,resulting_state varchar(32) NOT NULL,idempotency_key char(64) NOT NULL,payload_digest char(64) NOT NULL,actor_type varchar(16) NOT NULL,actor_id bigint unsigned NULL,source varchar(24) NOT NULL,reason_code varchar(64) NULL,evidence_json mediumtext NULL,occurred_at datetime NOT NULL,received_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY idempotency_key(idempotency_key),KEY recording_event(recording_id,event_type),KEY recording_state(recording_id,resulting_state),KEY event_type(event_type),KEY occurred_at(occurred_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}recording_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,recording_id bigint unsigned NOT NULL,content_version int unsigned NOT NULL,command_type varchar(32) NOT NULL,idempotency_key char(64) NOT NULL,payload_digest char(64) NOT NULL,payload_json mediumtext NOT NULL,expected_state varchar(32) NULL,state varchar(24) NOT NULL DEFAULT 'pending',attempts int unsigned NOT NULL DEFAULT 0,max_attempts int unsigned NOT NULL DEFAULT 8,available_at datetime NOT NULL,lease_token_digest char(64) NULL,lease_expires_at datetime NULL,last_error_code varchar(64) NULL,result_code varchar(64) NULL,completed_at datetime NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,version bigint unsigned NOT NULL DEFAULT 1,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY idempotency_key(idempotency_key),KEY claimable(state,available_at),KEY recording_command(recording_id,command_type),KEY lease(lease_expires_at),KEY state(state)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}recording_archive_confirmations (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,recording_id bigint unsigned NOT NULL,content_version int unsigned NOT NULL,source_bytes bigint unsigned NOT NULL,destination_bytes bigint unsigned NOT NULL,source_sha256 char(64) NOT NULL,destination_sha256 char(64) NOT NULL,archive_node_identity varchar(191) NOT NULL,destination_object_key varchar(512) NOT NULL,durable_commit_receipt varchar(191) NOT NULL,confirmation_signature varchar(512) NOT NULL,confirmation_time datetime NOT NULL,received_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY recording_version(recording_id,content_version),KEY destination_object(destination_object_key(191)),KEY archive_node(archive_node_identity),KEY received_at(received_at)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}recording_playback_access (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,recording_id bigint unsigned NOT NULL DEFAULT 0,content_version int unsigned NOT NULL,lesson_id bigint unsigned NOT NULL DEFAULT 0,principal_type varchar(16) NOT NULL,principal_id bigint unsigned NOT NULL DEFAULT 0,grant_jti_digest char(64) NOT NULL,event_type varchar(16) NOT NULL,reason_code varchar(64) NULL,source varchar(24) NOT NULL,range_start bigint unsigned NULL,range_end bigint unsigned NULL,bytes_sent bigint unsigned NULL,occurred_at datetime NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY playback_event(recording_id,content_version,grant_jti_digest,event_type),KEY recording_event(recording_id,event_type),KEY principal_event(principal_type,principal_id,event_type),KEY occurred_at(occurred_at)) ENGINE=InnoDB $c",
+		);
+		foreach($tables as$sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('Recording archive migration failed: '.$wpdb->last_error);}
+	}
+
+	/** Fail closed unless the additive recording/archive authority has exactly its declared shape. */
+	private static function verify_recording_archive_authority_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		$spec=array(
+			'recordings'=>array('uid','lesson_id','schedule_version_id','schedule_version_uid','teacher_id','student_id','teacher_uid','student_uid','enrolment_id','term_id','authorisation_evidence_id','authorisation_digest','policy_reference','notice_reference','provider','provider_egress_id','content_version','lifecycle_state','media_format','video_codec','audio_codec','duration_ms','width','height','source_bytes','source_sha256','authoritative_location','archive_object_key','archive_node_identity','legal_hold_state','disposition_state','quarantine_reason_code','failure_reason_code','capture_started_at','finalised_at','verified_at','archived_at','vps_deleted_at','version','created_at','updated_at'),
+			'recording_events'=>array('uid','recording_id','content_version','event_type','expected_state','resulting_state','idempotency_key','payload_digest','actor_type','actor_id','source','reason_code','evidence_json','occurred_at','received_at','created_at'),
+			'recording_commands'=>array('uid','recording_id','content_version','command_type','idempotency_key','payload_digest','payload_json','expected_state','state','attempts','max_attempts','available_at','lease_token_digest','lease_expires_at','last_error_code','result_code','completed_at','created_at','updated_at','version'),
+			'recording_archive_confirmations'=>array('uid','recording_id','content_version','source_bytes','destination_bytes','source_sha256','destination_sha256','archive_node_identity','destination_object_key','durable_commit_receipt','confirmation_signature','confirmation_time','received_at','created_at'),
+			'recording_playback_access'=>array('uid','recording_id','content_version','lesson_id','principal_type','principal_id','grant_jti_digest','event_type','reason_code','source','range_start','range_end','bytes_sent','occurred_at','created_at'),
+		);
+		foreach($spec as$table=>$columns){
+			$physical=$p.$table;
+			if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('Migration verification failed: missing '.$table);
+			if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: '.$table.' must use InnoDB');
+			foreach($columns as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: missing '.$table.'.'.$column);
+			foreach(array('deleted_at','raw_token','access_token','grant_token','path','file_path','secret','password')as$forbidden){$pattern=$forbidden==='deleted_at'?$forbidden:'%'.$forbidden.'%';if($wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$pattern}'"))throw new \RuntimeException('Migration verification failed: recording storage must not contain '.$forbidden.' on '.$table);}
+		}
+		foreach(array('recording_events','recording_archive_confirmations','recording_playback_access')as$appendOnly)if($wpdb->get_row("SHOW COLUMNS FROM {$p}{$appendOnly} LIKE 'updated_at'"))throw new \RuntimeException('Migration verification failed: recording evidence must stay append-only: '.$appendOnly);
+		foreach(array(
+			array('recordings','uid',true,array('uid')),array('recordings','lesson_schedule_version',true,array('lesson_id','schedule_version_id')),
+			array('recordings','lifecycle_state',false,array('lifecycle_state')),
+			array('recording_events','idempotency_key',true,array('idempotency_key')),array('recording_events','recording_event',false,array('recording_id','event_type')),
+			array('recording_commands','idempotency_key',true,array('idempotency_key')),array('recording_commands','claimable',false,array('state','available_at')),
+			array('recording_archive_confirmations','recording_version',true,array('recording_id','content_version')),
+			array('recording_playback_access','playback_event',true,array('recording_id','content_version','grant_jti_digest','event_type')),
+		)as$x)if(!self::has_index_columns($p.$x[0],$x[1],$x[2],$x[3]))throw new \RuntimeException('Migration verification failed: recording index '.$x[0].'.'.$x[1]);
+		foreach(array(
+			array('recordings','authorisation_digest',false),array('recordings','source_sha256',true),
+			array('recording_events','idempotency_key',false),array('recording_events','payload_digest',false),
+			array('recording_commands','idempotency_key',false),array('recording_commands','payload_digest',false),
+			array('recording_archive_confirmations','source_sha256',false),array('recording_archive_confirmations','destination_sha256',false),
+			array('recording_playback_access','grant_jti_digest',false),
+		)as$shape){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");if(!$row||strtolower((string)$row->Type)!=='char(64)'||(!$shape[2]&&$row->Null!=='NO'))throw new \RuntimeException('Migration verification failed: recording digest '.$shape[0].'.'.$shape[1]);}
 	}
 
 	/**

@@ -50,9 +50,12 @@ final class StudentCheckoutInitiationService {
         if ($this->checkout->key() !== self::PROVIDER_KEY) {
             throw new \InvalidArgumentException('checkout_unavailable');
         }
-        $mode = method_exists($this->checkout, 'activeMode') ? $this->checkout->activeMode() : StripeProviderMode::TEST;
+        $mode = method_exists($this->checkout, 'activeMode') ? $this->checkout->activeMode() : null;
+        // With no active mode the durable attempt is still recorded in the historical test scope and
+        // the adapter fails closed, exactly as before live mode existed. This keeps reconciliation and
+        // the truthful "awaiting payment" portal state available without ever borrowing a live key.
         if (!is_string($mode) || !StripeProviderMode::member($mode)) {
-            throw new \InvalidArgumentException('checkout_unavailable');
+            $mode = StripeProviderMode::TEST;
         }
 
         $request = null;

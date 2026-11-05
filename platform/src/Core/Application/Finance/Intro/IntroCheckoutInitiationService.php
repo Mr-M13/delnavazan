@@ -38,8 +38,8 @@ final class IntroCheckoutInitiationService {
         $actor = max(0, (int) get_current_user_id());
         if ($studentId < 1 || $actor < 1) throw new \InvalidArgumentException('checkout_unavailable');
         if (!is_object($this->checkout) || !method_exists($this->checkout, 'key') || (string) $this->checkout->key() !== self::PROVIDER_KEY) throw new \InvalidArgumentException('checkout_unavailable');
-        $mode = method_exists($this->checkout, 'activeMode') ? $this->checkout->activeMode() : StripeProviderMode::TEST;
-        if (!is_string($mode) || !StripeProviderMode::member($mode)) throw new \InvalidArgumentException('checkout_unavailable');
+        $mode = method_exists($this->checkout, 'activeMode') ? $this->checkout->activeMode() : null;
+        if (!is_string($mode) || !StripeProviderMode::member($mode)) $mode = StripeProviderMode::TEST;
 
         $sessionId = 0;
         $request = null;

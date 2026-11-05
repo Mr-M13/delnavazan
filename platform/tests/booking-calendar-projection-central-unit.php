@@ -37,14 +37,16 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public object $deliveryRow;
         public object $credentialRow;
         public ?object $secretRow=null;
+        public ?object $activeOffer=null;
         public array $notifications=array();
         public int $secrets=0;
         public function __construct(){
-            $this->confirmationRow=(object)array('id'=>70,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','booking_request_id'=>12,'delivery_id'=>41,'connection_id'=>0,'state'=>'pending_projection','version'=>1,'starts_at_utc'=>'2026-11-02 08:00:00','ends_at_utc'=>'2026-11-02 08:45:00','schedule_timezone'=>'Australia/Brisbane','attempt_count'=>0);
-            $this->deliveryRow=(object)array('id'=>41,'booking_request_id'=>12,'state'=>'accepting','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null);
+            $this->confirmationRow=(object)array('id'=>70,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','booking_request_id'=>12,'delivery_id'=>41,'teacher_id'=>10,'requested_time_id'=>5,'connection_id'=>0,'state'=>'pending_projection','version'=>1,'starts_at_utc'=>gmdate('Y-m-d H:i:s',time()+86400),'ends_at_utc'=>gmdate('Y-m-d H:i:s',time()+88200),'schedule_timezone'=>'Australia/Brisbane','attempt_count'=>0,'failure_reason_code'=>null);
+            $this->deliveryRow=(object)array('id'=>41,'booking_request_id'=>12,'teacher_id'=>10,'requested_time_id'=>5,'state'=>'accepting','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null);
             $this->credentialRow=(object)array('valid_until_utc'=>null);
         }
         public function confirmation(int $id,bool $lock=false): ?object { return $id===70?$this->confirmationRow:null; }
+        public function activeAllocationOffer(int $requestId,bool $lock=false): ?object { return $this->activeOffer; }
         public function credential(int $connectionId): ?object { return null; }
         public function projectionSecret(int $confirmationId): ?object { return $confirmationId===70?$this->secretRow:null; }
         public function begin(): void {}
@@ -78,6 +80,7 @@ namespace {
     require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/MeetCoHostRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/MeetProvisioningRule.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingProvisioningRecoveryRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/BookingCalendarProjectionService.php';
 
     use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
@@ -105,18 +108,21 @@ namespace {
     $permanentRepo=new BookingTeacherResponseRepository();
     $permanent=(new BookingCalendarProjectionService($permanentRepo))->dispatch(70);
     $assert($permanent['state']==='failed'&&$permanentRepo->confirmationRow->state==='failed','A permanent co-host refusal must fail immediately, not loop six times.');
-    $assert($permanentRepo->deliveryRow->state==='pending_request','A permanent failure must reopen the Teacher request for administrator recovery.');
+    $assert($permanentRepo->deliveryRow->state==='accepting','A provisioning failure must preserve the Teacher acceptance in the accepting state.');
+    $assert($permanentRepo->deliveryRow->lifecycle_status==='submitted'&&$permanentRepo->deliveryRow->resolution_state==='unresolved','A provisioning failure must not reopen or resolve the booking request.');
 
     Central::$throws='meet_conference_pending';
     $transientRepo=new BookingTeacherResponseRepository();
     $transient=(new BookingCalendarProjectionService($transientRepo))->dispatch(70);
     $assert($transient['state']==='retryable'&&$transientRepo->confirmationRow->state==='retryable','A pending Meet conference must remain retryable.');
     $assert(!empty($transientRepo->confirmationRow->next_attempt_at),'A retryable failure must carry a durable next-attempt instant.');
+    $assert($transientRepo->deliveryRow->state==='accepting','A transient failure must preserve the accepted delivery.');
 
     Central::$throws=null;Central::$calls=array();Central::$enabled=false;
     $pausedRepo=new BookingTeacherResponseRepository();
     $paused=(new BookingCalendarProjectionService($pausedRepo))->dispatch(70);
     $assert($paused['state']==='retryable'&&$pausedRepo->confirmationRow->state==='retryable','A paused organizer must keep the accepted booking retryable.');
+    $assert($pausedRepo->deliveryRow->state==='accepting','A paused organizer must not reverse Teacher acceptance.');
     $assert(Central::$calls===array()&&$pausedRepo->secrets===0,'A paused organizer must not call Google or create a legacy vault secret.');
 
     Central::$enabled=true;Central::$configured=false;
@@ -139,7 +145,7 @@ namespace {
     $blockedRepo->deliveryRow->state='pending_request';
     $blocked=(new BookingCalendarProjectionService($blockedRepo))->retryFailed(70);
     $assert($blocked['state']==='failed'&&$blockedRepo->confirmationRow->state==='failed','A still-refused co-host must remain terminal.');
-    $assert($blockedRepo->deliveryRow->state==='pending_request','A still-refused booking must remain in administrator recovery.');
+    $assert($blockedRepo->deliveryRow->state==='accepting','A still-refused booking must keep the accepted delivery recoverable.');
     $assert(Central::$calls===array(array('ensureForBooking',70)),'A refused retry must call the central provisioning path exactly once.');
 
     // After policy correction the same terminal record can recover once, idempotently.
@@ -169,7 +175,7 @@ namespace {
     $spaceResult=(new BookingCalendarProjectionService($spaceRepo))->dispatch(70);
     $assert($spaceResult['state']==='failed'&&$spaceRepo->confirmationRow->state==='failed','A terminal space-lookup failure must leave the booking failed.');
     $assert($spaceRepo->confirmationRow->next_attempt_at===null,'A terminal space-lookup failure must not schedule another automatic retry.');
-    $assert($spaceRepo->deliveryRow->state==='pending_request','A terminal space-lookup failure must remain in administrator recovery.');
+    $assert($spaceRepo->deliveryRow->state==='accepting','A terminal space-lookup failure must preserve the accepted delivery for administrator recovery.');
     $assert(Central::$calls===array(array('ensureForBooking',70)),'A terminal space-lookup failure must provision exactly once.');
 
     // Only the explicit administrator retry may reopen the booking after that terminal failure.
@@ -177,6 +183,57 @@ namespace {
     $spaceRecovered=(new BookingCalendarProjectionService($spaceRepo))->retryFailed(70);
     $assert($spaceRecovered['state']==='confirmed'&&$spaceRepo->confirmationRow->state==='confirmed','Explicit retry-booking must recover the terminal space-lookup failure.');
     $assert(Central::$calls===array(array('ensureForBooking',70)),'Explicit recovery must use one central provisioning attempt.');
+
+    // A cancelled request can never be resurrected by a delayed or administrator retry.
+    $cancelledRepo=new BookingTeacherResponseRepository();
+    $cancelledRepo->confirmationRow->state='failed';
+    $cancelledRepo->deliveryRow->lifecycle_status='closed';
+    $cancelledRepo->deliveryRow->resolution_state='cancelled';
+    Central::$calls=array();Central::$throws=null;
+    $cancelRejected=false;
+    try{(new BookingCalendarProjectionService($cancelledRepo))->retryFailed(70);}
+    catch(InvalidArgumentException $error){$cancelRejected=$error->getMessage()==='Booking request is no longer active';}
+    $assert($cancelRejected&&$cancelledRepo->deliveryRow->state==='accepting','A cancelled request must be refused without changing the delivery.');
+    $assert(Central::$calls===array(),'A cancelled request must never call Google.');
+
+    // A newer allocation offer means the accepted delivery no longer owns the request.
+    $supersededRepo=new BookingTeacherResponseRepository();
+    $supersededRepo->confirmationRow->state='failed';
+    $supersededRepo->activeOffer=(object)array('id'=>8,'delivery_id'=>41,'teacher_id'=>99,'state'=>'pending');
+    Central::$calls=array();
+    $supersededRejected=false;
+    try{(new BookingCalendarProjectionService($supersededRepo))->retryFailed(70);}
+    catch(InvalidArgumentException $error){$supersededRejected=$error->getMessage()==='Booking allocation has been superseded';}
+    $assert($supersededRejected&&Central::$calls===array(),'A superseded allocation must be refused before any provider call.');
+
+    // Stale reviewed versions are rejected before mutation.
+    $staleRepo=new BookingTeacherResponseRepository();
+    $staleRepo->confirmationRow->state='failed';
+    Central::$calls=array();
+    $staleRejected=false;
+    try{(new BookingCalendarProjectionService($staleRepo))->retryFailed(70,99);}
+    catch(RuntimeException $error){$staleRejected=$error->getMessage()==='Booking confirmation changed concurrently';}
+    $assert($staleRejected&&$staleRepo->confirmationRow->state==='failed'&&Central::$calls===array(),'A stale confirmation version must be refused without a provider call.');
+
+    // An ended booking cannot be resurrected by retry.
+    $expiredRepo=new BookingTeacherResponseRepository();
+    $expiredRepo->confirmationRow->state='failed';
+    $expiredRepo->confirmationRow->starts_at_utc=gmdate('Y-m-d H:i:s',time()-3600);
+    $expiredRepo->confirmationRow->ends_at_utc=gmdate('Y-m-d H:i:s',time()-1800);
+    Central::$calls=array();
+    $expiredRejected=false;
+    try{(new BookingCalendarProjectionService($expiredRepo))->retryFailed(70);}
+    catch(InvalidArgumentException $error){$expiredRejected=$error->getMessage()==='meet_booking_ended';}
+    $assert($expiredRejected&&$expiredRepo->confirmationRow->state==='failed'&&Central::$calls===array(),'An ended booking must never be retried or call Google.');
+
+    // Legacy records already moved to pending_request by the old defect are repaired in place.
+    $legacyRepo=new BookingTeacherResponseRepository();
+    $legacyRepo->confirmationRow->state='failed';$legacyRepo->confirmationRow->attempt_count=6;
+    $legacyRepo->deliveryRow->state='pending_request';
+    Central::$calls=array();Central::$throws=null;
+    $legacy=(new BookingCalendarProjectionService($legacyRepo))->retryFailed(70);
+    $assert($legacy['state']==='confirmed'&&$legacyRepo->deliveryRow->state==='confirmed','A historical pending_request delivery must recover without a new acceptance.');
+    $assert(Central::$calls===array(array('ensureForBooking',70)),'Historical repair must reuse the same confirmation and provider path.');
 
     echo "Booking calendar projection central unit passed\n";
 }

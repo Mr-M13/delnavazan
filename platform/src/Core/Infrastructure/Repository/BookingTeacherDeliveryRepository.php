@@ -45,6 +45,56 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         return is_array($rows) ? $rows : array();
     }
 
+    /**
+     * Teacher-accepted introductory bookings that are still awaiting classroom provisioning.
+     *
+     * Teacher acceptance and external provisioning are separate states. This read must survive a
+     * failed Calendar/Meet call, a consumed allocation offer (active_slot IS NULL) and the legacy
+     * defect where a provider failure moved the delivery back to pending_request. It never exposes
+     * an Accept action: the confirmation itself proves the Teacher already accepted.
+     */
+    public function acceptedProvisioningForTeacher(int $teacherId, int $limit = 20): array {
+        global $wpdb;
+        $limit = max(1, min(50, $limit));
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+                       c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.failure_reason_code,
+                       c.attempt_count,c.next_attempt_at,c.updated_at confirmation_updated_at,
+                       d.id delivery_id,d.state delivery_state,
+                       r.id booking_request_id,r.reference_code request_reference,
+                       r.lifecycle_status,r.resolution_state,r.privacy_erased_at,
+                       s.full_name student_name,
+                       COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
+                       COALESCE(NULLIF(course.name_fa,''),course.name_en) course_name,
+                       t.timezone teacher_timezone,
+                       m.classroom_state,m.cohost_state,m.failure_reason_code classroom_failure_reason_code,
+                       m.updated_at classroom_updated_at
+                FROM {$this->prefix}booking_request_confirmations c
+                INNER JOIN {$this->prefix}booking_request_teacher_deliveries d
+                        ON d.id=c.delivery_id
+                       AND d.booking_request_id=c.booking_request_id
+                       AND d.requested_time_id=c.requested_time_id
+                       AND d.teacher_id=c.teacher_id
+                INNER JOIN {$this->prefix}booking_requests r ON r.id=c.booking_request_id
+                INNER JOIN {$this->prefix}booking_request_contact_snapshots s
+                        ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+                INNER JOIN {$this->prefix}instruments i ON i.id=r.requested_instrument_id
+                LEFT JOIN {$this->prefix}courses course ON course.id=r.selected_intro_course_id
+                INNER JOIN {$this->prefix}teachers t ON t.id=c.teacher_id
+                LEFT JOIN {$this->prefix}meet_classrooms m
+                        ON m.booking_confirmation_id=c.id AND m.active_slot=1
+                WHERE c.teacher_id=%d
+                  AND c.state IN ('pending_projection','retryable','awaiting_conference','failed','awaiting_payment')
+                  AND d.state IN ('accepting','pending_request')
+                  AND r.lifecycle_status='submitted'
+                  AND r.resolution_state='unresolved'
+                  AND r.privacy_erased_at IS NULL
+                  AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR
+                ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $limit));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher accepted booking projection unavailable');
+        return is_array($rows) ? $rows : array();
+    }
+
     public function transitionForAllocation(int $id,string $from,string $to,string $now):void {
         global $wpdb;
         if($wpdb->update($this->prefix.'booking_request_teacher_deliveries',array('state'=>$to,'updated_at'=>$now,'responded_at'=>$now),array('id'=>$id,'state'=>$from))!==1)throw new \RuntimeException('Booking allocation changed concurrently');

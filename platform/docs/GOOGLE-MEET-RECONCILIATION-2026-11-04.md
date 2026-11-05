@@ -188,13 +188,29 @@ Meet URL, provider object reference or credential.
 
 ## Booking and missing-lesson recovery
 
-A terminal booking is recovered without a second Teacher acceptance. `retry-booking` resets only the
-confirmation (and its accepting delivery) to retryable, then runs the same provider path. When a
-previous blocked classroom exists, recovery **reuses that exact classroom row, sealed Calendar/Meet
-reference and provider space**; it does not create a second classroom row, Calendar event or Meet
-space. The row becomes `provisioning` only while the provider verifies COHOST membership, and remains
-blocked if Google still refuses. Cancelled/retired history and bookings whose occurrence has ended
-are never revived.
+A terminal booking is recovered without a second Teacher acceptance. `retry-booking` reactivates the
+same confirmation (its accepted delivery stays `accepting`) and runs the same provider path. Provider
+failure never moves the delivery back to `pending_request`, resolves the request, creates another
+Teacher offer, or queues another acceptance notice. When a previous blocked classroom exists,
+recovery **reuses that exact classroom row, sealed Calendar/Meet reference and provider space**; it
+does not create a second classroom row, Calendar event or Meet space. The row becomes `provisioning`
+only while the provider verifies COHOST membership, and remains blocked if Google still refuses.
+Cancelled/retired history and bookings whose occurrence has ended are never revived.
+
+Historical records that the old code already moved to `pending_request` are repaired in place only
+when the confirmation still owns that exact delivery and no live re-offer exists. Use the read-only
+discovery command before any mutation:
+
+```sh
+wp dzn-meet booking-recovery --limit=200 --json --user=<administrator_id>
+wp dzn-meet booking-recovery --confirmation_id=<id> --user=<administrator_id>
+# After reviewing the exact confirmation_version, apply one explicit record:
+wp dzn-meet booking-recovery --confirmation_id=<id> --apply \
+  --expected_version=<version> --reason="Documented organizer correction" --user=<administrator_id>
+```
+
+The default is always a dry run. Apply requires one exact confirmation id, the reviewed version and
+a documented reason; it never replays every failed booking.
 
 Lessons 22/23 are missing-row discovery, not existing-row retry. They must be planned explicitly:
 

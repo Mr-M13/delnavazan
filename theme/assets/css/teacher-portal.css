@@ -443,6 +443,10 @@
   border-inline-start-color: var(--dzn-color-accent);
 }
 
+.dzn-tp-attention-card.is-booking_provisioning {
+  border-inline-start-color: var(--dzn-color-action-primary);
+}
+
 .dzn-tp-attention-card.is-term_review,
 .dzn-tp-attention-card.is-paid_term_review,
 .dzn-tp-attention-card.is-flexible_term,
@@ -469,6 +473,11 @@
 .dzn-tp-attention-card.is-admin_request .dzn-tp-state {
   background: var(--dzn-tp-state-accent-bg);
   color: var(--dzn-color-accent);
+}
+
+.dzn-tp-attention-card.is-booking_provisioning .dzn-tp-state {
+  background: var(--dzn-tp-state-warning-bg);
+  color: var(--dzn-color-warning);
 }
 
 .dzn-tp-attention-card.is-term_review .dzn-tp-state,

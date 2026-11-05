@@ -60,6 +60,7 @@ namespace Delnavazan\Platform\Integrations {
 }
 namespace {
     function get_current_user_id(): int { return 27; }
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingProvisioningRecoveryRule.php';
     require_once dirname(__DIR__) . '/src/Integrations/BookingCalendarProjectionService.php';
     $assert=static function(bool $ok,string $message):void{if(!$ok)throw new \RuntimeException($message);};
     $repository=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
@@ -90,7 +91,8 @@ namespace {
     $failedRepository->credentialRow->valid_until_utc=gmdate('Y-m-d H:i:s',time()-60);$failedRepository->confirmationRow->attempt_count=5;
     $failedRefresher=new \Delnavazan\Platform\Integrations\BookingGoogleCredentialRefresher($failedRepository,false);
     $failed=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService($failedRepository,null,null,new \Delnavazan\Platform\Integrations\GoogleCalendarProjectionTransport(),$failedRefresher))->dispatch(70);
-    $assert($failed['state']==='failed'&&$failedRepository->deliveryRow->state==='pending_request','Exhausted projection attempts must terminate and leave the delivery for administrator recovery.');
-    $assert(\Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository::$referrals===array(array('requestId'=>12,'reason'=>'provider_projection_failed')),'A terminal projection failure must enter administrator coordination.');
+    $assert($failed['state']==='failed'&&$failedRepository->deliveryRow->state==='accepting','Exhausted projection attempts must terminate while preserving the Teacher acceptance.');
+    $assert($failedRepository->deliveryRow->lifecycle_status==='submitted'&&$failedRepository->deliveryRow->resolution_state==='unresolved','A terminal projection failure must not reopen the request or create another offer.');
+    $assert(\Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository::$referrals===array(),'A terminal projection failure must never be reclassified as a Teacher-response failure.');
     echo "Booking calendar projection unit passed\n";
 }

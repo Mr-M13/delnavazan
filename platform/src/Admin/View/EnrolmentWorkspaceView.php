@@ -185,6 +185,20 @@ final class EnrolmentWorkspaceView {
         }
         if ($case['confirmed']) {
             echo '<h3>Proposed / confirmed trial</h3><p><strong>' . esc_html((string) $case['confirmed']['label']) . '</strong><br><small>' . esc_html((string) $case['confirmed']['state_label']) . ' · ' . esc_html((string) $case['confirmed']['teacher_name']) . '</small></p>';
+            $confirmation = $case['confirmed'];
+            if ((string) ($confirmation['state'] ?? '') !== 'confirmed') {
+                echo '<dl class="dzn-facts">';
+                self::fact('Provisioning failure', (string) ($confirmation['failure_reason_code'] ?: 'None recorded'));
+                self::fact('Provisioning attempts', (string) (int) ($confirmation['attempt_count'] ?? 0));
+                self::fact('Last attempt', (string) ($confirmation['last_attempt_at'] ?: 'Not recorded'));
+                self::fact('Next automatic attempt', (string) ($confirmation['next_attempt_at'] ?: 'None'));
+                self::fact('Organizer connection', (string) ($confirmation['organizer_state'] ?? 'unknown') . (!empty($confirmation['organizer_scope_match']) ? ' · scopes exact' : ' · scopes need review'));
+                self::fact('Recovery eligible', !empty($confirmation['recovery_eligible']) ? 'Yes — no new Teacher acceptance required' : 'No — ' . str_replace('_', ' ', (string) ($confirmation['recovery_block_reason'] ?? 'review the case state')));
+                $classroom = $confirmation['classroom'] ?? null;
+                self::fact('Classroom record', $classroom ? ((string) $classroom['classroom_state'] . ' · co-host ' . (string) $classroom['cohost_state']) : 'Not created');
+                if ($classroom && !empty($classroom['failure_reason_code'])) self::fact('Classroom failure', (string) $classroom['failure_reason_code']);
+                echo '</dl>';
+            }
         }
         echo '</section>';
     }
@@ -223,6 +237,26 @@ final class EnrolmentWorkspaceView {
                 }
             }
         }
+        $confirmation = $case['confirmed'] ?? null;
+        if ($confirmation && (string) ($confirmation['state'] ?? '') === 'failed') {
+            echo '<div class="notice notice-warning inline"><p><strong>Teacher agreement is already recorded.</strong> Google classroom creation failed. Retrying reuses the accepted booking and never asks the Teacher to accept again.</p>';
+            if (!empty($confirmation['recovery_eligible']) && current_user_can('dzn_manage_booking_request_coordination')) {
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-inline-form">';
+                wp_nonce_field(EnrolmentWorkspaceController::ACTION);
+                echo '<input type="hidden" name="action" value="' . esc_attr(EnrolmentWorkspaceController::ACTION) . '">';
+                echo '<input type="hidden" name="operation" value="retry_booking_projection">';
+                echo '<input type="hidden" name="request_id" value="' . esc_attr((string) (int) $case['id']) . '">';
+                echo '<input type="hidden" name="confirmation_id" value="' . esc_attr((string) (int) ($confirmation['confirmation_id'] ?? 0)) . '">';
+                echo '<input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) (int) ($confirmation['version'] ?? 0)) . '">';
+                echo '<input type="hidden" name="idempotency_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
+                echo '<button class="button button-primary" type="submit">تلاش مجدد برای ساخت کلاس</button></form>';
+            } else {
+                echo '<p class="description">' . esc_html(!empty($confirmation['recovery_eligible'])
+                    ? 'Classroom retry requires booking coordination permission.'
+                    : 'This booking is not currently eligible for retry: ' . str_replace('_', ' ', (string) ($confirmation['recovery_block_reason'] ?? 'review the case state')) . '.') . '</p>';
+            }
+            echo '</div>';
+        }
         if ($classroom) self::classroomActions('booking', $classroom);
         echo '</section>';
     }
@@ -231,13 +265,15 @@ final class EnrolmentWorkspaceView {
     private static function caseActions(array $case): void {
         echo '<section class="dzn-enrolment__section dzn-case-actions"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Contextual actions</p><h2>Resolve the case</h2></div></div>';
         if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
-        if (current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
+        // Once a confirmation exists, the Teacher's acceptance is durable. Do not offer coordination
+        // or "record agreement" controls that imply the Teacher has not answered.
+        if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
         if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
         if ($case['confirmed'] && empty($case['outcome']) && current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
         if ($case['confirmed'] && empty($case['outcome']) && !current_user_can('dzn_manage_post_intro_automation')) echo '<p>Outcome recording requires post-intro automation access.</p>';
         if ($case['confirmed'] && !empty($case['outcome'])) echo '<p class="dzn-inline-note">The introductory outcome is recorded as <strong>' . esc_html((string) $case['outcome']['label']) . '</strong>. The post-intro decision is shown above.</p>';
-        if (!$case['confirmed'] && $case['stage_key'] !== 'identity') echo '<p class="description">A normal confirmed match requires an active Teacher Google connection and provider projection. The button below does not invent either.</p>';
+        if (!$case['confirmed'] && !in_array($case['stage_key'], array('identity', 'provisioning_pending', 'provisioning_failed', 'intro_payment_pending'), true)) echo '<p class="description">A normal confirmed match requires an active central Google organizer and provider projection. No control on this page invents either.</p>';
         echo '</section>';
     }
 

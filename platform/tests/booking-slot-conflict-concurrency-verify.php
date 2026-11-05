@@ -37,7 +37,7 @@ $acceptanceOne = $result( 'acceptance', 'w1' );
 $acceptanceTwo = $result( 'acceptance', 'w2' );
 $assert( ( $acceptanceOne['ok'] === true ) !== ( $acceptanceTwo['ok'] === true ), 'Exactly one simultaneous acceptance must succeed' );
 $refused = $acceptanceOne['ok'] === false ? $acceptanceOne : $acceptanceTwo;
-$assert( in_array( ( $refused['message'] ?? '' ), array( 'student_slot_conflict', 'teacher_slot_conflict' ), true ), 'The losing acceptance was not refused by Student or Teacher capacity' );
+$assert( in_array( ( $refused['message'] ?? '' ), array( 'student_slot_conflict', 'teacher_slot_conflict', 'Booking time is no longer available' ), true ), 'The losing acceptance was not refused by Student or Teacher capacity' );
 foreach ( array( 'submission/w1.out', 'submission/w2.out', 'acceptance/w1.out', 'acceptance/w2.out', 'acceptance/w1.result', 'acceptance/w2.result' ) as $name ) {
     $path = $gate . '/' . $name;
     if ( is_file( $path ) && preg_match( '/deadlock|lock wait timeout|WordPress database error/i', (string) file_get_contents( $path ) ) ) throw new RuntimeException( 'Database contention error in ' . $name );

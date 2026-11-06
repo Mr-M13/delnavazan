@@ -1,8 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
-use Delnavazan\Platform\Core\Application\{PostIntroFulfilmentReadService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor};
-use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
+use Delnavazan\Platform\Core\Application\{PostIntroFeedbackRule,PostIntroFulfilmentReadService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{PostIntroFeedbackRepository,PostIntroRepository};
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 
 /** Exception-only surface for post-intro continuation automation. */
@@ -30,6 +30,14 @@ final class PostIntroAdminController {
         $pending = $repository->pendingOutcomeConfirmations();
         $fulfilmentService = new PostIntroFulfilmentReadService();
         $recentPreparations = $repository->recentPreparations(20);
+        $feedbackRepository = new PostIntroFeedbackRepository();
+        $feedbackFilters = array(
+            'status' => sanitize_key((string) ($_GET['feedback_status'] ?? '')),
+            'reason' => sanitize_key((string) ($_GET['feedback_reason'] ?? '')),
+            'contact' => sanitize_key((string) ($_GET['feedback_contact'] ?? '')),
+        );
+        $feedbackRows = $feedbackRepository->recent($feedbackFilters, 50);
+        $feedbackStaff = get_users(array('capability' => self::CAPABILITY, 'orderby' => 'display_name', 'order' => 'ASC'));
         $refusals = $fulfilmentService->webhookRefusals(8);
         $inspected = null;
         $inspectId = absint($_GET['enrolment_id'] ?? 0);
@@ -126,6 +134,101 @@ final class PostIntroAdminController {
                 </tr>
             <?php endforeach; ?>
             <?php if (!$recentPreparations) : ?><tr><td colspan="8">No post-intro preparations.</td></tr><?php endif; ?>
+            </tbody></table>
+
+            <h3>Post-intro feedback and follow-up</h3>
+            <p>Students who reached the end of the post-intro hold without enrolling and submitted feedback. Feedback is separate from the canonical continuation decision. Use this list to follow up and resolve the concern; do not contact a student who explicitly declined further contact.</p>
+            <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" class="dzn-feedback-filters">
+                <input type="hidden" name="page" value="<?php echo esc_attr(self::MENU_SLUG); ?>">
+                <label>Status
+                    <select name="feedback_status">
+                        <option value="">All</option>
+                        <option value="unresolved" <?php selected((string) ($feedbackFilters['status'] ?? ''), 'unresolved'); ?>>Unresolved</option>
+                        <?php foreach (PostIntroFeedbackRule::FOLLOW_UP_STATUSES as $status_option) : ?>
+                            <option value="<?php echo esc_attr($status_option); ?>" <?php selected((string) ($feedbackFilters['status'] ?? ''), $status_option); ?>><?php echo esc_html(ucfirst(str_replace('_', ' ', $status_option))); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Reason
+                    <select name="feedback_reason">
+                        <option value="">All</option>
+                        <?php foreach (PostIntroFeedbackRule::REASONS as $reason_option) : ?>
+                            <option value="<?php echo esc_attr($reason_option); ?>" <?php selected((string) ($feedbackFilters['reason'] ?? ''), $reason_option); ?>><?php echo esc_html(self::feedbackLabel($reason_option)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Contact requested
+                    <select name="feedback_contact">
+                        <option value="">All</option>
+                        <option value="1" <?php selected((string) ($feedbackFilters['contact'] ?? ''), '1'); ?>>Yes</option>
+                        <option value="0" <?php selected((string) ($feedbackFilters['contact'] ?? ''), '0'); ?>>No</option>
+                    </select>
+                </label>
+                <button class="button">Filter</button>
+            </form>
+            <table class="widefat striped"><thead><tr><th>Student</th><th>Contact</th><th>Course / Teacher</th><th>Reason</th><th>Continuation</th><th>Follow-up</th><th>Submitted</th></tr></thead><tbody>
+            <?php foreach ($feedbackRows as $feedback) : ?>
+                <?php
+                $studentEmail = trim((string) ($feedback->student_email ?? ''));
+                $studentWhatsapp = preg_replace('/\D+/', '', (string) ($feedback->student_whatsapp ?? ''));
+                $currentDecision = trim((string) ($feedback->canonical_current_decision ?? '')) !== '' ? (string) $feedback->canonical_current_decision : (string) ($feedback->continuation_decision ?? '');
+                $contactRequested = !empty($feedback->contact_requested) || in_array($currentDecision, array('contact_me', 'different_teacher'), true);
+                $doNotContact = $currentDecision === 'not_continuing' && !$contactRequested;
+                ?>
+                <tr>
+                    <td><?php echo esc_html((string) ($feedback->student_name ?? '')); ?></td>
+                    <td>
+                        <?php if ($studentEmail !== '') : ?><a href="<?php echo esc_url('mailto:' . $studentEmail); ?>"><?php echo esc_html($studentEmail); ?></a><?php endif; ?>
+                        <?php if ($studentWhatsapp !== '') : ?><br><a href="<?php echo esc_url('https://wa.me/' . $studentWhatsapp); ?>" target="_blank" rel="noopener noreferrer">WhatsApp</a><?php endif; ?>
+                        <?php if ($studentEmail === '' && $studentWhatsapp === '') : ?>—<?php endif; ?>
+                    </td>
+                    <td><?php echo esc_html((string) ($feedback->course_name ?? '')); ?><br><small><?php echo esc_html((string) ($feedback->teacher_name ?? '')); ?></small></td>
+                    <td><code><?php echo esc_html((string) $feedback->feedback_reason); ?></code><br><?php echo esc_html(self::feedbackLabel((string) $feedback->feedback_reason)); ?><?php if (trim((string) ($feedback->feedback_comment ?? '')) !== '') : ?><br><small><?php echo esc_html((string) $feedback->feedback_comment); ?></small><?php endif; ?></td>
+                    <td>
+                        <code><?php echo esc_html((string) $feedback->continuation_choice); ?></code>
+                        <?php if ($currentDecision !== '') : ?><br><small><?php echo esc_html($currentDecision); ?></small><?php endif; ?>
+                        <br><small><?php echo $contactRequested ? 'Contact requested' : 'No contact requested'; ?></small>
+                        <?php if ($doNotContact) : ?><br><strong>Do not contact</strong><?php endif; ?>
+                    </td>
+                    <td><code><?php echo esc_html((string) $feedback->follow_up_status); ?></code><?php if (!empty($feedback->assigned_staff_name)) : ?><br><small><?php echo esc_html((string) $feedback->assigned_staff_name); ?></small><?php endif; ?><?php if (!empty($feedback->last_contact_at)) : ?><br><small>Last: <?php echo esc_html((string) $feedback->last_contact_at); ?></small><?php endif; ?><?php if (trim((string) ($feedback->outcome ?? '')) !== '') : ?><br><small>Outcome: <?php echo esc_html((string) $feedback->outcome); ?></small><?php endif; ?><?php if (trim((string) ($feedback->follow_up_notes ?? '')) !== '') : ?><br><small><?php echo esc_html((string) $feedback->follow_up_notes); ?></small><?php endif; ?></td>
+                    <td><?php echo esc_html((string) $feedback->submitted_at); ?></td>
+                </tr>
+                <tr class="dzn-feedback-followup-row"><td colspan="7">
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
+                        <input type="hidden" name="operation" value="update_feedback_followup">
+                        <input type="hidden" name="feedback_id" value="<?php echo esc_attr((string) $feedback->id); ?>">
+                        <input type="hidden" name="feedback_version" value="<?php echo esc_attr((string) $feedback->feedback_version); ?>">
+                        <?php wp_nonce_field(self::ACTION); ?>
+                        <label>Status
+                            <select name="follow_up_status">
+                                <?php foreach (PostIntroFeedbackRule::FOLLOW_UP_STATUSES as $status_option) : ?>
+                                    <option value="<?php echo esc_attr($status_option); ?>" <?php selected((string) $feedback->follow_up_status, $status_option); ?>><?php echo esc_html(ucfirst(str_replace('_', ' ', $status_option))); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>Assigned staff
+                            <select name="assigned_staff_user_id">
+                                <option value="0">Unassigned</option>
+                                <?php foreach ($feedbackStaff as $staff_user) : ?>
+                                    <option value="<?php echo esc_attr((string) $staff_user->ID); ?>" <?php selected((int) $feedback->assigned_staff_user_id, (int) $staff_user->ID); ?>><?php echo esc_html((string) $staff_user->display_name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>Last contact date
+                            <input type="date" name="last_contact_date" value="<?php echo esc_attr(substr((string) ($feedback->last_contact_at ?? ''), 0, 10)); ?>">
+                        </label>
+                        <label>Outcome
+                            <input type="text" name="outcome" maxlength="255" value="<?php echo esc_attr((string) ($feedback->outcome ?? '')); ?>">
+                        </label>
+                        <label class="dzn-feedback-notes">Notes
+                            <textarea name="follow_up_notes" rows="2" maxlength="5000"><?php echo esc_textarea((string) ($feedback->follow_up_notes ?? '')); ?></textarea>
+                        </label>
+                        <button class="button button-primary">Save follow-up</button>
+                    </form>
+                </td></tr>
+            <?php endforeach; ?>
+            <?php if (!$feedbackRows) : ?><tr><td colspan="7">No feedback matches these filters.</td></tr><?php endif; ?>
             </tbody></table>
 
             <h3>Refused provider webhook receipts</h3>
@@ -246,6 +349,30 @@ final class PostIntroAdminController {
                     sanitize_key((string) ($_POST['outcome'] ?? '')),
                     sanitize_textarea_field((string) ($_POST['note'] ?? ''))
                 );
+            } elseif ($operation === 'update_feedback_followup') {
+                $feedbackId = absint($_POST['feedback_id'] ?? 0);
+                $version = absint($_POST['feedback_version'] ?? 0);
+                $status = sanitize_key((string) ($_POST['follow_up_status'] ?? ''));
+                if ($feedbackId < 1 || $version < 1) throw new \InvalidArgumentException('feedback_id_required');
+                if (!PostIntroFeedbackRule::status($status)) throw new \InvalidArgumentException('feedback_status_invalid');
+                $assigned = absint($_POST['assigned_staff_user_id'] ?? 0);
+                if ($assigned > 0 && (!get_userdata($assigned) || !user_can($assigned, self::CAPABILITY))) throw new \InvalidArgumentException('feedback_staff_invalid');
+                $lastContact = sanitize_text_field((string) ($_POST['last_contact_date'] ?? ''));
+                if ($lastContact !== '') {
+                    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $lastContact, $parts) !== 1 || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+                        throw new \InvalidArgumentException('feedback_last_contact_invalid');
+                    }
+                    $lastContact .= ' 00:00:00';
+                }
+                $notes = sanitize_textarea_field((string) ($_POST['follow_up_notes'] ?? ''));
+                $outcome = sanitize_text_field((string) ($_POST['outcome'] ?? ''));
+                (new PostIntroFeedbackRepository())->updateFollowUp($feedbackId, $version, array(
+                    'follow_up_status' => $status,
+                    'assigned_staff_user_id' => $assigned > 0 ? $assigned : null,
+                    'last_contact_at' => $lastContact !== '' ? $lastContact : null,
+                    'follow_up_notes' => $notes !== '' ? $notes : null,
+                    'outcome' => $outcome !== '' ? $outcome : null,
+                ), (int) get_current_user_id());
             } else {
                 throw new \InvalidArgumentException('unsupported_operation');
             }
@@ -253,6 +380,19 @@ final class PostIntroAdminController {
         } catch (\Throwable $error) {
             self::redirect(preg_match('/^[a-z0-9_]{3,64}$/D', trim($error->getMessage())) === 1 ? trim($error->getMessage()) : 'operation_failed');
         }
+    }
+
+    private static function feedbackLabel(string $reason): string {
+        return match ($reason) {
+            'teacher_fit' => 'Teacher fit / different Teacher requested',
+            'schedule' => 'Class time / schedule',
+            'price' => 'Price / payment terms',
+            'changed_mind' => 'Changed mind',
+            'technical_experience' => 'Online class experience',
+            'other' => 'Other reason',
+            'prefer_not_to_say' => 'Prefer not to say',
+            default => 'Unclassified',
+        };
     }
 
     private static function fulfilmentLabel(string $state): string {

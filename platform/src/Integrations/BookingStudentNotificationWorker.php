@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
@@ -24,6 +25,11 @@ final class BookingStudentNotificationWorker {
             $stale=$state==='sending'&&$row->lease_expires_at!==null&&strtotime((string)$row->lease_expires_at.' UTC')<=time();
             $due=in_array($state,array('queued','retryable'),true)&&($row->next_attempt_at===null||strtotime((string)$row->next_attempt_at.' UTC')<=time());
             if(!$due&&!$stale)throw new \InvalidArgumentException('Booking notification is not dispatchable');
+            if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND&&!PostIntroSurveyWorker::eligibleForDispatch($row)){
+                $repository->updateNotification($notificationId,$state,array('state'=>'cancelled','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'survey_not_eligible','updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);
+                $repository->commit();
+                return array('notification_id'=>$notificationId,'state'=>'cancelled','recipient_delivery_confirmed'=>false);
+            }
             if(!is_email((string)$row->email)){$repository->updateNotification($notificationId,$state,array('state'=>'failed','attempt_count'=>(int)$row->attempt_count+1,'next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'contact_unusable','updated_at'=>$now));$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             if($stale&&(int)$row->attempt_count>=self::MAX_ATTEMPTS){$repository->updateNotification($notificationId,'sending',array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'handoff_outcome_unknown','updated_at'=>$now),(string)$row->lease_token_digest);$repository->commit();return array('notification_id'=>$notificationId,'state'=>'failed','recipient_delivery_confirmed'=>false);}
             $lease=bin2hex(random_bytes(32));$leaseDigest=hash('sha256',$lease);$attempt=(int)$row->attempt_count+1;
@@ -34,6 +40,7 @@ final class BookingStudentNotificationWorker {
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
             if((string)$row->notification_kind==='post_intro_invitation')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
+            if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND)$eventKey=PostIntroSurveyWorker::EVENT_KEY;
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
@@ -58,7 +65,12 @@ final class BookingStudentNotificationWorker {
     private static function recordInbox(object $row,string $eventKey,array $variables):void{
         $studentId=(int)($row->student_id??0);
         if($studentId<1||!class_exists(PortalNotificationRecorder::class))return;
-        PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+        $sourceKind='booking_notification';$sourceId=(int)$row->id;$link=(string)($variables['portal_url']??'');
+        if($eventKey===PostIntroSurveyWorker::EVENT_KEY){
+            $sourceKind='post_intro_survey';$sourceId=(int)($row->preparation_id??0);$link=(string)($variables['survey_url']??$link);
+            if($sourceId<1)return;
+        }
+        PortalNotificationRecorder::student($studentId,$eventKey,$sourceKind,$sourceId,$variables,$link);
     }
 
     private static function headers(object $row):array{
@@ -72,6 +84,17 @@ final class BookingStudentNotificationWorker {
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
         $portal=home_url('/student-portal/');
         $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal);
+        if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND){
+            $course=trim((string)($row->preparation_course_name??$course));
+            $survey=add_query_arg('post_intro_survey','1',$portal).'#dzn-post-intro-survey';
+            $holdNote='مهلت نگه‌داشتن این جایگاه در حال پایان است.';
+            try{
+                $expires=CanonicalContinuationRule::expiresAt((string)$row->ends_at_utc,(string)$row->slot_start_utc);
+                if(strtotime($expires.' UTC')<=time())$holdNote='مهلت نگه‌داشتن این جایگاه به پایان رسیده است.';
+            }catch(\Throwable){}
+            $variables=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'hold_status_note'=>$holdNote,'survey_url'=>$survey,'portal_url'=>$portal);
+            return array('دلنوازان · فرصت ثبت‌نام شما',"سلام {$name}،\n\n{$holdNote} ثبت‌نام کلاس «{$course}» با {$teacher} تکمیل نشده است.\n\nاگر تصمیم به ادامه نگرفته‌اید، لطفاً به ما بگویید چه چیزی مانع شد تا بتوانیم کمک کنیم. چند گزینهٔ پیشنهادی:\n- با این مدرس راحت نبودم و مایلم مدرس دیگری را امتحان کنم\n- زمان کلاس مناسب نبود\n- هزینه یا شرایط پرداخت مناسب نبود\n- دلیل دیگری داشتم\n\nمی‌توانید انتخاب کنید که با شما تماس بگیریم، فعلاً ادامه ندهید، یا فقط نظرتان را ثبت کنید.\n\nبرای ثبت پاسخ به حساب کاربری بروید:\n{$survey}\n\nحساب کاربری:\n{$portal}\n\nپاسخ شما فقط برای پیگیری و رفع نگرانی استفاده می‌شود.\n\nبا احترام، دلنوازان",$variables);
+        }
         if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your Student Portal: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_activated')return array('Your Delnavazan enrolment is active',"Hello {$name},\n\nYour payment was verified and your {$course} enrolment with {$teacher} is now active. Your weekly schedule and future lessons are available in your Student Portal.\n\nOpen your Student Portal: {$portal}\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='declined')return array('Delnavazan booking request update',"Hello {$name},\n\n{$teacher} is unable to accept your requested introductory lesson. The request has not been confirmed and no Calendar event or Meet link was created.\n\nDelnavazan",$base);

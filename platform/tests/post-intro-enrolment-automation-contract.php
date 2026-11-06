@@ -297,6 +297,29 @@ $contains($notificationWorker, array(
 ), 'post-intro email must reuse the durable notification worker');
 $assert(str_contains($repository, "insertNotificationIfMissing"), 'notification enqueue must be idempotent');
 
+// 11b. Last-day post-intro feedback is separate from continuation and uses the durable queue.
+$surveyWorker = $read('platform/src/Integrations/PostIntroSurveyWorker.php');
+$surveyController = $read('platform/src/Portals/PostIntroSurveyController.php');
+$feedbackRule = $read('platform/src/Core/Application/PostIntroFeedbackRule.php');
+$feedbackService = $read('platform/src/Core/Application/PostIntroFeedbackService.php');
+$feedbackRepository = $read('platform/src/Core/Infrastructure/Repository/PostIntroFeedbackRepository.php');
+$catalogue = $read('platform/src/Integrations/Notifications/NotificationCatalogue.php');
+$assert(str_contains($plugin, 'PostIntroSurveyWorker::register()') && str_contains($plugin, 'PostIntroSurveyController::register()'), 'the last-day follow-up worker and controller must be registered');
+$contains($surveyWorker, array('CanonicalContinuationRule::expiresAt', 'NOTIFICATION_KIND', 'insertNotificationIfMissing', 'GRACE_SECONDS', 'eligibleForDispatch'), 'the follow-up must be bounded, durable and rechecked at dispatch');
+$assert(!str_contains($surveyWorker, 'wp_mail') && !str_contains($surveyWorker, 'DelnavazanEmailRenderer'), 'the survey worker must not own a second email sender');
+$contains($surveyController, array('check_admin_referer', 'PostIntroFeedbackService', 'dzn_post_intro_survey'), 'the survey must be nonce-protected and use the feedback service');
+$assert(!str_contains($surveyController, 'stopContinuation') && !str_contains($surveyController, 'requestContact'), 'feedback submission must not call the continuation authority directly');
+$contains($feedbackRule, array("'contact_me'", "'not_continuing'", "'feedback_only'", "'new'", "'contacted'", "'awaiting_response'", "'resolved'", "'closed'"), 'the feedback rule must separate continuation choices and follow-up states');
+$contains($feedbackService, array('PostIntroFeedbackRule::CHOICE_FEEDBACK_ONLY', 'requestContact', 'requestDifferentTeacher', 'stopContinuation', 'attachWithRetry', 'continuationCaseForIntro'), 'only an explicit choice may reach the canonical continuation authority');
+$contains($feedbackRepository, array('post_intro_feedback', 'preparation_id', 'feedback_version', 'updateFollowUp', 'attachDecision'), 'feedback persistence must be unique and versioned');
+$contains($migrator, array('060_post_intro_feedback', 'install_post_intro_feedback', 'verify_post_intro_feedback_schema', 'post_intro_feedback'), 'the feedback store must have an additive migration');
+$contains($notificationWorker, array('PostIntroSurveyWorker::NOTIFICATION_KIND', 'eligibleForDispatch', 'post_intro_survey'), 'the survey must use the existing durable notification dispatcher');
+$contains($studentRead, array('survey_available', 'survey_action_url', 'survey_options', 'survey_choices', 'hold_expires_at', "'teacher_fit'", "'schedule'", "'price'", "'other'", 'feedbackRepository->byPreparation'), 'the Student read must expose the last-day survey only when eligible and unanswered');
+$contains($studentCard, array('dzn_post_intro_survey', 'name="feedback_reason"', 'name="continuation_choice"', 'feedback_comment', 'survey_choices'), 'the portal must render reasons, an optional comment and a separate continuation choice');
+$contains($catalogue, array("'post_intro.survey.student'", '{{survey_url}}', '{{hold_status_note}}', 'مدرس دیگری', 'زمان کلاس', 'هزینه'), 'the follow-up notification copy must offer the controlled reasons and never imply an expired hold is still reserved');
+$contains($admin, array('PostIntroFeedbackRepository', 'update_feedback_followup', 'feedback_status', 'feedback_reason', 'Do not contact'), 'the admin surface must filter and update staff follow-up');
+$assert(!str_contains($admin, 'recentDeclinedFeedback'), 'the obsolete declined-only feedback read must be removed');
+
 // 12. No live execution or secret exposure.
 $assert(str_contains($executionRule, 'LIVE_EXECUTION_PROVIDERS=array()') && str_contains($executionRule, 'PROVISIONABLE_PROVIDERS=array()'), 'live execution must stay closed');
 $assert(!str_contains($activation, 'sk_live_') && !str_contains($continuation, 'sk_live_'), 'no live Stripe secret may appear');

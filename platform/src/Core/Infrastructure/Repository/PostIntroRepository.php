@@ -642,7 +642,8 @@ final class PostIntroRepository {
         $table = $this->p . 'booking_request_student_notifications';
         $existing = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE delivery_id=%d AND notification_kind=%s", $deliveryId, $kind));
         if ($existing) return;
-        if ($wpdb->insert($table, array(
+        $previous = $wpdb->suppress_errors(true);
+        $inserted = $wpdb->insert($table, array(
             'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
             'delivery_id' => $deliveryId,
             'confirmation_id' => $confirmationId,
@@ -656,7 +657,14 @@ final class PostIntroRepository {
             'handed_off_at' => null,
             'created_at' => $now,
             'updated_at' => $now,
-        )) === false) throw new \RuntimeException('post_intro_notification_persistence_failed');
+        ));
+        $wpdb->suppress_errors($previous);
+        if ($inserted === false) {
+            // The unique (delivery_id, notification_kind) key is the concurrent-worker guard.
+            // A concurrent winner is the one logical notification; never create a duplicate.
+            $winner = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE delivery_id=%d AND notification_kind=%s", $deliveryId, $kind));
+            if ($winner === null || $winner === false) throw new \RuntimeException('post_intro_notification_persistence_failed');
+        }
     }
 
     public function studentPortalUrl(): string {

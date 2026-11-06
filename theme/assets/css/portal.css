@@ -1463,3 +1463,48 @@
 .dzn-schedule-row__actions .dzn-classroom-actions{justify-content:flex-end}
 .dzn-tp-actions .dzn-classroom-actions{justify-content:flex-end}
 @media(max-width:700px){.dzn-classroom-actions,.dzn-schedule-row__actions .dzn-classroom-actions,.dzn-tp-actions .dzn-classroom-actions{justify-content:stretch}.dzn-classroom-actions__form{flex:1 1 100%}.dzn-classroom-actions .dzn-button{width:100%}}
+
+/* Last-day post-intro follow-up: controlled reasons, optional comment and continuation choice. */
+.dzn-post-intro__survey {
+  border-block-start: 1px solid var(--dzn-color-border);
+  margin-block-start: 1rem;
+  padding-block-start: 1rem;
+}
+
+.dzn-post-intro__survey h4 {
+  margin: 0 0 0.35rem;
+}
+
+.dzn-post-intro__survey-fieldset {
+  border: 0;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.dzn-post-intro__survey-fieldset legend {
+  font-weight: 700;
+  margin-block-end: 0.35rem;
+}
+
+.dzn-post-intro__survey-options {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+}
+
+.dzn-post-intro__survey-options label {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: 0.5rem;
+  background: var(--dzn-color-surface);
+  cursor: pointer;
+  padding: 0.65rem 0.75rem;
+}
+
+.dzn-post-intro__survey-options input {
+  margin-block-start: 0.25rem;
+}

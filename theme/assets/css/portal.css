@@ -1799,3 +1799,12 @@
   .dzn-schedule-row__join { inline-size: 100%; min-inline-size: 0; }
   .dzn-term__compact-summary { grid-template-columns: 1fr 1fr; }
 }
+
+/* Last-day post-intro follow-up survey. */
+.dzn-post-intro__survey { border-block-start: 1px solid var(--dzn-color-border); margin-block-start: 1rem; padding-block-start: 1rem; }
+.dzn-post-intro__survey h4 { margin: 0 0 .35rem; }
+.dzn-post-intro__survey-fieldset { border: 0; margin: 0 0 .75rem; padding: 0; }
+.dzn-post-intro__survey-fieldset legend { font-weight: 700; margin-block-end: .35rem; }
+.dzn-post-intro__survey-options { display: grid; gap: .5rem; list-style: none; margin: .75rem 0; padding: 0; }
+.dzn-post-intro__survey-options label { display: flex; gap: .55rem; align-items: flex-start; border: 1px solid var(--dzn-color-border); border-radius: .5rem; background: var(--dzn-color-surface); cursor: pointer; padding: .65rem .75rem; }
+.dzn-post-intro__survey-options input { margin-block-start: .25rem; }

@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\BookingNotificationRecipient;
 use Delnavazan\Platform\Core\Application\BookingNotificationRelevance;
+use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -25,6 +26,11 @@ final class BookingStudentNotificationWorker {
             $stale=$state==='sending'&&$row->lease_expires_at!==null&&strtotime((string)$row->lease_expires_at.' UTC')<=time();
             $due=in_array($state,array('queued','retryable'),true)&&($row->next_attempt_at===null||strtotime((string)$row->next_attempt_at.' UTC')<=time());
             if(!$due&&!$stale)throw new \InvalidArgumentException('Booking notification is not dispatchable');
+            if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND&&!PostIntroSurveyWorker::eligibleForDispatch($row)){
+                $repository->updateNotification($notificationId,$state,array('state'=>'cancelled','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'survey_not_eligible','updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);
+                $repository->commit();
+                return array('notification_id'=>$notificationId,'state'=>'cancelled','recipient_delivery_confirmed'=>false);
+            }
             if(!BookingNotificationRelevance::isStillRelevant($row)){
                 $repository->updateNotification($notificationId,$state,array('state'=>'failed','next_attempt_at'=>null,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>'invitation_stale','updated_at'=>$now));
                 $repository->commit();
@@ -47,6 +53,7 @@ final class BookingStudentNotificationWorker {
             if((string)$row->notification_kind==='rescheduled_teacher')$eventKey='booking.rescheduled.teacher';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
+            if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND)$eventKey=PostIntroSurveyWorker::EVENT_KEY;
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
                 $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
@@ -90,11 +97,19 @@ final class BookingStudentNotificationWorker {
             return;
         }
         $studentId=(int)($row->student_id??0);
-        if($studentId>0)PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
+        if($studentId<1)return;
+        if($eventKey===PostIntroSurveyWorker::EVENT_KEY){
+            $preparationId=(int)($row->preparation_id??0);
+            if($preparationId<1)return;
+            PortalNotificationRecorder::student($studentId,$eventKey,'post_intro_survey',$preparationId,$variables,(string)($variables['survey_url']??''));
+            return;
+        }
+        PortalNotificationRecorder::student($studentId,$eventKey,'booking_notification',(int)$row->id,$variables,(string)($variables['portal_url']??''));
     }
 
     /** Mobile is fail-soft: it can never roll back the durable booking or the email hand-off. */
     private static function mobile(object $row,string $eventKey,array $variables):array{
+        if($eventKey===PostIntroSurveyWorker::EVENT_KEY)return array('state'=>'skipped','reason'=>'survey_email_portal_only');
         if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
         try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
         catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
@@ -123,6 +138,14 @@ final class BookingStudentNotificationWorker {
         $name=trim((string)$row->full_name);$teacher=trim((string)$row->teacher_name);$course=trim((string)$row->course_name);
         $portal=home_url('/student-portal/');$teacherPortal=home_url('/teacher-portal/');
         $base=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'portal_url'=>$portal,'teacher_portal_url'=>$teacherPortal,'student'=>$name);
+        if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND){
+            $course=trim((string)($row->preparation_course_name??$course));
+            $survey=add_query_arg('post_intro_survey','1',$portal).'#dzn-post-intro-survey';
+            $holdNote='مهلت نگه‌داشتن این جایگاه در حال پایان است.';
+            try{if(strtotime(CanonicalContinuationRule::expiresAt((string)$row->ends_at_utc,(string)$row->slot_start_utc).' UTC')<=time())$holdNote='مهلت نگه‌داشتن این جایگاه به پایان رسیده است.';}catch(\Throwable){}
+            $variables=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'hold_status_note'=>$holdNote,'survey_url'=>$survey,'portal_url'=>$portal);
+            return array('دلنوازان · فرصت ثبت‌نام شما',"سلام {$name}،\n\n{$holdNote} ثبت‌نام کلاس «{$course}» با {$teacher} تکمیل نشده است.\n\nاگر تصمیم به ادامه نگرفته‌اید، لطفاً به ما بگویید چه چیزی مانع شد تا بتوانیم کمک کنیم.\n\nبرای ثبت پاسخ به حساب کاربری بروید:\n{$survey}\n\nبا احترام، دلنوازان",$variables);
+        }
         if((string)$row->notification_kind==='requested_student'){
             $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
             $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));

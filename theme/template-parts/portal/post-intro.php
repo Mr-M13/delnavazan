@@ -26,15 +26,21 @@ $messages = array(
 	'payment_received' => 'پرداخت شما تأیید شد و ثبت‌نام در حال فعال‌سازی است.',
 	'activated' => 'ثبت‌نام شما فعال شد.',
 	'post_intro_unavailable' => 'انجام این اقدام در حال حاضر ممکن نیست. لطفاً با پشتیبانی تماس بگیرید.',
+	'post_intro_survey_unavailable' => 'ثبت این پاسخ در حال حاضر ممکن نیست. اگر مایل به ادامه هستید، از گزینه‌های پرداخت استفاده کنید یا با پشتیبانی تماس بگیرید.',
+	'post_intro_survey_reason_required' => 'لطفاً یکی از دلیل‌های پیشنهادی را انتخاب کنید.',
+	'post_intro_survey_choice_required' => 'لطفاً مشخص کنید مایل به تماس هستید، فعلاً ادامه نمی‌دهید یا فقط نظرتان را ثبت می‌کنید.',
+	'survey_recorded' => 'پاسخ شما ثبت شد. همکاران ما برای بررسی و پیگیری با شما تماس می‌گیرند.',
+	'continuation_closed' => 'این پروندهٔ ثبت‌نام قبلاً بسته شده است. برای پیگیری با پشتیبانی تماس بگیرید.',
+	'teacher_match_suppressed' => 'این مسیر ثبت‌نام توسط مدرس برای بررسی به مدیر ارجاع شده است. برای پیگیری با پشتیبانی تماس بگیرید.',
 );
 $items = array_values( array_filter( $items, static function ( $item ): bool {
-	return is_array( $item ) && ! empty( $item['actionable'] );
+	return is_array( $item ) && ( ! empty( $item['actionable'] ) || ! empty( $item['survey_available'] ) );
 } ) );
 if ( ! $items && ! isset( $messages[ $status ] ) ) {
 	return;
 }
 ?>
-<section class="dzn-portal-section dzn-post-intro" aria-labelledby="dzn-post-intro-title">
+<section id="dzn-post-intro-survey" class="dzn-portal-section dzn-post-intro" aria-labelledby="dzn-post-intro-title">
 	<div class="dzn-upcoming__heading">
 		<div>
 			<p class="dzn-portal-kicker">پس از کلاس آشنایی</p>
@@ -137,6 +143,48 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 						<p class="dzn-portal-help" role="status">امکان نمایش طرح پرداخت اکنون در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.</p>
 					<?php endif; ?>
 				<?php endif; ?>
+			<?php endif; ?>
+			<?php if ( ! empty( $item['survey_available'] ) ) : ?>
+				<div class="dzn-post-intro__survey">
+					<h4>چه چیزی باعث شد پس از جلسه معارفه ثبت‌نام خود را ادامه ندهید؟</h4>
+					<p class="dzn-portal-help">پاسخ شما به ما کمک می‌کند تا زمان، هزینه یا مدرس مناسب‌تری پیدا کنیم. ثبت نظر به‌تنهایی ثبت‌نام یا زمان کلاس شما را تغییر نمی‌دهد.</p>
+					<form method="post" action="<?php echo esc_url( (string) ( $item['survey_action_url'] ?? '' ) ); ?>">
+						<input type="hidden" name="action" value="dzn_post_intro_survey">
+						<input type="hidden" name="preparation_uid" value="<?php echo esc_attr( (string) ( $item['reference'] ?? '' ) ); ?>">
+						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['survey_nonce'] ?? '' ) ); ?>">
+						<fieldset class="dzn-post-intro__survey-fieldset">
+							<legend>دلیل اصلی</legend>
+							<ul class="dzn-post-intro__survey-options">
+								<?php foreach ( (array) ( $item['survey_options'] ?? array() ) as $survey_option ) : ?>
+									<li>
+										<label>
+											<input type="radio" name="feedback_reason" value="<?php echo esc_attr( (string) ( $survey_option['value'] ?? '' ) ); ?>" required>
+											<?php echo esc_html( (string) ( $survey_option['label'] ?? '' ) ); ?>
+										</label>
+									</li>
+								<?php endforeach; ?>
+							</ul>
+						</fieldset>
+						<fieldset class="dzn-post-intro__survey-fieldset">
+							<legend>در ادامه چه کاری برای شما بهتر است؟</legend>
+							<ul class="dzn-post-intro__survey-options">
+								<?php foreach ( (array) ( $item['survey_choices'] ?? array() ) as $survey_choice ) : ?>
+									<li>
+										<label>
+											<input type="radio" name="continuation_choice" value="<?php echo esc_attr( (string) ( $survey_choice['value'] ?? '' ) ); ?>" required>
+											<?php echo esc_html( (string) ( $survey_choice['label'] ?? '' ) ); ?>
+										</label>
+									</li>
+								<?php endforeach; ?>
+							</ul>
+						</fieldset>
+						<p class="dzn-portal-control">
+							<label for="dzn-post-intro-comment-<?php echo esc_attr( (string) ( $item['reference'] ?? '' ) ); ?>">توضیح اختیاری</label>
+							<textarea id="dzn-post-intro-comment-<?php echo esc_attr( (string) ( $item['reference'] ?? '' ) ); ?>" name="feedback_comment" rows="3" maxlength="1000" placeholder="اگر مایل هستید، کمی بیشتر توضیح دهید."></textarea>
+						</p>
+						<button class="dzn-button dzn-button--secondary" type="submit">ثبت پاسخ</button>
+					</form>
+				</div>
 			<?php endif; ?>
 		</article>
 	<?php endforeach; ?>

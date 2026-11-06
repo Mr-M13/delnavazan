@@ -8,6 +8,7 @@ require_once __DIR__ . '/../src/Core/Application/PaymentExecution/ProviderEventE
 require_once __DIR__ . '/../src/Core/Application/PaymentExecution/ProviderEventTranslator.php';
 require_once __DIR__ . '/../src/Core/Application/PaymentExecution/SignatureVerdict.php';
 require_once __DIR__ . '/../src/Core/Application/PaymentExecution/PaymentExecutionRule.php';
+require_once __DIR__ . '/../src/Core/Application/PaymentExecution/StripeProviderMode.php';
 require_once __DIR__ . '/../src/Integrations/Payment/Stripe/StripeSignatureVerifier.php';
 require_once __DIR__ . '/../src/Integrations/Payment/Stripe/StripeEventTranslator.php';
 
@@ -48,5 +49,17 @@ checkout_webhook_assert($translator->translate(json_encode($base), array(), $con
 $base['data']['object']['livemode'] = false;
 $base['data']['object']['id'] = 'cs_live_LiveSession123';
 checkout_webhook_assert($translator->translate(json_encode($base), array(), $context, gmdate('Y-m-d H:i:s')) === array(), 'Live Checkout Session identity must not enter the test Checkout evidence path');
+
+$liveContext = new \Delnavazan\Platform\Core\Application\PaymentExecution\ProviderVerificationContext('stripe', 8, 'live', 'key-v1');
+$liveBase = $base;
+$liveBase['id'] = 'evt_checkout_live_123';
+$liveBase['livemode'] = true;
+$liveBase['data']['object']['id'] = 'cs_live_LiveSession123';
+$liveBase['data']['object']['livemode'] = true;
+$liveBase['data']['object']['payment_status'] = 'paid';
+$liveEnvelopes = $translator->translate(json_encode($liveBase), array(), $liveContext, gmdate('Y-m-d H:i:s'));
+checkout_webhook_assert(count($liveEnvelopes) === 1 && $liveEnvelopes[0]->eventType() === 'payment_succeeded', 'Verified live Checkout Session did not produce a live payment event');
+$liveBase['data']['object']['livemode'] = false;
+checkout_webhook_assert($translator->translate(json_encode($liveBase), array(), $liveContext, gmdate('Y-m-d H:i:s')) === array(), 'A non-live object was accepted in the live evidence path');
 
 echo "Stripe Checkout webhook translation unit passed\n";

@@ -10,7 +10,8 @@ use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionRule,
  * using the pre-parse scope resolution. Exactly one secret is ever tried — the active
  * `webhook_signing_secret` of the resolved `(provider_key, payment_provider_account_id, mode)` scope —
  * and the comparison is constant-time. A retired secret is never used, so a request signed with one is
- * `signature_invalid`; this build ships no dual-accept rotation window.
+ * `signature_invalid`. A header may carry multiple `v1` values while an endpoint secret is rotated;
+ * any exact match under the one active secret is accepted, and the vault still tries no other secret.
  */
 final class StripeSignatureVerifier {
     public function __construct(private ?PaymentSecretVault $vault=null){$this->vault??=new PaymentSecretVault();}
@@ -34,21 +35,29 @@ final class StripeSignatureVerifier {
         $tolerance=min(PaymentExecutionRule::SIGNATURE_TOLERANCE_SECONDS,PaymentExecutionRule::TIMESTAMP_TOLERANCE_CLAMP_SECONDS);
         if(abs(time()-$parsed['timestamp'])>$tolerance)return SignatureVerdict::refused('signature_outside_tolerance',$keyVersion);
         $expected=hash_hmac('sha256',$parsed['timestamp'].'.'.$rawBody,$secret);
-        if(!hash_equals($expected,$parsed['signature']))return SignatureVerdict::refused('signature_invalid',$keyVersion);
+        // Stripe may add another `v1=` value while an endpoint secret is rotated. Any exact match under
+        // the one active secret is valid; a retired vault secret is still never tried.
+        $matched=false;
+        foreach($parsed['signatures'] as $signature)if(hash_equals($expected,$signature)){$matched=true;break;}
+        if(!$matched)return SignatureVerdict::refused('signature_invalid',$keyVersion);
         return SignatureVerdict::verified($keyVersion);
     }
 
-    /** @return array{version:string,timestamp:int,signature:string}|null */
+    /** @return array{version:string,timestamp:int,signatures:list<string>}|null */
     private function parse(string $header):?array{
-        $version='v1';$timestamp=null;$signature=null;foreach(explode(',',$header) as $part){
+        $timestamp=null;$versions=array();
+        foreach(explode(',',$header) as $part){
             $pair=explode('=',$part,2);
             if(count($pair)!==2)continue;
             $key=trim($pair[0]);$value=trim($pair[1]);
-            if($key==='t'&&preg_match('/^\d{1,12}$/D',$value)===1)$timestamp=(int)$value;
-            elseif($key!==''&&str_starts_with($key,'v')&&preg_match('/^[0-9a-f]{64}$/D',$value)===1){$version=$key;$signature=$value;}
+            if($key==='t'&&preg_match('/^\d{1,12}$/D',$value)===1){$timestamp=(int)$value;continue;}
+            if($key!==''&&str_starts_with($key,'v')&&preg_match('/^[0-9a-f]{64}$/D',$value)===1)$versions[$key][]=$value;
         }
-        if($timestamp===null||$signature===null)return null;
-        return array('version'=>$version,'timestamp'=>$timestamp,'signature'=>$signature);
+        if($timestamp===null||$versions===array())return null;
+        $version=isset($versions['v1'])?'v1':(string)array_key_first($versions);
+        $signatures=array_values(array_unique($versions[$version]));
+        if($signatures===array())return null;
+        return array('version'=>$version,'timestamp'=>$timestamp,'signatures'=>$signatures);
     }
     private function activeSecretId(ProviderVerificationContext $context):int{
         $row=(new \Delnavazan\Platform\Core\Infrastructure\Repository\PaymentSecretRepository())->activeSecret($context->providerKey(),'webhook_signing_secret',$context->accountId(),$context->mode());

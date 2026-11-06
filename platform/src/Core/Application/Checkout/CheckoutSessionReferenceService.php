@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application\Checkout;
 
+use Delnavazan\Platform\Core\Application\PaymentExecution\StripeProviderMode;
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Core\Infrastructure\Repository\ProviderIntegrationRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
@@ -18,7 +19,7 @@ final class CheckoutSessionReferenceService {
     }
 
     public function record(int $checkoutSessionId, string $providerReference, string $checkoutUri, int $actor, string $now): void {
-        if ($checkoutSessionId < 1 || $actor < 1 || preg_match('/^cs_test_[A-Za-z0-9]+$/D', $providerReference) !== 1) {
+        if ($checkoutSessionId < 1 || $actor < 1 || StripeProviderMode::modeFromCheckoutReference($providerReference) === null) {
             throw new \InvalidArgumentException('checkout_reference_invalid');
         }
         $sealed = $this->vault->seal(self::KIND, $checkoutSessionId, array(
@@ -46,7 +47,7 @@ final class CheckoutSessionReferenceService {
         $row = $this->repository->projectionSecret(self::KIND, $checkoutSessionId);
         if (!$row || (string) ($row->state ?? '') !== 'active') return null;
         $references = $this->vault->open(self::KIND, $checkoutSessionId, $row);
-        if (preg_match('/^cs_test_[A-Za-z0-9]+$/D', (string) ($references['provider_object_reference'] ?? '')) !== 1
+        if (StripeProviderMode::modeFromCheckoutReference((string) ($references['provider_object_reference'] ?? '')) === null
             || !isset($references['checkout_uri_reference'])) {
             throw new \RuntimeException('checkout_reference_malformed');
         }

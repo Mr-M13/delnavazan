@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\Finance\Intro;
 
 use Delnavazan\Platform\Core\Application\Checkout\CheckoutRequest;
-use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency;
+use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionIdempotency,StripeProviderMode};
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{IntroPaymentRepository,ProviderIntegrationRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
@@ -38,6 +38,8 @@ final class IntroCheckoutInitiationService {
         $actor = max(0, (int) get_current_user_id());
         if ($studentId < 1 || $actor < 1) throw new \InvalidArgumentException('checkout_unavailable');
         if (!is_object($this->checkout) || !method_exists($this->checkout, 'key') || (string) $this->checkout->key() !== self::PROVIDER_KEY) throw new \InvalidArgumentException('checkout_unavailable');
+        $mode = method_exists($this->checkout, 'activeMode') ? $this->checkout->activeMode() : null;
+        if (!is_string($mode) || !StripeProviderMode::member($mode)) $mode = StripeProviderMode::TEST;
 
         $sessionId = 0;
         $request = null;
@@ -54,6 +56,7 @@ final class IntroCheckoutInitiationService {
                 $active = null;
             }
             if ($active) {
+                $sessionMode = (string) ($active->provider_mode ?? StripeProviderMode::TEST);
                 if (!in_array((string) $active->state, array('creating', 'open'), true)) { $this->repository->commit(); return array('checkout_state' => 'unavailable', 'redirect_url' => null); }
                 if ((int) $active->student_id !== $studentId
                     || (int) $active->amount_minor !== (int) $obligation->amount_minor
@@ -62,7 +65,7 @@ final class IntroCheckoutInitiationService {
                     return array('checkout_state' => 'unavailable', 'redirect_url' => null);
                 }
                 if ((string) $active->state === 'open') {
-                    $stored = $this->storedReferences((int) $active->id);
+                    $stored = $this->storedReferences((int) $active->id, $sessionMode);
                     if ($stored !== null) {
                         $this->repository->commit();
                         return array('checkout_state' => 'open', 'redirect_url' => (string) $stored['checkout_uri_reference']);
@@ -70,6 +73,10 @@ final class IntroCheckoutInitiationService {
                 }
                 $createdAt = strtotime((string) $active->created_at . ' UTC');
                 if ($createdAt === false || time() - $createdAt >= self::PROVIDER_IDEMPOTENCY_REPLAY_SECONDS) {
+                    $this->repository->commit();
+                    return array('checkout_state' => 'pending', 'redirect_url' => null);
+                }
+                if ($sessionMode !== $mode) {
                     $this->repository->commit();
                     return array('checkout_state' => 'pending', 'redirect_url' => null);
                 }
@@ -86,7 +93,7 @@ final class IntroCheckoutInitiationService {
                     'amount_minor' => (int) $obligation->amount_minor, 'currency' => (string) $obligation->currency,
                     'state' => 'creating', 'active_slot' => 1,
                     'request_key_digest' => hash('sha256', 'intro-checkout:' . $key), 'provider_key' => self::PROVIDER_KEY,
-                    'provider_reference_digest' => null, 'created_at' => $now, 'created_by' => $actor,
+                    'provider_mode' => $mode, 'provider_reference_digest' => null, 'created_at' => $now, 'created_by' => $actor,
                     'expires_at' => gmdate('Y-m-d H:i:s', time() + self::CREATION_WINDOW_SECONDS), 'closed_at' => null, 'close_reason' => null,
                 ));
                 $this->repository->commit();
@@ -100,7 +107,8 @@ final class IntroCheckoutInitiationService {
         catch (\Throwable) { return array('checkout_state' => 'pending', 'redirect_url' => null); }
         if (($result['state'] ?? '') === 'open'
             && is_string($result['redirect_url'] ?? null) && $this->safeStripeUrl((string) $result['redirect_url'])
-            && is_string($result['provider_reference'] ?? null) && preg_match('/^cs_test_[A-Za-z0-9]+$/D', (string) $result['provider_reference']) === 1
+            && is_string($result['provider_reference'] ?? null) && StripeProviderMode::checkoutReference((string) $result['provider_reference'], $mode)
+            && (string) ($result['mode'] ?? $mode) === $mode
             && is_string($result['expires_at'] ?? null) && $this->validUtc((string) $result['expires_at'])) {
             $this->repository->begin();
             try {
@@ -174,11 +182,11 @@ final class IntroCheckoutInitiationService {
         ), $sealed));
     }
 
-    private function storedReferences(int $sessionId): ?array {
+    private function storedReferences(int $sessionId, string $mode): ?array {
         $row = $this->references->projectionSecret('intro_checkout_session', $sessionId);
         if (!$row || (string) ($row->state ?? '') !== 'active') return null;
         $opened = $this->vault->open('intro_checkout_session', $sessionId, $row);
-        if (preg_match('/^cs_test_[A-Za-z0-9]+$/D', (string) ($opened['provider_object_reference'] ?? '')) !== 1 || !isset($opened['checkout_uri_reference'])) throw new \RuntimeException('checkout_reference_malformed');
+        if (!StripeProviderMode::checkoutReference((string) ($opened['provider_object_reference'] ?? ''), $mode) || !isset($opened['checkout_uri_reference'])) throw new \RuntimeException('checkout_reference_malformed');
         return $opened;
     }
 }

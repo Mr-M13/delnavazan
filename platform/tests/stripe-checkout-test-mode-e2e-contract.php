@@ -27,7 +27,7 @@ foreach (array(
     if (strpos($adapter, $needle) === false) throw new RuntimeException('Checkout creation correlation contract missing ' . $needle);
 }
 foreach (array(
-    'checkout.session.completed', 'checkout.session.async_payment_succeeded', "'payment_status'", "'livemode'", "mode()!=='test'",
+    'checkout.session.completed', 'checkout.session.async_payment_succeeded', "'payment_status'", "'livemode'", 'StripeProviderMode::checkoutReference',
     'payment_requires_action', 'payment_succeeded',
 ) as $needle) {
     if (strpos($translator, $needle) === false) throw new RuntimeException('Verified Checkout event contract missing ' . $needle);

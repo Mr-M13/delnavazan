@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations\Payment\Stripe;
 
-use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionIdempotency,ProviderEventEnvelope,ProviderEventTranslator,ProviderVerificationContext,SignatureVerdict};
+use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionIdempotency,ProviderEventEnvelope,ProviderEventTranslator,ProviderVerificationContext,SignatureVerdict,StripeProviderMode};
 
 /**
  * Stripe event normalisation (contract §10).
@@ -25,6 +25,17 @@ final class StripeEventTranslator implements ProviderEventTranslator {
     /** Provider recurring semantics stay an explicit owner decision: recorded, never acted upon (T-D9). */
     private const RECURRING_UNRESOLVED_PREFIXES=array('customer.subscription.','invoice.upcoming','invoice.created');
     private const METHOD_FAMILIES=array('card','bank_redirect','direct_debit','wallet','other');
+    /**
+     * The events the deployed adapter needs for the customer Checkout and refund path.
+     *
+     * The dashboard derives the displayed subscription list from this adapter instead of hardcoding a
+     * second list. A live destination must subscribe to at least these; additional supported events are
+     * shown separately and are safe because translation stays provider-neutral and evidence is validated.
+     */
+    private const REQUIRED_WEBHOOK_EVENTS=array(
+        'checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed',
+        'payment_intent.succeeded','payment_intent.payment_failed','charge.refunded','refund.created','refund.updated',
+    );
 
     public function __construct(private ?StripeSignatureVerifier $verifier=null){$this->verifier??=new StripeSignatureVerifier();}
 
@@ -32,6 +43,15 @@ final class StripeEventTranslator implements ProviderEventTranslator {
 
     public function verify(string $rawBody,array $headers,ProviderVerificationContext $context):SignatureVerdict{
         return $this->verifier->verify($rawBody,$headers,$context);
+    }
+
+    /** The live destination's minimum event subscription, derived from this adapter. */
+    public static function requiredWebhookEvents():array{return self::REQUIRED_WEBHOOK_EVENTS;}
+    /** Every raw Stripe event type this adapter can translate, for the dashboard list. */
+    public static function supportedRawTypes():array{
+        $types=array();
+        foreach(self::TYPE_MAP as $rawTypes)foreach($rawTypes as $rawType)$types[$rawType]=true;
+        return array_keys($types);
     }
 
     public function translate(string $rawBody,array $headers,ProviderVerificationContext $context,string $receivedAt):array{
@@ -42,9 +62,19 @@ final class StripeEventTranslator implements ProviderEventTranslator {
         $eventReference=isset($decoded['id'])&&is_string($decoded['id'])?$decoded['id']:'';
         if($eventReference==='')return array();
         $object=isset($decoded['data']['object'])&&is_array($decoded['data']['object'])?$decoded['data']['object']:array();
+        if(!StripeProviderMode::member((string)$context->mode()))return array();
+        // Test and live evidence may never cross modes, whatever endpoint received the delivery. Stripe
+        // events always carry a top-level livemode; a Checkout object may also carry it for compatibility
+        // with older payload shapes. A non-Checkout event without the envelope flag fails closed.
+        $eventLive=array_key_exists('livemode',$decoded)?$decoded['livemode']:($object['livemode']??null);
+        if($eventLive!==null&&!is_bool($eventLive))return array();
+        if($eventLive===null&&!str_starts_with($rawType,'checkout.session.'))return array();
+        if($context->mode()===StripeProviderMode::LIVE&&$eventLive!==true)return array();
+        if($context->mode()===StripeProviderMode::TEST&&$eventLive!==false)return array();
         if(str_starts_with($rawType,'checkout.session.')
-            && ($context->mode()!=='test'||($object['object']??'')!=='checkout.session'||($object['mode']??'')!=='payment'
-                ||($object['livemode']??null)!==false||preg_match('/^cs_test_[A-Za-z0-9]+$/D',(string)($object['id']??''))!==1))return array();
+            && (($object['object']??'')!=='checkout.session'||($object['mode']??'')!=='payment'
+                ||($object['livemode']??null)!==($context->mode()===StripeProviderMode::LIVE)
+                ||!StripeProviderMode::checkoutReference((string)($object['id']??''),(string)$context->mode())))return array();
         if($rawType==='checkout.session.completed'&&(string)($object['status']??'')!=='complete')return array();
         $metadata=isset($object['metadata'])&&is_array($object['metadata'])?$object['metadata']:array();
         return array(new ProviderEventEnvelope(

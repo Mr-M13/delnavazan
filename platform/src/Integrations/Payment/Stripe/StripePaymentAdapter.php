@@ -1,8 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Integrations\Payment\Stripe;
 
-use Delnavazan\Platform\Core\Application\PaymentExecution\{DispatchDescriptorPreflight,PaymentExecutionDispatchSeal,PaymentExecutionIdempotency,PaymentExecutionOutcome,PaymentExecutionPort,PaymentExecutionRequest,PaymentExecutionRule,PaymentExecutionSupport,ProviderDispatchCapability,ProviderDispatchDescriptor,ProviderReferenceClaims};
-use Delnavazan\Platform\Core\Infrastructure\Repository\PaymentProviderRepository;
+use Delnavazan\Platform\Core\Application\PaymentExecution\{DispatchDescriptorPreflight,PaymentExecutionDispatchSeal,PaymentExecutionIdempotency,PaymentExecutionOutcome,PaymentExecutionPort,PaymentExecutionRequest,PaymentExecutionRule,PaymentExecutionSupport,PaymentSecretVault,ProviderDispatchCapability,ProviderDispatchDescriptor,ProviderReferenceClaims,StripeProviderMode};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{PaymentProviderRepository,PaymentSecretRepository};
 
 /**
  * The Stripe execution adapter (contract §5.4).
@@ -13,9 +13,9 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\PaymentProviderRepository
  * before it can reach a log or an exception. It never decides eligibility, never computes an amount from
  * a provider response, never writes commercial storage and never retries delivery of a customer message.
  *
- * Because this build provisions no Stripe credential and `LIVE_EXECUTION_PROVIDERS` is empty, the
- * adapter is **provably incapable of any outbound call** in this release: every invocation refuses with
- * `provider_credentials_unconfigured` before a request could be assembled.
+ * Outbound execution requires an active, encrypted credential for the account's own mode. Live mode is
+ * additionally gated by the dashboard activation record and the locked provider authority, so the
+ * adapter can never assemble a live request merely because a key exists.
  */
 final class StripePaymentAdapter implements PaymentExecutionPort {
     public const PROVIDER_KEY='stripe';
@@ -23,7 +23,15 @@ final class StripePaymentAdapter implements PaymentExecutionPort {
     private array $openCapabilities=array();
     private int $outboundCalls=0;
 
-    public function __construct(private ?PaymentProviderRepository $providers=null){$this->providers??=new PaymentProviderRepository();}
+    public function __construct(
+        private ?PaymentProviderRepository $providers=null,
+        private ?PaymentSecretRepository $secrets=null,
+        private ?PaymentSecretVault $vault=null
+    ){
+        $this->providers??=new PaymentProviderRepository();
+        $this->secrets??=new PaymentSecretRepository();
+        $this->vault??=new PaymentSecretVault($this->secrets,$this->providers);
+    }
 
     public function key():string{return self::PROVIDER_KEY;}
     public function supports(PaymentExecutionRequest $request):bool{
@@ -31,7 +39,7 @@ final class StripePaymentAdapter implements PaymentExecutionPort {
             &&PaymentExecutionRule::operation($request->operation())!==null
             &&PaymentExecutionRule::mode($request->mode())!==null;
     }
-    /** How many outbound requests this adapter has issued. Always 0 in this build. */
+    /** How many outbound requests this adapter has issued in this instance. */
     public function outboundCalls():int{return $this->outboundCalls;}
 
     public function sealDispatchDescriptor(PaymentExecutionRequest $request,ProviderReferenceClaims $claims):ProviderDispatchDescriptor{
@@ -91,20 +99,40 @@ final class StripePaymentAdapter implements PaymentExecutionPort {
         if((string)$account->state!=='active')return new PaymentExecutionOutcome('invalid_request','provider_account_inactive',null,null);
         if((string)$account->execution_state!=='enabled')return new PaymentExecutionOutcome('invalid_request','provider_execution_disabled',null,null);
         if((string)$account->credential_state!=='configured')return new PaymentExecutionOutcome('unavailable','provider_credentials_unconfigured',null,null);
-        if((string)$account->mode==='live'&&!PaymentExecutionRule::liveExecutionAuthorised((string)$account->provider_key))return new PaymentExecutionOutcome('invalid_request','live_execution_not_authorised',null,null);
-        // Unreachable in this build: no path can provision a Stripe credential (§11.5), so no request
-        // can ever be assembled. The refusal above always fires first.
-        return $this->outbound($fields,$operation);
+        $mode=(string)$account->mode;
+        if($mode==='live'){
+            $activation=StripeProviderMode::activation();
+            // Hosted Checkout is the only reviewed live charging boundary in this release. The generic
+            // recurring worker remains behind the original compile-time allowlist as well as activation;
+            // a credential and dashboard activation can never make its incomplete protocol reachable.
+            if(!in_array((string)$account->provider_key,PaymentExecutionRule::LIVE_EXECUTION_PROVIDERS,true)
+                ||!PaymentExecutionRule::liveExecutionAuthorised((string)$account->provider_key)||!StripeProviderMode::liveActive()
+                ||$activation['account_id']!==(int)$account->id)
+                return new PaymentExecutionOutcome('invalid_request','live_execution_not_authorised',null,null);
+        }
+        $secret=$this->secrets->activeSecret('stripe','api_key',(int)$account->id,$mode);
+        if(!$secret)return new PaymentExecutionOutcome('unavailable','provider_credentials_unconfigured',null,null);
+        $key=$this->vault->reveal((int)$secret->id,'api_key','stripe');
+        if(!is_string($key)||preg_match(StripeProviderMode::apiKeyPattern($mode),$key)!==1)
+            return new PaymentExecutionOutcome('unavailable','provider_credentials_unconfigured',null,null);
+        try{
+            return $this->outbound($fields,$operation,$key);
+        }finally{unset($key);}
     }
 
-    /** The single outbound path. It is never reached in this build; it exists so the seam is complete. */
-    private function outbound(array $fields,string $operation):PaymentExecutionOutcome{
+    /** The single outbound path, authenticated with the account's own mode-scoped key. */
+    private function outbound(array $fields,string $operation,string $apiKey):PaymentExecutionOutcome{
         if(!function_exists('wp_remote_post')||!function_exists('wp_remote_get'))return new PaymentExecutionOutcome('unavailable','provider_unavailable',null,null);
         $url='https://api.stripe.com/v1/'.($operation==='reconcile'?'payment_intents/'.rawurlencode((string)($fields['provider_object_references']['obligation']??'')):'payment_intents');
+        $headers=array(
+            'Authorization'=>'Basic '.base64_encode($apiKey.':'),
+            'Idempotency-Key'=>(string)$fields['idempotency_key'],
+            'Accept'=>'application/json',
+        );
         $this->outboundCalls++;
         $response=$operation==='reconcile'
-            ?wp_remote_get($url,array('timeout'=>PaymentExecutionRule::DISPATCH_CALL_TIMEOUT_SECONDS,'redirection'=>0,'headers'=>array('Idempotency-Key'=>(string)$fields['idempotency_key'])))
-            :wp_remote_post($url,array('timeout'=>PaymentExecutionRule::DISPATCH_CALL_TIMEOUT_SECONDS,'redirection'=>0,'body'=>array('amount'=>(int)$fields['amount_minor'],'currency'=>strtolower((string)$fields['currency'])),'headers'=>array('Idempotency-Key'=>(string)$fields['idempotency_key'])));
+            ?wp_remote_get($url,array('timeout'=>PaymentExecutionRule::DISPATCH_CALL_TIMEOUT_SECONDS,'redirection'=>0,'sslverify'=>true,'headers'=>$headers))
+            :wp_remote_post($url,array('timeout'=>PaymentExecutionRule::DISPATCH_CALL_TIMEOUT_SECONDS,'redirection'=>0,'sslverify'=>true,'body'=>array('amount'=>(int)$fields['amount_minor'],'currency'=>strtolower((string)$fields['currency'])),'headers'=>$headers));
         if(function_exists('is_wp_error')&&is_wp_error($response))return new PaymentExecutionOutcome('unavailable','provider_unavailable',null,null);
         $code=(int)(function_exists('wp_remote_retrieve_response_code')?wp_remote_retrieve_response_code($response):0);
         $body=function_exists('wp_remote_retrieve_body')?(string)wp_remote_retrieve_body($response):'';

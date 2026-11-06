@@ -31,8 +31,8 @@ $assertShape=static function()use($tables,$indexes,$p):void{global $wpdb;
     foreach($indexes as$spec){$rows=dzn_rda_m_index($spec[0],$spec[1]);dzn_rda_m_assert($rows!==array(),'missing Schema 57 index '.$spec[0].'.'.$spec[1]);if($spec[2])dzn_rda_m_assert((int)$rows[0]->Non_unique===0,'Schema 57 index must be unique '.$spec[1]);dzn_rda_m_assert(array_map(static fn($r)=>(string)$r->Column_name,$rows)===$spec[3],'wrong index columns '.$spec[1]);}
 };
 $ledgerCount=static fn():int=>count(array_filter((array)get_option('dzn_platform_completed_migrations',array()),static fn($id)=>$id==='055_recording_decision_authority'));
-dzn_rda_m_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='58','candidate must publish Schema 57');
-dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='58','fresh installation must reach Schema 57');
+dzn_rda_m_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='59','candidate must publish the current package schema');
+dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='59','fresh installation must reach the current schema');
 dzn_rda_m_assert($ledgerCount()===1,'fresh installation must record Schema 055 exactly once');$assertShape();
 // Existing business data must survive the additive upgrade from the pre-055 state.
 $now=gmdate('Y-m-d H:i:s');
@@ -42,7 +42,7 @@ $wpdb->insert($p.'students',array('uid'=>str_repeat('S',26),'status'=>'active','
 foreach($tables as$table)$wpdb->query("DROP TABLE {$p}{$table}");
 
 $done=array_values(array_filter((array)get_option('dzn_platform_completed_migrations',array()),static fn($id)=>!in_array($id,array('055_recording_decision_authority','066_consent_lifecycle_authority'),true)));update_option('dzn_platform_completed_migrations',$done,false);update_option('dzn_platform_schema_version','54',false);
-Migrator::maybe_upgrade();dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='58','54 to 57 upgrade must advance schema option');dzn_rda_m_assert($ledgerCount()===1,'54 to 57 upgrade must record the ledger once');$assertShape();
+Migrator::maybe_upgrade();dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='59','upgrade must advance the schema option');dzn_rda_m_assert($ledgerCount()===1,'54 to 57 upgrade must record the ledger once');$assertShape();
 
 dzn_rda_m_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}teachers WHERE display_name='Baseline Teacher'")===1,'54 to 57 upgrade must preserve existing Teachers');
 dzn_rda_m_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}students WHERE display_name='Baseline Student'")===1,'54 to 57 upgrade must preserve existing Students');
@@ -54,7 +54,7 @@ $decisionId=(int)$wpdb->insert_id;
 dzn_rda_m_assert($wpdb->insert($p.'recording_decision_commands',array('uid'=>$commandUid,'domain'=>'recording_decision_v2','operation'=>'record','command_key_digest'=>$digest,'command_payload_digest'=>$digest,'result_decision_id'=>$decisionId,'result_state'=>'accepted','created_at'=>$now,'created_by'=>1))===1,'fixture command insert');
 $before=array();foreach($tables as$table)$before[$table]=dzn_rda_m_count($table);
 Migrator::maybe_upgrade();Migrator::maybe_upgrade();
-dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='58','repeat activation must stay at Schema 57');
+dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='59','repeat activation must stay at the current schema');
 dzn_rda_m_assert($ledgerCount()===1,'repeat activation must not duplicate the Schema 055 ledger entry');
 foreach($tables as$table)dzn_rda_m_assert(dzn_rda_m_count($table)===$before[$table],'repeat activation must not duplicate evidence in '.$table);$assertShape();
 // Every declared required index must fail closed on an already-current activation.

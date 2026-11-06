@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\Checkout;
 
 use Delnavazan\Platform\Core\Application\{CommercialIdempotency,CommercialPaymentService,CommercialSupport};
-use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionIdempotency,PaymentExecutionSupport,PaymentExecutionWorkerContext};
+use Delnavazan\Platform\Core\Application\PaymentExecution\{PaymentExecutionIdempotency,PaymentExecutionSupport,PaymentExecutionWorkerContext,StripeProviderMode};
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CheckoutSessionRepository,CommercialAuthorityRepository,CommercialPaymentRepository};
 use Delnavazan\Platform\Integrations\Payment\Stripe\StripeCheckoutAdapter;
 
@@ -38,7 +38,8 @@ final class StripeCheckoutReconciliationService {
         $stored=$this->references->references((int)$session->id);
         if(!$stored)return $this->unresolved('provider_reference_unavailable');
         $providerReference=(string)($stored['provider_object_reference']??'');
-        if(preg_match('/^cs_test_[A-Za-z0-9]+$/D',$providerReference)!==1
+        $sessionMode=(string)($session->provider_mode??StripeProviderMode::TEST);
+        if(!StripeProviderMode::checkoutReference($providerReference,$sessionMode)
             ||!hash_equals((string)$session->provider_reference_digest,PaymentExecutionIdempotency::reference($providerReference)))return $this->unresolved('provider_reference_unavailable');
 
         $obligation=$this->authority->obligation((int)$session->obligation_id);
@@ -54,10 +55,12 @@ final class StripeCheckoutReconciliationService {
 
         $provider=$this->stripe->retrieve($providerReference);
         if(($provider['state']??'')!=='complete'||($provider['payment_state']??'')!=='paid')return $this->unresolved((string)($provider['reason_code']??'provider_payment_unconfirmed'));
+        if((string)($provider['mode']??$sessionMode)!==$sessionMode)return $this->unresolved('provider_session_mismatch');
         if(!hash_equals($providerReference,(string)($provider['provider_reference']??''))
             ||!$this->sameProviderCorrelation($provider,$attemptUid,$obligationReference,$legacyObligationReference))return $this->unresolved('provider_session_mismatch');
         $event=$this->stripe->completionEvent($providerReference,(int)$provider['session_created_at']);
         if(($event['state']??'')!=='found')return $this->unresolved((string)($event['reason_code']??'provider_success_event_unavailable'));
+        if((string)($event['mode']??$sessionMode)!==$sessionMode)return $this->unresolved('provider_event_mismatch');
         if(!$this->sameProviderCorrelation($event,$attemptUid,$obligationReference,$legacyObligationReference)
             ||!hash_equals((string)$provider['account_reference'],(string)$event['account_reference'])
             ||(int)($event['amount_minor']??-1)!==(int)($provider['amount_minor']??-2)

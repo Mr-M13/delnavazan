@@ -8,9 +8,10 @@ use Delnavazan\Platform\Core\Support\Identifier;
  * Provider-secret isolation boundary (contract §11).
  *
  * Signing secrets and API keys exist only as authenticated ciphertext under a domain-separated key;
- * only the provider adapter or the narrowly scoped sandbox connection check may decrypt one; values
- * are never logged, exported or rendered. The dedicated Stripe TEST configuration method does not
- * add Stripe to the provisionable-provider set and cannot provision live-mode credentials.
+ * only the provider adapter or a narrowly scoped dashboard/verification action may decrypt one; values
+ * are never logged, exported or rendered. Stripe test and live have separate dashboard-only write
+ * paths, separate mode scopes and separate accounts; live secrets are read only in production and
+ * `PROVISIONABLE_PROVIDERS` remains empty.
  */
 final class PaymentSecretVault {
     private const CAPABILITY='dzn_manage_payment_providers';
@@ -36,7 +37,7 @@ final class PaymentSecretVault {
 
     /** Store one secret. Returns a classified result; a refusal is durable and auditable, never silent. */
     public function store(string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key):array{
-        return $this->write('stored',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key,false);
+        return $this->write('stored',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key,false,false);
     }
     /** Dedicated administrative path for encrypted Stripe TEST credentials; it cannot accept live mode. */
     public function storeStripeTestConfiguration(int $accountId,string $secretClass,string $value,array $input,string $key):array{
@@ -49,10 +50,29 @@ final class PaymentSecretVault {
             $audit=$this->audit('write_refused','stripe',in_array($secretClass,array('api_key','webhook_signing_secret'),true)?$secretClass:'unknown',0,'test','stripe_test_credential_invalid',self::KEY_VERSION,null,0);
             return array('stored'=>false,'reason_code'=>'stripe_test_credential_invalid','audit_entry_id'=>$audit,'secret_id'=>null);
         }
-        return $this->write('stored','stripe',$accountId,$secretClass,'test',$value,$input,$key,true);
+        return $this->write('stored','stripe',$accountId,$secretClass,'test',$value,$input,$key,true,false);
+    }
+    /**
+     * Dedicated administrative path for encrypted Stripe LIVE credentials.
+     *
+     * It can only be reached in a production environment, only for mode `live`, and only with the
+     * live key/signing-secret prefixes. Test and live rows are separate scopes; a live write can never
+     * replace or read a test secret. Saving credentials does not activate live payments.
+     */
+    public function storeStripeLiveConfiguration(int $accountId,string $secretClass,string $value,array $input,string $key):array{
+        if(!StripeProviderMode::liveSecretReadable()){
+            $audit=$this->audit('write_refused','stripe',$secretClass,$accountId,'live','stripe_live_environment_required',self::KEY_VERSION,null,0);
+            return array('stored'=>false,'reason_code'=>'stripe_live_environment_required','audit_entry_id'=>$audit,'secret_id'=>null);
+        }
+        $expectedPrefix=$secretClass==='api_key'?'/^sk_live_[A-Za-z0-9]{16,}$/D':($secretClass==='webhook_signing_secret'?'/^whsec_[A-Za-z0-9]{16,}$/D':null);
+        if($expectedPrefix===null||preg_match($expectedPrefix,$value)!==1){
+            $audit=$this->audit('write_refused','stripe',in_array($secretClass,array('api_key','webhook_signing_secret'),true)?$secretClass:'unknown',0,'live','stripe_live_credential_invalid',self::KEY_VERSION,null,0);
+            return array('stored'=>false,'reason_code'=>'stripe_live_credential_invalid','audit_entry_id'=>$audit,'secret_id'=>null);
+        }
+        return $this->write('stored','stripe',$accountId,$secretClass,'live',$value,$input,$key,false,true);
     }
     public function rotate(string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key):array{
-        return $this->write('rotated',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key,false);
+        return $this->write('rotated',$providerKey,$accountId,$secretClass,$mode,$value,$input,$key,false,false);
     }
     public function retire(string $providerKey,int $accountId,string $secretClass,string $mode,array $input,string $key):array{
         return $this->retireOrRevoke('retired',$providerKey,$accountId,$secretClass,$mode,$input,$key);
@@ -74,7 +94,12 @@ final class PaymentSecretVault {
             $this->audit('decrypt_failed',(string)($row->provider_key??$adapterScope),$secretClass,(int)($row->payment_provider_account_id??0),(string)($row->mode??''),'secret_scope_mismatch',(string)($row->key_version??self::KEY_VERSION),null,0);
             return null;
         }
-        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider((string)$row->provider_key)){
+        $liveStripe=((string)$row->provider_key==='stripe'&&(string)$row->mode==='live');
+        if($liveStripe&&!StripeProviderMode::liveSecretReadable()){
+            $this->audit('decrypt_failed',(string)$row->provider_key,$secretClass,(int)$row->payment_provider_account_id,(string)$row->mode,'stripe_live_environment_required',(string)$row->key_version,null,0);
+            return null;
+        }
+        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider((string)$row->provider_key)&&!$liveStripe){
             $this->audit('decrypt_failed',(string)$row->provider_key,$secretClass,(int)$row->payment_provider_account_id,(string)$row->mode,'provider_secret_write_not_authorised',(string)$row->key_version,null,0);
             return null;
         }
@@ -107,6 +132,17 @@ final class PaymentSecretVault {
         return $this->decrypt($row,'api_key');
     }
 
+    /** Decrypt only a Stripe LIVE API key for the authenticated, explicit live connection action. */
+    public function revealForStripeLiveConnection(int $secretId):?string{
+        PaymentExecutionSupport::requireCapability('dzn_manage_payment_providers');
+        $row=$this->repository->secret($secretId);
+        if(!$row||(string)$row->provider_key!=='stripe'||(string)$row->secret_class!=='api_key'||(string)$row->mode!=='live'||(int)$row->active_slot!==1){
+            $this->audit('decrypt_failed','stripe','api_key',(int)($row->payment_provider_account_id??0),'live','secret_scope_mismatch',self::KEY_VERSION,null,0);
+            return null;
+        }
+        return $this->decrypt($row,'api_key');
+    }
+
     /**
      * Secret-free readiness probe: decrypt one scoped secret in memory, validate its shape and discard it.
      *
@@ -117,12 +153,14 @@ final class PaymentSecretVault {
     public function canDecrypt(int $secretId,string $secretClass,string $adapterScope):bool{
         $row=$this->repository->secret($secretId);
         if(!$row||(string)$row->secret_class!==$secretClass||(string)$row->provider_key!==$adapterScope
-            ||(int)$row->active_slot!==1||(string)$row->mode!=='test')return false;
-        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider((string)$row->provider_key))return false;
+            ||(int)$row->active_slot!==1||!in_array((string)$row->mode,StripeProviderMode::MODES,true))return false;
+        $liveStripe=((string)$row->provider_key==='stripe'&&(string)$row->mode==='live');
+        if($liveStripe&&!StripeProviderMode::liveSecretReadable())return false;
+        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider((string)$row->provider_key)&&!$liveStripe)return false;
         $plain=$this->decrypt($row,$secretClass);
         if(!is_string($plain))return false;
-        $pattern=$secretClass==='api_key'?'/^sk_test_[A-Za-z0-9]{16,}$/D'
-            :($secretClass==='webhook_signing_secret'?'/^whsec_[A-Za-z0-9]{16,}$/D':null);
+        $pattern=$secretClass==='api_key'?StripeProviderMode::apiKeyPattern((string)$row->mode)
+            :($secretClass==='webhook_signing_secret'?StripeProviderMode::webhookSecretPattern():null);
         return $pattern!==null&&preg_match($pattern,$plain)===1;
     }
 
@@ -154,7 +192,30 @@ final class PaymentSecretVault {
         return true;
     }
 
-    private function write(string $auditType,string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key,bool $stripeTestConfiguration):array{
+    /** Explicit, capability-authorised validation of the live API key and live webhook secret. */
+    public function validateStripeLiveCredentials(int $apiSecretId,int $webhookSecretId):bool{
+        PaymentExecutionSupport::requireCapability(self::CAPABILITY);
+        if(!StripeProviderMode::liveSecretReadable())return false;
+        $actor=PaymentExecutionSupport::actor();
+        foreach(array($apiSecretId=>'api_key',$webhookSecretId=>'webhook_signing_secret') as $secretId=>$secretClass){
+            $row=$this->repository->secret((int)$secretId);
+            if(!$row||(string)$row->provider_key!=='stripe'||(string)$row->secret_class!==$secretClass
+                ||(string)$row->mode!=='live'||(int)$row->active_slot!==1){
+                $this->audit('decrypt_failed','stripe',$secretClass,(int)($row->payment_provider_account_id??0),'live','secret_scope_mismatch',self::KEY_VERSION,null,$actor);
+                return false;
+            }
+            $plain=$this->decrypt($row,$secretClass);
+            $pattern=$secretClass==='api_key'?StripeProviderMode::apiKeyPattern('live'):StripeProviderMode::webhookSecretPattern();
+            if(!is_string($plain)||preg_match($pattern,$plain)!==1){
+                $this->audit('decrypt_failed','stripe',$secretClass,(int)$row->payment_provider_account_id,'live','payment_secret_unavailable',(string)$row->key_version,null,$actor);
+                return false;
+            }
+            $this->audit('validated','stripe',$secretClass,(int)$row->payment_provider_account_id,'live','explicit_live_connection_validation',(string)$row->key_version,null,$actor);
+        }
+        return true;
+    }
+
+    private function write(string $auditType,string $providerKey,int $accountId,string $secretClass,string $mode,string $value,array $input,string $key,bool $stripeTestConfiguration,bool $stripeLiveConfiguration):array{
         $providerKey=strtolower(trim($providerKey));
         $accountId=PaymentExecutionSupport::positiveInt($accountId,'Valid provider account required');
         if(trim($value)==='')throw new \InvalidArgumentException('Provider secret value required');
@@ -162,7 +223,9 @@ final class PaymentSecretVault {
         $mode=$this->mode($mode);
         // §11.3 [C2-5]: the constant gate and the capability are necessary but never sufficient, and
         // the refusal happens first, before any capability check, nonce or scope resolution.
-        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider($providerKey)&&!($stripeTestConfiguration&&$providerKey==='stripe'&&$mode==='test')){
+        $stripeDashboardWrite=($stripeTestConfiguration&&$providerKey==='stripe'&&$mode==='test')
+            ||($stripeLiveConfiguration&&$providerKey==='stripe'&&$mode==='live'&&StripeProviderMode::liveSecretReadable());
+        if(!self::testVaultActive()&&!PaymentExecutionRule::provisionableProvider($providerKey)&&!$stripeDashboardWrite){
             $audit=$this->audit('write_refused',$providerKey,$secretClass,0,$mode,'provider_secret_write_not_authorised',self::KEY_VERSION,null,0);
             return array('stored'=>false,'reason_code'=>'provider_secret_write_not_authorised','audit_entry_id'=>$audit,'secret_id'=>null);
         }

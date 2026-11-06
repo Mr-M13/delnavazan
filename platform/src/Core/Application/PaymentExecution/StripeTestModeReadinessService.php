@@ -55,6 +55,12 @@ final class StripeTestModeReadinessService {
             :'Environment must be local, development, staging, or explicitly enabled pre-launch production TEST mode.';
         $add('environment',$environmentAllowed,$environmentDetail);
 
+        $localEnvironment=$environment==='local';
+        $httpsIngress=$localEnvironment||(function_exists('is_ssl')&&is_ssl())||PaymentExecutionRule::trustedProxyHeaders()!==array();
+        $add('https_ingress',$httpsIngress,$httpsIngress
+            ?'The webhook can observe a TLS request (direct TLS, local environment, or a configured trusted proxy header).'
+            :'WordPress cannot see HTTPS and no trusted proxy header is configured. Stripe deliveries would be refused with https_required.');
+
         $vaultActive=PaymentSecretVault::testVaultActive();
         $add('test_vault',$vaultActive,$vaultActive?'The constant-gated disposable test vault is active.':'The disposable test vault constant is not active, so no Stripe test secret can be read.');
         $operatorEnabled=defined('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED')&&constant('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED')===true;

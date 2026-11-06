@@ -24,8 +24,9 @@ final class MeetClassroomRetryRule {
     }
 
     /**
-     * Never resurrect a cancelled/retired row. A blocked/failed row with no active slot is recovered
-     * by creating a new projection row with a deterministic event identity.
+     * Never resurrect a cancelled/retired row. A blocked/failed row with no active slot must be
+     * re-opened in place when it may already own a provider event/space, otherwise the deterministic
+     * Calendar event would converge on the old object while a retry created a second Meet space.
      */
     public static function classroomSelection(?object $active,?object $latest):string{
         if($active!==null){
@@ -35,7 +36,15 @@ final class MeetClassroomRetryRule {
                 &&!self::isPermanentBlock($state,(string)($active->cohost_state??''),$active->failure_reason_code??null))return 'already_ready';
             return self::RESET_ACTIVE;
         }
-        if($latest!==null&&in_array((string)($latest->classroom_state??''),array('cancelled','retired'),true))return 'reject_history';
+        if($latest!==null){
+            $state=(string)($latest->classroom_state??'');
+            $cohost=(string)($latest->cohost_state??MeetCoHostRule::PENDING);
+            if(in_array($state,array('cancelled','retired'),true))return 'reject_history';
+            if(in_array($state,array('blocked','failed','provisioning','retryable'),true)
+                ||in_array($cohost,array(MeetCoHostRule::PENDING,MeetCoHostRule::RETRYABLE,MeetCoHostRule::BLOCKED),true)
+                ||self::isPermanentBlock($state,$cohost,$latest->failure_reason_code??null))return self::RESET_LATEST;
+            return self::CREATE_NEW;
+        }
         return self::CREATE_NEW;
     }
 

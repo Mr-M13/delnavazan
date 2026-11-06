@@ -14,6 +14,24 @@ final class MeetCoHostRule {
     public const RETRYABLE='retryable';
     public const BLOCKED='blocked';
     public const EXCEPTION_APPROVED='exception_approved';
+    public const SPACE_ORIGIN_APP='app';
+    public const SPACE_ORIGIN_CALENDAR='calendar';
+
+    /**
+     * Whether a sealed classroom reference points at a space this app created.
+     *
+     * The Meet API's `meetings.space.created` grant only authorizes member management for spaces
+     * created by the app. A space created by Calendar has no such provenance, so member creation
+     * must not be attempted against it.
+     */
+    public static function isAppOwnedReference(array $references):bool{
+        return (string)($references['space_origin']??'')===self::SPACE_ORIGIN_APP
+            && trim((string)($references['space_name']??''))!=='';
+    }
+
+    public static function canManageMembers(array $references):bool{
+        return self::isAppOwnedReference($references);
+    }
 
     public static function isReady(string $classroomState,string $cohostState):bool{
         return in_array($classroomState,array('ready','rescheduled'),true)

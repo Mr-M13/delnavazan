@@ -31,7 +31,7 @@ $assertShape=static function()use($tables,$indexes,$p):void{global $wpdb;
     foreach($indexes as$spec){$rows=dzn_rda_m_index($spec[0],$spec[1]);dzn_rda_m_assert($rows!==array(),'missing Schema 57 index '.$spec[0].'.'.$spec[1]);if($spec[2])dzn_rda_m_assert((int)$rows[0]->Non_unique===0,'Schema 57 index must be unique '.$spec[1]);dzn_rda_m_assert(array_map(static fn($r)=>(string)$r->Column_name,$rows)===$spec[3],'wrong index columns '.$spec[1]);}
 };
 $ledgerCount=static fn():int=>count(array_filter((array)get_option('dzn_platform_completed_migrations',array()),static fn($id)=>$id==='055_recording_decision_authority'));
-dzn_rda_m_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='58','candidate must publish Schema 57');
+dzn_rda_m_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='59','candidate must publish the current package schema');
 dzn_rda_m_assert((string)get_option('dzn_platform_schema_version')==='59','fresh installation must reach the current schema');
 dzn_rda_m_assert($ledgerCount()===1,'fresh installation must record Schema 055 exactly once');$assertShape();
 // Existing business data must survive the additive upgrade from the pre-055 state.

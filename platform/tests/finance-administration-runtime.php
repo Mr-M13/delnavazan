@@ -28,7 +28,7 @@ wp_set_current_user(1);
 function dzn_fin_runtime_assert(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function dzn_fin_runtime_count(string $table): int { global $wpdb; return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}dzn_{$table}"); }
 
-dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '58', 'Finance runtime requires Schema 57');
+dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '59', 'Finance runtime requires the current package schema');
 dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '59', 'The current schema must be installed');
 dzn_fin_runtime_assert(in_array('060_manual_refund_reservations', (array) get_option('dzn_platform_completed_migrations', array()), true), 'Migration 060 must be recorded');
 dzn_fin_runtime_assert(in_array('061_statement_email_outbox', (array) get_option('dzn_platform_completed_migrations', array()), true), 'Migration 061 must be recorded');

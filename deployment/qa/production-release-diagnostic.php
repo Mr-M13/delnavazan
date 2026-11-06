@@ -285,6 +285,24 @@ if ($meetBookingRow) {
         'last_update_utc' => max($confirmationUpdated, $classroomUpdated) ?: null,
     );
 }
+$bookingRecovery = array('available' => false, 'rows' => array(), 'error' => null);
+try {
+    if (function_exists('wp_set_current_user')) wp_set_current_user(1);
+    $recoveryClass = '\\Delnavazan\\Platform\\Core\\Application\\BookingRecoveryAuditService';
+    if (class_exists($recoveryClass)) {
+        $bookingRecovery = array(
+            'available' => true,
+            'rows' => (new $recoveryClass())->inconsistent(50),
+            'error' => null,
+        );
+    } else {
+        $bookingRecovery['error'] = 'booking_recovery_service_unavailable';
+    }
+} catch (\Throwable $error) {
+    $message = trim($error->getMessage());
+    $bookingRecovery['error'] = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'booking_recovery_read_failed';
+}
+
 $out = array(
     'schema' => (string) get_option('dzn_platform_schema_version'),
     'build' => defined('DZN_PLATFORM_BUILD_ID') ? (string) DZN_PLATFORM_BUILD_ID : null,
@@ -375,6 +393,7 @@ $out = array(
         'organizer_oauth' => $meetOrganizer,
         'lessons' => $meetLessons,
         'booking_confirmation' => $meetBooking,
+        'booking_recovery' => $bookingRecovery,
     ),
     'completed_052' => in_array('052_payment_plan_choice', (array) get_option('dzn_platform_completed_migrations', array()), true),
     'cron_disabled' => defined('DISABLE_WP_CRON') ? (bool) DISABLE_WP_CRON : false,

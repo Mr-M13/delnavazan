@@ -146,7 +146,7 @@ final class BookingStudentNotificationWorker {
             $holdNote='مهلت نگه‌داشتن این جایگاه در حال پایان است.';
             try{if(strtotime(CanonicalContinuationRule::expiresAt((string)$row->ends_at_utc,(string)$row->slot_start_utc).' UTC')<=time())$holdNote='مهلت نگه‌داشتن این جایگاه به پایان رسیده است.';}catch(\Throwable){}
             $variables=array('name'=>$name,'teacher'=>$teacher,'course'=>$course,'hold_status_note'=>$holdNote,'survey_url'=>$survey,'portal_url'=>$portal);
-            return array('دلنوازان · فرصت ثبت‌نام شما',"سلام {$name}،\n\n{$holdNote} ثبت‌نام کلاس «{$course}» با {$teacher} تکمیل نشده است.\n\nاگر تصمیم به ادامه نگرفته‌اید، لطفاً به ما بگویید چه چیزی مانع شد تا بتوانیم کمک کنیم.\n\nبرای ثبت پاسخ به حساب کاربری بروید:\n{$survey}\n\nبا احترام، دلنوازان",$variables);
+            return array('دلنوازان · فرصت ثبت‌نام شما',"درود {$name}،\n\n{$holdNote} ثبت‌نام کلاس «{$course}» با {$teacher} تکمیل نشده است.\n\nاگر تصمیم به ادامه نگرفته‌اید، لطفاً به ما بگویید چه چیزی مانع شد تا بتوانیم کمک کنیم.\n\nبرای ثبت پاسخ به حساب کاربری بروید:\n{$survey}\n\nبا احترام، دلنوازان",$variables);
         }
         if((string)$row->notification_kind==='requested_student'){
             $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;

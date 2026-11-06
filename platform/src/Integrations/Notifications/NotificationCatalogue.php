@@ -92,6 +92,8 @@ final class NotificationCatalogue {
             'timezone'=>'Asia/Tehran','join_url'=>'https://meet.example.invalid/abc-defg-hij','portal_url'=>'https://example.invalid/student-portal/',
             'teacher_portal_url'=>'https://example.invalid/teacher-portal/','claim_url'=>'https://example.invalid/claim/','claim_code'=>'[one-time code]',
             'invitation_code'=>'[one-time code]','payment_url'=>'https://example.invalid/pay/','amount'=>'۲٬۵۰۰٬۰۰۰ تومان','due_date'=>'۱۵ آبان ۱۴۰۵',
+            'survey_url'=>'https://example.invalid/student-portal/?post_intro_survey=1#dzn-post-intro-survey',
+            'hold_status_note'=>'مهلت نگه‌داشتن این جایگاه در حال پایان است.',
             'paid_date'=>'۱۲ آبان ۱۴۰۵','previous_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰','new_when'=>'یکشنبه ۱۱ آبان ۱۴۰۵، ساعت ۱۸:۰۰','current_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
             'response_window'=>'۲۴ ساعت','response_deadline'=>'پنجشنبه ۶ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
@@ -172,6 +174,16 @@ final class NotificationCatalogue {
             'en'=>array(
                 'email'=>array('subject'=>'Your Delnavazan enrolment is ready','body'=>"Hello {{name}},\n\n{{teacher}} confirmed that your introductory {{course}} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account:\n{{portal_url}}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified.\n\nDelnavazan"),
                 'website'=>array('subject'=>'Your enrolment is ready','body'=>'Your introductory {{course}} lesson was delivered. Complete your enrolment in your account.'),
+            ),
+        ));
+        $out[]=self::event('post_intro.survey.student','Enrolment Follow-up','booking','student','PostIntroSurveyWorker','queue',array('email','website'),'operational',true,array('name','teacher','course','hold_status_note','survey_url','portal_url'),'post_intro.survey',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · فرصت ثبت‌نام شما','body'=>"درود {{name}}،\n\n{{hold_status_note}} ثبت‌نام کلاس «{{course}}» با {{teacher}} تکمیل نشده است.\n\nاگر تصمیم به ادامه نگرفته‌اید، لطفاً به ما بگویید چه چیزی مانع شد تا بتوانیم کمک کنیم. چند گزینهٔ پیشنهادی:\n- با این مدرس راحت نبودم و مایلم مدرس دیگری را امتحان کنم\n- زمان کلاس مناسب نبود\n- هزینه یا شرایط پرداخت مناسب نبود\n- دلیل دیگری داشتم\n\nمی‌توانید انتخاب کنید که با شما تماس بگیریم، فعلاً ادامه ندهید، یا فقط نظرتان را ثبت کنید.\n\nبرای ثبت پاسخ به حساب کاربری بروید:\n{{survey_url}}\n\nحساب کاربری:\n{{portal_url}}\n\nپاسخ شما فقط برای پیگیری و رفع نگرانی استفاده می‌شود.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'چرا ثبت‌نام را ادامه ندادید؟','body'=>'{{hold_status_note}} اگر ادامه نمی‌دهید، دلیل را از حساب کاربری برای کلاس «{{course}}» با {{teacher}} ثبت کنید تا بتوانیم کمک کنیم.'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · your enrolment follow-up','body'=>"Hello {{name}},\n\n{{hold_status_note}} Your {{course}} enrolment with {{teacher}} is not complete.\n\nIf you have decided not to continue, please tell us what got in the way so we can help. Suggested reasons:\n- I did not feel comfortable with this Teacher and would like to try another\n- The class time did not work\n- The price or payment terms did not work\n- Something else\n\nYou can ask us to contact you, say you do not want to continue for now, or simply record your feedback.\n\nAnswer in your account:\n{{survey_url}}\n\nStudent Portal:\n{{portal_url}}\n\nYour answer is used only to follow up and resolve your concern.\n\nDelnavazan"),
+                'website'=>array('subject'=>'Why did you not continue?','body'=>'{{hold_status_note}} If you are not continuing, record the reason in your account for {{course}} with {{teacher}} so we can help.'),
             ),
         ));
         $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(

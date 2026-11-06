@@ -4956,3 +4956,11 @@ body.dzn-admin-page .dzn-coordination a.button-primary:focus-visible {
 @media (max-width: 782px) {
   .dzn-authority-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Post-intro feedback: compact filters and inline staff follow-up. */
+.dzn-feedback-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 12px 0; }
+.dzn-feedback-filters label, .dzn-feedback-followup-row label { display: grid; gap: 4px; }
+.dzn-feedback-followup-row > td { background: #f6f7f7; }
+.dzn-feedback-followup-row form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 6px 0; }
+.dzn-feedback-notes { flex: 1 1 320px; }
+.dzn-feedback-followup-row textarea { width: 100%; min-block-size: 56px; }

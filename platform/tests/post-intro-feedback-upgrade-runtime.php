@@ -1,7 +1,7 @@
 <?php
 /**
- * Disposable MariaDB/WordPress proof that migration 060 is additive on the existing Schema 57
- * branch (058/059 already recorded), installs the feedback table, and is idempotent.
+ * Disposable MariaDB/WordPress proof that migration 071 is additive on an existing current-schema
+ * branch through migration 070, installs the feedback table, and is idempotent.
  */
 if (getenv('DZN_POST_INTRO_FEEDBACK_UPGRADE_RUNTIME') !== 'authority' || !defined('WP_CLI') || !WP_CLI || !in_array(wp_get_environment_type(), array('local', 'development'), true)) {
     fwrite(STDERR, "Post-intro feedback upgrade runtime refused.\n");
@@ -14,8 +14,8 @@ global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
 $assert = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException('post-intro feedback upgrade runtime: ' . $message); };
 $completed = static fn(): array => (array) get_option('dzn_platform_completed_migrations', array());
-$assert((string) get_option('dzn_platform_schema_version') === '57', 'the disposable installation must be Schema 57');
-$assert(in_array('058_golden_hour_pay_snapshot_details', $completed(), true) && in_array('059_golden_hour_iran_global', $completed(), true), 'migrations 058–059 must already be recorded');
+$assert((string) get_option('dzn_platform_schema_version') === (string) DZN_PLATFORM_SCHEMA_VERSION, 'the disposable installation must be current');
+$assert(in_array('070_stripe_live_mode', $completed(), true), 'migration 070 must already be recorded');
 
 // The disposable post-intro fixture creates Teacher principal links without the legacy
 // compatibility projection. Repair that synthetic fixture before exercising the real upgrade path.
@@ -27,9 +27,9 @@ $assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p . 'post_intro_fe
 
 Migrator::maybe_upgrade();
 $table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p . 'post_intro_feedback'));
-$assert($table === $p . 'post_intro_feedback', '060 must install the feedback table');
+$assert($table === $p . 'post_intro_feedback', '071 must install the feedback table');
 $assert(count(array_keys($completed(), '071_post_intro_feedback', true)) === 1, '071 must be recorded exactly once');
-$assert((string) get_option('dzn_platform_schema_version') === '57', 'the additive migration must retain Schema 57');
+$assert((string) get_option('dzn_platform_schema_version') === (string) DZN_PLATFORM_SCHEMA_VERSION, 'the additive migration must retain the current schema version');
 foreach (array('preparation_id', 'feedback_reason', 'feedback_comment', 'contact_requested', 'continuation_choice', 'continuation_decision', 'canonical_decision_id', 'follow_up_status', 'feedback_version', 'assigned_staff_user_id', 'last_contact_at', 'follow_up_notes', 'outcome') as $column) {
     $assert($wpdb->get_row("SHOW COLUMNS FROM {$p}post_intro_feedback LIKE '{$column}'") !== null, 'missing feedback column ' . $column);
 }
@@ -38,6 +38,6 @@ $assert(count($index) === 1 && (int) $index[0]->Non_unique === 0, 'preparation_i
 
 Migrator::maybe_upgrade();
 $assert(count(array_keys($completed(), '071_post_intro_feedback', true)) === 1, 'a repeated upgrade must not duplicate the ledger entry');
-$assert((string) get_option('dzn_platform_schema_version') === '57', 'a repeated upgrade must retain Schema 57');
+$assert((string) get_option('dzn_platform_schema_version') === (string) DZN_PLATFORM_SCHEMA_VERSION, 'a repeated upgrade must retain the current schema version');
 
 echo "Post-intro feedback upgrade runtime passed\n";

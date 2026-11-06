@@ -3,6 +3,8 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\BookingNotificationRecipient;
 use Delnavazan\Platform\Core\Application\BookingNotificationRelevance;
+
+require_once __DIR__ . '/PostIntroSurveyWorker.php';
 use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;

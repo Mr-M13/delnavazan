@@ -75,7 +75,7 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
     public function retrieve(string $providerReference):array{
         $mode=StripeProviderMode::modeFromCheckoutReference($providerReference);
         if($mode===null)return $this->retrievalUnavailable('provider_reference_invalid');
-        if(!self::activationAllowed($mode))return $this->retrievalUnavailable('checkout_provider_unconfigured');
+        if(!self::readAccessAllowed($mode))return $this->retrievalUnavailable('checkout_provider_unconfigured');
         $credentials=$this->credentialsForMode($mode);
         if(!is_array($credentials)||!is_string($credentials['api_key']??null)||!is_string($credentials['account_reference']??null)
             ||preg_match(StripeProviderMode::apiKeyPattern($mode),$credentials['api_key'])!==1
@@ -104,7 +104,7 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
     public function completionEvent(string $providerReference,int $sessionCreatedAt):array{
         $mode=StripeProviderMode::modeFromCheckoutReference($providerReference);
         if($mode===null||$sessionCreatedAt<1||$sessionCreatedAt>time()+300)return $this->eventUnavailable('provider_reference_invalid');
-        if(!self::activationAllowed($mode))return $this->eventUnavailable('checkout_provider_unconfigured');
+        if(!self::readAccessAllowed($mode))return $this->eventUnavailable('checkout_provider_unconfigured');
         $credentials=$this->credentialsForMode($mode);
         if(!is_array($credentials)||!is_string($credentials['api_key']??null)||!is_string($credentials['account_reference']??null)
             ||preg_match(StripeProviderMode::apiKeyPattern($mode),$credentials['api_key'])!==1
@@ -161,6 +161,11 @@ final class StripeCheckoutAdapter implements CheckoutSessionPort {
 
     private static function activationAllowed(string $mode):bool{
         return $mode===StripeProviderMode::LIVE?self::liveModeActivationAllowed():self::testModeActivationAllowed();
+    }
+
+    /** Read-only reconciliation of an existing live Session survives deactivation. */
+    private static function readAccessAllowed(string $mode):bool{
+        return $mode===StripeProviderMode::LIVE?StripeProviderMode::liveSecretReadable():self::testModeActivationAllowed();
     }
 
     /** Exact mode-scoped credentials; test and live can never borrow each other's key. */

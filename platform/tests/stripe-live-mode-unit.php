@@ -10,7 +10,7 @@ declare(strict_types=1);
 define('DZN_PLATFORM_PAYMENT_TEST_VAULT',true);
 define('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED',true);
 define('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED',true);
-define('DZN_PLATFORM_SCHEMA_VERSION','58');
+define('DZN_PLATFORM_SCHEMA_VERSION','59');
 
 $source=dirname(__DIR__).'/src/';
 spl_autoload_register(static function(string $class)use($source):void{
@@ -21,7 +21,7 @@ spl_autoload_register(static function(string $class)use($source):void{
 });
 
 $GLOBALS['options']=array(
-    'dzn_platform_schema_version'=>'58',
+    'dzn_platform_schema_version'=>'59',
     'dzn_platform_completed_migrations'=>array('035_provider_reference_vault','036_checkout_session_authority','070_stripe_live_mode'),
     'dzn_platform_payment_worker_principal'=>41,
 );
@@ -242,16 +242,20 @@ live_assert($afterConnection['stage']===StripeLiveReadinessService::STAGE_CONFIG
 $url=$liveService->webhookUrl();
 $events=StripeEventTranslator::requiredWebhookEvents();
 $GLOBALS['http_response']=array('response'=>array('code'=>200),'body'=>json_encode(array('object'=>'list','has_more'=>false,'data'=>array(array(
-    'id'=>'we_'.str_repeat('W',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2025-06-30.basil','enabled_events'=>$events,
+    'id'=>'we_'.str_repeat('W',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2026-10-28.endive','enabled_events'=>$events,
 )))));
 $verification=$liveService->verifyWebhookDestination();
 live_assert($verification['state']==='success'&&$verification['code']==='stripe_live_webhook_verified','Live webhook verification failed: '.json_encode($verification));
 $GLOBALS['http_response']=array('response'=>array('code'=>200),'body'=>json_encode(array('object'=>'list','has_more'=>false,'data'=>array(array(
-    'id'=>'we_'.str_repeat('X',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2025-06-30.basil','enabled_events'=>array('checkout.session.completed'),
+    'id'=>'we_'.str_repeat('U',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2025-06-30.basil','enabled_events'=>$events,
+)))));
+live_assert($liveService->verifyWebhookDestination()['code']==='stripe_live_webhook_api_version_unsupported','An unreviewed Stripe API version passed readiness');
+$GLOBALS['http_response']=array('response'=>array('code'=>200),'body'=>json_encode(array('object'=>'list','has_more'=>false,'data'=>array(array(
+    'id'=>'we_'.str_repeat('X',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2026-10-28.endive','enabled_events'=>array('checkout.session.completed'),
 )))));
 live_assert($liveService->verifyWebhookDestination()['code']==='stripe_live_webhook_events_incomplete','An incomplete live event subscription was accepted');
 $GLOBALS['http_response']=array('response'=>array('code'=>200),'body'=>json_encode(array('object'=>'list','has_more'=>false,'data'=>array(array(
-    'id'=>'we_'.str_repeat('W',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2025-06-30.basil','enabled_events'=>$events,
+    'id'=>'we_'.str_repeat('W',16),'url'=>$url,'status'=>'enabled','livemode'=>true,'api_version'=>'2026-10-28.endive','enabled_events'=>$events,
 )))));
 $liveService->verifyWebhookDestination();
 
@@ -305,6 +309,26 @@ $testContext=new ProviderVerificationContext('stripe',(int)$testAccount->id,'tes
 $testVerdict=$verifier->verify($body,array('stripe-signature'=>$header),$testContext);
 live_assert(!$testVerdict->isVerified()&&in_array($testVerdict->reason(),array('signature_invalid','webhook_secret_unconfigured'),true),'A live signature reached the test webhook scope');
 
+// All required snapshot event names translate to the intended controlled type. Events that do not
+// carry local attribution remain controlled review facts; they never silently settle an obligation.
+$expectedTypes=array(
+    'checkout.session.completed'=>'payment_succeeded','checkout.session.async_payment_succeeded'=>'payment_succeeded',
+    'checkout.session.async_payment_failed'=>'payment_failed','payment_intent.succeeded'=>'payment_succeeded',
+    'payment_intent.payment_failed'=>'payment_failed','charge.refunded'=>'refund_recorded',
+    'refund.created'=>'refund_recorded','refund.updated'=>'refund_recorded',
+);
+$translator=new StripeEventTranslator($verifier);
+foreach($expectedTypes as $rawType=>$expectedType){
+    $object=array('id'=>str_starts_with($rawType,'checkout.session.')?$session['id']:'obj_'.str_repeat('R',16),
+        'object'=>str_starts_with($rawType,'checkout.session.')?'checkout.session':str_replace(array('.succeeded','.payment_failed','.refunded','.created','.updated'),'',$rawType),
+        'livemode'=>true,'metadata'=>array('obligation_reference'=>'SYNTHETIC:1','provider_account_reference'=>StripeProviderMode::LIVE_ACCOUNT_REFERENCE),
+        'amount'=>100,'currency'=>'aud');
+    if(str_starts_with($rawType,'checkout.session.'))$object=array_merge($object,array('mode'=>'payment','status'=>'complete','payment_status'=>$rawType==='checkout.session.async_payment_failed'?'unpaid':'paid','amount_total'=>100));
+    $raw=json_encode(array('id'=>'evt_'.hash('sha256',$rawType),'type'=>$rawType,'livemode'=>true,'created'=>time(),'data'=>array('object'=>$object)));
+    $translated=$translator->translate($raw,array(),$context,gmdate('Y-m-d H:i:s'));
+    live_assert(count($translated)===1&&$translated[0]->eventType()===$expectedType,'Required event did not translate: '.$rawType);
+}
+
 // --- rollback stops live charging and preserves credentials and history --------------------------
 $liveService->deactivate();
 live_assert(!StripeProviderMode::liveActive()&&!PaymentExecutionRule::liveExecutionAuthorised('stripe'),'Deactivation left live execution authorised');
@@ -314,6 +338,9 @@ live_assert($deactivated['execution_enabled']===false,'Deactivation left the liv
 $calls=0;
 $blocked=$adapter->create($request);
 live_assert($blocked['state']==='unavailable'&&$calls===0,'Live Checkout still reached Stripe after deactivation');
+$calls=0;
+$retrieved=$adapter->retrieve($session['id']);
+live_assert($retrieved['state']==='open'&&$retrieved['mode']==='live'&&$calls===1,'Deactivation interrupted read-only reconciliation of an existing live Session');
 live_assert(count($GLOBALS['wpdb']->activationEvents)>=2,'Activation/deactivation evidence was not recorded');
 $rolledBack=(new StripeLiveReadinessService())->read();
 live_assert($rolledBack['stage']===StripeLiveReadinessService::STAGE_READY&&$rolledBack['active']===false,'Rollback did not return to a non-active, still-verified configuration');

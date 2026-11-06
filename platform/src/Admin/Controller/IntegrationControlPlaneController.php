@@ -273,7 +273,7 @@ final class IntegrationControlPlaneController {
             'Open Developers → Webhooks → Add endpoint (or Event destinations) in Live Mode.',
             'Use the Delnavazan live webhook URL shown above once the live account is registered.',
             'Select the required events listed above (the full supported list is safe to subscribe).',
-            'Choose the Snapshot payload format and the account’s stable/default API version. The adapter consumes stable snapshot fields and requires no preview version.',
+            'Choose the Snapshot payload format and API version 2026-10-28.endive. Unreviewed versions fail readiness.',
             'Save the destination in Stripe and copy its signing secret (whsec_…).',
             'Paste the live secret key, publishable key and signing secret into the encrypted form above and save.',
             'Press Test live connection. Then press Verify live webhook; this reads the destination back from Stripe and checks URL, status, events and API version.',
@@ -363,7 +363,7 @@ final class IntegrationControlPlaneController {
             $service=new StripeLiveConfigurationService();
             if(isset($_POST['disable_live_payments'])){$service->deactivate();$result='live_deactivated';}
             else{
-                if((string)($_POST['confirm_live_activation']??'')!=='1'){$result='live_activation_confirmation_required';}
+                if((string)($_POST['enable_live_payments']??'')!=='1'||(string)($_POST['confirm_live_activation']??'')!=='1'){$result='live_activation_confirmation_required';}
                 else{$service->activate();$result='live_activated';}
             }
         }catch(\Throwable $e){$result=$e->getMessage()==='stripe_live_readiness_blocked'?'live_activation_blocked':'live_activation_failed';}

@@ -107,7 +107,7 @@ final class StripeLiveReadinessService {
             &&$accountId>0
             &&hash_equals($expectedUrl,(string)($verification['url']??''))
             &&$eventsVerified
-            &&trim((string)($verification['api_version']??''))!=='';
+            &&StripeProviderMode::supportedWebhookApiVersion((string)($verification['api_version']??''));
         $add('webhook_destination_verified',$webhookVerified,$webhookVerified
             ?'Stripe confirms the Delnavazan live destination, its required events and payload/API version.'
             :'Run Verify live webhook after creating the Stripe live event destination and saving its signing secret.');
@@ -130,11 +130,20 @@ final class StripeLiveReadinessService {
 
         $workerReady=PaymentExecutionSupport::workerPrincipalId()>0;
         $add('worker_principal',$workerReady,$workerReady?'The configured least-privilege payment worker principal is available.':'Configure an active least-privilege payment worker principal.');
+        $automaticLiveClosed=!in_array(StripeCheckoutAdapter::PROVIDER_KEY,PaymentExecutionRule::LIVE_EXECUTION_PROVIDERS,true);
+        $add('automatic_execution_closed',$automaticLiveClosed,$automaticLiveClosed
+            ?'Automatic/background Stripe live collection remains fail-closed; this release enables hosted Checkout only.'
+            :'Automatic Stripe live collection has separate code authority.');
 
         $activation=StripeProviderMode::activation();
         $activationConsistent=true;
         $activationDetail='Live activation is not recorded, and live execution is disabled.';
-        if(in_array($activation['status'],array(StripeProviderMode::ACTIVATION_ACTIVATING,StripeProviderMode::ACTIVATION_ACTIVE),true)){
+        if($activation['status']===StripeProviderMode::ACTIVATION_ACTIVATING){
+            $activationConsistent=$accountId>0&&$activation['account_id']===$accountId
+                &&$activation['account_reference']===StripeProviderMode::LIVE_ACCOUNT_REFERENCE&&$account
+                &&in_array((string)$account->execution_state,array('disabled','enabled'),true);
+            $activationDetail=$activationConsistent?'Live activation is in its fail-closed transition.':'The live activation transition no longer matches the configured account.';
+        }elseif($activation['status']===StripeProviderMode::ACTIVATION_ACTIVE){
             $activationConsistent=$accountId>0&&$activation['account_id']===$accountId
                 &&$activation['account_reference']===StripeProviderMode::LIVE_ACCOUNT_REFERENCE
                 &&$account&&(string)$account->execution_state==='enabled';

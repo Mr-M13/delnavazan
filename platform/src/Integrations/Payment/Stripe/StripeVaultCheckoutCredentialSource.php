@@ -36,8 +36,11 @@ final class StripeVaultCheckoutCredentialSource implements StripeCheckoutCredent
 
     /** @return array{api_key:string,account_reference:string,mode:string}|null */
     public function credentialsForMode(string $mode):?array{
-        if(!$this->modeAvailable($mode))return null;
-        $accounts=$this->accountsForMode($mode);
+        if(!StripeProviderMode::member($mode))return null;
+        if($mode===StripeProviderMode::LIVE&&!StripeProviderMode::liveSecretReadable())return null;
+        if($mode===StripeProviderMode::TEST&&!StripeCheckoutAdapter::testModeActivationAllowed())return null;
+        $accounts=$this->configuredAccountsForMode($mode);
+        if(count($accounts)!==1)return null;
         $accountId=(int)$accounts[0]->id;
         $accountReference=PaymentProviderAccountService::canonicalReference($accounts[0]);
         if($accountReference===null)return null;
@@ -73,5 +76,10 @@ final class StripeVaultCheckoutCredentialSource implements StripeCheckoutCredent
     /** @return list<object> */
     private function accountsForMode(string $mode):array{
         return array_values(array_filter($this->providers->accountsForProvider(StripeCheckoutAdapter::PROVIDER_KEY),static fn($account)=>(string)$account->mode===$mode&&(string)$account->state==='active'&&(string)$account->execution_state==='enabled'&&(string)$account->credential_state==='configured'));
+    }
+
+    /** Historical read/reconciliation scope; it deliberately does not require execution to be enabled. */
+    private function configuredAccountsForMode(string $mode):array{
+        return array_values(array_filter($this->providers->accountsForProvider(StripeCheckoutAdapter::PROVIDER_KEY),static fn($account)=>(string)$account->mode===$mode&&(string)$account->state==='active'&&(string)$account->credential_state==='configured'));
     }
 }

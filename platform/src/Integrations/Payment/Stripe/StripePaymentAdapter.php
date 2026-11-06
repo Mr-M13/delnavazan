@@ -102,7 +102,11 @@ final class StripePaymentAdapter implements PaymentExecutionPort {
         $mode=(string)$account->mode;
         if($mode==='live'){
             $activation=StripeProviderMode::activation();
-            if(!PaymentExecutionRule::liveExecutionAuthorised((string)$account->provider_key)||!StripeProviderMode::liveActive()
+            // Hosted Checkout is the only reviewed live charging boundary in this release. The generic
+            // recurring worker remains behind the original compile-time allowlist as well as activation;
+            // a credential and dashboard activation can never make its incomplete protocol reachable.
+            if(!in_array((string)$account->provider_key,PaymentExecutionRule::LIVE_EXECUTION_PROVIDERS,true)
+                ||!PaymentExecutionRule::liveExecutionAuthorised((string)$account->provider_key)||!StripeProviderMode::liveActive()
                 ||$activation['account_id']!==(int)$account->id)
                 return new PaymentExecutionOutcome('invalid_request','live_execution_not_authorised',null,null);
         }

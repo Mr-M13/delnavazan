@@ -179,6 +179,8 @@ final class StripeLiveConfigurationService {
         if($missing!==array())return $this->recordWebhookVerification('failed','stripe_live_webhook_events_incomplete',$missing);
         $apiVersion=trim((string)($found['api_version']??''));
         if($apiVersion==='')return $this->recordWebhookVerification('failed','stripe_live_webhook_api_version_missing');
+        if(!StripeProviderMode::supportedWebhookApiVersion($apiVersion))
+            return $this->recordWebhookVerification('failed','stripe_live_webhook_api_version_unsupported',array(),$apiVersion,$events,(string)($found['id']??''));
         return $this->recordWebhookVerification('success','stripe_live_webhook_verified',array(),$apiVersion,$events,(string)($found['id']??''));
     }
 
@@ -191,7 +193,7 @@ final class StripeLiveConfigurationService {
         if($accountId<1)throw new \RuntimeException('stripe_live_account_unavailable');
         $readiness=(new StripeLiveReadinessService($this->providers,$this->secrets,$this->vault))->read();
         if(empty($readiness['ready'])||empty($readiness['verified']))throw new \RuntimeException('stripe_live_readiness_blocked');
-        $digest=hash('sha256',wp_json_encode($readiness['checks']));
+        $digest=$this->readinessDigest($readiness);
         $activation=array(
             'status'=>StripeProviderMode::ACTIVATION_ACTIVATING,'account_id'=>$accountId,
             'account_reference'=>self::LIVE_ACCOUNT_REFERENCE,'activated_at'=>null,'deactivated_at'=>null,
@@ -199,12 +201,28 @@ final class StripeLiveConfigurationService {
         );
         update_option(StripeProviderMode::LIVE_ACTIVATION_OPTION,$activation,false);
         try{
+            // Re-prove readiness after publishing the activating marker. A concurrent credential
+            // rotation invalidates the verification snapshots and must win over this activation.
+            $current=(new StripeLiveReadinessService($this->providers,$this->secrets,$this->vault))->read();
+            if(empty($current['ready'])||empty($current['verified'])
+                ||!hash_equals($digest,$this->readinessDigest($current)))
+                throw new \RuntimeException('stripe_live_readiness_changed');
+            $owned=StripeProviderMode::activation();
+            if($owned['status']!==StripeProviderMode::ACTIVATION_ACTIVATING
+                ||$owned['account_id']!==$accountId||!is_string($owned['readiness_digest'])
+                ||!hash_equals($digest,$owned['readiness_digest']))
+                throw new \RuntimeException('stripe_live_activation_superseded');
             $transition=(new PaymentProviderAccountService($this->providers))->setExecutionState($accountId,
                 array('execution_state'=>'enabled','reason_code'=>'deliberate_stripe_live_activation',
                     'evidence_channel'=>'authenticated_platform',
                     'evidence_reference'=>'stripe_live_activation:'.$accountId.':'.$digest,
                     'evidence_at'=>gmdate('Y-m-d H:i:s')),
                 'stripe-live-activation-'.wp_generate_uuid4());
+            $owned=StripeProviderMode::activation();
+            if($owned['status']!==StripeProviderMode::ACTIVATION_ACTIVATING
+                ||$owned['account_id']!==$accountId||!is_string($owned['readiness_digest'])
+                ||!hash_equals($digest,$owned['readiness_digest']))
+                throw new \RuntimeException('stripe_live_activation_superseded');
             $activation['status']=StripeProviderMode::ACTIVATION_ACTIVE;
             $activation['activated_at']=gmdate('Y-m-d H:i:s');
             // Evidence is part of activation: if it cannot be written, activation is rolled back rather
@@ -350,5 +368,12 @@ final class StripeLiveConfigurationService {
         $history=(array)get_option(StripeProviderMode::LIVE_ACTIVATION_HISTORY_OPTION,array());
         $history[]=array('type'=>$type,'reason_code'=>$reason,'at'=>$now,'actor'=>$actor,'readiness_digest'=>$readinessDigest);
         update_option(StripeProviderMode::LIVE_ACTIVATION_HISTORY_OPTION,array_slice($history,-50),false);
+    }
+    /** Bind activation to the blocking verdicts, not presentation text that changes by stage. */
+    private function readinessDigest(array $readiness):string{
+        $states=array();
+        foreach((array)($readiness['checks']??array()) as $key=>$check)$states[(string)$key]=(string)($check['state']??'blocked');
+        ksort($states);
+        return hash('sha256',wp_json_encode(array('account_id'=>(int)($readiness['account_id']??0),'states'=>$states)));
     }
 }

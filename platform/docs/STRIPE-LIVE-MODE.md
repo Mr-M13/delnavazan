@@ -40,10 +40,10 @@ Additional events the translator can normalise safely (subscribe if needed):
 
 ## API version and payload
 
-The adapter does not pin a preview API version. Use the Stripe account's stable/default API version and
-the **Snapshot** event payload format. The live webhook verification reads the destination's
-`api_version` back from Stripe and records it with the verified snapshot; an empty or missing version
-does not pass readiness.
+The reviewed Snapshot-event contract is pinned to Stripe API version `2026-10-28.endive`. Use that
+version and the **Snapshot** event payload format. The live webhook verification reads the destination's
+`api_version` back from Stripe and requires an exact supported-version match; empty, missing, preview,
+future or otherwise unreviewed versions do not pass readiness.
 
 ## Activate live payments
 
@@ -61,8 +61,11 @@ does not pass readiness.
    verified receipt in the dashboard. A 200 response alone is not settlement.
 10. When the checklist reaches **Ready**, tick the confirmation and press **Activate Live Payments**.
 
-Deactivation stops new live charging immediately, keeps every credential and historical payment
-record, and returns Checkout to the existing test configuration when test mode is available.
+Deactivation stops new live Checkout creation immediately, keeps every credential and historical
+payment record, and returns new Checkout to the existing test configuration when test mode is
+available. Read-only retrieval of an already-created live Session and its completion Event remains
+available for reconciliation. Automatic/background live collection remains compile-time disabled in
+this release.
 
 ## Readiness stages
 

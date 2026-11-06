@@ -32,6 +32,9 @@ final class StripeProviderMode {
     public const ACTIVATION_ACTIVE='active';
     public const ACTIVATION_BLOCKED='blocked';
 
+    /** Snapshot-event versions whose field contract has been reviewed with this translator. */
+    public const SUPPORTED_WEBHOOK_API_VERSIONS=array('2026-10-28.endive');
+
     /** Live credentials may only be configured in a production environment. */
     public static function liveEnvironmentAllowed():bool{
         return function_exists('wp_get_environment_type')&&(string)wp_get_environment_type()==='production';
@@ -90,6 +93,9 @@ final class StripeProviderMode {
         return $mode===self::LIVE?'/^pk_live_[A-Za-z0-9]{16,}$/D':'/^pk_test_[A-Za-z0-9]{16,}$/D';
     }
     public static function webhookSecretPattern():string{return '/^whsec_[A-Za-z0-9]{16,}$/D';}
+    public static function supportedWebhookApiVersion(string $version):bool{
+        return in_array(trim($version),self::SUPPORTED_WEBHOOK_API_VERSIONS,true);
+    }
     public static function accountReference(string $mode):string{
         return $mode===self::LIVE?self::LIVE_ACCOUNT_REFERENCE:self::TEST_ACCOUNT_REFERENCE;
     }

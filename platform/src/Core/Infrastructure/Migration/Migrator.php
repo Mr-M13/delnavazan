@@ -192,7 +192,9 @@ final class Migrator {
 	private static function verify_checkout_session_authority_schema(): void {
 		global $wpdb; $table=$wpdb->prefix.'dzn_checkout_sessions';
 		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing checkout_sessions');
-		foreach(array('uid','student_id','offer_id','obligation_id','amount_minor','currency','state','active_slot','request_key_digest','provider_key','provider_mode','provider_reference_digest','created_at','created_by','expires_at','closed_at','close_reason') as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: checkout session '.$column);
+		// `provider_mode` belongs to migration 070. The historical 036 verifier must remain valid
+		// long enough for an existing schema-58 database to reach that additive migration.
+		foreach(array('uid','student_id','offer_id','obligation_id','amount_minor','currency','state','active_slot','request_key_digest','provider_key','provider_reference_digest','created_at','created_by','expires_at','closed_at','close_reason') as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: checkout session '.$column);
 		if(!self::has_index_columns($table,'obligation_active',true,array('obligation_id','active_slot')))throw new \RuntimeException('Migration verification failed: checkout active-session uniqueness');
 		foreach(array('stripe_session_id','checkout_url','client_secret','provider_payload','provider_reference') as $forbidden)if($wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$forbidden}'"))throw new \RuntimeException('Migration verification failed: raw/provider-specific checkout storage forbidden');
 	}
@@ -420,7 +422,9 @@ final class Migrator {
 		global $wpdb; $p=$wpdb->prefix.'dzn_';
 		$spec=array(
 			'intro_payment_obligations'=>array('uid','reference_code','reference_digest','booking_request_id','confirmation_id','student_id','teacher_id','course_id','region_code','currency','amount_minor','state','provider_key','paid_at','failed_at','refunded_at','failure_reason_code','version','created_at','created_by','updated_at','updated_by'),
-			'intro_checkout_sessions'=>array('uid','intro_obligation_id','student_id','amount_minor','currency','state','active_slot','request_key_digest','provider_key','provider_mode','provider_reference_digest','created_at','created_by','expires_at','closed_at','close_reason'),
+			// `provider_mode` is added and verified by migration 070; migration 050 must still verify
+			// an existing pre-070 database before the ordered migration runner reaches 070.
+			'intro_checkout_sessions'=>array('uid','intro_obligation_id','student_id','amount_minor','currency','state','active_slot','request_key_digest','provider_key','provider_reference_digest','created_at','created_by','expires_at','closed_at','close_reason'),
 			'intro_payment_events'=>array('uid','intro_obligation_id','provider_key','provider_event_reference_digest','event_kind','amount_minor','currency','provider_occurred_at','result_state','reason_code','recorded_at','created_at'),
 			'intro_payment_commands'=>array('uid','command_domain','operation','command_key_digest','command_payload_digest','intro_obligation_id','result_state','result_id','created_at','created_by'),
 		);

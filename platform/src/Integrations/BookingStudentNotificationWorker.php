@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+require_once __DIR__ . '/PostIntroSurveyWorker.php';
+
 use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Application\ProviderReferenceVault;

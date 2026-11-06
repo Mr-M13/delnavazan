@@ -33,7 +33,8 @@ $assert(Rule::classroomSelection($ready,$ready) === 'already_ready', 'A ready ve
 $assert(Rule::classroomSelection($blocked,$blocked) === Rule::RESET_ACTIVE, 'An active blocked row may be reset by an explicit authorized retry.');
 $assert(Rule::classroomSelection($cancelled,$cancelled) === 'reject_history', 'A cancelled active row must never be revived.');
 $assert(Rule::classroomSelection(null,$cancelled) === 'reject_history', 'An inactive cancelled history row must never be reactivated.');
-$assert(Rule::classroomSelection(null,$failed) === Rule::CREATE_NEW, 'A failed historical lesson row must be recovered by a new row, not reactivation.');
+$assert(Rule::classroomSelection(null,$blocked) === Rule::RESET_LATEST, 'A blocked historical lesson row must be re-opened in place so an existing event/space is reused.');
+$assert(Rule::classroomSelection(null,$failed) === Rule::RESET_LATEST, 'A failed historical lesson row must be re-opened in place so an existing event/space is reused.');
 $assert(Rule::classroomSelection(null,null) === Rule::CREATE_NEW, 'A missing projection may create a new row.');
 
 // Booking recovery reuses the exact blocked row and references instead of creating a duplicate.

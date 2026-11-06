@@ -257,6 +257,7 @@ final class GoogleWorkspaceClassroomService {
         if(!$classroom)throw new \InvalidArgumentException('meet_classroom_required');
         $references=$this->openReferences($classroom);
         if($references===null)throw new \InvalidArgumentException('meet_reference_required');
+        if(!MeetCoHostRule::canManageMembers($references))throw new \RuntimeException('meet_cohost_calendar_space_unsupported');
         $email=$this->repository->teacherEmail($newTeacherId);
         if(!GoogleWorkspaceClassroomRule::validEmail($email))throw new \InvalidArgumentException('meet_teacher_email_required');
         $space=$this->spaceFor($references,$classroom);
@@ -389,8 +390,40 @@ final class GoogleWorkspaceClassroomService {
     // ---- Provisioning -----------------------------------------------------------------------
     private function provision(object $classroom,string $identity,array $facts,array $eligibility):array{
         $references=$this->openReferences($classroom);
-        if($references===null)$references=$this->createOrConvergeEvent($classroom,$identity,$facts);
+        if($references!==null&&!MeetCoHostRule::canManageMembers($references)){
+            // The persisted reference was created before the app-owned-space repair. It points at a
+            // Calendar-created space, which the Meet API will not let this grant manage. Reusing it
+            // can only repeat the permanent 403, so keep the existing objects and fail closed.
+            $this->blockLegacyCalendarSpace($classroom);
+        }
+        if($references===null){
+            $pending=$this->openSpaceReference($classroom);
+            if($pending===null&&$this->hasProviderEvidence($classroom)){
+                // A prior attempt already recorded provider identity but its sealed reference is
+                // unavailable. Creating a new space here could orphan a second meeting while the
+                // deterministic Calendar event still points at the old one.
+                $this->blockMissingClassroomReference($classroom);
+            }
+            $space=$pending!==null?$this->resumeSpaceReference($classroom,$pending):$this->createOrConvergeSpace($classroom);
+            $references=$this->createOrConvergeEvent($classroom,$identity,$facts,$space);
+        }
         $space=$this->spaceFor($references,$classroom);
+        $recordingOn=!empty($eligibility['eligible']);
+        // Configure moderation and access before assigning the co-host. A space is only useful when
+        // the teacher can join without knocking, and moderation is the feature that enables co-hosts
+        // to co-manage the call. This also proves the space is writable by the organizer grant.
+        $configResponse=$this->api->patchSpace($space,array('config'=>array(
+            'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
+            'moderation'=>'ON',
+            'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>$recordingOn?'ON':'OFF')),
+        )),'config.accessType,config.moderation,config.artifactConfig.recordingConfig.autoRecordingGeneration');
+        if($configResponse['status']<200||$configResponse['status']>=300){
+            $this->recordProviderFailure($classroom,$configResponse,'space_config','meeting_access_config_failed',MeetCoHostRule::PENDING);
+            throw new \RuntimeException(MeetProvisioningRule::failureCode(
+                'space_config',
+                MeetProvisioningRule::isRetryableResponse((int)$configResponse['status'],$configResponse['error_class']??null)
+            ));
+        }
         $cohost=$this->assignCoHost($space,(string)$facts['teacher_email']);
         $now=gmdate('Y-m-d H:i:s');
         if(($cohost['state']??'')!==MeetCoHostRule::VERIFIED){
@@ -413,19 +446,6 @@ final class GoogleWorkspaceClassroomService {
             $this->raiseClassroomAlert((int)$classroom->id,'cohost_assignment_failed',$cohost['reason']??'meet_cohost_assignment_failed',$cohost['detail']??null);
             throw new \RuntimeException($reason);
         }
-        $recordingOn=!empty($eligibility['eligible']);
-        $configResponse=$this->api->patchSpace($space,array('config'=>array(
-            'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
-            'moderation'=>'ON',
-            'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>$recordingOn?'ON':'OFF')),
-        )),'config.accessType,config.moderation,config.artifactConfig.recordingConfig.autoRecordingGeneration');
-        if($configResponse['status']<200||$configResponse['status']>=300){
-            $this->recordProviderFailure($classroom,$configResponse,'space_config','meeting_access_config_failed',MeetCoHostRule::VERIFIED);
-            throw new \RuntimeException(MeetProvisioningRule::failureCode(
-                'space_config',
-                MeetProvisioningRule::isRetryableResponse((int)$configResponse['status'],$configResponse['error_class']??null)
-            ));
-        }
         $this->repository->updateClassroom((int)$classroom->id,array(
             'classroom_state'=>'ready','active_slot'=>1,
             'space_name'=>$space,'cohost_state'=>MeetCoHostRule::VERIFIED,
@@ -446,8 +466,96 @@ final class GoogleWorkspaceClassroomService {
         return $result;
     }
 
-    private function createOrConvergeEvent(object $classroom,string $identity,array $facts):array{
+    /**
+     * Create one app-owned Meet space, or reuse the pending space reference.
+     *
+     * `spaces.create` has no client-supplied idempotency key. The returned name is therefore sealed
+     * and persisted before the Calendar event is attempted. A clear refusal or 429 may be retried;
+     * an ambiguous transport/5xx response is never retried automatically because Google may have
+     * created a space whose name was lost with the response.
+     */
+    private function createOrConvergeSpace(object $classroom):array{
+        $response=$this->api->createSpace();
+        if($response['status']<200||$response['status']>=300){
+            $attempt=(int)($classroom->cohost_attempt_count??0)+1;
+            $code=MeetProvisioningRule::spaceCreateFailureCode((int)($response['status']??0),$response['error_class']??null);
+            $retryable=$code==='meet_space_create_retryable'&&!MeetProvisioningRule::cohostAttemptExhausted($attempt);
+            if($code==='meet_space_create_retryable'&&!$retryable)$code='meet_space_create_ambiguous';
+            $persisted=$this->recordProviderFailure($classroom,$response,'space_create','space_create_failed',null,$code,$retryable);
+            throw new \RuntimeException($persisted);
+        }
+        $spaceName=trim((string)($response['body']['name']??''));
+        $joinUri=trim((string)($response['body']['meetingUri']??''));
+        if($spaceName===''||$joinUri===''){
+            $this->recordProviderFailure($classroom,$response,'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
+        try{
+            $space=GoogleWorkspaceClassroomRule::spaceName($spaceName);
+            $join=GoogleWorkspaceClassroomRule::meetUri($joinUri);
+            $meetingCode=GoogleWorkspaceClassroomRule::meetingCode($join);
+        }catch(\Throwable){
+            $this->recordProviderFailure($classroom,$response,'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
+        $providerCode=trim((string)($response['body']['meetingCode']??''));
+        if($providerCode!==''&&!hash_equals($meetingCode,$providerCode)){
+            $this->recordProviderFailure($classroom,$response,'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
+        $now=gmdate('Y-m-d H:i:s');
+        $sealed=$this->vault->seal('meet_classroom',(int)$classroom->id,array(
+            'provider_object_reference'=>'','join_uri_reference'=>$join,
+            'space_name'=>$space,'space_origin'=>MeetCoHostRule::SPACE_ORIGIN_APP,
+            'space_organizer'=>GoogleWorkspaceClassroomRule::organizerEmail(),
+        ));
+        $previous=$this->repository->reference((int)$classroom->id);
+        if($previous)$this->repository->retireReference((int)$previous->id,0,$now);
+        $this->repository->insertReference(array_merge($sealed,array(
+            'uid'=>Identifier::uid(),'classroom_id'=>(int)$classroom->id,'state'=>'active','active_slot'=>1,
+            'created_at'=>$now,'created_by'=>0,'retired_at'=>null,'retired_by'=>null,
+        )));
+        $this->repository->updateClassroom((int)$classroom->id,array(
+            'space_name'=>$space,'meet_uri_digest'=>hash('sha256','dzn-meet-uri:'.$join),
+            'updated_at'=>$now,
+        ),array('id'=>(int)$classroom->id));
+        $this->audit((int)$classroom->id,'create','space_created',null,$response);
+        return array('space_name'=>$space,'join_uri_reference'=>$join,'meeting_code'=>$meetingCode);
+    }
+
+    /** Re-prove a persisted app space before attaching its Calendar event. */
+    private function resumeSpaceReference(object $classroom,array $references):array{
+        $expected=GoogleWorkspaceClassroomRule::spaceName((string)($references['space_name']??''));
+        $organizer=trim((string)($references['space_organizer']??''));
+        if($organizer!==''&&!hash_equals(GoogleWorkspaceClassroomRule::organizerEmail(),$organizer)){
+            $this->recordProviderFailure($classroom,array('status'=>0,'body'=>array(),'error_class'=>'identity_mismatch'),'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
+        $response=$this->api->getSpace($expected);
+        if($response['status']<200||$response['status']>=300){
+            $failure=$this->recordProviderFailure($classroom,$response,'space_lookup','space_lookup_failed');
+            throw new \RuntimeException($failure);
+        }
+        $actual=trim((string)($response['body']['name']??''));
+        if($actual===''||!hash_equals($expected,GoogleWorkspaceClassroomRule::spaceName($actual))){
+            $this->recordProviderFailure($classroom,$response,'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
+        $join=$this->joinUri($response['body']);
+        if($join===null)$join=GoogleWorkspaceClassroomRule::meetUri((string)($references['join_uri_reference']??''));
+        $expectedJoin=GoogleWorkspaceClassroomRule::meetUri((string)($references['join_uri_reference']??''));
+        if(GoogleWorkspaceClassroomRule::meetingCode($join)!==GoogleWorkspaceClassroomRule::meetingCode($expectedJoin)){
+            $this->recordProviderFailure($classroom,$response,'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
+        return array('space_name'=>$expected,'join_uri_reference'=>$join,'meeting_code'=>GoogleWorkspaceClassroomRule::meetingCode($join));
+    }
+
+    private function createOrConvergeEvent(object $classroom,string $identity,array $facts,array $space):array{
         $eventId=GoogleWorkspaceClassroomRule::eventId($identity);
+        $spaceName=GoogleWorkspaceClassroomRule::spaceName((string)($space['space_name']??''));
+        $join=GoogleWorkspaceClassroomRule::meetUri((string)($space['join_uri_reference']??''));
+        $meetingCode=GoogleWorkspaceClassroomRule::meetingCode($join);
         $attendance=$this->attendanceEmails($facts);
         $body=array(
             'id'=>$eventId,'summary'=>(string)$facts['summary'],
@@ -456,10 +564,16 @@ final class GoogleWorkspaceClassroomService {
             'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339((string)$facts['ends_at_utc']),'timeZone'=>(string)$facts['timezone']),
             'attendees'=>$attendance,
             'guestsCanInviteOthers'=>false,'guestsCanModify'=>false,'guestsCanSeeOtherGuests'=>false,
-            'conferenceData'=>array('createRequest'=>array(
-                'requestId'=>substr(hash('sha256','dzn-meet:'.$identity),0,40),
-                'conferenceSolutionKey'=>array('type'=>'hangoutsMeet'),
-            )),
+            // Attach the existing app-created space. Calendar documents the
+            // {conferenceSolution, entryPoints} form as the representation of existing conference
+            // details; createRequest is only for asking Google to generate a new conference.
+            'conferenceData'=>array(
+                'conferenceSolution'=>array('key'=>array('type'=>'hangoutsMeet')),
+                'conferenceId'=>$meetingCode,
+                'entryPoints'=>array(array(
+                    'entryPointType'=>'video','uri'=>$join,'label'=>'meet.google.com/'.$meetingCode,
+                )),
+            ),
             'extendedProperties'=>array('private'=>array(
                 'dzn_lesson_id'=>$facts['lesson_id']===null?'':(string)$facts['lesson_id'],
                 'dzn_schedule_version_id'=>$facts['schedule_version_id']===null?'':(string)$facts['schedule_version_id'],
@@ -482,15 +596,23 @@ final class GoogleWorkspaceClassroomService {
             ));
         }
         $reference=trim((string)($response['body']['id']??''));
-        if($reference===''||!hash_equals($eventId,$reference))throw new \RuntimeException('meet_calendar_identity_mismatch');
-        $join=$this->joinUri($response['body']);
-        if($join===null){
-            // Google may finish conference creation asynchronously. Re-read the exact event instead
-            // of creating a second one; the retry worker converges on the same event id.
-            $read=$this->api->getCalendarEvent($eventId);
-            if($read['status']>=200&&$read['status']<300)$join=$this->joinUri($read['body']);
+        if($reference===''||!hash_equals($eventId,$reference)){
+            $this->recordProviderFailure($classroom,$response,'calendar_identity','calendar_identity_mismatch',null,'meet_calendar_identity_mismatch',false);
+            throw new \RuntimeException('meet_calendar_identity_mismatch');
         }
-        if($join===null){
+        $attachedCode=$this->conferenceIdentity($response['body']);
+        if($attachedCode!==null&&!hash_equals($meetingCode,$attachedCode)){
+            $this->recordProviderFailure($classroom,$response,'calendar_conference','calendar_conference_mismatch',null,'meet_calendar_conference_mismatch',false);
+            throw new \RuntimeException('meet_calendar_conference_mismatch');
+        }
+        $eventJoin=$this->joinUri($response['body']);
+        if($eventJoin===null){
+            // Google may finish conference publication asynchronously. Re-read the exact event
+            // instead of creating a second one; the retry worker converges on the same event id.
+            $read=$this->api->getCalendarEvent($eventId);
+            if($read['status']>=200&&$read['status']<300)$eventJoin=$this->joinUri($read['body']);
+        }
+        if($eventJoin===null){
             $attempt=(int)($classroom->cohost_attempt_count??0)+1;
             $retryable=!MeetProvisioningRule::cohostAttemptExhausted($attempt);
             $now=gmdate('Y-m-d H:i:s');
@@ -506,8 +628,14 @@ final class GoogleWorkspaceClassroomService {
             if(!$retryable)$this->raiseClassroomAlert((int)$classroom->id,'conference_pending_timeout','meet_conference_timeout',$this->providerDetail($response));
             throw new \RuntimeException($retryable?'meet_conference_pending':'meet_conference_timeout');
         }
+        if(GoogleWorkspaceClassroomRule::meetingCode($eventJoin)!==$meetingCode){
+            $this->recordProviderFailure($classroom,$response,'calendar_conference','calendar_conference_mismatch',null,'meet_calendar_conference_mismatch',false);
+            throw new \RuntimeException('meet_calendar_conference_mismatch');
+        }
         $sealed=$this->vault->seal('meet_classroom',(int)$classroom->id,array(
-            'provider_object_reference'=>$reference,'join_uri_reference'=>$join,
+            'provider_object_reference'=>$reference,'join_uri_reference'=>$eventJoin,
+            'space_name'=>$spaceName,'space_origin'=>MeetCoHostRule::SPACE_ORIGIN_APP,
+            'space_organizer'=>GoogleWorkspaceClassroomRule::organizerEmail(),
         ));
         $now=gmdate('Y-m-d H:i:s');
         $previous=$this->repository->reference((int)$classroom->id);
@@ -518,11 +646,64 @@ final class GoogleWorkspaceClassroomService {
         )));
         $this->repository->updateClassroom((int)$classroom->id,array(
             'event_id_digest'=>hash('sha256','dzn-meet-event:'.$reference),
-            'meet_uri_digest'=>hash('sha256','dzn-meet-uri:'.$join),
+            'meet_uri_digest'=>hash('sha256','dzn-meet-uri:'.$eventJoin),
             'updated_at'=>$now,
         ),array('id'=>(int)$classroom->id));
         if($created)$this->audit((int)$classroom->id,'create','created',null,$response);
-        return array('provider_object_reference'=>$reference,'join_uri_reference'=>$join);
+        return array(
+            'provider_object_reference'=>$reference,'join_uri_reference'=>$eventJoin,
+            'space_name'=>$spaceName,'space_origin'=>MeetCoHostRule::SPACE_ORIGIN_APP,
+            'space_organizer'=>GoogleWorkspaceClassroomRule::organizerEmail(),
+        );
+    }
+
+    /** The conference identity Calendar attached to an event, if it reports one. */
+    private function conferenceIdentity(array $event):?string{
+        $code=trim((string)($event['conferenceData']['conferenceId']??''));
+        if($code!=='')return $code;
+        $uri=$this->joinUri($event);
+        return $uri!==null?GoogleWorkspaceClassroomRule::meetingCode($uri):null;
+    }
+
+    /** Whether the row already records provider identity that must not be duplicated. */
+    private function hasProviderEvidence(object $classroom):bool{
+        return trim((string)($classroom->space_name??''))!==''
+            ||trim((string)($classroom->event_id_digest??''))!==''
+            ||trim((string)($classroom->meet_uri_digest??''))!=='';
+    }
+
+    /** Fail before any provider create when the row has evidence but no open reference. */
+    private function blockMissingClassroomReference(object $classroom):void{
+        $now=gmdate('Y-m-d H:i:s');
+        $this->repository->updateClassroom((int)$classroom->id,array(
+            'classroom_state'=>'blocked','active_slot'=>null,
+            'cohost_state'=>MeetCoHostRule::BLOCKED,
+            'cohost_error_code'=>'meet_classroom_reference_missing',
+            'cohost_error_detail'=>'The classroom records provider identity but its sealed reference is unavailable; refusing to create a second space or event.',
+            'cohost_next_attempt_at'=>null,
+            'failure_reason_code'=>'meet_classroom_reference_missing',
+            'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+        ),array('id'=>(int)$classroom->id));
+        $this->audit((int)$classroom->id,'create','blocked','meet_classroom_reference_missing',null);
+        $this->raiseClassroomAlert((int)$classroom->id,'classroom_reference_missing','meet_classroom_reference_missing','Provider identity exists but the sealed reference is unavailable.');
+        throw new \RuntimeException('meet_classroom_reference_missing');
+    }
+
+    /** Keep a pre-repair Calendar-created classroom closed without touching its provider objects. */
+    private function blockLegacyCalendarSpace(object $classroom):void{
+        $now=gmdate('Y-m-d H:i:s');
+        $this->repository->updateClassroom((int)$classroom->id,array(
+            'classroom_state'=>'blocked','active_slot'=>null,
+            'cohost_state'=>MeetCoHostRule::BLOCKED,
+            'cohost_error_code'=>'meet_cohost_calendar_space_unsupported',
+            'cohost_error_detail'=>'The existing Meet space was created by Calendar; meetings.space.created only manages spaces created by this app.',
+            'cohost_next_attempt_at'=>null,
+            'failure_reason_code'=>'meet_cohost_calendar_space_unsupported',
+            'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+        ),array('id'=>(int)$classroom->id));
+        $this->audit((int)$classroom->id,'create','blocked','meet_cohost_calendar_space_unsupported',null);
+        $this->raiseClassroomAlert((int)$classroom->id,'cohost_calendar_space_unsupported','meet_cohost_calendar_space_unsupported','Calendar-created Meet space cannot be managed with meetings.space.created.');
+        throw new \RuntimeException('meet_cohost_calendar_space_unsupported');
     }
 
     private function assignCoHost(string $space,string $email):array{
@@ -602,6 +783,23 @@ final class GoogleWorkspaceClassroomService {
                     if($updated!==1)throw new \RuntimeException('meet_classroom_retry_conflict');
                     $reset=true;
                     $this->auditRetry($classroomId,$actorUserId,$reasonCode,$reason,'provisioning');
+                }elseif($selection===MeetClassroomRetryRule::RESET_LATEST&&$latest!==null){
+                    // A blocked/failed lesson with no active slot may already own the deterministic
+                    // Calendar event and an app-space reference. Re-open that exact row instead of
+                    // creating a new projection that would create another space before Calendar
+                    // convergence revealed the old event.
+                    $classroomId=(int)$latest->id;
+                    $updated=$this->repository->updateClassroom($classroomId,array(
+                        'classroom_state'=>'provisioning','active_slot'=>1,'cohost_state'=>MeetCoHostRule::PENDING,
+                        'cohost_error_code'=>null,'cohost_error_detail'=>null,'cohost_next_attempt_at'=>null,
+                        'cohost_attempt_count'=>0,'failure_reason_code'=>null,'last_provider_response_code'=>null,
+                        'cohost_exception_state'=>null,'cohost_exception_approved_by'=>null,
+                        'cohost_exception_approved_at'=>null,'cohost_exception_reason'=>null,
+                        'version'=>(int)$latest->version+1,'updated_at'=>gmdate('Y-m-d H:i:s'),'updated_by'=>$actorUserId,
+                    ),array('id'=>$classroomId,'version'=>(int)$latest->version));
+                    if($updated!==1)throw new \RuntimeException('meet_classroom_retry_conflict');
+                    $reset=true;
+                    $this->auditRetry($classroomId,$actorUserId,$reasonCode,$reason,'provisioning');
                 }
                 $this->repository->commit();
             }catch(\Throwable $error){
@@ -660,11 +858,11 @@ final class GoogleWorkspaceClassroomService {
     }
 
     /** Persist the exact provider response and make failure visibility actionable. */
-    private function recordProviderFailure(object $classroom,array $response,string $operation,string $alertCode,?string $cohostState=null):string{
+    private function recordProviderFailure(object $classroom,array $response,string $operation,string $alertCode,?string $cohostState=null,?string $codeOverride=null,?bool $retryableOverride=null):string{
         $attempt=(int)($classroom->cohost_attempt_count??0)+1;
-        $retryable=MeetProvisioningRule::isRetryableResponse((int)($response['status']??0),$response['error_class']??null)
-            &&!MeetProvisioningRule::cohostAttemptExhausted($attempt);
-        $code=MeetProvisioningRule::failureCode($operation,$retryable);
+        $retryable=$retryableOverride??(MeetProvisioningRule::isRetryableResponse((int)($response['status']??0),$response['error_class']??null)
+            &&!MeetProvisioningRule::cohostAttemptExhausted($attempt));
+        $code=$codeOverride??MeetProvisioningRule::failureCode($operation,$retryable);
         $now=gmdate('Y-m-d H:i:s');
         $data=array(
             'classroom_state'=>$retryable?'provisioning':'blocked',
@@ -720,20 +918,42 @@ final class GoogleWorkspaceClassroomService {
     }
 
     private function spaceFor(array $references,?object $classroom=null):string{
+        $organizer=trim((string)($references['space_organizer']??''));
+        if($organizer!==''&&!hash_equals(GoogleWorkspaceClassroomRule::organizerEmail(),$organizer)){
+            if($classroom!==null){
+                $failure=$this->recordProviderFailure($classroom,array('status'=>0,'body'=>array(),'error_class'=>'identity_mismatch'),'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+                throw new \RuntimeException($failure);
+            }
+            throw new \RuntimeException('meet_space_identity_mismatch');
+        }
         $code=GoogleWorkspaceClassroomRule::meetingCode((string)$references['join_uri_reference']);
-        $response=$this->api->getSpace($code);
+        $expected=trim((string)($references['space_name']??''));
+        $lookup=$expected!==''?GoogleWorkspaceClassroomRule::spaceName($expected):$code;
+        $response=$this->api->getSpace($lookup);
         if($response['status']<200||$response['status']>=300){
             if($classroom!==null){
                 // The persisted state and the thrown code must share one bounded decision.
-                $code=$this->recordProviderFailure($classroom,$response,'space_lookup','space_lookup_failed');
-                throw new \RuntimeException($code);
+                $failure=$this->recordProviderFailure($classroom,$response,'space_lookup','space_lookup_failed');
+                throw new \RuntimeException($failure);
             }
             $this->assertOk($response,'meet_space_lookup_failed');
         }
-        $name=$response['body']['name']??'';
-        if(is_string($name)&&$name!=='')return GoogleWorkspaceClassroomRule::spaceName($name);
-        // The meeting code is a documented alias for the same space.
-        return 'spaces/'.$code;
+        $name=trim((string)($response['body']['name']??''));
+        if($name!==''){
+            $resolved=GoogleWorkspaceClassroomRule::spaceName($name);
+            if($expected!==''&&!hash_equals($expected,$resolved)){
+                if($classroom!==null){
+                    $failure=$this->recordProviderFailure($classroom,$response,'space_identity','space_identity_mismatch',null,'meet_space_identity_mismatch',false);
+                    throw new \RuntimeException($failure);
+                }
+                throw new \RuntimeException('meet_space_identity_mismatch');
+            }
+            return $resolved;
+        }
+        // The meeting code is a documented alias for the same space, but member operations require
+        // the exact spaces/{space} resource name. Never derive that name from the meeting code.
+        if($expected!=='')return GoogleWorkspaceClassroomRule::spaceName($expected);
+        throw new \RuntimeException('meet_space_identity_mismatch');
     }
 
     private function createClassroomRow(array $data):object{
@@ -760,6 +980,24 @@ final class GoogleWorkspaceClassroomService {
             if(empty($references['provider_object_reference'])||empty($references['join_uri_reference']))return null;
             return $references;
         }catch(\Throwable){return null;}
+    }
+
+    /**
+     * Open the sealed app-space reference created before the Calendar event exists.
+     *
+     * A full reference is handled by openReferences(); this method is only for the intermediate
+     * state where the space name and join URI are durable but the Calendar event still needs to be
+     * created or converged. Legacy Calendar-created references never carry the app origin marker.
+     */
+    private function openSpaceReference(object $classroom):?array{
+        $row=$this->repository->reference((int)$classroom->id);
+        if(!$row||(string)$row->state!=='active')return null;
+        try{
+            $references=$this->vault->open('meet_classroom',(int)$classroom->id,$row);
+        }catch(\Throwable){return null;}
+        if(!MeetCoHostRule::isAppOwnedReference($references))return null;
+        if(!empty($references['provider_object_reference'])||empty($references['join_uri_reference']))return null;
+        return $references;
     }
 
     private function teacherEmailForClassroom(object $classroom):string{

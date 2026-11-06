@@ -3,6 +3,15 @@
 Status: **source repair prepared; production dry run, live Google acceptance and production data
 repair remain unexecuted until explicitly approved.**
 
+> **2026-11-06 update:** production evidence for confirmations #9–#12 showed that
+> `spaces.members.create` returns `403 permission_denied` for a space created by Calendar. The
+> `meetings.space.created` grant only manages spaces created by the app. New provisioning now creates
+> an app-owned space first and attaches it to the Calendar event through the documented
+> `conferenceData` `{conferenceSolution, entryPoints}` representation. Historical rows that already
+> point at a Calendar-created space remain closed as `meet_cohost_calendar_space_unsupported`; see
+> `GOOGLE-MEET-COHOST-CALENDAR-SPACE-REPAIR-2026-11-06.md` for evidence, the staging-only live test
+> and the separately approved per-booking recovery plan.
+
 ## Confirmed source-level root causes
 
 1. **Existing lessons were never discovered by a recurring worker.** The only backfill path was the
@@ -130,6 +139,12 @@ issue. Investigate the Google Workspace/API policy first: external Teacher accou
 same-domain co-host restrictions, OAuth scope, and any `permission_denied` detail. Do not retry it
 automatically and never mark a co-host assignment successful without provider confirmation.
 
+A `meet_cohost_calendar_space_unsupported` block is different: the existing event is attached to a
+space Google Calendar created, not a space our app created. `meetings.space.created` does not grant
+member management there, so retrying the same provider object can only repeat the 403. Keep the row
+blocked and use the separately approved per-booking recovery plan; do not create a second event or
+space silently from a retry.
+
 After the policy is corrected, use only the audited operator path:
 
 ```sh
@@ -195,6 +210,9 @@ Teacher offer, or queues another acceptance notice. When a previous blocked clas
 recovery **reuses that exact classroom row, sealed Calendar/Meet reference and provider space**; it
 does not create a second classroom row, Calendar event or Meet space. The row becomes `provisioning`
 only while the provider verifies COHOST membership, and remains blocked if Google still refuses.
+If the sealed reference predates the app-owned-space repair and points at a Calendar-created space,
+recovery stops with `meet_cohost_calendar_space_unsupported` without calling Calendar/Meet; that row
+needs the separately approved per-booking plan because the old space cannot be converted.
 Cancelled/retired history and bookings whose occurrence has ended are never revived.
 
 Historical records that the old code already moved to `pending_request` are repaired in place only

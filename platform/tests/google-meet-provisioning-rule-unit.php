@@ -25,10 +25,18 @@ $assert(Rule::failureCode('calendar_projection', false) === 'meet_calendar_proje
 $assert(Rule::failureCode('space_config', true) === 'meet_space_config_retryable', 'Transient config failure code changed.');
 $assert(Rule::failureCode('space_config', false) === 'meet_space_config_refused', 'Permanent config failure code changed.');
 
+$assert(Rule::spaceCreateFailureCode(429) === 'meet_space_create_retryable', 'A rate-limited space create must be retryable.');
+$assert(Rule::spaceCreateFailureCode(0) === 'meet_space_create_ambiguous', 'A lost space-create response must be ambiguous.');
+$assert(Rule::spaceCreateFailureCode(503) === 'meet_space_create_ambiguous', 'A space-create 5xx may have created a space and must be ambiguous.');
+$assert(Rule::spaceCreateFailureCode(403) === 'meet_space_create_refused', 'A space-create permission refusal must be permanent.');
 $assert(Rule::isRetryableCode('meet_conference_pending'), 'A pending Meet conference must be retryable.');
 $assert(Rule::isRetryableCode('meet_cohost_assignment_retryable'), 'A transient co-host failure must be retryable.');
 $assert(Rule::isPermanentCode('meet_cohost_assignment_blocked'), 'A permanent co-host block must be terminal.');
 $assert(Rule::isPermanentCode('meet_space_config_refused'), 'A permanent config refusal must be terminal.');
+$assert(Rule::isPermanentCode('meet_space_create_ambiguous'), 'An ambiguous space create must require explicit reconciliation.');
+$assert(Rule::isPermanentCode('meet_cohost_calendar_space_unsupported'), 'A Calendar-created space cannot be managed and must stay terminal.');
+$assert(Rule::isPermanentCode('meet_classroom_reference_missing'), 'Missing provider identity must fail closed rather than create a duplicate.');
+$assert(!Rule::isRetryableBookingFailure('meet_cohost_calendar_space_unsupported'), 'A legacy Calendar-created space must not auto-retry.');
 $assert(Rule::isRetryableBookingFailure('meet_conference_pending'), 'A pending conference must keep the accepted booking recoverable.');
 $assert(Rule::isRetryableBookingFailure('meet_organizer_not_connected'), 'A temporarily unavailable organizer must keep the accepted booking recoverable.');
 $assert(Rule::isRetryableBookingFailure('meet_classroom_paused'), 'A deliberate provisioning pause must keep the accepted booking recoverable.');

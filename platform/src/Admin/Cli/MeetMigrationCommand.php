@@ -87,21 +87,87 @@ final class MeetMigrationCommand {
      *
      * ## OPTIONS
      * --confirmation_id=<id>
+     * [--expected_version=<n>]
+     * : Refuse the retry if the confirmation version changed after review.
+     * [--reason=<text>]
+     * : Audited administrator reason.
      *
      * ## EXAMPLES
-     * wp dzn-meet retry-booking --confirmation_id=123 --user=1
+     * wp dzn-meet retry-booking --confirmation_id=123 --expected_version=4 --reason="Organizer permission corrected" --user=1
      */
     public function retry_booking(array $args,array $assoc):void{
         self::requireOperator();
         $id=(int)($assoc['confirmation_id']??0);
         if($id<1)\WP_CLI::error('--confirmation_id is required.');
+        $expected=isset($assoc['expected_version'])?max(1,(int)$assoc['expected_version']):null;
+        $reason=trim((string)($assoc['reason']??'administrator_projection_retry'));
         try{
-            $result=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService())->retryFailed($id);
+            $result=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService())->retryFailed($id,$expected,$reason);
         }catch(\Throwable $error){
             if(trim($error->getMessage())==='Unauthorized')\WP_CLI::error('Administrator authorization is required. Re-run with --user=<administrator_id>.');
             throw $error;
         }
         \WP_CLI::success('Booking '.$id.' projection state: '.(string)($result['state']??'unknown').(!empty($result['failure_reason_code'])?' · '.$result['failure_reason_code']:''));
+    }
+
+    /**
+     * Read-only discovery and explicitly authorised repair of inconsistent accepted bookings.
+     *
+     * The default is always a dry run. Apply requires one exact confirmation id, its reviewed
+     * version and an audited reason. No command ever replays every failed booking.
+     *
+     * ## OPTIONS
+     * [--confirmation_id=<id>]
+     * : Assess one exact confirmation.
+     * [--apply]
+     * : Mutate only the explicitly selected confirmation. Requires --confirmation_id,
+     * --expected_version and --reason.
+     * [--expected_version=<n>]
+     * : The confirmation version shown by the reviewed dry run.
+     * [--reason=<text>]
+     * : Required audited administrator reason for apply (12–255 characters).
+     * [--limit=<n>]
+     * : Discovery limit. Default 200.
+     * [--json]
+     * : Emit the secret-free report as JSON.
+     *
+     * ## EXAMPLES
+     * wp dzn-meet booking-recovery --limit=200 --json --user=1
+     * wp dzn-meet booking-recovery --confirmation_id=123 --apply --expected_version=4 --reason="Organizer permission corrected" --user=1
+     */
+    public function booking_recovery(array $args,array $assoc):void{
+        self::requireOperator();
+        $apply=!empty($assoc['apply']);
+        $confirmationId=(int)($assoc['confirmation_id']??0);
+        $expected=isset($assoc['expected_version'])?max(0,(int)$assoc['expected_version']):0;
+        $reason=trim((string)($assoc['reason']??''));
+        $audit=new \Delnavazan\Platform\Core\Application\BookingRecoveryAuditService();
+        if(!$apply){
+            $rows=$confirmationId>0?array_filter(array($audit->assess($confirmationId))):$audit->inconsistent(isset($assoc['limit'])?(int)$assoc['limit']:200);
+            $report=array('dry_run'=>true,'records'=>array_values($rows));
+            if(!empty($assoc['json'])){\WP_CLI::log((string)wp_json_encode($report,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));return;}
+            if(!$report['records'])\WP_CLI::success('No inconsistent accepted booking records matched.');
+            foreach($report['records'] as $row)\WP_CLI::log(
+                'confirmation='.(int)$row['confirmation_id'].' · request='.(string)$row['booking_reference']
+                .' · teacher='.(int)$row['teacher_id'].' · confirmation_state='.(string)$row['confirmation_state']
+                .' · version='.(int)$row['confirmation_version'].' · delivery='.(string)$row['delivery_state']
+                .' · offer='.($row['offer_state']??'none').' · active='.($row['offer_active_slot']??'null')
+                .' · classroom='.($row['classroom_state']??'none').' · failure='.($row['failure_reason_code']??'none')
+                .' · attempts='.(int)$row['attempt_count'].' · organizer='.(string)$row['organizer_state']
+                .' · admin_retry='.(!empty($row['administrator_retry_eligible'])?'eligible':'not_eligible')
+                .' · action='.(string)$row['recommended_action']
+            );
+            \WP_CLI::success('Dry run only. No booking, offer, classroom or notification was changed.');
+            return;
+        }
+        if($confirmationId<1||$expected<1)\WP_CLI::error('--apply requires --confirmation_id and --expected_version from the reviewed dry run.');
+        if(!\Delnavazan\Platform\Integrations\GoogleWorkspace\MeetClassroomRetryRule::reasonRequired((int)get_current_user_id(),$reason))\WP_CLI::error('--reason must be a documented administrator reason (12–255 characters).');
+        $assessment=$audit->assess($confirmationId);
+        if(!$assessment)\WP_CLI::error('The selected booking is not an inconsistent accepted booking.');
+        if((int)$assessment['confirmation_version']!==$expected)\WP_CLI::error('The selected booking changed after review. Re-run the dry run; no change was made.');
+        if(empty($assessment['administrator_retry_eligible']))\WP_CLI::error('The selected booking is not eligible for classroom retry: '.($assessment['recommended_action']??'manual_review').'. No change was made.');
+        $result=(new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService())->retryFailed($confirmationId,$expected,$reason);
+        \WP_CLI::success('Booking '.$confirmationId.' projection state: '.(string)($result['state']??'unknown').'. Teacher acceptance was preserved and no new offer was created.');
     }
 
     /**

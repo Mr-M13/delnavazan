@@ -151,6 +151,11 @@ jobs:
           php platform/tests/google-meet-reconciliation-contract.php
           php platform/tests/meet-classroom-join-window-unit.php
           php platform/tests/booking-calendar-projection-central-unit.php
+          php platform/tests/booking-provisioning-recovery-unit.php
+          php platform/tests/booking-provisioning-dashboard-unit.php
+          php platform/tests/booking-provisioning-recovery-rule-unit.php
+          php platform/tests/booking-recovery-audit-unit.php
+          php platform/tests/booking-provisioning-recovery-contract.php
           php platform/tests/oauth-scope-exact-matching-contract.php
           php platform/tests/renewal-historical-upgrade-contract.php
           php platform/tests/renewal-historical-upgrade-unit.php
@@ -746,6 +751,12 @@ jobs:
           DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
           DZN_WP_PORT: 18088
         run: platform/runtime/bin/run-booking-release-integration.sh
+      - name: Run teacher-acceptance provisioning recovery proof
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
+          DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
+          DZN_WP_PORT: 18088
+        run: platform/runtime/bin/run-booking-provisioning-recovery.sh
       - name: Dispose runtime
         if: always()
         env:

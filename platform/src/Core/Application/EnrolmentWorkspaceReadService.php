@@ -15,6 +15,8 @@ final class EnrolmentWorkspaceReadService {
     private string $p;
     /** @var array<int,int> */
     private array $importCompletedCache = array();
+    /** @var array<string,mixed>|null */
+    private ?array $organizerReadinessCache = null;
 
     public function __construct() {
         global $wpdb;
@@ -485,8 +487,14 @@ final class EnrolmentWorkspaceReadService {
         $age = max(0, time() - strtotime((string) $row->created_at . ' UTC'));
         $urgency = $this->bookingUrgency($row, $stage, $times, $deadline, $outcome, $postIntro);
         $notifications = $this->bookingNotifications($requestId);
-        $teacher = $coordination['teacher_name'] !== '' ? $coordination['teacher_name'] : (string) ($confirmation['teacher_name'] ?? ($pending['teacher_name'] ?? ''));
-        $teacherResponse = $coordination['teacher_response'] !== '' ? $coordination['teacher_response'] : (string) ($confirmation['state_label'] ?? ($pending ? 'Awaiting Teacher response' : ''));
+        // The accepted confirmation and its delivery are authoritative. A stale coordination
+        // candidate must never overwrite the Teacher who actually accepted the booking.
+        $teacher = (string) ($confirmation['teacher_name'] ?? '') !== ''
+            ? (string) $confirmation['teacher_name']
+            : ($pending['teacher_name'] ?? $coordination['teacher_name']);
+        $teacherResponse = $confirmation !== null
+            ? (string) ($confirmation['state_label'] ?? '')
+            : ($pending ? 'Awaiting Teacher response' : (string) ($coordination['teacher_response'] ?? ''));
         $conversion = $this->conversionClassification((object) array(
             'id' => $requestId,
             'created_at' => $row->created_at,
@@ -529,7 +537,11 @@ final class EnrolmentWorkspaceReadService {
             'teacher_name' => $teacher !== '' ? $teacher : 'Teacher not selected',
             'teacher_response' => $teacherResponse !== '' ? $teacherResponse : 'No response recorded',
             'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0, $pending !== null ? 1 : 0),
-            'availability_state' => $confirmation !== null ? 'Confirmed; provider projection state is shown below' : ($pending !== null ? 'Teacher invited for a requested time; awaiting response' : $coordination['availability_state']),
+            'availability_state' => $confirmation !== null
+                ? ((string) ($confirmation['state'] ?? '') === 'confirmed'
+                    ? 'Confirmed; provider projection state is shown below'
+                    : 'Teacher accepted; classroom provisioning state is shown below')
+                : ($pending !== null ? 'Teacher invited for a requested time; awaiting response' : $coordination['availability_state']),
             'identity_state' => $this->identityState($row),
             'prior_booking_count' => (int) ($row->student_id ?? 0) > 0 ? $this->priorBookingCount((int) $row->student_id, $requestId) : null,
             'notification_summary' => $notifications['summary'],
@@ -609,14 +621,29 @@ final class EnrolmentWorkspaceReadService {
             $ended = (string) ($confirmation['ends_at_utc'] ?? '') < gmdate('Y-m-d H:i:s');
             return array('key' => $ended ? 'intro_outcome' : 'intro_scheduled', 'label' => $ended ? 'Outcome due' : 'Trial scheduled', 'next_action' => $ended ? 'Record what happened' : 'Prepare for the introductory lesson');
         }
+        // Teacher acceptance is authoritative before classroom provisioning. A provider failure
+        // must never fall through to coordination and ask for the Teacher's agreement again.
+        if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'failed') {
+            return array(
+                'key' => 'provisioning_failed',
+                'label' => 'تأیید مدرس انجام شده؛ ساخت کلاس ناموفق بود',
+                'next_action' => 'تلاش مجدد برای ساخت کلاس',
+            );
+        }
+        if ($confirmation !== null && in_array((string) ($confirmation['state'] ?? ''), array('pending_projection', 'retryable', 'awaiting_conference'), true)) {
+            return array('key' => 'provisioning_pending', 'label' => 'Creating classroom', 'next_action' => 'Monitor provisioning');
+        }
+        if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'awaiting_payment') {
+            return array('key' => 'intro_payment_pending', 'label' => 'Teacher accepted; payment pending', 'next_action' => 'Monitor the introductory payment');
+        }
+        if ($pendingDelivery !== null) {
+            return array('key' => 'teacher_match', 'label' => 'Awaiting teacher response', 'next_action' => 'Monitor the Teacher response');
+        }
         if ((string) ($coordination['state'] ?? '') !== '' && !empty($coordination['candidate_count'])) {
             if (!empty($coordination['has_recorded_assent'])) {
                 return array('key' => 'teacher_agreed', 'label' => 'Teacher agreed', 'next_action' => 'Confirm the trial booking');
             }
-            return array('key' => 'teacher_match', 'label' => 'Teacher matching', 'next_action' => 'Record the Teacher’s agreement');
-        }
-        if ($pendingDelivery !== null) {
-            return array('key' => 'teacher_match', 'label' => 'Teacher invited', 'next_action' => 'Await the Teacher response or follow up');
+            return array('key' => 'teacher_match', 'label' => 'Awaiting coordination', 'next_action' => 'Complete coordination');
         }
         if ($identity['key'] !== 'verified') {
             return array('key' => 'identity', 'label' => 'Identity needed', 'next_action' => 'Resolve identity or record an identity blocker');
@@ -627,6 +654,8 @@ final class EnrolmentWorkspaceReadService {
     /** @return array{rank:int,label:string} */
     private function bookingUrgency(object $row, array $stage, array $times, array $deadline, ?array $outcome, array $postIntro): array {
         $now = time();
+        if ($stage['key'] === 'provisioning_failed') return array('rank' => 1, 'label' => 'Classroom creation failed');
+        if ($stage['key'] === 'provisioning_pending') return array('rank' => 2, 'label' => 'Provisioning in progress');
         if (in_array($stage['key'], array('intro_outcome', 'post_intro'), true)) {
             $deadlineTs = $deadline['utc'] ? strtotime($deadline['utc'] . ' UTC') : null;
             if ($deadlineTs !== null && $deadlineTs - $now < 172800) return array('rank' => 1, 'label' => 'Deadline within 48 hours');
@@ -759,15 +788,54 @@ final class EnrolmentWorkspaceReadService {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT c.*,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,
-                    COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name
+                    COALESCE(NULLIF(course.name_en,''),course.name_fa) course_name,
+                    d.id delivery_record_id,d.state delivery_record_state,d.booking_request_id delivery_booking_request_id,
+                    d.teacher_id delivery_teacher_id,d.requested_time_id delivery_requested_time_id,
+                    r.lifecycle_status request_lifecycle_status,r.resolution_state request_resolution_state,
+                    r.privacy_erased_at request_privacy_erased_at,
+                    EXISTS(SELECT 1 FROM {$this->p}booking_allocation_offers o
+                           WHERE o.booking_request_id=c.booking_request_id AND o.active_slot=1) live_offer
              FROM {$this->p}booking_request_confirmations c
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
              LEFT JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+             LEFT JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=c.delivery_id
              LEFT JOIN {$this->p}courses course ON course.id=r.selected_intro_course_id
              WHERE c.booking_request_id=%d ORDER BY c.id DESC LIMIT 1",
             $requestId
         ));
         if (!$row) return null;
+        $classroom = $wpdb->get_row($wpdb->prepare(
+            "SELECT classroom_state,cohost_state,failure_reason_code,cohost_error_code,cohost_attempt_count,updated_at
+             FROM {$this->p}meet_classrooms
+             WHERE booking_confirmation_id=%d
+             ORDER BY (active_slot=1) DESC,id DESC LIMIT 1",
+            (int) $row->id
+        ));
+        $organizer = $this->organizerReadiness();
+        // The dashboard must use the same rule as retryFailed(); organizer connection is a
+        // diagnostic, not part of the mutation's acceptance criteria.
+        $recovery = BookingProvisioningRecoveryRule::assess(
+            array(
+                'state' => (string) $row->state,
+                'delivery_id' => (int) $row->delivery_id,
+                'booking_request_id' => (int) $row->booking_request_id,
+                'teacher_id' => (int) $row->teacher_id,
+                'requested_time_id' => (int) $row->requested_time_id,
+                'starts_at_utc' => (string) $row->starts_at_utc,
+            ),
+            $row->delivery_record_id !== null ? array(
+                'id' => (int) $row->delivery_record_id,
+                'booking_request_id' => (int) $row->delivery_booking_request_id,
+                'teacher_id' => (int) $row->delivery_teacher_id,
+                'requested_time_id' => (int) $row->delivery_requested_time_id,
+                'state' => (string) $row->delivery_record_state,
+                'lifecycle_status' => (string) $row->request_lifecycle_status,
+                'resolution_state' => (string) $row->request_resolution_state,
+                'privacy_erased_at' => $row->request_privacy_erased_at,
+            ) : null,
+            (bool) $row->live_offer
+        );
+        $recoveryEligible = (bool) $recovery['eligible'];
         return array(
             'confirmation_id' => (int) $row->id,
             'confirmation_uid' => (string) $row->uid,
@@ -789,6 +857,20 @@ final class EnrolmentWorkspaceReadService {
             'confirmed_at' => $row->confirmed_at,
             'failure_reason_code' => $row->failure_reason_code,
             'attempt_count' => (int) $row->attempt_count,
+            'next_attempt_at' => $row->next_attempt_at,
+            'last_attempt_at' => (string) $row->updated_at,
+            'recovery_eligible' => $recoveryEligible,
+            'recovery_block_reason' => $recoveryEligible ? null : (string) $recovery['reason'],
+            'organizer_state' => $organizer['state'],
+            'organizer_scope_match' => $organizer['scope_match'],
+            'classroom' => $classroom ? array(
+                'classroom_state' => (string) $classroom->classroom_state,
+                'cohost_state' => (string) $classroom->cohost_state,
+                'failure_reason_code' => $classroom->failure_reason_code,
+                'cohost_error_code' => $classroom->cohost_error_code,
+                'cohost_attempt_count' => (int) $classroom->cohost_attempt_count,
+                'last_attempt_at' => (string) $classroom->updated_at,
+            ) : null,
         );
     }
 
@@ -800,9 +882,25 @@ final class EnrolmentWorkspaceReadService {
             'awaiting_conference' => 'Meet space pending',
             'awaiting_payment' => 'Introductory payment pending',
             'retryable' => 'Projection retryable',
-            'failed' => 'Confirmation failed',
+            'failed' => 'تأیید مدرس انجام شده؛ ساخت کلاس ناموفق بود',
             default => ucfirst(str_replace('_', ' ', $state)),
         };
+    }
+
+    /** @return array{state:string,scope_match:bool} */
+    private function organizerReadiness(): array {
+        if ($this->organizerReadinessCache !== null) return $this->organizerReadinessCache;
+        $class = '\\Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceOAuthService';
+        if (!class_exists($class)) return $this->organizerReadinessCache = array('state' => 'unavailable', 'scope_match' => false);
+        try {
+            $health = (new $class())->health();
+            return $this->organizerReadinessCache = array(
+                'state' => (string) ($health['state'] ?? 'unavailable'),
+                'scope_match' => !empty($health['scope_match']),
+            );
+        } catch (\Throwable) {
+            return $this->organizerReadinessCache = array('state' => 'unavailable', 'scope_match' => false);
+        }
     }
 
     /** @return array<string,mixed>|null */

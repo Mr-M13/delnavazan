@@ -219,11 +219,13 @@ final class PortalAuthenticatedReadService {
         $lessons = $this->attachTeacherTermProgress($lessons);
         $assignments = $this->teacherAssignments((int) $principal['id'], $principal);
         $bookingClasses = (new TeacherUpcomingBookingReadService())->forTeacher((int) $principal['id'], $fromUtc, $toUtc);
+        $bookingProvisioning = (new TeacherBookingProvisioningReadService())->forTeacher((int) $principal['id']);
         return array(
             'principal' => (new PortalInternalReadSurface())->principal($principal),
             'lessons' => $lessons,
             'assignments' => $assignments,
             'booking_classes' => $bookingClasses,
+            'booking_provisioning' => $bookingProvisioning,
         );
     }
 

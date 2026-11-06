@@ -16,7 +16,7 @@ final class BookingAllocationService {
     // A response must finish before the lesson begins; leave an hour for
     // confirmation and provider projection after the complete response window.
     public const PROJECTION_BUFFER_SECONDS=3600;
-    private CanonicalTeacherOccupancyReadService $occupancy;
+    private BookingTeacherOccupancyReadService $occupancy;
     public function __construct(
         private ?BookingAllocationRepository $repo=null,
         private ?BookingRequestMatchAssessmentRepository $matches=null,
@@ -27,12 +27,13 @@ final class BookingAllocationService {
         $this->matches??=new BookingRequestMatchAssessmentRepository();
         $this->deliveries??=new BookingTeacherDeliveryRepository();
         $this->availability??=new TeacherAvailabilityService();
-        $this->occupancy=new CanonicalTeacherOccupancyReadService();
+        $this->occupancy=new BookingTeacherOccupancyReadService();
     }
 
     /** Called inside the submission transaction, which already owns the new request. */
     public function startWithinTransaction(int $requestId,int $courseId,array $times,string $now):?array{
         if($this->repo->delivery($requestId))throw new \RuntimeException('Allocation already started');
+        $this->lockEligibleTeacherRoots($courseId,$now);
         $candidates=$this->candidates($courseId,$times,$now);
         if(!$candidates){$this->repo->referral($requestId,'no_viable_teacher',$now);return null;}
         $last=$this->repo->cursor($courseId,$now);
@@ -56,6 +57,7 @@ final class BookingAllocationService {
         if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)return null;
         $history=$this->repo->history($requestId);
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
+        $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
         $candidates=$this->candidates((int)$request->selected_intro_course_id,$this->repo->times($requestId),$now);
         $next=$this->next($candidates,(int)$offer->teacher_id,$offered);
         if(!$next){
@@ -77,7 +79,7 @@ final class BookingAllocationService {
     public function assertAcceptable(object $delivery,string $now):void{
         $this->assertPending($delivery,$now);
         $times=array_values(array_filter($this->repo->times((int)$delivery->booking_request_id),static fn(object $time):bool=>(int)$time->id===(int)$delivery->requested_time_id));
-        $candidates=$this->candidates((int)$delivery->selected_intro_course_id,$times,$now,false);
+        $candidates=$this->candidates((int)$delivery->selected_intro_course_id,$times,$now,false,(int)$delivery->booking_request_id,false);
         if(!isset($candidates[(int)$delivery->teacher_id])||(int)$candidates[(int)$delivery->teacher_id]['requested_time_id']!==(int)$delivery->requested_time_id)throw new \InvalidArgumentException('Booking time is no longer available');
     }
     public function acceptedLocked(object $delivery,string $now):void{
@@ -149,7 +151,7 @@ final class BookingAllocationService {
         return (new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->modify(($seconds>=0?'+':'').$seconds.' seconds')->format('Y-m-d H:i:s');
     }
     /** @return array<int,array{teacher_id:int,requested_time_id:int,match_strength:string,sequence:int}> */
-    private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true):array{
+    private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true,int $excludeBookingRequestId=0,bool $includePendingOffers=true):array{
         if($courseId<1)return array();
         $teachers=$this->matches->eligibleTeachers($courseId,$now);
         $minStart=self::addSeconds($now,($fullResponseWindow?self::RESPONSE_SECONDS:0)+self::PROJECTION_BUFFER_SECONDS);
@@ -160,7 +162,7 @@ final class BookingAllocationService {
             if($start<=$minStart)continue;
             $teacherId=(int)$teacher->teacher_id;
             $coverage=$this->coverage($teacherId,$start,$end);
-            if($coverage===null||$this->occupancy->overlapping($teacherId,$start,$end))continue;
+            if($coverage===null||$this->occupancy->overlapping($teacherId,$start,$end,0,$excludeBookingRequestId,$includePendingOffers))continue;
             try{CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId,$start,$end);}
             catch(\InvalidArgumentException $error){if($error->getMessage()==='teacher_slot_conflict')continue;throw $error;}
             $candidate=array('teacher_id'=>$teacherId,'requested_time_id'=>(int)(is_array($time)?$time['id']:$time->id),'sequence'=>(int)(is_array($time)?($time['sequence']??$time['sequence_number']):$time->sequence_number),'match_strength'=>$coverage==='preferred'&&(string)$teacher->accepting_state==='accepting'?'strong':'possible');
@@ -184,5 +186,13 @@ final class BookingAllocationService {
             if($cursor===$end)return $state;
         }
         return null;
+    }
+    /** Lock in a global Teacher-id order before allocating across instruments. */
+    private function lockEligibleTeacherRoots(int $courseId,string $now):void{
+        $ids=array();
+        foreach($this->matches->eligibleTeachers($courseId,$now) as $teacher)$ids[(int)$teacher->teacher_id]=true;
+        $ids=array_keys($ids);sort($ids,SORT_NUMERIC);
+        $actor=function_exists('get_current_user_id')?max(0,(int)get_current_user_id()):0;
+        foreach($ids as $teacherId)if($teacherId>0)$this->repo->ensureAndLockTeacherRoot($teacherId,$now,$actor);
     }
 }

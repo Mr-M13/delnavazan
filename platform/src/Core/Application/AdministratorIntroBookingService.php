@@ -12,11 +12,11 @@ final class AdministratorIntroBookingService {
     public function __construct(
         private ?AdministratorBookingMatchService $match = null,
         private ?TeacherAvailabilityService $availability = null,
-        private ?CanonicalTeacherOccupancyReadService $occupancy = null
+        private ?BookingTeacherOccupancyReadService $occupancy = null
     ) {
         $this->match ??= new AdministratorBookingMatchService();
         $this->availability ??= new TeacherAvailabilityService();
-        $this->occupancy ??= new CanonicalTeacherOccupancyReadService();
+        $this->occupancy ??= new BookingTeacherOccupancyReadService();
     }
 
     /** @return array<string,mixed> */

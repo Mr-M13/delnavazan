@@ -6,7 +6,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssess
 /** Shared, non-persisting Teacher-coverage scorer for public booking availability reads. */
 final class BookingAvailabilityAssessmentService {
     private ?array $teachers = null;
-    private CanonicalTeacherOccupancyReadService $occupancy;
+    private BookingTeacherOccupancyReadService $occupancy;
     public function __construct(
         private int $courseId,
         private ?BookingRequestMatchAssessmentRepository $repo = null,
@@ -14,7 +14,7 @@ final class BookingAvailabilityAssessmentService {
     ) {
         $this->repo ??= new BookingRequestMatchAssessmentRepository();
         $this->availability ??= new TeacherAvailabilityService();
-        $this->occupancy = new CanonicalTeacherOccupancyReadService();
+        $this->occupancy = new BookingTeacherOccupancyReadService();
     }
 
     /** @return array{status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>} */

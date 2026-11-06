@@ -2357,6 +2357,39 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 		);
 	},dzn_theme_platform_teacher_booking_requests());
+	// Accepted bookings stay visible while Calendar/Meet provisioning is pending or failed. The
+	// confirmation is durable proof of acceptance, so these cards never offer Accept or a broken Join.
+	$provisioningAttention = array_values( array_filter( array_map( static function( $row ) use ( $teacher_timezone, $teacher_calendar, $teacher_locale ) {
+		if ( ! is_array( $row ) || 'teacher_booking_provisioning_v1' !== ( $row['version'] ?? '' ) ) { return null; }
+		$confirmation_uid = trim( (string) ( $row['confirmation_uid'] ?? '' ) );
+		if ( '' === $confirmation_uid || 'accepted' !== ( $row['acceptance_state'] ?? '' ) ) { return null; }
+		$student = trim( (string) ( $row['student_name'] ?? '' ) );
+		$instrument = trim( (string) ( $row['instrument_name'] ?? $row['course_reference'] ?? '' ) );
+		if ( '' === $student ) { return null; }
+		$timezone = (string) ( $row['schedule_timezone'] ?? $teacher_timezone );
+		try { $when = dzn_theme_platform_calendar_time( (string) ( $row['starts_at_utc'] ?? '' ), $timezone, $teacher_calendar, $teacher_locale, 'datetime' ); }
+		catch ( Throwable ) { return null; }
+		$state = (string) ( $row['provisioning_state'] ?? 'provisioning' );
+		$failed = 'failed' === $state;
+		$message = $failed
+			? 'درخواست شما پذیرفته شده است. آماده‌سازی کلاس با مشکل مواجه شده و در حال پیگیری است. نیازی به تأیید مجدد نیست.'
+			: ( 'payment_pending' === $state
+				? 'درخواست شما پذیرفته شده است. پس از پرداخت هنرجو، کلاس Google Meet ساخته و پیوند آن در همین پرتال نمایش داده می‌شود.'
+				: 'درخواست شما پذیرفته شده است. ساخت کلاس Google Meet در حال انجام است و نیازی به تأیید دوباره نیست.' );
+		return array(
+			'ref' => 'provisioning-' . $confirmation_uid,
+			'action_available' => true,
+			'authoritative_request' => false,
+			'state' => 'booking_provisioning',
+			'title' => $failed ? 'درخواست شما پذیرفته شده است' : 'درخواست شما پذیرفته شده و کلاس در حال آماده‌سازی است',
+			'context' => trim( $student . ( '' !== $instrument ? ' · ' . $instrument : '' ) ),
+			'message' => $message . ' زمان قطعی کلاس: ' . $when . ' به وقت ' . $timezone . '.',
+			'due' => $failed ? 'ساخت کلاس ناموفق — در حال پیگیری' : ( 'payment_pending' === $state ? 'در انتظار پرداخت هنرجو' : 'در حال ساخت کلاس' ),
+			'primary' => 'مشاهدهٔ وضعیت',
+			'provisioning_state' => $state,
+			'failure_reason_code' => (string) ( $row['failure_reason_code'] ?? '' ),
+		);
+	}, (array) ( $data['booking_provisioning'] ?? array() ) ) ) );
 	$absenceAttention = array();
 	$absence_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAbsenceAttentionReadService';
 	if ( class_exists( $absence_read_class ) ) {
@@ -2481,7 +2514,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$rescheduleAttention = array();
 		}
 	}
-	$bookingAttention = array_merge( $pendingAttention, $rescheduleAttention, $absenceAttention, $bookingAttention );
+	$bookingAttention = array_merge( $pendingAttention, $rescheduleAttention, $absenceAttention, $provisioningAttention, $bookingAttention );
 	$upcoming_count = count( array_filter( $upcoming_rows, static function( $row ) use ( $now ) {
 		$start = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
 		return $start && $start >= $now;
@@ -2520,6 +2553,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'notification_actions' => $teacher_inbox['actions'],
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => $bookingAttention,
+		'booking_provisioning' => (array) ( $data['booking_provisioning'] ?? array() ),
 		'post_intro_outcomes' => $post_intro_outcomes,
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,

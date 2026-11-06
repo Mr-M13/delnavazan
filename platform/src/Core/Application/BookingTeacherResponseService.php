@@ -102,6 +102,8 @@ final class BookingTeacherResponseService {
         $occupiedEnd=(string)($delivery->occupied_ends_at_utc??'');
         if($occupiedEnd==='')throw new \RuntimeException('Booking requested time is unavailable');
         if($this->repository->studentOccupancyConflicts($studentId,array(array('starts_at_utc'=>(string)$delivery->starts_at_utc,'occupied_ends_at_utc'=>$occupiedEnd)),array('exclude_booking_request_id'=>(int)$delivery->booking_request_id)))throw new \InvalidArgumentException('student_slot_conflict');
+        $this->repository->ensureAndLockTeacherRoot((int)$teacher->id,$now,$actor);
+        if($this->repository->teacherOccupancyConflicts((int)$teacher->id,(string)$delivery->starts_at_utc,$occupiedEnd,(int)$delivery->booking_request_id))throw new \InvalidArgumentException('teacher_slot_conflict');
         if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
         // The central Delnavazan Workspace organizer creates the classroom. A Teacher personal
         // Google grant is required only while the caller has explicitly rolled back to legacy.

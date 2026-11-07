@@ -58,6 +58,16 @@ final class BookingRequestRestController {
             wp_set_current_user( (int) $user->ID );
             wp_set_auth_cookie( (int) $user->ID, false, is_ssl() );
             do_action( 'wp_login', (string) $user->user_login, $user );
+            if ( ! empty( $result['recording_research_consent_accepted'] ) ) {
+                // Optional unified consent: never block the booking if recording fails.
+                try {
+                    $idempotencyKey = (string) $key;
+                    $language = (string) ( $result['communication_language'] ?? 'fa' );
+                    ( new \Delnavazan\Platform\Core\Application\UnifiedConsentService() )->acceptStudentUnified( $idempotencyKey, $language, 'booking_unified', 'booking_unified' );
+                } catch ( \Throwable $e ) {
+                    error_log( '[delnavazan booking] booking_consent_not_recorded code=' . substr( (string) $e->getMessage(), 0, 80 ) );
+                }
+            }
             return new \WP_REST_Response( array( 'success' => true, 'request_reference' => $result['request_reference'], 'dashboard_url' => home_url( '/student-portal/' ) ), 201 );
         } catch ( BookingAccountAuthenticationException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'account_authentication_failed', 'login_url' => wp_login_url( home_url( '/enrol/' ) ) ), 401 );

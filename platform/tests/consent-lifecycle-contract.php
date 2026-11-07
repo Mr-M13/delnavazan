@@ -89,18 +89,18 @@ $need(str_contains($controller, 'current_user_can(self::CAPABILITY)'), 'Every ad
 $need(!str_contains($controller, 'wp_remote_'), 'Policies must not bypass the canonical notification transport');
 $need(str_contains($controller, 'ConsentNotificationService'), 'Reminders must use the canonical notification producer');
 
-/* UI: independent choices, no preselected enrolment option, guardian path, RTL. */
-$need(str_contains($student, 'purpose" value="lesson_recording"'), 'Student recording form must be separate');
-$need(str_contains($student, 'purpose" value="research_model_training"'), 'Student research form must be separate');
+/* UI: unified single-line consent, guardian path, RTL. Backend purposes stay separate. */
+$need(str_contains($student, 'dzn_unified_student_consent'), 'Student unified consent form is required');
+$need(str_contains($student, 'unified_agree'), 'Student unified checkbox is required');
+$need(str_contains($student, 'dzn_unified_student_withdraw'), 'Student withdraw-all control is required');
+$need(str_contains($student, 'Privacy Policy'), 'Student policy hyperlinks are required');
 $need(str_contains($student, "'guardian' === \$authority"), 'Minor students must see the guardian-authority state');
-$need(str_contains($student, 'privacy_terms'), 'Privacy acknowledgement must be separately evidenced');
-$need(str_contains($student, 'dir="rtl"'), 'The public consent surface must remain RTL');
-$need(!preg_match('/name="choice" value="allow"\s+checked/', $student), 'Enrolment must not preselect recording');
-$need(!preg_match('/name="choice" value="opt_in"\s+checked/', $student), 'Enrolment must not preselect research');
-$need(str_contains($teacher, 'teacher_lesson_recording'), 'Teacher recording must be a separate purpose');
-$need(str_contains($teacher, 'teacher_research_model_training'), 'Teacher research must be a separate purpose');
-$need(str_contains($teacher, 'required>'), 'Teacher optional choices must require an affirmative action');
-$need(!preg_match('/name="choice" value="allow"\s+checked/', $teacher), 'Teacher choices must not be preselected');
+$need(str_contains($student, 'dir="rtl"') || str_contains($student, 'lang="fa"'), 'The public consent surface must remain RTL');
+$need(str_contains($student, 'checked'), 'Student unified checkbox is pre-checked by default');
+$need(str_contains($teacher, 'dzn_unified_teacher_consent'), 'Teacher unified consent form is required');
+$need(str_contains($teacher, 'unified_agree'), 'Teacher unified checkbox is required');
+$need(str_contains($teacher, 'required'), 'Teacher mandatory consent must require an affirmative action');
+$need(str_contains($teacher, 'Privacy Policy'), 'Teacher policy hyperlinks are required');
 
 /* Notification catalogue events. */
 require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';

@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Portals;
 
-use Delnavazan\Platform\Core\Application\{TeacherAvailabilityService, TeacherOnboardingService, RecordingDecisionAuthorityService};
+use Delnavazan\Platform\Core\Application\{TeacherAvailabilityService, TeacherOnboardingService};
 
 /** Authenticated form boundary for teacher-owned onboarding commands. */
 final class TeacherOnboardingController {
@@ -62,21 +62,8 @@ final class TeacherOnboardingController {
 
     public static function submit(): never {
         self::guard( 'dzn_teacher_onboarding_submit' );
-        try {
-            $post = wp_unslash( $_POST );
-            if ( empty( $post['recording_consent_accepted'] ) ) throw new \InvalidArgumentException( 'Teacher recording consent is required' );
-            ( new RecordingDecisionAuthorityService() )->acceptTeacherOnboardingRecordingTerms(
-                sanitize_text_field( (string) ( $post['terms_notice_uid'] ?? '' ) ),
-                sanitize_key( (string) ( $post['terms_language'] ?? '' ) ),
-                sanitize_text_field( (string) ( $post['recording_notice_uid'] ?? '' ) ),
-                sanitize_key( (string) ( $post['recording_language'] ?? '' ) ),
-                sanitize_text_field( (string) ( $post['recording_consent_key'] ?? '' ) )
-            );
-            ( new TeacherOnboardingService() )->submitOwn();
-            self::redirect( 'درخواست شما برای بررسی مدیر ارسال شد. تا اعلام نتیجه نیازی به ارسال دوباره نیست.', false, 5 );
-        } catch ( \InvalidArgumentException $error ) {
-            self::redirect( 'برای ارسال درخواست، باید شرایط همکاری و ضبط کلاس‌ها را بپذیرید.', true, 4 );
-        } catch ( \Throwable ) { self::redirect( 'ارسال انجام نشد. ابتدا پروفایل، زمان‌های در دسترس، اتصال Google و شرایط همکاری را کامل کنید.', true, 4 ); }
+        try { ( new TeacherOnboardingService() )->submitOwn(); self::redirect( 'درخواست شما برای بررسی مدیر ارسال شد. تا اعلام نتیجه نیازی به ارسال دوباره نیست.', false, 5 ); }
+        catch ( \Throwable ) { self::redirect( 'ارسال انجام نشد. ابتدا پروفایل، زمان‌های در دسترس و رضایت ضبط کلاس را کامل کنید.', true, 4 ); }
     }
 
     /** Continue to the first server-authoritative incomplete step; never skip requirements. */

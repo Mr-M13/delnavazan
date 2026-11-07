@@ -67,10 +67,6 @@ $check( 'the setup status is exposed as a labelled list', str_contains( $onboard
 $check( 'the raw review reason code is not echoed at the teacher', ! str_contains( $onboarding, 'review_reason_code' ) );
 $check( 'returned/rejected states still explain the correction path', str_contains( $onboarding, 'برای اصلاح برگردانده شده است' ) );
 $check( 'can_submit still gates submission', str_contains( $onboarding, "! empty( \$onboarding['can_submit'] )" ) );
-$check( 'final submission presents one compact Persian consent line', str_contains( $onboarding, 'dzn-tp-recording-consent' ) && str_contains( $onboarding, 'شرایط همکاری' ) && str_contains( $onboarding, 'سیاست ضبط و هوش مصنوعی' ) );
-$check( 'consent line links every published policy surface', str_contains( $onboarding, '/terms-and-conditions/' ) && str_contains( $onboarding, '/privacy-policy/' ) && str_contains( $onboarding, '/recording-and-ai-policy/' ) && str_contains( $onboarding, '/recording-and-research/' ) );
-$check( 'consent starts checked and is persisted during setup navigation', str_contains( $onboarding, 'recording_consent_accepted' ) && str_contains( $onboarding, ' checked' ) && str_contains( (string) file_get_contents( $theme . '/assets/js/teacher-portal.js' ), 'sessionStorage.getItem(key)' ) );
-$check( 'the browser cannot be the final consent authority', str_contains( (string) file_get_contents( $root . '/platform/src/Portals/TeacherOnboardingController.php' ), 'acceptTeacherOnboardingRecordingTerms' ) && str_contains( (string) file_get_contents( $root . '/platform/src/Portals/TeacherOnboardingController.php' ), "empty( \$post['recording_consent_accepted'] )" ) );
 $check( 'no Teacher Google authorization notice remains', ! str_contains( $onboarding, 'google_nonce' ) && ! str_contains( $onboarding, 'google_disconnect' ) );
 
 if ( $failures ) {

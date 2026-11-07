@@ -6,16 +6,6 @@ $profile_complete = 'complete' === (string) ( $onboarding['profile_state'] ?? ''
 $availability_complete = 'complete' === (string) ( $onboarding['availability_state'] ?? '' );
 $state = (string) ( $onboarding['state'] ?? 'linked_pending' );
 $ready = 'active' === $state && 'ready' === (string) ( $onboarding['readiness_state'] ?? '' );
-$recording_terms = (array) ( $model['recording_terms'] ?? array() );
-$consent_forms = (array) ( $recording_terms['forms'] ?? array() );
-$pick_consent_form = static function ( array $forms ): array {
-	foreach ( $forms as $form ) { if ( is_array( $form ) && 'fa' === (string) ( $form['language'] ?? '' ) ) { return $form; } }
-	foreach ( $forms as $form ) { if ( is_array( $form ) ) { return $form; } }
-	return array();
-};
-$terms_consent_form = $pick_consent_form( (array) ( $consent_forms['terms'] ?? array() ) );
-$recording_consent_form = $pick_consent_form( (array) ( $consent_forms['recording'] ?? array() ) );
-$consent_available = ! empty( $terms_consent_form ) && ! empty( $recording_consent_form );
 $state_labels = array(
 	'linked_pending' => 'در حال راه‌اندازی', 'in_progress' => 'در حال تکمیل', 'pending_review' => 'در انتظار بررسی مدیر',
 	'returned' => 'نیازمند اصلاح', 'rejected' => 'پذیرفته نشد', 'active' => 'تأییدشده و فعال', 'offboarded' => 'غیرفعال شده',
@@ -23,6 +13,8 @@ $state_labels = array(
 $missing = array();
 if ( ! $profile_complete ) { $missing[] = 'اطلاعات و منطقهٔ زمانی'; }
 if ( ! $availability_complete ) { $missing[] = 'دست‌کم یک زمان واقعی برای تدریس'; }
+$consent_accepted = ! empty( $model['recording_terms']['mandatory_accepted'] ) || ! empty( $model['recording_terms']['unified']['mandatory_accepted'] );
+if ( ! $consent_accepted ) { $missing[] = 'رضایت ضبط کلاس، پژوهش و حریم خصوصی (الزامی)'; }
 ?>
 
 <section class="dzn-tp-section dzn-tp-account-setup" aria-labelledby="tp-onboarding">
@@ -57,14 +49,7 @@ if ( ! $availability_complete ) { $missing[] = 'دست‌کم یک زمان وا
 		<div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">مرحلهٔ نهایی</p><h2 id="tp-submit">ارسال برای بررسی مدیر</h2></div></div>
 		<?php if ( $missing ) : ?><div class="dzn-tp-review-note is-warning"><strong>هنوز باید تکمیل شود</strong><ul><?php foreach ( $missing as $item ) : ?><li><?php echo esc_html( $item ); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 		<?php if ( ! empty( $onboarding['can_submit'] ) ) : ?>
-			<?php if ( $consent_available ) : ?>
-				<form method="post" action="<?php echo esc_url( $model['actions']['submit'] ?? '' ); ?>" data-dzn-tp-recording-consent data-dzn-tp-consent-key="dzn-teacher-onboarding-recording-<?php echo (int) ( $onboarding['teacher_id'] ?? 0 ); ?>">
-					<?php dzn_theme_nonce_field( 'dzn_teacher_onboarding_submit' ); ?>
-					<input type="hidden" name="terms_notice_uid" value="<?php echo esc_attr( (string) $terms_consent_form['notice_uid'] ); ?>"><input type="hidden" name="terms_language" value="<?php echo esc_attr( (string) $terms_consent_form['language'] ); ?>"><input type="hidden" name="recording_notice_uid" value="<?php echo esc_attr( (string) $recording_consent_form['notice_uid'] ); ?>"><input type="hidden" name="recording_language" value="<?php echo esc_attr( (string) $recording_consent_form['language'] ); ?>"><input type="hidden" name="recording_consent_key" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>">
-					<label class="dzn-tp-recording-consent"><input type="checkbox" name="recording_consent_accepted" value="1" checked> با <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط همکاری</a>، <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">حریم خصوصی</a>، <a href="<?php echo esc_url( home_url( '/recording-and-ai-policy/' ) ); ?>">سیاست ضبط و هوش مصنوعی</a> و <a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">اطلاعات پژوهش</a> موافقم.</label>
-					<p class="dzn-tp-help">نسخهٔ شرایط و زمان پذیرش همراه درخواست شما ثبت می‌شود.</p><button class="dzn-button" type="submit">ارسال برای بررسی مدیر</button>
-				</form>
-			<?php else : ?><p class="dzn-tp-notice is-warning">شرایط ضبطِ قابل ثبت در دسترس نیست؛ تا انتشار نسخهٔ فعلی، امکان ارسال درخواست وجود ندارد.</p><?php endif; ?>
+			<form method="post" action="<?php echo esc_url( $model['actions']['submit'] ?? '' ); ?>"><?php dzn_theme_nonce_field( 'dzn_teacher_onboarding_submit' ); ?><button class="dzn-button" type="submit">ارسال برای بررسی مدیر</button></form>
 		<?php elseif ( 'pending_review' === $state ) : ?>
 			<p class="dzn-tp-notice is-success">اطلاعات شما ارسال شده است. پس از بررسی مدیر، دسترسی کامل پرتال فعال می‌شود.</p>
 		<?php elseif ( ! $missing ) : ?>

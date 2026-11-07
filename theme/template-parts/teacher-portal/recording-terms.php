@@ -39,6 +39,7 @@ $decision_label = static function ( string $purpose, array $state ): string {
 	return 'opt_in' === $decision ? 'مشارکت در پژوهش: فعال' : ( 'withdraw' === $decision ? 'مشارکت در پژوهش: پس گرفته شده' : 'تصمیمی ثبت نشده است' );
 };
 $status_messages = array(
+	'unified_saved' => array( 'success', 'Consent saved. Recording, research and privacy are accepted.', 'رضایت ذخیره شد. ضبط کلاس، پژوهش و حریم خصوصی پذیرفته شد.' ),
 	'terms_saved' => array( 'success', 'Teacher recorded-work terms accepted.', 'شرایط کار ضبط‌شده پذیرفته شد.' ),
 	'teacher_recording_saved' => array( 'success', 'Teacher recording choice saved.', 'انتخاب ضبط کلاس مدرس ذخیره شد.' ),
 	'teacher_recording_declined' => array( 'success', 'Your lessons will not be recorded.', 'کلاس‌های شما ضبط نخواهد شد.' ),
@@ -47,6 +48,15 @@ $status_messages = array(
 	'privacy_saved' => array( 'success', 'Privacy acknowledgement saved.', 'تأیید حریم خصوصی ذخیره شد.' ),
 	'terms_unavailable' => array( 'error', 'The choice could not be saved. No record was created.', 'انتخاب ذخیره نشد؛ هیچ سابقه‌ای ساخته نشد.' ),
 );
+$unified = isset( $recording['unified'] ) && is_array( $recording['unified'] ) ? $recording['unified'] : array();
+$mandatory_accepted = ! empty( $unified['mandatory_accepted'] ) || ! empty( $recording['mandatory_accepted'] );
+$policy_urls = isset( $recording['policy_urls'] ) && is_array( $recording['policy_urls'] ) ? $recording['policy_urls'] : array(
+	'privacy' => home_url( '/privacy-policy/' ),
+	'recording_ai' => home_url( '/recording-and-ai-policy/' ),
+	'terms' => home_url( '/terms-and-conditions/' ),
+	'recording_research' => home_url( '/recording-and-research/' ),
+);
+$unified_available = ! empty( $unified['available'] );
 $renderPurpose = static function ( string $title, string $faTitle, string $purpose, array $formsForPurpose, array $state, array $choices ) use ( $language_label, $decision_label, $format_date, $iso_datetime ): void {
 	echo '<article class="dzn-teacher-recording-terms__notice" id="dzn-teacher-consent-'.esc_attr( $purpose ).'">';
 	echo '<h3>' . esc_html( $title ) . ' <span lang="fa" dir="rtl">· ' . esc_html( $faTitle ) . '</span></h3>';
@@ -103,16 +113,23 @@ $renderPurpose = static function ( string $title, string $faTitle, string $purpo
 	<?php endif; ?>
 	<?php if ( ! $linked ) : ?>
 		<p class="dzn-tp-help" role="status">این بخش فقط برای حساب مدرس فعال در دسترس است. هیچ رضایتی ثبت نشده است. · Teacher consent is available only to an active Teacher account. No consent has been recorded.</p>
+	<?php elseif ( $unified_available ) : ?>
+		<?php if ( $mandatory_accepted ) : ?>
+			<p class="dzn-tp-help" role="status"><strong>رضایت شما ثبت شده است.</strong> ضبط کلاس، پژوهش و حریم خصوصی پذیرفته شد<?php echo ! empty( $terms_state['decided_at'] ) ? ' · ' . esc_html( $format_date( (string) $terms_state['decided_at'] ) ) : ''; ?>. · Consent saved on <time datetime="<?php echo esc_attr( $iso_datetime( (string) ( $terms_state['decided_at'] ?? '' ) ) ); ?>"><?php echo esc_html( $format_date( (string) ( $terms_state['decided_at'] ?? '' ) ) ); ?></time></p>
+		<?php else : ?>
+			<form class="dzn-tp-form" method="post" action="<?php echo esc_url( (string) ( $unified['action_url'] ?? '' ) ); ?>">
+				<?php dzn_theme_nonce_field( 'dzn_unified_teacher_consent' ); ?>
+				<input type="hidden" name="idempotency_key" value="<?php echo esc_attr( (string) ( $unified['idempotency_key'] ?? '' ) ); ?>">
+				<input type="hidden" name="return_to" value="<?php echo esc_attr( (string) ( $unified['return_to'] ?? 'onboarding' ) ); ?>">
+				<label class="dzn-tp-unified-consent"><input type="checkbox" name="unified_agree" value="1" checked required> <span>I accept the <a href="<?php echo esc_url( $policy_urls['privacy'] ); ?>" target="_blank" rel="noopener">Privacy Policy</a>, <a href="<?php echo esc_url( $policy_urls['terms'] ); ?>" target="_blank" rel="noopener">Terms and Conditions</a>, and the <a href="<?php echo esc_url( $policy_urls['recording_ai'] ); ?>" target="_blank" rel="noopener">Recording &amp; AI Policy</a>: my classes may be recorded and used for teaching quality, research and AI model training. Please read them fully before continuing. · <span lang="fa" dir="rtl">سیاست حریم خصوصی، شرایط و ضوابط و سیاست ضبط و هوش مصنوعی را می‌پذیرم؛ کلاس‌هایم می‌توانند ضبط شوند و برای بهبود کیفیت آموزش، پژوهش و آموزش مدل هوش مصنوعی استفاده شوند. لطفاً پیش از ادامه آن‌ها را کامل بخوانید.</span></span></label>
+				<p class="dzn-tp-help"><strong>این رضایت برای همکاری با دلنوازان الزامی است.</strong> بدون آن نمی‌توانید در دلنوازان کار کنید و ضبط کلاس انجام نمی‌شود. · <strong>Recording consent is mandatory to work with Delnavazan.</strong></p>
+				<button class="dzn-button" type="submit">I agree · موافقم</button>
+			</form>
+		<?php endif; ?>
 	<?php elseif ( ! $available || ! $forms ) : ?>
 		<p class="dzn-tp-help" role="status"><strong>ثبت رضایت در دسترس نیست.</strong> اطلاعیهٔ تأییدشدهٔ شرایط کار ضبط‌شده منتشر نشده است؛ هیچ سابقه‌ای ساخته نمی‌شود.</p>
 	<?php else : ?>
-		<p class="dzn-tp-help">این سه تصمیم جداگانه‌اند: شرایط کار ضبط‌شده، اجازهٔ ضبط کلاس، و مشارکت اختیاری در پژوهش و آموزش مدل. اجازهٔ ضبط هیچ‌گاه به معنی اجازهٔ پژوهش نیست.</p>
-		<?php $renderPurpose( 'Recorded-work terms', 'شرایط کار ضبط‌شده', 'teacher_terms', (array) ( $forms['terms'] ?? array() ), $terms_state, array( 'accepted' => 'این شرایط را می‌پذیرم · I accept these terms' ) ); ?>
-		<?php $renderPurpose( 'Lesson recording', 'ضبط کلاس', 'teacher_lesson_recording', (array) ( $forms['recording'] ?? array() ), $recording_state, array( 'allow' => 'ضبط کلاس‌های آینده مجاز است · Allow future lesson recording', 'decline' => 'ضبط کلاس مجاز نیست · Do not record my lessons' ) ); ?>
-		<?php $renderPurpose( 'Research and model training', 'پژوهش و آموزش مدل', 'teacher_research_model_training', (array) ( $forms['research'] ?? array() ), $research_state, array( 'opt_in' => 'در پژوهش مشارکت می‌کنم · I opt in to research', 'withdraw' => 'مشارکت نمی‌کنم · I do not participate' ) ); ?>
-		<?php if ( ! empty( $forms['privacy'] ) ) : ?>
-			<?php $renderPurpose( 'Privacy acknowledgement', 'تأیید حریم خصوصی', 'privacy_terms', (array) $forms['privacy'], array(), array( 'accepted' => 'این نسخه را تأیید می‌کنم · I acknowledge this version' ) ); ?>
-		<?php endif; ?>
+		<p class="dzn-tp-help">رضایت یکپارچه در دسترس نیست. · Unified consent unavailable.</p>
 	<?php endif; ?>
-	<p><a href="<?php echo esc_url( $information_url ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
+	<p><a href="<?php echo esc_url( $information_url ); ?>" target="_blank" rel="noopener">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
 </section>

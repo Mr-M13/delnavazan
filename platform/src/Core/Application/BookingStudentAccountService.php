@@ -16,7 +16,7 @@ final class BookingStudentAccountService {
         $this->validator ??= new BookingRequestValidationService();
     }
 
-    /** @return array{success:bool,request_reference:string,user_id:int,replayed:bool} */
+    /** @return array{success:bool,request_reference:string,user_id:int,replayed:bool,recording_research_consent_accepted:bool,communication_language:string} */
     public function submit(array $input, string $idempotencyKey, string $password, string $confirmation, int $sessionUserId = 0, ?callable $newSubmissionGate = null): array {
         $normalized = $this->validator->normalizePublic( $input );
         $email = (string) $normalized['contact']['email'];
@@ -35,7 +35,7 @@ final class BookingStudentAccountService {
                 $result = $this->submissions->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId );
                 $this->bindBooking( (int) $result['request_id'], $studentId, $userId );
                 $this->accounts->commit();
-                return array( 'success' => true, 'request_reference' => (string) $result['request_reference'], 'user_id' => $userId, 'replayed' => ! empty( $result['replayed'] ) );
+                return array( 'success' => true, 'request_reference' => (string) $result['request_reference'], 'user_id' => $userId, 'replayed' => ! empty( $result['replayed'] ), 'recording_research_consent_accepted' => ! empty( $normalized['recording_research_consent_accepted'] ), 'communication_language' => (string) ( $normalized['contact']['communication_language'] ?? 'fa' ) );
             } catch ( \Throwable $e ) {
                 $this->accounts->rollback();
                 if ( $createdUserId > 0 ) clean_user_cache( $createdUserId );

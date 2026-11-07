@@ -3,7 +3,6 @@
 $root=dirname(__DIR__);
 $read=static fn(string $path):string=>(string)file_get_contents($root.'/'.$path);
 $controller=$read('src/Portals/RecordingDecisionController.php');
-$onboardingController=$read('src/Portals/TeacherOnboardingController.php');
 $readService=$read('src/Portals/RecordingDecisionUiReadService.php');
 $plugin=$read('delnavazan-platform.php');
 $migrator=$read('src/Core/Infrastructure/Migration/Migrator.php');
@@ -30,8 +29,6 @@ $need(str_contains($controller,'check_admin_referer(self::TEACHER_ACTION)'),'tea
 $need(str_contains($controller,"current_user_can('dzn_accept_own_recording_terms')"),'teacher acceptance must require its own capability');
 $need(str_contains($controller,'recordOwnStudentChoice('),'student choices must use the authority service');
 $need(str_contains($controller,'acceptTeacherTerms('),'teacher terms must use the authority service');
-$need(str_contains($onboardingController,'acceptTeacherOnboardingRecordingTerms('),'onboarding submission must record its required terms and recording evidence');
-$need(str_contains($authority,'acceptTeacherOnboardingRecordingTerms('),'the authority must preserve versioned onboarding recording evidence');
 $need(str_contains($controller,'requirePost()'),'both write endpoints must reject non-POST requests');
 $need(str_contains($controller,'set_transient(')&&str_contains($readService,'get_transient('),'confirmation feedback must use a server-side status, not a spoofable query parameter');
 $need(!str_contains($controller,"'recording_status'"),'the write endpoints must not accept or emit a client-supplied confirmation status');
@@ -46,25 +43,22 @@ $need(str_contains($readService,"'default_research_choice'=>null"),'research mus
 $need(str_contains($readService,"'information_url'"),'the UI must link the public information page');
 $need(str_contains($readService,'wp_generate_uuid4()'),'each rendered action must carry a fresh idempotency key');
 
-$need(str_contains($student,'ضبط کلاس و پژوهش'),'the Account Settings section title is required');
-$need(str_contains($student,'اجازهٔ ضبط کلاس'),'the allow recording label is required');
-$need(str_contains($student,'بدون ضبط کلاس'),'the decline recording label is required');
-$need(str_contains($student,'می‌خواهم در پژوهش مشارکت کنم'),'the research opt-in label is required');
-$need(str_contains($student,'نه، ممنون'),'the research decline label is required');
-$need(str_contains($student,'پس گرفتن مشارکت'),'the research withdrawal control is required');
-$need(str_contains($student,"'account' === \$context && 'allow' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current recording choice');
-$need(str_contains($student,"'account' === \$context && 'decline' === \$current_recording ? ' checked' : ''"),'only Account Settings may reflect the current decline');
-$need(!preg_match('/name="choice" value="allow"\s+checked/',$student),'enrolment must not preselect allow');
-$need(!preg_match('/name="choice" value="decline"\s+checked/',$student),'enrolment must not preselect decline');
+$need(str_contains($student,'ضبط کلاس، پژوهش و حریم خصوصی'),'the Account Settings section title is required');
+$need(str_contains($student,'dzn_unified_student_consent'),'the unified student consent action is required');
+$need(str_contains($student,'unified_agree'),'the unified checkbox name is required');
+$need(str_contains($student,'Privacy Policy')&&str_contains($student,'Recording &amp; AI Policy'),'student policy hyperlinks are required');
+$need(str_contains($student,'checked'),'the unified checkbox is pre-checked by default');
+$need(str_contains($student,'پس گرفتن رضایت'),'the withdraw-all control is required');
+$need(str_contains($student,"'account' === \$context && \$consent_active"),'only Account Settings may show withdrawal');
 $need(str_contains($student,"'guardian' === \$authority"),'the guardian authority path must be exposed only when the server resolves it');
-$need(str_contains($student,'تأیید حقوقی نشده'),'provisional copy must be visibly marked as draft');
 $need(str_contains($student,'هیچ تصمیمی دربارهٔ ضبط ثبت نشده'),'unavailable accounts must show a neutral state');
 
 $need(str_contains($teacher,'ثبت رضایت در دسترس نیست'),'teacher acceptance must show an explicit unavailable state');
-$need(str_contains($teacher,'notice_version'),'teacher acceptance must show the publication version');
-$need(str_contains($teacher,'فارسی'),'teacher acceptance must show the publication language');
+$need(str_contains($teacher,'dzn_unified_teacher_consent'),'teacher unified consent must post to the protected endpoint');
+$need(str_contains($teacher,'unified_agree'),'teacher unified checkbox is required');
+$need(str_contains($teacher,'mandatory to work'),'teacher mandatory consent must be explained');
+$need(str_contains($teacher,'Privacy Policy'),'teacher policy hyperlinks are required');
 $need(str_contains($teacher,'decided_at'),'teacher acceptance must show the recorded date after acceptance');
-$need(str_contains($teacher,'dzn_recording_teacher_terms'),'teacher acceptance must post to the protected endpoint');
 $need(str_contains($onboarding,'recording-terms'),'teacher onboarding must render the terms step');
 $need(str_contains($account,'recording-terms'),'teacher settings must show the accepted terms state');
 
@@ -76,7 +70,8 @@ $need(str_contains($bridge,"\$model['recording_choices'] = dzn_theme_platform_re
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' )"),'the Teacher onboarding model must actually supply the terms');
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' )"),'Teacher Settings must supply the current terms state');
 $need(str_contains($booking,'Recording and research'),'online enrolment must link the recording/research information');
-$need(str_contains($booking,'currently disabled'),'the public enrolment notice must state the disabled status');
+$need(str_contains($booking,'data-booking-consent'),'online enrolment must show the unified one-line consent');
+$need(str_contains($booking,'Recording &amp; AI Policy'),'online enrolment must hyperlink the Recording & AI Policy');
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
 $projectCopy=$read('../theme/template-parts/recording/project-copy.php');

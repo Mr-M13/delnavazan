@@ -82,21 +82,6 @@
       if (card) card.classList.toggle('is-selected', input.checked);
     });
   });
-  // Keep the explicit consent choice while the Teacher moves between onboarding sections.
-  document.querySelectorAll('[data-dzn-tp-recording-consent]').forEach((form) => {
-    const consent = form.querySelector('input[name="recording_consent_accepted"]');
-    const submit = form.querySelector('button[type="submit"]');
-    const key = form.dataset.dznTpConsentKey;
-    if (!consent || !submit || !key) return;
-    try { if (window.sessionStorage.getItem(key) === '0') consent.checked = false; } catch (e) {}
-    const apply = () => {
-      submit.disabled = !consent.checked;
-      submit.setAttribute('aria-disabled', String(!consent.checked));
-      try { window.sessionStorage.setItem(key, consent.checked ? '1' : '0'); } catch (e) {}
-    };
-    consent.addEventListener('change', apply);
-    apply();
-  });
   document.querySelectorAll('[data-dzn-tp-presentation]').forEach((button) => button.addEventListener('click', () => {
     const scope = button.closest('section, dialog') || document;
     const status = scope.querySelector('.dzn-tp-action-status');

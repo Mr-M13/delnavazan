@@ -223,7 +223,8 @@ function dzn_theme_render_booking_route(): void {
                         </div>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما برای تماس و هماهنگی این درخواست استفاده می‌شود. اعلان‌های واتساپ یا پیامک فقط در صورت فعال بودن آن کانال ارسال می‌شوند.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-privacy required> موافقم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت و استفاده شود. درخواست ثبت‌شده تا ۲۴ ماه نگهداری می‌شود.</label>
-                        <p class="dzn-booking__help dzn-booking__policy-links">پیش از ثبت درخواست، <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">سیاست حفظ حریم خصوصی</a>، <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط و ضوابط استفاده</a> و <a href="<?php echo esc_url( home_url( '/cancellation-and-refunds/' ) ); ?>">سیاست لغو و بازپرداخت</a> را بخوانید. این درخواست رایگان است و پرداختی در این مرحله انجام نمی‌شود.</p>
+                        <label class="dzn-booking__privacy dzn-unified-consent"><input type="checkbox" data-booking-consent checked> I accept the <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>" target="_blank" rel="noopener">Privacy Policy</a>, <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>" target="_blank" rel="noopener">Terms and Conditions</a>, and the <a href="<?php echo esc_url( home_url( '/recording-and-ai-policy/' ) ); ?>" target="_blank" rel="noopener">Recording &amp; AI Policy</a> — my classes may be recorded and used for research and AI model training. Please read them fully. · سیاست حریم خصوصی، شرایط و ضوابط و سیاست ضبط و هوش مصنوعی را می‌پذیرم؛ کلاس‌هایم ممکن است ضبط شوند و برای پژوهش و آموزش مدل هوش مصنوعی استفاده شوند. لطفاً آن‌ها را کامل بخوانید. این رضایت اختیاری است.</label>
+                        <p class="dzn-booking__help dzn-booking__policy-links">پیش از ثبت درخواست، <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">سیاست حفظ حریم خصوصی</a>، <a href="<?php echo esc_url( home_url( '/terms-and-conditions/' ) ); ?>">شرایط و ضوابط استفاده</a>، <a href="<?php echo esc_url( home_url( '/recording-and-ai-policy/' ) ); ?>">سیاست ضبط و هوش مصنوعی</a> و <a href="<?php echo esc_url( home_url( '/cancellation-and-refunds/' ) ); ?>">سیاست لغو و بازپرداخت</a> را بخوانید. این درخواست رایگان است و پرداختی در این مرحله انجام نمی‌شود. رضایت ضبط و پژوهش اختیاری است؛ برای ادامه بدون ضبط، تیک را بردارید.</p>
                         <label class="dzn-booking__privacy"><input type="checkbox" data-adult-attested required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند به‌طور مستقل درخواست ثبت‌نام را بپذیرد. برای هنرجوی زیر ۱۸ سال، لطفاً پیش از ثبت درخواست با پشتیبانی تماس بگیرید.</label>
                         <div class="dzn-booking__actions">
                             <button class="dzn-booking__button dzn-booking__button--secondary" type="button" data-back="availability">بازگشت به انتخاب زمان</button>
@@ -248,20 +249,7 @@ function dzn_theme_render_booking_route(): void {
                             </aside>
                             <aside class="dzn-booking__notice" role="note">
                                 <h4>Recording and research · ضبط و پژوهش</h4>
-                                <p lang="en" dir="ltr">Recording and research export are currently disabled. Read the public information page to understand the planned capability and how choices work after an adult student account is linked.</p>
-                                <p lang="fa" dir="rtl">ضبط و خروجی پژوهش در حال حاضر غیرفعال است. برای آشنایی با قابلیت برنامه‌ریزی‌شده و نحوهٔ انتخاب‌ها پس از اتصال حساب هنرجوی بزرگسال، صفحهٔ اطلاعات عمومی را بخوانید.</p>
-                                <p><a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>">Recording and research information · اطلاعات ضبط و پژوهش</a></p>
-                                <?php if ( is_user_logged_in() && function_exists( 'dzn_theme_platform_recording_choices' ) ) : ?>
-                                    <?php $dzn_booking_consent = dzn_theme_platform_recording_choices( 'enrolment' ); ?>
-                                    <?php if ( ! empty( $dzn_booking_consent['available'] ) ) : ?>
-                                        <p class="dzn-booking__help">می‌توانید همین حالا انتخاب معتبر خود را ثبت کنید؛ این انتخاب به حساب متصل شما وابسته است و در ثبت‌نام آینده حفظ می‌شود.</p>
-                                        <?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $dzn_booking_consent ) ); ?>
-                                    <?php else : ?>
-                                        <p class="dzn-booking__help">ثبت رضایت معتبر پس از اتصال حساب هنرجو و توسط خود هنرجو یا سرپرست دارای اختیار انجام می‌شود. هیچ تصمیمی از نبود پاسخ استنباط نمی‌شود.</p>
-                                    <?php endif; ?>
-                                <?php else : ?>
-                                    <p class="dzn-booking__help">رضایت معتبر ضبط و پژوهش پس از ایجاد و اتصال حساب هنرجو، با هویت تأییدشده و به‌صورت جداگانه ثبت می‌شود. این فرم هیچ رضایتی از طرف شما نمی‌سازد.</p>
-                                <?php endif; ?>
+                                <p class="dzn-booking__help">رضایت ضبط و پژوهش همان رضایت یک‌خطی مرحلهٔ قبل است و هنگام ثبت درخواست ذخیره می‌شود. این رضایت اختیاری است؛ پس از ثبت می‌توانید آن را در تنظیمات حساب پس بگیرید. <a href="<?php echo esc_url( home_url( '/recording-and-research/' ) ); ?>" target="_blank" rel="noopener">اطلاعات ضبط و پژوهش</a></p>
                             </aside>
                         </div>
                         <div class="dzn-booking__actions">

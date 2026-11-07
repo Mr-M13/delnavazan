@@ -648,6 +648,7 @@
         communication_language: 'fa',
         whatsapp_same_as_mobile: true,
         whatsapp_number: fieldValue('mobile'),
+        recording_research_consent_accepted: Boolean(root.querySelector('[data-booking-consent]')?.checked),
         privacy_notice_accepted: true,
         privacy_notice_version: dznBooking.privacyVersion,
         adult_self_attested: Boolean(root.querySelector('[data-adult-attested]').checked),

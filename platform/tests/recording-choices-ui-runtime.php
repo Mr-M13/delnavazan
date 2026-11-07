@@ -25,10 +25,15 @@ $minorUser=dzn_rda_ui_user('minor');$minor=dzn_rda_ui_student('UI Minor','minor'
 $unlinkedUser=dzn_rda_ui_user('unlinked');
 $teacherEn=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',1,'Teacher recording terms v1');
 $teacherFa=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'fa',1,'شرایط ضبط درس برای مدرسان نسخه ۱');
+$teacherRecEn=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RECORDING,'en',1,'Teacher recording v1');
+$teacherRecFa=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RECORDING,'fa',1,'ضبط کلاس مدرس نسخه ۱');
+$teacherResEn=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RESEARCH,'en',1,'Teacher research v1');
+$teacherResFa=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RESEARCH,'fa',1,'پژوهش مدرس نسخه ۱');
 $recordingNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING,'en',1,'Student recording notice v1');
 $researchNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH,'en',1,'Student research notice v1');
+$privacyNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_PRIVACY_TERMS,'en',1,'Privacy v1');
 
-// Enrolment: two equally clear recording choices, no preselection, separate optional research.
+// Enrolment: single pre-checked unified checkbox with policy hyperlinks.
 wp_set_current_user($adultUser);
 $enrolment=$ui->student('enrolment','en');
 dzn_rda_ui_assert($enrolment['available']===true,'adult enrolment choices must be available');
@@ -36,31 +41,26 @@ dzn_rda_ui_assert($enrolment['default_recording_choice']===null&&$enrolment['def
 dzn_rda_ui_assert($enrolment['capture_eligible']===false,'unanswered recording must be ineligible for capture');
 dzn_rda_ui_assert($enrolment['forms']['recording']['notice_uid']===$recordingNotice['uid'],'recording form must cite the published notice');
 dzn_rda_ui_assert($enrolment['forms']['research']['notice_uid']===$researchNotice['uid'],'research form must cite the separate published notice');
+dzn_rda_ui_assert(!empty($enrolment['unified']['available'])===true,'unified enrolment consent must be available');
 $html=dzn_rda_ui_render_student($enrolment);
-foreach(array('ضبط کلاس و پژوهش','اجازهٔ ضبط کلاس','بدون ضبط کلاس','می‌خواهم در پژوهش مشارکت کنم','نه، ممنون')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
-dzn_rda_ui_assert(!preg_match('/name="choice" value="allow"[^>]*checked/',$html),'enrolment must not preselect allow');
-dzn_rda_ui_assert(!preg_match('/name="choice" value="decline"[^>]*checked/',$html),'enrolment must not preselect decline');
+foreach(array('ضبط کلاس، پژوهش و حریم خصوصی','Privacy Policy','Recording &amp; AI Policy','unified_agree')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
+dzn_rda_ui_assert((bool)preg_match('/name="unified_agree"[^>]*checked/',$html),'unified checkbox must be checked by default');
 dzn_rda_ui_assert(!str_contains($html,'guardian'),'no guardian form may be exposed');
 
-// Account Settings: current state, dates, change controls and separate research withdrawal.
+// Account Settings: unified state, withdraw-all control at the end.
 $allow=$service->recordOwnStudentChoice('lesson_recording','allow',$recordingNotice['uid'],'en','ui-runtime-allow-01');
+$service->recordOwnStudentChoice('research_model_training','opt_in',$researchNotice['uid'],'en','ui-runtime-research-01');
+$service->recordOwnStudentChoice('privacy_terms','accepted',$privacyNotice['uid'],'en','ui-runtime-privacy-01');
 $account=$ui->student('account','en');
 dzn_rda_ui_assert($account['recording']['decision']==='allow'&&!empty($account['recording']['decided_at']),'account must show the recording decision and date');
+dzn_rda_ui_assert(!empty($account['consent_active']),'account must report unified consent active');
 $accountHtml=dzn_rda_ui_render_student($account);
-dzn_rda_ui_assert(str_contains($accountHtml,'ضبط کلاس مجاز است'),'account must show the current recording decision');
-dzn_rda_ui_assert((bool)preg_match('/name="choice" value="allow"[^>]*checked/',$accountHtml),'account must reflect the current allow choice');
-dzn_rda_ui_assert(str_contains($accountHtml,'value="decline"'),'account must offer a decline change control');
-$service->recordOwnStudentChoice('lesson_recording','decline',$recordingNotice['uid'],'en','ui-runtime-decline-01');
-$declinedHtml=dzn_rda_ui_render_student($ui->student('account','en'));
-dzn_rda_ui_assert((bool)preg_match('/name="choice" value="decline"[^>]*checked/',$declinedHtml),'account must reflect the changed decline choice');
-dzn_rda_ui_assert(str_contains($declinedHtml,'value="allow"'),'account must still offer the allow change control');
-$service->recordOwnStudentChoice('research_model_training','opt_in',$researchNotice['uid'],'en','ui-runtime-research-01');
-$accountHtml=dzn_rda_ui_render_student($ui->student('account','en'));
-dzn_rda_ui_assert(str_contains($accountHtml,'پس گرفتن مشارکت'),'opted-in research must expose withdrawal');
+dzn_rda_ui_assert(str_contains($accountHtml,'رضایت شما ثبت شده'),'account must show unified active consent');
+dzn_rda_ui_assert(str_contains($accountHtml,'پس گرفتن رضایت'),'opted-in student must expose withdraw-all');
 $service->recordOwnStudentChoice('research_model_training','withdraw',$researchNotice['uid'],'en','ui-runtime-research-02');
 $accountHtml=dzn_rda_ui_render_student($ui->student('account','en'));
-dzn_rda_ui_assert(str_contains($accountHtml,'می‌خواهم در پژوهش مشارکت کنم')&&str_contains($accountHtml,'نه، ممنون'),'withdrawn research must expose the approved opt-in control again');
-dzn_rda_ui_assert(!str_contains($accountHtml,'consent'),'the disabled default-on path must not be described as consent');
+dzn_rda_ui_assert(!str_contains($accountHtml,'پس گرفتن رضایت'),'withdrawn research must hide withdraw-all until re-consented');
+dzn_rda_ui_assert(str_contains($accountHtml,'unified_agree'),'withdrawn student must be offered unified re-consent');
 
 // Minor and unlinked accounts get a neutral unavailable state and no writable form.
 wp_set_current_user($minorUser);$minorModel=$ui->student('enrolment','en');$minorHtml=dzn_rda_ui_render_student($minorModel);
@@ -69,27 +69,29 @@ dzn_rda_ui_assert(str_contains($minorHtml,'انتخاب ضبط و پژوهش ب�
 wp_set_current_user($unlinkedUser);$unlinkedModel=$ui->student('enrolment','en');
 dzn_rda_ui_assert($unlinkedModel['available']===false,'unlinked account must be unavailable');
 
-// Teacher onboarding: version, language, explicit acceptance, recorded date, and unavailable state.
+// Teacher onboarding: unified mandatory consent, recorded date, and unavailable state.
 wp_set_current_user($teacherUser);$teacherModel=$ui->teacher();
 dzn_rda_ui_assert($teacherModel['available']===true&&$teacherModel['accepted']===false&&count($teacherModel['notices'])===2,'linked Teacher must see both published language versions');
+dzn_rda_ui_assert(!empty($teacherModel['unified']['available']),'teacher unified consent must be available');
 $teacherHtml=dzn_rda_ui_render_teacher($teacherModel);
-foreach(array('Recorded-work terms','Lesson recording','Research and model training','English','فارسی')as$text)dzn_rda_ui_assert(str_contains($teacherHtml,$text),'teacher component missing '.$text);
+foreach(array('Privacy Policy','Recording &amp; AI Policy','unified_agree','mandatory to work')as$text)dzn_rda_ui_assert(str_contains($teacherHtml,$text),'teacher component missing '.$text);
+dzn_rda_ui_assert((bool)preg_match('/name="unified_agree"[^>]*checked/',$teacherHtml),'teacher unified checkbox must be checked by default');
 $accepted=$service->acceptTeacherTerms($teacherEn['uid'],'en','ui-runtime-terms-01');
 $teacherModel=$ui->teacher();dzn_rda_ui_assert($teacherModel['accepted']===true&&!empty($teacherModel['accepted_at']),'teacher acceptance must expose its recorded date');
 $teacherHtml=dzn_rda_ui_render_teacher($teacherModel);
-dzn_rda_ui_assert(str_contains($teacherHtml,'پذیرفته شده')&&str_contains($teacherHtml,'<time'),'teacher component must show recorded date and current decision');
+dzn_rda_ui_assert(str_contains($teacherHtml,'unified_agree'),'teacher component must still offer unified completion after terms only');
 wp_set_current_user($unlinkedUser);$missing=$ui->teacher();$missingHtml=dzn_rda_ui_render_teacher($missing);
-dzn_rda_ui_assert($missing['available']===false&&str_contains($missingHtml,'available only to an active Teacher account')&&!str_contains($missingHtml,'name="choice"'),'unlinked Teacher must get no acceptance form');
+dzn_rda_ui_assert($missing['available']===false&&str_contains($missingHtml,'available only to an active Teacher account')&&!str_contains($missingHtml,'name="unified_agree"'),'unlinked Teacher must get no acceptance form');
 
 // No approved publication: acceptance and recording forms are unavailable, with no fabricated record.
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s",RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS));
 wp_set_current_user($teacherUser);$noTerms=$ui->teacher();$noTermsHtml=dzn_rda_ui_render_teacher($noTerms);
-dzn_rda_ui_assert($noTerms['available']===false&&str_contains($noTermsHtml,'ثبت رضایت در دسترس نیست')&&!str_contains($noTermsHtml,'name="choice"'),'missing teacher publication must not render acceptance');
+dzn_rda_ui_assert($noTerms['available']===false&&str_contains($noTermsHtml,'ثبت رضایت در دسترس نیست')&&!str_contains($noTermsHtml,'name="unified_agree"'),'missing teacher publication must not render acceptance');
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS));
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 wp_set_current_user($adultUser);$noRecording=$ui->student('enrolment','en');$noRecordingHtml=dzn_rda_ui_render_student($noRecording);
-dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'اطلاعیهٔ تأییدشدهٔ ضبط در دسترس نیست'),'missing recording publication must not render a recording form');
-dzn_rda_ui_assert(!str_contains($noRecordingHtml,'name="purpose" value="lesson_recording"'),'missing recording publication must not write a decision');
+dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'ثبت رضایت در دسترس نیست'),'missing recording publication must not render unified consent');
+dzn_rda_ui_assert(!str_contains($noRecordingHtml,'name="unified_agree"'),'missing recording publication must not write a decision');
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 
 // The presentation bridge must supply the same Account Settings and onboarding models.

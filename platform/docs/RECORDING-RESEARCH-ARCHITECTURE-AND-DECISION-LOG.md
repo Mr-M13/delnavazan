@@ -132,6 +132,12 @@ real-provider tests in the PR that implements it.
 4. An authorised release deploys schema and choices with both flags off, verifies production identity
    and settings flows, then enables only approved purpose/cohort flags.
 
+## Unified one-line presentation (2026-11)
+
+The four self-service surfaces (teacher onboarding, student booking, teacher settings, student settings) present a single pre-checked line: “I accept the Privacy Policy, Terms and Conditions, and Recording & AI Policy — my classes may be recorded and used for research and AI model training.” Teacher recording consent is mandatory (without it the teacher cannot be submitted or approved); student consent is optional and withdrawable in one action from Account Settings.
+
+This is a presentation bundling only: `UnifiedConsentService` still records one append-only decision per purpose with its own notice evidence before any gate is evaluated. Recording authorisation never satisfies research eligibility, and vice versa. Booking records the optional unified consent only after the new student account exists and the booking commits.
+
 ## Publication operator surface
 
 Administrators publish approved versions at **Settings → General → Recording notices**

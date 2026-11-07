@@ -164,6 +164,9 @@
 .dzn-booking__whatsapp .dzn-booking__field-help { margin-inline-start: 1.75rem; }
 .dzn-booking__whatsapp-note { margin: .5rem 0 1.25rem; border-inline-start: .2rem solid var(--dzn-color-action-primary); color: var(--dzn-color-text-muted); padding: .5rem .75rem; font-size: .9rem; }
 .dzn-booking__privacy { display: flex; align-items: flex-start; gap: .6rem; margin-block: 1.5rem; }
+.dzn-unified-consent { border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-sm); background: color-mix(in srgb, var(--dzn-color-action-secondary) 4%, var(--dzn-color-surface-elevated)); padding: .9rem 1rem; }
+.dzn-unified-consent input[type="checkbox"] { margin-block-start: .15rem; flex: none; }
+.dzn-unified-consent a { text-decoration: underline; text-underline-offset: .15em; }
 
 /* Review, summary and result */
 .dzn-booking__inline-review { margin-top: 1.5rem; border-top: 1px solid var(--dzn-color-border); padding-top: 1.25rem; }

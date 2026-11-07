@@ -139,7 +139,7 @@ $card_index = 0;
 				<?php if ( $is_today && true === ( $item['reschedule_available'] ?? false ) ) {
 					dzn_theme_teacher_portal_component(
 						'reschedule-form',
-						array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo )
+						array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo, 'calendar' => (string) ( $model['teacher_calendar'] ?? $item['reschedule_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? $item['reschedule_locale'] ?? '' ) )
 					);
 				} ?>
 				<?php if ( $demo ) : ?>
@@ -156,7 +156,7 @@ $card_index = 0;
 			<?php if ( ! $is_today && true === ( $item['reschedule_available'] ?? false ) ) : ?>
 			<details class="dzn-tp-class__reschedule" data-dzn-highlight="reschedule">
 				<summary>تغییر زمان کلاس</summary>
-				<?php dzn_theme_teacher_portal_component( 'reschedule-form', array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo ) ); ?>
+				<?php dzn_theme_teacher_portal_component( 'reschedule-form', array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo, 'calendar' => (string) ( $model['teacher_calendar'] ?? $item['reschedule_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? $item['reschedule_locale'] ?? '' ) ) ); ?>
 			</details>
 			<?php endif; ?>
 			<?php endif; ?>

@@ -95,7 +95,7 @@ function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
 function dzn_theme_teacher_portal_profile_valid( $profile ) {
 	if ( ! is_array( $profile ) ) { return false; }
 	foreach ( array( 'name', 'email', 'timezone', 'timezone_label' ) as $field ) { if ( ! dzn_theme_teacher_portal_text( $profile[ $field ] ?? null ) ) { return false; } }
-	return in_array( $profile['calendar'] ?? null, array( 'gregorian', 'persian' ), true )
+	return in_array( $profile['calendar'] ?? null, array( 'auto', 'gregorian', 'persian' ), true )
 		&& in_array( $profile['timezone'], timezone_identifiers_list(), true );
 }
 function dzn_theme_teacher_portal_availability_valid( $availability, $exceptions ) {

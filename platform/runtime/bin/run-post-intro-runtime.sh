@@ -6,6 +6,7 @@ source "$(dirname "$BASH_SOURCE")/common.sh"
 bin="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 
 "$bin/run-fresh-install.sh"
+dzn_wp_env DZN_POST_INTRO_FEEDBACK_UPGRADE_RUNTIME=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/post-intro-feedback-upgrade-runtime.php" --user=1
 dzn_wp_env DZN_INSTRUMENT_SETUP_RUNTIME_TEST=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/instrument-setup-runtime.php" --user=1
 # Run the impersonation regression outside WP-CLI so WordPress sees a real non-CLI request.
 dzn_assert_runtime_paths

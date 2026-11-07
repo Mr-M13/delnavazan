@@ -30,7 +30,7 @@ Minimum scope set requested by `GoogleWorkspaceClassroomRule::SCOPE_SNAPSHOT`:
 | Scope | Why |
 | --- | --- |
 | `https://www.googleapis.com/auth/calendar.events` | create/update/cancel the lesson event and its `conferenceData` |
-| `https://www.googleapis.com/auth/meetings.space.created` | read/patch the created space and create/delete co-host members |
+| `https://www.googleapis.com/auth/meetings.space.created` | create, modify and read metadata about spaces **created by this app**; manage members only on those app-created spaces |
 | `https://www.googleapis.com/auth/meetings.space.settings` | patch access and automatic-recording configuration |
 | `https://www.googleapis.com/auth/meetings.space.readonly` | list conference records, participants, sessions and recordings |
 | `https://www.googleapis.com/auth/drive.readonly` | verify the MP4 artifact and stream it to an authorized Delnavazan user |
@@ -78,22 +78,30 @@ Entry points:
 Order of operations:
 
 1. Re-read the canonical lesson/schedule version (or the confirmed booking).
-2. Create or converge the Calendar event with a deterministic event id, `conferenceData.createRequest`
-   and `sendUpdates=all`.
-3. Read the official Meet space by meeting code.
-4. Create the teacher member with role `COHOST`. If the tenant refuses, the exact HTTP status/error
-   class/message is written to `meet_classroom_events`, moderation is switched off, and the teacher
-   remains a Calendar invitee/participant. No browser automation is used.
-5. Patch access to `OPEN` (override with `DZN_MEET_ACCESS_TYPE=OPEN|TRUSTED|RESTRICTED`) and
+2. Create one app-owned Meet space with `spaces.create` and persist its exact `spaces/{space}` name
+   and join URI in the sealed classroom reference **before** the Calendar event exists. The Meet API
+   has no client-supplied idempotency key for this call, so an ambiguous response is not retried
+   automatically.
+3. Create or converge the Calendar event with a deterministic event id, `sendUpdates=all`, and
+   `conferenceData` supplied as the existing space's `conferenceSolution` + `conferenceId` +
+   `entryPoints` (not `createRequest`). This attaches exactly one app-created space to exactly one
+   event and preserves the Calendar invitation.
+4. Patch access to `OPEN` (override with `DZN_MEET_ACCESS_TYPE=OPEN|TRUSTED|RESTRICTED`) and
    moderation `ON`; patch `artifactConfig.recordingConfig.autoRecordingGeneration` to `ON` only when
    `RecordingDecisionAuthorityService::lessonRecordingEligibility()` returns eligible, otherwise
    `OFF`.
-6. Seal the event id and Meet URI in `provider_projection_secrets` (`meet_classroom`) and persist the
-   canonical lesson id, schedule version id, teacher id/email digest, student id/email digest,
-   organizer, event digest, space name, Meet URI digest and recording consent snapshot.
+5. Create the teacher member with role `COHOST` on the exact `spaces/{space}` name and verify the
+   membership by reading it back. If the tenant refuses, the exact HTTP status/error class/message is
+   written to `meet_classroom_events`, readiness remains blocked, and the teacher remains a Calendar
+   invitee. No browser automation and no participant-only downgrade are used.
+6. Seal the event id, Meet URI, exact space name, `space_origin=app` and organizer identity in
+   `provider_projection_secrets` (`meet_classroom`) and persist the canonical lesson id, schedule
+   version id, teacher id/email digest, student id/email digest, organizer, event digest, space name,
+   Meet URI digest and recording consent snapshot.
 
 Idempotency: deterministic event id, one active classroom row per lesson/booking, unique command/audit
-digests, and `409`/GET convergence on Calendar creation.
+digests, `409`/GET convergence on Calendar creation, and reuse of the persisted app-space reference
+before a retry can touch the provider.
 
 ## 4. Recording lifecycle (official APIs only)
 
@@ -122,7 +130,7 @@ digests, and `409`/GET convergence on Calendar creation.
 | Custom meeting background / organization branding injected by Delnavazan | **Not supported.** Only the Delnavazan entry page is branded. No scripts are injected into Meet. |
 | Recording watermark | Not a Meet API feature. Post-processing a copy is allowed only while preserving the original. |
 | Participant sessions | Supported (`participantSessions`), including anonymous/phone guests but without a Google account identifier. |
-| Co-host assignment | Supported (`spaces.members` role `COHOST`) where tenant policy permits. Exact refusal is recorded. |
+| Co-host assignment | Supported (`spaces.members` role `COHOST`) only on spaces created by this app with `meetings.space.created`, where tenant policy permits. A Calendar-created space is not app-created and is refused with `403 permission_denied`. Exact refusal is recorded. |
 
 ## 5. Audio quality guidance
 
@@ -166,7 +174,9 @@ wrong-student grant makes recording ineligible.
 (or an administrator explicitly approved a documented exception). A failed assignment is `blocked`
 and visible in Settings → Integrations. Transport/429/5xx failures retry with bounded backoff; a
 permanent refusal does not. There is no automatic moderation downgrade or silent participant
-fallback. Approval:
+fallback. A reference created by the old Calendar-conference flow has no app-space origin marker and
+is not sent to `spaces.members.create` again; it is blocked as
+`meet_cohost_calendar_space_unsupported` so an old event/space is never duplicated. Approval:
 
 ```sh
 wp dzn-meet approve-cohost-exception --lesson_id=456 --reason="Documented operational exception"
@@ -237,13 +247,20 @@ only that confirmation (and its accepting delivery) to retryable, then dispatche
 idempotent provider path; the Teacher does not have to accept the request again. If a blocked classroom
 row already exists, the recovery reuses that row, its sealed Calendar/Meet reference and its provider
 space. It must not create a second classroom row, Calendar event or Meet space. A still-refused COHOST
-assignment leaves the same row blocked and the confirmation failed. Cancelled/retired history and an
-occurrence that has already ended are never revived.
+assignment leaves the same row blocked and the confirmation failed. A historical row whose reference
+points at a Calendar-created space cannot be recovered through the members API; it stays blocked as
+`meet_cohost_calendar_space_unsupported` and requires the separately approved per-booking recovery in
+`GOOGLE-MEET-COHOST-CALENDAR-SPACE-REPAIR-2026-11-06.md`. Cancelled/retired history and an occurrence
+that has already ended are never revived.
 
 Permanent co-host refusals are never retried automatically. Correct the tenant policy and run
 `wp dzn-meet retry-classroom --lesson_id=456 --reason="Documented policy correction" --user=<id>`,
 or record a documented exception with `wp dzn-meet approve-cohost-exception`. The retry command
 validates the current lesson/schedule and never revives cancelled or retired classroom history.
+A blocked/failed term lesson is re-opened in place so its existing sealed event/space is reused; it
+does not create a new classroom row, event or space. If provider identity exists but the sealed
+reference is missing, the retry fails as `meet_classroom_reference_missing` before any provider
+create.
 
 - **Migrate/repair** provisions future canonical lessons and confirmed bookings; it does not change
   canonical state and does not revoke legacy grants.
@@ -269,11 +286,11 @@ the archival LiveKit tag only as a separate, explicit rollback.
   `drive.readonly` scope cannot rewrite sharing.
 - Confirm the organizer account has a Workspace licence that includes Meet recording.
 - Confirm the tenant permits `spaces.members` COHOST assignment to external users. This is a Google
-  Workspace Admin console/Meet host-management policy, not an OAuth-scope change: the organizer needs
-  Meet host-management capability, and external participants must be allowed to receive the COHOST
-  role. If the tenant does not expose that capability, use a Google Workspace account in the organizer
-  domain for the Teacher or use the explicit audited exception workflow; do not bypass the provider
-  check.
+  Workspace Admin console/Meet host-management policy, not an OAuth-scope change: the space must be
+  created by this app, the organizer needs Meet host-management capability, and external participants
+  must be allowed to receive the COHOST role. If the tenant does not expose that capability, do not
+  bypass the provider check; a documented, audited exception or a separately approved per-booking
+  recovery is required.
 
 ## 8. Verification still required on the real tenant
 

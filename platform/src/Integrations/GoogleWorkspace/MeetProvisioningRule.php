@@ -15,6 +15,7 @@ final class MeetProvisioningRule {
 
     private const RETRYABLE_CODES=array(
         'meet_calendar_projection_retryable',
+        'meet_space_create_retryable',
         'meet_space_lookup_retryable',
         'meet_space_config_retryable',
         'meet_cohost_assignment_retryable',
@@ -32,10 +33,16 @@ final class MeetProvisioningRule {
 
     private const PERMANENT_CODES=array(
         'meet_calendar_projection_refused',
+        'meet_space_create_refused',
+        'meet_space_create_ambiguous',
         'meet_space_lookup_refused',
         'meet_space_config_refused',
+        'meet_space_identity_mismatch',
+        'meet_calendar_conference_mismatch',
+        'meet_classroom_reference_missing',
         'meet_cohost_assignment_blocked',
         'meet_cohost_assignment_refused',
+        'meet_cohost_calendar_space_unsupported',
         'meet_calendar_identity_mismatch',
         'meet_join_uri_untrusted',
         'meet_calendar_event_id_invalid',
@@ -60,6 +67,21 @@ final class MeetProvisioningRule {
 
     public static function isRetryableResponse(int $status,?string $errorClass=null):bool {
         return self::classifyResponse($status,$errorClass)===self::RETRYABLE;
+    }
+
+    /**
+     * Classify a failed spaces.create call.
+     *
+     * A 429 response is a definite refusal that can be retried. A transport failure (status 0), a
+     * timeout, or a 5xx response is ambiguous: Google may have created the space before the
+     * response was lost. Because the Meet API has no client-supplied idempotency key and no
+     * "list my spaces" method, an automatic retry could create a second meeting. The caller must
+     * persist an ambiguous state and leave it for explicit reconciliation instead.
+     */
+    public static function spaceCreateFailureCode(int $status,?string $errorClass=null):string {
+        if($status===429||$status===425)return 'meet_space_create_retryable';
+        if($status===0||$status===408||$status>=500)return 'meet_space_create_ambiguous';
+        return 'meet_space_create_refused';
     }
 
     /** Stable persisted code for a provider operation. */

@@ -20,7 +20,8 @@ final class GoogleWorkspaceClassroomRule {
      * Least-privilege OAuth grant for the organizer account.
      *
      * - calendar.events: create/update the lesson event and its conferenceData.
-     * - meetings.space.created: create/patch spaces and assign co-host members.
+     * - meetings.space.created: create/read app-owned spaces and assign co-host members only on
+     *   those app-created spaces. It does not grant member management on Calendar-created spaces.
      * - meetings.space.settings: patch access/recording configuration on the created space.
      * - meetings.space.readonly: read conference records, participants and recordings.
      * - drive.readonly: verify the generated recording and stream it to an authorized Delnavazan user.

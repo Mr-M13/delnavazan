@@ -135,7 +135,21 @@ $show_provisioning = 'ok' === $state && $provisioning
 			<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 		<?php else : ?>
 			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
-			<?php dzn_theme_portal_component( 'term-timeline', array( 'term' => $model['term'] ?? array() ) ); ?>
+			<?php
+			$term_timelines = isset( $model['terms'] ) && is_array( $model['terms'] ) ? $model['terms'] : array();
+			if ( ! $term_timelines && ! empty( $model['term'] ) && is_array( $model['term'] ) ) {
+				$term_timelines = array( $model['term'] );
+			}
+			foreach ( $term_timelines as $term_index => $term_timeline ) {
+				dzn_theme_portal_component(
+					'term-timeline',
+					array(
+						'term' => $term_timeline,
+						'id'   => 'dzn-term-' . ( (int) $term_index + 1 ),
+					)
+				);
+			}
+			?>
 			<?php dzn_theme_portal_component( 'schedule', array( 'items' => $model['schedule'] ?? array(), 'timezone_label' => $model['timezone_label'] ?? '' ) ); ?>
 			<?php dzn_theme_portal_component( 'booking-requests', array( 'requests' => $model['booking_requests'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array(), 'recording' => $model['recording_choices'] ?? array() ) ); ?>

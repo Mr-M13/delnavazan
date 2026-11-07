@@ -200,7 +200,7 @@ final class GoogleWorkspaceRepository {
                AND c.classroom_state IN ('provisioning','failed','blocked','ready','rescheduled')
                AND c.cohost_state<>'blocked'
                AND (c.failure_reason_code IS NULL
-                    OR c.failure_reason_code NOT IN ('meet_calendar_projection_refused','meet_space_lookup_refused','meet_space_config_refused','meet_cohost_assignment_blocked','meet_cohost_assignment_refused'))
+                    OR c.failure_reason_code NOT IN ('meet_calendar_projection_refused','meet_space_create_refused','meet_space_create_ambiguous','meet_space_lookup_refused','meet_space_config_refused','meet_space_identity_mismatch','meet_calendar_conference_mismatch','meet_classroom_reference_missing','meet_cohost_assignment_blocked','meet_cohost_assignment_refused','meet_cohost_calendar_space_unsupported'))
              ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT ".$limit,
             $now
         );

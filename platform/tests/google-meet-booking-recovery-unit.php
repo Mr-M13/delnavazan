@@ -23,7 +23,8 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
         public string $memberErrorClass = '';
         public int $spaceStatus = 200;
         public string $spaceErrorClass = '';
-        public function getSpace(string $code): array { $this->calls[] = array('getSpace', $code); return array('status' => $this->spaceStatus, 'body' => $this->spaceStatus >= 200 && $this->spaceStatus < 300 ? array('name' => 'spaces/abc-defg-hij') : array(), 'error_class' => $this->spaceErrorClass); }
+        public function createSpace(): array { $this->calls[] = array('createSpace'); return array('status' => 200, 'body' => array('name' => 'spaces/abc-defg-hij', 'meetingUri' => 'https://meet.google.com/abc-defg-hij', 'meetingCode' => 'abc-defg-hij')); }
+        public function getSpace(string $code): array { $this->calls[] = array('getSpace', $code); return array('status' => $this->spaceStatus, 'body' => $this->spaceStatus >= 200 && $this->spaceStatus < 300 ? array('name' => 'spaces/abc-defg-hij', 'meetingUri' => 'https://meet.google.com/abc-defg-hij') : array(), 'error_class' => $this->spaceErrorClass); }
         public function createMember(string $space,string $email,string $role='COHOST'): array {
             $this->calls[] = array('createMember', $space, $email, $role);
             return array('status' => $this->memberStatus, 'body' => array(), 'error_class' => $this->memberErrorClass);
@@ -88,12 +89,17 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
             return 0;
         }
         public function insertClassroom(array $data): int { $this->inserted++; return 100 + $this->inserted; }
+        public ?object $reference = null;
         public function reference(int $classroomId,bool $lock=false): ?object {
+            if ($this->reference !== null) return $this->reference;
             return (object) array(
                 'id' => 1, 'classroom_id' => $classroomId, 'state' => 'active', 'active_slot' => 1,
                 'references' => array(
                     'provider_object_reference' => 'event-9',
                     'join_uri_reference' => 'https://meet.google.com/abc-defg-hij',
+                    'space_name' => 'spaces/abc-defg-hij',
+                    'space_origin' => 'app',
+                    'space_organizer' => 'classroom@delnavazan.com',
                 ),
             );
         }
@@ -136,7 +142,7 @@ namespace {
     $assert(($recovered['state'] ?? '') === 'ready' && ($recovered['cohost_state'] ?? '') === 'verified', 'A corrected policy must recover the blocked booking.');
     $assert($repo->inserted === 0, 'Booking recovery must not create a second classroom row.');
     $assert(count($repo->rows) === 1 && (int) $repo->rows[0]->active_slot === 1, 'Booking recovery must reactivate the existing row.');
-    $assert($api->calls === array(array('getSpace', 'abc-defg-hij'), array('createMember', 'spaces/abc-defg-hij', 'teacher@example.test', 'COHOST'), array('listMembers', 'spaces/abc-defg-hij'), array('patchSpace', 'spaces/abc-defg-hij')), 'Booking recovery must reuse the existing space and call the provider once.');
+    $assert($api->calls === array(array('getSpace', 'spaces/abc-defg-hij'), array('patchSpace', 'spaces/abc-defg-hij'), array('createMember', 'spaces/abc-defg-hij', 'teacher@example.test', 'COHOST'), array('listMembers', 'spaces/abc-defg-hij')), 'Booking recovery must reuse the existing app-owned space and call the provider once.');
     $assert(($repo->rows[0]->cohost_state ?? '') === 'verified' && property_exists($repo->rows[0], 'failure_reason_code') && $repo->rows[0]->failure_reason_code === null, 'Verified co-host recovery must clear the block only after provider verification.');
     $assert(property_exists($repo->rows[0], 'cohost_exception_state') && $repo->rows[0]->cohost_exception_state === null, 'Recovery must not silently create a co-host exception.');
     $assert(!empty($repo->events) && $repo->events[0]['created_by'] === 1 && $repo->events[0]['reason_code'] === 'booking_projection_retry', 'The row reuse must be audited with its administrator actor.');
@@ -153,6 +159,26 @@ namespace {
     $assert($refused, 'A still-refused co-host must remain a terminal block.');
     $assert($repo2->inserted === 0 && count($repo2->rows) === 1, 'A refused recovery must not duplicate the classroom row.');
     $assert((string) $repo2->rows[0]->classroom_state === 'blocked' && (string) $repo2->rows[0]->cohost_state === 'blocked', 'A refused recovery must persist the block on the same row.');
+
+    // A reference created before this repair points at a Calendar-created space. It cannot be
+    // repaired through the Meet members API and must remain closed without creating a new object.
+    $repoLegacy = new GoogleWorkspaceRepository();
+    $repoLegacy->reference = (object) array(
+        'id' => 1, 'classroom_id' => 9, 'state' => 'active', 'active_slot' => 1,
+        'references' => array(
+            'provider_object_reference' => 'event-9',
+            'join_uri_reference' => 'https://meet.google.com/abc-defg-hij',
+        ),
+    );
+    $apiLegacy = new GoogleWorkspaceApiClient();
+    $serviceLegacy = new GoogleWorkspaceClassroomService($repoLegacy, $apiLegacy, new GoogleWorkspaceOAuthService(), new ProviderReferenceVault(), new RecordingDecisionAuthorityService());
+    $legacyBlocked = false;
+    try { $serviceLegacy->ensureForBooking(9); }
+    catch (RuntimeException $error) { $legacyBlocked = $error->getMessage() === 'meet_cohost_calendar_space_unsupported'; }
+    $assert($legacyBlocked, 'A legacy Calendar-created space must fail closed with the unsupported-space code.');
+    $assert($repoLegacy->inserted === 0 && count($repoLegacy->rows) === 1, 'Legacy recovery must not create a second classroom row.');
+    $assert((string) $repoLegacy->rows[0]->classroom_state === 'blocked' && (string) $repoLegacy->rows[0]->failure_reason_code === 'meet_cohost_calendar_space_unsupported', 'Legacy recovery must persist the unsupported-space block on the same row.');
+    $assert($apiLegacy->calls === array(), 'Legacy recovery must not call Calendar or Meet with an unmanageable space.');
 
     // Cancelled history is never revived.
     $repo3 = new GoogleWorkspaceRepository();
@@ -193,7 +219,7 @@ namespace {
     catch (RuntimeException $error) { $retryableLookup = $error->getMessage() === 'meet_space_lookup_retryable'; }
     $assert($retryableLookup, 'A transient space lookup below the bound must remain retryable.');
     $assert((int) $repo5->rows[0]->cohost_attempt_count === 6 && (string) $repo5->rows[0]->classroom_state === 'provisioning' && (int) $repo5->rows[0]->active_slot === 1, 'Below the bound the same row must remain active and provisioning.');
-    $assert($repo5->inserted === 0 && $api5->calls === array(array('getSpace', 'abc-defg-hij')), 'A transient lookup must not create another row or provider object.');
+    $assert($repo5->inserted === 0 && $api5->calls === array(array('getSpace', 'spaces/abc-defg-hij')), 'A transient lookup must not create another row or provider object.');
 
     // At the final allowed attempt the persisted state and thrown code must both be terminal.
     $repo6 = new GoogleWorkspaceRepository();
@@ -211,7 +237,7 @@ namespace {
     $assert($terminalLookup, 'At the final attempt the thrown code must be terminal, matching the persisted state.');
     $assert((int) $repo6->rows[0]->cohost_attempt_count === 8 && (string) $repo6->rows[0]->classroom_state === 'blocked' && $repo6->rows[0]->active_slot === null, 'At the bound the same row must become blocked and inactive.');
     $assert((string) $repo6->rows[0]->failure_reason_code === 'meet_space_lookup_refused', 'At the bound the persisted failure must be terminal.');
-    $assert($repo6->inserted === 0 && $api6->calls === array(array('getSpace', 'abc-defg-hij')), 'A terminal lookup must not create another row, event, space or reference.');
+    $assert($repo6->inserted === 0 && $api6->calls === array(array('getSpace', 'spaces/abc-defg-hij')), 'A terminal lookup must not create another row, event, space or reference.');
 
     echo "Google Meet booking recovery unit passed\n";
 }

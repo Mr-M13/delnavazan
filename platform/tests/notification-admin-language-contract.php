@@ -62,6 +62,20 @@ foreach (array('booking.confirmed.student', 'account.claim_issued.student', 'att
     $fail('Persian greeting preserved: ' . $eventKey, str_contains((string) $copy['body'], 'درود'));
 }
 $fail('English copy remains available for the booking event', !$persian((string) NotificationCatalogue::defaultCopy('booking.confirmed.student', 'email', 'en')['body']));
+
+/* Renewal and post-intro copy state the slot-release policy explicitly. */
+$renewal = (string) (NotificationCatalogue::defaultCopy('renewal.reminder.student', 'email', 'fa-IR')['body'] ?? '');
+$fail('renewal reminder names the remaining sessions', str_contains($renewal, '{{remaining_sessions}}'));
+$fail('renewal reminder links to the payments destination', str_contains($renewal, '{{payment_url}}'));
+$fail('renewal reminder states the slot-release consequence', str_contains($renewal, 'آزاد می‌شود'));
+$fail('renewal reminder does not assume a full-term payment', str_contains($renewal, '{{instalment_note}}'));
+$invitation = (string) (NotificationCatalogue::defaultCopy('post_intro.invitation.student', 'email', 'fa-IR')['body'] ?? '');
+$fail('post-intro invitation states the bounded hold', str_contains($invitation, 'یک هفته'));
+$fail('post-intro invitation states the release consequence', str_contains($invitation, 'آزاد می‌شود'));
+$pluginBootstrap = (string) file_get_contents(dirname(__DIR__) . '/delnavazan-platform.php');
+$fail('the renewal reminder worker is registered', str_contains($pluginBootstrap, 'RenewalReminderWorker::register'));
+$reminderWorker = (string) file_get_contents(dirname(__DIR__) . '/src/Integrations/RenewalReminderWorker.php');
+$fail('renewal reminder checks the recorded payment plan', str_contains($reminderWorker, 'plan_kind') && str_contains($reminderWorker, 'commercial_offer_obligations') && str_contains($reminderWorker, 'commercial_obligation_settlements'));
 $fail('preview notice is Persian content', $persian(NotificationCatalogue::previewNotice()));
 $fail('English preview notice is English', !$persian(NotificationCatalogue::previewNotice('en')));
 

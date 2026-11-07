@@ -48,7 +48,9 @@ $check( 'reduced motion still disables automatic movement', str_contains( $js, '
 $check( 'the reduced-motion state is explained', str_contains( $js, 'چرخش خودکار به دلیل تنظیم حرکت غیرفعال است' ) );
 
 /* 4. Term progress follows the returned total, not a fixed twelve. */
-$check( 'term markup uses the returned total', str_contains( $term, 'max( 1, $recorded )' ) && str_contains( $term, 'max="<?php echo esc_attr( $total ); ?>"' ) );
+$check( 'term markup sets the twelve-session count', str_contains( $term, '--dzn-term-count' ) && str_contains( $term, '(int) $total' ) );
+$check( 'term CSS consumes the session count', str_contains( $portal_css, 'repeat(var(--dzn-term-count, 12)' ) );
+$check( 'term progress is presented as segmented markers', str_contains( $term, 'dzn-term__markers' ) && ! str_contains( $term, '<progress' ) );
 $check( 'term summary CSS is a compact responsive grid', str_contains( $portal_css, '.dzn-term__compact-summary' ) && str_contains( $portal_css, 'repeat(auto-fit, minmax(9rem, 1fr))' ) );
 
 /* 5. Readable public type and horizontal-overflow containment. */

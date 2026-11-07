@@ -16,10 +16,13 @@ final class ProviderReferenceVault {
         if(!function_exists('sodium_crypto_secretbox'))throw new \RuntimeException('provider_reference_cipher_unavailable');
         $clean=array();
         foreach($references as $name=>$value){
-            if(!in_array($name,array('provider_object_reference','join_uri_reference','checkout_uri_reference'),true))continue;
+            if(!in_array($name,array('provider_object_reference','join_uri_reference','checkout_uri_reference','space_name','space_origin','space_organizer'),true))continue;
             $value=trim((string)$value);
             if($name==='join_uri_reference'&&$value!=='')$this->assertJoinUri($value);
             if($name==='checkout_uri_reference'&&$value!=='')$this->assertCheckoutUri($value);
+            if($name==='space_name'&&$value!=='')$this->assertSpaceName($value);
+            if($name==='space_origin'&&$value!=='')$this->assertSpaceOrigin($value);
+            if($name==='space_organizer'&&$value!=='')$this->assertOrganizerEmail($value);
             if($value!=='')$clean[$name]=$value;
         }
         if(empty($clean))throw new \InvalidArgumentException('provider_reference_required');
@@ -42,9 +45,21 @@ final class ProviderReferenceVault {
         $references=$decoded['references'];
         if(isset($references['join_uri_reference'])&&trim((string)$references['join_uri_reference'])!=='')$this->assertJoinUri((string)$references['join_uri_reference']);
         if(isset($references['checkout_uri_reference'])&&trim((string)$references['checkout_uri_reference'])!=='')$this->assertCheckoutUri((string)$references['checkout_uri_reference']);
+        if(isset($references['space_name'])&&trim((string)$references['space_name'])!=='')$this->assertSpaceName((string)$references['space_name']);
+        if(isset($references['space_origin'])&&trim((string)$references['space_origin'])!=='')$this->assertSpaceOrigin((string)$references['space_origin']);
+        if(isset($references['space_organizer'])&&trim((string)$references['space_organizer'])!=='')$this->assertOrganizerEmail((string)$references['space_organizer']);
         return $references;
     }
 
+    private function assertSpaceName(string $name):void{
+        if(!preg_match('/^spaces\/[A-Za-z0-9_-]{3,128}$/D',$name))throw new \InvalidArgumentException('provider_space_name_invalid');
+    }
+    private function assertSpaceOrigin(string $origin):void{
+        if(!in_array($origin,array('app','calendar'),true))throw new \InvalidArgumentException('provider_space_origin_invalid');
+    }
+    private function assertOrganizerEmail(string $email):void{
+        if(strlen($email)>254||filter_var($email,FILTER_VALIDATE_EMAIL)===false)throw new \InvalidArgumentException('provider_space_organizer_invalid');
+    }
     private function assertJoinUri(string $uri):void{
         $parts=parse_url($uri);
         if(!$parts||($parts['scheme']??'')!=='https'||strtolower((string)($parts['host']??''))!=='meet.google.com')throw new \InvalidArgumentException('provider_join_uri_untrusted');

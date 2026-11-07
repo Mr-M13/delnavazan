@@ -59,9 +59,23 @@ final class GoogleWorkspaceApiClient {
     }
 
     // ---- Meet -------------------------------------------------------------------------------
+    /**
+     * Create an app-owned meeting space.
+     *
+     * The Meet REST API has no client-supplied idempotency key for this call, so the caller must
+     * persist the returned space name immediately and must not blindly repeat an ambiguous create.
+     */
+    public function createSpace():array{
+        return $this->call('POST','/v2/spaces',new \stdClass());
+    }
+
     public function getSpace(string $spaceOrCode):array{
         $id=trim($spaceOrCode);
         if(!preg_match('/^(spaces\/)?[A-Za-z0-9_-]{3,128}$/D',$id))throw new \InvalidArgumentException('meet_space_name_invalid');
+        // The REST path is always /v2/spaces/{space}. A caller may pass the full resource name
+        // `spaces/{space}` or the documented meeting-code alias; strip the resource prefix before
+        // URL-encoding so the slash is a path separator, not %2F inside the space id.
+        if(str_starts_with($id,'spaces/'))$id=substr($id,7);
         return $this->call('GET','/v2/spaces/'.rawurlencode($id));
     }
 
@@ -141,7 +155,7 @@ final class GoogleWorkspaceApiClient {
     }
 
     // ---- Request plumbing -------------------------------------------------------------------
-    private function call(string $method,string $path,?array $body=null,array $extraHeaders=array()):array{
+    private function call(string $method,string $path,array|object|null $body=null,array $extraHeaders=array()):array{
         $origin=$this->origin($path);
         $uri=$origin.$path;
         $token=$this->token(false);
@@ -161,7 +175,7 @@ final class GoogleWorkspaceApiClient {
         return GoogleWorkspaceClassroomRule::CALENDAR_ORIGIN;
     }
 
-    private function send(string $method,string $uri,string $token,?array $body,array $extraHeaders):array{
+    private function send(string $method,string $uri,string $token,array|object|null $body,array $extraHeaders):array{
         $headers=array_merge(array('Authorization'=>'Bearer '.$token,'Accept'=>'application/json'),$extraHeaders);
         $encoded=null;
         if($body!==null){

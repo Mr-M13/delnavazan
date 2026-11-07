@@ -1,7 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Portals;
 
-use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
+use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
+use Delnavazan\Platform\Core\Infrastructure\Repository\{PostIntroFeedbackRepository,PostIntroRepository};
 
 /**
  * Read-only projection of post-intro continuation state for the Student Portal.
@@ -18,11 +19,29 @@ final class PostIntroStudentReadService {
         $rows = array();
         $capacity = $this->repository->studentCapacity($studentId);
         $classification = $capacity ? (string) $capacity->classification : 'unknown';
+        $feedbackRepository = new PostIntroFeedbackRepository();
         foreach ($this->repository->preparationsForStudent($studentId) as $preparation) {
             $confirmation = $this->repository->confirmationByBooking((int) $preparation->booking_request_id);
             if (!$confirmation) continue;
             $state = $this->displayState((string) $preparation->state, $preparation);
+            $continuationCase = (int) ($preparation->intro_lesson_id ?? 0) > 0
+                ? $this->repository->continuationCaseForIntro((int) $preparation->intro_lesson_id)
+                : null;
+            $holdExpiresAt = $this->holdExpiresAt($preparation, $confirmation);
+            $holdSeconds = $holdExpiresAt !== null ? strtotime($holdExpiresAt . ' UTC') : false;
+            if ($holdSeconds !== false && $holdSeconds <= time() && in_array($state, array('ready', 'checkout_pending'), true)) {
+                $state = 'expired';
+            }
             $actionable = in_array($state, array('ready', 'checkout_pending'), true);
+            // The follow-up is offered on the last day of the hold and after it, but only while the
+            // Student has not recorded any continuation decision. Once a decision exists the
+            // canonical continuation authority (different Teacher, contact, or stop) owns the path.
+            $surveyAvailable = $continuationCase === null
+                && $holdSeconds !== false
+                && in_array((string) $preparation->state, array('prepared', 'checkout_pending', 'expired'), true)
+                && in_array($state, array('ready', 'checkout_pending', 'expired'), true)
+                && $holdSeconds <= time() + 86400
+                && $feedbackRepository->byPreparation((int) $preparation->id) === null;
             $attestation = $classification !== 'adult' && $classification !== 'minor';
             $offer = (int) ($preparation->offer_id ?? 0) > 0 ? $this->repository->offer((int) $preparation->offer_id) : null;
             $selectedPlan = $offer ? (string) $offer->plan_kind : '';
@@ -62,9 +81,47 @@ final class PostIntroStudentReadService {
                 'quote_token' => is_array($quote) ? (string) ($quote['quote_token'] ?? '') : '',
                 'currency' => is_array($quote) ? (string) ($quote['currency'] ?? '') : '',
                 'committed_sessions' => is_array($quote) ? (int) ($quote['committed_sessions'] ?? 12) : 12,
+                'hold_expires_at' => $holdExpiresAt,
+                'survey_available' => $surveyAvailable,
+                'survey_action_url' => $surveyAvailable ? admin_url('admin-post.php?action=dzn_post_intro_survey') : null,
+                'survey_nonce' => $surveyAvailable ? wp_create_nonce('dzn_post_intro_survey') : null,
+                'survey_options' => $surveyAvailable ? $this->surveyOptions() : array(),
+                'survey_choices' => $surveyAvailable ? $this->surveyChoices() : array(),
             );
         }
         return $rows;
+    }
+
+    /** The frozen post-intro hold, derived from the authoritative intro end and first-slot start. */
+    private function holdExpiresAt(object $preparation, object $confirmation): ?string {
+        $introLessonId = (int) ($preparation->intro_lesson_id ?? 0);
+        if ($introLessonId < 1) return null;
+        $slot = $this->repository->slotAuthorityForIntro($introLessonId);
+        if (!$slot) return null;
+        try {
+            return CanonicalContinuationRule::expiresAt((string) $confirmation->ends_at_utc, (string) $slot->starts_at_utc);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** Controlled feedback options; the canonical authority validates the selected value. */
+    private function surveyOptions(): array {
+        return array(
+            array('value' => 'teacher_fit', 'label' => 'مایل هستم با مدرس دیگری ادامه دهم.'),
+            array('value' => 'schedule', 'label' => 'زمان کلاس برای من مناسب نیست.'),
+            array('value' => 'price', 'label' => 'هزینهٔ کلاس یا شرایط پرداخت مناسب نیست.'),
+            array('value' => 'other', 'label' => 'دلیل دیگری دارم.'),
+            array('value' => 'prefer_not_to_say', 'label' => 'ترجیح می‌دهم اعلام نکنم.'),
+        );
+    }
+
+    private function surveyChoices(): array {
+        return array(
+            array('value' => 'contact_me', 'label' => 'مایل هستم با من تماس بگیرید.'),
+            array('value' => 'not_continuing', 'label' => 'فعلاً قصد ادامه ندارم.'),
+            array('value' => 'feedback_only', 'label' => 'فقط می‌خواهم نظرم را ثبت کنم.'),
+        );
     }
 
     private function displayState(string $state, object $preparation): string {

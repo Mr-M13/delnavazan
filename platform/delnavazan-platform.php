@@ -144,6 +144,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();
 	Delnavazan\Platform\Integrations\LessonCompletionAutomationWorker::register();
+	Delnavazan\Platform\Integrations\RenewalReminderWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSurveyWorker::register();
 	Delnavazan\Platform\Integrations\TeacherStatementEmailWorker::register();
 	Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementScheduleService::register();

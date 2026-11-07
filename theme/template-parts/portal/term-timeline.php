@@ -17,9 +17,15 @@ if ( ! $term ) {
 }
 
 $completed = isset( $term['completed'] ) ? max( 0, (int) $term['completed'] ) : 0;
-$recorded = isset( $term['total'] ) ? max( 0, (int) $term['total'] ) : 0;
-$total = max( 1, $recorded );
+$recorded = isset( $term['recorded'] ) ? max( 0, (int) $term['recorded'] ) : ( isset( $term['total'] ) ? max( 0, (int) $term['total'] ) : 0 );
+$total = isset( $term['total'] ) ? max( 1, (int) $term['total'] ) : 12;
 $completed = min( $completed, $total );
+$instance_id = isset( $args['id'] ) ? sanitize_html_class( (string) $args['id'] ) : 'dzn-term';
+if ( '' === $instance_id ) {
+	$instance_id = 'dzn-term';
+}
+$title_id = $instance_id . '-title';
+$replacements_title_id = $instance_id . '-replacements-title';
 $progress_label = trim( (string) ( $term['progress_label'] ?? '' ) );
 if ( '' === $progress_label ) { $progress_label = 'پیشرفت دوره'; }
 $completed_label = (string) ( $term['completed_label'] ?? '' );
@@ -27,18 +33,23 @@ $remaining_label = (string) ( $term['remaining_label'] ?? '' );
 $cancelled_label = (string) ( $term['cancelled_label'] ?? '' );
 $replacement_label = (string) ( $term['replacement_label'] ?? '' );
 ?>
-<section class="dzn-portal-section dzn-term dzn-term--compact" aria-labelledby="dzn-term-title">
+<section class="dzn-portal-section dzn-term dzn-term--compact" aria-labelledby="<?php echo esc_attr( $title_id ); ?>">
 	<div class="dzn-portal-section__heading dzn-term__heading">
 		<div>
 			<p class="dzn-portal-kicker"><?php echo esc_html( $progress_label ); ?></p>
-			<h2 id="dzn-term-title"><?php echo esc_html( $term['title'] ?? 'ترم جاری' ); ?></h2>
+			<h2 id="<?php echo esc_attr( $title_id ); ?>"><?php echo esc_html( $term['title'] ?? 'ترم جاری' ); ?></h2>
 		</div>
 		<?php if ( ! empty( $term['current_label'] ) ) : ?><p class="dzn-term__count"><?php echo esc_html( (string) $term['current_label'] ); ?></p><?php endif; ?>
 	</div>
 	<?php if ( $recorded < 1 ) : ?>
 		<p class="dzn-portal-empty"><?php esc_html_e( 'ثبت‌نام شما فعال است، اما برنامهٔ جلسه‌ها هنوز از سوی دلنوازان اعلام نشده است. به‌محض نهایی‌شدن زمان‌ها، همین‌جا نمایش داده می‌شود.', 'delnavazan-theme' ); ?></p>
 	<?php else : ?>
-	<progress class="dzn-term__progress dzn-term__progress--compact" value="<?php echo esc_attr( $completed ); ?>" max="<?php echo esc_attr( $total ); ?>"><?php echo esc_html( $completed_label ? $completed_label : sprintf( '%1$d از %2$d', $completed, $total ) ); ?></progress>
+	<ol class="dzn-term__markers" style="--dzn-term-count: <?php echo (int) $total; ?>" aria-label="<?php echo esc_attr( sprintf( 'پیشرفت ترم: %1$d از %2$d جلسه', $completed, $total ) ); ?>">
+		<?php for ( $session = 1; $session <= $total; $session++ ) : ?>
+			<?php $marker = $session <= $completed ? 'complete' : ( $session === $completed + 1 ? 'current' : 'remaining' ); ?>
+			<li class="is-<?php echo esc_attr( $marker ); ?>"<?php echo 'current' === $marker ? ' aria-current="step"' : ''; ?>><span class="screen-reader-text"><?php echo esc_html( sprintf( 'جلسهٔ %d — %s', $session, 'complete' === $marker ? 'برگزار شده' : ( 'current' === $marker ? 'پیش رو' : 'باقی‌مانده' ) ) ); ?></span></li>
+		<?php endfor; ?>
+	</ol>
 	<dl class="dzn-term__compact-summary">
 		<div class="dzn-term__compact-fact dzn-term__compact-fact--lessons">
 			<dt><?php esc_html_e( 'جلسه‌های برگزارشده', 'delnavazan-theme' ); ?></dt>
@@ -66,7 +77,7 @@ $replacement_label = (string) ( $term['replacement_label'] ?? '' );
 	<?php endif; ?>
 	<?php $replacement_items = is_array( $term['replacement_items'] ?? null ) ? $term['replacement_items'] : array(); ?>
 	<?php if ( $replacement_items ) : ?>
-		<details class="dzn-term__replacements dzn-term__replacements--compact">
+		<details class="dzn-term__replacements dzn-term__replacements--compact" id="<?php echo esc_attr( $replacements_title_id ); ?>">
 			<summary><?php esc_html_e( 'جلسه‌های جایگزین', 'delnavazan-theme' ); ?></summary>
 			<ul>
 				<?php foreach ( $replacement_items as $replacement_item ) : ?>

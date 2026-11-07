@@ -41,6 +41,10 @@ foreach ( $order as $component ) {
 	$previous = $at;
 }
 $check( 'the merged classes tab puts pending reschedule first, then timeline and schedule', $ordered );
+$termTimeline = (string) file_get_contents( $theme . '/template-parts/portal/term-timeline.php' );
+$check( 'student home renders one term timeline per active class', str_contains( $bridge, "\$model['terms'] = dzn_theme_platform_student_term_models" ) && str_contains( $shell, 'foreach ( $term_timelines as $term_index => $term_timeline )' ) );
+$check( 'term timelines receive a unique heading id per class', str_contains( $shell, "'id'   => 'dzn-term-' . ( (int) \$term_index + 1 )" ) && str_contains( $termTimeline, '$instance_id = ' ) );
+$check( 'each class timeline resolves its own next class', str_contains( $bridge, 'dzn_theme_platform_student_next_class_label' ) );
 $postIntro = (string) file_get_contents( $theme . '/template-parts/portal/post-intro.php' );
 $check( 'the post-intro activation-only card is filtered while actionable continuation remains', ! empty( $postIntro ) && str_contains( $postIntro, "! empty( \$item['actionable'] )" ) );
 $check( 'student first tab ends with WhatsApp support', str_contains( $shell, "'support'" ) && str_contains( (string) file_get_contents( $theme . '/template-parts/portal/support.php' ), 'dzn_theme_whatsapp_link' ) );
@@ -48,6 +52,7 @@ $check( 'student first tab ends with WhatsApp support', str_contains( $shell, "'
 $check( 'student home greets the student by first name', str_contains( $shell, "'درود بر شما' . ( '' !== \$first_name" ) );
 $check( 'student email is visibly read-only', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/profile.php' ), 'is-readonly' ) );
 $check( 'term replacement allowance is projected from the enrolment', str_contains( $bridge, 'replacement_allowance' ) && str_contains( $bridge, 'replacement_items' ) );
+$check( 'term progress spans the full twelve-session allocation', str_contains( $bridge, 'CanonicalTermAuthorityService::SESSION_ALLOCATION' ) && str_contains( $bridge, "'total' => \$term_sessions" ) );
 $check( 'replacement lessons are counted and listed from the canonical Term', str_contains( (string) file_get_contents( $root . '/platform/src/Core/Application/CanonicalStudentEnrolmentPortalReadPort.php' ), "lesson_type='replacement'" ) );
 $check( 'replacement classes are labelled in the schedule', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/schedule.php' ), 'جلسهٔ جبرانی' ) );
 $check( 'rescheduled classes are labelled as a new time in the schedule', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/schedule.php' ), 'زمان جدید' ) && str_contains( $bridge, 'schedule_revision_count' ) );

@@ -69,7 +69,7 @@ $need(str_contains($bridge,'RecordingDecisionUiReadService'),'the theme must use
 $need(str_contains($bridge,"\$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' )"),'the Account Settings model must actually supply the choices');
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' )"),'the Teacher onboarding model must actually supply the terms');
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' )"),'Teacher Settings must supply the current terms state');
-$need(str_contains($booking,'Recording and research'),'online enrolment must link the recording/research information');
+$need(str_contains($booking,'/recording-and-ai-policy/'),'online enrolment must link the Recording & AI policy');
 $need(str_contains($booking,'data-booking-consent'),'online enrolment must show the unified one-line consent');
 $need(str_contains($booking,'Recording &amp; AI Policy'),'online enrolment must hyperlink the Recording & AI Policy');
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');

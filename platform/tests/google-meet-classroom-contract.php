@@ -3,7 +3,7 @@
  * Static contract for the LiveKit → Google Meet migration.
  *
  * This test proves the shipped source surface: no active LiveKit route, one organizer-owned Meet
- * workflow, official API seams (Calendar/Meet/Drive), consent-gated recording and no Teacher Google
+ * workflow, official API seams (Calendar/Meet/Drive), Student opt-out-aware recording and no Teacher Google
  * authorization requirement in onboarding or the Teacher portal.
  */
 $root = dirname(__DIR__, 2);
@@ -66,9 +66,11 @@ $check('no silent moderation downgrade exists', !str_contains($service, "'fallba
 $check('temporary co-host failures retry with bounded backoff', str_contains($service, 'MeetCoHostRule::retryDelaySeconds'));
 $check('administrator exception is explicit and audited', str_contains($service, 'approveCoHostException') && str_contains($service, 'cohost_exception_reason'));
 $check('organizer absence is supported by OPEN access', str_contains($rule, "return in_array(\$configured,array('OPEN','TRUSTED','RESTRICTED'),true)?\$configured:'OPEN';"));
-$check('recording config is consent-gated', str_contains($service, 'lessonRecordingEligibility'));
+$check('recording config is Student decision-aware', str_contains($service, 'lessonRecordingEligibility'));
 $check('recording auto-generation is explicitly ON or OFF', str_contains($service, "'autoRecordingGeneration'=>\$recordingOn?'ON':'OFF'"));
-$check('consent rejection forces recording OFF', str_contains($service, '$recordingOn=!empty($eligibility[\'eligible\'])'));
+$check('Student opt-out forces recording OFF', str_contains($service, '$recordingOn=!empty($eligibility[\'eligible\'])'));
+$decision = $read('platform/src/Core/Application/RecordingDecisionAuthorityService.php');
+$check('recording defaults on unless the Student declines', str_contains($decision, "'student_recording_default_on'") && str_contains($decision, "'student_recording_declined'"));
 $check('reschedule reuses the existing event', str_contains($service, 'updateCalendarEvent'));
 $check('cancellation preserves the classroom row', str_contains($service, "'classroom_state'=>'cancelled'"));
 $check('teacher replacement removes other co-hosts', str_contains($service, 'removeOtherCoHosts'));

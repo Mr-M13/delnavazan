@@ -120,46 +120,27 @@ final class RecordingDecisionAuthorityService {
     /**
      * Lesson-scoped recording eligibility used by the Google Meet classroom authority.
      *
-     * Read-only legal gate. Recording may be configured only when all purposes that the canonical
-     * ConsentPurposeRegistry marks as required for recording are current and positive for the exact
-     * Lesson participants: Teacher terms, Teacher lesson-recording consent and Student
-     * lesson-recording consent (the Student row may be recorded by a valid guardian grant).
-     * Research permission is independent and never enables recording or export.
+     * Delnavazan's classroom default is automatic recording. The only per-lesson decision that
+     * disables that default is an explicit Student (or authorised guardian) recording decline.
+     * A missing decision, a Teacher decision, and research permission do not change this setting.
+     * Research permission remains independent and never enables export.
      */
     public function lessonRecordingEligibility(int $lessonId):array {
         global $wpdb; $p=$wpdb->prefix.'dzn_';
         $lesson=$wpdb->get_row($wpdb->prepare("SELECT id,student_id,teacher_id FROM {$p}lessons WHERE id=%d AND archived_at IS NULL LIMIT 1",$lessonId));
         if(!$lesson)return $this->eligibility(false,'lesson_not_found',null,null);
-        $required=array(
-            ConsentPurposeRegistry::TEACHER_TERMS,
-            ConsentPurposeRegistry::TEACHER_RECORDING,
-            ConsentPurposeRegistry::STUDENT_RECORDING,
-        );
-        foreach($required as $purpose){
-            if(!ConsentPurposeRegistry::requiresRecordingConsent($purpose))return $this->eligibility(false,'recording_purpose_not_required',null,null);
-        }
-        $teacherTerms=$this->latestDecision('teacher',(int)$lesson->teacher_id,ConsentPurposeRegistry::TEACHER_TERMS,false);
-        if(!$teacherTerms||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::TEACHER_TERMS,(string)$teacherTerms->decision_code)||!$this->noticeIsCurrent((int)$teacherTerms->notice_version_id))return $this->eligibility(false,'teacher_terms_not_current',$teacherTerms,null);
-        $teacherRecording=$this->latestDecision('teacher',(int)$lesson->teacher_id,ConsentPurposeRegistry::TEACHER_RECORDING,false);
-        if(!$teacherRecording||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::TEACHER_RECORDING,(string)$teacherRecording->decision_code)||!$this->noticeIsCurrent((int)$teacherRecording->notice_version_id))return $this->eligibility(false,'teacher_recording_not_allowed',$teacherRecording,null);
         $student=$this->latestDecision('student',(int)$lesson->student_id,ConsentPurposeRegistry::STUDENT_RECORDING,false);
-        if(!$student||!ConsentPurposeRegistry::isPositive(ConsentPurposeRegistry::STUDENT_RECORDING,(string)$student->decision_code)||!$this->noticeIsCurrent((int)$student->notice_version_id))return $this->eligibility(false,'student_recording_not_allowed',$student,null);
-        $capacity=(string)$wpdb->get_var($wpdb->prepare("SELECT c.classification FROM {$p}students s LEFT JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id AND c.student_id=s.id WHERE s.id=%d AND s.status='active' AND s.archived_at IS NULL LIMIT 1",(int)$lesson->student_id));
-        $guardianGrantId=(int)($student->guardian_authority_grant_id??0);
-        $guardianVersion=(int)($student->guardian_authority_version??0);
-        $guardianActor=(int)($student->guardian_actor_user_id??0);
-        if($capacity==='minor'){
-            if($guardianGrantId<1||$guardianActor<1)return $this->eligibility(false,'student_guardian_authority_required',$student,$teacherRecording);
-            $grant=$wpdb->get_row($wpdb->prepare("SELECT id,student_id,version,state,active_slot,effective_from,effective_until FROM {$p}student_acceptance_authority_grants WHERE id=%d LIMIT 1",$guardianGrantId));
-            if(!$grant||(int)$grant->student_id!==(int)$lesson->student_id||(string)$grant->state!=='active'||(int)$grant->active_slot!==1||(int)$grant->version!==$guardianVersion)return $this->eligibility(false,'student_guardian_authority_not_current',$student,$teacherRecording);
-            $now=gmdate('Y-m-d H:i:s');
-            if((string)$grant->effective_from>$now||($grant->effective_until!==null&&(string)$grant->effective_until<=$now))return $this->eligibility(false,'student_guardian_authority_not_current',$student,$teacherRecording);
-        }elseif($capacity!=='adult'){
-            return $this->eligibility(false,'student_capacity_unavailable',$student,$teacherRecording);
-        }elseif($guardianGrantId>0||$guardianActor>0){
-            return $this->eligibility(false,'student_guardian_authority_invalid',$student,$teacherRecording);
+        $guardianStudent=$this->latestDecision('student',(int)$lesson->student_id,ConsentPurposeRegistry::STUDENT_RECORDING,true);
+        // The newest Student/guardian choice wins. An explicit decline remains effective until a
+        // later choice replaces it; publishing revised wording never silently erases an opt-out.
+        $decision=$student;
+        if($guardianStudent!==null&&($decision===null
+            ||(string)$guardianStudent->decided_at>(string)$decision->decided_at
+            ||((string)$guardianStudent->decided_at===(string)$decision->decided_at&&(int)$guardianStudent->id>(int)$decision->id)))$decision=$guardianStudent;
+        if($decision!==null&&(string)$decision->decision_code==='decline'){
+            return $this->eligibility(false,'student_recording_declined',$decision,null);
         }
-        return $this->eligibility(true,null,$student,$teacherRecording);
+        return $this->eligibility(true,'student_recording_default_on',$decision,null);
     }
 
     /** Current published notice for a supported audience, or null when none is approved. */

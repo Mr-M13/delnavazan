@@ -87,9 +87,10 @@ Order of operations:
    `entryPoints` (not `createRequest`). This attaches exactly one app-created space to exactly one
    event and preserves the Calendar invitation.
 4. Patch access to `OPEN` (override with `DZN_MEET_ACCESS_TYPE=OPEN|TRUSTED|RESTRICTED`) and
-   moderation `ON`; patch `artifactConfig.recordingConfig.autoRecordingGeneration` to `ON` only when
-   `RecordingDecisionAuthorityService::lessonRecordingEligibility()` returns eligible, otherwise
-   `OFF`.
+   moderation `ON`; patch `artifactConfig.recordingConfig.autoRecordingGeneration` to `ON` by
+   default. The sole per-lesson override is an explicit Student or authorised guardian recording
+   decline, which patches it to `OFF`. This source policy must be aligned with the published
+   recording notice and any applicable legal requirements before a production activation.
 5. Create the teacher member with role `COHOST` on the exact `spaces/{space}` name and verify the
    membership by reading it back. If the tenant refuses, the exact HTTP status/error class/message is
    written to `meet_classroom_events`, readiness remains blocked, and the teacher remains a Calendar

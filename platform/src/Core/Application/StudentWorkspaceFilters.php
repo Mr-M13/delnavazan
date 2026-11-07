@@ -23,12 +23,19 @@ final class StudentWorkspaceFilters {
     public const SORTS = array(
         'recent',
         'name',
+        'contact',
+        'status',
+        'instrument',
+        'teacher',
+        'term',
+        'lessons',
+        'renewal_date',
+        'payment_due_date',
+        'absences',
+        'notifications',
         'enrolment_date',
         'last_lesson',
         'next_lesson',
-        'renewal_date',
-        'payment_due_date',
-        'status',
     );
 
     public const DEFAULT_STATUS = 'active';
@@ -73,7 +80,7 @@ final class StudentWorkspaceFilters {
     }
 
     public static function defaultDirection(string $sort): string {
-        return $sort === 'name' || $sort === 'enrolment_date' || $sort === 'renewal_date' || $sort === 'payment_due_date'
+        return in_array($sort, array('name', 'contact', 'instrument', 'teacher', 'enrolment_date', 'renewal_date', 'payment_due_date'), true)
             ? 'asc'
             : 'desc';
     }
@@ -107,12 +114,19 @@ final class StudentWorkspaceFilters {
         return array(
             'recent' => 'Recent activity',
             'name' => 'Name',
+            'contact' => 'Contact',
+            'status' => 'Student status',
+            'instrument' => 'Instrument',
+            'teacher' => 'Teacher',
+            'term' => 'Term',
+            'lessons' => 'Lessons',
+            'renewal_date' => 'Renewal date',
+            'payment_due_date' => 'Payment due date',
+            'absences' => 'Absences',
+            'notifications' => 'Notifications',
             'enrolment_date' => 'Enrolment date',
             'last_lesson' => 'Last lesson',
             'next_lesson' => 'Next lesson',
-            'renewal_date' => 'Renewal date',
-            'payment_due_date' => 'Payment due date',
-            'status' => 'Student status',
         );
     }
 

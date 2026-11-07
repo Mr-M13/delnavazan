@@ -27,6 +27,8 @@ $has($repository, array(
     'GREATEST(',
     'br.retention_due_at>UTC_TIMESTAMP()',
     'current_term_completed',
+    'current_term_cancelled',
+    'latest_instrument_name',
     'payment_outstanding_minor',
     'absence_count',
     'LIMIT %d OFFSET %d',

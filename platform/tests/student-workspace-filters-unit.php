@@ -29,6 +29,14 @@ $assert($custom['page'] === 3, 'Page must survive normalization.');
 $legacySearch = StudentWorkspaceFilters::normalize(array('s' => 'DZN-STU-42'));
 $assert($legacySearch['query'] === 'DZN-STU-42', 'Legacy s= search links must keep working.');
 
+foreach (array('contact','instrument','teacher','term','lessons','absences','notifications') as $sortKey) {
+    $assert(in_array($sortKey, StudentWorkspaceFilters::SORTS, true), 'Missing directory sort key: ' . $sortKey);
+    $assert(isset(StudentWorkspaceFilters::sortLabels()[$sortKey]), 'Missing directory sort label: ' . $sortKey);
+    $assert(StudentWorkspaceFilters::normalize(array('student_sort' => $sortKey))['sort'] === $sortKey, 'Sort key was not accepted: ' . $sortKey);
+}
+$assert(StudentWorkspaceFilters::defaultDirection('contact') === 'asc', 'Contact should default to A–Z.');
+$assert(StudentWorkspaceFilters::defaultDirection('notifications') === 'desc', 'Notification attention should default to most urgent first.');
+
 $invalid = StudentWorkspaceFilters::normalize(array('student_status' => 'made_up', 'student_sort' => 'unsafe', 'student_order' => 'sideways', 'student_page' => '-9'));
 $assert($invalid['status'] === 'active' && $invalid['sort'] === 'recent', 'Unknown filters must fall back to canonical defaults.');
 $assert($invalid['direction'] === 'desc', 'Unknown direction must fall back to the sort default.');

@@ -11,7 +11,9 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\StudentRepository;
  * The service never decides a lifecycle, finance, attendance, notification or
  * consent outcome. Each section is either read from its owning table or omitted
  * with an explicit restricted state when the operator lacks the matching
- * authority. All lists are bounded; the directory is always page-sized.
+ * authority. All lists are bounded: the visible directory is always page-sized,
+ * and the digest-ordered notification sort first reads only a light id/name
+ * projection so it can order globally before fetching the visible page.
  */
 final class StudentWorkspaceReadService {
     private const CAP = 'dzn_manage_students';
@@ -25,6 +27,7 @@ final class StudentWorkspaceReadService {
     /** @param array{query:string,status:string,page:int,sort:string,direction:string,per_page:int} $filters */
     public function directory(array $filters): array {
         $this->require();
+        if ((string) $filters['sort'] === 'notifications' && $this->can(NotificationRule::READ_CAPABILITY)) return $this->directoryByNotificationState($filters);
         $result = (new StudentRepository())->adminWorkspaceDirectory(
             (string) $filters['query'],
             (string) $filters['status'],
@@ -38,30 +41,78 @@ final class StudentWorkspaceReadService {
         return $result;
     }
 
-    /** One grouped notification-evidence query for the page, keyed by the student recipient digest. */
+    /**
+     * Notification delivery state is derived from a keyed recipient digest in PHP, so it cannot
+     * be ordered by the SQL projection. Only a light id/name projection is loaded to order the
+     * column; the visible page is then fetched and decorated exactly like the normal directory.
+     */
+    private function directoryByNotificationState(array $filters): array {
+        $repository = new StudentRepository();
+        $candidates = $repository->adminWorkspaceDirectoryCandidates((string) $filters['query'], (string) $filters['status']);
+        $this->applyDirectoryNotificationCounts($candidates);
+        $descending = static function (object $a, object $b): int {
+            $rank = static fn(object $row): int => (int) $row->notification_failed > 0 ? 0 : ((int) $row->notification_delivered > 0 ? 1 : 2);
+            return ($rank($a) <=> $rank($b))
+                ?: ((int) $b->notification_failed <=> (int) $a->notification_failed)
+                ?: ((int) $b->notification_delivered <=> (int) $a->notification_delivered)
+                ?: strcasecmp((string) $a->student_name, (string) $b->student_name)
+                ?: ((int) $a->id <=> (int) $b->id);
+        };
+        usort($candidates, static fn(object $a, object $b): int => (string) $filters['direction'] === 'asc' ? -$descending($a, $b) : $descending($a, $b));
+        $perPage = max(1, (int) $filters['per_page']);
+        $total = count($candidates);
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, (int) $filters['page']), $pages);
+        $visible = array_slice($candidates, ($page - 1) * $perPage, $perPage);
+        $ids = array_map(static fn(object $row): int => (int) $row->id, $visible);
+        $rows = array();
+        if ($ids) {
+            $pageRows = $repository->adminWorkspaceDirectory(
+                (string) $filters['query'],
+                (string) $filters['status'],
+                1,
+                'recent',
+                'desc',
+                max(1, count($ids)),
+                max(1, count($ids)),
+                $ids
+            )['rows'];
+            $byId = array();
+            foreach ($pageRows as $row) $byId[(int) $row->id] = $row;
+            foreach ($ids as $id) if (isset($byId[$id])) $rows[] = $byId[$id];
+            $this->applyDirectoryNotificationCounts($rows);
+            foreach ($rows as $row) $this->decorateDirectoryRow($row);
+        }
+        return array('rows' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage, 'pages' => $pages);
+    }
+
+    /** Grouped notification-evidence lookup for directory rows, keyed by the student recipient digest. */
     private function applyDirectoryNotificationCounts(array $rows): void {
         global $wpdb;
         $digests = array();
+        $digestByStudent = array();
         foreach ($rows as $row) {
             $row->notification_failed = 0;
             $row->notification_delivered = 0;
             $digest = $this->notificationRecipientDigest((int) $row->id);
+            $digestByStudent[(int) $row->id] = $digest;
             if ($digest !== '') $digests[$digest] = true;
         }
         if (!$digests) return;
-        $keys = array_keys($digests);
-        $marks = implode(',', array_fill(0, count($keys), '%s'));
-        $counts = $wpdb->get_results($wpdb->prepare(
-            "SELECT recipient_digest,
-                    SUM(CASE WHEN state IN ('failed','expired') THEN 1 ELSE 0 END) failed_count,
-                    SUM(CASE WHEN state='delivered' AND delivered_at IS NOT NULL THEN 1 ELSE 0 END) delivered_count
-             FROM {$this->p}notifications WHERE recipient_digest IN ({$marks}) GROUP BY recipient_digest",
-            ...$keys
-        )) ?: array();
         $byDigest = array();
-        foreach ($counts as $count) $byDigest[(string) $count->recipient_digest] = array((int) $count->failed_count, (int) $count->delivered_count);
+        foreach (array_chunk(array_keys($digests), 500) as $keys) {
+            $marks = implode(',', array_fill(0, count($keys), '%s'));
+            $counts = $wpdb->get_results($wpdb->prepare(
+                "SELECT recipient_digest,
+                        SUM(CASE WHEN state IN ('failed','expired') THEN 1 ELSE 0 END) failed_count,
+                        SUM(CASE WHEN state='delivered' AND delivered_at IS NOT NULL THEN 1 ELSE 0 END) delivered_count
+                 FROM {$this->p}notifications WHERE recipient_digest IN ({$marks}) GROUP BY recipient_digest",
+                ...$keys
+            )) ?: array();
+            foreach ($counts as $count) $byDigest[(string) $count->recipient_digest] = array((int) $count->failed_count, (int) $count->delivered_count);
+        }
         foreach ($rows as $row) {
-            $digest = $this->notificationRecipientDigest((int) $row->id);
+            $digest = $digestByStudent[(int) $row->id] ?? '';
             if (isset($byDigest[$digest])) {
                 $row->notification_failed = $byDigest[$digest][0];
                 $row->notification_delivered = $byDigest[$digest][1];
@@ -319,18 +370,19 @@ final class StudentWorkspaceReadService {
              LEFT JOIN {$this->p}teachers ta_teacher ON ta_teacher.id=ta.teacher_id
              LEFT JOIN {$this->p}teachers e_teacher ON e_teacher.id=e.teacher_id
              WHERE e.student_id=%d AND e.archived_at IS NULL AND COALESCE(e.lifecycle_state,e.status) IN ('authorised','current','paused','active')
-             ORDER BY e.id DESC LIMIT 1",
+             ORDER BY CASE COALESCE(e.lifecycle_state,e.status) WHEN 'current' THEN 0 WHEN 'active' THEN 1 WHEN 'authorised' THEN 2 WHEN 'paused' THEN 3 ELSE 4 END,COALESCE(e.started_at,e.created_at) DESC,e.id DESC LIMIT 1",
             $studentId
         ));
         $term = $enrolment ? $wpdb->get_row($wpdb->prepare(
             "SELECT t.id,t.reference_code,t.sequence_number,t.lesson_allocation,t.replacement_allowance,
                     COALESCE(t.lifecycle_state,t.status) lifecycle_state,t.starts_at,t.ends_at,t.payment_state,
                     (SELECT COUNT(*) FROM {$this->p}lessons l WHERE l.term_id=t.id AND l.archived_at IS NULL AND l.lesson_type='standard' AND COALESCE(l.lifecycle_state,l.status)='completed') completed_count,
+                    (SELECT COUNT(*) FROM {$this->p}lessons l WHERE l.term_id=t.id AND l.archived_at IS NULL AND l.lesson_type='standard' AND COALESCE(l.lifecycle_state,l.status)='cancelled') cancelled_count,
                     (SELECT COUNT(*) FROM {$this->p}lessons l WHERE l.term_id=t.id AND l.archived_at IS NULL AND l.lesson_type='standard' AND COALESCE(l.lifecycle_state,l.status) IN ('authorised','scheduled')) scheduled_count,
                     (SELECT COUNT(*) FROM {$this->p}lessons l WHERE l.term_id=t.id AND l.archived_at IS NULL AND l.lesson_type='replacement' AND COALESCE(l.lifecycle_state,l.status)<>'cancelled') replacement_count
              FROM {$this->p}terms t
-             WHERE t.enrolment_id=%d AND t.archived_at IS NULL
-             ORDER BY t.sequence_number DESC,t.id DESC LIMIT 1",
+             WHERE t.enrolment_id=%d AND t.archived_at IS NULL AND COALESCE(t.lifecycle_state,t.status) NOT IN ('cancelled','archived')
+             ORDER BY CASE WHEN t.record_model='canonical_enrolment_term_v1' AND t.lifecycle_state='current' THEN 0 WHEN t.record_model='canonical_enrolment_term_v1' AND t.lifecycle_state='authorised' THEN 1 WHEN t.record_model='legacy_phase1' AND t.status IN ('active','awaiting_payment') THEN 2 WHEN t.record_model='legacy_phase1' AND t.status='draft' THEN 3 WHEN t.record_model='canonical_enrolment_term_v1' AND t.lifecycle_state='closed' THEN 4 WHEN t.record_model='legacy_phase1' AND t.status='completed' THEN 4 ELSE 5 END,t.sequence_number DESC,t.id DESC LIMIT 1",
             (int) $enrolment->id
         )) : null;
 
@@ -361,13 +413,13 @@ final class StudentWorkspaceReadService {
         $noShow = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$this->p}canonical_lesson_delivery_outcomes d INNER JOIN {$this->p}lessons l ON l.id=d.lesson_id WHERE l.student_id=%d AND d.applicable_slot=1 AND d.outcome_code='student_no_show'", $studentId));
         $teacherNonDelivery = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$this->p}canonical_lesson_delivery_outcomes d INNER JOIN {$this->p}lessons l ON l.id=d.lesson_id WHERE l.student_id=%d AND d.applicable_slot=1 AND d.outcome_code='teacher_non_delivery'", $studentId));
 
-        $renewal = $wpdb->get_row($wpdb->prepare(
+        $renewal = $enrolment ? $wpdb->get_row($wpdb->prepare(
             "SELECT rc.id,rc.state,rc.currency,rc.amount_minor,rc.boundary_derived_at,rc.automatic_charge_at,rc.guarantee_deadline_at,rc.next_term_id,rc.sequence
              FROM {$this->p}renewal_cycles rc
              INNER JOIN {$this->p}recurring_enrolments re ON re.id=rc.recurring_enrolment_id
-             WHERE re.student_id=%d ORDER BY rc.sequence DESC,rc.id DESC LIMIT 1",
-            $studentId
-        ));
+             WHERE re.enrolment_id=%d ORDER BY rc.sequence DESC,rc.id DESC LIMIT 1",
+            (int) $enrolment->id
+        )) : null;
 
         return array(
             'enrolment' => $enrolment,
@@ -375,9 +427,10 @@ final class StudentWorkspaceReadService {
             'term_progress' => array(
                 'completed' => $term ? (int) $term->completed_count : 0,
                 'scheduled' => $term ? (int) $term->scheduled_count : 0,
+                'cancelled' => $term ? (int) $term->cancelled_count : 0,
                 'replacement_count' => $term ? (int) $term->replacement_count : 0,
                 'allocation' => $term ? (int) $term->lesson_allocation : 0,
-                'remaining' => $term ? max(0, (int) $term->lesson_allocation - (int) $term->completed_count) : 0,
+                'remaining' => $term ? max(0, (int) $term->lesson_allocation - (int) $term->completed_count - (int) $term->cancelled_count) : 0,
                 'replacement_allowance' => (int) ($replacement['allowance'] ?? 0),
                 'replacement_used' => (int) ($replacement['used'] ?? 0),
                 'replacement_pending' => (int) ($replacement['pending'] ?? 0),
@@ -423,7 +476,9 @@ final class StudentWorkspaceReadService {
         if ($row->contact_label === '') $row->contact_label = 'No phone recorded';
         $row->location_label = trim(implode(', ', array_filter(array((string) ($row->city ?? ''), (string) ($row->country_code ?? '')))));
         if ($row->location_label === '') $row->location_label = 'Location not recorded';
-        $row->instrument_label = (string) ($row->latest_course_name ?? '') !== '' ? (string) $row->latest_course_name : 'No current course';
+        $row->instrument_label = (string) ($row->latest_instrument_name ?? '') !== ''
+            ? (string) $row->latest_instrument_name
+            : ((string) ($row->latest_course_name ?? '') !== '' ? (string) $row->latest_course_name : 'No current course');
         $row->teacher_label = (string) ($row->latest_teacher_name ?? '') !== '' ? (string) $row->latest_teacher_name : 'Not assigned';
         $row->term_label = $row->current_term_id !== null && $row->current_term_id !== ''
             ? 'Term ' . (string) $row->current_term_sequence . ' · ' . (int) $row->current_term_completed . '/' . (int) $row->current_term_allocation
@@ -432,7 +487,7 @@ final class StudentWorkspaceReadService {
             $row->term_label .= ' · ' . ucfirst(str_replace('_', ' ', (string) $row->current_term_state));
         }
         $row->lessons_label = $row->current_term_id !== null && $row->current_term_id !== ''
-            ? (int) $row->current_term_completed . ' completed · ' . max(0, (int) $row->current_term_allocation - (int) $row->current_term_completed) . ' remaining'
+            ? (int) $row->current_term_completed . ' completed · ' . max(0, (int) $row->current_term_allocation - (int) $row->current_term_completed - (int) ($row->current_term_cancelled ?? 0)) . ' remaining'
             : 'No entitled term';
         $row->renewal_label = $this->renewalLabel($row->renewal_state, $row->renewal_at);
         $row->payment_status = $this->paymentState((string) ($row->payment_offer_state ?? ''), (int) ($row->payment_outstanding_minor ?? 0), (int) ($row->payment_paid_minor ?? 0), $row->payment_due_at, (string) ($row->payment_plan_kind ?? ''));

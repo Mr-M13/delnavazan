@@ -34,9 +34,22 @@ $contains($workspace, array(
     '‹ Previous',
     'Add student',
     'student_form_id',
-    'Recent activity comes first',
+    "directorySortHeader('contact'",
+    "directorySortHeader('instrument'",
+    "directorySortHeader('teacher'",
+    "directorySortHeader('term'",
+    "directorySortHeader('lessons'",
+    "directorySortHeader('absences'",
+    "directorySortHeader('notifications'",
+    'dzn-student-row--',
     'No students match these filters',
-), 'The Students directory must expose search, canonical filters, sorting, paging and Add student.');
+), 'The Students directory must expose search, canonical filters, sortable columns, status row tones, paging and Add student.');
+
+$assert(!str_contains($workspace, '>Account</a>'), 'The directory must not duplicate Manage with a separate Account action.');
+$assert(str_contains($workspace, '<tr class="dzn-student-row dzn-student-row--'), 'Directory rows must carry the status tone used by the colour coding.');
+$assert(!str_contains($workspace, 'Recent activity comes first'), 'The redundant directory hero caption must remain removed.');
+$assert(substr_count($workspace, '>Add student<') === 1, 'The directory must expose exactly one Add student control.');
+$assert(str_contains($workspace, "\$canNotify ? self::directorySortHeader('notifications'"), 'Notification sorting must be hidden when the operator cannot read delivery evidence.');
 
 $contains($workspace, array(
     'student-details',

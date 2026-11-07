@@ -32,11 +32,7 @@ final class StudentWorkspaceController {
         $canNotify = current_user_can(NotificationRule::READ_CAPABILITY);
 
         echo '<div class="wrap dzn-students dzn-students-directory">';
-        echo '<header class="dzn-students__hero"><div><p class="dzn-eyebrow">Student administration</p><h1>Students</h1>';
-        echo '<p>Recent activity comes first. Students with upcoming lessons, completed lessons, active enrolments and non-expired introductory requests are ranked together from canonical timestamps.</p></div>';
-        if ($withCreate && current_user_can('dzn_manage_students')) {
-            echo '<div class="dzn-students__hero-actions"><a class="button button-primary" href="#dzn-add-student" onclick="var d=document.getElementById(\'dzn-add-student\');if(d){d.open=true;}">Add student</a></div>';
-        }
+        echo '<header class="dzn-students__hero"><div><p class="dzn-eyebrow">Student administration</p><h1>Students</h1></div>';
         echo '</header>';
 
         if ($withCreate) self::addStudentForm();
@@ -63,16 +59,22 @@ final class StudentWorkspaceController {
         echo '<p class="dzn-table-hint">On a small screen, scroll the table sideways to reach every column.</p>';
         echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-students__table"><thead><tr>';
         echo self::directorySortHeader('name', 'Student', $filters);
-        echo '<th scope="col">Contact</th>';
+        echo self::directorySortHeader('contact', 'Contact', $filters);
         echo self::directorySortHeader('status', 'Status', $filters);
-        echo '<th scope="col">Instrument</th><th scope="col">Teacher</th><th scope="col">Term</th><th scope="col">Lessons</th>';
+        echo self::directorySortHeader('instrument', 'Instrument', $filters);
+        echo self::directorySortHeader('teacher', 'Teacher', $filters);
+        echo self::directorySortHeader('term', 'Term', $filters);
+        echo self::directorySortHeader('lessons', 'Lessons', $filters);
         echo self::directorySortHeader('renewal_date', 'Renewal', $filters);
         echo self::directorySortHeader('payment_due_date', 'Payment', $filters);
-        echo '<th scope="col">Absences</th><th scope="col">Notifications</th><th scope="col">Actions</th></tr></thead><tbody>';
+        echo self::directorySortHeader('absences', 'Absences', $filters);
+        echo $canNotify ? self::directorySortHeader('notifications', 'Notifications', $filters) : '<th scope="col">Notifications</th>';
+        echo '<th scope="col">Actions</th></tr></thead><tbody>';
         foreach ($result['rows'] as $student) {
             $url = add_query_arg(array('page' => self::PAGE, 'id' => (int) $student->id), admin_url('admin.php'));
-            $accountUrl = $url . '#student-account';
-            echo '<tr>';
+            $rowStatus = (string) $student->directory_status_label;
+            $rowTone = self::statusTone($rowStatus);
+            echo '<tr class="dzn-student-row dzn-student-row--' . esc_attr($rowTone) . '" data-status="' . esc_attr($rowStatus) . '">';
             echo '<td><a href="' . esc_url($url) . '"><strong>' . esc_html((string) $student->student_name) . '</strong></a>';
             if ((string) ($student->reference_code ?? '') !== '') echo '<br><small>' . esc_html((string) $student->reference_code) . '</small>';
             if ((string) ($student->email ?? '') !== '') echo '<br><small>' . esc_html((string) $student->email) . '</small>';
@@ -87,7 +89,7 @@ final class StudentWorkspaceController {
             echo '<td>' . ($canFinance ? esc_html((string) $student->payment_label) : '<span class="dzn-muted">Restricted</span>') . '</td>';
             echo '<td>' . esc_html((string) $student->absence_label) . '</td>';
             echo '<td>' . ($canNotify ? self::deliveryBadge((string) $student->notification_label, (string) $student->notification_state) : '<span class="dzn-muted">Restricted</span>') . '<br><small>Last activity ' . esc_html((string) $student->last_activity_label) . '</small></td>';
-            echo '<td class="dzn-students__row-actions"><div class="dzn-row-actions"><a class="button" href="' . esc_url($url) . '">Manage</a> <a class="button-link" href="' . esc_url($accountUrl) . '">Account</a>';
+            echo '<td class="dzn-students__row-actions"><div class="dzn-row-actions"><a class="button" href="' . esc_url($url) . '">Manage</a>';
             if ((string) ($student->archived_at ?? '') !== '' || (string) ($student->status ?? '') === 'archived') {
                 RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-restore'));
             } else {
@@ -746,15 +748,18 @@ final class StudentWorkspaceController {
     }
 
     private static function statusBadge(string $status): string {
-        $tone = match (strtolower($status)) {
+        return '<span class="dzn-status dzn-status--' . esc_attr(self::statusTone($status)) . '">' . esc_html($status) . '</span>';
+    }
+
+    /** One tone vocabulary shared by the status badge and the directory row highlight. */
+    private static function statusTone(string $status): string {
+        return match (strtolower($status)) {
             'active' => 'ok',
             'introductory' => 'info',
             'awaiting enrolment' => 'warn',
-            'inactive' => 'muted',
-            'archived' => 'muted',
+            'inactive', 'archived' => 'muted',
             default => 'info',
         };
-        return '<span class="dzn-status dzn-status--' . esc_attr($tone) . '">' . esc_html($status) . '</span>';
     }
 
     private static function deliveryBadge(string $label, string $state): string {
@@ -785,7 +790,9 @@ final class StudentWorkspaceController {
     }
 
     private static function directorySortHeader(string $key, string $label, array $filters): string {
-        $next = $filters['sort'] === $key && $filters['direction'] === 'asc' ? 'desc' : 'asc';
+        $next = $filters['sort'] === $key
+            ? ($filters['direction'] === 'asc' ? 'desc' : 'asc')
+            : StudentWorkspaceFilters::defaultDirection($key);
         $url = add_query_arg(array(
             'page' => self::PAGE,
             'q' => $filters['query'],

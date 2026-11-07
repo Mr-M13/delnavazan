@@ -1037,12 +1037,17 @@
 
 .dzn-tp-class-details {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-column: 1 / -1;
   gap: 1rem;
   min-inline-size: 0;
   border-block-start: 1px dashed var(--dzn-color-border);
   margin-block-start: .15rem;
   padding-block-start: .9rem;
+}
+.dzn-tp-class-details > * {
+  min-inline-size: 0;
+  min-width: 0;
 }
 
 .dzn-tp-class-details[hidden] {
@@ -1051,7 +1056,9 @@
 
 .dzn-tp-detail-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: .85rem;
+  min-inline-size: 0;
 }
 
 .dzn-tp-detail-card {
@@ -1921,7 +1928,7 @@
   }
 
   .dzn-tp-detail-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
   }
 
   .dzn-tp-form-grid {

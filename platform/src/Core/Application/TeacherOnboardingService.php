@@ -121,6 +121,7 @@ final class TeacherOnboardingService {
             $teacher = $this->repo->linkedTeacherForUser( $actor, true ); if ( ! $teacher ) throw new \InvalidArgumentException( 'Linked teacher principal required' );
             $from = (string) ( $teacher->onboarding_state ?: 'linked_pending' ); if ( ! in_array( $from, self::COMPLETABLE, true ) ) throw new \InvalidArgumentException( 'Teacher onboarding cannot be completed' );
             $progress = $this->progress( $teacher ); if ( ! $progress['ready_for_activation'] ) throw new \InvalidArgumentException( 'Teacher onboarding is incomplete' );
+            $this->assertMandatoryConsent( (int) $teacher->id );
             $this->repo->saveState( (int) $teacher->id, array(
                 'state' => 'pending_review', 'readiness_state' => 'not_ready', 'profile_state' => $progress['profile_state'],
                 'availability_state' => $progress['availability_state'], 'agreement_state' => 'not_required', 'submitted_at' => $now,
@@ -150,6 +151,7 @@ final class TeacherOnboardingService {
             if ( ! $teacher || $teacher->archived_at !== null || ! $state || (string) $state->state !== 'pending_review' ) throw new \InvalidArgumentException( 'Teacher onboarding is not awaiting review' );
             $progress = $this->progress( $teacher );
             if ( $decision === 'approve' && ! $progress['ready_for_activation'] ) throw new \InvalidArgumentException( 'Teacher onboarding is incomplete' );
+            if ( $decision === 'approve' ) $this->assertMandatoryConsent( (int) $teacher->id );
             $to = $decision === 'approve' ? 'active' : ( $decision === 'return' ? 'returned' : 'rejected' );
             $this->repo->saveState( (int) $teacher->id, array(
                 'state' => $to, 'readiness_state' => $decision === 'approve' ? 'ready' : 'not_ready',
@@ -188,6 +190,13 @@ final class TeacherOnboardingService {
         // The classroom is managed by the single Delnavazan Workspace organizer. A Teacher never
         // authorizes Delnavazan against a personal Google account, so this is not an onboarding gate.
         return array( 'profile_state' => $profile ? 'complete' : 'incomplete', 'availability_state' => $availability ? 'complete' : 'incomplete', 'google_state' => 'managed_centrally', 'ready_for_activation' => $profile && $availability );
+    }
+
+    /** Teacher recording consent is mandatory; without it the teacher cannot work. */
+    private function assertMandatoryConsent( int $teacherId ): void {
+        try { $authority = new RecordingDecisionAuthorityService(); }
+        catch ( \Throwable ) { throw new \InvalidArgumentException( 'Teacher recording consent is required' ); }
+        if ( ! $authority->isTeacherMandatoryConsentAccepted( $teacherId ) ) throw new \InvalidArgumentException( 'Teacher recording consent is required' );
     }
 
     /** A safe teacher-facing correction note; raw internal reason codes are never echoed. */

@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Portals;
 use Delnavazan\Platform\Core\Application\ConsentPurposeRegistry;
 use Delnavazan\Platform\Core\Application\ConsentWithdrawalService;
 use Delnavazan\Platform\Core\Application\RecordingDecisionAuthorityService;
+use Delnavazan\Platform\Core\Application\UnifiedConsentService;
 
 /**
  * Capability- and nonce-protected self-service boundary for recording/research choices.
@@ -16,11 +17,17 @@ final class RecordingDecisionController {
     public const STUDENT_ACTION='dzn_recording_student_choice';
     public const TEACHER_ACTION='dzn_recording_teacher_terms';
     public const TEACHER_CHOICE_ACTION='dzn_recording_teacher_choice';
+    public const UNIFIED_TEACHER_ACTION='dzn_unified_teacher_consent';
+    public const UNIFIED_STUDENT_ACTION='dzn_unified_student_consent';
+    public const UNIFIED_WITHDRAW_ACTION='dzn_unified_student_withdraw';
 
     public static function register():void{
         add_action('admin_post_'.self::STUDENT_ACTION,array(__CLASS__,'studentChoice'));
         add_action('admin_post_'.self::TEACHER_ACTION,array(__CLASS__,'teacherTerms'));
         add_action('admin_post_'.self::TEACHER_CHOICE_ACTION,array(__CLASS__,'teacherChoice'));
+        add_action('admin_post_'.self::UNIFIED_TEACHER_ACTION,array(__CLASS__,'teacherUnified'));
+        add_action('admin_post_'.self::UNIFIED_STUDENT_ACTION,array(__CLASS__,'studentUnified'));
+        add_action('admin_post_'.self::UNIFIED_WITHDRAW_ACTION,array(__CLASS__,'studentWithdrawAll'));
     }
 
     public static function studentChoice():never{
@@ -96,6 +103,68 @@ final class RecordingDecisionController {
         }catch(\Throwable){
             self::rememberStatus('teacher','terms_unavailable');
             self::redirectTeacher($returnTo);
+        }
+    }
+
+    public static function teacherUnified():never{
+        self::requirePost();
+        if(!is_user_logged_in())auth_redirect();
+        if(!current_user_can('dzn_accept_own_recording_terms'))wp_die('Access denied.','Delnavazan',array('response'=>403));
+        check_admin_referer(self::UNIFIED_TEACHER_ACTION);
+        $returnTo=self::returnTo($_POST['return_to']??'onboarding');
+        try{
+            if(empty($_POST['unified_agree']))throw new \InvalidArgumentException('unified_consent_required');
+            $locale=function_exists('get_user_locale')?(string)get_user_locale():'en';
+            $language=str_starts_with(strtolower($locale),'fa')?'fa':'en';
+            $key=sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''));
+            (new UnifiedConsentService())->acceptTeacherUnified($key,$language,'portal_unified','teacher_unified');
+            self::rememberStatus('teacher','unified_saved');
+            self::redirectTeacher($returnTo);
+        }catch(\Throwable){
+            self::rememberStatus('teacher','terms_unavailable');
+            self::redirectTeacher($returnTo);
+        }
+    }
+
+    public static function studentUnified():never{
+        self::requirePost();
+        if(!is_user_logged_in())auth_redirect();
+        if(!current_user_can('read'))wp_die('Access denied.','Delnavazan',array('response'=>403));
+        check_admin_referer(self::UNIFIED_STUDENT_ACTION);
+        $returnTo=self::returnTo($_POST['return_to']??'account');
+        try{
+            if(!empty($_POST['unified_agree'])){
+                $key=sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''));
+                $locale=function_exists('get_user_locale')?(string)get_user_locale():'en';
+                $language=str_starts_with(strtolower($locale),'fa')?'fa':'en';
+                (new UnifiedConsentService())->acceptStudentUnified($key,$language,'portal_unified','student_unified');
+                self::rememberStatus('student','unified_saved');
+            }else{
+                self::rememberStatus('student','unified_skipped');
+            }
+            self::redirectStudent($returnTo);
+        }catch(\Throwable){
+            self::rememberStatus('student','recording_unavailable');
+            self::redirectStudent($returnTo);
+        }
+    }
+
+    public static function studentWithdrawAll():never{
+        self::requirePost();
+        if(!is_user_logged_in())auth_redirect();
+        if(!current_user_can('read'))wp_die('Access denied.','Delnavazan',array('response'=>403));
+        check_admin_referer(self::UNIFIED_WITHDRAW_ACTION);
+        $returnTo=self::returnTo($_POST['return_to']??'account');
+        try{
+            $key=sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''));
+            $locale=function_exists('get_user_locale')?(string)get_user_locale():'en';
+            $language=str_starts_with(strtolower($locale),'fa')?'fa':'en';
+            (new UnifiedConsentService())->withdrawStudentAll($key,$language);
+            self::rememberStatus('student','unified_withdrawn');
+            self::redirectStudent($returnTo);
+        }catch(\Throwable){
+            self::rememberStatus('student','recording_unavailable');
+            self::redirectStudent($returnTo);
         }
     }
 

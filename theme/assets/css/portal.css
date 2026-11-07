@@ -1609,6 +1609,8 @@
 .dzn-recording-choices__form legend{font-weight:700;padding-inline:.35rem}
 .dzn-recording-choices__form label{display:flex;gap:.5rem;align-items:flex-start;min-block-size:44px}
 .dzn-recording-choices__form input[type="radio"]{margin-block-start:.3rem}
+.dzn-recording-choices .dzn-unified-consent{display:flex;gap:.6rem;align-items:flex-start;border:1px solid var(--dzn-color-border);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-elevated);padding:1rem}
+.dzn-recording-choices .dzn-unified-consent input[type="checkbox"]{margin-block-start:.2rem;flex:none;width:1.2rem;height:1.2rem}
 .dzn-recording-choices__draft{margin-block:1rem;padding:1rem;border:1px dashed var(--dzn-color-warning);border-radius:var(--dzn-portal-card-radius);background:var(--dzn-color-surface-sunken)}
 .dzn-recording-choices hr{margin-block:2rem;border:0;border-block-start:1px solid var(--dzn-color-border)}
 

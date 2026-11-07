@@ -263,7 +263,9 @@ final class PostIntroPreparationService {
             $slot = $repository->slotAuthorityForIntro((int) $lesson->id);
         }
         if (!$slot) throw new \RuntimeException('continuation_slot_unavailable');
-        $this->assertSlotAvailable($teacherId, (string) $slot->starts_at_utc, (string) $slot->ends_at_utc);
+        $override = $repository->recurringSlotOverrideForConfirmation((int) $confirmation->id);
+        $authorisedTeacherOverride = $override && IntroRecurringSlotOverridePolicy::matches((array) $override, (array) $confirmation);
+        if (! $authorisedTeacherOverride) $this->assertSlotAvailable($teacherId, (string) $slot->starts_at_utc, (string) $slot->ends_at_utc);
         if (CanonicalContinuationRule::expiresAt((string) $confirmation->ends_at_utc, (string) $slot->starts_at_utc) <= gmdate('Y-m-d H:i:s')) {
             throw new \RuntimeException('continuation_window_expired');
         }

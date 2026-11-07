@@ -159,7 +159,7 @@ final class GoogleWorkspaceClassroomService {
             'ends_at_utc'=>(string)$confirmation->ends_at_utc,
             'timezone'=>(string)$confirmation->schedule_timezone,
             'lesson_id'=>null,'schedule_version_id'=>null,'lesson_uid'=>(string)$confirmation->uid,
-        ),array('eligible'=>false,'reason'=>'booking_recording_not_configured','evaluated_at'=>gmdate('Y-m-d H:i:s')));
+        ),array('eligible'=>true,'reason'=>'booking_recording_default_on','evaluated_at'=>gmdate('Y-m-d H:i:s')));
     }
 
     /**

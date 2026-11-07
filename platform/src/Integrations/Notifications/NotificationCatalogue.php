@@ -96,6 +96,8 @@ final class NotificationCatalogue {
             'hold_status_note'=>'مهلت نگه‌داشتن این جایگاه در حال پایان است.',
             'paid_date'=>'۱۲ آبان ۱۴۰۵','previous_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰','new_when'=>'یکشنبه ۱۱ آبان ۱۴۰۵، ساعت ۱۸:۰۰','current_when'=>'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
+            'remaining_sessions'=>'۴','term_end_date'=>'۱۵ آذر ۱۴۰۵',
+            'instalment_note'=>'ترم جاری شما دو قسطی است و ۲ از ۲ قسط پرداخت شده است. ترم بعد را می‌توانید یکجا یا در دو قسط پرداخت کنید.',
             'response_window'=>'۲۴ ساعت','response_deadline'=>'پنجشنبه ۶ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
         );
         $out=array();
@@ -168,12 +170,12 @@ final class NotificationCatalogue {
         ));
         $out[]=self::event('post_intro.invitation.student','Enrolment Ready','booking','student','PostIntroPreparationService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.invitation',array(
             self::PRIMARY_LOCALE=>array(
-                'email'=>array('subject'=>'دلنوازان · ثبت‌نام شما آمادهٔ تکمیل است','body'=>"درود {{name}}،\n\n{{teacher}} تأیید کرد که کلاس معارفه «{{course}}» برگزار شده است. اکنون می‌توانید با همان مدرس، ثبت‌نام خود را تکمیل کنید.\n\nبرای ادامهٔ ثبت‌نام و پرداخت به حساب کاربری بروید:\n{{portal_url}}\n\nپس از تأیید پرداخت، ثبت‌نام، برنامهٔ هفتگی و کلاس‌های آیندهٔ شما به‌صورت خودکار فعال می‌شود و تأیید دوبارهٔ مدرس لازم نیست.\n\nبا احترام، دلنوازان"),
-                'website'=>array('subject'=>'ثبت‌نام شما آمادهٔ تکمیل است','body'=>'کلاس معارفه «{{course}}» با {{teacher}} برگزار شد. برای تکمیل ثبت‌نام به حساب کاربری بروید.'),
+                'email'=>array('subject'=>'دلنوازان · ثبت‌نام شما آمادهٔ تکمیل است','body'=>"درود {{name}}،\n\n{{teacher}} تأیید کرد که کلاس معارفه «{{course}}» برگزار شده است. اکنون می‌توانید با همان مدرس، ثبت‌نام خود را تکمیل کنید.\n\nاین جایگاه فقط حدود یک هفته برای شما نگه داشته می‌شود. اگر ثبت‌نام و پرداخت تکمیل نشود، جایگاه آزاد می‌شود و در دسترس هنرجویان دیگر قرار می‌گیرد.\n\nبرای ادامهٔ ثبت‌نام و پرداخت به حساب کاربری بروید:\n{{portal_url}}\n\nپس از تأیید پرداخت، ثبت‌نام، برنامهٔ هفتگی و کلاس‌های آیندهٔ شما به‌صورت خودکار فعال می‌شود و تأیید دوبارهٔ مدرس لازم نیست.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'ثبت‌نام شما آمادهٔ تکمیل است','body'=>'کلاس معارفه «{{course}}» با {{teacher}} برگزار شد. این جایگاه فقط حدود یک هفته نگه داشته می‌شود؛ اگر ثبت‌نام و پرداخت تکمیل نشود، جایگاه آزاد می‌شود. برای تکمیل ثبت‌نام به حساب کاربری بروید.'),
             ),
             'en'=>array(
-                'email'=>array('subject'=>'Your Delnavazan enrolment is ready','body'=>"Hello {{name}},\n\n{{teacher}} confirmed that your introductory {{course}} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account:\n{{portal_url}}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified.\n\nDelnavazan"),
-                'website'=>array('subject'=>'Your enrolment is ready','body'=>'Your introductory {{course}} lesson was delivered. Complete your enrolment in your account.'),
+                'email'=>array('subject'=>'Your Delnavazan enrolment is ready','body'=>"Hello {{name}},\n\n{{teacher}} confirmed that your introductory {{course}} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nThis place is held for about one week only. If enrolment and payment are not completed, the place is released for other students.\n\nOpen your account:\n{{portal_url}}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified.\n\nDelnavazan"),
+                'website'=>array('subject'=>'Your enrolment is ready','body'=>'Your introductory {{course}} lesson was delivered. This place is held for about one week only; if enrolment and payment are not completed, it is released for other students. Complete your enrolment in your account.'),
             ),
         ));
         $out[]=self::event('post_intro.survey.student','Enrolment Follow-up','booking','student','PostIntroSurveyWorker','queue',array('email','website'),'operational',true,array('name','teacher','course','hold_status_note','survey_url','portal_url'),'post_intro.survey',array(
@@ -184,6 +186,16 @@ final class NotificationCatalogue {
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · your enrolment follow-up','body'=>"Hello {{name}},\n\n{{hold_status_note}} Your {{course}} enrolment with {{teacher}} is not complete.\n\nIf you have decided not to continue, please tell us what got in the way so we can help. Suggested reasons:\n- I did not feel comfortable with this Teacher and would like to try another\n- The class time did not work\n- The price or payment terms did not work\n- Something else\n\nYou can ask us to contact you, say you do not want to continue for now, or simply record your feedback.\n\nAnswer in your account:\n{{survey_url}}\n\nStudent Portal:\n{{portal_url}}\n\nYour answer is used only to follow up and resolve your concern.\n\nDelnavazan"),
                 'website'=>array('subject'=>'Why did you not continue?','body'=>'{{hold_status_note}} If you are not continuing, record the reason in your account for {{course}} with {{teacher}} so we can help.'),
+            ),
+        ));
+        $out[]=self::event('renewal.reminder.student','Term Renewal Reminder','payment','student','RenewalReminderWorker','queue',array('email','website'),'financial',true,array('name','course','teacher','remaining_sessions','term_end_date','instalment_note','payment_url','portal_url'),'renewal.reminder',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · یادآوری تمدید ترم','body'=>"درود {{name}}،\n\nفقط {{remaining_sessions}} جلسه از ترم «{{course}}» با {{teacher}} باقی مانده است.\n\nبرای حفظ جایگاه کلاس، تمدید ترم را از بخش پرداخت حساب کاربری تکمیل کنید.\n\n{{instalment_note}}\n\nمهلت: {{term_end_date}}\n\nپرداخت و تمدید:\n{{payment_url}}\n\nحساب کاربری:\n{{portal_url}}\n\nاگر تا پایان ترم پرداخت را تکمیل نکنید یا با مدرس یا آکادمی هماهنگ نکنید، این جایگاه آزاد می‌شود و در دسترس هنرجویان دیگر قرار می‌گیرد.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'یادآوری تمدید ترم','body'=>'فقط {{remaining_sessions}} جلسه از ترم «{{course}}» باقی مانده است. {{instalment_note}} برای حفظ جایگاه، از بخش پرداخت حساب کاربری تمدید کنید.'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · term renewal reminder','body'=>"Hello {{name}},\n\nOnly {{remaining_sessions}} sessions remain in your {{course}} term with {{teacher}}.\n\nTo keep your place, complete the renewal from the payments section of your Student Portal.\n\n{{instalment_note}}\n\nDeadline: {{term_end_date}}\n\nPay and renew:\n{{payment_url}}\n\nStudent Portal:\n{{portal_url}}\n\nIf payment is not completed by the end of the term and you have not spoken with your Teacher or the academy, this place will be released for other students.\n\nDelnavazan"),
+                'website'=>array('subject'=>'Term renewal reminder','body'=>'Only {{remaining_sessions}} sessions remain in your {{course}} term. {{instalment_note}} Renew from the payments section to keep your place.'),
             ),
         ));
         $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(

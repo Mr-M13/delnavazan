@@ -19,6 +19,7 @@ $calendar = $read($theme . '/template-parts/teacher-portal/calendar.php');
 $help = $read($theme . '/template-parts/teacher-portal/help.php');
 $account = $read($theme . '/template-parts/teacher-portal/account.php');
 $bridge = $read($theme . '/inc/platform-bridge.php');
+$portalRead = $read($root . '/src/Portals/PortalAuthenticatedReadService.php');
 $shell = $read($theme . '/template-parts/teacher-portal/shell.php');
 $actions = $read($theme . '/template-parts/components/classroom-actions.php');
 
@@ -54,6 +55,7 @@ $assert(str_contains($classes, 'completion_message'), 'A non-actionable class mu
 $assert(str_contains($bridge, "\$completion_completed = array_key_exists( 'completion_completed', \$lesson )"), 'The canonical completion flag must take precedence when present.');
 $assert(str_contains($bridge, "if ( \$class['completion_completed'] ) {") && str_contains($bridge, 'never an actionable Today row'), 'Completed rows must be filtered from today_classes.');
 $assert(str_contains($bridge, "&& ! \$completion_completed\n\t\t\t&& ! \$completion_claimed"), 'reschedule_available must be false for completed or claimed lessons.');
+$assert(str_contains($portalRead, "(l.teacher_id=%d OR v.teacher_id=%d)") && str_contains($portalRead, 'Canonical Lessons keep the authoritative Teacher'), 'Teacher reads must include canonical schedule ownership for future Lessons.');
 
 // Actions: Delnavazan classroom is primary; Meet is the explicit backup label.
 $assert(str_contains($actions, "'meet_label'") && str_contains($classes, 'ورود با گوگل میت (پشتیبان)'), 'Meet must be labelled as the backup.');

@@ -146,7 +146,7 @@ foreach ( array(
 		$fail( 'term progress must fail closed and match both enrolment and term identity' );
 	}
 }
-if ( ! str_contains( $bridge, "dzn_theme_platform_student_term_progress( \$enrolment, \$next, \$lessons )" )
+if ( ! str_contains( $bridge, "dzn_theme_platform_student_term_progress( \$enrolment, \$next, \$lessons" )
 	|| ! str_contains( $bridge, "\$model['term'] = \$term_progress ? array_merge( \$term_progress" )
 	|| ! str_contains( $bridge, ") : array();" ) ) {
 	$fail( 'the student model must omit the term timeline when term identity is unavailable' );

@@ -485,7 +485,7 @@ function dzn_theme_platform_student_portal_state( array $lessons, array $enrolme
  * Lesson rows must match both the enrolment and that term; an unknown term is
  * not presented as a current-term total.
  */
-function dzn_theme_platform_student_term_progress( $enrolment, $next, array $lessons ) {
+function dzn_theme_platform_student_term_progress( $enrolment, $next, array $lessons, array $payments = array() ) {
 	if ( ! is_array( $enrolment ) ) { return array(); }
 	$enrolment_uid = (string) ( $enrolment['enrolment_uid'] ?? '' );
 	if ( '' === $enrolment_uid ) { return array(); }
@@ -524,6 +524,25 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 	$term_sessions = max( 1, $term_sessions );
 	$completed = min( $completed, $term_sessions );
 	$remaining = max( 0, $term_sessions - $completed - $cancelled );
+	$funded_sessions = 0;
+	$obligations = is_array( $payments['obligations'] ?? null ) ? $payments['obligations'] : array();
+	if ( 'ok' === (string) ( $payments['state'] ?? '' ) && $obligations ) {
+		foreach ( $obligations as $obligation ) {
+			if ( ! is_array( $obligation ) ) { continue; }
+			$from = (int) ( $obligation['sessions_from'] ?? 0 );
+			$to = (int) ( $obligation['sessions_to'] ?? 0 );
+			$state = (string) ( $obligation['payment_state'] ?? '' );
+			if ( $from > 0 && $to >= $from && $funded_sessions === $from - 1
+				&& in_array( $state, array( 'paid', 'paid_prerequisite_pending' ), true ) ) {
+				$funded_sessions = min( $term_sessions, $to );
+			}
+		}
+	}
+	// When the commercial read is unavailable, canonical issued Lessons still provide a
+	// conservative lower bound for the funded tranche; never infer additional unpaid Lessons.
+	if ( $funded_sessions < 1 && $recorded > 0 ) { $funded_sessions = min( $term_sessions, $recorded ); }
+	$funded_remaining = $funded_sessions > 0 ? max( 0, $funded_sessions - $completed - $cancelled ) : 0;
+	$unpaid_sessions = $funded_sessions > 0 ? max( 0, $term_sessions - $funded_sessions ) : 0;
 	$instrument = trim( (string) ( $enrolment['instrument_name'] ?? '' ) );
 	if ( '' === $instrument ) { $instrument = trim( (string) ( $enrolment['course_name'] ?? '' ) ); }
 	$replacement_allowance = max( 0, (int) ( $enrolment['replacement_allowance'] ?? 0 ) );
@@ -558,7 +577,11 @@ function dzn_theme_platform_student_term_progress( $enrolment, $next, array $les
 		'current_label' => $recorded ? sprintf( 'جلسهٔ %d از %d', min( $term_sessions, $completed + 1 ), $term_sessions ) : '',
 		'progress_label' => 'پیشرفت دوره',
 		'completed_label' => sprintf( '%s از %s جلسه', $fa( $completed ), $fa( $term_sessions ) ),
-		'remaining_label' => sprintf( '%s جلسه باقی‌مانده', $fa( $remaining ) ),
+		'remaining_label' => sprintf( '%s جلسه باقی‌مانده در کل ترم', $fa( $remaining ) ),
+		'funded_label' => $funded_sessions > 0 ? sprintf( '%s جلسهٔ پرداخت‌شدهٔ باقی‌مانده', $fa( $funded_remaining ) ) : '',
+		'unpaid_label' => $unpaid_sessions > 0 ? sprintf( '%s جلسه پس از پرداخت قسط بعدی', $fa( $unpaid_sessions ) ) : '',
+		'funded_sessions' => $funded_sessions,
+		'unpaid_sessions' => $unpaid_sessions,
 		'cancelled_label' => $cancelled > 0 ? sprintf( '%s جلسه لغو شده', $fa( $cancelled ) ) : '',
 		'replacement_label' => sprintf( 'جبرانی: %s از %s باقی‌مانده', $fa( $replacement_available ), $fa( $replacement_allowance ) ),
 		'replacement_allowance' => $replacement_allowance,
@@ -633,7 +656,7 @@ function dzn_theme_platform_student_next_class_label( array $enrolment, array $l
  * twelve-session Term, progress and replacement allowance, so the portal must
  * never let one Enrolment's lessons or allowance stand in for another's.
  */
-function dzn_theme_platform_student_term_models( array $enrolments, array $lessons, $next, $timezone, $calendar = 'gregorian', $locale = '', $now = null ) {
+function dzn_theme_platform_student_term_models( array $enrolments, array $lessons, $next, $timezone, $calendar = 'gregorian', $locale = '', $now = null, array $payments = array() ) {
 	$now = null === $now ? time() : (int) $now;
 	$next_enrolment_uid = is_array( $next ) ? (string) ( $next['enrolment_uid'] ?? '' ) : '';
 	$lead = array();
@@ -648,7 +671,7 @@ function dzn_theme_platform_student_term_models( array $enrolments, array $lesso
 	}
 	$models = array();
 	foreach ( array_merge( $lead, $others ) as $enrolment ) {
-		$progress = dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons );
+		$progress = dzn_theme_platform_student_term_progress( $enrolment, $next, $lessons, $payments );
 		if ( ! $progress ) { continue; }
 		$replacement_summary = dzn_theme_platform_student_replacement_summary( $progress, $timezone, $calendar, $locale );
 		$models[] = array_merge(
@@ -1401,7 +1424,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			if ( is_array( $candidate ) && in_array( (string) ( $candidate['lifecycle_state'] ?? '' ), array( 'current', 'authorised' ), true ) ) { $schedule_enrolment = $candidate; break; }
 		}
 		if ( ! $schedule_enrolment ) { $schedule_enrolment = is_array( $enrolments[0] ?? null ) ? $enrolments[0] : array(); }
-		$schedule_term = dzn_theme_platform_student_term_progress( $schedule_enrolment, null, $lessons );
+		$schedule_term = dzn_theme_platform_student_term_progress( $schedule_enrolment, null, $lessons, $payments_model );
 		$schedule_replacement = $schedule_term ? dzn_theme_platform_student_replacement_summary( $schedule_term, $student_timezone, $student_calendar, $student_locale ) : array();
 		$model['term'] = $schedule_term ? array_merge( $schedule_term, array(
 			'next_label' => '',
@@ -1443,7 +1466,7 @@ function dzn_theme_platform_student_model( $screen ) {
 			if ( is_array( $candidate ) && in_array( (string) ( $candidate['lifecycle_state'] ?? '' ), array( 'current', 'authorised' ), true ) ) { $current_enrolment = $candidate; break; }
 		}
 		if ( ! $current_enrolment ) { $current_enrolment = is_array( $enrolments[0] ?? null ) ? $enrolments[0] : array(); }
-		$term_progress = dzn_theme_platform_student_term_progress( $current_enrolment, null, $lessons );
+		$term_progress = dzn_theme_platform_student_term_progress( $current_enrolment, null, $lessons, $payments_model );
 		$replacement_summary = $term_progress ? dzn_theme_platform_student_replacement_summary( $term_progress, $student_timezone, $student_calendar, $student_locale ) : array();
 		$model['term'] = $term_progress ? array_merge( $term_progress, array( 'next_label' => '', 'normal_replacement' => (string) ( $replacement_summary['normal_replacement'] ?? '' ), 'replacement_items' => (array) ( $replacement_summary['replacement_items'] ?? array() ), 'academy_owed_remedial' => '', 'academy_owed_tone' => 'muted' ) ) : array();
 		$replacement_lessons = is_array( $current_enrolment['replacement_lessons'] ?? null ) ? $current_enrolment['replacement_lessons'] : array();
@@ -1487,6 +1510,8 @@ function dzn_theme_platform_student_model( $screen ) {
 			'cancelled' => (int) ( $term_progress['cancelled'] ?? 0 ),
 			'progress_label' => (string) ( $term_progress['completed_label'] ?? '' ),
 			'remaining_label' => (string) ( $term_progress['remaining_label'] ?? '' ),
+			'funded_label' => (string) ( $term_progress['funded_label'] ?? '' ),
+			'unpaid_label' => (string) ( $term_progress['unpaid_label'] ?? '' ),
 			'cancelled_label' => (string) ( $term_progress['cancelled_label'] ?? '' ),
 			'replacement_label' => (string) ( $term_progress['replacement_label'] ?? '' ),
 			'replacement_allowance' => max( 0, (int) ( $current_enrolment['replacement_allowance'] ?? 0 ) ),
@@ -1632,7 +1657,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	// An upcoming introductory booking must not suppress the active Term timeline.
 	// Term progress belongs to the current Enrolment and is independent of the type
 	// of the next chronological class.
-	$model['terms'] = dzn_theme_platform_student_term_models( $enrolments, $lessons, $next, $display_timezone, $student_calendar, $student_locale, $now );
+	$model['terms'] = dzn_theme_platform_student_term_models( $enrolments, $lessons, $next, $display_timezone, $student_calendar, $student_locale, $now, $payments_model );
 	$model['term'] = $model['terms'][0] ?? array();
 	$model['schedule'] = dzn_theme_platform_student_schedule_rows( $lessons, $booking_classes, $enrolments, $student_timezone, $now, $student_calendar, $student_locale );
 	$model['timezone_label'] = dzn_theme_platform_timezone_label( $student_timezone );

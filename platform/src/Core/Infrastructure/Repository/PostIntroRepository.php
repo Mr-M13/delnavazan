@@ -73,6 +73,14 @@ final class PostIntroRepository {
         ));
     }
 
+    public function recurringSlotOverrideForConfirmation(int $confirmationId): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->p}booking_request_recurring_slot_overrides WHERE confirmation_id=%d ORDER BY id DESC LIMIT 1",
+            $confirmationId
+        ));
+    }
+
     public function outcomeByUid(string $uid): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_intro_outcomes WHERE uid=%s", $uid));

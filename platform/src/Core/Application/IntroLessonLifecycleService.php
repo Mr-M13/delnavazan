@@ -192,6 +192,10 @@ final class IntroLessonLifecycleService {
         $endsAtUtc = $end->setTimezone($utc)->format('Y-m-d H:i:s');
         $occupiedEndsAtUtc = $occupiedEnd->setTimezone($utc)->format('Y-m-d H:i:s');
         if ($startsAtUtc <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('Choose a future introductory time');
+        $coveredByPublishedAvailability = $this->coveredByPublishedAvailability((int) $confirmation->teacher_id, $startsAtUtc, $endsAtUtc);
+        if (! $coveredByPublishedAvailability && $actorType !== 'teacher') {
+            throw new \InvalidArgumentException('The Teacher must explicitly choose a time outside published availability.');
+        }
         $conflict = (new CanonicalTeacherOccupancyReadService())->overlapping((int) $confirmation->teacher_id, $startsAtUtc, $occupiedEndsAtUtc);
         if ($conflict) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
         try {
@@ -245,6 +249,9 @@ final class IntroLessonLifecycleService {
                     (int) $requestedTime->id
                 ));
             }
+            if (IntroRecurringSlotOverridePolicy::requiresRecord($actorType, $coveredByPublishedAvailability)) {
+                $this->recordRecurringSlotOverride((int) $locked->id, (int) $locked->booking_request_id, (int) $locked->teacher_id, $actorId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $now);
+            }
             $this->queueNotification((int) $locked->delivery_id, (int) $locked->id, 'rescheduled', $now, true);
             $this->queueNotification((int) $locked->delivery_id, (int) $locked->id, 'rescheduled_teacher', $now, true);
             $this->audit($requestId, 'booking_request.intro_rescheduled', $actorType, $actorId, $reason, array(
@@ -267,6 +274,33 @@ final class IntroLessonLifecycleService {
             'local_label' => $local->format('D j M Y, H:i') . ' ' . $timezone,
             'provider_sync' => $providerSync,
         );
+    }
+
+    private function coveredByPublishedAvailability(int $teacherId, string $startsAtUtc, string $endsAtUtc): bool {
+        try {
+            $segments = (new TeacherAvailabilityService())->effective($teacherId, $startsAtUtc, $endsAtUtc);
+        } catch (\Throwable) {
+            return false;
+        }
+        $cursor = $startsAtUtc;
+        foreach ($segments as $segment) {
+            if (!in_array((string) ($segment['state'] ?? ''), array('preferred', 'requestable'), true)) return false;
+            if ((string) ($segment['starts_at_utc'] ?? '') > $cursor) return false;
+            if ((string) ($segment['ends_at_utc'] ?? '') > $cursor) $cursor = min($endsAtUtc, (string) $segment['ends_at_utc']);
+            if ($cursor === $endsAtUtc) return true;
+        }
+        return false;
+    }
+
+    private function recordRecurringSlotOverride(int $confirmationId, int $bookingRequestId, int $teacherId, int $actorId, string $startsAtUtc, string $endsAtUtc, string $timezone, string $date, string $time, string $now): void {
+        global $wpdb;
+        $digest = hash_hmac('sha256', implode('|', array('teacher-recurring-slot-override', $confirmationId, $teacherId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $actorId)), wp_salt('dzn_intro_recurring_slot_override'));
+        $inserted = $wpdb->query($wpdb->prepare(
+            "INSERT INTO {$this->p}booking_request_recurring_slot_overrides (uid,confirmation_id,booking_request_id,teacher_id,actor_type,actor_id,authority_basis,schedule_timezone,local_wall_date,local_wall_time,starts_at_utc,ends_at_utc,evidence_reference_digest,recorded_at,created_at) VALUES (%s,%d,%d,%d,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE id=id",
+            \Delnavazan\Platform\Core\Support\Identifier::uid(), $confirmationId, $bookingRequestId, $teacherId, 'teacher', $actorId,
+            IntroRecurringSlotOverridePolicy::BASIS, $timezone, $date, $time, $startsAtUtc, $endsAtUtc, $digest, $now, $now
+        ));
+        if ($inserted === false) throw new \RuntimeException('intro_recurring_slot_override_persistence_failed');
     }
 
     /** @return array{0:int,1:string} */

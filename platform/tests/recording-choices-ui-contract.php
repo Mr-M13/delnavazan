@@ -3,6 +3,7 @@
 $root=dirname(__DIR__);
 $read=static fn(string $path):string=>(string)file_get_contents($root.'/'.$path);
 $controller=$read('src/Portals/RecordingDecisionController.php');
+$onboardingController=$read('src/Portals/TeacherOnboardingController.php');
 $readService=$read('src/Portals/RecordingDecisionUiReadService.php');
 $plugin=$read('delnavazan-platform.php');
 $migrator=$read('src/Core/Infrastructure/Migration/Migrator.php');
@@ -29,6 +30,8 @@ $need(str_contains($controller,'check_admin_referer(self::TEACHER_ACTION)'),'tea
 $need(str_contains($controller,"current_user_can('dzn_accept_own_recording_terms')"),'teacher acceptance must require its own capability');
 $need(str_contains($controller,'recordOwnStudentChoice('),'student choices must use the authority service');
 $need(str_contains($controller,'acceptTeacherTerms('),'teacher terms must use the authority service');
+$need(str_contains($onboardingController,'acceptTeacherOnboardingRecordingTerms('),'onboarding submission must record its required terms and recording evidence');
+$need(str_contains($authority,'acceptTeacherOnboardingRecordingTerms('),'the authority must preserve versioned onboarding recording evidence');
 $need(str_contains($controller,'requirePost()'),'both write endpoints must reject non-POST requests');
 $need(str_contains($controller,'set_transient(')&&str_contains($readService,'get_transient('),'confirmation feedback must use a server-side status, not a spoofable query parameter');
 $need(!str_contains($controller,"'recording_status'"),'the write endpoints must not accept or emit a client-supplied confirmation status');

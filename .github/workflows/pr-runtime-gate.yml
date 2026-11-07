@@ -266,6 +266,7 @@ jobs:
           php platform/tests/teacher-induction-contract.php
           php platform/tests/teacher-induction-presentation.php
           php platform/tests/teacher-portal-presentation-contract.php
+          php platform/tests/teacher-portal-reschedule-calendar-unit.php
           php platform/tests/admin-navigation-regression-contract.php
           php platform/tests/attendance-runtime-midnight-guard-contract.php
           php platform/tests/student-workspace-filters-unit.php

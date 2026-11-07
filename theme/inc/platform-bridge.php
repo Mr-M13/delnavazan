@@ -213,6 +213,34 @@ function dzn_theme_platform_jalali_parts( $utc, $timezone ) {
 }
 
 /**
+ * Persian calendar parts for a Gregorian local wall date, derived by ICU.
+ *
+ * The wall date is interpreted at local noon in the given IANA timezone so a
+ * DST transition never moves the calendar day. This is presentation-only and
+ * never changes a canonical UTC instant.
+ *
+ * @return array{year:int,month:int,day:int}|null
+ */
+function dzn_theme_platform_jalali_from_local_date( $date, $timezone ) {
+	$date = trim( (string) $date );
+	if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/D', $date ) || ! class_exists( 'IntlCalendar' ) ) { return null; }
+	try {
+		$zone = new DateTimeZone( (string) $timezone );
+		$local = DateTimeImmutable::createFromFormat( '!Y-m-d 12:00:00', $date . ' 12:00:00', $zone );
+		if ( ! $local || $local->format( 'Y-m-d' ) !== $date ) { return null; }
+		$calendar = IntlCalendar::createInstance( $zone, '@calendar=persian' );
+		$calendar->setTime( (int) $local->getTimestamp() * 1000 );
+		return array(
+			'year'  => (int) $calendar->get( IntlCalendar::FIELD_YEAR ),
+			'month' => (int) $calendar->get( IntlCalendar::FIELD_MONTH ) + 1,
+			'day'   => (int) $calendar->get( IntlCalendar::FIELD_DAY_OF_MONTH ),
+		);
+	} catch ( Throwable ) {
+		return null;
+	}
+}
+
+/**
  * A machine-readable UTC instant for `<time datetime>`.
  *
  * Platform reads use `Y-m-d H:i:s`; HTML expects an ISO 8601 instant. The
@@ -2241,6 +2269,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'intro_reschedule_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_reschedule_intro' ),
 			'intro_reschedule_nonce' => wp_create_nonce( 'dzn_teacher_reschedule_intro' ),
 			'intro_timezone_options' => dzn_theme_platform_service_timezone_options(),
+			'intro_calendar' => $teacher_calendar,
+			'intro_locale' => $teacher_locale,
 			'intro_local_date' => dzn_theme_platform_local_date_key( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone ),
 			'delivery_issue_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery_issue' ),
 			'delivery_issue_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery_issue' ),

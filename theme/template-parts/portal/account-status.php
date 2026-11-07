@@ -20,6 +20,8 @@ $instalment_label = (string) ( $status['instalment_label'] ?? '' );
 $next_instalment_label = (string) ( $status['next_instalment_label'] ?? '' );
 $progress_label = (string) ( $status['progress_label'] ?? '' );
 $remaining_label = (string) ( $status['remaining_label'] ?? '' );
+$funded_label = (string) ( $status['funded_label'] ?? '' );
+$unpaid_label = (string) ( $status['unpaid_label'] ?? '' );
 $cancelled_label = (string) ( $status['cancelled_label'] ?? '' );
 $replacement_label = (string) ( $status['replacement_label'] ?? '' );
 $reschedule_label = (string) ( $status['reschedule_label'] ?? '' );
@@ -51,6 +53,8 @@ $reschedule_label = (string) ( $status['reschedule_label'] ?? '' );
 				<?php endif; ?>
 			</dd>
 		</div>
+		<?php if ( '' !== $funded_label ) : ?><div><dt><?php esc_html_e( 'قابل استفاده', 'delnavazan-theme' ); ?></dt><dd><?php echo esc_html( $funded_label ); ?></dd></div><?php endif; ?>
+		<?php if ( '' !== $unpaid_label ) : ?><div><dt><?php esc_html_e( 'پس از پرداخت', 'delnavazan-theme' ); ?></dt><dd><?php echo esc_html( $unpaid_label ); ?></dd></div><?php endif; ?>
 		<?php if ( '' !== $cancelled_label ) : ?>
 			<div>
 				<dt><?php esc_html_e( 'جلسه‌های لغو‌شده', 'delnavazan-theme' ); ?></dt>

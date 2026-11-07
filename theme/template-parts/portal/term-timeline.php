@@ -32,6 +32,10 @@ $completed_label = (string) ( $term['completed_label'] ?? '' );
 $remaining_label = (string) ( $term['remaining_label'] ?? '' );
 $cancelled_label = (string) ( $term['cancelled_label'] ?? '' );
 $replacement_label = (string) ( $term['replacement_label'] ?? '' );
+$funded_label = (string) ( $term['funded_label'] ?? '' );
+$unpaid_label = (string) ( $term['unpaid_label'] ?? '' );
+$funded_sessions = max( 0, (int) ( $term['funded_sessions'] ?? 0 ) );
+$unpaid_sessions = max( 0, (int) ( $term['unpaid_sessions'] ?? 0 ) );
 ?>
 <section class="dzn-portal-section dzn-term dzn-term--compact" aria-labelledby="<?php echo esc_attr( $title_id ); ?>">
 	<div class="dzn-portal-section__heading dzn-term__heading">
@@ -46,8 +50,9 @@ $replacement_label = (string) ( $term['replacement_label'] ?? '' );
 	<?php else : ?>
 	<ol class="dzn-term__markers" style="--dzn-term-count: <?php echo (int) $total; ?>" aria-label="<?php echo esc_attr( sprintf( 'پیشرفت ترم: %1$d از %2$d جلسه', $completed, $total ) ); ?>">
 		<?php for ( $session = 1; $session <= $total; $session++ ) : ?>
-			<?php $marker = $session <= $completed ? 'complete' : ( $session === $completed + 1 ? 'current' : 'remaining' ); ?>
-			<li class="is-<?php echo esc_attr( $marker ); ?>"<?php echo 'current' === $marker ? ' aria-current="step"' : ''; ?>><span class="screen-reader-text"><?php echo esc_html( sprintf( 'جلسهٔ %d — %s', $session, 'complete' === $marker ? 'برگزار شده' : ( 'current' === $marker ? 'پیش رو' : 'باقی‌مانده' ) ) ); ?></span></li>
+				<?php $marker = $session <= $completed ? 'complete' : ( $session === $completed + 1 ? 'current' : 'remaining' ); ?>
+				<?php $unpaid = $unpaid_sessions > 0 && $funded_sessions > 0 && $session > $funded_sessions; ?>
+				<li class="is-<?php echo esc_attr( $marker ); ?><?php echo $unpaid ? ' is-unpaid' : ''; ?>"<?php echo 'current' === $marker ? ' aria-current="step"' : ''; ?>><span class="screen-reader-text"><?php echo esc_html( sprintf( 'جلسهٔ %d — %s', $session, $unpaid ? 'پس از پرداخت قسط بعدی' : ( 'complete' === $marker ? 'برگزار شده' : ( 'current' === $marker ? 'پیش رو' : 'باقی‌مانده' ) ) ) ); ?></span></li>
 		<?php endfor; ?>
 	</ol>
 	<dl class="dzn-term__compact-summary">
@@ -59,6 +64,8 @@ $replacement_label = (string) ( $term['replacement_label'] ?? '' );
 			<dt><?php esc_html_e( 'مانده', 'delnavazan-theme' ); ?></dt>
 			<dd><?php echo esc_html( $remaining_label ); ?></dd>
 		</div>
+		<?php if ( '' !== $funded_label ) : ?><div class="dzn-term__compact-fact dzn-term__compact-fact--funded"><dt><?php esc_html_e( 'قابل استفاده', 'delnavazan-theme' ); ?></dt><dd><?php echo esc_html( $funded_label ); ?></dd></div><?php endif; ?>
+		<?php if ( '' !== $unpaid_label ) : ?><div class="dzn-term__compact-fact dzn-term__compact-fact--unpaid"><dt><?php esc_html_e( 'پس از پرداخت', 'delnavazan-theme' ); ?></dt><dd><?php echo esc_html( $unpaid_label ); ?></dd></div><?php endif; ?>
 		<div class="dzn-term__compact-fact dzn-term__compact-fact--replacement">
 			<dt><?php esc_html_e( 'جبرانی', 'delnavazan-theme' ); ?></dt>
 			<dd><?php echo esc_html( $replacement_label ); ?></dd>

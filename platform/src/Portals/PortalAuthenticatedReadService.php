@@ -243,12 +243,18 @@ final class PortalAuthenticatedReadService {
         $window = null !== $fromUtc && null !== $toUtc;
         $direction = $window ? 'ASC' : 'DESC';
         $where = $window ? ' AND v.starts_at_utc>=%s AND v.starts_at_utc<%s' : '';
-        $canonicalArgs = array($principalId);
+        // Canonical Lessons keep the authoritative Teacher on the applicable schedule
+        // version; older rows may also carry it directly on lessons.teacher_id. Query both
+        // representations so newly provisioned future classes remain visible to Teachers.
+        $ownerWhere = $kind === 'teacher'
+            ? '(l.teacher_id=%d OR v.teacher_id=%d)'
+            : 'l.student_id=%d';
+        $canonicalArgs = $kind === 'teacher' ? array($principalId, $principalId) : array($principalId);
         if ($window) { $canonicalArgs[] = $fromUtc; $canonicalArgs[] = $toUtc; }
         $canonicalArgs[] = self::LIMIT;
         $ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.{$column}=%d AND l.record_model='canonical_term_lesson_v1'{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction} LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE {$ownerWhere} AND l.record_model='canonical_term_lesson_v1'{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction} LIMIT %d",
                 ...$canonicalArgs
             )
         );

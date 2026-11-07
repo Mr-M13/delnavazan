@@ -62,14 +62,21 @@ $lessons[] = array(
 	'delivery_state_summary' => 'not_recorded',
 );
 
-$term = dzn_theme_platform_student_term_progress( $enrolment, null, $lessons );
+$term = dzn_theme_platform_student_term_progress( $enrolment, null, $lessons, array(
+	'state' => 'ok',
+	'obligations' => array(
+		array( 'sessions_from' => 1, 'sessions_to' => 6, 'payment_state' => 'paid' ),
+		array( 'sessions_from' => 7, 'sessions_to' => 12, 'payment_state' => 'required' ),
+	),
+));
 $check( 'scheduled total stays 12 even with a cancelled class', (int) $term['total'] === 12 );
 $check( 'replacement lessons are not counted as scheduled Term sessions', (int) $term['total'] !== 13 );
 $check( 'completed sessions come from delivery facts', (int) $term['completed'] === 3 );
 $check( 'cancelled sessions are counted separately', (int) $term['cancelled'] === 1 );
 $check( 'remaining sessions exclude completed and cancelled', (int) $term['remaining'] === 8 );
 $check( 'compact completed label is Persian and record-based', $term['completed_label'] === '۳ از ۱۲ جلسه' );
-$check( 'compact remaining label is Persian and record-based', $term['remaining_label'] === '۸ جلسه باقی‌مانده' );
+$check( 'compact remaining label distinguishes the full term', $term['remaining_label'] === '۸ جلسه باقی‌مانده در کل ترم' );
+$check( 'funded and unpaid balances are explicit', $term['funded_label'] === '۲ جلسهٔ پرداخت‌شدهٔ باقی‌مانده' && $term['unpaid_label'] === '۶ جلسه پس از پرداخت قسط بعدی' );
 $check( 'exhausted replacement balance displays zero against its allowance', $term['replacement_label'] === 'جبرانی: ۰ از ۲ باقی‌مانده' );
 
 $zero = dzn_theme_platform_student_term_progress(
@@ -88,11 +95,13 @@ $bridge = (string) file_get_contents( $theme . '/inc/platform-bridge.php' );
 $check( 'the compact summary uses model-provided labels, not a static allowance', str_contains( $termTemplate, "term['replacement_label']" ) && ! str_contains( $termTemplate, 'replacement_allowance = 2' ) );
 $check( 'the compact summary has the required Persian progress heading', str_contains( $termTemplate, 'پیشرفت دوره' ) );
 $check( 'the compact summary renders completed, remaining and replacement facts', str_contains( $termTemplate, "term['completed_label']" ) && str_contains( $termTemplate, "term['remaining_label']" ) && str_contains( $termTemplate, "term['replacement_label']" ) );
+$check( 'the timeline greys unpaid sessions and labels funded/unpaid balances', str_contains( $termTemplate, 'is-unpaid' ) && str_contains( $termTemplate, "term['funded_label']" ) && str_contains( $termTemplate, "term['unpaid_label']" ) && str_contains( $termTemplate, 'پس از پرداخت قسط بعدی' ) );
 $check( 'the old large replacement status card is gone', ! str_contains( $termTemplate, 'normal_replacement' ) );
 $check( 'the standalone account continuation button is gone', ! str_contains( $accountStatus, 'ادامهٔ کلاس‌ها' ) );
 $check( 'the discontinuation request remains', str_contains( $accountStatus, 'درخواست توقف ثبت‌نام' ) );
 $check( 'account status exposes cancellation separately from replacement', str_contains( $accountStatus, 'cancelled_label' ) && str_contains( $accountStatus, 'جبرانی' ) );
 $check( 'account status shows instalment and rescheduling facts', str_contains( $accountStatus, 'instalment_label' ) && str_contains( $accountStatus, 'reschedule_label' ) );
+$check( 'account status distinguishes funded and unpaid sessions', str_contains( $accountStatus, 'funded_label' ) && str_contains( $accountStatus, 'unpaid_label' ) );
 
 $classesBranchAt = strpos( $shell, "<?php else : ?>" );
 $classesBranch = false === $classesBranchAt ? '' : substr( $shell, $classesBranchAt );

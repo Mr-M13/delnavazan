@@ -592,6 +592,16 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--dzn-color-accent) 22%, transparent);
   }
 
+  .dzn-term__markers .is-unpaid {
+    background: var(--dzn-color-surface-muted);
+    box-shadow: inset 0 0 0 1px var(--dzn-color-border);
+  }
+
+  .dzn-term__markers .is-current.is-unpaid {
+    background: var(--dzn-color-surface-muted);
+    box-shadow: inset 0 0 0 1px var(--dzn-color-border);
+  }
+
   .dzn-term__status-grid,
   .dzn-payments__summary {
     display: grid;
@@ -1705,6 +1715,8 @@
 .dzn-term__compact-fact dt { color: var(--dzn-color-text-muted); font-size: var(--dzn-text-xs); }
 .dzn-term__compact-fact dd { margin: 0; font-weight: 800; }
 .dzn-term__compact-fact--replacement dd { color: var(--dzn-color-action-primary); }
+.dzn-term__compact-fact--funded dd { color: var(--dzn-color-success); }
+.dzn-term__compact-fact--unpaid dd { color: var(--dzn-color-text-muted); }
 .dzn-term__replacements--compact { margin-block-start: .65rem; }
 .dzn-term__replacements--compact summary { cursor: pointer; font-weight: 700; color: var(--dzn-color-text-secondary); }
 

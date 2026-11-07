@@ -39,6 +39,14 @@ final class RecordingDecisionAuthorityService {
         return $this->recordTeacherChoice(ConsentPurposeRegistry::TEACHER_TERMS,'accepted',$noticeUid,$language,$key,'teacher_onboarding','teacher_onboarding');
     }
 
+    /** Records required recorded-work terms and recording permission at onboarding submission. */
+    public function acceptTeacherOnboardingRecordingTerms(string $termsNoticeUid,string $termsLanguage,string $recordingNoticeUid,string $recordingLanguage,string $key):array {
+        return array(
+            'terms' => $this->recordTeacherChoice(ConsentPurposeRegistry::TEACHER_TERMS,'accepted',$termsNoticeUid,$termsLanguage,$key . ':terms','teacher_onboarding','teacher_onboarding'),
+            'recording' => $this->recordTeacherChoice(ConsentPurposeRegistry::TEACHER_RECORDING,'allow',$recordingNoticeUid,$recordingLanguage,$key . ':recording','teacher_onboarding','teacher_onboarding'),
+        );
+    }
+
     /** Teacher recording or research decision. The Teacher is resolved from the authenticated principal. */
     public function recordTeacherChoice(string $purpose,string $choice,string $noticeUid,string $language,string $key,string $channel='portal_settings',string $workflow='teacher_portal'):array {
         $this->assertPurposeSubject($purpose,'teacher');

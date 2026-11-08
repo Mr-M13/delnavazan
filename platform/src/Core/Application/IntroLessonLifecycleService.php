@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonScheduleRepository,ConfirmedIntroBookingCancellationRepository,LessonRescheduleRepository};
+use Delnavazan\Platform\Core\Support\PersianCalendar;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
@@ -170,7 +171,8 @@ final class IntroLessonLifecycleService {
         if ($expectedVersion > 0 && (int) $confirmation->version !== $expectedVersion) throw new \RuntimeException('Booking confirmation changed concurrently');
         $timezone = trim((string) ($slot['timezone'] ?? $confirmation->schedule_timezone));
         if (!in_array($timezone, timezone_identifiers_list(), true)) throw new \InvalidArgumentException('Choose a valid service-area timezone');
-        $date = trim((string) ($slot['local_date'] ?? ''));
+        $calendar = 'persian' === strtolower(trim((string) ($slot['calendar'] ?? 'gregorian'))) ? 'persian' : 'gregorian';
+        $date = $this->gregorianWallDate($calendar, $slot);
         $time = trim((string) ($slot['local_start_time'] ?? ''));
         if (preg_match('/^\d{2}:\d{2}$/D', $time)) $time .= ':00';
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) !== 1 || preg_match('/^\d{2}:\d{2}:\d{2}$/D', $time) !== 1) throw new \InvalidArgumentException('Choose a valid local date and start time');
@@ -387,5 +389,30 @@ final class IntroLessonLifecycleService {
     private function safeProviderCode(\Throwable $exception): string {
         $message = trim($exception->getMessage());
         return preg_match('/^[a-z0-9_:\-]{1,80}$/D', $message) === 1 ? $message : 'provider_sync_failed';
+    }
+
+    /**
+     * The Gregorian local wall date (`Y-m-d`) for the requested slot.
+     *
+     * A Persian selection is converted with the pure Jalali arithmetic; the
+     * caller then interprets the wall date in the chosen IANA timezone and
+     * converts it to UTC exactly as the Gregorian path does. Invalid Jalali
+     * dates fail closed with the same user-facing message as an invalid
+     * Gregorian date.
+     */
+    private function gregorianWallDate(string $calendar, array $slot): string {
+        if ('persian' !== $calendar) return trim((string) ($slot['local_date'] ?? ''));
+        $year = (int) ($slot['jalali_year'] ?? 0);
+        $month = (int) ($slot['jalali_month'] ?? 0);
+        $day = (int) ($slot['jalali_day'] ?? 0);
+        if ($year < 1300 || $year > 1600 || $month < 1 || $month > 12 || $day < 1 || $day > 31) {
+            throw new \InvalidArgumentException('Choose a valid local date and start time');
+        }
+        try {
+            [$gy, $gm, $gd] = PersianCalendar::toGregorian($year, $month, $day);
+        } catch (\Throwable) {
+            throw new \InvalidArgumentException('Choose a valid local date and start time');
+        }
+        return sprintf('%04d-%02d-%02d', $gy, $gm, $gd);
     }
 }

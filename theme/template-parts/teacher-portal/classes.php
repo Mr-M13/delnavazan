@@ -151,7 +151,7 @@ $card_index = 0;
 			</div>
 			<?php endif; ?>
 			<?php if ( ! empty( $item['intro_change_available'] ) ) : ?>
-				<?php dzn_theme_teacher_portal_component( 'intro-actions', array( 'item' => $item, 'timezone' => $timezone ) ); ?>
+				<?php dzn_theme_teacher_portal_component( 'intro-actions', array( 'item' => $item, 'timezone' => $timezone, 'calendar' => (string) ( $model['teacher_calendar'] ?? $item['intro_calendar'] ?? $item['reschedule_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? $item['intro_locale'] ?? $item['reschedule_locale'] ?? '' ) ) ); ?>
 			<?php endif; ?>
 			<?php if ( ! $is_today && true === ( $item['reschedule_available'] ?? false ) ) : ?>
 			<details class="dzn-tp-class__reschedule" data-dzn-highlight="reschedule">

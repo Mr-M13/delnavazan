@@ -21,5 +21,23 @@ final class BookingRequestRepository {
     public function times(int $id): array { global $wpdb; return $wpdb->get_results( $wpdb->prepare( "SELECT local_date,local_start_time,timezone,starts_at_utc,instructional_ends_at_utc,occupied_ends_at_utc,instructional_duration_minutes,buffer_minutes FROM {$this->prefix}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number", $id ) ); }
     /** @param list<array{starts_at_utc:string,occupied_ends_at_utc:string}> $times */
     public function studentOccupancyConflicts(int $studentId, array $times, array $options = array()): array { return StudentOccupancyQuery::conflicts( $studentId, $times, $options ); }
+    /** Active canonical enrolments for an instrument make a new introductory request ineligible. */
+    public function studentHasActiveInstrumentEnrolment(int $studentId, int $instrumentId): bool {
+        global $wpdb;
+        return (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT e.id
+             FROM {$this->prefix}enrolments e
+             INNER JOIN {$this->prefix}courses c ON c.id=e.course_id
+             WHERE e.student_id=%d
+               AND c.instrument_id=%d
+               AND e.record_model='canonical_student_course_v1'
+               AND e.status='canonical'
+               AND e.archived_at IS NULL
+               AND e.lifecycle_state IN ('authorised','current','paused')
+             LIMIT 1",
+            $studentId,
+            $instrumentId
+        ) );
+    }
     public function ensureAndLockStudentRoot(int $studentId, string $now, int $actor): void { (new CanonicalLessonScheduleRepository())->ensureAndLockStudentRoot( $studentId, $now, $actor ); }
 }

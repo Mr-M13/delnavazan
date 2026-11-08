@@ -5,6 +5,7 @@ use Delnavazan\Platform\Core\Application\BookingStudentAccountService;
 use Delnavazan\Platform\Core\Application\BookingAccountAuthenticationException;
 use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
 use Delnavazan\Platform\Core\Application\BookingRequestSlotConflictException;
+use Delnavazan\Platform\Core\Application\BookingRequestInstrumentEnrollmentException;
 use Delnavazan\Platform\Core\Application\IdempotencyConflictException;
 use Delnavazan\Platform\Core\Application\BookingRequestRateLimitException;
 
@@ -79,6 +80,8 @@ final class BookingRequestRestController {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'idempotency_conflict' ), 409 );
         } catch ( BookingRequestSlotConflictException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'student_slot_conflict' ), 409 );
+        } catch ( BookingRequestInstrumentEnrollmentException ) {
+            return new \WP_REST_Response( array( 'success' => false, 'code' => 'student_instrument_already_enrolled' ), 409 );
         } catch ( BookingRequestRateLimitException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'rate_limited' ), 429 );
         } catch ( \Throwable ) {

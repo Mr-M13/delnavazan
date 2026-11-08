@@ -219,7 +219,7 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 					</section>
 				</div>
 				<?php if ( $join_available ) : ?>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__rejoin">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__rejoin" data-dzn-finish-url="<?php echo esc_url( $finish_url ); ?>">
 						<input type="hidden" name="action" value="<?php echo esc_attr( $join_action ); ?>">
 						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( $join_nonce_action ) ); ?>">
 						<?php if ( $is_booking ) : ?>
@@ -235,7 +235,7 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 				<p class="dzn-meet-entry__back"><a href="<?php echo esc_url( home_url( '/teacher-portal/' ) ); ?>">بازگشت به پرتال مدرس</a></p>
 			<?php else : ?>
 				<?php if ( $join_available ) : ?>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__join">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__join" data-dzn-finish-url="<?php echo esc_url( $finish_url ); ?>">
 						<input type="hidden" name="action" value="<?php echo esc_attr( $join_action ); ?>">
 						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( $join_nonce_action ) ); ?>">
 						<?php if ( $is_booking ) : ?>
@@ -245,7 +245,7 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 							<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( $schedule_uid ); ?>">
 						<?php endif; ?>
 						<button class="dzn-meet-entry__button" type="submit" data-dzn-meet-join>ورود به کلاس</button>
-						<p class="dzn-meet-entry__help">پیوند امن فقط پس از تأیید مالکیت و بازهٔ ورود در سرور باز می‌شود. Google Meet در پنجرهٔ تازه باز خواهد شد.</p>
+						<p class="dzn-meet-entry__help">پیوند امن فقط پس از تأیید مالکیت و بازهٔ ورود در سرور باز می‌شود. Google Meet در پنجرهٔ تازه باز خواهد شد و با بستن آن، صفحهٔ پایان کلاس به‌صورت خودکار باز می‌شود.</p>
 					</form>
 				<?php else : ?>
 					<p class="dzn-meet-entry__notice" role="status">این کلاس برای حساب شما در دسترس نیست یا زمان ورود آن نرسیده است. برای راهنمایی با پشتیبانی دلنوازان تماس بگیرید.</p>
@@ -320,6 +320,17 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 						<?php else : ?>
 							<p>اطلاعات ترم برای این هنرجو در دسترس نیست.</p>
 						<?php endif; ?>
+					</article>
+				</div>
+			</section>
+		<?php elseif ( 'teacher' === $role && ! $is_booking ) : ?>
+			<section class="dzn-meet-entry__card dzn-meet-entry__brief" aria-labelledby="dzn-meet-brief-fallback-title">
+				<h2 id="dzn-meet-brief-fallback-title">آماده‌سازی این کلاس</h2>
+				<div class="dzn-meet-entry__brief-grid">
+					<article class="dzn-meet-entry__brief-card">
+						<h3>یادداشت جلسهٔ گذشته</h3>
+						<p>یادداشت خصوصی این هنرجو در این لحظه در دسترس نیست. اگر یادداشتی ثبت شده باشد، با بارگذاری دوبارهٔ صفحه نمایش داده می‌شود.</p>
+						<p><a class="dzn-meet-entry__text-action" href="<?php echo esc_url( $finish_url ); ?>">ثبت یادداشت و پایان کلاس</a></p>
 					</article>
 				</div>
 			</section>

@@ -564,6 +564,9 @@ function dzn_theme_route_assets() {
 		$css = get_theme_file_path( 'assets/css/meet-classroom.css' );
 		$version = file_exists( $css ) ? (string) filemtime( $css ) : wp_get_theme()->get( 'Version' );
 		wp_enqueue_style( 'delnavazan-meet-classroom', get_theme_file_uri( 'assets/css/meet-classroom.css' ), array( 'delnavazan-theme' ), $version );
+		$js = get_theme_file_path( 'assets/js/meet-entry.js' );
+		$js_version = file_exists( $js ) ? (string) filemtime( $js ) : wp_get_theme()->get( 'Version' );
+		wp_enqueue_script( 'delnavazan-meet-entry', get_theme_file_uri( 'assets/js/meet-entry.js' ), array(), $js_version, true );
 	}
 }
 add_action( 'wp_enqueue_scripts', 'dzn_theme_route_assets', 21 );

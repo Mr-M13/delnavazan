@@ -2,7 +2,6 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
-use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherLessonNoteRepository;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
@@ -38,7 +37,10 @@ final class TeacherClassroomBriefingReadService {
         }catch(\Throwable){return null;}
         $teacherId=(int)($principal['id']??0);
         if($teacherId<1)return null;
-        if(!(new PrincipalInvitationRepository())->hasActiveTeacherAuthority((int)get_current_user_id(),$teacherId))return null;
+        // Match the join boundary: the owning Teacher principal and the portal-schedule
+        // capability are sufficient. Availability rules are an onboarding concern and must not
+        // hide the lesson briefing or its private note.
+        if(!current_user_can('dzn_view_own_portal_schedule'))return null;
 
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $lesson=$wpdb->get_row($wpdb->prepare(

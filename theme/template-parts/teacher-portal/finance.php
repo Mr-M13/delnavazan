@@ -100,8 +100,9 @@ $format_percentage = static function ( int $basis_points ): string {
 		</section>
 		<section class="dzn-tp-finance-terms" aria-labelledby="teacher-finance-terms">
 			<h3 id="teacher-finance-terms">ترم‌های نزدیک به پایان</h3>
+			<p class="dzn-tp-help">با هنرجو دربارهٔ پایان ترم صحبت کنید و تمدید را پیشنهاد دهید؛ با پرداخت هزینهٔ تمدید، ترم بعدی به‌صورت خودکار ثبت می‌شود.</p>
 			<?php if ( ! $ending_terms ) : ?>
-				<p class="dzn-tp-help">هیچ ترم جاری‌ای در سه جلسهٔ پایانی نیست.</p>
+				<p class="dzn-tp-help">ترمی در سه جلسهٔ پایانی نیست.</p>
 			<?php else : ?>
 				<ul class="dzn-tp-rule-list dzn-tp-finance-terms__list">
 					<?php foreach ( $ending_terms as $term ) : ?>
@@ -123,13 +124,12 @@ $format_percentage = static function ( int $basis_points ): string {
 <section class="dzn-tp-section" aria-labelledby="teacher-finance">
 	<h2 id="teacher-finance">صورت‌حساب‌ها</h2>
 	<?php if ( 'available' === $state && $statements ) : ?>
-		<?php
-		$statementService = class_exists( '\Delnavazan\Platform\Core\Application\Finance\Read\TeacherStatementReadService' ) ? new \Delnavazan\Platform\Core\Application\Finance\Read\TeacherStatementReadService() : null;
-		$payment_labels   = array( 'paid' => 'پرداخت شده', 'unpaid' => 'در انتظار پرداخت' );
-		?>
+		<?php $payment_labels = array( 'paid' => 'پرداخت شده', 'unpaid' => 'در انتظار پرداخت' ); ?>
+		<?php if ( 'queued' === sanitize_key( (string) ( $_GET['statement_email'] ?? '' ) ) ) : ?><p class="dzn-tp-action-status" role="status">صورت‌حساب برای ارسال به ایمیل شما در صف قرار گرفت.</p><?php elseif ( 'failed' === sanitize_key( (string) ( $_GET['statement_email'] ?? '' ) ) ) : ?><p class="dzn-tp-action-status" role="alert">ارسال ایمیل صورت‌حساب در حال حاضر ممکن نشد.</p><?php endif; ?>
 		<ul class="dzn-tp-rule-list dzn-tp-statements">
 			<?php foreach ( $statements as $statement ) : ?>
 				<?php
+				if ( ! in_array( (string) ( $statement['state'] ?? '' ), array( 'issued', 'paid', 'superseded' ), true ) ) { continue; }
 				$currency = (string) ( $statement['currency'] ?? '' );
 				$period   = (string) ( $statement['period_label'] ?? '' );
 				if ( '' === $period ) {
@@ -141,72 +141,33 @@ $format_percentage = static function ( int $basis_points ): string {
 				$payment_label = $payment_labels[ $payment_state ] ?? 'وضعیت پرداخت نامشخص';
 				$paid_at = (string) ( $statement['paid_at'] ?? '' );
 				$issued_at = (string) ( $statement['issued_at'] ?? '' );
-				$downloadable = in_array( (string) ( $statement['state'] ?? '' ), array( 'issued', 'paid', 'superseded' ), true );
-				$lines = array();
-				$lines_state = 'unavailable';
-				if ( $statementService !== null && $statementId > 0 ) {
-					try {
-						$lines = $statementService->statementLines( $statementId, true );
-						$lines_state = 'available';
-					} catch ( \Throwable ) {
-						$lines = array();
-						$lines_state = 'unavailable';
-					}
-				}
 				?>
 				<li class="dzn-tp-statement">
 					<p class="dzn-tp-statement__meta">
 						<strong><?php echo esc_html( $period ); ?></strong>
-						<span> · شناسهٔ <?php echo esc_html( (string) $statementId ); ?></span>
-						<span> · <?php echo esc_html( $state_label ); ?></span>
-						<span> · <?php echo esc_html( $payment_label ); ?><?php if ( 'paid' === $payment_state && '' !== $paid_at ) : ?> (<?php echo esc_html( $format_instant( $paid_at ) ); ?>)<?php endif; ?></span>
-						<?php if ( '' !== $issued_at ) : ?><span> · صدور: <?php echo esc_html( $format_instant( $issued_at ) ); ?></span><?php endif; ?>
+						<span> · <?php echo esc_html( $payment_label ); ?><?php if ( 'paid' === $payment_state && '' !== $paid_at ) : ?> · <?php echo esc_html( $format_instant( $paid_at ) ); ?><?php endif; ?></span>
 					</p>
 					<p class="dzn-tp-statement__totals">
-						<span> · <?php echo esc_html( (string) (int) ( $statement['payable_line_count'] ?? 0 ) ); ?> ردیف قابل پرداخت</span>
-						<span> · <?php echo esc_html( $format_money( (int) ( $statement['payable_amount_minor'] ?? 0 ), $currency ) ); ?></span>
+						<strong><?php echo esc_html( $format_money( (int) ( $statement['payable_amount_minor'] ?? 0 ), $currency ) ); ?></strong>
 						<?php if ( (int) ( $statement['golden_hour_bonus_minor'] ?? 0 ) > 0 ) : ?>
 							<span class="dzn-tp-golden-badge"><?php echo esc_html( sprintf( 'ساعت طلایی +%s', $format_money( (int) $statement['golden_hour_bonus_minor'], $currency ) ) ); ?></span>
 						<?php endif; ?>
 					</p>
-					<?php if ( 'available' === $lines_state && $lines ) : ?>
-						<table class="dzn-tp-statement-lines">
-							<thead>
-								<tr>
-									<th scope="col">تاریخ جلسه</th>
-									<th scope="col">دوره</th>
-									<th scope="col">مدت</th>
-									<th scope="col">نرخ پایه</th>
-									<th scope="col">فوق‌العاده</th>
-									<th scope="col">مبلغ نهایی</th>
-									<th scope="col">وضعیت</th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $lines as $line ) : ?>
-									<tr>
-										<td><?php echo esc_html( $format_instant( (string) ( $line['lesson_date'] ?? '' ) ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $line['course'] ?? '' ) ); ?></td>
-										<td><?php echo esc_html( (string) (int) ( $line['duration_minutes'] ?? 0 ) ); ?> دقیقه</td>
-										<td dir="ltr"><?php echo esc_html( (string) ( $line['base_amount'] ?? '' ) ); ?></td>
-										<td dir="ltr"><?php echo esc_html( (string) ( $line['bonus_amount'] ?? '' ) ); ?></td>
-										<td dir="ltr"><strong><?php echo esc_html( (string) ( $line['amount'] ?? '' ) ); ?></strong></td>
-										<td><?php echo esc_html( 'payable' === (string) ( $line['status'] ?? '' ) ? 'قابل پرداخت' : ( 'pending' === (string) ( $line['status'] ?? '' ) ? 'در انتظار بررسی' : 'غیرقابل پرداخت' ) ); ?></td>
-									</tr>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
-					<?php elseif ( 'unavailable' === $lines_state ) : ?>
-						<p class="dzn-tp-help dzn-tp-statement__error">ریز جلسات این صورت‌حساب در حال حاضر قابل اتکا نیست و برای جلوگیری از نمایش مبلغ نادرست پنهان شده است. مبلغ کل بالا از سوابق ثبت‌شدهٔ صورت‌حساب است.</p>
-					<?php endif; ?>
-					<?php if ( $downloadable && 'available' === $lines_state && $lines ) : ?>
+					<div class="dzn-tp-statement__actions">
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="dzn-tp-statement__download">
 							<input type="hidden" name="action" value="dzn_teacher_statement_download">
+							<input type="hidden" name="presentation" value="print">
 							<input type="hidden" name="statement_id" value="<?php echo (int) $statementId; ?>">
 							<?php dzn_theme_nonce_field( 'dzn_teacher_statement_download' ); ?>
-							<button class="button" type="submit">دانلود صورت‌حساب (HTML)</button>
+							<button class="button" type="submit">چاپ / دانلود PDF</button>
 						</form>
-					<?php endif; ?>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<input type="hidden" name="action" value="dzn_teacher_statement_email">
+							<input type="hidden" name="statement_id" value="<?php echo (int) $statementId; ?>">
+							<?php dzn_theme_nonce_field( 'dzn_teacher_statement_email' ); ?>
+							<button class="button" type="submit">ایمیل به خودم</button>
+						</form>
+					</div>
 				</li>
 			<?php endforeach; ?>
 		</ul>

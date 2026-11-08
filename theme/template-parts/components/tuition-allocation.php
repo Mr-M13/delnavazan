@@ -19,9 +19,9 @@ if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\TuitionAllocat
 ?>
 <section class="dzn-allocation dzn-allocation--transparency" aria-labelledby="<?php echo esc_attr( $id ); ?>">
 	<div class="dzn-allocation__heading">
-		<h2 id="<?php echo esc_attr( $id ); ?>">شهریهٔ پرداخت‌شدهٔ این ترم چگونه هزینه و تخصیص می‌یابد؟</h2>
+		<h2 id="<?php echo esc_attr( $id ); ?>">مبلغ دریافتی یک ترم و تخصیص هزینه‌ها</h2>
 	</div>
-	<p class="dzn-allocation__notice" role="note">این اطلاعات صرفاً برآوردی است و فقط سهم درصدی از شهریه را نشان می‌دهد؛ نه صورت‌حساب، سند هزینه، مالیات پرداخت‌شده یا تسویه‌حساب مدرس. درآمد و هزینه واقعی هر دوره می‌تواند متفاوت باشد.</p>
+	<p class="dzn-allocation__notice" role="note">این اطلاعات صرفاً برآوردی است و بر اساس تعداد ترم‌های فعال می‌تواند تغییر کند؛ دلنوازان تلاش می‌کند این تخمین را به‌روز نگه دارد.</p>
 	<?php if ( $categories ) : ?>
 		<details class="dzn-allocation__details">
 			<summary>مشاهدهٔ درصدهای برآوردی تخصیص</summary>

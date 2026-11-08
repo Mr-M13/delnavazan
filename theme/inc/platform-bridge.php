@@ -1986,7 +1986,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$teacher_name_parts = preg_split( '/\\s+/u', trim( $teacher_name ) );
 	$teacher_first_name = (string) ( $teacher_name_parts[0] ?? $teacher_name );
 	$day_window = in_array( $screen, array( 'home', 'classes' ), true ) ? dzn_theme_platform_teacher_day_window( $teacher_timezone ) : null;
-	$read = dzn_theme_platform_teacher_read_state( $day_window['today_start'] ?? null, $day_window['upcoming_end'] ?? null );
+	// Read every scheduled class from today onward. The 30-day boundary is presentation-only;
+	// it must never hide a real future class from the Teacher.
+	$read = dzn_theme_platform_teacher_read_state( $day_window['today_start'] ?? null, null );
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_teacher_state_model( $screen, in_array($read['state'], array('not_linked','onboarding_required'), true) ? (string)$read['state'] : 'error' ); }
 	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
 	$now = time();
@@ -2071,7 +2073,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( null !== $day_window ) {
 			// The bounded read already scopes these, but never let a stale projection leak a
 			// previous-day or beyond-horizon class into either section.
-			if ( $start < dzn_theme_platform_utc_timestamp( $day_window['today_start'] ) || $start >= dzn_theme_platform_utc_timestamp( $day_window['upcoming_end'] ) ) { continue; }
+			if ( $start < dzn_theme_platform_utc_timestamp( $day_window['today_start'] ) ) { continue; }
 		}
 		$dedupe = $is_booking ? 'booking:' . (string) ( $row['confirmation_uid'] ?? '' ) : 'lesson:' . (string) ( $row['lesson_uid'] ?? '' );
 		if ( 'booking:' === $dedupe || 'lesson:' === $dedupe ) { $dedupe = 'instant:' . (string) $row['starts_at_utc'] . '|' . (string) ( $row['student_display_reference'] ?? '' ); }
@@ -2091,6 +2093,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$calendar = array();
 	$today_classes = array();
 	$upcoming_classes = array();
+	$far_future_classes = array();
 	$past_classes = array();
 	$class_rows = array_merge( $today_rows, $upcoming_rows );
 	$golden_hour = array();
@@ -2372,7 +2375,13 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$past_classes[] = $past_row;
 			continue;
 		}
-		if ( $is_today_row ) { $today_classes[] = $class; } else { $upcoming_classes[] = $class; }
+		if ( $is_today_row ) {
+			$today_classes[] = $class;
+		} elseif ( $start >= dzn_theme_platform_utc_timestamp( $day_window['upcoming_end'] ?? '' ) ) {
+			$far_future_classes[] = $class;
+		} else {
+			$upcoming_classes[] = $class;
+		}
 		$calendarRow = array(
 			'day' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'weekday_month_day' ),
 			'time' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'time' ),
@@ -2679,6 +2688,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'classes' => $classes,
 		'today_classes' => $today_classes,
 		'upcoming_classes' => $upcoming_classes,
+		'far_future_classes' => $far_future_classes,
 		'past_classes' => $past_classes,
 		'today_count' => count( $today_rows ),
 		'upcoming_count' => count( $upcoming_rows ),

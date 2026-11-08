@@ -149,15 +149,16 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
      */
     public function confirmedUpcomingForTeacher(int $teacherId, int $limit = 50, ?string $fromUtc = null, ?string $toUtc = null): array {
         global $wpdb;
-        $limit = max(1, min(80, $limit));
-        $window = null !== $fromUtc && null !== $toUtc;
-        $bounds = $window ? ' AND c.starts_at_utc>=%s AND c.starts_at_utc<%s' : '';
+        $limit = $limit < 1 ? 0 : min(80, $limit);
+        $window = null !== $fromUtc;
+        $bounds = $window ? ' AND c.starts_at_utc>=%s' . ( null !== $toUtc ? ' AND c.starts_at_utc<%s' : '' ) : '';
         // A bounded local-day read must include earlier completed classes from today. Only the
         // unbounded compatibility read needs the short late-join history window.
         $historyWindow = $window ? '' : ' AND c.ends_at_utc>=UTC_TIMESTAMP() - INTERVAL 2 HOUR';
         $args = array($teacherId);
-        if ($window) { $args[] = $fromUtc; $args[] = $toUtc; }
-        $args[] = $limit;
+        if ($window) { $args[] = $fromUtc; if ( null !== $toUtc ) $args[] = $toUtc; }
+        $limitSql = $limit > 0 ? ' LIMIT %d' : '';
+        if ( $limit > 0 ) $args[] = $limit;
         $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
                        c.provider_event_digest,c.confirmed_at,
@@ -194,7 +195,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                   AND c.provider_code='google_calendar'
                   AND c.provider_event_digest IS NOT NULL
                   AND c.confirmed_at IS NOT NULL{$historyWindow}{$bounds}
-                ORDER BY c.starts_at_utc ASC,c.id ASC LIMIT %d";
+                ORDER BY c.starts_at_utc ASC,c.id ASC{$limitSql}";
         $rows = $wpdb->get_results($wpdb->prepare($sql, ...$args));
         if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher confirmed booking schedule unavailable');
         return is_array($rows) ? $rows : array();

@@ -1425,13 +1425,22 @@
   margin: 0;
 }
 
+.dzn-schedule-row__absence {
+  /* Keep the disclosure label readable when the row also contains actions. */
+  flex: 0 1 12rem;
+  min-inline-size: min(100%, 12rem);
+}
+
 .dzn-schedule-row__absence summary {
   min-block-size: 44px;
   display: inline-flex;
+  inline-size: max-content;
+  max-inline-size: 100%;
   align-items: center;
   color: var(--dzn-color-accent);
   cursor: pointer;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 /* One disclosure affordance for every native <details> in the portal. */
@@ -1778,7 +1787,12 @@
 .dzn-schedule-row__meta .dzn-portal-help { flex-basis: 100%; margin: 0; }
 .dzn-schedule-row__calendar { color: var(--dzn-color-text-secondary); font-size: var(--dzn-text-xs); }
 .dzn-schedule-row__absence summary { color: var(--dzn-color-text-secondary); font-size: var(--dzn-text-xs); }
-.dzn-schedule-row__absence-submit { font-size: var(--dzn-text-xs); }
+.dzn-schedule-row__absence-submit {
+  inline-size: max-content;
+  max-inline-size: 100%;
+  font-size: var(--dzn-text-xs);
+  white-space: nowrap;
+}
 
 .dzn-account-status__facts {
   display: grid;

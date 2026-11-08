@@ -7,8 +7,7 @@ $assert = static function (bool $condition, string $message): void {
     if (!$condition) throw new RuntimeException($message);
 };
 
-$assert(!str_contains($component, 'مبلغ'), 'The shared component must not expose a monetary (مبلغ) column or term amount.');
-$assert(!str_contains($component, 'format_money') && !str_contains($component, 'PricingMoney'), 'The shared component must not format money itself.');
+$assert(!str_contains($component, 'format_money') && !str_contains($component, 'PricingMoney'), 'The shared component must not expose or format a monetary value.');
 $assert(!str_contains($component, 'amount_minor') && !str_contains($component, 'paid_minor'), 'The shared component must ignore term amounts in the model.');
 $assert(!str_contains($component, 'term_reference') && !str_contains($component, 'term_id') && !str_contains($component, 'term-'), 'The shared component must not render a term selector or term cards.');
 $assert(!str_contains($component, 'name="term"') && !str_contains($component, '<select'), 'No term selector may remain in the shared component.');
@@ -18,6 +17,6 @@ $assert(str_contains($component, '100.0%'), 'The percentages must explicitly tot
 $estimator = (string) file_get_contents($root . '/src/Core/Application/Finance/TuitionAllocationEstimator.php');
 $assert(str_contains($estimator, 'مالیات کالا و خدمات (GST') && str_contains($estimator, 'پرداختی به اساتید') && str_contains($estimator, "'Google Workspace'"), 'The shared Persian categories must come from the central estimator, including Google Workspace.');
 $assert(!str_contains($component, 'درصد GST سهم برآوردی'), 'The removed GST explanatory note must not return.');
-$assert(str_contains($component, 'برآوردی') && str_contains($component, 'نه گزارش هزینهٔ حسابرسی‌شده'), 'The component must carry a clear estimate disclaimer.');
+$assert(str_contains($component, 'برآوردی') && str_contains($component, 'بر اساس تعداد ترم‌های فعال'), 'The component must carry the current estimate disclaimer.');
 
 echo "tuition-allocation-transparency-contract: OK\n";

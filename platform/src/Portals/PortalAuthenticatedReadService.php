@@ -240,9 +240,12 @@ final class PortalAuthenticatedReadService {
         // whole portal read fail closed; the canonical schedule read still validates every row
         // that is selected. A supplied local-day window is applied in SQL so the portal only
         // materialises bounded current occurrences, not a lifetime history.
-        $window = null !== $fromUtc && null !== $toUtc;
+        // Teacher schedule reads may provide only a lower bound so the portal can show the full
+        // future schedule without imposing an arbitrary time or row cap. Student reads remain
+        // bounded by the existing caller contract.
+        $window = null !== $fromUtc;
         $direction = $window ? 'ASC' : 'DESC';
-        $where = $window ? ' AND v.starts_at_utc>=%s AND v.starts_at_utc<%s' : '';
+        $where = $window ? ' AND v.starts_at_utc>=%s' . ( null !== $toUtc ? ' AND v.starts_at_utc<%s' : '' ) : '';
         // Canonical Lessons keep the authoritative Teacher on the applicable schedule
         // version; older rows may also carry it directly on lessons.teacher_id. Query both
         // representations so newly provisioned future classes remain visible to Teachers.
@@ -250,11 +253,12 @@ final class PortalAuthenticatedReadService {
             ? '(l.teacher_id=%d OR v.teacher_id=%d)'
             : 'l.student_id=%d';
         $canonicalArgs = $kind === 'teacher' ? array($principalId, $principalId) : array($principalId);
-        if ($window) { $canonicalArgs[] = $fromUtc; $canonicalArgs[] = $toUtc; }
-        $canonicalArgs[] = self::LIMIT;
+        if ($window) { $canonicalArgs[] = $fromUtc; if ( null !== $toUtc ) $canonicalArgs[] = $toUtc; }
+        if ( $kind !== 'teacher' || ! $window ) $canonicalArgs[] = self::LIMIT;
+        $canonicalLimit = ( $kind === 'teacher' && $window ) ? '' : ' LIMIT %d';
         $ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE {$ownerWhere} AND l.record_model='canonical_term_lesson_v1'{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction} LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$schedules} v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE {$ownerWhere} AND l.record_model='canonical_term_lesson_v1'{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction}{$canonicalLimit}",
                 ...$canonicalArgs
             )
         );
@@ -271,11 +275,11 @@ final class PortalAuthenticatedReadService {
         // must have the exact current legacy schedule pointer and never acquire canonical portal
         // capabilities (join/absence) merely by becoming visible.
         $legacyArgs = array($principalId);
-        if ($window) { $legacyArgs[] = $fromUtc; $legacyArgs[] = $toUtc; }
-        $legacyArgs[] = self::LIMIT;
+        if ($window) { $legacyArgs[] = $fromUtc; if ( null !== $toUtc ) $legacyArgs[] = $toUtc; }
+        if ( $kind !== 'teacher' || ! $window ) $legacyArgs[] = self::LIMIT;
         $legacyIds = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT l.id FROM {$table} l INNER JOIN {$legacySchedules} v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction} LIMIT %d",
+                "SELECT l.id FROM {$table} l INNER JOIN {$legacySchedules} v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL WHERE l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL{$where} ORDER BY v.starts_at_utc {$direction},l.id {$direction}{$canonicalLimit}",
                 ...$legacyArgs
             )
         );

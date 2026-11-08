@@ -50,6 +50,20 @@ final class TeacherStatementEmailService {
      */
     public function enqueue(int $statementId, bool $retry = false): array {
         FinanceSupport::requireCapability(self::CAPABILITY);
+        return $this->enqueueValidated($statementId, $retry);
+    }
+
+    /** Queue the authenticated Teacher's own issued statement without granting finance-admin access. */
+    public function enqueueOwn(int $statementId, bool $retry = false): array {
+        $owned = false;
+        foreach ($this->statements->ownStatements() as $statement) {
+            if ((int) ($statement['statement_id'] ?? 0) === $statementId) { $owned = true; break; }
+        }
+        if (!$owned) return $this->outcome(false, 'statement_not_found', null, null);
+        return $this->enqueueValidated($statementId, $retry);
+    }
+
+    private function enqueueValidated(int $statementId, bool $retry = false): array {
         $statement = $this->loadStatement($statementId);
         if ((string) ($statement['state'] ?? '') !== 'issued') {
             return $this->outcome(false, 'statement_not_issued', null, null);

@@ -659,6 +659,26 @@
   background: var(--dzn-color-error-surface);
 }
 
+.dzn-tp-class.is-student-1 { border-inline-start-color: var(--dzn-color-primary); }
+.dzn-tp-class.is-student-2 { border-inline-start-color: var(--dzn-color-info); }
+.dzn-tp-class.is-student-3 { border-inline-start-color: var(--dzn-color-warning); }
+.dzn-tp-class.is-student-4 { border-inline-start-color: var(--dzn-color-accent); }
+.dzn-tp-class.is-student-5 { border-inline-start-color: var(--dzn-color-success); }
+.dzn-tp-class.is-student-6 { border-inline-start-color: var(--dzn-color-secondary); }
+
+.dzn-tp-class-horizon {
+  margin-block-start: 1rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .8rem;
+  background: var(--dzn-tp-surface);
+  padding: .75rem 1rem;
+}
+
+.dzn-tp-class-horizon > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
 .dzn-tp-class__time-col {
   display: flex;
   flex-direction: column;

@@ -150,6 +150,13 @@
 .dzn-booking__preference-rank { display: inline-flex; align-items: center; min-height: 1.45rem; margin-block-end: .25rem; border-radius: var(--dzn-radius-pill); background: var(--dzn-color-action-secondary); color: var(--dzn-color-on-action); padding: .1rem .55rem; font-size: .72rem; font-weight: 800; }
 .dzn-booking__time strong,
 .dzn-booking__badge { display: block; font-size: .95rem; }
+.dzn-booking__time > div { min-inline-size: 0; }
+.dzn-booking__remove {
+  flex: 0 0 auto;
+  inline-size: max-content;
+  max-inline-size: 100%;
+  white-space: nowrap;
+}
 .dzn-booking__badge { margin-top: .25rem; color: var(--dzn-color-text-muted); }
 .dzn-booking__badge.is-strong { color: var(--dzn-color-success); }
 .dzn-booking__badge.is-possible { color: var(--dzn-color-warning); }

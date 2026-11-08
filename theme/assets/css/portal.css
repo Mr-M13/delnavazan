@@ -1419,6 +1419,8 @@
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--dzn-space-2);
+  min-inline-size: 0;
+  writing-mode: horizontal-tb;
 }
 
 .dzn-schedule-row__actions form {
@@ -1427,8 +1429,14 @@
 
 .dzn-schedule-row__absence {
   /* Keep the disclosure label readable when the row also contains actions. */
-  flex: 0 1 12rem;
+  flex: 1 1 12rem;
   min-inline-size: min(100%, 12rem);
+  max-inline-size: 100%;
+  writing-mode: horizontal-tb;
+}
+
+.dzn-schedule-row__absence[open] {
+  flex-basis: 100%;
 }
 
 .dzn-schedule-row__absence summary {
@@ -1441,6 +1449,14 @@
   cursor: pointer;
   font-weight: 700;
   white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+
+.dzn-schedule-row__absence > p,
+.dzn-schedule-row__absence > form,
+.dzn-schedule-row__absence > button {
+  writing-mode: horizontal-tb;
+  max-inline-size: 100%;
 }
 
 /* One disclosure affordance for every native <details> in the portal. */

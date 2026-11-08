@@ -71,7 +71,8 @@ $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_reco
 $need(str_contains($bridge,"'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'settings' )"),'Teacher Settings must supply the current terms state');
 $need(str_contains($booking,'/recording-and-ai-policy/'),'online enrolment must link the Recording & AI policy');
 $need(str_contains($booking,'data-booking-consent'),'online enrolment must show the unified one-line consent');
-$need(str_contains($booking,'Recording &amp; AI Policy'),'online enrolment must hyperlink the Recording & AI Policy');
+$need(str_contains($booking,'سیاست ضبط'),'online enrolment must hyperlink the recording policy in Persian');
+$need(str_contains($booking,'هرگز منتشر نمی‌شوند'),'online enrolment must state that recordings are never published');
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
 $projectCopy=$read('../theme/template-parts/recording/project-copy.php');

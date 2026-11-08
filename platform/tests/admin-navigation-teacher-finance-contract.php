@@ -14,7 +14,7 @@ $need($shell, array(
     "'overview' => ['Overview'", "'teachers' => ['Teachers'", "'students' => ['Students'",
     "'enrolment' => ['Enrolment'", "'finance' => ['Finance'", "'settings' => ['Settings'",
     "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
-    "['Intro', 'dzn-enrolment-workspace'", "['Review', 'dzn-enrolment-workspace'", "['Enrolled classes', 'dzn-enrolment-workspace'",
+    "['Enrolment', 'dzn-enrolment-workspace'",
     "'dzn-recording-notices' => 'settings'", "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
 ), 'Navigation must retain six work areas and protected routes');
 $need($menu, array('mappedCoreWorkflowCaps','TEACHER_OPERATIONS_CAP','ENROLMENT_TRIALS_CAP','ENROLLED_CLASSES_CAP','CATALOGUE_WORKSPACE_CAP','FINANCE_WORKSPACE_CAP'), 'Composite navigation must be capability-scoped');

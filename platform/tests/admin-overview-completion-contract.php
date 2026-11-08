@@ -38,12 +38,10 @@ foreach (array(
 $expect(6 === preg_match_all("/\\n        '([a-z]+)' => \\['(?:Overview|Teachers|Students|Enrolment|Finance|Settings)'/", $shell), 'Exactly six primary areas must be declared after consolidating classes into Enrolment.');
 $contains($shell, array(
     "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
-    "['Intro', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
-    "['Review', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'review']]",
-    "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
+    "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
     "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
     "get_theme_file_uri('assets/images/delnavazan-logo.png')",
-), 'Enrolment must expose three operational sub-tabs and Overview must use the approved logo.');
+), 'Enrolment must be one operational surface and Overview must use the approved logo.');
 $expect(!str_contains($shell, '<svg viewBox="0 0 24 24"'), 'The improvised dashboard SVG mark must be replaced by the approved logo.');
 $contains($menu, array("['Overview', 'dzn_view_booking_requests', 'dzn-academy-dashboard'"), 'The registered Overview route must keep its page slug and capability.');
 $contains($dashboard, array('<h1>Overview</h1>'), 'The visible page title must be Overview.');
@@ -117,8 +115,8 @@ $contains($attendance, array(
     'canonical attendance',
 ), 'Attendance confirmation must use the existing canonical attendance authority.');
 $contains($classController, array('dzn_academy_mark_attended', 'dzn_academy_reschedule_class', 'CanonicalLessonScheduleService', 'AdminAttendanceConfirmationService'), 'Overview class actions need authenticated canonical HTTP boundaries.');
-$contains($enrolmentWorkspace, array('EnrolmentWorkspaceView', 'AdministratorBookingMatchService', 'HistoricalEnrolmentImportService'), 'Enrolment must deliver the three operational sub-tabs and guided match/import actions.');
-$contains((string) file_get_contents($root . '/src/Admin/View/EnrolmentWorkspaceView.php'), array('needs_action', 'Action needed', 'conversion', 'Shared class action component'), 'The Enrolment workspace must expose urgent actions, trustworthy conversion reporting and shared class actions.');
+$contains($enrolmentWorkspace, array('EnrolmentWorkspaceView', 'AdministratorBookingMatchService', 'HistoricalEnrolmentImportService', 'CanonicalLessonScheduleService'), 'Enrolment must deliver the unified surface, guided match/import actions and manual standard class creation.');
+$contains((string) file_get_contents($root . '/src/Admin/View/EnrolmentWorkspaceView.php'), array('attention', 'Needs attention', 'conversion', 'Shared class action component', 'Create standard class'), 'The Enrolment workspace must expose urgent actions, trustworthy conversion reporting, standard class creation and shared class actions.');
 $expect(str_contains($bootstrap, 'AcademyClassOperationsController::register()'), 'Class action controllers must be registered by the plugin bootstrap.');
 
 // Real 30-day activity dataset.

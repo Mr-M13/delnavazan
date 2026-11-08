@@ -17,6 +17,7 @@ final class EnrolmentWorkspaceReadService {
     private array $importCompletedCache = array();
     /** @var array<string,mixed>|null */
     private ?array $organizerReadinessCache = null;
+    private ?bool $teacherNoteTableCache = null;
 
     public function __construct() {
         global $wpdb;
@@ -110,7 +111,7 @@ final class EnrolmentWorkspaceReadService {
             $right = (string) ($b['starts_at_utc'] ?: '9999-12-31 23:59:59');
             return $history ? strcmp($right, $left) : strcmp($left, $right);
         });
-        $perPage = 25;
+        $perPage = max(10, min(600, (int) ($filters['per_page'] ?? 25)));
         $total = count($out);
         $pages = max(1, (int) ceil($total / $perPage));
         $page = max(1, min($pages, (int) ($filters['page'] ?? 1)));
@@ -122,6 +123,297 @@ final class EnrolmentWorkspaceReadService {
             'per_page' => $perPage,
             'counts' => $counts,
         );
+    }
+
+    /**
+     * One operational queue that puts introductory requests and enrolled classes side by side.
+     * Introductory rows stay first when they still need an operator decision.
+     *
+     * @return array{rows:array<int,array<string,mixed>>,total:int,page:int,pages:int,per_page:int,counts:array<string,int>}
+     */
+    public function enrolmentQueue(array $filters, bool $history = false): array {
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_manage_lessons', 'dzn_manage_canonical_lessons', 'dzn_manage_canonical_lesson_schedules', 'dzn_manage_enrolments', 'dzn_manage_terms', 'dzn_manage_canonical_terms', 'dzn_manage_canonical_attendance_review', 'dzn_manage_post_intro_automation'));
+        $search = strtolower(trim((string) ($filters['q'] ?? '')));
+        $type = sanitize_key((string) ($filters['type'] ?? ''));
+        $attentionOnly = sanitize_key((string) ($filters['attention'] ?? '')) === '1';
+        $todayOnly = sanitize_key((string) ($filters['when'] ?? '')) === 'today';
+        $teacherId = (int) ($filters['teacher_id'] ?? 0);
+        $studentId = (int) ($filters['student_id'] ?? 0);
+        $courseId = (int) ($filters['course_id'] ?? 0);
+        $date = trim((string) ($filters['date'] ?? ''));
+        $rows = array();
+
+        if (current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination')) {
+            $introFilters = array('q' => (string) ($filters['q'] ?? ''), 'stage' => (string) ($filters['stage'] ?? ''), 'page' => 1);
+            foreach ($this->bookingCases($introFilters, $history)['rows'] as $case) {
+                $confirmation = $case['confirmation'] ?? null;
+                $firstTime = (array) ($case['requested_times'][0] ?? array());
+                $startsAt = (string) ($confirmation['starts_at_utc'] ?? ($firstTime['starts_at_utc'] ?? ''));
+                $dateLabel = $confirmation !== null ? (string) ($confirmation['label'] ?? '') : (string) ($firstTime['label'] ?? 'Schedule not set');
+                $localDate = (string) ($confirmation['local_date'] ?? '');
+                if ($localDate === '' && $startsAt !== '') $localDate = substr($startsAt, 0, 10);
+                $attention = !$history && $this->introNeedsAttention($case);
+                $rows[] = array(
+                    'kind' => 'intro',
+                    'type_label' => 'Intro',
+                    'id' => (int) $case['id'],
+                    'reference' => (string) $case['reference'],
+                    'student_id' => (int) ($case['student_id'] ?? 0),
+                    'student_name' => (string) $case['learner_name'],
+                    'teacher_id' => (int) ($case['teacher_id'] ?? 0),
+                    'teacher_name' => (string) $case['teacher_name'],
+                    'course_id' => (int) ($case['course_id'] ?? 0),
+                    'instrument' => (string) $case['instrument'],
+                    'course_name' => (string) $case['course'],
+                    'term_reference' => '',
+                    'term_progress' => '',
+                    'starts_at_utc' => $startsAt,
+                    'date_label' => $dateLabel,
+                    'local_date' => $localDate,
+                    'is_today' => $localDate !== '' && $localDate === $this->academyToday(),
+                    'state_label' => (string) $case['stage_label'],
+                    'attendance_label' => $confirmation !== null ? (string) ($confirmation['state_label'] ?? '') : 'Not scheduled',
+                    'attention' => $attention,
+                    'attention_reason' => $attention ? (string) $case['next_action'] : '',
+                    'next_action' => (string) $case['next_action'],
+                    'url' => admin_url('admin.php?page=dzn-enrolment-workspace&request_id=' . (int) $case['id']),
+                    'meet_retry' => !empty($confirmation['recovery_eligible']) && (string) ($confirmation['state'] ?? '') === 'failed' ? $confirmation : null,
+                    'history' => $history,
+                );
+            }
+        }
+
+        if (current_user_can('dzn_manage_lessons') || current_user_can('dzn_manage_canonical_lessons') || current_user_can('dzn_manage_enrolments')) {
+            $classFilters = array(
+                'q' => (string) ($filters['q'] ?? ''),
+                'teacher_id' => $teacherId,
+                'student_id' => $studentId,
+                'course_id' => $courseId,
+                'term_id' => (int) ($filters['term_id'] ?? 0),
+                'date' => $date,
+                'action' => (string) ($filters['action'] ?? ''),
+                'page' => 1,
+                'per_page' => 600,
+            );
+            foreach ($this->classes($classFilters, $history)['rows'] as $class) {
+                $attention = !$history && !empty($class['action_needed']);
+                $rows[] = array(
+                    'kind' => (string) $class['lesson_type'] === 'replacement' ? 'replacement' : 'standard',
+                    'type_label' => (string) $class['lesson_type'] === 'replacement' ? 'Replacement' : 'Standard',
+                    'id' => (int) $class['id'],
+                    'reference' => (string) $class['reference'],
+                    'student_id' => (int) $class['student_id'],
+                    'student_name' => (string) $class['student_name'],
+                    'teacher_id' => (int) $class['teacher_id'],
+                    'teacher_name' => (string) $class['teacher_name'],
+                    'course_id' => (int) $class['course_id'],
+                    'instrument' => (string) $class['course_name'],
+                    'course_name' => (string) $class['course_name'],
+                    'term_reference' => (string) $class['term_reference'],
+                    'term_progress' => (string) $class['term_progress'],
+                    'starts_at_utc' => (string) $class['starts_at_utc'],
+                    'date_label' => (string) $class['local_label'],
+                    'local_date' => (string) $class['local_date'],
+                    'is_today' => (string) $class['local_date'] === $this->academyToday(),
+                    'state_label' => (string) $class['state_label'],
+                    'attendance_label' => (string) $class['attendance']['label'],
+                    'attention' => $attention,
+                    'attention_reason' => $attention ? ((string) ($class['action_needed'] ?: 'Today')) : '',
+                    'next_action' => (string) ($class['action_needed'] ?: 'Open class'),
+                    'url' => admin_url('admin.php?page=dzn-enrolment-workspace&class_id=' . (int) $class['id']),
+                    'meet_retry' => null,
+                    'history' => $history,
+                );
+            }
+        }
+
+        $rows = array_values(array_filter($rows, function (array $row) use ($search, $type, $attentionOnly, $todayOnly, $teacherId, $studentId, $courseId, $date): bool {
+            if ($search !== '') {
+                $haystack = strtolower(implode(' ', array((string) $row['reference'], (string) $row['student_name'], (string) $row['teacher_name'], (string) $row['instrument'], (string) $row['course_name'], (string) $row['term_reference'])));
+                if (!str_contains($haystack, $search)) return false;
+            }
+            if ($type !== '' && (string) $row['kind'] !== $type && !($type === 'class' && in_array((string) $row['kind'], array('standard', 'replacement'), true))) return false;
+            if ($attentionOnly && empty($row['attention'])) return false;
+            if ($todayOnly && (string) $row['local_date'] !== $this->academyToday()) return false;
+            if ($teacherId > 0 && (int) $row['teacher_id'] !== $teacherId) return false;
+            if ($studentId > 0 && (int) $row['student_id'] !== $studentId) return false;
+            if ($courseId > 0 && (int) $row['course_id'] !== $courseId) return false;
+            if ($date !== '' && (string) $row['local_date'] !== $date) return false;
+            return true;
+        }));
+
+        $today = $this->academyToday();
+        usort($rows, static function (array $a, array $b) use ($history, $today): int {
+            if ($history) return strcmp((string) ($b['starts_at_utc'] ?: '0000'), (string) ($a['starts_at_utc'] ?: '0000'));
+            $rank = static fn(array $row): int => !empty($row['attention']) ? 0 : ((string) ($row['local_date'] ?? '') === $today ? 1 : 2);
+            return array($rank($a), (string) ($a['starts_at_utc'] ?: '9999'), (int) $a['id'])
+                <=> array($rank($b), (string) ($b['starts_at_utc'] ?: '9999'), (int) $b['id']);
+        });
+
+        $perPage = 30;
+        $total = count($rows);
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($pages, (int) ($filters['page'] ?? 1)));
+        return array(
+            'rows' => array_slice($rows, ($page - 1) * $perPage, $perPage),
+            'total' => $total,
+            'page' => $page,
+            'pages' => $pages,
+            'per_page' => $perPage,
+            'counts' => array(
+                'attention' => count(array_filter($rows, static fn(array $row): bool => !empty($row['attention']))),
+                'today' => count(array_filter($rows, static fn(array $row): bool => (string) ($row['local_date'] ?? '') === $today)),
+                'intro' => count(array_filter($rows, static fn(array $row): bool => (string) $row['kind'] === 'intro')),
+                'class' => count(array_filter($rows, static fn(array $row): bool => in_array((string) $row['kind'], array('standard', 'replacement'), true))),
+                'meet_retry' => count(array_filter($rows, static fn(array $row): bool => !empty($row['meet_retry']))),
+                'teacher' => count(array_filter($rows, static fn(array $row): bool => str_contains(strtolower((string) ($row['attention_reason'] ?? '')), 'teacher'))),
+                'attendance' => count(array_filter($rows, static fn(array $row): bool => str_contains(strtolower((string) ($row['attention_reason'] ?? '')), 'attendance'))),
+            ),
+        );
+    }
+
+    /**
+     * Snapshot for the Enrolment landing card. All counts are read-only and period-labelled.
+     *
+     * @return array<string,mixed>
+     */
+    public function enrolmentSnapshot(int $days = 90): array {
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_manage_lessons', 'dzn_manage_canonical_lessons', 'dzn_manage_canonical_lesson_schedules', 'dzn_manage_enrolments', 'dzn_manage_terms', 'dzn_manage_canonical_terms', 'dzn_manage_canonical_attendance_review', 'dzn_manage_post_intro_automation'));
+        global $wpdb;
+        $now = gmdate('Y-m-d H:i:s');
+        $from = gmdate('Y-m-d H:i:s', strtotime('-' . max(1, $days) . ' days'));
+        $report = (current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination'))
+            ? $this->conversionReport(substr($from, 0, 10), substr($now, 0, 10))
+            : array('denominator' => 0, 'converted' => 0, 'awaiting' => 0, 'did_not_convert' => 0, 'excluded' => 0, 'period' => array('from' => substr($from, 0, 10), 'to' => substr($now, 0, 10)));
+        $scheduled = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT c.booking_request_id) FROM {$this->p}booking_request_confirmations c
+             INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+             WHERE c.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=c.booking_request_id)
+               AND c.starts_at_utc>=%s AND c.state IN ('confirmed','awaiting_payment') AND r.lifecycle_status='submitted' AND r.privacy_erased_at IS NULL",
+            $now
+        ));
+        $completed = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->p}booking_request_intro_outcomes WHERE recorded_at>=%s",
+            $from
+        ));
+        $elapsed = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->p}booking_request_confirmations c
+             INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+             WHERE c.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id)
+               AND c.starts_at_utc<%s AND c.state IN ('confirmed','awaiting_payment')
+               AND r.lifecycle_status='submitted' AND r.privacy_erased_at IS NULL
+               AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id)",
+            gmdate('Y-m-d H:i:s', strtotime('-4 hours'))
+        ));
+        $terms = $wpdb->get_results(
+            "SELECT t.id,t.sequence_number,t.lesson_allocation,t.starts_at,t.ends_at,
+                    (SELECT COUNT(*) FROM {$this->p}lessons l
+                     WHERE l.term_id=t.id AND l.lesson_type='standard' AND l.archived_at IS NULL
+                       AND COALESCE(l.lifecycle_state,l.status)='completed') completed
+             FROM {$this->p}terms t
+             WHERE t.archived_at IS NULL AND (
+                    (t.record_model='canonical_enrolment_term_v1' AND t.applicable_slot=1 AND t.lifecycle_state IN ('current','authorised'))
+                    OR (t.record_model='legacy_phase1' AND t.status IN ('active','current'))
+             )"
+        ) ?: array();
+        $activeTerms = 0; $renewedTerms = 0; $endingTerms = 0;
+        $endingBoundary = gmdate('Y-m-d H:i:s', strtotime('+14 days'));
+        foreach ($terms as $term) {
+            $activeTerms++;
+            if ((int) $term->sequence_number > 1) $renewedTerms++;
+            $remaining = max(0, (int) $term->lesson_allocation - (int) $term->completed);
+            $endsSoon = (string) ($term->ends_at ?? '') !== '' && (string) $term->ends_at <= $endingBoundary;
+            if ($remaining <= 2 || $endsSoon) $endingTerms++;
+        }
+        return array(
+            'period' => array('days' => max(1, $days), 'from' => substr($from, 0, 10), 'to' => substr($now, 0, 10)),
+            'intros_total' => (int) $report['denominator'],
+            'intros_scheduled' => $scheduled,
+            'intros_completed' => $completed,
+            'intros_converted' => (int) $report['converted'],
+            'intros_awaiting' => (int) $report['awaiting'],
+            'intros_elapsed' => $elapsed,
+            'terms_active' => $activeTerms,
+            'terms_renewed' => $renewedTerms,
+            'terms_ending' => $endingTerms,
+        );
+    }
+
+    /**
+     * Post-intro survey signals for the onboarding team.
+     *
+     * @return array{total:int,reasons:array<int,array<string,mixed>>,recent:array<int,array<string,mixed>>}
+     */
+    public function surveyInsights(int $limit = 8): array {
+        $this->requireAny(array('dzn_manage_post_intro_automation', 'dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
+        global $wpdb;
+        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$this->p}post_intro_feedback");
+        $reasons = $wpdb->get_results(
+            "SELECT feedback_reason,continuation_choice,COUNT(*) total
+             FROM {$this->p}post_intro_feedback
+             GROUP BY feedback_reason,continuation_choice
+             ORDER BY total DESC LIMIT 12"
+        ) ?: array();
+        $recent = $wpdb->get_results($wpdb->prepare(
+            "SELECT f.id,f.feedback_reason,f.feedback_comment,f.continuation_choice,f.follow_up_status,f.submitted_at,
+                    COALESCE(NULLIF(s.display_name,''),'Student') student_name
+             FROM {$this->p}post_intro_feedback f
+             LEFT JOIN {$this->p}students s ON s.id=f.student_id
+             ORDER BY f.submitted_at DESC LIMIT %d",
+            max(1, min(30, $limit))
+        )) ?: array();
+        return array('total' => $total, 'reasons' => $reasons, 'recent' => $recent);
+    }
+
+    /** @return array<int,object> */
+    public function enrolmentOptions(int $limit = 300): array {
+        $this->requireAny(array('dzn_manage_enrolments', 'dzn_manage_canonical_lessons', 'dzn_manage_lessons'));
+        global $wpdb;
+        $limit = max(1, min(400, $limit));
+        $canonical = $wpdb->get_results($wpdb->prepare(
+            "SELECT e.id,e.reference_code,e.schedule_timezone,e.student_id,e.course_id,
+                    'canonical_student_course_v1' record_model,
+                    COALESCE(NULLIF(s.display_name,''),'Student') student_name,
+                    COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
+                    t.id term_id,t.reference_code term_reference,t.sequence_number term_sequence,t.lesson_allocation,
+                    ta.id assignment_id,ta.teacher_id,
+                    COALESCE(NULLIF(teacher.display_name,''),NULLIF(teacher.english_name,''),teacher.persian_name) teacher_name
+             FROM {$this->p}enrolments e
+             INNER JOIN {$this->p}students s ON s.id=e.student_id
+             INNER JOIN {$this->p}courses c ON c.id=e.course_id
+             INNER JOIN {$this->p}terms t ON t.enrolment_id=e.id AND t.applicable_slot=1 AND t.archived_at IS NULL AND t.lifecycle_state IN ('current','authorised')
+             INNER JOIN {$this->p}teacher_assignments ta ON ta.enrolment_id=e.id AND ta.applicable_slot=1 AND ta.state='assigned'
+             INNER JOIN {$this->p}teachers teacher ON teacher.id=ta.teacher_id
+             WHERE e.archived_at IS NULL AND e.lifecycle_state IN ('current','authorised')
+               AND t.lesson_allocation > (SELECT COUNT(*) FROM {$this->p}lessons l
+                    WHERE l.term_id=t.id AND l.lesson_type='standard' AND l.archived_at IS NULL
+                      AND COALESCE(l.lifecycle_state,l.status) NOT IN ('cancelled','archived'))
+             ORDER BY s.display_name ASC LIMIT %d",
+            $limit
+        )) ?: array();
+        $legacy = $wpdb->get_results($wpdb->prepare(
+            "SELECT e.id,e.reference_code,e.schedule_timezone,e.student_id,e.course_id,
+                    'legacy_phase1' record_model,
+                    COALESCE(NULLIF(s.display_name,''),'Student') student_name,
+                    COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
+                    t.id term_id,t.reference_code term_reference,t.sequence_number term_sequence,t.lesson_allocation,
+                    0 assignment_id,e.teacher_id,
+                    COALESCE(NULLIF(teacher.display_name,''),NULLIF(teacher.english_name,''),teacher.persian_name) teacher_name
+             FROM {$this->p}enrolments e
+             INNER JOIN {$this->p}students s ON s.id=e.student_id
+             INNER JOIN {$this->p}courses c ON c.id=e.course_id
+             INNER JOIN {$this->p}terms t ON t.enrolment_id=e.id AND t.archived_at IS NULL AND t.status IN ('active','current')
+             INNER JOIN {$this->p}teachers teacher ON teacher.id=e.teacher_id
+             WHERE e.archived_at IS NULL AND e.record_model='legacy_phase1' AND e.status IN ('active','current') AND e.teacher_id IS NOT NULL
+               AND t.lesson_allocation > (SELECT COUNT(*) FROM {$this->p}lessons l
+                    WHERE l.term_id=t.id AND l.lesson_type='standard' AND l.archived_at IS NULL
+                      AND l.status NOT IN ('cancelled','archived'))
+             ORDER BY s.display_name ASC LIMIT %d",
+            $limit
+        )) ?: array();
+        $options = array_merge($canonical, $legacy);
+        usort($options, static fn(object $a, object $b): int => strcmp((string) $a->student_name, (string) $b->student_name));
+        return array_slice($options, 0, $limit);
     }
 
     /** @return array<string,mixed>|null */
@@ -138,6 +430,7 @@ final class EnrolmentWorkspaceReadService {
         $class['term'] = $this->termDetail((int) ($class['term_id'] ?? 0));
         $class['assignment_history'] = $this->assignmentHistory((int) ($class['enrolment_id'] ?? 0));
         $class['import_evidence'] = $this->importEvidence((int) ($class['enrolment_id'] ?? 0));
+        $class['teacher_note'] = $this->teacherNote((int) $class['id'], (int) $class['teacher_id']);
         return $class;
     }
 
@@ -520,6 +813,8 @@ final class EnrolmentWorkspaceReadService {
             'deadline_at' => $deadline['utc'],
             'deadline_label' => $deadline['label'],
             'deadline_note' => $deadline['note'],
+            'student_id' => (int) ($row->student_id ?? 0),
+            'course_id' => (int) ($row->selected_intro_course_id ?? 0),
             'learner_name' => (string) ($row->full_name ?: 'Learner'),
             'email' => (string) ($row->email ?? ''),
             'phone' => (string) ($row->mobile ?? ''),
@@ -533,7 +828,7 @@ final class EnrolmentWorkspaceReadService {
             'stage_key' => $stage['key'],
             'stage_label' => $stage['label'],
             'next_action' => $stage['next_action'],
-            'teacher_id' => (int) $coordination['teacher_id'],
+            'teacher_id' => (int) ($confirmation['teacher_id'] ?? $coordination['teacher_id']),
             'teacher_name' => $teacher !== '' ? $teacher : 'Teacher not selected',
             'teacher_response' => $teacherResponse !== '' ? $teacherResponse : 'No response recorded',
             'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0, $pending !== null ? 1 : 0),
@@ -1387,6 +1682,32 @@ final class EnrolmentWorkspaceReadService {
             'replacement_used' => $this->replacementUsed((int) ($row->term_id ?? 0)),
             'is_replacement' => (string) $row->lesson_type === 'replacement',
         );
+    }
+
+    /** @param array<string,mixed> $case */
+    private function introNeedsAttention(array $case): bool {
+        $stage = (string) ($case['stage_key'] ?? '');
+        if (in_array($stage, array('identity', 'teacher_match', 'intro_outcome', 'provisioning_failed', 'provisioning_pending', 'intro_payment_pending'), true)) return true;
+        $confirmation = $case['confirmed'] ?? null;
+        if ($confirmation && (string) ($confirmation['state'] ?? '') === 'failed') return true;
+        return (int) ($case['urgency_rank'] ?? 9) <= 1;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function teacherNote(int $lessonId, int $teacherId): ?array {
+        if ($lessonId < 1 || $teacherId < 1) return null;
+        global $wpdb;
+        if ($this->teacherNoteTableCache === null) {
+            $table = $this->p . 'teacher_lesson_notes';
+            $this->teacherNoteTableCache = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+        }
+        if (!$this->teacherNoteTableCache) return null;
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT note_text,updated_at FROM {$this->p}teacher_lesson_notes WHERE lesson_id=%d AND teacher_id=%d LIMIT 1",
+            $lessonId, $teacherId
+        ));
+        if (!$row || trim((string) $row->note_text) === '') return null;
+        return array('text' => (string) $row->note_text, 'updated_at' => (string) $row->updated_at);
     }
 
     private function classActionNeeded(object $row, string $bucket, array $attendance): string {

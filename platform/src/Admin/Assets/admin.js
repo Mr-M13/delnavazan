@@ -76,6 +76,21 @@
         });
     }
 
+    function syncStandardTimezone(select) {
+        var form = select.closest ? select.closest('[data-dzn-standard-class]') : null;
+        if (!form) return;
+        var timezone = form.querySelector('[name="schedule_timezone"]');
+        var option = select.options[select.selectedIndex];
+        var value = option ? option.getAttribute('data-timezone') || '' : '';
+        if (!timezone || !value) return;
+        if (timezone.querySelector('option[value="' + value.replace(/"/g, '\\"') + '"]')) timezone.value = value;
+    }
+
+    document.addEventListener('change', function (event) {
+        var select = event.target.closest ? event.target.closest('[data-dzn-standard-enrolment]') : null;
+        if (select) syncStandardTimezone(select);
+    });
+
     document.addEventListener('click', function (event) {
         var copy = event.target.closest ? event.target.closest('[data-dzn-copy]') : null;
         if (copy) {

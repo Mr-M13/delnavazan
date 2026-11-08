@@ -39,9 +39,8 @@ $teacherHome = $read('theme/template-parts/teacher-portal/home.php');
 $banner = $read('theme/template-parts/components/notification-banner.php');
 $themeCss = $read('theme/assets/css/theme.css');
 
-// 1–2. The visible first tab is Intro and the old administration card/eyebrow is gone.
-$contains($view, array("\$tabs['new'] = 'Intro';", "\$tabs['review'] = 'Review';", "\$tabs['enrolled'] = 'Enrolled classes';"), 'Enrolment tabs must expose Intro, Review and Enrolled classes');
-$contains($view, array('<h1>Intro</h1>', '<h1>Review</h1>'), 'The first tab and review tab must use the requested names');
+// 1–2. Enrolment is one surface; intro review and conversion live inside it.
+$contains($view, array('public static function dashboard(', '<h1>Enrolment</h1>', 'Overview snapshot'), 'Enrolment must be a single overview surface');
 $notContains($view, array('Enrolment administration</p>', '<p class="dzn-eyebrow">Enrolment administration'), 'The old Enrolment administration card text must not remain');
 
 // 3. Conversion overview carries student, course, teacher, date and elapsed time.
@@ -121,10 +120,8 @@ $contains($portalController, array(
 ), 'Portal controller must register Teacher and Student intro actions');
 $contains($bootstrap, array('IntroLessonLifecycleController::register()'), 'Portal intro controller must be registered');
 $contains($read('src/Admin/Controller/AdminShellController.php'), array(
-    "['Intro', 'dzn-enrolment-workspace'",
-    "['Review', 'dzn-enrolment-workspace'",
-    "['Enrolled classes', 'dzn-enrolment-workspace'",
-), 'The shared Enrolment area navigation must expose Intro, Review and Enrolled classes');
+    "['Enrolment', 'dzn-enrolment-workspace'",
+), 'The shared Enrolment area navigation must expose one Enrolment surface');
 $contains($studentSchedule, array('intro_cancel_available', 'intro_cancel_action_url', 'لغو کلاس آشنایی'), 'Student schedule must render the intro cancel action');
 $contains($teacherClasses, array("dzn_theme_teacher_portal_component( 'intro-actions'"), 'Teacher classes must render intro actions');
 $contains($teacherActions, array('intro_cancel_action_url', 'intro_reschedule_action_url', 'intro_reschedule_nonce', 'منطقهٔ زمانی', 'تغییر زمان کلاس آشنایی', 'لغو کلاس آشنایی'), 'Teacher intro actions must offer cancel and reschedule');
@@ -133,8 +130,8 @@ $contains($css, array('.dzn-enrolment__page-head', '.dzn-review-table'), 'Layout
 // Portal notification card is replaced by a narrow bottom banner, shown only when unread mail exists.
 $notContains($studentShell, array("dzn_theme_portal_component(\n\t\t\t\t'notifications'", "'notifications',\n"), 'Student portal must not render the notification card');
 $notContains($teacherHome, array("'notifications'"), 'Teacher home must not render the notification card');
-$contains($studentShell, array("template-parts/components/notification-banner", "'role' => 'student'"), 'Student portal must render the shared notification banner');
-$contains($teacherShell, array("template-parts/components/notification-banner", "'role' => 'teacher'"), 'Teacher portal must render the shared notification banner');
+$contains($studentShell, array("dzn_theme_portal_component( 'notification-banner'", "'role' => 'student'"), 'Student portal must render the shared notification banner');
+$contains($teacherShell, array("dzn_theme_teacher_portal_component( 'notification-banner'", "'role' => 'teacher'"), 'Teacher portal must render the shared notification banner');
 $contains($banner, array(
     'data-dzn-notification-banner',
     'data-dzn-notification-close',

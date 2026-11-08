@@ -24,19 +24,17 @@ $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
 
-$expect(3 === preg_match_all("/\\['(?:Intro|Review|Enrolled classes)'/", $shell), 'Enrolment must expose exactly three sub-tabs.');
+$expect(1 === preg_match_all("/\\['Enrolment', 'dzn-enrolment-workspace'/", $shell), 'Enrolment must expose one destination without sub-tabs.');
 $contains($shell, array(
-    "['Intro', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'new']]",
-    "['Review', 'dzn-enrolment-workspace', Menu::ENROLMENT_TRIALS_CAP, ['view' => 'review']]",
-    "['Enrolled classes', 'dzn-enrolment-workspace', Menu::ENROLLED_CLASSES_CAP, ['view' => 'enrolled']]",
+    "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
     "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
-), 'The three Enrolment destinations and the protected Settings catalogue route are required.');
+), 'The single Enrolment destination and the protected Settings catalogue route are required.');
 $general = $read('src/Admin/Controller/GeneralSettingsController.php');
 $contains($general, array("admin.php?page=dzn-catalogue-workspace", 'Open courses and instruments'), 'The catalogue must remain discoverable from General.');
 $notContains($shell, array("['Classes & Schedules'", "['Attendance & Post-intro'", "['Bookings & Enrolments'", "['Courses & Instruments'"), 'The former four visible Enrolment destinations must be gone.');
 $contains($menu, array(
     "['Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests'",
-    "['Request coordination', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination'",
+    "['Class admin', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination'",
     "['Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment'",
     "['Terms', 'dzn_manage_terms', 'dzn-term'",
     "['Classes', 'dzn_manage_lessons', 'dzn-lesson'",
@@ -47,9 +45,22 @@ $contains($menu, array(
 $contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'MeetAdministratorJoinController::register()'), 'The workspace and administrator classroom boundaries must be registered.');
 
 $contains($view, array(
-    'Action needed',
+    'public static function dashboard(',
+    'Overview snapshot',
+    'Scheduled',
+    'Converted',
+    'Completed, elapsed',
+    'Active terms',
+    'Renewed terms',
+    'Almost ending',
+    'Needs attention first',
+    'Create standard class',
+    'Open Class admin',
+    'Retry Google Meet',
+    'Intro conversion and onboarding signals',
+    'Post-intro survey results',
+    'Class history',
     'History',
-    'Completed, cancelled, expired and archived cases',
     'Requested times',
     'Country / timezone',
     'Teacher response',
@@ -75,6 +86,29 @@ $contains($view, array(
     'Diagnostics',
 ), 'The workspace must expose the required facts, states and actions.');
 $notContains($view, array('A clicked link proves attendance', 'outbox proves delivery'), 'The workspace must not imply delivery or attendance from weak evidence.');
+$notContains($view, array('nav-tab-wrapper', 'dzn-enrolment__tabs', "\$tabs['new']", "\$tabs['review']", "\$tabs['enrolled']"), 'Enrolment must not render or keep sub-tabs.');
+$contains($view, array(
+    'dzn-unified-table',
+    "'dzn-unified-row', 'dzn-unified-row--'",
+    'is-attention',
+    'Needs attention only',
+    'Search everything',
+    'Intro stage',
+    'Teacher',
+    'Student',
+    'Instrument',
+    'Term',
+), 'The unified queue must provide colour classes and strong filters.');
+$contains($controller, array('create_standard_class', 'term_assignment', 'legacy_phase1', 'LessonService', 'LessonScheduleService', "requireCap('dzn_manage_canonical_lesson_schedules')"), 'Manual standard class creation must support canonical and historical Enrolments through their owning authorities.');
+$contains($readService, array("'legacy_phase1' record_model", 'record_model', 'assignment_id'), 'Enrolment options must expose both canonical and historical Enrolments for manual class allocation.');
+$contains($css, array(
+    '.dzn-enrolment-snapshot',
+    '.dzn-snapshot-stat--danger',
+    '.dzn-unified-table',
+    '.dzn-unified-row--intro',
+    '.dzn-unified-row.is-attention',
+    '.dzn-task-chip--danger',
+), 'The Enrolment landing must style the snapshot, attention queue and task chips.');
 
 $contains($manual, array(
     "CAPABILITY = 'dzn_manage_booking_request_coordination'",
@@ -97,6 +131,8 @@ $contains($intro, array(
     'The Teacher already has a class at that time',
 ), 'Guided introductory booking must reuse canonical intake, identity and match authorities and preview conflicts.');
 $contains($controller, array(
+    'create_standard_class',
+    'CanonicalLessonAuthorityService',
     'class_reschedule',
     'class_change_teacher',
     'class_cancel',
@@ -108,6 +144,10 @@ $contains($controller, array(
     'import_commit',
 ), 'The contextual controller must implement the requested class, attendance and post-intro actions.');
 $contains($readService, array(
+    'public function enrolmentQueue(',
+    'public function enrolmentSnapshot(',
+    'public function surveyInsights(',
+    'public function enrolmentOptions(',
     "r.lifecycle_status<>'submitted'",
     'canonical_continuation_reservations',
     'Earlier of the first regular slot',

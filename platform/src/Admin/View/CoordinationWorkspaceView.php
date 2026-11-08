@@ -34,20 +34,20 @@ final class CoordinationWorkspaceView {
         $closed = count($cases) - $active;
         echo '<div class="wrap dzn-coordination dzn-coordination--index">';
         self::notices();
-        echo '<header class="dzn-coordination__hero"><div><p class="dzn-eyebrow">Enrolment administration</p><h1>Booking coordination</h1>';
-        echo '<p class="dzn-coordination__lede">One command centre for exceptional booking cases: identity, acceptance authority, Teacher agreement, proposals, final arrangement and the hand-off to Enrolment. Routine bookings that are accepted normally never need this queue.</p></div>';
+        echo '<header class="dzn-coordination__hero"><div><p class="dzn-eyebrow">Enrolment administration</p><h1>Class admin</h1>';
+        echo '<p class="dzn-coordination__lede">Class admin is the command centre for exceptional intro and class cases: identity, acceptance authority, Teacher agreement, proposals, final arrangement and the hand-off to Enrolment. Routine bookings that are accepted normally never need this queue.</p></div>';
         echo '<div class="dzn-coordination__hero-actions">';
-        if (current_user_can('dzn_view_booking_requests')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-enrolment-workspace&view=new')) . '">Open booking queue</a>';
+        if (current_user_can('dzn_view_booking_requests')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-enrolment-workspace')) . '">Open Enrolment</a>';
         echo '</div></header>';
         echo '<div class="dzn-coordination__kpis">';
-        self::kpi((string) $active, 'active coordination cases', 'Needs an operator decision');
+        self::kpi((string) $active, 'active Class admin cases', 'Needs an operator decision');
         self::kpi((string) $closed, 'closed in this view', 'Readable for audit and recovery');
         self::kpi((string) count(array_filter($cases, static fn(array $case): bool => $case['identity'] === 'unresolved')), 'identity blockers', 'Resolve before final acceptance');
         self::kpi((string) count(array_filter($cases, static fn(array $case): bool => $case['open_exceptions'] > 0)), 'with open exceptions', 'Review in context');
         echo '</div>';
         self::openPanel($openable, (int) ($filters['request_id'] ?? 0));
         $q = (string) ($filters['q'] ?? ''); $scope = (string) ($filters['scope'] ?? 'active');
-        echo '<section class="dzn-coordination__section"><div class="dzn-coordination__section-head"><div><p class="dzn-eyebrow">Coordination queue</p><h2>Cases</h2></div><span class="dzn-count-chip">' . esc_html(number_format_i18n(count($cases))) . ' shown</span></div>';
+        echo '<section class="dzn-coordination__section"><div class="dzn-coordination__section-head"><div><p class="dzn-eyebrow">Class admin queue</p><h2>Cases</h2></div><span class="dzn-count-chip">' . esc_html(number_format_i18n(count($cases))) . ' shown</span></div>';
         echo '<form method="get" class="dzn-coordination__filters"><input type="hidden" name="page" value="' . esc_attr(CoordinationCaseController::PAGE) . '">';
         echo '<label class="dzn-coordination__search"><span>Search</span><input type="search" name="q" value="' . esc_attr($q) . '" placeholder="Learner, reference, contact, instrument or course"></label>';
         echo '<label><span>Show</span><select name="scope">';
@@ -56,7 +56,7 @@ final class CoordinationWorkspaceView {
         if ($q !== '' || $scope !== 'active') echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=' . CoordinationCaseController::PAGE)) . '">Reset</a>';
         echo '</form>';
         if (!$cases) {
-            echo '<div class="dzn-empty-state"><h3>No coordination cases match</h3><p>Open a case from an unresolved booking request, or reset the filters. Routine confirmed bookings are handled in the normal booking queue and do not require coordination.</p></div>';
+            echo '<div class="dzn-empty-state"><h3>No Class admin cases match</h3><p>Open a case from an unresolved booking request, or reset the filters. Routine confirmed bookings are handled in the normal booking queue and do not require coordination.</p></div>';
         } else {
             echo '<div class="dzn-coordination__table-wrap"><table class="widefat striped dzn-coordination__table"><thead><tr><th>Learner</th><th>Request</th><th>Offer</th><th>State</th><th>Progress</th><th>Updated</th><th><span class="screen-reader-text">Open</span></th></tr></thead><tbody>';
             foreach ($cases as $case) {
@@ -86,7 +86,7 @@ final class CoordinationWorkspaceView {
         $assessment = $detail['assessment'];
         echo '<div class="wrap dzn-coordination dzn-coordination--detail">';
         self::notices();
-        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . CoordinationCaseController::PAGE)) . '">← Back to coordination cases</a></p>';
+        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . CoordinationCaseController::PAGE)) . '">← Back to Class admin</a></p>';
         echo '<header class="dzn-coordination__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $case['reference']) . ' · ' . esc_html((string) $request['reference']) . '</p><h1>' . esc_html((string) ($detail['student']['name'] ?? $request['learner_name'])) . '</h1><p>' . esc_html((string) $request['instrument']) . ' · ' . esc_html((string) $request['course']) . ' · ' . esc_html((string) $request['lesson_kind']) . '</p></div>';
         echo '<div class="dzn-coordination__case-state">' . self::badge((string) $case['state_label'], $case['closed'] ? 'muted' : 'teal') . self::badge((string) ($detail['identity'] === 'resolved' ? 'Identity verified' : 'Identity needed'), $detail['identity'] === 'resolved' ? 'success' : 'warning') . self::badge((string) $detail['capacity']['label'], $detail['capacity']['resolved'] ? 'success' : 'warning') . '</div></header>';
         echo '<nav class="dzn-coordination__top-actions" aria-label="Essential case actions">';
@@ -622,7 +622,7 @@ final class CoordinationWorkspaceView {
             echo '</ul>';
         }
         echo '</div></div>';
-        echo '<div class="dzn-inline-note"><strong>Unsupported in-place changes:</strong> submitted request preferences and confirmed-intro rescheduling remain unsupported in this workspace. Confirmed booking cancellation uses the dedicated audited authority above. The dashboard does not simulate them. Class rescheduling after conversion lives in the canonical schedule authority.</div>';
+        echo '<div class="dzn-inline-note"><strong>Unsupported in-place changes:</strong> there is no administrator command to rewrite a submitted request’s preferred times and no administrator edit command for submitted request preferences. Confirmed-intro rescheduling also remains unsupported in this workspace; cancellation uses the dedicated audited authority above. The dashboard does not simulate them. Class rescheduling after conversion lives in the canonical schedule authority.</div>';
         echo '</section>';
     }
 

@@ -3,95 +3,279 @@ namespace Delnavazan\Platform\Admin\View;
 
 use Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController;
 use Delnavazan\Platform\Admin\Controller\Menu;
-use Delnavazan\Platform\Core\Application\CanonicalContinuationRule;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
-use Delnavazan\Platform\Core\Application\NotificationDeliveryStatusReadService;
-use Delnavazan\Platform\Core\Application\PostIntroPreparationService;
-use Delnavazan\Platform\Core\Application\TeacherAvailabilityService;
-use Delnavazan\Platform\Core\Application\TeacherAvailabilitySummary;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 
 /** Accessible, responsive presentation for the consolidated Enrolment workspace. */
 final class EnrolmentWorkspaceView {
-    public static function newBookings(EnrolmentWorkspaceReadService $read, array $query): void {
-        $filters = self::bookingFilters($query);
-        $active = $read->bookingCases($filters, false);
+    /** Single Enrolment operation surface: intros and classes together, with no sub-tabs. */
+    public static function dashboard(EnrolmentWorkspaceReadService $read, array $query): void {
+        $canIntros = current_user_can(Menu::ENROLMENT_TRIALS_CAP);
+        $canCreateIntro = current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent');
+        $canCreateStandard = (current_user_can('dzn_manage_canonical_lessons') && current_user_can('dzn_manage_canonical_lesson_schedules')) || current_user_can('dzn_manage_lessons');
+        $snapshot = $read->enrolmentSnapshot();
+        $filters = self::queueFilters($query);
+        $queue = $read->enrolmentQueue($filters, false);
         $historyFilters = $filters;
-        $historyFilters['q'] = sanitize_text_field((string) ($query['history_q'] ?? ''));
-        $historyFilters['page'] = max(1, absint($query['history_page'] ?? 1));
-        $history = $read->bookingCases($historyFilters, true);
-        $report = $read->conversionReport(
-            sanitize_text_field((string) ($query['report_from'] ?? gmdate('Y-m-d', strtotime('-30 days')))),
-            sanitize_text_field((string) ($query['report_to'] ?? gmdate('Y-m-d')))
-        );
-        echo '<div class="wrap dzn-enrolment dzn-enrolment--trials">';
-        self::tabs('new');
+        $historyFilters['q'] = isset($query['history_q']) && is_scalar($query['history_q']) ? sanitize_text_field((string) $query['history_q']) : '';
+        $historyFilters['page'] = isset($query['history_page']) && is_scalar($query['history_page']) ? max(1, absint($query['history_page'])) : 1;
+        $history = $read->enrolmentQueue($historyFilters, true);
+
+        echo '<div class="wrap dzn-enrolment dzn-enrolment--dashboard">';
         self::notices();
-        echo '<header class="dzn-enrolment__page-head"><div><h1>Intro</h1>';
-        echo '<p>Incoming requests, Teacher matching and the introductory lesson in one place. Completed, cancelled and expired trials are kept in History and are never mixed into the action queue.</p></div>';
-        echo '<div class="dzn-enrolment__hero-actions">';
-        if (current_user_can('dzn_manage_booking_request_coordination')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Coordination cases</a>';
-        if (current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) echo '<a class="button button-primary" href="#dzn-create-intro">Create introductory lesson</a>';
+        echo '<header class="dzn-enrolment__page-head"><div><h1>Enrolment</h1>';
+        echo '<p>Introductory lessons and enrolled classes in one place. Every attention case is lifted to the top; each row opens the full Class admin record for that case.</p></div><div class="dzn-enrolment__hero-actions">';
+        if ($canCreateIntro) echo '<a class="button" href="#dzn-create-intro">Create intro</a>';
+        if ($canCreateStandard) echo '<a class="button" href="#dzn-create-standard">Create standard class</a>';
+        if (current_user_can('dzn_manage_booking_request_coordination')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Class admin</a>';
         echo '</div></header>';
-        self::reportPanel($report);
-        if (current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) self::createIntroPanel($read);
-        self::bookingFiltersForm($filters, false);
-        echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-action-needed"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Urgency ordered</p><h2 id="dzn-action-needed">Action needed</h2></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $active['total'])) . ' active ' . esc_html($active['total'] === 1 ? 'case' : 'cases') . '</span></div>';
-        if (!$active['rows']) {
-            echo '<div class="dzn-empty-state"><h3>No active booking or trial cases</h3><p>New requests appear here immediately. Completed cases remain searchable in History.</p></div>';
-        } else {
-            self::bookingTable($active['rows'], false);
-            self::pagination($filters, $active, false, 'new');
-        }
+
+        self::snapshotCard($snapshot, $canCreateIntro, $canCreateStandard, $canIntros);
+        if ($canCreateIntro) self::createIntroPanel($read);
+        if ($canCreateStandard) self::createStandardPanel($read);
+        if (current_user_can('dzn_manage_enrolments') && current_user_can('dzn_manage_terms') && current_user_can('dzn_manage_lessons')) self::importPanel($read, $query);
+        if ($canIntros) self::conversionPanel($read, $query);
+
+        echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-classes-title"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Needs attention first</p><h2 id="dzn-classes-title">Intros and classes</h2><p>Date and time, Student, Teacher and instrument for every active intro and class. Attention rows carry a colour marker and sort before the rest.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $queue['total'])) . ' active</span></div>';
+        echo '<div class="dzn-mini-stats dzn-queue-stats"><span><strong>' . esc_html((string) $queue['counts']['attention']) . '</strong> need attention</span><span><strong>' . esc_html((string) $queue['counts']['today']) . '</strong> today</span><span><strong>' . esc_html((string) $queue['counts']['intro']) . '</strong> intros</span><span><strong>' . esc_html((string) $queue['counts']['class']) . '</strong> classes</span>';
+        if ((int) $queue['counts']['meet_retry'] > 0) echo '<span class="dzn-task-chip dzn-task-chip--danger"><strong>' . esc_html((string) $queue['counts']['meet_retry']) . '</strong> Google Meet retries</span>';
+        if ((int) $queue['counts']['teacher'] > 0) echo '<span class="dzn-task-chip"><strong>' . esc_html((string) $queue['counts']['teacher']) . '</strong> Teacher allocations</span>';
+        if ((int) $queue['counts']['attendance'] > 0) echo '<span class="dzn-task-chip"><strong>' . esc_html((string) $queue['counts']['attendance']) . '</strong> attendance decisions</span>';
+        echo '</div>';
+        self::queueFiltersForm($filters);
+        if (!$queue['rows']) echo '<div class="dzn-empty-state"><h3>No intros or classes match</h3><p>Reset the filters or create a new intro or standard class.</p></div>';
+        else { self::queueTable($queue['rows'], false); self::queuePagination($filters, $queue, false); }
         echo '</section>';
-        echo '<details class="dzn-history dzn-enrolment__section" id="dzn-booking-history"' . (!empty($query['history_q']) ? ' open' : '') . '><summary><span><strong>History</strong><br><small>Completed, cancelled, expired and archived cases — separate from the action queue.</small></span><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $history['total'])) . '</span></summary><div class="dzn-history__body">';
-        echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><input type="hidden" name="view" value="new">';
-        echo '<label class="dzn-enrolment__search"><span>Search history</span><input type="search" name="history_q" value="' . esc_attr($historyFilters['q']) . '" placeholder="Learner, reference, contact, instrument or Teacher"></label><button class="button">Search history</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">Reset</a></form>';
-        if (!$history['rows']) echo '<p>No closed booking cases match this search.</p>';
-        else { self::bookingTable($history['rows'], true); self::pagination($historyFilters, $history, true, 'new'); }
+
+        echo '<details class="dzn-history dzn-enrolment__section"' . (($historyFilters['q'] !== '') ? ' open' : '') . '><summary><span><strong>Class history</strong><br><small>Completed, cancelled and archived intros and classes, with their evidence retained.</small></span><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $history['total'])) . '</span></summary><div class="dzn-history__body">';
+        echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><label class="dzn-enrolment__search"><span>Search history</span><input type="search" name="history_q" value="' . esc_attr($historyFilters['q']) . '" placeholder="Student, Teacher, instrument or reference"></label><button class="button">Search history</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">Reset</a></form>';
+        if (!$history['rows']) echo '<p>No completed or cancelled records match this search.</p>';
+        else { self::queueTable($history['rows'], true); self::queuePagination($historyFilters, $history, true); }
         echo '</div></details></div>';
     }
 
-    public static function review(EnrolmentWorkspaceReadService $read, array $query): void {
-        $review = $read->reviewCases();
-        echo '<div class="wrap dzn-enrolment dzn-enrolment--review">';
-        self::tabs('review');
-        self::notices();
-        echo '<header class="dzn-enrolment__page-head"><div><h1>Review</h1>';
-        echo '<p>Every confirmed introductory request that still needs attention. The table shows the delivery, payment-link, reminder and follow-up facts that already exist in the platform; it never invents attendance or payment evidence.</p></div></header>';
-        echo '<div class="dzn-mini-stats dzn-review-stats"><span><strong>' . esc_html((string) $review['counts']['upcoming']) . '</strong> upcoming</span><span><strong>' . esc_html((string) $review['counts']['outcome_due']) . '</strong> outcome due</span><span><strong>' . esc_html((string) $review['counts']['payment_open']) . '</strong> payment link open</span><span><strong>' . esc_html((string) $review['counts']['follow_up_due']) . '</strong> follow-up due</span></div>';
-        echo '<p class="description">' . ((int) $review['auto_removed'] > 0 ? esc_html(number_format_i18n((int) $review['auto_removed'])) . ' request(s) were removed from this active queue because the payment link was sent more than 14 days ago and no decision or payment was recorded. ' : '') . 'A request is removed from this active queue 14 days after the payment link is sent when no decision or payment was recorded. The underlying case remains available in History.</p>';
-        echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-review-queue"><div class="dzn-enrolment__section-head"><div><h2 id="dzn-review-queue">Active introductory requests</h2><p>The queue is based on the latest booking confirmation. Cancelled and auto-expired requests are not shown.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $review['total'])) . ' active</span></div>';
-        if (!$review['rows']) {
-            echo '<div class="dzn-empty-state"><h3>No introductory requests need review</h3><p>New confirmed introductory bookings appear here immediately.</p></div>';
+    /** @param array<string,mixed> $snapshot */
+    private static function snapshotCard(array $snapshot, bool $canCreateIntro, bool $canCreateStandard, bool $showIntros): void {
+        $days = (int) ($snapshot['period']['days'] ?? 90);
+        echo '<section class="dzn-enrolment-snapshot" aria-labelledby="dzn-snapshot-title"><div class="dzn-enrolment-snapshot__head"><div><p class="dzn-eyebrow">Overview snapshot</p><h2 id="dzn-snapshot-title">Enrolment at a glance</h2><p>Intro counts cover the last ' . esc_html((string) $days) . ' days; Term counts are current records.</p></div><div class="dzn-enrolment-snapshot__actions">';
+        if ($canCreateIntro) echo '<a class="button button-primary" href="#dzn-create-intro">Create introductory class</a>';
+        if ($canCreateStandard) echo '<a class="button" href="#dzn-create-standard">Create standard class</a>';
+        echo '</div></div>';
+        if ($showIntros) {
+            echo '<div class="dzn-enrolment-snapshot__group"><h3>Introductory lessons</h3><div class="dzn-enrolment-snapshot__grid">';
+            self::snapshotStat('Intros', (int) $snapshot['intros_total'], 'Requests in period', 'neutral');
+            self::snapshotStat('Scheduled', (int) $snapshot['intros_scheduled'], 'Upcoming confirmed intros', 'ok');
+            self::snapshotStat('Completed', (int) $snapshot['intros_completed'], 'Outcome recorded', 'ok');
+            self::snapshotStat('Converted', (int) $snapshot['intros_converted'], 'Enrolment activated', 'ok');
+            self::snapshotStat('Awaiting decision or payment', (int) $snapshot['intros_awaiting'], 'Follow-up still open', 'warn');
+            self::snapshotStat('Completed, elapsed', (int) $snapshot['intros_elapsed'], 'Intro time passed; no outcome', 'danger');
+            echo '</div></div>';
+        }
+        echo '<div class="dzn-enrolment-snapshot__group"><h3>Terms</h3><div class="dzn-enrolment-snapshot__grid">';
+        self::snapshotStat('Active terms', (int) $snapshot['terms_active'], 'Current or authorised', 'ok');
+        self::snapshotStat('Renewed terms', (int) $snapshot['terms_renewed'], 'Term 2 or later', 'neutral');
+        self::snapshotStat('Almost ending', (int) $snapshot['terms_ending'], 'Two classes or 14 days left', 'warn');
+        echo '</div></div>';
+        echo '<p class="dzn-enrolment-snapshot__note"><strong>Manual work lives here:</strong> retry a failed Google Meet, allocate or change a Teacher, record attendance or a class outcome, review Teacher notes and follow up onboarding from the same class record.</p></section>';
+    }
+
+    private static function snapshotStat(string $label, int $value, string $note, string $tone): void {
+        echo '<div class="dzn-snapshot-stat dzn-snapshot-stat--' . esc_attr($tone) . '"><strong>' . esc_html(number_format_i18n($value)) . '</strong><span>' . esc_html($label) . '</span><small>' . esc_html($note) . '</small></div>';
+    }
+
+    private static function createStandardPanel(EnrolmentWorkspaceReadService $read): void {
+        $canCanonical = current_user_can('dzn_manage_canonical_lessons') && current_user_can('dzn_manage_canonical_lesson_schedules');
+        $canLegacy = current_user_can('dzn_manage_lessons');
+        $enrolments = array_values(array_filter($read->enrolmentOptions(), static function (object $enrolment) use ($canCanonical, $canLegacy): bool {
+            return (string) $enrolment->record_model === 'legacy_phase1' ? $canLegacy : $canCanonical;
+        }));
+        echo '<details class="dzn-create-intro dzn-enrolment__section" id="dzn-create-standard"><summary><span><strong>Create standard class</strong><br><small>Manually allocate a standard class to an active Enrolment with a current Term and Teacher. Canonical and historical Enrolments are both supported; allocation, collisions and Teacher occupancy are still checked.</small></span></summary><div class="dzn-create-intro__body">';
+        if (!$enrolments) {
+            echo '<div class="dzn-empty-state dzn-empty-state--compact"><p><strong>No eligible Enrolment.</strong> A standard class needs an active Enrolment with a current Term, an assigned Teacher and remaining allocation.</p></div></div></details>';
+            return;
+        }
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-create-intro__form" data-dzn-standard-class>';
+        wp_nonce_field(EnrolmentWorkspaceController::ACTION);
+        echo '<input type="hidden" name="action" value="' . esc_attr(EnrolmentWorkspaceController::ACTION) . '"><input type="hidden" name="operation" value="create_standard_class"><input type="hidden" name="idempotency_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
+        echo '<p><label>Enrolment<select name="term_assignment" required data-dzn-standard-enrolment><option value="">Choose an active Enrolment</option>';
+        foreach ($enrolments as $enrolment) {
+            $label = trim(implode(' · ', array_filter(array((string) $enrolment->student_name, (string) $enrolment->course_name, (string) ($enrolment->term_reference ?: 'Term'), (string) $enrolment->teacher_name, (string) $enrolment->record_model === 'legacy_phase1' ? 'Historical' : ''))));
+            $value = implode(':', array((int) $enrolment->term_id, (int) $enrolment->assignment_id, (string) $enrolment->record_model, (int) $enrolment->id, (int) $enrolment->teacher_id, (int) $enrolment->student_id, (int) $enrolment->course_id));
+            echo '<option value="' . esc_attr($value) . '" data-timezone="' . esc_attr((string) ($enrolment->schedule_timezone ?: '')) . '">' . esc_html($label) . '</option>';
+        }
+        echo '</select></label><br><span class="description">Only Enrolments with allocation available are shown; an exhausted Term is refused by the authority.</span></p>';
+        self::input('local_wall_date', 'Local date', 'date', '', true);
+        self::timeSelect('local_wall_time', 'Local start time');
+        self::timezoneSelect('schedule_timezone', 'Local timezone (service area)');
+        self::input('duration_minutes', 'Duration (minutes)', 'number', '30');
+        self::input('evidence_reference', 'Allocation reference', 'text', 'manual-standard-class');
+        echo '<button class="button button-primary">Create standard class</button></form>';
+        echo '<p class="description">The class is added only through the owning Lesson and Schedule authority. If the Teacher is already booked, the allocation is refused and nothing is double-booked. A duration override applies to canonical classes; historical classes use the Course default.</p></div></details>';
+    }
+
+    private static function conversionPanel(EnrolmentWorkspaceReadService $read, array $query): void {
+        if (!current_user_can('dzn_view_booking_requests') && !current_user_can('dzn_manage_booking_request_coordination')) return;
+        $reportFrom = isset($query['report_from']) && is_scalar($query['report_from']) ? (string) $query['report_from'] : gmdate('Y-m-d', strtotime('-30 days'));
+        $reportTo = isset($query['report_to']) && is_scalar($query['report_to']) ? (string) $query['report_to'] : gmdate('Y-m-d');
+        $report = $read->conversionReport(sanitize_text_field($reportFrom), sanitize_text_field($reportTo));
+        $survey = (current_user_can('dzn_manage_post_intro_automation') || current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination'))
+            ? $read->surveyInsights()
+            : array('total' => 0, 'reasons' => array(), 'recent' => array());
+        echo '<details class="dzn-history dzn-enrolment__section dzn-conversion-panel" id="dzn-conversion"><summary><span><strong>Intro conversion and onboarding signals</strong><br><small>Conversion table, post-intro survey results and the review queue an administrator needs to get a Student onboard.</small></span><span class="dzn-count-chip">' . esc_html((string) $report['denominator']) . ' intros</span></summary><div class="dzn-history__body">';
+        self::reportPanel($report);
+        self::surveyPanel($survey);
+        if (current_user_can(Menu::ENROLMENT_TRIALS_CAP)) self::reviewPanel($read);
+        echo '</div></details>';
+    }
+
+    /** @param array<string,mixed> $survey */
+    private static function surveyPanel(array $survey): void {
+        echo '<section class="dzn-enrolment__section dzn-survey-panel"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Student voice</p><h2>Post-intro survey results</h2><p>Reasons Students gave when the enrolment did not continue. Feedback is shown separately from any continuation decision.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) ($survey['total'] ?? 0))) . ' responses</span></div>';
+        if (empty($survey['reasons'])) {
+            echo '<p>No post-intro survey response has been recorded yet.</p>';
         } else {
-            echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-review-table"><thead><tr><th>Date</th><th>Instrument</th><th>Teacher</th><th>Student</th><th>Status</th><th>Country</th><th>Attended</th><th>Payment link sent</th><th>Reminder</th><th>Follow-up completed</th></tr></thead><tbody>';
-            foreach ($review['rows'] as $row) {
-                $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&request_id=' . (int) $row['id']);
-                echo '<tr>';
-                echo '<td><a href="' . esc_url($url) . '"><strong>' . esc_html((string) $row['date']) . '</strong></a><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
-                echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course']) . '</small></td>';
-                echo '<td>' . esc_html((string) $row['teacher']) . '</td>';
-                echo '<td><a href="' . esc_url($url) . '">' . esc_html((string) $row['student']) . '</a></td>';
-                echo '<td><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row['status']) . '</span></td>';
-                echo '<td>' . esc_html((string) $row['country']) . '</td>';
-                echo '<td>' . esc_html((string) $row['attended']) . '</td>';
-                echo '<td>' . esc_html((string) $row['payment_link_sent']) . '</td>';
-                echo '<td>' . esc_html((string) $row['reminder']) . '</td>';
-                echo '<td><span class="dzn-badge ' . ($row['follow_up_completed'] === 'Yes' ? 'dzn-badge--teal' : 'dzn-badge--soft') . '">' . esc_html((string) $row['follow_up_completed']) . '</span></td>';
-                echo '</tr>';
+            echo '<div class="dzn-table-scroll"><table class="widefat striped"><thead><tr><th>Reason</th><th>Student choice</th><th>Responses</th></tr></thead><tbody>';
+            foreach ($survey['reasons'] as $reason) {
+                echo '<tr><td>' . esc_html(ucfirst(str_replace('_', ' ', (string) $reason->feedback_reason))) . '</td><td>' . esc_html(ucfirst(str_replace('_', ' ', (string) $reason->continuation_choice))) . '</td><td><strong>' . esc_html((string) $reason->total) . '</strong></td></tr>';
             }
             echo '</tbody></table></div>';
         }
-        echo '</section></div>';
+        if (!empty($survey['recent'])) {
+            echo '<h3>Recent comments</h3><ul class="dzn-link-list dzn-survey-comments">';
+            foreach ($survey['recent'] as $row) {
+                $comment = trim((string) ($row->feedback_comment ?? ''));
+                echo '<li><strong>' . esc_html((string) $row->student_name) . '</strong> <small>' . esc_html((string) $row->submitted_at) . ' · ' . esc_html(ucfirst(str_replace('_', ' ', (string) $row->feedback_reason))) . ' · ' . esc_html((string) $row->follow_up_status) . '</small>' . ($comment !== '' ? '<p>' . esc_html($comment) . '</p>' : '') . '</li>';
+            }
+            echo '</ul>';
+        }
+        echo '</section>';
+    }
+
+    private static function reviewPanel(EnrolmentWorkspaceReadService $read): void {
+        $review = $read->reviewCases();
+        echo '<section class="dzn-enrolment__section dzn-review-panel"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Onboarding follow-up</p><h2>Active introductory requests</h2><p>The queue is based on the latest booking confirmation. Cancelled and auto-expired requests are not shown.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $review['total'])) . ' active</span></div>';
+        echo '<div class="dzn-mini-stats dzn-review-stats"><span><strong>' . esc_html((string) $review['counts']['upcoming']) . '</strong> upcoming</span><span><strong>' . esc_html((string) $review['counts']['outcome_due']) . '</strong> outcome due</span><span><strong>' . esc_html((string) $review['counts']['payment_open']) . '</strong> payment link open</span><span><strong>' . esc_html((string) $review['counts']['follow_up_due']) . '</strong> follow-up due</span></div>';
+        echo '<p class="description">' . ((int) $review['auto_removed'] > 0 ? esc_html(number_format_i18n((int) $review['auto_removed'])) . ' request(s) were removed from this active queue because the payment link was sent more than 14 days ago and no decision or payment was recorded. ' : '') . 'A request is removed from this active queue 14 days after the payment link is sent when no decision or payment was recorded. The underlying case remains available in History.</p>';
+        if (!$review['rows']) {
+            echo '<div class="dzn-empty-state dzn-empty-state--compact"><h3>No introductory requests need review</h3><p>New confirmed introductory bookings appear here immediately.</p></div>';
+            echo '</section>';
+            return;
+        }
+        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-review-table"><thead><tr><th>Date</th><th>Instrument</th><th>Teacher</th><th>Student</th><th>Status</th><th>Country</th><th>Attended</th><th>Payment link sent</th><th>Reminder</th><th>Follow-up completed</th></tr></thead><tbody>';
+        foreach ($review['rows'] as $row) {
+            $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&request_id=' . (int) $row['id']);
+            echo '<tr><td><a href="' . esc_url($url) . '"><strong>' . esc_html((string) $row['date']) . '</strong></a><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
+            echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course']) . '</small></td><td>' . esc_html((string) $row['teacher']) . '</td>';
+            echo '<td><a href="' . esc_url($url) . '">' . esc_html((string) $row['student']) . '</a></td><td><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row['status']) . '</span></td>';
+            echo '<td>' . esc_html((string) $row['country']) . '</td><td>' . esc_html((string) $row['attended']) . '</td><td>' . esc_html((string) $row['payment_link_sent']) . '</td><td>' . esc_html((string) $row['reminder']) . '</td>';
+            echo '<td><span class="dzn-badge ' . ($row['follow_up_completed'] === 'Yes' ? 'dzn-badge--teal' : 'dzn-badge--soft') . '">' . esc_html((string) $row['follow_up_completed']) . '</span></td></tr>';
+        }
+        echo '</tbody></table></div></section>';
+    }
+
+    private static function queueFiltersForm(array $filters): void {
+        $read = new EnrolmentWorkspaceReadService();
+        echo '<form method="get" class="dzn-enrolment__filter-form dzn-enrolment__filter-form--queue"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '">';
+        echo '<label class="dzn-enrolment__search"><span>Search everything</span><input type="search" name="q" value="' . esc_attr($filters['q']) . '" placeholder="Student, Teacher, instrument, course or reference"></label>';
+        echo '<label><span>Type</span><select name="type">';
+        foreach (array('' => 'Intros and classes', 'intro' => 'Intro only', 'standard' => 'Standard only', 'replacement' => 'Replacement only', 'class' => 'All classes') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($filters['type'], $value, false) . '>' . esc_html($label) . '</option>';
+        echo '</select></label><label><span>Attention</span><select name="attention"><option value="">Everything</option><option value="1"' . selected($filters['attention'], '1', false) . '>Needs attention only</option></select></label>';
+        echo '<label><span>When</span><select name="when"><option value="">All dates</option><option value="today"' . selected($filters['when'], 'today', false) . '>Today only</option></select></label>';
+        if (current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination')) {
+            echo '<label><span>Intro stage</span><select name="stage"><option value="">All intro stages</option>';
+            foreach (array('new' => 'New request', 'identity' => 'Identity needed', 'teacher_match' => 'Teacher matching', 'intro_scheduled' => 'Intro scheduled', 'intro_outcome' => 'Outcome due', 'post_intro' => 'Decision and payment', 'converted' => 'Converted') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($filters['stage'], $value, false) . '>' . esc_html($label) . '</option>';
+            echo '</select></label>';
+        }
+        if (current_user_can('dzn_manage_teachers') || current_user_can('dzn_manage_enrolments') || current_user_can('dzn_manage_lessons') || current_user_can('dzn_manage_canonical_lessons')) {
+            echo '<label><span>Teacher</span><select name="teacher_id"><option value="0">All Teachers</option>';
+            foreach ($read->teacherOptions('', 200) as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '"' . selected($filters['teacher_id'], (int) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name) . '</option>';
+            echo '</select></label>';
+        }
+        if (current_user_can('dzn_manage_students') || current_user_can('dzn_manage_enrolments') || current_user_can('dzn_manage_lessons') || current_user_can('dzn_manage_canonical_lessons')) {
+            echo '<label><span>Student</span><select name="student_id"><option value="0">All Students</option>';
+            foreach ($read->studentOptions('', 200) as $student) echo '<option value="' . esc_attr((string) $student->id) . '"' . selected($filters['student_id'], (int) $student->id, false) . '>' . esc_html((string) $student->display_name) . '</option>';
+            echo '</select></label>';
+        }
+        if (current_user_can('dzn_manage_courses') || current_user_can('dzn_manage_enrolments') || current_user_can('dzn_manage_lessons') || current_user_can('dzn_manage_canonical_lessons')) {
+            echo '<label><span>Course</span><select name="course_id"><option value="0">All Courses</option>';
+            foreach ($read->courseOptions('', 250) as $course) echo '<option value="' . esc_attr((string) $course->id) . '"' . selected($filters['course_id'], (int) $course->id, false) . '>' . esc_html((string) $course->instrument_name . ' · ' . $course->name) . '</option>';
+            echo '</select></label>';
+        }
+        if (current_user_can('dzn_manage_terms') || current_user_can('dzn_manage_enrolments')) {
+            echo '<label><span>Term</span><select name="term_id"><option value="0">All Terms</option>';
+            foreach ($read->termOptions(120) as $term) echo '<option value="' . esc_attr((string) $term->id) . '"' . selected($filters['term_id'], (int) $term->id, false) . '>' . esc_html(trim((string) $term->reference_code . ' · ' . $term->student_name . ' · ' . $term->course_name)) . '</option>';
+            echo '</select></label>';
+        }
+        echo '<label><span>Date</span><input type="date" name="date" value="' . esc_attr($filters['date']) . '"></label>';
+        echo '<button class="button button-primary">Apply filters</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">Reset</a></form>';
+    }
+
+    private static function queueTable(array $rows, bool $history): void {
+        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-unified-table"><thead><tr><th>Priority</th><th>Date and time</th><th>Student</th><th>Teacher</th><th>Instrument</th><th>Term</th><th>Status</th><th><span class="screen-reader-text">Class admin</span></th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            $classes = array('dzn-unified-row', 'dzn-unified-row--' . (string) $row['kind']);
+            if (!empty($row['attention'])) $classes[] = 'is-attention';
+            elseif (!empty($row['is_today'])) $classes[] = 'is-today';
+            if ($history) $classes[] = 'is-history';
+            echo '<tr class="' . esc_attr(implode(' ', $classes)) . '">';
+            $priorityLabel = !empty($row['attention']) ? 'Needs attention' : (!empty($row['is_today']) ? 'Today' : 'On track');
+            $priorityClass = !empty($row['attention']) ? 'dzn-badge--danger' : (!empty($row['is_today']) ? 'dzn-badge--gold' : ($row['kind'] === 'intro' ? 'dzn-badge--teal' : 'dzn-badge--soft'));
+            echo '<td><span class="dzn-badge ' . $priorityClass . '">' . esc_html($priorityLabel) . '</span><br><span class="dzn-type-chip">' . esc_html((string) $row['type_label']) . '</span>' . (!empty($row['attention_reason']) ? '<br><small>' . esc_html((string) $row['attention_reason']) . '</small>' : '') . '</td>';
+            echo '<td><strong>' . esc_html((string) $row['date_label']) . '</strong><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
+            echo '<td>' . esc_html((string) $row['student_name']) . '</td><td>' . esc_html((string) $row['teacher_name']) . '</td>';
+            echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course_name']) . '</small></td>';
+            echo '<td>' . esc_html((string) ($row['term_reference'] ?: '—')) . (!empty($row['term_progress']) ? '<br><small>' . esc_html((string) $row['term_progress']) . '</small>' : '') . '</td>';
+            echo '<td><span class="dzn-badge dzn-badge--soft">' . esc_html((string) $row['state_label']) . '</span><br><small>' . esc_html((string) $row['attendance_label']) . '</small></td>';
+            echo '<td><a class="button button-primary button-small" href="' . esc_url((string) $row['url']) . '">Open Class admin</a>';
+            if (!$history && !empty($row['meet_retry'])) {
+                $retry = $row['meet_retry'];
+                echo '<br>';
+                self::postForm('retry_booking_projection', array('request_id' => (int) $row['id'], 'confirmation_id' => (int) ($retry['confirmation_id'] ?? 0), 'expected_confirmation_version' => (int) ($retry['version'] ?? 0)), 'Retry Google Meet', 'button-small');
+            }
+            echo '</td></tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+
+    private static function queuePagination(array $filters, array $result, bool $history): void {
+        if ((int) $result['pages'] <= 1) return;
+        $args = array('page' => EnrolmentWorkspaceController::PAGE);
+        foreach ($filters as $key => $value) {
+            if ($key === 'page' || $value === '' || $value === 0) continue;
+            $args[$history ? 'history_' . $key : $key] = $value;
+        }
+        $pageKey = $history ? 'history_page' : 'paged';
+        if ($history) $args['history_page'] = $result['page'];
+        else $args['paged'] = $result['page'];
+        echo '<nav class="tablenav dzn-pagination" aria-label="Pagination"><span>Page ' . esc_html((string) $result['page']) . ' of ' . esc_html((string) $result['pages']) . ' · ' . esc_html(number_format_i18n((int) $result['total'])) . ' records</span> ';
+        if ($result['page'] > 1) echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args, array($pageKey => $result['page'] - 1)), admin_url('admin.php'))) . '">Previous</a> ';
+        if ($result['page'] < $result['pages']) echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args, array($pageKey => $result['page'] + 1)), admin_url('admin.php'))) . '">Next</a>';
+        echo '</nav>';
+    }
+
+    private static function queueFilters(array $query): array {
+        $value = static fn(string $key): string => isset($query[$key]) && is_scalar($query[$key]) ? (string) $query[$key] : '';
+        return array(
+            'q' => sanitize_text_field($value('q')),
+            'type' => sanitize_key($value('type')),
+            'attention' => sanitize_key($value('attention')),
+            'when' => sanitize_key($value('when')),
+            'stage' => sanitize_key($value('stage')),
+            'teacher_id' => absint($value('teacher_id')),
+            'student_id' => absint($value('student_id')),
+            'course_id' => absint($value('course_id')),
+            'term_id' => absint($value('term_id')),
+            'date' => sanitize_text_field($value('date')),
+            'page' => max(1, absint($value('paged'))),
+        );
     }
 
     public static function bookingCase(array $case, ?array $classroom): void {
         echo '<div class="wrap dzn-enrolment dzn-enrolment--case">';
         self::notices();
-        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">← Back to Intro</a>';
-        if (current_user_can('dzn_manage_booking_request_coordination')) echo ' · <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Coordination cases</a>';
+        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">← Back to Enrolment</a>';
+        if (current_user_can('dzn_manage_booking_request_coordination')) echo ' · <a href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Class admin</a>';
         echo '</p>';
         echo '<header class="dzn-enrolment__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $case['reference']) . ' · ' . esc_html($case['identity_state']['label']) . '</p><h1>' . esc_html((string) $case['learner_name']) . '</h1><p>' . esc_html((string) $case['instrument']) . ' · ' . esc_html((string) $case['course']) . ' · ' . esc_html((string) $case['timezone']) . '</p></div><div class="dzn-enrolment__case-state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $case['stage_label']) . '</span><span class="dzn-chip">' . esc_html((string) $case['urgency_label']) . '</span></div></header>';
         echo '<div class="dzn-case-grid">';
@@ -108,41 +292,14 @@ final class EnrolmentWorkspaceView {
         echo '</aside></div></div>';
     }
 
-    public static function enrolledClasses(EnrolmentWorkspaceReadService $read, array $query): void {
-        $filters = self::classFilters($query);
-        $active = $read->classes($filters, false);
-        $historyFilters = $filters;
-        $historyFilters['q'] = sanitize_text_field((string) ($query['history_q'] ?? ''));
-        $historyFilters['page'] = max(1, absint($query['history_page'] ?? 1));
-        $history = $read->classes($historyFilters, true);
-        echo '<div class="wrap dzn-enrolment dzn-enrolment--classes">';
-        self::tabs('enrolled');
-        self::notices();
-        echo '<header class="dzn-enrolment__page-head"><div><h1>Enrolled classes</h1>';
-        echo '<p>Today and upcoming classes first, with Term progress, replacement allowance, attendance and the next required action. Completed and cancelled classes remain in History.</p></div><div class="dzn-enrolment__hero-actions">';
-        if (current_user_can('dzn_manage_enrolments') && current_user_can('dzn_manage_terms') && current_user_can('dzn_manage_lessons')) echo '<a class="button" href="#dzn-import-enrolment">Import existing enrolment</a>';
-        echo '</div></header>';
-        if (current_user_can('dzn_manage_enrolments') && current_user_can('dzn_manage_terms') && current_user_can('dzn_manage_lessons')) self::importPanel($read, $query);
-        self::classFiltersForm($filters, false);
-        echo '<section class="dzn-enrolment__section"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Today and upcoming</p><h2>Classes</h2></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $active['total'])) . ' ' . esc_html($active['total'] === 1 ? 'class' : 'classes') . '</span></div>';
-        echo '<div class="dzn-mini-stats"><span><strong>' . esc_html((string) $active['counts']['today']) . '</strong> today</span><span><strong>' . esc_html((string) $active['counts']['upcoming']) . '</strong> upcoming</span><span><strong>' . esc_html((string) $active['counts']['action']) . '</strong> need action</span></div>';
-        if (!$active['rows']) echo '<div class="dzn-empty-state"><h3>No current classes</h3><p>Classes starting today or later appear here. Imported and completed records stay available in History.</p></div>';
-        else { self::classTable($active['rows'], false); self::pagination($filters, $active, false, 'enrolled'); }
-        echo '</section>';
-        echo '<details class="dzn-history dzn-enrolment__section"' . (!empty($query['history_q']) ? ' open' : '') . '><summary><span><strong>Class history</strong><br><small>Completed and cancelled classes, with their attendance and financial history retained.</small></span><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $history['total'])) . '</span></summary><div class="dzn-history__body">';
-        echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><input type="hidden" name="view" value="enrolled"><label class="dzn-enrolment__search"><span>Search class history</span><input type="search" name="history_q" value="' . esc_attr($historyFilters['q']) . '" placeholder="Student, Teacher, Course or term"></label><button class="button">Search history</button></form>';
-        if (!$history['rows']) echo '<p>No completed or cancelled classes match this search.</p>';
-        else { self::classTable($history['rows'], true); self::pagination($historyFilters, $history, true, 'enrolled'); }
-        echo '</div></details></div>';
-    }
-
     public static function classDetail(array $class, ?array $classroom): void {
         echo '<div class="wrap dzn-enrolment dzn-enrolment--class">';
         self::notices();
-        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=enrolled')) . '">← Back to Enrolled classes</a></p>';
+        echo '<p class="dzn-back"><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">← Back to Enrolment</a></p>';
         echo '<header class="dzn-enrolment__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $class['reference']) . ' · ' . esc_html((string) $class['state_label']) . '</p><h1>' . esc_html((string) $class['student_name']) . '</h1><p>' . esc_html((string) $class['course_name']) . ' · ' . esc_html((string) $class['teacher_name']) . ' · ' . esc_html((string) $class['local_label']) . '</p></div><div class="dzn-enrolment__case-state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $class['attendance']['label']) . '</span>' . (!empty($class['action_needed']) ? '<span class="dzn-chip dzn-chip--warn">' . esc_html((string) $class['action_needed']) . '</span>' : '') . '</div></header>';
         echo '<div class="dzn-class-detail-grid"><main>';
         self::classFacts($class);
+        self::classTeacherNote($class);
         self::classClassroom($class, $classroom);
         self::classActions($class);
         self::attendanceEvidence($class);
@@ -302,10 +459,10 @@ final class EnrolmentWorkspaceView {
     /** @param array<string,mixed> $case */
     private static function coordinationActions(array $case): void {
         $coordination = $case['coordination'];
-        echo '<details class="dzn-action-panel"><summary><strong>Teacher matching &amp; coordination</strong><br><small>Propose a Teacher and record attributable agreement. The coordination command centre carries identity, authority, Proposal, acceptance, conversion and assignment work in one place.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel"><summary><strong>Teacher matching and Class admin</strong><br><small>Propose a Teacher and record attributable agreement. Class admin carries identity, authority, Proposal, acceptance, conversion and assignment work in one place.</small></summary><div class="dzn-action-panel__body">';
         if (empty($coordination['case_id'])) {
             self::formStart('open_coordination', array('request_id' => (int) $case['id']));
-            echo '<p><label>Reason<select name="reason"><option value="admin_opened">Administrator opened</option><option value="manual_review">Manual review</option></select></label></p><button class="button button-primary">Open coordination</button></form>';
+            echo '<p><label>Reason<select name="reason"><option value="admin_opened">Administrator opened</option><option value="manual_review">Manual review</option></select></label></p><button class="button button-primary">Open Class admin</button></form>';
         } else {
             echo '<p><strong>Coordination case:</strong> ' . esc_html((string) ('#' . $coordination['case_id'] . ' · ' . $coordination['state'])) . '</p>';
             $read = new EnrolmentWorkspaceReadService();
@@ -341,7 +498,7 @@ final class EnrolmentWorkspaceView {
                     }
                 }
             }
-            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&case_id=' . (int) $coordination['case_id'])) . '">Open coordination command centre</a></p>';
+            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination&case_id=' . (int) $coordination['case_id'])) . '">Open Class admin</a></p>';
         }
         echo '</div></details>';
     }
@@ -624,69 +781,6 @@ final class EnrolmentWorkspaceView {
         echo '</tbody></table><p class="description">No past lesson is marked attended and no payment is claimed unless the evidence state above explicitly supports it.</p></div>';
     }
 
-    private static function bookingFiltersForm(array $filters, bool $history): void {
-        echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><input type="hidden" name="view" value="new">';
-        echo '<label class="dzn-enrolment__search"><span>Search active cases</span><input type="search" name="q" value="' . esc_attr($filters['q']) . '" placeholder="Learner, contact, reference, instrument or Teacher"></label>';
-        echo '<label><span>Stage</span><select name="stage"><option value="">All active stages</option>';
-        foreach (array('new' => 'New request', 'identity' => 'Identity needed', 'teacher_match' => 'Teacher matching', 'intro_scheduled' => 'Trial scheduled', 'intro_outcome' => 'Outcome due', 'post_intro' => 'Decision & payment', 'converted' => 'Converted') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($filters['stage'], $value, false) . '>' . esc_html($label) . '</option>';
-        echo '</select></label><button class="button">Filter</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=new')) . '">Reset</a></form>';
-    }
-
-    private static function classFiltersForm(array $filters, bool $history): void {
-        $read = new EnrolmentWorkspaceReadService();
-        echo '<form method="get" class="dzn-enrolment__filter-form dzn-enrolment__filter-form--classes"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><input type="hidden" name="view" value="enrolled">';
-        echo '<label class="dzn-enrolment__search"><span>Search classes</span><input type="search" name="q" value="' . esc_attr($filters['q']) . '" placeholder="Student, Teacher, Course or term"></label>';
-        echo '<label><span>Teacher</span><select name="teacher_id"><option value="0">All Teachers</option>';
-        foreach ($read->teacherOptions('', 200) as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '"' . selected($filters['teacher_id'], (int) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name) . '</option>';
-        echo '</select></label><label><span>Student</span><select name="student_id"><option value="0">All Students</option>';
-        foreach ($read->studentOptions('', 200) as $student) echo '<option value="' . esc_attr((string) $student->id) . '"' . selected($filters['student_id'], (int) $student->id, false) . '>' . esc_html((string) $student->display_name) . '</option>';
-        echo '</select></label><label><span>Course</span><select name="course_id"><option value="0">All Courses</option>';
-        foreach ($read->courseOptions('', 250) as $course) echo '<option value="' . esc_attr((string) $course->id) . '"' . selected($filters['course_id'], (int) $course->id, false) . '>' . esc_html((string) $course->instrument_name . ' · ' . $course->name) . '</option>';
-        echo '</select></label><label><span>Term</span><select name="term_id"><option value="0">All Terms</option>';
-        foreach ($read->termOptions(120) as $term) echo '<option value="' . esc_attr((string) $term->id) . '"' . selected($filters['term_id'], (int) $term->id, false) . '>' . esc_html(trim((string) $term->reference_code . ' · ' . $term->student_name . ' · ' . $term->course_name)) . '</option>';
-        echo '</select></label><label><span>Date</span><input type="date" name="date" value="' . esc_attr($filters['date']) . '"></label>';
-        echo '<label><span>Action needed</span><select name="action"><option value="">All classes</option><option value="needs_action"' . selected($filters['action'], 'needs_action', false) . '>Needs action</option></select></label>';
-        echo '<button class="button">Filter</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=enrolled')) . '">Reset</a></form>';
-    }
-
-    private static function bookingTable(array $rows, bool $history): void {
-        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-booking-table"><thead><tr><th>Urgency / stage</th><th>Learner &amp; contact</th><th>Country / timezone</th><th>Instrument / course</th><th>Requested &amp; proposed</th><th>Teacher response</th><th>Match attempts / availability</th><th>Age &amp; deadline</th><th>Notifications</th><th>Next action</th></tr></thead><tbody>';
-        foreach ($rows as $row) {
-            $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&request_id=' . (int) $row['id']);
-            echo '<tr>';
-            echo '<td><span class="dzn-badge ' . ($history ? 'dzn-badge--soft' : 'dzn-badge--teal') . '">' . esc_html((string) $row['stage_label']) . '</span><br><small>' . esc_html((string) $row['urgency_label']) . '</small></td>';
-            echo '<td><a href="' . esc_url($url) . '"><strong>' . esc_html((string) $row['learner_name']) . '</strong></a><br><small>' . esc_html(trim(implode(' · ', array_filter(array((string) $row['email'], (string) $row['phone']))))) . '</small></td>';
-            echo '<td>' . esc_html(trim(implode(' · ', array_filter(array((string) $row['country'], (string) $row['city']))))) . '<br><small>' . esc_html((string) $row['timezone']) . '</small></td>';
-            echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course']) . '</small></td>';
-            echo '<td>' . self::timeSummary($row) . '</td>';
-            echo '<td>' . esc_html((string) $row['teacher_name']) . '<br><small>' . esc_html((string) $row['teacher_response']) . '</small></td>';
-            echo '<td>' . esc_html((string) $row['match_attempts']) . ' attempt' . ((int) $row['match_attempts'] === 1 ? '' : 's') . '<br><small>' . esc_html((string) $row['availability_state']) . '</small></td>';
-            echo '<td>' . esc_html((string) $row['age_label']) . '<br><small>' . esc_html((string) $row['deadline_label']) . '</small></td>';
-            echo '<td>' . self::notificationSummary($row['notification_summary']) . '</td>';
-            echo '<td><a class="button button-small" href="' . esc_url($url) . '">' . esc_html($history ? 'Review history' : (string) $row['next_action']) . '</a></td>';
-            echo '</tr>';
-        }
-        echo '</tbody></table></div>';
-    }
-
-    private static function classTable(array $rows, bool $history): void {
-        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-class-table"><thead><tr><th>Class</th><th>Local time</th><th>Student</th><th>Teacher</th><th>Instrument</th><th>Term progress</th><th>Remaining</th><th>Replacement</th><th>Schedule</th><th>Attendance</th><th>Next action</th></tr></thead><tbody>';
-        foreach ($rows as $row) {
-            $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=enrolled&class_id=' . (int) $row['id']);
-            echo '<tr>';
-            echo '<td><a href="' . esc_url($url) . '"><strong>' . esc_html((string) $row['state_label']) . '</strong></a><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
-            echo '<td>' . esc_html((string) $row['local_label']) . '<br><small>' . esc_html((string) $row['timezone']) . '</small></td>';
-            echo '<td>' . esc_html((string) $row['student_name']) . '</td><td>' . esc_html((string) $row['teacher_name']) . '</td><td>' . esc_html((string) $row['course_name']) . '</td>';
-            echo '<td>' . esc_html((string) $row['term_progress']) . '<br><small>' . esc_html((string) $row['term_reference']) . '</small></td>';
-            echo '<td>' . esc_html((string) $row['remaining_classes']) . '</td><td>' . esc_html((string) $row['replacement_used']) . ' used / ' . esc_html((string) $row['replacement_allowance']) . ' allowed</td>';
-            echo '<td><span class="dzn-badge ' . ((string) $row['state'] === 'authorised' ? 'dzn-badge--teal' : 'dzn-badge--soft') . '">' . esc_html((string) $row['state_label']) . '</span></td>';
-            echo '<td><span class="dzn-attendance dzn-attendance--' . esc_attr((string) $row['attendance']['key']) . '">' . esc_html((string) $row['attendance']['label']) . '</span><br><small>' . esc_html((string) $row['attendance']['detail']) . '</small></td>';
-            echo '<td>' . (!empty($row['action_needed']) ? '<strong>' . esc_html((string) $row['action_needed']) . '</strong><br>' : '') . '<a class="button button-small" href="' . esc_url($url) . '">Open class</a></td>';
-            echo '</tr>';
-        }
-        echo '</tbody></table></div>';
-    }
-
     private static function classFacts(array $class): void {
         echo '<section class="dzn-enrolment__section"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Class context</p><h2>Class facts</h2></div></div><dl class="dzn-facts dzn-facts--columns">';
         self::fact('Local time', (string) $class['local_label']);
@@ -702,6 +796,12 @@ final class EnrolmentWorkspaceView {
         self::fact('Attendance', (string) $class['attendance']['label'], (string) $class['attendance']['detail']);
         self::fact('Next action', (string) ($class['action_needed'] ?: 'No immediate action'));
         echo '</dl></section>';
+    }
+
+    private static function classTeacherNote(array $class): void {
+        $note = $class['teacher_note'] ?? null;
+        if (!$note) return;
+        echo '<section class="dzn-enrolment__section dzn-teacher-note"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Teacher follow-up</p><h2>Teacher note</h2></div><span class="dzn-count-chip">' . esc_html((string) ($note['updated_at'] ?? '')) . '</span></div><blockquote>' . nl2br(esc_html((string) ($note['text'] ?? ''))) . '</blockquote><p class="description">Private Teacher note for the next class. It is not attendance or completion evidence.</p></section>';
     }
 
     private static function classClassroom(array $class, ?array $classroom): void {
@@ -904,21 +1004,6 @@ final class EnrolmentWorkspaceView {
         echo '<p class="description">Transport acceptance is not recipient delivery.</p></section>';
     }
 
-    private static function timeSummary(array $row): string {
-        $parts = array();
-        foreach (array_slice((array) $row['requested_times'], 0, 2) as $time) $parts[] = '<span>' . esc_html((string) $time['label']) . '</span>';
-        if (!empty($row['confirmed'])) $parts[] = '<strong>Confirmed: ' . esc_html((string) $row['confirmed']['label']) . '</strong>';
-        return $parts ? implode('<br>', $parts) : 'No times recorded';
-    }
-
-    private static function notificationSummary(array $summary): string {
-        $out = array();
-        foreach (array('queued' => 'queued', 'handed_off' => 'sent', 'delivery_confirmed' => 'delivered', 'failed' => 'failed', 'unknown' => 'unknown') as $key => $label) {
-            if ((int) ($summary[$key] ?? 0) > 0) $out[] = '<span class="dzn-notification-state dzn-notification-state--' . esc_attr($key) . '">' . esc_html((string) $summary[$key]) . ' ' . esc_html($label) . '</span>';
-        }
-        return $out ? implode(' ', $out) : '<span class="dzn-muted">No evidence</span>';
-    }
-
     private static function paymentLinkLabel(array $postIntro): string {
         if (!empty($postIntro['payment_verified'])) return 'Paid — verified evidence';
         if (($postIntro['checkout_state'] ?? '') !== '') return ucfirst(str_replace('_', ' ', (string) $postIntro['checkout_state'])) . ' · click status unavailable';
@@ -942,57 +1027,6 @@ final class EnrolmentWorkspaceView {
         } catch (\Throwable) {
             return '';
         }
-    }
-
-    private static function bookingFilters(array $query): array {
-        return array(
-            'q' => sanitize_text_field((string) ($query['q'] ?? '')),
-            'stage' => sanitize_key((string) ($query['stage'] ?? '')),
-            'page' => max(1, absint($query['paged'] ?? 1)),
-        );
-    }
-
-    private static function classFilters(array $query): array {
-        return array(
-            'q' => sanitize_text_field((string) ($query['q'] ?? '')),
-            'teacher_id' => absint($query['teacher_id'] ?? 0),
-            'student_id' => absint($query['student_id'] ?? 0),
-            'course_id' => absint($query['course_id'] ?? 0),
-            'term_id' => absint($query['term_id'] ?? 0),
-            'date' => sanitize_text_field((string) ($query['date'] ?? '')),
-            'action' => sanitize_key((string) ($query['action'] ?? '')),
-            'page' => max(1, absint($query['paged'] ?? 1)),
-        );
-    }
-
-    private static function pagination(array $filters, array $result, bool $history, string $view): void {
-        if ((int) $result['pages'] <= 1) return;
-        $args = array('page' => EnrolmentWorkspaceController::PAGE, 'view' => $view);
-        foreach ($filters as $key => $value) {
-            if ($key === 'page' || $value === '' || $value === 0) continue;
-            $args[$key === 'page' ? 'paged' : ($history ? 'history_' . $key : $key)] = $value;
-        }
-        $args['paged'] = $result['page'];
-        echo '<nav class="tablenav dzn-pagination" aria-label="Pagination"><span>Page ' . esc_html((string) $result['page']) . ' of ' . esc_html((string) $result['pages']) . ' · ' . esc_html(number_format_i18n((int) $result['total'])) . ' records</span> ';
-        if ($result['page'] > 1) echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args, array('paged' => $result['page'] - 1)), admin_url('admin.php'))) . '">Previous</a> ';
-        if ($result['page'] < $result['pages']) echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args, array('paged' => $result['page'] + 1)), admin_url('admin.php'))) . '">Next</a>';
-        echo '</nav>';
-    }
-
-    private static function tabs(string $active): void {
-        $tabs = array();
-        if (current_user_can(Menu::ENROLMENT_TRIALS_CAP)) {
-            $tabs['new'] = 'Intro';
-            $tabs['review'] = 'Review';
-        }
-        if (current_user_can(Menu::ENROLLED_CLASSES_CAP)) $tabs['enrolled'] = 'Enrolled classes';
-        if (!$tabs) return;
-        echo '<nav class="nav-tab-wrapper dzn-enrolment__tabs" aria-label="Enrolment sections">';
-        foreach ($tabs as $key => $label) {
-            $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=' . rawurlencode($key));
-            echo '<a class="nav-tab' . ($active === $key ? ' nav-tab-active' : '') . '" href="' . esc_url($url) . '"' . ($active === $key ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
-        }
-        echo '</nav>';
     }
 
     private static function notices(): void {

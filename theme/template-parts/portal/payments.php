@@ -124,8 +124,13 @@ $render_items = static function ( array $rows ): void {
 			// commercial read. The browser never supplies an amount or a discount.
 			$promo_rows = isset( $payments['obligations'] ) && is_array( $payments['obligations'] ) ? $payments['obligations'] : array();
 			$promo = array( 'enabled' => true, 'applied' => false );
+			$promo_applicable = false;
+			$promo_started = false;
 			foreach ( $promo_rows as $promo_row ) {
-				if ( ! is_array( $promo_row ) || empty( $promo_row['offer_has_promotion'] ) ) { continue; }
+				if ( ! is_array( $promo_row ) ) { continue; }
+				if ( ! empty( $promo_row['promotion_eligible'] ) ) { $promo_applicable = true; }
+				if ( ! empty( $promo_row['action'] ) && (int) ( $promo_row['paid_instalments'] ?? 0 ) > 0 ) { $promo_started = true; }
+				if ( empty( $promo_row['offer_has_promotion'] ) ) { continue; }
 				$promo = array(
 					'enabled'            => true,
 					'applied'            => true,
@@ -155,12 +160,13 @@ $render_items = static function ( array $rows ): void {
 			<noscript><?php $render_items( $items ); ?></noscript>
 
 			<?php if ( $payable || $promoApplied ) : ?>
+				<?php $promo_form_enabled = ! $promoApplied && $promo_applicable; ?>
 				<details class="dzn-checkout__promotion">
-					<summary class="dzn-checkout__promotion-label"><?php echo $promoApplied ? esc_html__( 'کد تخفیف اعمال شده', 'delnavazan-theme' ) : esc_html__( 'کد تخفیف دارید؟', 'delnavazan-theme' ); ?></summary>
+					<summary class="dzn-checkout__promotion-label"><?php echo $promoApplied ? esc_html__( 'کد تخفیف اعمال شده', 'delnavazan-theme' ) : ( $payable && ! $promo_applicable ? esc_html__( 'کد تخفیف', 'delnavazan-theme' ) : esc_html__( 'کد تخفیف دارید؟', 'delnavazan-theme' ) ); ?></summary>
 					<div class="dzn-checkout__promotion-inputs">
 						<label class="screen-reader-text" for="dzn-promotion-code"><?php esc_html_e( 'کد تخفیف', 'delnavazan-theme' ); ?></label>
-						<input type="text" id="dzn-promotion-code" class="dzn-checkout__promotion-code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="<?php esc_attr_e( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ); ?>"<?php echo $promoApplied ? ' disabled' : ''; ?> />
-						<button type="button" id="dzn-promotion-apply" class="dzn-button dzn-button--secondary dzn-checkout__promotion-apply"<?php echo $promoApplied ? ' disabled' : ''; ?>>
+						<input type="text" id="dzn-promotion-code" class="dzn-checkout__promotion-code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="<?php esc_attr_e( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ); ?>"<?php echo $promo_form_enabled ? '' : ' disabled'; ?> />
+						<button type="button" id="dzn-promotion-apply" class="dzn-button dzn-button--secondary dzn-checkout__promotion-apply"<?php echo $promo_form_enabled ? '' : ' disabled'; ?>>
 							<?php echo $promoApplied ? esc_html__( 'اعمال شده', 'delnavazan-theme' ) : esc_html__( 'اعمال', 'delnavazan-theme' ); ?>
 						</button>
 					</div>
@@ -172,6 +178,8 @@ $render_items = static function ( array $rows ): void {
 								: sprintf( esc_html__( 'تخفیف %s اعمال شده است.', 'delnavazan-theme' ), esc_html( $format_promo( $promoDiscount, $promoCurrency ) ) );
 							echo $promo_label . ' ' . esc_html( sprintf( __( 'مبلغ اصلی: %1$s · مبلغ قابل پرداخت: %2$s', 'delnavazan-theme' ), $format_promo( $promoOriginal, $promoCurrency ), $format_promo( $promoFinal, $promoCurrency ) ) );
 							?>
+						<?php elseif ( $payable && ! $promo_applicable ) : ?>
+							<?php echo esc_html( $promo_started ? __( 'این طرح آغاز شده است و کد تخفیف فقط پیش از پرداخت اولین قسط قابل اعمال است.', 'delnavazan-theme' ) : __( 'امکان اعمال کد تخفیف برای این طرح وجود ندارد.', 'delnavazan-theme' ) ); ?>
 						<?php endif; ?>
 					</p>
 				</details>

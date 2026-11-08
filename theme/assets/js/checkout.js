@@ -31,6 +31,7 @@
 		promotion_discount_not_applicable: 'این کد تخفیف برای مبلغ قابل پرداخت شما قابل اعمال نیست.',
 		promotion_already_applied: 'برای این طرح از قبل یک کد تخفیف اعمال شده است.',
 		promotion_offer_already_paid: 'این طرح پرداخت شده و تغییر آن ممکن نیست.',
+		promotion_offer_already_started: 'این طرح آغاز شده است و کد تخفیف فقط پیش از پرداخت اولین قسط قابل اعمال است.',
 		promotion_offer_expired: 'زمان این طرح پرداخت به پایان رسیده است.',
 		promotion_offer_superseded: 'وضعیت پرداخت تغییر کرده است. صفحه در حال به‌روزرسانی است.',
 		promotion_offer_unavailable: 'این طرح در حال حاضر قابل پرداخت نیست.',
@@ -239,6 +240,15 @@
 			return Object.prototype.hasOwnProperty.call(labels, row.action);
 		}) || null;
 	}
+	function promotionEligible(row) {
+		if (typeof row.promotion_eligible === 'boolean') return row.promotion_eligible;
+		return String(row.offer_state || '') === 'issued' && Number(row.paid_instalments || 0) === 0;
+	}
+	function promotionEligibleRow(rows) {
+		return (rows || []).find(function (row) {
+			return Object.prototype.hasOwnProperty.call(labels, row.action) && promotionEligible(row);
+		}) || null;
+	}
 	function promotionAppliedRow(rows) {
 		const payable = payableRow(rows);
 		return (rows || []).find(function (row) {
@@ -258,13 +268,22 @@
 		if (!promotionCodeInput || !promotionApplyBtn || !promotionStatus) return;
 		const applied = promotionAppliedRow(rows);
 		const payable = payableRow(rows);
+		const eligible = promotionEligibleRow(rows);
 		const summary = root.querySelector('.dzn-checkout__promotion summary');
-		if (summary) summary.textContent = applied ? 'کد تخفیف اعمال شده' : 'کد تخفیف دارید؟';
+		if (summary) summary.textContent = applied ? 'کد تخفیف اعمال شده' : (payable && !eligible ? 'کد تخفیف' : 'کد تخفیف دارید؟');
 		if (applied) {
 			promotionCodeInput.disabled = true;
 			promotionApplyBtn.disabled = true;
 			promotionApplyBtn.textContent = 'اعمال شده';
 			promotionStatus.textContent = 'کد تخفیف اعمال شده است. ' + promotionSummary(applied);
+			return;
+		}
+		if (payable && !eligible) {
+			promotionCodeInput.value = '';
+			promotionCodeInput.disabled = true;
+			promotionApplyBtn.textContent = 'اعمال';
+			promotionApplyBtn.disabled = true;
+			promotionStatus.textContent = promotionMessages.promotion_offer_already_started;
 			return;
 		}
 		promotionCodeInput.disabled = !payable;
@@ -285,9 +304,16 @@
 	}
 	function applyPromotion() {
 		if (!promotionCodeInput || !promotionApplyBtn || !promotionStatus || promotionBusy) return;
-		const row = payableRow(lastObligations || []);
-		if (!row) {
+		const payable = payableRow(lastObligations || []);
+		if (!payable) {
 			promotionStatus.textContent = 'طرح قابل پرداختی برای اعمال کد تخفیف وجود ندارد.';
+			return;
+		}
+		const row = promotionEligibleRow(lastObligations || []);
+		if (!row) {
+			promotionStatus.textContent = promotionMessages.promotion_offer_already_started;
+			promotionCodeInput.disabled = true;
+			promotionApplyBtn.disabled = true;
 			return;
 		}
 		const code = String(promotionCodeInput.value || '').trim();
@@ -330,7 +356,14 @@
 		}).catch(function (error) {
 			promotionBusy = false;
 			promotionStatus.removeAttribute('aria-busy');
+			const reason = error && error.payload && error.payload.reason ? String(error.payload.reason) : '';
 			promotionStatus.textContent = promotionErrorMessage(error);
+			if (reason === 'promotion_offer_already_started' || reason === 'promotion_offer_already_paid') {
+				promotionCodeInput.disabled = true;
+				promotionApplyBtn.disabled = true;
+				refreshPayments().catch(function () {});
+				return;
+			}
 			promotionCodeInput.disabled = false;
 			promotionApplyBtn.disabled = false;
 			if (error && error.payload && error.payload.refresh_required) {

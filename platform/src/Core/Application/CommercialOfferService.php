@@ -260,7 +260,7 @@ final class CommercialOfferService {
                     return $this->promotionResult($latest,true);
                 }
                 if($latest->promotion_id!==null)throw new \InvalidArgumentException('promotion_already_applied');
-                if((string)$latest->state==='accepted')throw new \InvalidArgumentException('promotion_offer_already_paid');
+                if(($closed=$this->promotionOfferClosedReason($latest))!==null)throw new \InvalidArgumentException($closed);
                 throw new \InvalidArgumentException('promotion_offer_superseded');
             }
 
@@ -473,7 +473,7 @@ final class CommercialOfferService {
                 return array($latest,$promotion);
             }
             if($latest->promotion_id!==null)throw new \InvalidArgumentException('promotion_already_applied');
-            if((string)$latest->state==='accepted')throw new \InvalidArgumentException('promotion_offer_already_paid');
+            if(($closed=$this->promotionOfferClosedReason($latest))!==null)throw new \InvalidArgumentException($closed);
             throw new \InvalidArgumentException('promotion_offer_superseded');
         }
         CommercialLineageValidator::assertForOffer($offer,false,$this->repository,$this->continuations);
@@ -517,7 +517,7 @@ final class CommercialOfferService {
             throw new \InvalidArgumentException('promotion_already_applied');
         }
         $state=(string)$offer->state;
-        if($state==='accepted')throw new \InvalidArgumentException('promotion_offer_already_paid');
+        if(($closed=$this->promotionOfferClosedReason($offer))!==null)throw new \InvalidArgumentException($closed);
         if($state!=='issued')throw new \InvalidArgumentException('promotion_offer_unavailable');
         $now=CommercialSupport::now();
         if($offer->expires_at!==null&&(string)$offer->expires_at<=$now)throw new \InvalidArgumentException('promotion_offer_expired');
@@ -548,6 +548,20 @@ final class CommercialOfferService {
             'original_amount_minor'=>$base,'final_amount_minor'=>$amountDue,'currency'=>$currency,
             'offer_id'=>(int)$offer->id,'offer_uid'=>(string)$offer->uid,'plan_kind'=>(string)$offer->plan_kind,
         );
+    }
+
+    /**
+     * A code may only replace an offer the Student has not started paying.
+     *
+     * `accepted` means the purchase was accepted by the first verified settlement, not that the
+     * whole plan is paid. A later instalment stays payable, but the immutable pricing snapshot can
+     * no longer be re-derived, so the refusal distinguishes "already started" from "fully paid".
+     */
+    private function promotionOfferClosedReason(object $offer):?string{
+        if((string)$offer->state!=='accepted')return null;
+        $status=(new CommercialTermFundingService($this->repository))->obligationStatus((int)$offer->id);
+        $total=count($status['obligations']);
+        return $total>0&&(int)$status['settled']>=$total?'promotion_offer_already_paid':'promotion_offer_already_started';
     }
 
     private function closeCheckoutSessions(array $obligations,string $now):void{

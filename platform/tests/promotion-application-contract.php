@@ -47,6 +47,9 @@ foreach (array('function applyPromotion', 'function previewPromotion', 'lockAcco
     $assert(str_contains($offer, $needle), 'Offer authority is missing promotion supersession boundary: ' . $needle);
 }
 $assert(str_contains($rule, "'superseded'"), 'The offer state machine must recognise a superseded immutable snapshot.');
+$assert(str_contains($offer, 'promotion_offer_already_started'), 'A started plan must be distinguished from a fully paid one.');
+$assert(str_contains($controller, "'promotion_offer_already_started'"), 'The started-plan refusal must be a controlled public reason.');
+$assert(str_contains($readService, 'promotion_eligible'), 'The read seam must expose whether the payable offer can still take a code.');
 $assert(str_contains($repository, 'latestOfferForContinuation'), 'The repository must expose the newest offer revision under lock.');
 $assert(!preg_match('/updateOffer\([^;]*amount_due_minor/s', $repository), 'An offer snapshot amount must never be updated in place.');
 $assert(str_contains($offer, 'CommercialLineageValidator::assertOfferAggregate'), 'A revised offer must be re-proved through the canonical lineage validator.');
@@ -67,6 +70,8 @@ $assert(str_contains($js, 'obligation_uid') && str_contains($js, 'promotion_code
 $assert(!str_contains($js, 'dzn_applied_promotion_discount_minor'), 'The Student UI must not submit a client discount.');
 $assert(!str_contains($js, 'appliedPromotion.discount_amount_minor'), 'The Student UI must not compute the confirmed discount.');
 $assert(str_contains($js, 'aria-busy') && str_contains($js, 'promotionMessages'), 'The Student UI must expose a processing state and safe Persian errors.');
+$assert(str_contains($js, 'promotion_offer_already_started') && str_contains($js, 'promotionEligible'), 'The Student UI must explain and disable a code once the plan has started.');
+$assert(str_contains($template, 'promotion_eligible'), 'The server-rendered promotion form must respect plan eligibility.');
 $assert(!str_contains($template, 'dzn_applied_promotion_discount_minor') && !str_contains($template, 'dzn_applied_promotion_code'), 'The template must not carry hidden discount fields.');
 $assert(str_contains($template, 'data-promotion-status'), 'The template must keep an accessible promotion status region.');
 

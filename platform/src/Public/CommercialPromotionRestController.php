@@ -141,7 +141,7 @@ final class CommercialPromotionRestController {
             'promotion_expired','promotion_product_mismatch','promotion_first_term_only',
             'promotion_usage_limit_reached','promotion_beneficiary_limit_reached','promotion_currency_mismatch',
             'promotion_discount_too_small','promotion_kind_unsupported','promotion_already_applied',
-            'promotion_offer_already_paid','promotion_offer_unavailable','promotion_offer_expired',
+            'promotion_offer_already_paid','promotion_offer_already_started','promotion_offer_unavailable','promotion_offer_expired',
             'promotion_offer_superseded','promotion_adjustment_unavailable','promotion_discount_not_applicable',
         );
         return in_array( $message, $allowed, true ) ? $message : 'promotion_unavailable';
@@ -153,8 +153,8 @@ final class CommercialPromotionRestController {
             'promotion_student_required' => 403,
             'promotion_obligation_unavailable' => 404,
             'promotion_rate_limited' => 429,
-            'promotion_already_applied', 'promotion_offer_already_paid', 'promotion_offer_superseded',
-            'promotion_offer_unavailable', 'promotion_offer_expired' => 409,
+            'promotion_already_applied', 'promotion_offer_already_paid', 'promotion_offer_already_started',
+            'promotion_offer_superseded', 'promotion_offer_unavailable', 'promotion_offer_expired' => 409,
             'promotion_not_found', 'promotion_inactive', 'promotion_not_yet_valid', 'promotion_expired',
             'promotion_product_mismatch', 'promotion_first_term_only', 'promotion_usage_limit_reached',
             'promotion_beneficiary_limit_reached', 'promotion_currency_mismatch', 'promotion_discount_too_small',

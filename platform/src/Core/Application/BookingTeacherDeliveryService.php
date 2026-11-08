@@ -42,6 +42,16 @@ final class BookingTeacherDeliveryService {
             // response action, while the read projection exposes every ranked
             // preference for the teacher's informed choice.
             $delivery->requested_times = $this->deliveries->requestedTimes((int) $delivery->booking_request_id);
+            foreach ($delivery->requested_times as &$preference) {
+                // The Teacher must know which Student preference is an explicit
+                // availability exception before accepting it.
+                $preference['coverage'] = $this->coverageState(
+                    $teacher,
+                    (string) ($preference['starts_at_utc'] ?? ''),
+                    (string) ($preference['occupied_ends_at_utc'] ?? '')
+                );
+            }
+            unset($preference);
             $deadline = trim((string) ($delivery->response_deadline_at ?? ''));
             if ($deadline !== '') {
                 $delivery->response_deadline_utc = $deadline;
@@ -52,4 +62,22 @@ final class BookingTeacherDeliveryService {
         return $deliveries;
     }
 
+    /** Exact declared-availability state for one preference, or `outside` when it is not covered. */
+    private function coverageState(int $teacherId, string $startsAtUtc, string $occupiedEndUtc): string {
+        if ($startsAtUtc === '' || $occupiedEndUtc === '' || $occupiedEndUtc <= $startsAtUtc) {
+            return 'outside';
+        }
+        $cursor = $startsAtUtc;
+        $state = 'preferred';
+        foreach ($this->availability->effective($teacherId, $startsAtUtc, $occupiedEndUtc) as $segment) {
+            if ((string) $segment['starts_at_utc'] > $cursor) { return 'outside'; }
+            if (!in_array((string) $segment['state'], array('preferred', 'requestable'), true)) { return 'outside'; }
+            if ((string) $segment['state'] === 'requestable') { $state = 'requestable'; }
+            if ((string) $segment['ends_at_utc'] > $cursor) {
+                $cursor = min($occupiedEndUtc, (string) $segment['ends_at_utc']);
+            }
+            if ($cursor === $occupiedEndUtc) { return $state; }
+        }
+        return 'outside';
+    }
 }

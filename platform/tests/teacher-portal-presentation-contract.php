@@ -166,6 +166,23 @@ namespace {
     $informed = $section($inform, 'tp-attention');
     $check('a non-authoritative item offers no action and says so', str_contains($informed, 'dzn-tp-attention-card') && !str_contains($informed, '<dialog') && !str_contains($informed, 'data-dzn-tp-open') && !str_contains($informed, 'name="decision"') && str_contains($informed, 'فقط برای اطلاع نمایش داده می‌شود'));
 
+    $openRequest = array(
+        'ref' => 'open-REQUEST-UID', 'action_available' => true, 'authoritative_request' => true, 'state' => 'intro_open_request',
+        'title' => 'درخواست بدون مدرس برای ساز شما', 'context' => 'Neda · Setar',
+        'message' => 'این درخواست به مدرس دیگری ارجاع نشده است.', 'due' => 'خارج از زمان‌های در دسترس شما', 'primary' => 'پذیرش این درخواست',
+        'request_uid' => 'REQUEST-UID',
+        'requested_preferences' => array(
+            array('id' => 31, 'label' => 'Saturday 3 October، 10:00', 'coverage' => 'outside', 'coverage_label' => 'خارج از زمان‌های در دسترس شما', 'available' => false, 'offered' => false),
+            array('id' => 32, 'label' => 'Sunday 4 October، 11:00', 'coverage' => 'preferred', 'coverage_label' => 'در زمان‌های در دسترس شما', 'available' => true, 'offered' => false),
+        ),
+        'claim_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_claim', 'claim_nonce' => 'nonce-claim',
+    );
+    $openClasses = $render('classes', $model(array('open_requests' => array($openRequest))));
+    $openHome = $render('home', $model(array('open_requests' => array($openRequest))));
+    $check('unmatched requests render on classes and home with their outside-availability reason', str_contains($openClasses, 'id="tp-open-requests"') && str_contains($openClasses, 'درخواست‌های بدون مدرس برای سازهای شما') && str_contains($openClasses, 'خارج از زمان‌های در دسترس شما') && str_contains($openHome, 'id="tp-open-requests"'));
+    $check('unmatched claim form posts its nonce, request and selected preference', str_contains($openClasses, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_claim"') && str_contains($openClasses, 'name="_wpnonce" value="nonce-claim"') && str_contains($openClasses, 'name="request_uid" value="REQUEST-UID"') && str_contains($openClasses, 'name="claim_key"') && str_contains($openClasses, 'name="requested_time_id" value="31"') && str_contains($openClasses, 'name="requested_time_id" value="32"'));
+    $check('unmatched claim never reuses the delivered-request form', !str_contains($openClasses, 'name="delivery_uid"') && !str_contains($openClasses, 'name="decision"'));
+
     $absence = array(
         'ref' => 'ABS-1', 'action_available' => true, 'state' => 'student_absence',
         'title' => 'اطلاع غیبت هنرجو', 'context' => 'Student One · Setar',
@@ -232,6 +249,9 @@ namespace {
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
     $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 9 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $claimController = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingClaimController.php');
+    preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $claimController, $claimFound);
+    $check('every unmatched claim notice reuses an allowlisted message', $claimFound[1] !== array() && !array_diff($claimFound[1], dzn_theme_teacher_portal_response_notice_allowlist()));
     $rescheduleController = (string) file_get_contents($root . '/platform/src/Portals/LessonRescheduleController.php');
     $teacherMessages = substr($rescheduleController, (int) strpos($rescheduleController, 'private static function teacher_message'), (int) strpos($rescheduleController, 'private static function student_message') - (int) strpos($rescheduleController, 'private static function teacher_message'));
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $teacherMessages, $rescheduleFound);
@@ -249,7 +269,7 @@ namespace {
 
     // 8. Source guards: boundary, accessibility and assets.
     $parts = array();
-    foreach (array('classes', 'attention', 'calendar', 'shell', 'help') as $p) { $parts[$p] = (string) file_get_contents($theme . "/template-parts/teacher-portal/$p.php"); }
+    foreach (array('classes', 'attention', 'open-requests', 'calendar', 'shell', 'help') as $p) { $parts[$p] = (string) file_get_contents($theme . "/template-parts/teacher-portal/$p.php"); }
     $joined_src = implode("\n", $parts) . (string) file_get_contents($theme . '/inc/teacher-portal.php');
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
     $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');

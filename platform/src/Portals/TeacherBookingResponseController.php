@@ -11,8 +11,9 @@ final class TeacherBookingResponseController {
         check_admin_referer('dzn_teacher_booking_response');
         try{
             $post=wp_unslash($_POST);$uid=(string)($post['delivery_uid']??'');$decision=(string)($post['decision']??'');$responseKey=(string)($post['response_key']??'');
+            $requestedTimeId=isset($post['requested_time_id'])?max(0,(int)$post['requested_time_id']):null;
             if(!preg_match('/^[a-f0-9-]{36}$/D',$responseKey))throw new \InvalidArgumentException('Booking response command required');
-            $result=(new BookingTeacherResponseService(null,new BookingCalendarProjectionService()))->respond($uid,$decision,'teacher-booking-response:'.get_current_user_id().':'.$uid.':'.$decision.':'.$responseKey);
+            $result=(new BookingTeacherResponseService(null,new BookingCalendarProjectionService()))->respond($uid,$decision,'teacher-booking-response:'.get_current_user_id().':'.$uid.':'.$decision.':'.$responseKey,$requestedTimeId);
             $state=(string)($result['state']??'retryable');
             $notice=$state==='confirmed'?'کلاس تأیید شد و جزئیات برای هنرجو در صف ارسال قرار گرفت.':($state==='declined'?'پاسخ شما ثبت شد؛ درخواست به مدرس بعدی یا هماهنگی آکادمی ارجاع شد.':($state==='failed'?'پذیرش ثبت شد اما ساخت کلاس Google Meet کامل نشد. مورد برای بررسی مدیر ثبت شد و با رفع علت، بدون پذیرش دوباره قابل بازیابی است.':($state==='awaiting_payment'?'پذیرش ثبت شد. این کلاس آشنایی پرداختی است؛ رویداد تقویم و پیوند Meet پس از پرداخت موفق هنرجو ساخته می‌شود.':'پذیرش ثبت شد. ساخت تقویم و کلاس Google Meet در صف تلاش مجدد است؛ وضعیت در پرتال مدرس به‌روز می‌شود.')));
 

@@ -1835,6 +1835,36 @@ function dzn_theme_platform_teacher_booking_requests() {
 	try { return ( new $class() )->ownPending(); } catch ( Throwable ) { return array(); }
 }
 
+/** Teacher-scoped unmatched requests for courses the Teacher is eligible to teach. */
+function dzn_theme_platform_teacher_open_booking_requests() {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOpenBookingRequestReadService';
+	if ( ! class_exists( $class ) ) { return array(); }
+	try { return ( new $class() )->own(); } catch ( Throwable ) { return array(); }
+}
+
+/** Explicit availability state of one Student preference for the Teacher's informed choice. */
+function dzn_theme_platform_teacher_preference_models( $request, $teacher_timezone, $teacher_calendar, $teacher_locale ) {
+	$models = array();
+	$offered = (int) ( $request->requested_time_id ?? 0 );
+	foreach ( (array) ( $request->requested_times ?? array() ) as $preference ) {
+		if ( ! is_array( $preference ) ) { continue; }
+		$coverage = (string) ( $preference['coverage'] ?? 'outside' );
+		if ( ! in_array( $coverage, array( 'preferred', 'requestable', 'outside' ), true ) ) { $coverage = 'outside'; }
+		$label = dzn_theme_platform_calendar_time( (string) ( $preference['starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+		$models[] = array(
+			'id' => (int) ( $preference['id'] ?? 0 ),
+			'label' => $label,
+			'coverage' => $coverage,
+			'coverage_label' => 'preferred' === $coverage
+				? 'در زمان‌های در دسترس شما'
+				: ( 'requestable' === $coverage ? 'با پذیرش درخواستی شما در دسترس' : 'خارج از زمان‌های در دسترس شما' ),
+			'available' => 'outside' !== $coverage,
+			'offered' => $offered > 0 && (int) ( $preference['id'] ?? 0 ) === $offered,
+		);
+	}
+	return $models;
+}
+
 /** Persian remaining-time label for the 24-hour Teacher response window. */
 function dzn_theme_platform_teacher_response_remaining_label( int $seconds ): string {
 	if ( $seconds <= 0 ) { return 'مهلت پاسخ گذشته است'; }
@@ -2478,10 +2508,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$remainingSeconds=''!==$deadlineUtc?max(0,(int)((dzn_theme_platform_utc_timestamp($deadlineUtc)?:time())-time())):0;
 		$remaining=max(0,(int)ceil($remainingSeconds/60));
 		$remainingText=dzn_theme_platform_persian_digits((int)floor($remaining/60)).' ساعت و '.dzn_theme_platform_persian_digits($remaining%60).' دقیقه';
-		$preferences=array();
-		foreach((array)($request->requested_times??array()) as $preference){
-			try{$preferences[]=dzn_theme_platform_calendar_time((string)($preference['starts_at_utc']??''),$teacher_timezone,$teacher_calendar,$teacher_locale,'datetime');}catch(Throwable){}
-		}
+		$preferenceModels=dzn_theme_platform_teacher_preference_models($request,$teacher_timezone,$teacher_calendar,$teacher_locale);
+		$preferences=array_map(static fn($preference)=>(string)($preference['label']??''),$preferenceModels);
 		$preferenceText=$preferences?' اولویت‌های هنرجو: '.implode(' · ',$preferences).'.':'';
 		return array(
 			'ref'=>(string)$request->delivery_uid,'action_available'=>true,'authoritative_request'=>true,'state'=>'intro_request',
@@ -2496,8 +2524,37 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'response_deadline_label'=>$deadline,
 			'response_window_label'=>'مهلت پاسخ: ۲۴ ساعت',
 			'primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
+			'requested_preferences'=>$preferenceModels,'offered_time_id'=>(int)($request->requested_time_id??0),
 		);
 	},dzn_theme_platform_teacher_booking_requests());
+	// Unmatched requests never entered the Teacher's inbox through allocation. They are offered
+	// only for the Teacher's exact eligible course and state plainly that the Student preferences
+	// are outside declared availability; occupancy still remains a hard acceptance constraint.
+	$openRequestAttention = array_values( array_filter( array_map( static function ( $request ) use ( $teacher_timezone, $teacher_calendar, $teacher_locale ) {
+		if ( ! is_object( $request ) && ! is_array( $request ) ) { return null; }
+		$request = (object) $request;
+		$request_uid = trim( (string) ( $request->request_uid ?? '' ) );
+		if ( '' === $request_uid ) { return null; }
+		$preferences = dzn_theme_platform_teacher_preference_models( $request, $teacher_timezone, $teacher_calendar, $teacher_locale );
+		if ( ! $preferences ) { return null; }
+		$instrument = trim( (string) ( $request->instrument_name ?? $request->course_name ?? '' ) );
+		$student = trim( (string) ( $request->full_name ?? '' ) );
+		return array(
+			'ref' => 'open-' . $request_uid,
+			'action_available' => true,
+			'authoritative_request' => true,
+			'state' => 'intro_open_request',
+			'title' => 'درخواست بدون مدرس برای ساز شما',
+			'context' => trim( $student . ( '' !== $instrument ? ' · ' . $instrument : '' ) ),
+			'message' => 'این درخواست به مدرس دیگری ارجاع نشده است. زمان‌های درخواستی هنرجو خارج از زمان‌های در دسترس اعلام‌شدهٔ شما هستند؛ با انتخاب یکی از آن‌ها و پذیرش، این کلاس را به‌صورت استثنایی ثبت می‌کنید. تداخل با کلاس‌های شما همچنان بررسی می‌شود.',
+			'due' => 'خارج از زمان‌های در دسترس شما',
+			'primary' => 'پذیرش این درخواست',
+			'request_uid' => $request_uid,
+			'requested_preferences' => $preferences,
+			'claim_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_booking_claim' ),
+			'claim_nonce' => wp_create_nonce( 'dzn_teacher_booking_claim' ),
+		);
+	}, dzn_theme_platform_teacher_open_booking_requests() ) ) );
 	// Accepted bookings stay visible while Calendar/Meet provisioning is pending or failed. The
 	// confirmation is durable proof of acceptance, so these cards never offer Accept or a broken Join.
 	$provisioningAttention = array_values( array_filter( array_map( static function( $row ) use ( $teacher_timezone, $teacher_calendar, $teacher_locale ) {
@@ -2694,6 +2751,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'notification_actions' => $teacher_inbox['actions'],
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => $bookingAttention,
+		'open_requests' => $openRequestAttention,
 		'booking_provisioning' => (array) ( $data['booking_provisioning'] ?? array() ),
 		'post_intro_outcomes' => $post_intro_outcomes,
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),

@@ -65,6 +65,58 @@ $contains($workspace, array(
     'student-actions',
 ), 'The profile must expose all eleven management sections.');
 $contains($workspace, array('dzn-student-layout', 'dzn-student-rail', 'Back to Students', 'Profile sections'), 'The profile must use an in-page navigation rail and stay in the Students context.');
+$contains($workspace, array(
+    'dzn-student-toolbar',
+    'dzn-student-jump',
+    'dzn-admin-attention',
+    'Administrative action required',
+    'Start re-enrolment for this student',
+    'Lifecycle reference',
+    'dzn-history-details',
+    'Communication history (site inbox &amp; channels)',
+    'Recent notification evidence',
+    'bool $open = true',
+), 'The reorganised profile must expose a button-only toolbar, a highlighted attention banner, a top jump row and collapsible communication history.');
+
+// Operational sections must lead the profile; identity/details move to the bottom.
+$profileOrder = array(
+    'self::financeSection($profile)',
+    'self::lessonsSection($profile)',
+    'self::termsSection($profile)',
+    'self::coursesSection($profile)',
+    'self::enrolmentSection($profile)',
+    'self::notificationsSection($profile)',
+    'self::tasksSection($profile)',
+    'self::accountSection($profile)',
+    'self::detailsSection($profile)',
+    'self::recordingSection($profile)',
+    'self::actionsSection($profile)',
+);
+$lastPos = -1;
+foreach ($profileOrder as $needle) {
+    $pos = strpos($workspace, $needle);
+    $assert($pos !== false, 'Missing reorganised section call: ' . $needle);
+    $assert($pos > $lastPos, 'Reorganised section order broken at: ' . $needle);
+    $lastPos = $pos;
+}
+// Jump links follow the same operational order.
+$jumpOrder = array('student-finance', 'student-lessons', 'student-terms', 'student-courses', 'student-enrolment', 'student-notifications', 'student-tasks', 'student-account', 'student-details', 'student-recording', 'student-actions');
+$jumpSource = $workspace;
+foreach ($jumpOrder as $i => $anchor) {
+    $pos = strpos($jumpSource, "'{$anchor}'");
+    $assert($pos !== false, 'Missing jump anchor: ' . $anchor);
+    if ($i > 0) {
+        $prev = strpos($jumpSource, "'{$jumpOrder[$i - 1]}'");
+        $assert($pos > $prev, 'Jump anchor order broken at: ' . $anchor);
+    }
+}
+// Lifecycle buttons live in the toolbar, not in bottom cards.
+$toolbarPos = strpos($workspace, 'dzn-student-toolbar');
+$deactivatePos = strpos($workspace, "'student-deactivate'");
+$assert($toolbarPos !== false && $deactivatePos !== false && $deactivatePos > $toolbarPos, 'Lifecycle buttons must be rendered in the top toolbar.');
+$assert(!str_contains($workspace, 'dzn-action-card'), 'Lifecycle buttons must not duplicate as bottom cards; meanings stay as a reference.');
+$assert(str_contains($workspace, 'Lifecycle reference') && str_contains($workspace, 'Distinct lifecycle meanings'), 'Lifecycle reference must retain the distinct meanings table at the bottom.');
+$assert(str_contains($workspace, "sectionOpen('student-details', 'Student details'") && str_contains($workspace, ', false)'), 'Reference sections must default to collapsed.');
 
 $contains($workspace, array(
     'student-send-password-reset',

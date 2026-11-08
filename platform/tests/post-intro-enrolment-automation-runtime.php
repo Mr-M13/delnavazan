@@ -448,8 +448,11 @@ $truthBefore = $truthCounts();
 $teacherModel = dzn_theme_platform_teacher_model('home');
 dzn_pia_assert(($teacherModel['available'] ?? false) === true, 'the teacher theme view model must be available');
 dzn_pia_assert(dzn_theme_teacher_portal_validate_model($teacherModel, 'home'), 'the teacher theme view model must satisfy the presentation contract');
-$themeClasses = array_values((array) ($teacherModel['classes'] ?? array()));
-dzn_pia_assert(count($themeClasses) > 0 && count($themeClasses) <= 12, 'the teacher theme view model must render the bounded future Lessons, got ' . count($themeClasses));
+$themeClassesAll = array_values((array) ($teacherModel['classes'] ?? array()));
+// The teacher model may also carry today's introductory booking. The funded Term is the
+// source of truth for the twelve future canonical Lessons; assert against those exactly.
+$themeClasses = array_values(array_filter($themeClassesAll, static fn(array $row): bool => in_array((string) ($row['lesson_uid'] ?? ''), $studentLessonUids, true)));
+dzn_pia_assert(count($themeClasses) === 12, 'the teacher theme view model must render all twelve future canonical Lessons, got ' . count($themeClasses) . ' of ' . count($themeClassesAll) . ' displayed classes');
 $themeLessonUids = array();
 foreach ($themeClasses as $themeClass) {
     dzn_pia_assert(dzn_theme_teacher_portal_class_valid($themeClass), 'every canonical teacher class must satisfy the display contract');
@@ -464,7 +467,8 @@ sort($themeLessonUids);
 dzn_pia_assert(count(array_intersect($themeLessonUids, $studentLessonUids)) > 0, 'the teacher theme view model must expose canonical Lesson UIDs shared with the Student Portal');
 dzn_pia_assert(dzn_theme_platform_zoned_time('2026-11-01 07:15:00', 'H:i', 'Asia/Tehran') === '10:45', 'the presentation boundary must preserve the authoritative Asia/Tehran conversion');
 $teacherViewModel = dzn_theme_teacher_portal_view_model('home');
-dzn_pia_assert(($teacherViewModel['available'] ?? false) === true && count((array) ($teacherViewModel['classes'] ?? array())) === count($themeClasses), 'the teacher portal view model must render the same healthy bounded classes');
+$teacherViewModelClasses = array_values(array_filter((array) ($teacherViewModel['classes'] ?? array()), static fn(array $row): bool => in_array((string) ($row['lesson_uid'] ?? ''), $studentLessonUids, true)));
+dzn_pia_assert(($teacherViewModel['available'] ?? false) === true && count($teacherViewModelClasses) === count($themeClasses), 'the teacher portal view model must render the same twelve healthy canonical classes');
 $optionalNoteClass = $themeClasses[0];
 $optionalNoteClass['previous_private_note'] = '';
 dzn_pia_assert(dzn_theme_teacher_portal_class_valid($optionalNoteClass), 'a legitimately absent private note must not invalidate a class');

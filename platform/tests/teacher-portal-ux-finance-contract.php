@@ -19,7 +19,7 @@ $assert(str_contains($finance,'شهریهٔ پرداخت‌شدهٔ این تر�
 $assert(str_contains($read($root.'/src/Core/Application/Finance/TuitionAllocationEstimator.php'),"'Google Workspace'"),'The shared allocation must include the Google Workspace share.');
 $financeCss=$read($theme.'/assets/css/theme.css');
 $assert(str_contains($financeCss,'.dzn-allocation__table-wrap{overflow-x:visible')&&str_contains($financeCss,'.dzn-allocation__table th:last-child'),'The allocation table must fit the viewport so percentages stay visible without horizontal scrolling.');
-$assert(substr_count($bridge,"dzn_theme_platform_tuition_allocations( 'student' )")>=2&&str_contains($bridge,"dzn_theme_platform_tuition_allocations( 'teacher' )"),'Student settings/payments and Teacher finance must receive the shared model.');
+$assert(substr_count($bridge,"dzn_theme_platform_tuition_allocations( 'student' )")===0&&str_contains($bridge,"dzn_theme_platform_tuition_allocations( 'teacher' )"),'Student Finance must not render the illustrative allocation block; Teacher finance retains its own model.');
 $assert(str_contains($termRead,"resolve('student')")&&str_contains($termRead,"resolve('teacher')")&&str_contains($termRead,'hasActiveTeacherAuthority'),'Allocation reads must be scoped to authenticated portal principals.');
 $assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i',$termRead),'The illustrative allocation reader must remain read-only.');
 $assert(!str_contains($termRead,'Stripe')&&!str_contains($termRead,'TeacherStatementService')&&!str_contains($termRead,'CommercialPaymentService'),'The illustrative read must not become payment or settlement authority.');

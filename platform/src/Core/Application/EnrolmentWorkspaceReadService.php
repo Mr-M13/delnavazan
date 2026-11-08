@@ -42,7 +42,7 @@ final class EnrolmentWorkspaceReadService {
             return array((int) $a['urgency_rank'], (string) ($a['deadline_at'] ?? '9999'), (string) ($a['created_at'] ?? ''))
                 <=> array((int) $b['urgency_rank'], (string) ($b['deadline_at'] ?? '9999'), (string) ($b['created_at'] ?? ''));
         });
-        $perPage = 20;
+        $perPage = max(20, min(self::HISTORY_BOOKING_LIMIT, (int) ($filters['per_page'] ?? 20)));
         $total = count($result);
         $pages = max(1, (int) ceil($total / $perPage));
         $page = max(1, min($pages, (int) ($filters['page'] ?? 1)));
@@ -144,13 +144,14 @@ final class EnrolmentWorkspaceReadService {
         $rows = array();
 
         if (current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination')) {
-            $introFilters = array('q' => (string) ($filters['q'] ?? ''), 'stage' => (string) ($filters['stage'] ?? ''), 'page' => 1);
+            $introFilters = array('q' => (string) ($filters['q'] ?? ''), 'stage' => (string) ($filters['stage'] ?? ''), 'page' => 1, 'per_page' => self::ACTIVE_BOOKING_LIMIT);
             foreach ($this->bookingCases($introFilters, $history)['rows'] as $case) {
                 $confirmation = $case['confirmation'] ?? null;
                 $firstTime = (array) ($case['requested_times'][0] ?? array());
                 $startsAt = (string) ($confirmation['starts_at_utc'] ?? ($firstTime['starts_at_utc'] ?? ''));
                 $dateLabel = $confirmation !== null ? (string) ($confirmation['label'] ?? '') : (string) ($firstTime['label'] ?? 'Schedule not set');
                 $localDate = (string) ($confirmation['local_date'] ?? '');
+                if ($localDate === '') $localDate = (string) ($firstTime['local_date'] ?? '');
                 if ($localDate === '' && $startsAt !== '') $localDate = substr($startsAt, 0, 10);
                 $attention = !$history && $this->introNeedsAttention($case);
                 $rows[] = array(
@@ -177,7 +178,7 @@ final class EnrolmentWorkspaceReadService {
                     'attention_reason' => $attention ? (string) $case['next_action'] : '',
                     'next_action' => (string) $case['next_action'],
                     'url' => admin_url('admin.php?page=dzn-enrolment-workspace&request_id=' . (int) $case['id']),
-                    'meet_retry' => !empty($confirmation['recovery_eligible']) && (string) ($confirmation['state'] ?? '') === 'failed' ? $confirmation : null,
+                    'meet_retry' => current_user_can('dzn_manage_booking_request_coordination') && !empty($confirmation['recovery_eligible']) && (string) ($confirmation['state'] ?? '') === 'failed' ? $confirmation : null,
                     'history' => $history,
                 );
             }
@@ -300,9 +301,10 @@ final class EnrolmentWorkspaceReadService {
             "SELECT COUNT(*) FROM {$this->p}booking_request_confirmations c
              INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
              WHERE c.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id)
-               AND c.starts_at_utc<%s AND c.state IN ('confirmed','awaiting_payment')
+               AND c.starts_at_utc>=%s AND c.starts_at_utc<%s AND c.state IN ('confirmed','awaiting_payment')
                AND r.lifecycle_status='submitted' AND r.privacy_erased_at IS NULL
                AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id)",
+            $from,
             gmdate('Y-m-d H:i:s', strtotime('-4 hours'))
         ));
         $terms = $wpdb->get_results(
@@ -381,10 +383,10 @@ final class EnrolmentWorkspaceReadService {
              FROM {$this->p}enrolments e
              INNER JOIN {$this->p}students s ON s.id=e.student_id
              INNER JOIN {$this->p}courses c ON c.id=e.course_id
-             INNER JOIN {$this->p}terms t ON t.enrolment_id=e.id AND t.applicable_slot=1 AND t.archived_at IS NULL AND t.lifecycle_state IN ('current','authorised')
+             INNER JOIN {$this->p}terms t ON t.enrolment_id=e.id AND t.applicable_slot=1 AND t.archived_at IS NULL AND t.lifecycle_state='current'
              INNER JOIN {$this->p}teacher_assignments ta ON ta.enrolment_id=e.id AND ta.applicable_slot=1 AND ta.state='assigned'
              INNER JOIN {$this->p}teachers teacher ON teacher.id=ta.teacher_id
-             WHERE e.archived_at IS NULL AND e.lifecycle_state IN ('current','authorised')
+             WHERE e.archived_at IS NULL AND e.lifecycle_state='current'
                AND t.lesson_allocation > (SELECT COUNT(*) FROM {$this->p}lessons l
                     WHERE l.term_id=t.id AND l.lesson_type='standard' AND l.archived_at IS NULL
                       AND COALESCE(l.lifecycle_state,l.status) NOT IN ('cancelled','archived'))

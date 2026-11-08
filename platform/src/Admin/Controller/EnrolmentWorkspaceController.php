@@ -406,15 +406,33 @@ final class EnrolmentWorkspaceController {
                 if ($recordModel === 'legacy_phase1') {
                     self::requireCap('dzn_manage_lessons');
                     if ($enrolmentId < 1 || $teacherId < 1 || $studentId < 1 || $courseId < 1) throw new \InvalidArgumentException('Choose an active Enrolment with a current Term and Teacher');
-                    $lessonId = (new LessonService())->create(array(
-                        'student_id' => $studentId,
-                        'teacher_id' => $teacherId,
-                        'course_id' => $courseId,
-                        'lesson_type' => 'standard',
-                        'status' => 'draft',
-                        'enrolment_id' => $enrolmentId,
-                        'term_id' => $termId,
-                    ));
+                    global $wpdb;
+                    $wpdb->query('START TRANSACTION');
+                    try {
+                        $term = $wpdb->get_row($wpdb->prepare(
+                            "SELECT id,lesson_allocation FROM {$wpdb->prefix}dzn_terms WHERE id=%d AND enrolment_id=%d AND archived_at IS NULL AND status IN ('active','current') FOR UPDATE",
+                            $termId,
+                            $enrolmentId
+                        ));
+                        $used = (int) $wpdb->get_var($wpdb->prepare(
+                            "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_lessons WHERE term_id=%d AND lesson_type='standard' AND archived_at IS NULL AND status NOT IN ('cancelled','archived')",
+                            $termId
+                        ));
+                        if (!$term || $used >= (int) $term->lesson_allocation) throw new \InvalidArgumentException('The selected historical Term has no remaining standard-class allocation');
+                        $lessonId = (new LessonService())->create(array(
+                            'student_id' => $studentId,
+                            'teacher_id' => $teacherId,
+                            'course_id' => $courseId,
+                            'lesson_type' => 'standard',
+                            'status' => 'draft',
+                            'enrolment_id' => $enrolmentId,
+                            'term_id' => $termId,
+                        ), true);
+                        $wpdb->query('COMMIT');
+                    } catch (\Throwable $legacyCreateError) {
+                        $wpdb->query('ROLLBACK');
+                        throw $legacyCreateError;
+                    }
                     try {
                         (new LessonScheduleService())->initial($lessonId, array(
                             'schedule_timezone' => $scheduleInput['schedule_timezone'],

@@ -50,10 +50,8 @@ $entry_url = add_query_arg( $entry_args, home_url( '/music-classroom/' ) );
 				<?php endif; ?>
 				<button class="<?php echo esc_attr( $primary_class ); ?>" type="submit">ورود به کلاس Google Meet</button>
 			</form>
-			<p class="dzn-classroom-actions__note">با یک کلیک وارد کلاس می‌شوید. پیوند امن Meet فقط پس از تأیید سرور باز می‌شود.</p>
 		<?php else : ?>
 			<a class="<?php echo esc_attr( $primary_class ); ?>" href="<?php echo esc_url( $entry_url ); ?>" target="_blank" rel="noopener noreferrer">ورود به کلاس Google Meet</a>
-			<p class="dzn-classroom-actions__note">صفحهٔ آماده‌سازی و پایان کلاس دلنوازان باز می‌شود؛ پیوند امن Meet پس از تأیید سرور در اختیار شما قرار می‌گیرد.</p>
 		<?php endif; ?>
 	<?php elseif ( '' !== $message ) : ?>
 		<p class="dzn-portal-help dzn-classroom-actions__unavailable"><?php echo esc_html( $message ); ?></p>

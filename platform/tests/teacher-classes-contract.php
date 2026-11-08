@@ -172,7 +172,8 @@ namespace {
 	$upcoming_refs = array_column( (array) ( $model['upcoming_classes'] ?? array() ), 'ref' );
 	$check( 'previous-day classes are excluded from both sections', ! in_array( 'REF-YESTERDAY', $today_refs, true ) && ! in_array( 'REF-YESTERDAY', $upcoming_refs, true ) );
 	$check( 'tomorrow and day-30 classes are upcoming', in_array( 'REF-TOMORROW', $upcoming_refs, true ) && in_array( 'REF-DAY30', $upcoming_refs, true ) );
-	$check( 'beyond-day-30 classes are excluded', ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $upcoming_refs, true ) );
+	$far_future_refs = array_column( (array) ( $model['far_future_classes'] ?? array() ), 'ref' );
+	$check( 'beyond-day-30 classes remain available in a collapsed section', in_array( 'REF-DAY32', $far_future_refs, true ) && ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $upcoming_refs, true ) );
 	$fixture_now = \Delnavazan\Platform\Portals\PortalAuthenticatedReadService::$fixture_now;
 	$day_window = dzn_theme_platform_teacher_day_window( 'Asia/Tehran' );
 	$recent_is_today = ( $fixture_now - 7200 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
@@ -214,6 +215,8 @@ namespace {
 	$check( 'reschedule form exposes the outside-availability confirmation', str_contains( $html, 'name="confirm_outside_availability"' ) );
 	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
 	$check( 'future classes can be filtered by student', str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
+	$check( 'far-future classes render collapsed with a clear boundary', str_contains( $html, 'dzn-tp-class-horizon' ) && str_contains( $html, 'کلاس‌های بیش از ۳۰ روز آینده' ) && str_contains( $html, '<details' ) );
+	$check( 'student cards receive stable highlight classes', str_contains( $html, 'is-student-' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );

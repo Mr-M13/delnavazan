@@ -81,7 +81,7 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 					<?php if ( ! empty( $item['absence_available'] ) ) : ?>
 						<details class="dzn-schedule-row__absence">
 							<summary><?php esc_html_e( 'اطلاع غیبت', 'delnavazan-theme' ); ?></summary>
-							<p class="dzn-portal-help"><?php esc_html_e( 'این اطلاع به‌تنهایی وضعیت نهایی حضور یا اعتبار جلسه را تعیین نمی‌کند. اگر ظرفیت جبرانی ترم تکمیل باشد، به مدرس اطلاع داده می‌شود اما جبرانی دیگری صادر نمی‌شود.', 'delnavazan-theme' ); ?></p>
+							<p class="dzn-portal-help"><?php esc_html_e( 'این اطلاع وضعیت نهایی حضور یا جلسهٔ جبرانی را تعیین نمی‌کند.', 'delnavazan-theme' ); ?></p>
 							<form method="post" action="<?php echo esc_url( (string) ( $item['absence_action_url'] ?? '' ) ); ?>">
 								<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['absence_nonce'] ?? '' ) ); ?>">
 								<input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>">

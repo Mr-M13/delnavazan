@@ -22,6 +22,7 @@ final class FinanceStatementController {
         add_action('admin_menu',array(__CLASS__,'menu'));
         add_action('admin_post_dzn_teacher_statement_download',array(__CLASS__,'downloadStatement'));
         add_action('admin_post_nopriv_dzn_teacher_statement_download',array(__CLASS__,'downloadStatement'));
+        add_action('admin_post_dzn_teacher_statement_email',array(__CLASS__,'emailOwnStatement'));
     }
     public static function menu():void{
         if(!function_exists('add_submenu_page'))return;
@@ -118,8 +119,21 @@ final class FinanceStatementController {
         $statement['teacher_reference']=(string)($teacher->reference_code??'');
         $html=(new StatementTemplateService())->render($statement,$lines,$template,function_exists('get_bloginfo')?(string)get_bloginfo('name'):'Delnavazan');
         header('Content-Type:text/html; charset=utf-8');
-        header('Content-Disposition:attachment; filename="teacher-statement-'.$statementId.'.html"');
+        $inline = sanitize_key((string)($_POST['presentation']??'')) === 'print';
+        header('Content-Disposition:' . ($inline ? 'inline' : 'attachment') . '; filename="teacher-statement-'.$statementId.'.html"');
         echo $html;
+        exit;
+    }
+    public static function emailOwnStatement():void{
+        if(!is_user_logged_in())wp_die('Forbidden','Unauthenticated',array('response'=>403));
+        check_admin_referer('dzn_teacher_statement_email');
+        $statementId=absint($_POST['statement_id']??0);
+        $status='failed';
+        try{
+            $result=(new \Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementEmailService())->enqueueOwn($statementId);
+            $status=!empty($result['ok'])?'queued':'failed';
+        }catch(\Throwable){$status='failed';}
+        wp_safe_redirect(add_query_arg(array('teacher-view'=>'finance','statement_email'=>$status),home_url('/teacher-portal/')),303);
         exit;
     }
     private static function shortDate(string $utc): string {

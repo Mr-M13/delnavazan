@@ -19,7 +19,7 @@ final class TeacherUpcomingBookingReadService {
         if ((int) $principal['id'] !== $teacherId) throw new \InvalidArgumentException('portal_object_not_owned');
         if (!current_user_can('dzn_view_own_portal_schedule')) throw new \InvalidArgumentException('portal_object_not_owned');
         $classes = array();
-        foreach ($this->repository->confirmedUpcomingForTeacher($teacherId, 50, $fromUtc, $toUtc) as $row) {
+        foreach ($this->repository->confirmedUpcomingForTeacher($teacherId, 0, $fromUtc, $toUtc) as $row) {
             if (!$this->isConfirmedOwnerRow($row, $teacherId)) continue;
             $classes[] = $this->projector->project($row, 'teacher_booking_class_v1');
         }

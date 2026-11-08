@@ -531,7 +531,8 @@ final class EnrolmentWorkspaceView {
         $confirmation = $case['confirmed'] ?? null;
         if (!$confirmation) return;
         $state = (string) ($confirmation['state'] ?? '');
-        if (!in_array($state, array('confirmed', 'awaiting_payment'), true)) return;
+        $cancellableStates = array('confirmed', 'awaiting_payment', 'pending_projection', 'retryable', 'awaiting_conference', 'failed');
+        if (!in_array($state, $cancellableStates, true)) return;
         $confirmedAt = strtotime((string) ($confirmation['starts_at_utc'] ?? '') . ' UTC');
         $future = $confirmedAt !== false && $confirmedAt > time();
         echo '<details class="dzn-action-panel"><summary><strong>Reschedule introductory lesson</strong><br><small>Admin and Teacher action. The Student is notified and the provider event is updated when its projection authority is available.</small></summary><div class="dzn-action-panel__body">';
@@ -547,7 +548,7 @@ final class EnrolmentWorkspaceView {
             echo '<p class="dzn-inline-note">This introductory lesson has already started or ended. Its outcome is recorded instead of rescheduling it.</p>';
         }
         echo '</div></details>';
-        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel introductory lesson</strong><br><small>Admin, Teacher or Student action. The case and financial history remain; the portals stop showing the cancelled class.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel introductory lesson</strong><br><small>Admin, Teacher or Student action. This also covers failed classroom provisioning; the case and financial history remain, and the portals stop showing the cancelled class.</small></summary><div class="dzn-action-panel__body">';
         self::formStart('intro_cancel', array('request_id' => (int) $case['id']));
         echo '<input type="hidden" name="expected_confirmation_id" value="' . esc_attr((string) ($confirmation['confirmation_id'] ?? 0)) . '"><input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) ($confirmation['version'] ?? 0)) . '">';
         echo '<p><label>Reason<select name="reason_code"><option value="duplicate_request">Duplicate request</option><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';

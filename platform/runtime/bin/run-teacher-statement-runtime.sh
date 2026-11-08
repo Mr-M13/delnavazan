@@ -90,14 +90,14 @@ check "$code" "403" "invalid nonce is rejected"
 code="$(post "$a_nonce" "" "$tmp/anon.html")"
 check "$code" "403" "unauthenticated download is denied"
 
-# 5. The real teacher finance portal renders the recorded lesson lines and download action.
+# 5. The real teacher finance portal renders the published statement summary and its actions.
 # This is a server-rendered theme verification (not a real browser).
 dzn_wp theme activate delnavazan-theme >/dev/null
 portal_code="$(curl -sS -L -o "$tmp/portal.html" -w '%{http_code}' -H "Cookie: $a_cookie" "$DZN_WP_URL/teacher-portal/?teacher-view=finance")"
 check "$portal_code" "200" "teacher finance portal renders"
-check_present 'dzn-tp-statement-lines' "$tmp/portal.html" "portal renders the lesson-lines table"
-check_present 'Synthetic J' "$tmp/portal.html" "portal renders a recorded lesson course"
-check_present 'دانلود صورت‌حساب' "$tmp/portal.html" "portal renders the download action"
+check_absent 'dzn-tp-statement-lines' "$tmp/portal.html" "portal hides individual lesson lines"
+check_present 'چاپ / دانلود PDF' "$tmp/portal.html" "portal renders the print/download action"
+check_present 'ایمیل به خودم' "$tmp/portal.html" "portal renders the email-to-self action"
 check_present 'پرداخت شده' "$tmp/portal.html" "portal renders the paid status"
 check_present "$expected_total" "$tmp/portal.html" "portal renders the recorded payable total"
 

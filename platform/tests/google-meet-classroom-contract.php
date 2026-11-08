@@ -100,6 +100,7 @@ $check('attendance never writes completion directly', !str_contains($attendance,
 
 $migration = $read('platform/src/Core/Infrastructure/Migration/Migrator.php');
 $check('migration 068 is wired', str_contains($migration, '068_google_meet_classroom_authority'));
+$check('migration 073 creates the private Teacher lesson-note store', str_contains($migration, '073_teacher_lesson_notes') && str_contains($migration, 'teacher_lesson_notes'));
 foreach (array('meet_workspace_connections','meet_workspace_credentials','meet_workspace_authorizations','meet_classrooms','meet_classroom_references','meet_classroom_events','meet_conference_records','meet_recording_artifacts','meet_recording_access_events','meet_participant_sessions','meet_recording_alerts') as $table) {
     $check('migration creates ' . $table, str_contains($migration, $table));
 }
@@ -125,8 +126,10 @@ $workspace = $read('platform/src/Core/Application/TeacherOnboardingWorkspaceRead
 $check('Admin blockers no longer require a Teacher Google account', !str_contains($workspace, 'Google Calendar account is not connected'));
 
 $actions = $read('theme/template-parts/components/classroom-actions.php');
-$check('portal classroom action opens the branded entry page', str_contains($actions, "home_url( '/music-classroom/' )"));
-$check('portal classroom action is labelled Google Meet', str_contains($actions, 'ورود به کلاس Google Meet'));
+$check('Teacher portal action opens the branded entry page', str_contains($actions, "home_url( '/music-classroom/' )") && str_contains($actions, 'target="_blank"'));
+$check('Teacher portal action is labelled Google Meet', str_contains($actions, 'ورود به کلاس Google Meet'));
+$check('Student portal action posts straight to the authenticated join controller', str_contains($actions, "'student' === \$role") && str_contains($actions, 'dzn_student_join_class') && str_contains($actions, 'dzn_student_join_booking_class'));
+$check('Student join is one navigation instead of a branded intermediate window', str_contains($actions, '<form class="dzn-classroom-actions__form" method="post"'));
 $check('portal classroom action contains no LiveKit action', !str_contains($actions, 'livekit'));
 $check('portal classroom action never renders a Meet URL', !str_contains($actions, 'meet.google.com'));
 
@@ -138,6 +141,13 @@ $check('branded entry page shows teacher and student names', str_contains($meetT
 $check('branded entry page shows scheduled lesson information', str_contains($meetTemplate, '$date_label') && str_contains($meetTemplate, '$time_label'));
 $check('branded entry page has Persian music guidance', str_contains($meetTemplate, 'صدای موسیقی'));
 $check('branded entry page posts to the authenticated join controller', str_contains($meetTemplate, 'wp_create_nonce') && str_contains($meetTemplate, 'admin-post.php'));
+$check('Teacher pre-class page reads the canonical briefing service', str_contains($meetTemplate, 'TeacherClassroomBriefingReadService'));
+$check('Teacher pre-class page shows the previous private note and term timeline', str_contains($meetTemplate, 'یادداشت جلسهٔ گذشته') && str_contains($meetTemplate, 'خط زمانی ترم هنرجو'));
+$check('Teacher finish page saves a private note through the nonce controller', str_contains($meetTemplate, 'dzn_teacher_save_class_note') && str_contains($meetTemplate, 'note_text'));
+$check('Teacher finish page confirms attendance through the existing delivery authority', str_contains($meetTemplate, "\$completion['action_url']") && str_contains($meetTemplate, 'تأیید برگزاری و حضور'));
+$check('Student page never renders the Teacher note form', str_contains($meetTemplate, "'teacher' === \$role"));
+$briefingService = $read('platform/src/Core/Application/TeacherClassroomBriefingReadService.php');
+$check('Briefing delegates attendance confirmation to the canonical delivery action', str_contains($briefingService, 'dzn_teacher_report_delivery'));
 
 foreach (array('puppeteer','selenium','playwright','chrome-devtools','javascript:') as $forbidden) {
     $check('no browser automation or UI injection: ' . $forbidden, !str_contains(strtolower($service), $forbidden) && !str_contains(strtolower($recording), $forbidden));

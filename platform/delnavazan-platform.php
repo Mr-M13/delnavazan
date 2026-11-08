@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '59' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '60' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'stripe-live-mode-20261106.1' );
@@ -117,6 +117,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker::register();
 	Delnavazan\Platform\Integrations\Notifications\NotificationWorkerBootstrap::register();
 	Delnavazan\Platform\Portals\TeacherDeliveryClaimController::register();
+	Delnavazan\Platform\Portals\TeacherClassNoteController::register();
 	Delnavazan\Platform\Portals\StudentAbsenceController::register();
 	Delnavazan\Platform\Portals\PortalCalendarExportController::register();
 	Delnavazan\Platform\Portals\StudentReceiptController::register();

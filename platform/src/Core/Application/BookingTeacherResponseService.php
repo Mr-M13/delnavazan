@@ -10,13 +10,17 @@ use Delnavazan\Platform\Core\Support\Identifier;
 final class BookingTeacherResponseService {
     public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null,private ?BookingAllocationService $allocation=null){$this->repository??=new BookingTeacherResponseRepository();$this->allocation??=new BookingAllocationService();}
 
-    public function respond(string $deliveryUid,string $decision,string $commandKey):array{
+    public function respond(string $deliveryUid,string $decision,string $commandKey,?int $requestedTimeId=null):array{
         $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
         if(!in_array($decision,array('accept','decline'),true))throw new \InvalidArgumentException('Unsupported booking response');
         $deliveryUid=trim($deliveryUid);if(!preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',$deliveryUid))throw new \InvalidArgumentException('Booking delivery identity required');
         $commandKey=trim($commandKey);if($commandKey===''||strlen($commandKey)>191)throw new \InvalidArgumentException('Booking response command required');
+        if($requestedTimeId!==null&&$requestedTimeId<1)throw new \InvalidArgumentException('Choose one of the requested times');
         $keyDigest=hash_hmac('sha256','booking-response-key:'.$commandKey,wp_salt('dzn_booking_response'));
-        $payloadDigest=hash_hmac('sha256','booking-response-payload:'.$deliveryUid.'|'.$decision,wp_salt('dzn_booking_response'));
+        // The explicitly selected Student preference is part of the idempotency payload. Calls that
+        // do not choose a preference keep the original digest so a retried pre-existing command
+        // continues to replay rather than conflict.
+        $payloadDigest=hash_hmac('sha256','booking-response-payload:'.$deliveryUid.'|'.$decision.($requestedTimeId!==null?'|'.$requestedTimeId:''),wp_salt('dzn_booking_response'));
         $now=gmdate('Y-m-d H:i:s');$confirmationId=null;$deliveryId=null;
         $this->repository->begin();
         try{
@@ -33,13 +37,88 @@ final class BookingTeacherResponseService {
                 $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'decline','result_state'=>'declined','result_confirmation_id'=>null,'created_at'=>$now,'created_by'=>$actor));
                 $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','next_offer'=>$next,'idempotent'=>false);
             }
-            $this->allocation->assertAcceptable($delivery,$now);
+            // The Teacher may choose any Student preference. The originally offered time keeps the
+            // strict availability rules; a different, explicitly selected preference may proceed
+            // outside declared availability and is audited.
+            $offeredTimeId=(int)$delivery->requested_time_id;
+            $selectedTimeId=$requestedTimeId??$offeredTimeId;
+            $allowOverride=$selectedTimeId!==$offeredTimeId;
+            if($allowOverride){
+                $offer=$this->repository->activeAllocationOffer((int)$delivery->booking_request_id,true);
+                if(!$offer)throw new \InvalidArgumentException('Booking offer expired or reassigned');
+                $this->repository->switchOfferedTime((int)$delivery->id,(int)$offer->id,$selectedTimeId,$now);
+                $delivery=$this->repository->deliveryByUid($deliveryUid,true);
+                if(!$delivery)throw new \RuntimeException('Booking request not found');
+            }
+            $overridden=(bool)$this->allocation->assertAcceptable($delivery,$now,$selectedTimeId,$allowOverride);
+            if($overridden)$this->auditAvailabilityOverride($delivery,$selectedTimeId,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
             $this->allocation->acceptedLocked($delivery,$now);
             $this->repository->commit();
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
         return $this->dispatchProjection((int)$deliveryId,(int)$confirmationId);
+    }
+
+    /**
+     * Claim one currently unmatched request for an instrument this Teacher teaches.
+     *
+     * An unmatched request has no active offer, no confirmation and no previous offer to this
+     * Teacher. The Teacher sees it precisely because no available Teacher was matched, so the
+     * chosen Student preference is allowed outside declared availability. Occupancy and
+     * continuation holds remain hard constraints through the shared allocation authority, and the
+     * override is audited before the ordinary confirmation path runs.
+     */
+    public function claim(string $requestUid,int $requestedTimeId,string $commandKey):array{
+        $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
+        $requestUid=trim($requestUid);if(!preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',$requestUid))throw new \InvalidArgumentException('Booking request identity required');
+        if($requestedTimeId<1)throw new \InvalidArgumentException('Choose one of the requested times');
+        $commandKey=trim($commandKey);if($commandKey===''||strlen($commandKey)>191)throw new \InvalidArgumentException('Booking response command required');
+        $keyDigest=hash_hmac('sha256','booking-claim-key:'.$commandKey,wp_salt('dzn_booking_response'));
+        $payloadDigest=hash_hmac('sha256','booking-claim-payload:'.$requestUid.'|'.$requestedTimeId,wp_salt('dzn_booking_response'));
+        $now=gmdate('Y-m-d H:i:s');$confirmationId=null;$paid=false;$introUid=null;$deliveryId=0;
+        $this->repository->begin();
+        try{
+            if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
+            $teacher=$this->repository->teacherForUser($actor,true);
+            if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
+            // Lock order follows the response path: request, then delivery/offer. Privacy erasure
+            // also serialises on the request row, so a claim cannot revive an erased request.
+            $request=$this->repository->requestByUid($requestUid,true);
+            if(!$request)throw new \RuntimeException('Booking request not found');
+            if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
+            if((string)$request->lifecycle_status!=='submitted'||(string)$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            if((int)($request->student_id??0)<1||(int)($request->selected_intro_course_id??0)<1)throw new \InvalidArgumentException('Resolve the student identity before confirming a match');
+            $requestId=(int)$request->id;
+            $time=$this->repository->requestedTime($requestId,$requestedTimeId,true);
+            if(!$time)throw new \InvalidArgumentException('Choose one of the requested times');
+            if((string)$time->starts_at_utc<=$now)throw new \InvalidArgumentException('Booking time is no longer available');
+            if($this->repository->confirmationForRequest($requestId,true))throw new \InvalidArgumentException('Booking request is no longer pending');
+            if($this->repository->activeAllocationOffer($requestId,true))throw new \InvalidArgumentException('Booking request is no longer available');
+            if($this->repository->offerForTeacher($requestId,(int)$teacher->id,true))throw new \InvalidArgumentException('Booking request is no longer available');
+            // The request has no current match. Re-point the one delivery anchor if a prior cycle
+            // left it behind, otherwise create it; the unique booking request index still permits
+            // exactly one delivery.
+            $delivery=$this->repository->deliveryForRequest($requestId,true);
+            $uid=Identifier::uid();
+            if($delivery){
+                $this->repository->repointDelivery((int)$delivery->id,(int)$teacher->id,$requestedTimeId,$uid,'claim',$now);
+                $deliveryId=(int)$delivery->id;
+            }else{
+                $deliveryId=$this->repository->createDelivery(array('uid'=>$uid,'booking_request_id'=>$requestId,'requested_time_id'=>$requestedTimeId,'teacher_id'=>(int)$teacher->id,'state'=>'pending_request','match_strength'=>'claim','created_at'=>$now,'updated_at'=>$now));
+            }
+            $deadline=BookingAllocationService::addSeconds($now,BookingAllocationService::RESPONSE_SECONDS);
+            $this->repository->insertClaimOffer($requestId,$deliveryId,(int)$teacher->id,$requestedTimeId,$now,$deadline);
+            $locked=$this->repository->deliveryByUid($uid,true);
+            if(!$locked||(int)$locked->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');
+            $overridden=(bool)$this->allocation->assertAcceptable($locked,$now,$requestedTimeId,true);
+            $this->auditClaim($locked,$requestedTimeId,$overridden,$actor,$keyDigest,$now);
+            [$confirmationId,$paid,$introUid]=$this->confirmDelivery($locked,$teacher,$actor,$keyDigest,$payloadDigest,$now);
+            $this->allocation->acceptedLocked($locked,$now);
+            $this->repository->commit();
+        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
+        return $this->dispatchProjection($deliveryId,(int)$confirmationId);
     }
 
     /**
@@ -151,6 +230,32 @@ final class BookingTeacherResponseService {
         $this->repository->transitionDelivery($deliveryId,'pending_request','accepting',$now);
         $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'accept','result_state'=>$paid?'awaiting_payment':'accepting','result_confirmation_id'=>$confirmationId,'created_at'=>$now,'created_by'=>$actor));
         return array((int)$confirmationId,(bool)$paid,$introUid);
+    }
+
+    /** Audit an explicit alternative preference accepted outside declared availability. */
+    private function auditAvailabilityOverride(object $delivery,int $requestedTimeId,int $actor,string $keyDigest,string $now):void{
+        $digest=hash('sha256','booking-response-override:'.$keyDigest);
+        if($this->repository->auditByDigest($digest))return;
+        $this->repository->insertAudit(array(
+            'aggregate_type'=>'booking_request','aggregate_id'=>(int)$delivery->booking_request_id,
+            'event_type'=>'teacher_booking_response_availability_override','actor_type'=>'user','actor_id'=>$actor,
+            'reason_code'=>'teacher_selected_preference',
+            'safe_detail'=>(string)json_encode(array('delivery_id'=>(int)$delivery->id,'teacher_id'=>(int)$delivery->teacher_id,'requested_time_id'=>$requestedTimeId)),
+            'idempotency_key'=>$digest,'occurred_at'=>$now,
+        ));
+    }
+
+    /** Audit an unmatched-request claim, including whether availability was overridden. */
+    private function auditClaim(object $delivery,int $requestedTimeId,bool $overridden,int $actor,string $keyDigest,string $now):void{
+        $digest=hash('sha256','booking-claim-audit:'.$keyDigest);
+        if($this->repository->auditByDigest($digest))return;
+        $this->repository->insertAudit(array(
+            'aggregate_type'=>'booking_request','aggregate_id'=>(int)$delivery->booking_request_id,
+            'event_type'=>'teacher_booking_claim','actor_type'=>'user','actor_id'=>$actor,
+            'reason_code'=>$overridden?'teacher_claim_availability_override':'teacher_claim',
+            'safe_detail'=>(string)json_encode(array('delivery_id'=>(int)$delivery->id,'teacher_id'=>(int)$delivery->teacher_id,'requested_time_id'=>$requestedTimeId,'availability_overridden'=>$overridden)),
+            'idempotency_key'=>$digest,'occurred_at'=>$now,
+        ));
     }
 
     private function queueNotification(int $deliveryId,?int $confirmationId,string $kind,string $now):void{

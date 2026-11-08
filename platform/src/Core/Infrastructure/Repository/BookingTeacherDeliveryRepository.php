@@ -22,6 +22,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         global $wpdb;
         $limit = max(1, min(50, $limit));
         $sql = "SELECT d.uid delivery_uid,d.state delivery_state,d.match_strength,d.created_at,
+                       d.requested_time_id,
                        offer.deadline_at response_deadline_at,
                        r.id booking_request_id,r.reference_code request_reference,s.full_name,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
@@ -130,7 +131,8 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
     public function requestedTimes(int $requestId): array {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT sequence_number,local_date,local_start_time,timezone,starts_at_utc
+            "SELECT id,sequence_number,local_date,local_start_time,timezone,starts_at_utc,
+                    instructional_ends_at_utc,occupied_ends_at_utc
              FROM {$this->prefix}booking_request_requested_times
              WHERE booking_request_id=%d
              ORDER BY sequence_number ASC LIMIT 3",

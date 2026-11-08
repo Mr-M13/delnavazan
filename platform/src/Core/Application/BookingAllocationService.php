@@ -75,12 +75,22 @@ final class BookingAllocationService {
         $offer=$this->repo->offer((int)$delivery->booking_request_id,true);
         if(!$offer||(int)$offer->delivery_id!==(int)$delivery->id||(int)$offer->teacher_id!==(int)$delivery->teacher_id||(int)$offer->requested_time_id!==(int)$delivery->requested_time_id||(string)$offer->deadline_at<=$now)throw new \InvalidArgumentException('Booking offer expired or reassigned');
     }
-    /** Revalidate the exact offered time, not merely another preference. */
-    public function assertAcceptable(object $delivery,string $now):void{
+    /**
+     * Revalidate one exact Student preference.
+     *
+     * The originally offered time keeps strict availability rules. A different
+     * explicitly selected preference, or an unmatched-request claim, may proceed
+     * outside declared availability and reports that override to the caller.
+     */
+    public function assertAcceptable(object $delivery,string $now,?int $requestedTimeId=null,bool $allowOutsideAvailability=false):bool{
         $this->assertPending($delivery,$now);
-        $times=array_values(array_filter($this->repo->times((int)$delivery->booking_request_id),static fn(object $time):bool=>(int)$time->id===(int)$delivery->requested_time_id));
-        $candidates=$this->candidates((int)$delivery->selected_intro_course_id,$times,$now,false,(int)$delivery->booking_request_id,false);
-        if(!isset($candidates[(int)$delivery->teacher_id])||(int)$candidates[(int)$delivery->teacher_id]['requested_time_id']!==(int)$delivery->requested_time_id)throw new \InvalidArgumentException('Booking time is no longer available');
+        $requestedTimeId??=(int)$delivery->requested_time_id;
+        $times=array_values(array_filter($this->repo->times((int)$delivery->booking_request_id),static fn(object $time):bool=>(int)$time->id===$requestedTimeId));
+        if(!$times)throw new \InvalidArgumentException('Choose one of the requested times');
+        $candidates=$this->candidates((int)$delivery->selected_intro_course_id,$times,$now,false,(int)$delivery->booking_request_id,false,$allowOutsideAvailability);
+        $candidate=$candidates[(int)$delivery->teacher_id]??null;
+        if(!$candidate||(int)$candidate['requested_time_id']!==$requestedTimeId)throw new \InvalidArgumentException('Booking time is no longer available');
+        return !empty($candidate['availability_overridden']);
     }
     public function acceptedLocked(object $delivery,string $now):void{
         $offer=$this->repo->offer((int)$delivery->booking_request_id,true);
@@ -151,7 +161,7 @@ final class BookingAllocationService {
         return (new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->modify(($seconds>=0?'+':'').$seconds.' seconds')->format('Y-m-d H:i:s');
     }
     /** @return array<int,array{teacher_id:int,requested_time_id:int,match_strength:string,sequence:int}> */
-    private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true,int $excludeBookingRequestId=0,bool $includePendingOffers=true):array{
+    private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true,int $excludeBookingRequestId=0,bool $includePendingOffers=true,bool $allowOutsideAvailability=false):array{
         if($courseId<1)return array();
         $teachers=$this->matches->eligibleTeachers($courseId,$now);
         $minStart=self::addSeconds($now,($fullResponseWindow?self::RESPONSE_SECONDS:0)+self::PROJECTION_BUFFER_SECONDS);
@@ -162,10 +172,13 @@ final class BookingAllocationService {
             if($start<=$minStart)continue;
             $teacherId=(int)$teacher->teacher_id;
             $coverage=$this->coverage($teacherId,$start,$end);
-            if($coverage===null||$this->occupancy->overlapping($teacherId,$start,$end,0,$excludeBookingRequestId,$includePendingOffers))continue;
+            $outside=$coverage===null;
+            // Hard scheduling constraints (Teacher occupancy and continuation holds) are never
+            // overridden. Only the Teacher's declared availability may be bypassed explicitly.
+            if(($outside&&!$allowOutsideAvailability)||$this->occupancy->overlapping($teacherId,$start,$end,0,$excludeBookingRequestId,$includePendingOffers))continue;
             try{CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId,$start,$end);}
             catch(\InvalidArgumentException $error){if($error->getMessage()==='teacher_slot_conflict')continue;throw $error;}
-            $candidate=array('teacher_id'=>$teacherId,'requested_time_id'=>(int)(is_array($time)?$time['id']:$time->id),'sequence'=>(int)(is_array($time)?($time['sequence']??$time['sequence_number']):$time->sequence_number),'match_strength'=>$coverage==='preferred'&&(string)$teacher->accepting_state==='accepting'?'strong':'possible');
+            $candidate=array('teacher_id'=>$teacherId,'requested_time_id'=>(int)(is_array($time)?$time['id']:$time->id),'sequence'=>(int)(is_array($time)?($time['sequence']??$time['sequence_number']):$time->sequence_number),'match_strength'=>$coverage==='preferred'&&(string)$teacher->accepting_state==='accepting'?'strong':'possible','availability_overridden'=>$outside);
             $prior=$result[$teacherId]??null;
             if(!$prior||array($candidate['match_strength']==='strong'?0:1,$candidate['sequence'])<array($prior['match_strength']==='strong'?0:1,$prior['sequence']))$result[$teacherId]=$candidate;
         }

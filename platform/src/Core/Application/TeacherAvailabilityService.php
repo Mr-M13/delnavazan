@@ -150,6 +150,23 @@ final class TeacherAvailabilityService {
         return $this->resolve( $facts, $from, $until );
     }
 
+    /** Exact availability state (`preferred`|`requestable`) covering a range, or null when it is not covered. */
+    public function coverage(int $teacherId, string $fromUtc, string $untilUtc): ?string {
+        if ($untilUtc <= $fromUtc) { return null; }
+        $cursor = $fromUtc;
+        $state = 'preferred';
+        foreach ($this->effective($teacherId, $fromUtc, $untilUtc) as $segment) {
+            if ((string) $segment['starts_at_utc'] > $cursor) { return null; }
+            if (!in_array((string) $segment['state'], array('preferred', 'requestable'), true)) { return null; }
+            if ((string) $segment['state'] === 'requestable') { $state = 'requestable'; }
+            if ((string) $segment['ends_at_utc'] > $cursor) {
+                $cursor = min($untilUtc, (string) $segment['ends_at_utc']);
+            }
+            if ($cursor === $untilUtc) { return $state; }
+        }
+        return null;
+    }
+
     /** Returns an active, evaluable Teacher's IANA availability timezone without exposing identity or availability facts. */
     public function profileTimezone(int $teacherId): ?string {
         $teacher = Normalizer::id( $teacherId );

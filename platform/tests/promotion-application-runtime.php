@@ -331,6 +331,32 @@ dzn_promo_assert($settledD['processing_state']==='accepted','the first limited r
 dzn_promo_rejected(fn()=>$apply($offerE,'ONCE10',(int)$e['student_id'],$principalE),'promotion_ineligible:promotion_usage_limit_reached','a promotion whose global limit is already consumed');
 dzn_promo_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_offers WHERE continuation_case_id=%d",(int)$e['case_id']))===1,'a limit refusal must not create a revision');
 
+// ---------------------------------------------------------------------------
+// E. A started instalment plan keeps later obligations payable but cannot take a code.
+// ---------------------------------------------------------------------------
+$g=$scenario(6,'promo-started');
+$productG=$productFor((int)$g['course_id'],'AU',24000);
+$offerG=$offerFor($g,$productG,'g',true);
+$principalG=$principalOf((int)$g['student_id']);
+dzn_promo_assert(count($offerG['obligations'])===2,'the started-plan fixture must be a two-instalment plan');
+$firstG=(int)$offerG['obligations'][0]['amount_minor'];
+$settledG=$settle($offerG,'promo-g-first',$firstG);
+dzn_promo_assert($settledG['processing_state']==='accepted','the first instalment must settle before the started-plan check');
+$promotions->define(array('promotion_code'=>'STARTED10','kind'=>'percentage','percentage_bp'=>1000,'per_beneficiary_limit'=>5,'evidence_channel'=>'staff_record','evidence_reference'=>'promo-started','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_promo_key('promo-started'));
+wp_set_current_user($principalG);
+try{$startedRejected=null;try{$offers->applyPromotion((int)$offerG['obligations'][1]['obligation_id'],'STARTED10',(int)$g['student_id']);}catch(Throwable$e){$startedRejected=$e;}}finally{wp_set_current_user($admin);}
+dzn_promo_assert($startedRejected!==null&&$startedRejected->getMessage()==='promotion_offer_already_started','a started two-instalment plan must refuse a later code with the started reason, not already-paid');
+dzn_promo_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_offers WHERE continuation_case_id=%d",(int)$g['case_id']))===1,'a started-plan refusal must not create a revision');
+$startedOfferRow=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}commercial_offers WHERE id=%d",(int)$offerG['offer_id']));
+dzn_promo_assert($startedOfferRow!==null&&(string)$startedOfferRow->state==='accepted'&&$startedOfferRow->promotion_id===null,'the started plan must keep its accepted immutable snapshot');
+wp_set_current_user($principalG);
+$startedRead=(new StudentCommercialCheckoutReadService())->read();
+wp_set_current_user($admin);
+$startedRows=array_values(array_filter($startedRead['obligations'],fn(array $row):bool=>(string)$row['offer_uid']===(string)$offerG['offer_uid']));
+$secondG=null;foreach($startedRows as $startedRow)if((int)$startedRow['obligation_sequence']===2)$secondG=$startedRow;
+dzn_promo_assert(count($startedRows)===2&&$secondG!==null&&$secondG['payment_state']==='required'&&$secondG['action']==='pay','the second instalment must remain payable after the first settles');
+dzn_promo_assert($startedRows[0]['promotion_eligible']===false&&$startedRows[1]['promotion_eligible']===false,'a started plan must not offer another code');
+
 // The Finance → Payments panel must render the create form with the exact requested controls.
 wp_set_current_user($admin);
 $previousGet=$_GET;

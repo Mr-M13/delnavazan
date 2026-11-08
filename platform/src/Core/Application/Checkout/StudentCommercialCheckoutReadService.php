@@ -45,6 +45,9 @@ final class StudentCommercialCheckoutReadService {
             $promotionAmount=(int)($offer->promotion_amount_minor??0);
             $paidMinor=0;$totalMinor=0;$paidObligations=0;$obligations=$this->authority->obligationsForOffer((int)$offer->id);
             foreach($obligations as $obligation){$totalMinor+=(int)$obligation->amount_minor;if(!empty($settledBySequence[(int)$obligation->obligation_sequence]['settled'])){$paidMinor+=(int)$obligation->amount_minor;$paidObligations++;}}
+            // A code may only replace an offer before the first settlement. Once a plan has started,
+            // later instalments remain payable but the accepted pricing snapshot cannot be re-derived.
+            $promotionEligible=$offerState==='issued'&&$offer->promotion_id===null&&$paidObligations===0;
             foreach($obligations as $obligation){
                 $sequence=(int)$obligation->obligation_sequence;
                 $prerequisiteSatisfied=$sequence===1||!empty($settledBySequence[$sequence-1]['settled']);
@@ -95,6 +98,7 @@ final class StudentCommercialCheckoutReadService {
                     'offer_has_promotion'=>$promotionAmount>0,
                     'offer_promotion_percentage'=>$promotion!==null&&$promotion->percentage_bp!==null?(int)$promotion->percentage_bp/100:null,
                     'offer_promotion_kind'=>$promotion===null?null:(string)$promotion->kind,
+                    'promotion_eligible'=>$promotionEligible,
                     'offer_currency'=>(string)$offer->currency,
                     'offer_expires_at'=>$offer->expires_at===null?null:(string)$offer->expires_at,
                     'term_sequence'=>$termSequence,

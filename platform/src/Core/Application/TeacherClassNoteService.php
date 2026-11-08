@@ -1,7 +1,6 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
-use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherLessonNoteRepository;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
 
@@ -30,7 +29,9 @@ final class TeacherClassNoteService {
         $principal=(new PortalPrincipalResolver())->resolve('teacher');
         $teacherId=(int)($principal['id']??0);
         if($teacherId<1)throw new \InvalidArgumentException('portal_principal_required');
-        if(!(new PrincipalInvitationRepository())->hasActiveTeacherAuthority((int)get_current_user_id(),$teacherId))throw new \InvalidArgumentException('teacher_onboarding_required');
+        // The join boundary proves ownership with the portal capability, not the onboarding
+        // availability rules. Notes follow the same rule so a valid class is never blocked.
+        if(!current_user_can('dzn_view_own_portal_schedule'))throw new \InvalidArgumentException('portal_object_not_owned');
 
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $lesson=$wpdb->get_row($wpdb->prepare(

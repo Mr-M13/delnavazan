@@ -48,6 +48,46 @@ final class TeacherLessonNoteRepository {
         return $row?:null;
     }
 
+    /**
+     * Latest previous note for each requested Lesson, keyed by Lesson id.
+     *
+     * The Teacher Portal renders many cards at once, so this stays a single bounded query instead
+     * of one note lookup per card.
+     *
+     * @param array<int,int|string> $lessonIds
+     * @return array<int,string>
+     */
+    public function previousNotesForLessons(int $teacherId,array $lessonIds):array{
+        $ids=array_values(array_unique(array_filter(array_map('intval',$lessonIds),static fn(int $id):bool=>$id>0)));
+        if(!$ids)return array();
+        global $wpdb;
+        $placeholders=implode(',',array_fill(0,count($ids),'%d'));
+        $args=array_merge(array($teacherId,$teacherId),$ids);
+        $rows=$wpdb->get_results($wpdb->prepare(
+            "SELECT l.id lesson_id,(
+                SELECT n2.note_text
+                FROM {$this->p}teacher_lesson_notes n2
+                INNER JOIN {$this->p}lessons l2 ON l2.id=n2.lesson_id AND l2.archived_at IS NULL
+                INNER JOIN {$this->p}canonical_lesson_schedule_versions v2 ON v2.id=n2.schedule_version_id AND v2.lesson_id=l2.id
+                WHERE n2.teacher_id=%d AND n2.student_id=l.student_id AND n2.lesson_id<>l.id
+                  AND n2.note_text IS NOT NULL AND TRIM(n2.note_text)<>''
+                  AND v2.starts_at_utc<v.starts_at_utc
+                ORDER BY v2.starts_at_utc DESC,n2.id DESC LIMIT 1
+             ) previous_note
+             FROM {$this->p}lessons l
+             INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
+             WHERE l.teacher_id=%d AND l.archived_at IS NULL AND l.id IN ({$placeholders})",
+            ...$args
+        ));
+        if($wpdb->last_error!=='')throw new \RuntimeException('teacher_lesson_note_unavailable');
+        $notes=array();
+        foreach((array)$rows as $row){
+            $text=trim((string)($row->previous_note??''));
+            if(''!==$text)$notes[(int)$row->lesson_id]=$text;
+        }
+        return $notes;
+    }
+
     public function save(int $lessonId,int $scheduleVersionId,int $teacherId,int $studentId,string $note,int $userId):object{
         global $wpdb;
         $existing=$this->forLesson($lessonId,$teacherId);

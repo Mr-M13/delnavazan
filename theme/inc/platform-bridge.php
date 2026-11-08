@@ -2109,6 +2109,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$golden_hour = array();
 		}
 	}
+	// The Teacher Portal card already has a sourced private-note slot. Populate it in one bounded
+	// query so a note saved on the finish page is visible on the next class card as well.
+	$previous_notes = array();
+	$previous_notes_class = '\\Delnavazan\\Platform\\Core\\Infrastructure\\Repository\\TeacherLessonNoteRepository';
+	if ( $golden_hour_ids && class_exists( $previous_notes_class ) ) {
+		try {
+			$previous_notes = ( new $previous_notes_class() )->previousNotesForLessons( (int) ( $onboarding['teacher_id'] ?? 0 ), array_values( array_unique( $golden_hour_ids ) ) );
+		} catch ( Throwable $e ) {
+			$previous_notes = array();
+		}
+	}
 	foreach ( $class_rows as $index => $lesson ) {
 		$start = dzn_theme_platform_utc_timestamp( $lesson['starts_at_utc'] ?? '' );
 		$is_today_row = null !== $day_window && $start && $start < dzn_theme_platform_utc_timestamp( $day_window['today_end'] );
@@ -2278,6 +2289,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'delivery_recorded_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_report_delivery' ),
 			'delivery_recorded_nonce' => wp_create_nonce( 'dzn_teacher_report_delivery' ),
 			'student_summary' => $student_label . ' · ' . $course_label,
+			'previous_private_note' => (string) ( $previous_notes[ (int) ( $lesson['lesson_id'] ?? 0 ) ] ?? '' ),
 			'schedule_summary' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'datetime' ) . ' · ' . $class_timezone,
 			'state' => $state,
 			'temporal_state' => $temporal,

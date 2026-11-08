@@ -34,7 +34,8 @@ $check('previous note is scoped to the same Student and a different prior Lesson
 $check('empty notes never surface as a previous note', str_contains($repository, "TRIM(n.note_text)<>''"));
 
 $service = $read('platform/src/Core/Application/TeacherClassNoteService.php');
-$check('note writing requires the active Teacher principal', str_contains($service, "resolve('teacher')") && str_contains($service, 'hasActiveTeacherAuthority'));
+$check('note writing requires the active Teacher principal', str_contains($service, "resolve('teacher')") && str_contains($service, "current_user_can('dzn_view_own_portal_schedule')"));
+$check('note writing does not depend on onboarding availability rules', !str_contains($service, 'hasActiveTeacherAuthority'));
 $check('note writing requires the owning canonical Lesson', str_contains($service, "(int)\$lesson->teacher_id!==\$teacherId") && str_contains($service, "record_model!=='canonical_term_lesson_v1'"));
 $check('note writing requires the exact applicable schedule', str_contains($service, "(int)\$schedule->applicable_slot!==1"));
 $check('note length is bounded', str_contains($service, 'MAX_LENGTH=5000'));
@@ -46,7 +47,8 @@ $check('note save never trusts a submitted redirect URL', !str_contains($control
 $check('note save only redirects with validated occurrence identifiers', str_contains($controller, "preg_match('/^[0-9A-Z]{26}$/D',\$lessonUid)"));
 
 $briefing = $read('platform/src/Core/Application/TeacherClassroomBriefingReadService.php');
-$check('briefing resolves only the Teacher principal', str_contains($briefing, "resolve('teacher')") && str_contains($briefing, 'hasActiveTeacherAuthority'));
+$check('briefing resolves only the Teacher principal', str_contains($briefing, "resolve('teacher')") && str_contains($briefing, "current_user_can('dzn_view_own_portal_schedule')"));
+$check('briefing does not depend on onboarding availability rules', !str_contains($briefing, 'hasActiveTeacherAuthority'));
 $check('briefing re-proves Lesson ownership and schedule applicability', str_contains($briefing, "(int)\$lesson->teacher_id!==\$teacherId") && str_contains($briefing, "(int)\$schedule->applicable_slot!==1"));
 $check('briefing composes the current-Term timeline', str_contains($briefing, "WHERE l.term_id=%d AND l.student_id=%d") && str_contains($briefing, 'is_current'));
 $check('briefing surfaces outstanding attendance and reschedule facts', str_contains($briefing, 'pending') && str_contains($briefing, 'attendance_unconfirmed'));
@@ -62,6 +64,19 @@ $check('finish page saves the private note', str_contains($entry, 'dzn_teacher_s
 $check('finish page states that the note is private', str_contains($entry, 'هنرجو آن را نمی‌بیند'));
 $check('finish page confirms attendance', str_contains($entry, 'تأیید برگزاری و حضور'));
 $check('finish page is Teacher-only', str_contains($entry, "\$show_finish = 'teacher' === \$role"));
+$check('Teacher join form carries the finish URL for the Meet-close transition', str_contains($entry, 'data-dzn-finish-url'));
+$check('Teacher join help explains the automatic finish transition', str_contains($entry, 'با بستن آن، صفحهٔ پایان کلاس'));
+$check('a missing briefing still renders the note/finish entry point', str_contains($entry, 'dzn-meet-brief-fallback-title'));
+
+$entryJs = $read('theme/assets/js/meet-entry.js');
+$check('Meet-close detection opens the finish page', str_contains($entryJs, 'meetWindow.closed') && str_contains($entryJs, 'window.location.assign(finishUrl)'));
+$check('Meet-close detection falls back when the popup is blocked', str_contains($entryJs, 'if (!meetWindow)'));
+$routes = $read('theme/inc/routes.php');
+$check('classroom route enqueues the Meet-close script', str_contains($routes, 'delnavazan-meet-entry') && str_contains($routes, 'assets/js/meet-entry.js'));
+
+$check('repository can batch previous notes for portal cards', str_contains($repository, 'previousNotesForLessons'));
+$bridge = $read('theme/inc/platform-bridge.php');
+$check('Teacher portal cards receive the sourced previous note', str_contains($bridge, "'previous_private_note' =>") && str_contains($bridge, 'previousNotesForLessons'));
 
 $actions = $read('theme/template-parts/components/classroom-actions.php');
 $check('Student join is a direct authenticated POST', str_contains($actions, "'student' === \$role") && str_contains($actions, '<form class="dzn-classroom-actions__form" method="post"'));

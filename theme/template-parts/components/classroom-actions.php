@@ -27,7 +27,6 @@ $entry_url = add_query_arg( $entry_args, home_url( '/music-classroom/' ) );
 <div class="dzn-classroom-actions">
 	<?php if ( $join_available && ( $is_booking ? $entry_args['confirmation_uid'] !== '' : ( $entry_args['lesson_uid'] !== '' && $entry_args['schedule_version_uid'] !== '' ) ) ) : ?>
 		<a class="<?php echo esc_attr( $primary_class ); ?>" href="<?php echo esc_url( $entry_url ); ?>" target="_blank" rel="noopener noreferrer">ورود به کلاس Google Meet</a>
-		<p class="dzn-classroom-actions__note">صفحهٔ ورود دلنوازان باز می‌شود و پیوند امن Meet پس از تأیید سرور در اختیار شما قرار می‌گیرد.</p>
 	<?php elseif ( '' !== $message ) : ?>
 		<p class="dzn-portal-help dzn-classroom-actions__unavailable"><?php echo esc_html( $message ); ?></p>
 	<?php endif; ?>

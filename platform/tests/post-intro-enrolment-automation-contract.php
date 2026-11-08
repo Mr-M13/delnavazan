@@ -136,6 +136,7 @@ $assert(str_contains($continuation, "state' => 'expired'") && str_contains($cont
 $assert(str_contains($continuation, 'patternForSlotAuthority') && str_contains($continuation, 'assertPatternIdentity'), 'only the pattern created from this slot authority may be reused');
 $assert(str_contains($continuation, 'reservationForCase') && str_contains($continuation, 'existingReservation'), 'a replayed case must recover its durable reservation');
 $assert(str_contains($continuation, 'claimStudentActionAt') && str_contains($continuation, 'concurrentReplay'), 'Student commands must use one durable action instant and not poison the invitation');
+$assert(str_contains($continuation, "'post_intro_retryable'") && str_contains($studentController, "'post_intro_retryable'"), 'A pre-payment transient failure must leave the Student invitation retryable.');
 $assert(!str_contains($continuation, "'prepared', 'checkout_pending', 'exception'"), 'an exception preparation must require admin retry before the Student action');
 $assert(str_contains($repository, 'r.privacy_erased_at IS NULL') && str_contains($preparation, 'privacy_erased_at'), 'privacy-erased bookings must not surface a Student invitation');
 $assert(str_contains($continuation, "== 'unavailable'") && str_contains($continuation, 'checkout_temporarily_unavailable'), 'explicit checkout unavailability must not be reported as pending');

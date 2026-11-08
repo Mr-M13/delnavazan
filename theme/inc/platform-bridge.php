@@ -1471,7 +1471,6 @@ function dzn_theme_platform_student_model( $screen ) {
 		}
 		$model['payments'] = dzn_theme_platform_student_payments_with_future_term( $payments_model, $current_term_sequence );
 		$model['payment_history'] = $payment_history;
-		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
 	}
 	if ( 'account' === $screen ) {
@@ -1557,7 +1556,6 @@ function dzn_theme_platform_student_model( $screen ) {
 		$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' );
 		$model['payments'] = dzn_theme_platform_student_payments_with_future_term( $payments_model, (int) ( $current_enrolment['term_sequence'] ?? 0 ) );
 		$model['payment_history'] = $payment_history;
-		$model['tuition_allocations'] = dzn_theme_platform_tuition_allocations( 'student' );
 		return $model;
 	}
     $booking_temporal = static fn( $row ) => dzn_theme_platform_lesson_temporal_state( $row, $now );

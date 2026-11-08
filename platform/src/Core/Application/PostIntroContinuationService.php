@@ -391,6 +391,28 @@ final class PostIntroContinuationService {
                 if ($fresh && (int) $fresh->offer_id > 0) return array('state' => 'checkout_pending', 'redirect_url' => null, 'message' => 'checkout_pending');
                 throw $error;
             }
+            // A transient failure before verified payment must not strand the Student in a
+            // non-actionable exception state. In particular, offer/obligation creation can fail
+            // before Stripe is reached; keeping the preparation retryable is what lets the next
+            // visit create the missing commercial record. Permanent, explicitly classified
+            // workflow errors continue to use the protected exception state above.
+            $retryable = !in_array($message, array(
+                'commercial_pattern_teacher_conflict', 'commercial_pattern_conflict',
+                'continuation_course_conflict', 'continuation_reservation_required',
+                'post_intro_proposal_missing', 'post_intro_provisional_acceptance_missing',
+                'commercial_obligation_missing', 'commercial_offer_exists',
+            ), true);
+            if ($retryable) {
+                $retryState = (int) ($preparation->offer_id ?? 0) > 0 ? 'checkout_pending' : 'prepared';
+                $this->repository->updatePreparation((int) $preparation->id, array(
+                    'state' => $retryState,
+                    'exception_code' => null,
+                    'exception_detail' => null,
+                    'last_attempt_at' => gmdate('Y-m-d H:i:s'),
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
+                ));
+                throw new \InvalidArgumentException('post_intro_retryable');
+            }
             $code = preg_match('/^[a-z0-9_]{3,64}$/D', $message) === 1 ? $message : 'post_intro_continuation_failed';
             $this->repository->updatePreparation((int) $preparation->id, array(
                 'state' => 'exception',

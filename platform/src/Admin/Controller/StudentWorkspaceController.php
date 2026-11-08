@@ -129,50 +129,85 @@ final class StudentWorkspaceController {
         if ((string) ($summary['enrolment']->course_name ?? '') !== '') echo ' <span class="dzn-chip">' . esc_html((string) $summary['enrolment']->course_name) . '</span>';
         if ((string) ($summary['enrolment']->teacher_name ?? '') !== '') echo ' <span class="dzn-chip">' . esc_html((string) $summary['enrolment']->teacher_name) . '</span>';
         if (($summary['next_lesson_at'] ?? null) !== null) echo ' <span class="dzn-chip dzn-chip--soft">Next ' . esc_html(self::human((string) $summary['next_lesson_at'])) . '</span>';
-        echo '</p></div><div class="dzn-student-header__actions">';
-        RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-profile'));
-        if ((string) ($student->archived_at ?? '') !== '' || (string) ($student->status ?? '') === 'archived') {
-            RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-restore'));
-        } else {
-            RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-archive'));
-        }
-        echo '</div></header>';
+        echo '</p></div></header>';
 
-        echo '<div class="dzn-student-layout"><aside class="dzn-student-rail"><nav aria-label="Student profile sections"><strong>Profile sections</strong><ol>';
+        self::toolbar($student);
+        self::attentionBanner($profile);
+
+        echo '<div class="dzn-student-layout"><nav class="dzn-student-rail dzn-student-jump" aria-label="Student profile sections"><strong>Profile sections</strong><ol class="dzn-student-jump__list">';
         $sections = array(
-            'student-details' => 'Student details',
-            'student-account' => 'Identity, account & guardian',
-            'student-enrolment' => 'Enrolment & introductory lessons',
+            'student-finance' => 'Payments & instalments',
+            'student-lessons' => 'Lessons & absences',
+            'student-terms' => 'Terms, progress & renewal',
             'student-courses' => 'Courses, instruments & teachers',
-            'student-terms' => 'Terms, progress & renewals',
-            'student-lessons' => 'Lessons, attendance & absences',
-            'student-finance' => 'Payments, instalments & discounts',
+            'student-enrolment' => 'Enrolment & intro lessons',
             'student-notifications' => 'Notifications & communication',
-            'student-recording' => 'Recording, consent & learning',
             'student-tasks' => 'Tasks & resolutions',
-            'student-actions' => 'Administrative actions',
+            'student-account' => 'Identity, account & guardian',
+            'student-details' => 'Student details',
+            'student-recording' => 'Recording & consent',
+            'student-actions' => 'Lifecycle reference',
         );
         foreach ($sections as $anchor => $label) echo '<li><a href="#' . esc_attr($anchor) . '">' . esc_html($label) . '</a></li>';
-        echo '</ol></nav></aside><main class="dzn-student-main">';
+        echo '</ol></nav><main class="dzn-student-main">';
 
-        self::detailsSection($profile);
-        self::accountSection($profile);
-        self::enrolmentSection($profile);
-        self::coursesSection($profile);
-        self::termsSection($profile);
-        self::lessonsSection($profile);
         self::financeSection($profile);
+        self::lessonsSection($profile);
+        self::termsSection($profile);
+        self::coursesSection($profile);
+        self::enrolmentSection($profile);
         self::notificationsSection($profile);
-        self::recordingSection($profile);
         self::tasksSection($profile);
+        self::accountSection($profile);
+        self::detailsSection($profile);
+        self::recordingSection($profile);
         self::actionsSection($profile);
 
         echo '</main></div></div>';
     }
 
+    private static function toolbar(object $student): void {
+        echo '<div class="dzn-student-toolbar" aria-label="Student lifecycle actions"><div class="dzn-student-toolbar__actions">';
+        RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-deactivate', 'student-reactivate', 'student-archive', 'student-restore'));
+        if (current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) {
+            echo '<a class="button button-primary" href="' . esc_url(self::centralUrl('dzn-enrolment', array('student_id' => (int) $student->id), 'student-enrolment')) . '">Start re-enrolment for this student</a>';
+        }
+        echo '</div></div>';
+    }
+
+    private static function attentionBanner(array $profile): void {
+        $items = array();
+        if (!empty($profile['tasks'])) {
+            $items[] = array('label' => count($profile['tasks']) . ' unresolved task' . (count($profile['tasks']) === 1 ? '' : 's') . ' — review tasks', 'anchor' => 'student-tasks');
+        }
+        $anomalies = $profile['identity']['anomalies'] ?? array();
+        if (!empty($anomalies)) {
+            $items[] = array('label' => count($anomalies) . ' identity review item' . (count($anomalies) === 1 ? '' : 's') . ' — review identity', 'anchor' => 'student-account');
+        }
+        if (($profile['finance']['available'] ?? false) && (int) ($profile['finance']['summary']['outstanding_minor'] ?? 0) > 0) {
+            $items[] = array('label' => 'Outstanding payment ' . self::money((int) $profile['finance']['summary']['outstanding_minor'], (string) $profile['finance']['currency']) . ' — review payments', 'anchor' => 'student-finance');
+        }
+        if (!empty($profile['attendance_cases'])) {
+            $items[] = array('label' => count($profile['attendance_cases']) . ' attendance case' . (count($profile['attendance_cases']) === 1 ? '' : 's') . ' awaiting review', 'anchor' => 'student-lessons');
+        }
+        if (!empty($profile['reschedules'])) {
+            $items[] = array('label' => count($profile['reschedules']) . ' pending reschedule proposal' . (count($profile['reschedules']) === 1 ? '' : 's'), 'anchor' => 'student-lessons');
+        }
+        $suppression = $profile['notifications']['suppression'] ?? null;
+        if (!empty($suppression)) {
+            $items[] = array('label' => 'Active communication suppression — check notifications', 'anchor' => 'student-notifications');
+        }
+        if (!$items) return;
+        echo '<div class="dzn-admin-attention" role="status"><strong>Administrative action required</strong><ul class="dzn-admin-attention__list">';
+        foreach ($items as $item) {
+            echo '<li><a href="#' . esc_attr($item['anchor']) . '">' . esc_html($item['label']) . '</a></li>';
+        }
+        echo '</ul></div>';
+    }
+
     private static function detailsSection(array $profile): void {
         $student = $profile['student'];
-        self::sectionOpen('student-details', 'Student details', 'The public identity used by the academy. Internal account identity is managed separately below.');
+        self::sectionOpen('student-details', 'Student details', 'The public identity used by the academy. Internal account identity is managed separately below.', false);
         $rows = array(
             'Student name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
             'Display / preferred name' => (string) ($student->display_name ?? ''),
@@ -203,7 +238,7 @@ final class StudentWorkspaceController {
         $student = $profile['student'];
         $account = $profile['account'];
         $identity = $profile['identity'];
-        self::sectionOpen('student-account', 'Identity, account & guardian', 'Account linkage, proof of ownership, guardian authority and only the anomalies that actually exist.');
+        self::sectionOpen('student-account', 'Identity, account & guardian', 'Account linkage, proof of ownership, guardian authority and only the anomalies that actually exist.', !empty($identity['anomalies'] ?? array()));
         echo '<div class="dzn-account-grid"><div class="dzn-card"><h3>Account status</h3>';
         self::kv(array(
             'Portal account' => $account['user'] ? self::accountLabel($account['user']) : 'Not linked',
@@ -563,6 +598,7 @@ final class StudentWorkspaceController {
             }
             echo '</tbody></table></div>';
         }
+        echo '<details class="dzn-history-details"><summary>Communication history (site inbox &amp; channels)</summary>';
         if ($notifications['portal']) {
             echo '<h3>Site inbox</h3><div class="dzn-table-scroll"><table class="widefat striped"><thead><tr><th>Event</th><th>Title</th><th>Read</th><th>Created</th></tr></thead><tbody>';
             foreach ($notifications['portal'] as $row) echo '<tr><td>' . esc_html((string) $row->event_key) . '</td><td>' . esc_html((string) $row->title) . '</td><td>' . esc_html($row->read_at ? self::human((string) $row->read_at) : 'Unread') . '</td><td>' . esc_html(self::human((string) $row->created_at)) . '</td></tr>';
@@ -573,6 +609,8 @@ final class StudentWorkspaceController {
             foreach ($notifications['channels'] as $row) echo '<tr><td>' . esc_html(strtoupper((string) $row->channel)) . '</td><td>' . esc_html(ucfirst((string) $row->state)) . '</td><td>' . esc_html((string) (int) $row->total) . '</td></tr>';
             echo '</tbody></table></div>';
         }
+        if (empty($notifications['portal']) && empty($notifications['channels'])) echo '<p class="dzn-empty-inline">No site inbox or channel history recorded.</p>';
+        echo '</details>';
         echo '<p class="dzn-note">' . esc_html((string) $notifications['sms_policy']) . '</p>';
         echo '<p class="dzn-note">This profile does not offer a notification retry button: no per-notification administrator retry authority exists in the current dispatch service. Failed delivery is inspected and retried only through the canonical dispatch/worker policy.</p>';
         if (current_user_can(NotificationRule::READ_CAPABILITY)) echo '<p><a class="button" href="' . esc_url(self::centralUrl('dzn-notifications', array('tab' => 'diagnostics'), 'student-notifications')) . '">Open communication diagnostics</a></p>';
@@ -581,7 +619,7 @@ final class StudentWorkspaceController {
 
     private static function recordingSection(array $profile): void {
         $recording = $profile['recording'];
-        self::sectionOpen('student-recording', 'Recording, consent & learning content', 'Append-only consent evidence. This workspace does not create a recording, upload content or enable AI processing.');
+        self::sectionOpen('student-recording', 'Recording, consent & learning content', 'Append-only consent evidence. This workspace does not create a recording, upload content or enable AI processing.', false);
         echo '<div class="dzn-account-grid">';
         self::consentCard('Class recording', $recording['recording'], $recording['capture_enabled']);
         self::consentCard('AI / research processing', $recording['research'], $recording['research_export_enabled']);
@@ -601,7 +639,7 @@ final class StudentWorkspaceController {
     }
 
     private static function tasksSection(array $profile): void {
-        self::sectionOpen('student-tasks', 'Tasks & resolutions', 'Unresolved student-specific issues from the canonical task authority and derived blockers. Every action states its consequence.');
+        self::sectionOpen('student-tasks', 'Tasks & resolutions', 'Unresolved student-specific issues from the canonical task authority and derived blockers. Every action states its consequence.', !empty($profile['tasks']));
         if (!$profile['tasks']) {
             echo '<p class="dzn-state dzn-state--ok">No unresolved student-specific issue is recorded.</p>';
             self::sectionClose();
@@ -628,10 +666,8 @@ final class StudentWorkspaceController {
     }
 
     private static function actionsSection(array $profile): void {
-        $student = $profile['student'];
-        $archived = (string) ($student->archived_at ?? '') !== '' || (string) ($student->status ?? '') === 'archived';
         $summary = $profile['summary'];
-        self::sectionOpen('student-actions', 'Administrative actions', 'Deactivate, archive and reactivate have different meanings. No action cascades deletion of lessons, payments, attendance or consent history.');
+        self::sectionOpen('student-actions', 'Lifecycle reference', 'Lifecycle buttons are at the top of this profile. The reference below explains what each button changes and preserves. No action cascades deletion of lessons, payments, attendance or consent history.', false);
         $dependencies = array();
         if (($summary['enrolment'] ?? null) !== null) $dependencies[] = 'Active enrolment: ' . (string) ($summary['enrolment']->course_name ?? 'Course') . ' · ' . ucfirst(str_replace('_', ' ', (string) ($summary['enrolment']->enrolment_state ?? '')));
         if (($summary['next_lesson_at'] ?? null) !== null) $dependencies[] = 'Next scheduled lesson: ' . self::human((string) $summary['next_lesson_at']);
@@ -644,29 +680,13 @@ final class StudentWorkspaceController {
         }
         echo '<div class="dzn-callout"><h3>Distinct lifecycle meanings</h3><table class="widefat striped"><thead><tr><th>Action</th><th>What it changes</th><th>What it preserves</th><th>Access effect</th></tr></thead><tbody>';
         echo '<tr><td><strong>Deactivate</strong></td><td>Student status becomes inactive.</td><td>Enrolments, lessons, payments, attendance, consent and WordPress user.</td><td>Portal access follows the inactive student state; account links are reviewed separately.</td></tr>';
-        echo '<tr><td><strong>Archive</strong></td><td>Student leaves normal directories and becomes archived.</td><td>All protected history and the WordPress user.</td><td>Archiving is refused while operational enrolments depend on the student.</td></tr>';
+        echo '<tr><td><strong>Archive</strong></td><td>Student leaves normal directories and becomes archived.</td><td>All protected history and the WordPress user.</td><td>Archiving is refused while operational enrolments still depend on the record.</td></tr>';
         echo '<tr><td><strong>Restore</strong></td><td>Archived student returns to the directory as inactive.</td><td>Identity, history and account link evidence.</td><td>Access is not restored automatically.</td></tr>';
         echo '<tr><td><strong>Reactivate</strong></td><td>Inactive student returns to active participation.</td><td>Identity, history and account evidence.</td><td>Portal access still requires an active verified account link.</td></tr>';
         echo '<tr><td><strong>Account access</strong></td><td>Revokes or replaces the Student principal link.</td><td>WordPress user, other roles, owned content and history.</td><td>Only Student access is affected.</td></tr>';
         echo '<tr><td><strong>Re-enrol</strong></td><td>Starts a new canonical enrolment or course change in Enrolments.</td><td>The existing student identity and all history.</td><td>No duplicate student or account is created.</td></tr>';
         echo '</tbody></table></div>';
-        echo '<div class="dzn-action-list">';
-        echo '<div class="dzn-action-card"><h3>Deactivate</h3><p>Pause current operational participation without deleting history or the WordPress account.</p>';
-        if (!$archived) RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-deactivate')); else echo '<p class="dzn-muted">Archived students must be restored first.</p>';
-        echo '</div>';
-        echo '<div class="dzn-action-card"><h3>Reactivate</h3><p>Return an inactive student to the operational directory. Portal access is not restored automatically.</p>';
-        if (!$archived) RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-reactivate')); else echo '<p class="dzn-muted">Use Restore for an archived student.</p>';
-        echo '</div>';
-        echo '<div class="dzn-action-card"><h3>Archive</h3><p>Remove the student from daily directories while retaining protected history. Archiving is refused while operational enrolments still depend on the record.</p>';
-        if (!$archived) RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-archive')); else echo '<p class="dzn-muted">This student is already archived.</p>';
-        echo '</div>';
-        echo '<div class="dzn-action-card"><h3>Restore</h3><p>Find an archived student and make the profile eligible for a new enrolment. Access remains revoked until explicitly re-established.</p>';
-        if ($archived) RecordActionRenderer::renderSelected('student', $student, self::PAGE, array('student-restore')); else echo '<p class="dzn-muted">This student is not archived.</p>';
-        echo '</div>';
-        echo '</div>';
-        echo '<div class="dzn-callout"><h3>Re-enrolment and returning students</h3><p>Find the existing student first. Restore or reactivate the same record, review the identity and account, then start a new enrolment through the canonical Enrolments workflow. Never create a second student identity because a previous enrolment ended.</p>';
-        if (current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) echo '<p><a class="button" href="' . esc_url(self::centralUrl('dzn-enrolment', array('student_id' => (int) $student->id), 'student-actions')) . '">Start re-enrolment for this student</a></p>';
-        echo '</div>';
+        echo '<div class="dzn-callout"><h3>Re-enrolment and returning students</h3><p>Find the existing student first. Restore or reactivate the same record, review the identity and account, then start a new enrolment through the canonical Enrolments workflow. Never create a second student identity because a previous enrolment ended. Use the button at the top of this profile to open the student-filtered Enrolments workflow.</p></div>';
         echo '<div class="dzn-callout"><h3>WordPress account handling</h3><p>Student actions never delete a WordPress user. A user may own content, hold guardian authority, carry another role or be referenced by history. Account access is revoked through the Student principal authority only; archival preserves the user and all protected records.</p></div>';
         self::sectionClose();
     }
@@ -694,8 +714,8 @@ final class StudentWorkspaceController {
         echo '</div><p><button class="button button-primary">Create student</button></p></form></details>';
     }
 
-    private static function sectionOpen(string $id, string $title, string $description): void {
-        echo '<section id="' . esc_attr($id) . '" class="dzn-student-section"><details open><summary><span>' . esc_html($title) . '</span></summary><div class="dzn-student-section__body"><p class="dzn-section-lede">' . esc_html($description) . '</p>';
+    private static function sectionOpen(string $id, string $title, string $description, bool $open = true): void {
+        echo '<section id="' . esc_attr($id) . '" class="dzn-student-section"><details' . ($open ? ' open' : '') . '><summary><span>' . esc_html($title) . '</span></summary><div class="dzn-student-section__body"><p class="dzn-section-lede">' . esc_html($description) . '</p>';
     }
 
     private static function sectionClose(): void {

@@ -58,13 +58,13 @@ $check( 'replacement classes are labelled in the schedule', str_contains( (strin
 $check( 'rescheduled classes are labelled as a new time in the schedule', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/schedule.php' ), 'زمان جدید' ) && str_contains( $bridge, 'schedule_revision_count' ) );
 $check( 'replacement classes appear in the term timeline with confirmation state', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/term-timeline.php' ), "replacement_item['confirmed']" ) );
 
-/* 2. Account puts profile first, status directly beneath it, then finance, then consent last. */
+/* 2. Account puts profile first, status directly beneath it, then consent last. Finance has its own destination. */
 $account_at = strpos( $shell, "elseif ( 'account' === \$screen ) : ?>" );
 $account = false === $account_at ? '' : substr( $shell, $account_at );
 $account = substr( $account, 0, (int) strpos( $account, '<?php else : ?>' ) );
 $account_previous = -1;
 $account_ordered = true;
-foreach ( array( 'profile', 'account-status', 'payments', 'recording-choices' ) as $component ) {
+foreach ( array( 'profile', 'account-status', 'recording-choices' ) as $component ) {
 	$at = $position( $account, "'" . $component . "'" );
 	if ( $at === PHP_INT_MAX || $at < $account_previous ) {
 		$account_ordered = false;

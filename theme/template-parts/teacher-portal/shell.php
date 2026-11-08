@@ -47,6 +47,7 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-tp-notifications';
  elseif ( 'induction' === $screen ) : dzn_theme_teacher_portal_component( 'induction', array( 'model' => $model ) );
  else : dzn_theme_teacher_portal_component( 'home', array( 'model' => $model ) ); endif; ?>
  </div>
+ <?php dzn_theme_teacher_portal_component( 'notification-banner', array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'teacher' ) ); ?>
  <?php if ( $show_tabs ) : ?>
  <nav id="dzn-tp-nav-mobile" class="dzn-tp-tabs" aria-label="پیمایش پرتال مدرس">
   <ul>

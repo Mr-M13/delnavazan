@@ -152,6 +152,7 @@ $show_provisioning = 'ok' === $state && $provisioning
 			<?php dzn_theme_portal_component( 'support', array() ); ?>
 		<?php endif; ?>
 	</div>
+	<?php dzn_theme_portal_component( 'notification-banner', array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'student' ) ); ?>
 	<?php if ( $navigation ) : ?>
 		<nav id="dzn-portal-nav-mobile" class="dzn-portal-tabs" aria-label="<?php esc_attr_e( 'پیمایش هنرجو', 'delnavazan-theme' ); ?>">
 			<ul>

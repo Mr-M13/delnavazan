@@ -3189,10 +3189,6 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
   --dzn-enrolment-gap: 18px;
 }
 
-.dzn-enrolment__tabs {
-  margin-block: 12px 0;
-}
-
 .dzn-enrolment__page-head,
 .dzn-enrolment__hero,
 .dzn-enrolment__case-head {
@@ -5027,3 +5023,100 @@ body.dzn-admin-page .dzn-coordination a.button-primary:focus-visible {
 .dzn-feedback-followup-row form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 6px 0; }
 .dzn-feedback-notes { flex: 1 1 320px; }
 .dzn-feedback-followup-row textarea { width: 100%; min-block-size: 56px; }
+
+/* Enrolment landing: one snapshot, collapsible onboarding signals and an attention-first queue. */
+.dzn-enrolment--dashboard .dzn-enrolment__page-head { margin-block-end: 8px; }
+.dzn-enrolment-snapshot {
+  margin-block: 16px 20px;
+  padding: 20px;
+  border: 1px solid var(--dzn-border);
+  border-radius: var(--dzn-radius);
+  background:
+    radial-gradient(circle at 100% 0%, var(--dzn-teal-soft) 0%, transparent 42%),
+    linear-gradient(135deg, var(--dzn-surface) 0%, var(--dzn-surface-soft) 100%);
+}
+.dzn-enrolment-snapshot__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-block-end: 14px;
+}
+.dzn-enrolment-snapshot__head h2 { margin-block: 0 4px; }
+.dzn-enrolment-snapshot__head p { margin: 0; color: var(--dzn-muted); }
+.dzn-enrolment-snapshot__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dzn-enrolment-snapshot__group { margin-block-start: 14px; }
+.dzn-enrolment-snapshot__group h3 { margin-block: 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--dzn-muted); }
+.dzn-enrolment-snapshot__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px;
+}
+.dzn-snapshot-stat {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--dzn-border);
+  border-inline-start: 4px solid var(--dzn-border);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-surface);
+}
+.dzn-snapshot-stat strong { font-size: 24px; line-height: 1.1; color: var(--dzn-ink); }
+.dzn-snapshot-stat span { font-size: 12px; font-weight: 700; }
+.dzn-snapshot-stat small { color: var(--dzn-muted); }
+.dzn-snapshot-stat--ok { border-inline-start-color: var(--dzn-teal); }
+.dzn-snapshot-stat--ok strong { color: var(--dzn-teal-deep); }
+.dzn-snapshot-stat--warn { border-inline-start-color: var(--dzn-gold); background: var(--dzn-gold-soft); }
+.dzn-snapshot-stat--warn strong { color: var(--dzn-warning); }
+.dzn-snapshot-stat--danger { border-inline-start-color: var(--dzn-error); background: var(--dzn-accent-soft); }
+.dzn-snapshot-stat--danger strong { color: var(--dzn-error); }
+.dzn-enrolment-snapshot__note {
+  margin-block: 16px 0;
+  padding: 10px 12px;
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-surface-soft);
+  color: var(--dzn-muted);
+}
+.dzn-conversion-panel > summary { align-items: flex-start; }
+.dzn-conversion-panel .dzn-enrolment__section { margin-block: 14px; }
+.dzn-survey-comments blockquote { margin: 4px 0 0; }
+.dzn-survey-comments p { margin: 4px 0 0; color: var(--dzn-muted); }
+.dzn-enrolment__filter-form--queue label { min-inline-size: 120px; }
+.dzn-unified-table { min-inline-size: 1120px; }
+.dzn-unified-table th,
+.dzn-unified-table td { vertical-align: top; font-size: 12px; line-height: 1.45; }
+.dzn-unified-table td small { color: var(--dzn-muted); }
+.dzn-unified-row--intro { background: var(--dzn-teal-soft); }
+.dzn-unified-row--standard { background: var(--dzn-surface); }
+.dzn-unified-row--replacement { background: var(--dzn-gold-soft); }
+.dzn-unified-row.is-attention td { border-block-start: 2px solid var(--dzn-error); background: var(--dzn-accent-soft); }
+.dzn-unified-row.is-attention td:first-child { box-shadow: inset 4px 0 0 var(--dzn-error); }
+.dzn-unified-row.is-today td { box-shadow: inset 4px 0 0 var(--dzn-gold); }
+.dzn-unified-row.is-history { background: var(--dzn-surface-soft); }
+.dzn-type-chip {
+  display: inline-flex;
+  margin-block-start: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--dzn-surface-alt);
+  color: var(--dzn-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.dzn-teacher-note blockquote {
+  margin: 0;
+  padding: 12px 14px;
+  border-inline-start: 4px solid var(--dzn-teal);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-surface-soft);
+  white-space: normal;
+}
+.dzn-create-intro__form select { inline-size: 100%; }
+@media (max-width: 782px) {
+  .dzn-enrolment-snapshot__head { flex-direction: column; }
+  .dzn-enrolment-snapshot__grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+}
+.dzn-mini-stats .dzn-task-chip--danger { border-color: var(--dzn-error); background: var(--dzn-accent-soft); }
+.dzn-mini-stats .dzn-task-chip--danger strong { color: var(--dzn-error); }

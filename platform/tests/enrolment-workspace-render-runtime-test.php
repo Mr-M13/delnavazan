@@ -10,35 +10,28 @@ use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 
 $read = new EnrolmentWorkspaceReadService();
 ob_start();
-EnrolmentWorkspaceView::newBookings($read, array());
+EnrolmentWorkspaceView::dashboard($read, array());
 $intro = (string) ob_get_clean();
 $checks = array(
-    '<h1>Intro</h1>' => 'The first tab must be titled Intro',
-    '<nav class="nav-tab-wrapper dzn-enrolment__tabs"' => 'The sub-tab navigation must render',
-    '>Review</a>' => 'The Review tab must render',
-    '>Enrolled classes</a>' => 'The Enrolled classes tab must render',
+    '<h1>Enrolment</h1>' => 'The unified Enrolment surface must render',
+    'Overview snapshot' => 'The overview snapshot must render',
+    'Needs attention first' => 'The class queue must put attention first',
+    'Create standard class' => 'Manual standard class creation must render',
     'Local start time' => 'Create intro must render the local start time field',
     'Local timezone (service area)' => 'Create intro must render the service-area timezone field',
     '<button class="button button-primary">Create</button>' => 'Create intro must use the single Create button',
     'Intro conversion overview' => 'The conversion overview must render',
     '<th>Student</th><th>Course</th><th>Teacher</th><th>Class date</th><th>Time elapsed</th>' => 'The conversion overview must include the requested columns',
+    'Post-intro survey results' => 'The post-intro survey panel must render',
+    'Class history' => 'The class history disclosure must render',
 );
 foreach ($checks as $needle => $message) {
     if (!str_contains($intro, $needle)) throw new RuntimeException($message . ': ' . $needle);
 }
+if (str_contains($intro, '<nav class="nav-tab-wrapper dzn-enrolment__tabs"')) throw new RuntimeException('Enrolment must not render sub-tabs');
+if (str_contains($intro, '>Enrolled classes</a>')) throw new RuntimeException('The old Enrolled classes tab is still rendered');
 if (str_contains($intro, 'Enrolment administration')) throw new RuntimeException('The old Enrolment administration card text is still rendered');
 if (str_contains($intro, 'Check this slot')) throw new RuntimeException('The separate preview/check action is still rendered');
-
-ob_start();
-EnrolmentWorkspaceView::review($read, array());
-$review = (string) ob_get_clean();
-foreach (array(
-    '<h1>Review</h1>' => 'The Review view must render',
-    '<th>Date</th><th>Instrument</th><th>Teacher</th><th>Student</th><th>Status</th><th>Country</th><th>Attended</th><th>Payment link sent</th><th>Reminder</th><th>Follow-up completed</th>' => 'The Review table must include every requested column',
-    'removed from this active queue' => 'The Review view must explain the fourteen-day removal rule',
-) as $needle => $message) {
-    if (!str_contains($review, $needle)) throw new RuntimeException($message . ': ' . $needle);
-}
 
 ob_start();
 dzn_theme_component('notification-banner', array('items' => array(array('id' => 7, 'title' => 'Synthetic notice', 'message' => 'Synthetic message', 'is_unread' => true, 'date' => 'today', 'link_url' => '')), 'actions' => array(), 'role' => 'student'));

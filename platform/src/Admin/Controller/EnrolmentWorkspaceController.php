@@ -17,6 +17,7 @@ use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
 use Delnavazan\Platform\Core\Application\IntroLessonLifecycleService;
 use Delnavazan\Platform\Core\Application\LessonScheduleService;
+use Delnavazan\Platform\Core\Application\LessonService;
 use Delnavazan\Platform\Core\Application\PostIntroNotificationAdministrationService;
 use Delnavazan\Platform\Core\Application\PostIntroPreparationService;
 use Delnavazan\Platform\Core\Application\ProposalService;
@@ -44,7 +45,6 @@ final class EnrolmentWorkspaceController {
 
     public static function screen(): void {
         if (!current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
-        $view = self::view();
         $requestId = absint($_GET['request_id'] ?? 0);
         $classId = absint($_GET['class_id'] ?? 0);
         $read = new EnrolmentWorkspaceReadService();
@@ -62,16 +62,8 @@ final class EnrolmentWorkspaceController {
             EnrolmentWorkspaceView::classDetail($class, self::classroomForClass($class));
             return;
         }
-        if ($view === 'enrolled') {
-            if (!current_user_can(Menu::ENROLLED_CLASSES_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
-            EnrolmentWorkspaceView::enrolledClasses($read, $_GET);
-        } elseif ($view === 'review') {
-            if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
-            EnrolmentWorkspaceView::review($read, $_GET);
-        } else {
-            if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
-            EnrolmentWorkspaceView::newBookings($read, $_GET);
-        }
+        // Enrolment is one operational surface. Legacy ?view= links still land here.
+        EnrolmentWorkspaceView::dashboard($read, $_GET);
     }
 
     public static function handle(): void {
@@ -381,6 +373,101 @@ final class EnrolmentWorkspaceController {
                 $result = (new HistoricalEnrolmentImportService())->import($post, $idempotency);
                 return ($result['idempotent'] ? 'Import already completed; no duplicate records were created.' : 'Imported historical course with ' . count($result['lesson_ids']) . ' future classes.')
                     . ' Completed classes: ' . (int) $result['completed_classes'] . '.';
+            case 'create_standard_class':
+                $termId = absint($post['term_id'] ?? 0);
+                $assignmentId = absint($post['assignment_id'] ?? 0);
+                $enrolmentId = 0;
+                $teacherId = 0;
+                $studentId = 0;
+                $courseId = 0;
+                $recordModel = 'canonical_student_course_v1';
+                $choice = sanitize_text_field((string) ($post['term_assignment'] ?? ''));
+                if ($choice !== '' && str_contains($choice, ':')) {
+                    $parts = explode(':', $choice);
+                    $termId = absint($parts[0] ?? 0);
+                    $assignmentId = absint($parts[1] ?? 0);
+                    $recordModel = sanitize_key((string) ($parts[2] ?? $recordModel));
+                    $enrolmentId = absint($parts[3] ?? 0);
+                    $teacherId = absint($parts[4] ?? 0);
+                    $studentId = absint($parts[5] ?? 0);
+                    $courseId = absint($parts[6] ?? 0);
+                }
+                if ($termId < 1) throw new \InvalidArgumentException('Choose an active Enrolment with a current Term');
+                $evidenceReference = sanitize_text_field((string) ($post['evidence_reference'] ?? 'manual-standard-class'));
+                $wallTime = sanitize_text_field((string) ($post['local_wall_time'] ?? ''));
+                if (preg_match('/^\d{2}:\d{2}$/D', $wallTime)) $wallTime .= ':00';
+                $scheduleInput = array(
+                    'schedule_timezone' => sanitize_text_field((string) ($post['schedule_timezone'] ?? '')),
+                    'local_wall_date' => sanitize_text_field((string) ($post['local_wall_date'] ?? '')),
+                    'local_wall_time' => $wallTime,
+                    'evidence_reference' => $evidenceReference,
+                    'evidence_at' => gmdate('Y-m-d H:i:s'),
+                );
+                if ($recordModel === 'legacy_phase1') {
+                    self::requireCap('dzn_manage_lessons');
+                    if ($enrolmentId < 1 || $teacherId < 1 || $studentId < 1 || $courseId < 1) throw new \InvalidArgumentException('Choose an active Enrolment with a current Term and Teacher');
+                    global $wpdb;
+                    $wpdb->query('START TRANSACTION');
+                    try {
+                        $term = $wpdb->get_row($wpdb->prepare(
+                            "SELECT id,lesson_allocation FROM {$wpdb->prefix}dzn_terms WHERE id=%d AND enrolment_id=%d AND archived_at IS NULL AND status IN ('active','current') FOR UPDATE",
+                            $termId,
+                            $enrolmentId
+                        ));
+                        $used = (int) $wpdb->get_var($wpdb->prepare(
+                            "SELECT COUNT(*) FROM {$wpdb->prefix}dzn_lessons WHERE term_id=%d AND lesson_type='standard' AND archived_at IS NULL AND status NOT IN ('cancelled','archived')",
+                            $termId
+                        ));
+                        if (!$term || $used >= (int) $term->lesson_allocation) throw new \InvalidArgumentException('The selected historical Term has no remaining standard-class allocation');
+                        $lessonId = (new LessonService())->create(array(
+                            'student_id' => $studentId,
+                            'teacher_id' => $teacherId,
+                            'course_id' => $courseId,
+                            'lesson_type' => 'standard',
+                            'status' => 'draft',
+                            'enrolment_id' => $enrolmentId,
+                            'term_id' => $termId,
+                        ), true);
+                        $wpdb->query('COMMIT');
+                    } catch (\Throwable $legacyCreateError) {
+                        $wpdb->query('ROLLBACK');
+                        throw $legacyCreateError;
+                    }
+                    try {
+                        (new LessonScheduleService())->initial($lessonId, array(
+                            'schedule_timezone' => $scheduleInput['schedule_timezone'],
+                            'local_wall_date' => $scheduleInput['local_wall_date'],
+                            'local_wall_time' => $scheduleInput['local_wall_time'],
+                            'reason' => 'manual standard class',
+                        ));
+                    } catch (\Throwable $scheduleError) {
+                        error_log('[Delnavazan enrolment workspace] create_legacy_standard_schedule ' . get_class($scheduleError) . ' ' . $scheduleError->getMessage());
+                        return 'Standard class created, but the requested time was refused. ' . self::safeMessage($scheduleError) . ' Open the class and schedule it from the class record; the allocation is retained.';
+                    }
+                    return 'Standard class created and scheduled through the historical class authority.';
+                }
+                self::requireCap('dzn_manage_canonical_lessons');
+                self::requireCap('dzn_manage_canonical_lesson_schedules');
+                if ($assignmentId < 1) throw new \InvalidArgumentException('Choose an active Enrolment with a current Term and assigned Teacher');
+                $created = (new CanonicalLessonAuthorityService())->createStandard($termId, $assignmentId, array(
+                    'evidence_channel' => 'staff_record',
+                    'evidence_reference' => $evidenceReference,
+                    'evidence_at' => gmdate('Y-m-d H:i:s'),
+                ), $idempotency);
+                $lessonId = (int) $created['lesson_id'];
+                try {
+                    (new CanonicalLessonScheduleService())->schedule($lessonId, $assignmentId, array_merge($scheduleInput, array(
+                        'duration_minutes' => absint($post['duration_minutes'] ?? 0) ?: null,
+                        'reason_code' => 'manual_standard_creation',
+                        'evidence_channel' => 'staff_record',
+                    )), $idempotency . '-schedule');
+                } catch (\Throwable $scheduleError) {
+                    // The canonical Lesson is already durable. Keep it visible and unscheduled so
+                    // the operator can choose another time instead of creating a duplicate class.
+                    error_log('[Delnavazan enrolment workspace] create_standard_schedule ' . get_class($scheduleError) . ' ' . $scheduleError->getMessage());
+                    return 'Standard class created, but the requested time was refused. ' . self::safeMessage($scheduleError) . ' Open the class and schedule it from the class record; the allocation is retained.';
+                }
+                return 'Standard class created and scheduled through the canonical lesson and schedule authorities.';
             default:
                 throw new \InvalidArgumentException('Unsupported operation');
         }
@@ -424,14 +511,9 @@ final class EnrolmentWorkspaceController {
         catch (\Throwable) { return null; }
     }
 
-    private static function view(): string {
-        $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
-        return in_array($view, array('enrolled', 'review'), true) ? $view : 'new';
-    }
-
     private static function returnUrl(): string {
         $args = array('page' => self::PAGE);
-        foreach (array('view', 'request_id', 'class_id', 'q', 'stage', 'teacher_id', 'student_id', 'course_id', 'term_id', 'date', 'action') as $key) {
+        foreach (array('view', 'request_id', 'class_id', 'q', 'stage', 'type', 'attention', 'when', 'teacher_id', 'student_id', 'course_id', 'term_id', 'date', 'action') as $key) {
             if (!isset($_GET[$key]) || !is_scalar($_GET[$key])) continue;
             $value = wp_unslash((string) $_GET[$key]);
             $args[$key] = in_array($key, array('request_id', 'class_id', 'teacher_id', 'student_id', 'course_id', 'term_id'), true) ? absint($value) : sanitize_text_field($value);
@@ -477,6 +559,13 @@ final class EnrolmentWorkspaceController {
             'A current booking confirmation is required for classroom retry' => 'Reload the case and use the current confirmation before retrying classroom creation.',
             'intro_booking_confirmation_required' => 'A confirmed introductory booking is required before this action.',
             'intro_lesson_not_reschedulable' => 'This introductory lesson can no longer be rescheduled.',
+            'Choose an active Enrolment with a current Term and assigned Teacher' => 'Choose an active Enrolment that already has a current Term and an assigned Teacher.',
+            'standard_allocation_exhausted' => 'This Term has no remaining standard class allocation. Use a replacement or start a new Term.',
+            'standard_funding_exhausted' => 'The funded allocation for this Term is exhausted; a standard class cannot be added.',
+            'replacement_allocation_exhausted' => 'This Term has no remaining replacement allowance.',
+            'stale_teacher_assignment' => 'The Teacher assignment changed while you were working. Reload and review the current Enrolment.',
+            'canonical_enrolment_required' => 'This Enrolment is not eligible for a canonical class.',
+            'canonical_term_required' => 'The selected Term is no longer current for this Enrolment.',
             'Choose a valid service-area timezone' => 'Choose one of the service-area timezones before saving.',
             'Choose a valid local date and start time' => 'Choose a valid local date and a start time from the list.',
             'Choose a future introductory time' => 'Choose a future introductory time.',

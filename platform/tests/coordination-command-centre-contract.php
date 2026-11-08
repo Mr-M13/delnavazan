@@ -130,7 +130,7 @@ foreach (array('Booking coordination', 'Action required', 'Teacher matching', 'F
 $test(!str_contains($controller, 'پ'), 'The admin controller must not introduce Persian customer copy');
 
 // Preserve the canonical handoff to the booking route.
-$contains($view, array('dzn-enrolment-workspace', 'Open booking queue', 'Routine or exceptional?'), 'Coordination must distinguish routine booking from exceptional coordination');
+$contains($view, array('dzn-enrolment-workspace', 'Open Enrolment', 'Routine or exceptional?'), 'Class admin must distinguish routine booking from exceptional coordination');
 $contains($blockers . $view, array('No further coordination action', 'Review the closed case history'), 'Archived/closed cases must remain readable without a fake mutation');
 
 echo "Coordination command centre contract passed\n";

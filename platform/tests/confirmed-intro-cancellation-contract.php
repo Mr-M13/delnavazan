@@ -21,7 +21,7 @@ $expect = static function(bool $ok, string $message): void { if (!$ok) throw new
 foreach (array('booking_request_cancellations', 'booking_request_cancellation_commands', 'booking_request_provider_retraction_jobs', '065_confirmed_intro_cancellation') as $needle) {
     $expect(str_contains($migration, $needle), 'Missing cancellation migration: ' . $needle);
 }
-$expect(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '59'") && str_contains($plugin, 'BookingCancellationRetractionWorker::register()'), 'Schema/worker registration missing');
+$expect(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '60'") && str_contains($plugin, 'BookingCancellationRetractionWorker::register()'), 'Schema/worker registration missing');
 $expect(str_contains($service, 'public function cancel(') && str_contains($service, 'PortalPrincipalResolver') && str_contains($service, "\$role === 'admin'") && str_contains($service, "in_array(\$role, array('teacher', 'student')"), 'Cancellation authority is missing admin/Student/Teacher ownership checks');
 $expect(str_contains($service, 'ensureAndLockStudentRoot') && str_contains($service, 'insertCancellation') && str_contains($service, 'insertRetractionJob') && str_contains($service, 'insertCommand') && str_contains($service, 'closeCoordinationCase') && str_contains($service, 'audit('), 'Cancellation transaction is missing Student lock, immutable evidence, outbox, command or audit');
 $expect(str_contains($service, "'duplicate_request'") && str_contains($service, "'student_requested'") && str_contains($service, "'teacher_requested'"), 'Cancellation reason vocabulary is incomplete');

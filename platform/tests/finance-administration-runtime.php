@@ -28,8 +28,8 @@ wp_set_current_user(1);
 function dzn_fin_runtime_assert(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function dzn_fin_runtime_count(string $table): int { global $wpdb; return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}dzn_{$table}"); }
 
-dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '59', 'Finance runtime requires the current package schema');
-dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '59', 'The current schema must be installed');
+dzn_fin_runtime_assert((string) DZN_PLATFORM_SCHEMA_VERSION === '60', 'Finance runtime requires the current package schema');
+dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '60', 'The current schema must be installed');
 dzn_fin_runtime_assert(in_array('060_manual_refund_reservations', (array) get_option('dzn_platform_completed_migrations', array()), true), 'Migration 060 must be recorded');
 dzn_fin_runtime_assert(in_array('061_statement_email_outbox', (array) get_option('dzn_platform_completed_migrations', array()), true), 'Migration 061 must be recorded');
 dzn_fin_runtime_assert(in_array('062_statement_batch_runs', (array) get_option('dzn_platform_completed_migrations', array()), true), 'Migration 062 must be recorded');
@@ -112,7 +112,7 @@ Migrator::maybe_upgrade();
 Migrator::maybe_upgrade();
 $after = array('regional' => dzn_fin_runtime_count('finance_regional_prices'), 'settings' => dzn_fin_runtime_count('finance_settings'), 'intro' => dzn_fin_runtime_count('intro_payment_obligations'));
 dzn_fin_runtime_assert($before === $after, 'Repeated migration must not duplicate regional/settings/intro rows');
-dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '59', 'Repeated migration must retain the current schema');
+dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '60', 'Repeated migration must retain the current schema');
 
 /* ---------------------------------------------------------------- teacher rate inheritance */
 $settings = new FinanceSettingsService();
@@ -197,7 +197,7 @@ $classifiedLegacy = (string) $wpdb->get_var($wpdb->prepare("SELECT rate_origin F
 $unknownOrigin = $wpdb->get_var($wpdb->prepare("SELECT rate_origin FROM {$p}finance_teacher_rates WHERE id=%d", $unknownRateId));
 dzn_fin_runtime_assert($classifiedLegacy === 'global_inherited', 'Schema 052 must classify only evidence-proven historical inherited rates');
 dzn_fin_runtime_assert($unknownOrigin === null, 'Schema 052 must not reinterpret historical explicit/unknown rates');
-dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '59', 'Schema 052 classification must retain the current schema');
+dzn_fin_runtime_assert((string) get_option('dzn_platform_schema_version') === '60', 'Schema 052 classification must retain the current schema');
 $unknownResult = (new TeacherRateInheritanceService())->applyForTeacher($unknownTeacher);
 dzn_fin_runtime_assert(empty($unknownResult['applied']) && ($unknownResult['reason'] ?? '') === 'existing_rate_preserved' && in_array($unknownTeacher, $settings->overrides(), true), 'An unknown historical rate must be preserved as an explicit/unknown override');
 dzn_fin_runtime_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}finance_teacher_rates WHERE teacher_id=%d", $unknownTeacher)) === 1, 'An unknown historical rate must not be duplicated');

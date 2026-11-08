@@ -461,6 +461,7 @@ final class EnrolmentWorkspaceController {
         return match ($message) {
             'Unauthorized' => 'You no longer have permission for this action.',
             'teacher_slot_conflict' => 'The Teacher already has a class at that time. Choose another slot; nothing was double-booked.',
+            'student_instrument_already_enrolled' => 'This Student already has an active enrolment for this instrument. An introductory lesson was not created.',
             'active_future_schedule_exists' => 'This Enrolment still has future scheduled classes. Cancel or reschedule them before changing the Teacher assignment.',
             'intro_not_finished' => 'The introductory lesson has not finished yet.',
             'intro_outcome_already_recorded' => 'A different outcome is already recorded for this introductory lesson.',

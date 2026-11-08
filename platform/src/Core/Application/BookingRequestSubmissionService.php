@@ -35,6 +35,9 @@ final class BookingRequestSubmissionService {
                 do_action( 'dzn_booking_student_root_held', 'submission', $studentId );
             }
             $instrument = $this->repo->instrumentForUpdate( $data['instrument_id'] ); $course = $data['course_id'] ? $this->repo->courseForUpdate( $data['course_id'] ) : null; $data = $this->validator->resolveLockedCatalogue( $data, $instrument, $course );
+            if ( $studentId !== null && $studentId > 0 && $this->repo->studentHasActiveInstrumentEnrolment( $studentId, (int) $data['instrument_id'] ) ) {
+                throw new BookingRequestInstrumentEnrollmentException( 'student_instrument_already_enrolled' );
+            }
             if ( $studentId !== null && $studentId > 0 && $this->repo->studentOccupancyConflicts( $studentId, $data['times'], array( 'include_open_requests' => true ) ) ) throw new BookingRequestSlotConflictException('student_slot_conflict');
             $id = $this->repo->createRequest( array( 'uid' => $uid, 'reference_code' => null, 'student_id' => null, 'requested_instrument_id' => $data['instrument_id'], 'selected_intro_course_id' => $data['course_id'], 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => $retention, 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => null, 'updated_by' => null ) );
             $this->repo->assignReference( $id, $reference ); $digests = array('email_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['email']),'mobile_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['mobile']),'whatsapp_digest'=>BookingRequestIdempotency::privateDigest($data['contact']['whatsapp_number'])); $this->repo->createSnapshot( $id, $data['contact'], $now, $digests );

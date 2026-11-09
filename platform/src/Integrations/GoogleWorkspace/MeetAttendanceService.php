@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 
-use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIdempotency,CanonicalAttendanceIntakeService};
+use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIdempotency,CanonicalAttendanceIntakeService,ProviderEvidenceSystemActor};
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /**
@@ -112,7 +112,7 @@ final class MeetAttendanceService {
         }
         $role=(string)$mapping->participant_role;
         if(!in_array($role,array('teacher','student'),true))return 'deferred';
-        if(!function_exists('current_user_can')||!current_user_can('dzn_ingest_canonical_attendance_evidence')){
+        if(!ProviderEvidenceSystemActor::isConfigured()){
             $this->repository->updateParticipantSession((int)$row->id,array(
                 'mapping_state'=>'verified_intake_deferred','mapped_role'=>$role,'mapped_participant_id'=>(int)$mapping->participant_id,
             ),array('id'=>(int)$row->id));
@@ -121,7 +121,7 @@ final class MeetAttendanceService {
         $eventKey='meet-session:'.(string)$row->participant_session_name;
         $key='meet-attendance-'.substr(CanonicalAttendanceIdempotency::key($eventKey),0,40);
         try{
-            $this->intake->ingestProviderEvidence((int)$classroom->lesson_id,(int)$classroom->schedule_version_id,array(
+            ProviderEvidenceSystemActor::run(fn()=> $this->intake->ingestProviderEvidence((int)$classroom->lesson_id,(int)$classroom->schedule_version_id,array(
                 'provider_code'=>'google_meet','participant_role'=>$role,
                 'provider_account_key'=>$shape['account_key'],
                 'provider_session_key'=>(string)$row->participant_session_name,
@@ -131,7 +131,7 @@ final class MeetAttendanceService {
                 'join_at_utc'=>$row->join_at_utc,'leave_at_utc'=>$row->leave_at_utc,
                 'provenance_reference'=>'google-meet-conference:'.(string)$row->conference_record_id,
                 'evidence_reference'=>'google-meet-session:'.(string)$row->participant_session_name,
-            ),$key);
+            ),$key));
             $this->repository->updateParticipantSession((int)$row->id,array(
                 'mapping_state'=>'verified_ingested','mapped_role'=>$role,'mapped_participant_id'=>(int)$mapping->participant_id,
             ),array('id'=>(int)$row->id));

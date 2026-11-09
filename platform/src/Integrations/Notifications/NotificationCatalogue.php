@@ -29,6 +29,17 @@ final class NotificationCatalogue {
         'optional'=>array('label'=>'Optional Announcements','description'=>'Non-essential news and offers; marketing consent only.','policy'=>'marketing'),
     );
 
+    /** Task groups organise the administration workspace; categories remain the stable consent and channel-policy boundary. */
+    public const TASKS=array(
+        'enrolment_booking'=>array('label'=>'Enrolment & Booking','description'=>'Intro lessons, offers, enrolment preparation and booking coordination.'),
+        'classes_scheduling'=>array('label'=>'Classes & Scheduling','description'=>'Lessons, attendance, replacement sessions and timetable changes.'),
+        'finance_payments'=>array('label'=>'Finance & Payments','description'=>'Payment outcomes, invoices and payment actions.'),
+        'renewals'=>array('label'=>'Renewals','description'=>'Upcoming, completed and failed term renewals.'),
+        'accounts_onboarding'=>array('label'=>'Accounts & Onboarding','description'=>'Account access, invitations, consent and new-account setup.'),
+        'support'=>array('label'=>'Support','description'=>'Member help and non-routine assistance.'),
+        'system'=>array('label'=>'System','description'=>'Internal checks and operational administration notices.'),
+    );
+
     /** Delivery authorities. A message is never re-sent by a second authority. */
     public const AUTHORITIES=array(
         'canonical'=>'Canonical notification service (S)',
@@ -63,6 +74,18 @@ final class NotificationCatalogue {
     /** @return string[] */
     public static function variables(string $key):array{return array_values((array)(self::get($key)['variables']??array()));}
     public static function category(string $category):?array{return self::CATEGORIES[$category]??null;}
+    public static function task(string $task):?array{return self::TASKS[$task]??null;}
+    /** Stable business-work grouping for the administration projection; never a send policy. */
+    public static function taskKey(string $eventKey):string{
+        if(str_starts_with($eventKey,'booking.')||str_starts_with($eventKey,'post_intro.'))return 'enrolment_booking';
+        if(str_starts_with($eventKey,'lesson.')||str_starts_with($eventKey,'attendance.')||str_starts_with($eventKey,'reschedule.'))return 'classes_scheduling';
+        if(str_starts_with($eventKey,'renewal.'))return 'renewals';
+        if(str_starts_with($eventKey,'payment.'))return 'finance_payments';
+        if(str_starts_with($eventKey,'account.')||str_starts_with($eventKey,'teacher.invitation_')||str_starts_with($eventKey,'consent.'))return 'accounts_onboarding';
+        if(str_starts_with($eventKey,'system.'))return 'system';
+        return 'support';
+    }
+    public static function taskForEvent(string $eventKey):?array{return self::task(self::taskKey($eventKey));}
     public static function templateKey(string $eventKey,string $channel,string $locale):string{
         $key=$eventKey.'.'.$channel.'.'.self::normaliseLocale($locale);
         if(strlen($key)>64)throw new \InvalidArgumentException('notification_template_key_too_long');

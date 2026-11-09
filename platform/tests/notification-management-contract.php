@@ -43,9 +43,10 @@ $fail('preview masks one-time secrets', str_contains($library, "foreach(array('c
 $fail('preview test covers all four channels', is_file($root . '/tests/notification-preview-unit.php') && str_contains((string) file_get_contents($root . '/tests/notification-preview-unit.php'), "\$channelsSeen['website']"));
 $fail('delivery status test exists', is_file($root . '/tests/notification-delivery-status-unit.php'));
 
-/* 1c. Notifications opens on the event table; templates remain an editor beneath it and old tabs stay aliases. */
+/* 1c. Notifications opens on the event table organised by business task; templates remain an editor beneath it and old tabs stay aliases. */
 $fail('events is the default workspace', str_contains($controller, "'events'=>'Events'") || str_contains($controller, "sanitize_key(wp_unslash((string)\$_GET['tab'])):'events'"));
 $fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'events'") && str_contains($controller, "'monitoring'=>'diagnostics'"));
+$fail('business tasks, not student and teacher tabs, organise events and templates', substr_count($controller, 'name="task"') >= 2 && str_contains($controller, 'Business task') && !str_contains($controller, '>Student notifications</a>'));
 $fail('channel settings are ordered WhatsApp, Email, SMS', strpos($controller, "self::renderChannelCard('whatsapp'") < strpos($controller, "self::renderChannelCard('email'") && strpos($controller, "self::renderChannelCard('email'") < strpos($controller, "self::renderChannelCard('sms'"));
 $fail('provider mapping lives with the WhatsApp template editor', str_contains($controller, 'private static function renderProviderMapping') && str_contains($controller, "if(\$channel!=='whatsapp')return;"));
 $fail('admin and transport share one provider mapping authority', str_contains($library, 'TelnyxTemplateAuthority') && str_contains($adapter, 'TelnyxTemplateAuthority') && str_contains($authority, "count(\$approved)>1") && str_contains($authority, 'CONTRACT_MISMATCH'));
@@ -64,7 +65,7 @@ $fail('copy is keyed by version id', str_contains($library, 'template_version_id
 $fail('no provider credential is stored', !str_contains($library, 'api_key') && !str_contains($library, 'access_token') && !str_contains($library, 'client_secret'));
 
 /* 3. The catalogue is a single definition source with categories, authorities and channel policy. */
-foreach (array('CATEGORIES', 'AUTHORITIES', 'IMPLEMENTATION', 'variables', 'defaultCopy', 'templateKey', 'isMandatory') as $needle) {
+foreach (array('CATEGORIES', 'TASKS', 'taskKey', 'AUTHORITIES', 'IMPLEMENTATION', 'variables', 'defaultCopy', 'templateKey', 'isMandatory') as $needle) {
     $fail('catalogue exposes ' . $needle, str_contains($catalogue, $needle));
 }
 $fail('one-time secret events stay security-only', str_contains($catalogue, "'account.claim_issued.student'") && str_contains($catalogue, "'teacher.invitation_issued.teacher'"));

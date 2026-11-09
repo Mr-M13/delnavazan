@@ -73,6 +73,12 @@ $contains($controller, array(
     "private static function introFormValues",
 ), 'Create errors must preserve the form and return focus to it instead of the page top');
 $contains($view, array('dzn-intro-form-error', 'Introductory lesson was not created.'), 'Create errors must render inside the form');
+$contains($controller, array(
+    "'student_slot_conflict' => 'The Student already has an overlapping booking or class.",
+    "'EWI-'",
+    "workspace][' . \$failureReference",
+    "Reference: ' . \$failureReference",
+), 'Manual-intro refusals must identify Student conflicts clearly and retain an opaque server-log reference for unexpected failures');
 
 // 6. Administrator manual/intro match must dispatch the same projector as the teacher path.
 $contains($match, array(

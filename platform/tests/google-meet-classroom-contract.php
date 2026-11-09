@@ -139,7 +139,9 @@ $check('classroom route no longer loads the LiveKit SDK', !str_contains($routes,
 $meetTemplate = $read('theme/template-parts/classroom/meet.php');
 $check('branded entry page shows teacher and student names', str_contains($meetTemplate, '$teacher_name') && str_contains($meetTemplate, '$student_name'));
 $check('branded entry page shows scheduled lesson information', str_contains($meetTemplate, '$date_label') && str_contains($meetTemplate, '$time_label'));
-$check('branded entry page has Persian music guidance', str_contains($meetTemplate, 'صدای موسیقی'));
+$check('branded entry page gives Teachers entry troubleshooting guidance', str_contains($meetTemplate, 'اگر ورود به کلاس مشکل داشت') && str_contains($meetTemplate, 'واتس‌اپ'));
+$check('branded entry page gives Teachers sound troubleshooting guidance', str_contains($meetTemplate, 'اگر صدا مشکل داشت') && str_contains($meetTemplate, 'Noise suppression'));
+$check('branded entry page requires Teachers to confirm completion', str_contains($meetTemplate, 'پس از پایان کلاس') && str_contains($meetTemplate, 'تأیید برگزاری و حضور'));
 $check('branded entry page posts to the authenticated join controller', str_contains($meetTemplate, 'wp_create_nonce') && str_contains($meetTemplate, 'admin-post.php'));
 $check('Teacher pre-class page reads the canonical briefing service', str_contains($meetTemplate, 'TeacherClassroomBriefingReadService'));
 $check('Teacher pre-class page shows the previous private note and term timeline', str_contains($meetTemplate, 'یادداشت جلسهٔ گذشته') && str_contains($meetTemplate, 'خط زمانی ترم هنرجو'));

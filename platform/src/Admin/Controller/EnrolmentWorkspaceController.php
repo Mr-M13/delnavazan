@@ -76,8 +76,13 @@ final class EnrolmentWorkspaceController {
             $message = self::dispatch($operation, wp_unslash($_POST));
             self::redirect($return, $message, false);
         } catch (\Throwable $exception) {
-            error_log('[Delnavazan enrolment workspace] ' . $operation . ' ' . get_class($exception) . ' ' . $exception->getMessage());
-            $message = self::safeMessage($exception);
+            // A browser-facing message must never expose provider or database detail, but an
+            // opaque reference lets an administrator connect a generic refusal to the exact
+            // server-side failure. This is particularly important for manual intro creation:
+            // a retry after an ambiguous result can otherwise create a second request.
+            $failureReference = 'EWI-' . strtoupper(substr(hash_hmac('sha256', $operation . '|' . wp_generate_uuid4(), wp_salt('dzn_platform_workspace_failure')), 0, 12));
+            error_log('[Delnavazan enrolment workspace][' . $failureReference . '] ' . $operation . ' ' . get_class($exception) . ' ' . $exception->getMessage());
+            $message = self::safeMessage($exception, $failureReference);
             if ($operation === 'create_intro') {
                 set_transient('dzn_intro_form_' . get_current_user_id(), array(
                     'message' => $message,
@@ -538,11 +543,12 @@ final class EnrolmentWorkspaceController {
         return $values;
     }
 
-    private static function safeMessage(\Throwable $exception): string {
+    private static function safeMessage(\Throwable $exception, string $failureReference = ''): string {
         $message = $exception->getMessage();
         return match ($message) {
             'Unauthorized' => 'You no longer have permission for this action.',
             'teacher_slot_conflict' => 'The Teacher already has a class at that time. Choose another slot; nothing was double-booked.',
+            'student_slot_conflict' => 'The Student already has an overlapping booking or class. Choose another time; nothing was duplicated.',
             'student_instrument_already_enrolled' => 'This Student already has an active enrolment for this instrument. An introductory lesson was not created.',
             'active_future_schedule_exists' => 'This Enrolment still has future scheduled classes. Cancel or reschedule them before changing the Teacher assignment.',
             'intro_not_finished' => 'The introductory lesson has not finished yet.',
@@ -569,6 +575,8 @@ final class EnrolmentWorkspaceController {
             'Choose a valid service-area timezone' => 'Choose one of the service-area timezones before saving.',
             'Choose a valid local date and start time' => 'Choose a valid local date and a start time from the list.',
             'Choose a future introductory time' => 'Choose a future introductory time.',
+            'Booking Request rate limited' => 'Too many booking attempts were made in a short time. Wait a few minutes, then try again.',
+            'Idempotency conflict' => 'This form submission was already processed differently. Reload the page before trying again.',
             'The Teacher already has a class at that time. Choose another slot.' => 'The Teacher already has a class at that time. Choose another slot; nothing was double-booked.',
             'The Teacher has a reserved continuation slot at that time. Choose another slot.' => 'The Teacher has a reserved continuation slot at that time. Choose another slot.',
             'The Student already has a class at that time. Choose another slot.' => 'The Student already has a class at that time. Choose another slot.',
@@ -580,7 +588,7 @@ final class EnrolmentWorkspaceController {
                 ? $message
                 : (str_starts_with($message, 'teacher_') || str_contains($message, 'required')
                     ? ucfirst(str_replace('_', ' ', $message)) . '.'
-                    : 'The action could not be completed; no change was saved.'),
+                    : 'The action could not be completed; no change was saved.' . ($failureReference !== '' ? ' Reference: ' . $failureReference . '.' : '')),
         };
     }
 

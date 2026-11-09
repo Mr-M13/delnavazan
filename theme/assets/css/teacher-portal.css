@@ -2639,10 +2639,10 @@
 
 /* Explicit God Mode test classes: visible, clearly labelled and financially inert. */
 .dzn-tp-test-classes {
-  border: 1px dashed var(--dzn-color-border-strong, #cbd5e1);
+  border: 1px dashed var(--dzn-tp-border);
   border-radius: var(--dzn-radius-lg, 16px);
   padding: 1rem;
-  background: color-mix(in srgb, var(--dzn-color-information, #2271b1) 4%, var(--dzn-color-surface-elevated, #fff));
+  background: color-mix(in srgb, var(--dzn-color-information) 4%, var(--dzn-tp-card));
 }
 .dzn-tp-test-badge {
   display: inline-flex;
@@ -2652,8 +2652,8 @@
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #7c2d12;
-  background: #ffedd5;
-  border: 1px solid #fdba74;
+  color: var(--dzn-color-text-primary);
+  background: color-mix(in srgb, var(--dzn-color-warning) 18%, var(--dzn-tp-card));
+  border: 1px solid var(--dzn-color-warning);
 }
-.dzn-tp-class.is-test { outline: 1px dashed #fdba74; outline-offset: 2px; }
+.dzn-tp-class.is-test { outline: 1px dashed var(--dzn-color-warning); outline-offset: 2px; }

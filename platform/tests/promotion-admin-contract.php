@@ -43,6 +43,10 @@ $assert(str_contains($finance, 'promotionPercentageBasisPoints') && str_contains
 $assert(str_contains($finance, 'max="100"') && str_contains($finance, 'min="0.01"'), 'The admin form must accept 0.01–100%.');
 $assert(str_contains($finance, 'promotion_code_exists'), 'A duplicate code must produce a safe operator message.');
 $assert(str_contains($promotion, 'promotion_code_exists'), 'The promotion authority must classify a duplicate code digest safely.');
+$assert(str_contains($finance, 'name="valid_from"') && str_contains($finance, 'name="valid_until"'), 'The create form must expose the start and end validity dates.');
+$assert(str_contains($finance, 'promotionValidityDate') && str_contains($finance, "'valid_from' => \$validFrom") && str_contains($finance, "'valid_until' => \$validUntil"), 'The create command must convert and pass the validity dates.');
+$assert(str_contains($finance, '<th>Code</th>'), 'The discount-code table must show the actual code.');
+$assert(str_contains($promotion, "'reference_code'=>\$code===''?null:\$code"), 'The promotion authority must retain the code as the operator-visible reference.');
 
 $assert(str_contains($offer, 'if($amountDue===0)'), 'Offer application must branch for a zero payable amount.');
 $assert(str_contains($offer, 'settleZeroValueOffer('), 'A 100% offer must be settled through the internal zero-value path.');

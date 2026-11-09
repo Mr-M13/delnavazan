@@ -544,7 +544,8 @@ final class StudentWorkspaceController {
             echo '<div class="dzn-table-scroll"><table class="widefat striped"><thead><tr><th>Promotion</th><th>Value</th><th>State</th><th>Consumed</th></tr></thead><tbody>';
             foreach ($finance['discounts'] as $discount) {
                 $value = (string) $discount->kind === 'percentage' ? ((int) $discount->percentage_bp / 100) . '%' : self::money((int) ($discount->fixed_amount_minor ?? 0), (string) ($discount->promotion_currency ?? ''));
-                echo '<tr><td>' . esc_html((string) ($discount->name ?: 'Promotion #' . (int) $discount->id)) . '</td><td>' . esc_html($value) . '</td><td>' . esc_html(ucfirst((string) $discount->state)) . '</td><td>' . esc_html(self::human((string) $discount->consumed_at)) . '</td></tr>';
+                $label = (string) ($discount->promotion_code ?: ($discount->name ?: 'Promotion #' . (int) $discount->id));
+                echo '<tr><td>' . esc_html($label) . '</td><td>' . esc_html($value) . '</td><td>' . esc_html(ucfirst((string) $discount->state)) . '</td><td>' . esc_html(self::human((string) $discount->consumed_at)) . '</td></tr>';
             }
             echo '</tbody></table></div>';
         }

@@ -49,6 +49,26 @@ $telnyxMessages = $wpdb->get_results("SELECT channel,state,COUNT(*) total,MIN(cr
 $telnyxMessageRecent = $wpdb->get_results("SELECT id,channel,notification_id,attempt_id,provider_template_name,state,created_at,updated_at FROM {$p}telnyx_messages ORDER BY id DESC LIMIT 15", ARRAY_A) ?: array();
 $telnyxEvents = $wpdb->get_results("SELECT event_type,delivery_state,outcome_code,COUNT(*) total,MAX(occurred_at) newest FROM {$p}telnyx_events GROUP BY event_type,delivery_state,outcome_code ORDER BY total DESC LIMIT 20", ARRAY_A) ?: array();
 $attemptOutcomes = $wpdb->get_results("SELECT state,outcome_code,failure_class,COUNT(*) total,MAX(updated_at) newest FROM {$p}notification_attempts GROUP BY state,outcome_code,failure_class ORDER BY total DESC LIMIT 20", ARRAY_A) ?: array();
+$recentRequests = $wpdb->get_results(
+    "SELECT r.id request_id,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,r.updated_at,
+            (SELECT rt.starts_at_utc FROM {$p}booking_request_requested_times rt WHERE rt.booking_request_id=r.id ORDER BY rt.sequence_number,rt.id LIMIT 1) requested_start_utc,
+            (SELECT d.id FROM {$p}booking_request_teacher_deliveries d WHERE d.booking_request_id=r.id ORDER BY d.id DESC LIMIT 1) delivery_id,
+            (SELECT d.teacher_id FROM {$p}booking_request_teacher_deliveries d WHERE d.booking_request_id=r.id ORDER BY d.id DESC LIMIT 1) teacher_id,
+            (SELECT d.state FROM {$p}booking_request_teacher_deliveries d WHERE d.booking_request_id=r.id ORDER BY d.id DESC LIMIT 1) delivery_state,
+            (SELECT o.id FROM {$p}booking_allocation_offers o WHERE o.booking_request_id=r.id ORDER BY o.id DESC LIMIT 1) offer_id,
+            (SELECT o.state FROM {$p}booking_allocation_offers o WHERE o.booking_request_id=r.id ORDER BY o.id DESC LIMIT 1) offer_state,
+            (SELECT o.deadline_at FROM {$p}booking_allocation_offers o WHERE o.booking_request_id=r.id ORDER BY o.id DESC LIMIT 1) offer_deadline_at,
+            (SELECT c.id FROM {$p}booking_request_confirmations c WHERE c.booking_request_id=r.id ORDER BY c.id DESC LIMIT 1) confirmation_id,
+            (SELECT c.state FROM {$p}booking_request_confirmations c WHERE c.booking_request_id=r.id ORDER BY c.id DESC LIMIT 1) confirmation_state,
+            (SELECT c.failure_reason_code FROM {$p}booking_request_confirmations c WHERE c.booking_request_id=r.id ORDER BY c.id DESC LIMIT 1) confirmation_failure_code,
+            (SELECT m.classroom_state FROM {$p}meet_classrooms m WHERE m.booking_confirmation_id=(SELECT c2.id FROM {$p}booking_request_confirmations c2 WHERE c2.booking_request_id=r.id ORDER BY c2.id DESC LIMIT 1) ORDER BY (m.active_slot=1) DESC,m.id DESC LIMIT 1) classroom_state,
+            (SELECT m.cohost_state FROM {$p}meet_classrooms m WHERE m.booking_confirmation_id=(SELECT c3.id FROM {$p}booking_request_confirmations c3 WHERE c3.booking_request_id=r.id ORDER BY c3.id DESC LIMIT 1) ORDER BY (m.active_slot=1) DESC,m.id DESC LIMIT 1) cohost_state,
+            (SELECT COALESCE(NULLIF(m.failure_reason_code,''),NULLIF(m.cohost_error_code,'')) FROM {$p}meet_classrooms m WHERE m.booking_confirmation_id=(SELECT c4.id FROM {$p}booking_request_confirmations c4 WHERE c4.booking_request_id=r.id ORDER BY c4.id DESC LIMIT 1) ORDER BY (m.active_slot=1) DESC,m.id DESC LIMIT 1) classroom_failure_code
+     FROM {$p}booking_requests r
+     WHERE r.privacy_erased_at IS NULL
+     ORDER BY r.id DESC LIMIT 15",
+    ARRAY_A
+) ?: array();
 
 $cron = _get_cron_array();
 $bookingCron = array();
@@ -89,5 +109,6 @@ echo json_encode(array(
     'telnyx_message_recent' => $telnyxMessageRecent,
     'telnyx_events' => $telnyxEvents,
     'notification_attempt_outcomes' => $attemptOutcomes,
+    'recent_requests' => $recentRequests,
     'provider_readiness' => array('telnyx' => $whatsapp, 'google_oauth' => $google),
 ), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT), "\n";

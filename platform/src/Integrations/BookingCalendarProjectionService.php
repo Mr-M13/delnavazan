@@ -21,7 +21,10 @@ final class BookingCalendarProjectionService {
         if($lock===false)return array('confirmation_id'=>$confirmationId,'state'=>'retryable','failure_reason_code'=>'booking_projection_busy','retryable'=>true);
         try{
             $confirmation=$this->repository->confirmation($confirmationId);if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
-            if((string)$confirmation->state==='confirmed')return array('confirmation_id'=>$confirmationId,'state'=>'confirmed','idempotent'=>true);
+            if((string)$confirmation->state==='confirmed'){
+                $this->reconcileConfirmedLifecycle($confirmation);
+                return array('confirmation_id'=>$confirmationId,'state'=>'confirmed','idempotent'=>true);
+            }
             if((string)$confirmation->state==='awaiting_payment')throw new \InvalidArgumentException('intro_payment_required');
             if(!in_array((string)$confirmation->state,array('pending_projection','awaiting_conference','retryable'),true))throw new \InvalidArgumentException('Booking confirmation is not projectable');
             $centralInstalled=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');
@@ -68,6 +71,23 @@ final class BookingCalendarProjectionService {
         }finally{
             $this->releaseLock(is_string($lock)?$lock:null);
         }
+    }
+
+    /** Repair historical/provider-confirmed rows whose request lifecycle was not closed. */
+    private function reconcileConfirmedLifecycle(object $confirmation):void{
+        $now=gmdate('Y-m-d H:i:s');
+        $actor=function_exists('get_current_user_id')?(int)get_current_user_id():0;
+        $this->repository->begin();
+        try{
+            $delivery=$this->repository->delivery((int)$confirmation->delivery_id,true);
+            if(!$delivery)throw new \RuntimeException('Booking delivery not found');
+            if((string)$delivery->lifecycle_status==='submitted'&&(string)$delivery->resolution_state==='unresolved'){
+                if((string)$delivery->state==='pending_request')$this->repository->transitionDelivery((int)$delivery->id,'pending_request','accepting',$now);
+                if((string)$delivery->state==='accepting')$this->repository->transitionDelivery((int)$delivery->id,'accepting','confirmed',$now);
+                $this->repository->closeRequest((int)$delivery->booking_request_id,'teacher_confirmed',$now,$actor);
+            }
+            $this->repository->commit();
+        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
     }
 
     /**
